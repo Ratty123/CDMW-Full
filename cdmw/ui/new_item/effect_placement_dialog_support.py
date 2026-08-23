@@ -120,7 +120,7 @@ def remember_orbit_inversion(invert_x: bool, invert_y: bool) -> None:
 
 
 #: the swatch for the particles themselves, which have no one colour: the warm orange
-#: most of the shipped weapon effects land on
+#: most of the shipped effects land on
 PARTICLE_TINT = (0.75, 0.25, 0.05)
 
 

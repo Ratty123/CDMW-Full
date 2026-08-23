@@ -30,6 +30,7 @@ from cdmw.ui.new_item.state import (  # noqa: E402
     stat_grid_for,
     with_template,
 )
+from cdmw.ui.new_item.workflow_header import WorkflowStepState  # noqa: E402
 from test_iteminfo_row import COPPER, DDD, build_row  # noqa: E402
 from test_new_item_service import OTHER, TEMPLATE, _read, build_package, synthetic_files  # noqa: E402
 
@@ -85,12 +86,12 @@ class TabTests(unittest.TestCase):
         QApplication.processEvents()
         self._temp.cleanup()
 
-    def _tab(self, window=None):
+    def _tab(self, window=None, **kwargs):
         from cdmw.ui.new_item.controller import NewItemStudioController
         from cdmw.ui.new_item.tab import NewItemStudioTab
 
         controller = NewItemStudioController(service=NewItemService(), read_entry=_read, synchronous=True)
-        return NewItemStudioTab(window=window, controller=controller, get_archive_entries=lambda: self.entries)
+        return NewItemStudioTab(window=window, controller=controller, get_archive_entries=lambda: self.entries, **kwargs)
 
     def test_construction_before_any_snapshot_is_cheap_and_quiet(self) -> None:
         tab = self._tab()
@@ -209,17 +210,22 @@ class TabTests(unittest.TestCase):
         self.assertFalse(perks.catalogue.isVisibleTo(perks), "the perk catalogue waits to be asked for")
         perks.own_perks.setChecked(True)
         self.assertTrue(perks.catalogue.isVisibleTo(perks))
-        for row in perks._effect_rows:
-            self.assertFalse(row.isVisibleTo(perks), "the effect's rows wait for the effect")
-        perks.use_effect.setChecked(True)
-        for row in perks._effect_rows:
-            self.assertTrue(row.isVisibleTo(perks))
-        self.assertEqual(tab.controller.draft.effect_stem, "", "opting in does not silently choose an arbitrary effect")
-        self.assertFalse(perks.effect_advanced.isVisibleTo(perks), "raw effect controls stay folded")
-        perks.effect_advanced_toggle.setChecked(True)
+        self.assertEqual([perks.tabs.tabText(index) for index in range(perks.tabs.count())], ["Perks", "Effects"])
+        self.assertIs(perks.tabs.currentWidget(), perks.perks_page, "customizing perks reveals the Perks tab")
+        perks.tabs.setCurrentWidget(perks.effects_page)
+        self.assertFalse(perks._legacy_intro.isVisibleTo(perks), "the retired page intro does not float over the tabs")
+        self.assertFalse(perks.effect_primary.isVisibleTo(perks), "the curated/proven selector is not presented")
+        self.assertIs(perks.parentWidget(), tab.pages)
+        self.assertIs(tab.summary.parentWidget(), tab.summary_box)
+        self.assertFalse(tab.summary.isWindow(), "the hidden workflow summary must never become a floating window")
+        self.assertFalse(tab.summary_box.isVisibleTo(tab))
+        self.assertEqual(tab.controller.draft.effect_stem, "", "the No effect row starts without an arbitrary effect")
         tab.show_step(4)
         self.app.processEvents()
-        self.assertEqual(tab.pages.currentWidget().horizontalScrollBar().maximum(), 0, "expanded appearance controls fit at 1280")
+        self.assertIs(tab.pages.currentWidget(), perks, "Step 5 is the non-scrolling resident workspace")
+        self.assertEqual(perks.effects_workspace.minimumWidth(), 0)
+        self.assertEqual(perks.effects_workspace.splitter.widget(0).minimumWidth(), 300)
+        self.assertEqual(perks.effects_workspace.placement_holder.minimumWidth(), 820)
         tab.stats_panel.advanced_toggle.setChecked(True)
         tab.show_step(3)
         self.app.processEvents()
@@ -233,7 +239,10 @@ class TabTests(unittest.TestCase):
         for index in range(tab.steps.count()):
             tab.show_step(index)
             self.app.processEvents()
-            self.assertIsInstance(tab.pages.currentWidget(), QScrollArea, "each step is its own scroll area")
+            if index == 4:
+                self.assertNotIsInstance(tab.pages.currentWidget(), QScrollArea)
+            else:
+                self.assertIsInstance(tab.pages.currentWidget(), QScrollArea)
         # a tick's own text never wraps, so a long one sets the whole step's minimum width
         # and the page scrolls sideways; the rest of the sentence belongs in the tooltip
         for kind in (QCheckBox, QRadioButton):
@@ -581,17 +590,122 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
-    def test_weapon_effect_support_is_class_aware(self) -> None:
+    def test_effect_support_is_structural_not_an_equipment_name_blocklist(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
         perks = tab.perks_panel
         self.assertTrue(perks.use_effect.isEnabled())
         with patch.object(type(tab.controller.snapshot), "equip_type_name", lambda _self, _row: "Helm"):
-            perks.use_effect.setChecked(True)
             perks._refresh_effect_support()
-            self.assertFalse(perks.use_effect.isEnabled())
-            self.assertFalse(perks.use_effect.isChecked())
-            self.assertIn("unavailable", perks.effect_support.plain_text())
+            self.assertTrue(perks.use_effect.isEnabled())
+            self.assertIn("Available", perks.effect_support.plain_text())
+        tab.close()
+        tab.deleteLater()
+
+    def test_guided_effect_navigation_applies_discards_or_stays(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        self.assertEqual(tab.steps.stepState(0), WorkflowStepState.COMPLETED)
+        effects = tab.perks_panel.effects_workspace
+        effects._confirm_unreviewed = lambda _reason: True
+        tab.show_step(4)
+        effects.choose_effect("fx_test_fire")
+        self.assertTrue(effects.has_staged_changes())
+        self.assertFalse(tab.continue_button.isEnabled())
+        self.assertEqual(tab.steps.stepState(4), WorkflowStepState.PENDING)
+
+        tab._effect_dirty_prompt = lambda: "stay"
+        tab.show_step(5)
+        self.assertEqual((tab.steps.currentRow(), tab.pages.currentIndex()), (4, 4))
+        self.assertEqual(tab.controller.draft.effect_stem, "")
+
+        tab._effect_dirty_prompt = lambda: "discard"
+        tab.show_step(5)
+        self.assertEqual((tab.steps.currentRow(), tab.pages.currentIndex()), (5, 5))
+        self.assertFalse(effects.has_staged_changes())
+        self.assertEqual(tab.controller.draft.effect_stem, "")
+
+        tab.show_step(4)
+        effects.choose_effect("fx_test_fire")
+        tab._effect_dirty_prompt = lambda: "apply"
+        tab.show_step(5)
+        self.assertEqual((tab.steps.currentRow(), tab.pages.currentIndex()), (5, 5))
+        self.assertEqual(tab.controller.draft.effect_stem, "fx_test_fire")
+        self.assertFalse(effects.has_staged_changes())
+        self.assertEqual(tab.steps.stepState(4), WorkflowStepState.COMPLETED)
+        tab.request_shutdown()
+        tab.close()
+        tab.deleteLater()
+
+    def test_guided_shell_geometry_matches_the_three_pane_contract(self) -> None:
+        tab = self._tab()
+        tab.start_snapshot()
+        effects = tab.perks_panel.effects_workspace
+        effects._host_factory = lambda _parent: None
+        tab.prefill_template(TEMPLATE)
+        tab.show_step(4)
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+
+        blade = ParsedMesh(
+            path="blade",
+            format="pac",
+            submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])],
+        )
+        with patch.object(type(tab.controller), "item_mesh_as_planned", return_value=(blade, "template")):
+            effects._rebuild_preview()
+        tab.show()
+        for width, height in ((1280, 720), (1600, 900)):
+            tab.resize(width, height)
+            self.app.processEvents()
+            self.assertEqual(tab.steps.height(), 76)
+            self.assertEqual(tab.step_hint.text(), "Step 5 of 7")
+            self.assertEqual(tab.back_button.text(), "Back")
+            self.assertEqual(tab.continue_button.text(), "Continue")
+            outer = effects.splitter.sizes()
+            placement = effects.placement
+            self.assertIsNotNone(placement)
+            inner = placement.preview_splitter.sizes()
+            total = float(sum(outer))
+            left = outer[0] / total
+            centre = outer[1] / total * inner[0] / sum(inner)
+            inspector = outer[1] / total * inner[1] / sum(inner)
+            self.assertAlmostEqual(left, 0.29, delta=0.035)
+            self.assertAlmostEqual(centre, 0.43, delta=0.045)
+            self.assertAlmostEqual(inspector, 0.28, delta=0.04)
+            self.assertGreaterEqual(effects.splitter.widget(0).width(), 300)
+            self.assertGreaterEqual(placement.preview_splitter.widget(0).width(), 480)
+            self.assertGreaterEqual(placement.preview_splitter.widget(1).width(), 340)
+            if width == 1280:
+                toolbar_buttons = (
+                    placement.move_button,
+                    placement.rotate_button,
+                    placement.scale_button,
+                    *placement.view_buttons[:3],
+                    placement.frame_button,
+                    placement.pause_button,
+                )
+                for button in toolbar_buttons:
+                    required = button.fontMetrics().horizontalAdvance(button.text()) + button.iconSize().width() + 6
+                    self.assertGreaterEqual(button.width(), required, button.text())
+                    self.assertLessEqual(button.height(), 36, button.text())
+                rows = [button.y() for button in toolbar_buttons]
+                self.assertEqual(len(set(rows)), 2, f"toolbar width={placement.guided_toolbar_panel.width()}")
+                self.assertEqual(sorted(rows.count(row) for row in set(rows)), [4, 4])
+            else:
+                self.assertEqual(
+                    len({button.y() for button in placement._guided_toolbar_buttons}),
+                    1,
+                    (
+                        f"toolbar width={placement.guided_toolbar_panel.width()}, "
+                        f"columns={placement._guided_toolbar_columns}, "
+                        f"minimums={[button.minimumWidth() for button in placement._guided_toolbar_buttons]}"
+                    ),
+                )
+        resident = effects.placement
+        tab.show_step(5)
+        tab.show_step(4)
+        self.assertIs(effects.placement, resident, "returning to Step 5 reuses the resident placement workspace")
+        tab.request_shutdown()
         tab.close()
         tab.deleteLater()
 
@@ -682,108 +796,31 @@ class TabTests(unittest.TestCase):
         perks.chosen.setCurrentRow(0)
         perks.remove_button.click()
         self.assertEqual(tab.controller.draft.socket_items, [1002812, 1002793])
-        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["", "fx_cc_firesweapon_a__fire1", "fx_test_fire", "fx_test_ice"])
-        # the element presets: only the shipped ones, the proven one marked; choosing one selects the effect
-        self.assertEqual([perks.effect_preset.itemData(i) for i in range(perks.effect_preset.count())], ["", "fx_cc_firesweapon_a__fire1"])
-        self.assertIn("(proven)", perks.effect_preset.itemText(1))
-        perks.effect_preset.setCurrentIndex(1)
-        self.assertTrue(perks.use_effect.isChecked())
-        self.assertEqual(tab.controller.draft.effect_stem, "fx_cc_firesweapon_a__fire1")
-        self.assertEqual(perks.effect_scale.value(), 0.6, "the preset's starting scale")
-        self.assertEqual(tab.controller.draft.effect_scale, 0.6)
-        perks.effect_scale.setValue(0.25)
-        perks.effect_offset[1].setValue(0.1)
-        self.assertEqual((tab.controller.draft.effect_scale, tab.controller.draft.effect_offset), (0.25, (0.0, 0.1, 0.0)))
-        self.assertEqual((tab.controller.current_spec().effect_scale, tab.controller.current_spec().effect_offset), (0.25, (0.0, 0.1, 0.0)))
-        perks.choose_effect("fx_test_fire")
+        effects = perks.effects_workspace
+        self.assertEqual(perks.effect_preset.count(), 1, "the curated/proven dropdown no longer supplies options")
+        self.assertEqual(perks.effect_preset.currentData(), "")
+        self.assertIsNotNone(tab.controller.effect_catalogue, "effect metadata is indexed automatically")
+        self.assertEqual(len(tab.controller.effect_catalogue), 3)
+        effects.choose_effect("fx_test_fire")
+        self.assertEqual(tab.controller.draft.effect_stem, "", "selection remains staged")
+        self.assertEqual(effects.staged_state.scale, 1.0, "every newly selected effect starts neutral")
+        self.assertEqual(effects.staged_state.offset, (0.0, 0.0, 0.0))
+        self.assertTrue(effects.has_staged_changes())
+        effects._confirm_unreviewed = lambda _reason: True
+        self.assertTrue(effects.apply_staged())
         self.assertEqual(tab.controller.draft.effect_stem, "fx_test_fire")
-        self.assertEqual((tab.controller.draft.effect_scale, tab.controller.draft.effect_offset), (1.0, (0.0, 0.0, 0.0)), "a new effect does not inherit another effect's tuning")
-        self.assertEqual(tab.controller.draft.effect_rotation, (0.0, 0.0, 0.0), "nor its turn")
         self.assertEqual(tab.controller.current_spec().effect, "fx_test_fire.level.effect")
         self.assertEqual(tab.controller.current_spec().socket_items, (1002812, 1002793))
-        # the effect catalogue: before indexing the facts line asks for it; after, the real
-        # effect says what it draws, the stubs say they did not decode, and the filter
-        # matches emitters and textures too
-        self.assertIn("optional index", perks.effect_facts.text())
-        tab.controller.effect_cache_path = self.root / "effect_catalogue.json"
-        perks.index_button.click()
-        self.assertIsNotNone(tab.controller.effect_catalogue)
-        self.assertEqual(len(tab.controller.effect_catalogue), 3)
-        self.assertTrue((self.root / "effect_catalogue.json").is_file())
-        self.assertIn("effects indexed", perks.index_button.text())
-        facts = perks.effect_facts.text()
-        self.assertIn("cdem_last_fire_circle_trail_001a", facts)
-        self.assertIn("pafx_vector_chaos_01a.dds", facts)
-        self.assertIn("Approximate box at scale 1.00: 2.50 × 2.53 × 2.64 m", facts)
-        self.assertIn("loops", facts)
-        perks.effect_filter.setText("firefly")
-        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["", "fx_test_fire"])
-        perks.effect_filter.setText("ice")
-        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["", "fx_test_fire", "fx_test_ice"], "filtering never discards the current selection")
-        self.assertTrue(tab.controller.effect_facts("fx_test_ice").walk_note, "a stub effect is kept, marked undecoded")
-        perks.effect_filter.setText("")
-        # place in the viewport: the dialog gets the item's mesh, the effect's box and the
-        # current numbers, and what it returns lands in the spins and the draft
-        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
-
-        seen = {}
-
-        class FakeDialog:
-            def __init__(self, parent, **kwargs):
-                seen.update(kwargs)
-                self.offset = (0.1, 0.0, -0.2)
-                self.rotation = (0.0, 90.0, -15.0)
-                self.scale = 0.75
-
-            def exec(self):
-                from PySide6.QtWidgets import QDialog
-
-                return QDialog.Accepted
-
-        blade = ParsedMesh(path="blade", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
-        with patch.object(type(tab.controller), "item_mesh_for_preview", lambda self_: blade), patch.object(type(perks), "placement_dialog_factory", staticmethod(FakeDialog)):
-            perks.choose_effect("fx_test_fire")
-            perks.place_button.click()
-        self.assertIs(seen["item_mesh"], blade)
-        self.assertEqual(tuple(round(v, 2) for v in seen["box_min"]), (-1.24, -1.24, -1.39))
-        self.assertEqual(seen["scale"], 1.0)
-        self.assertEqual(seen["effect_label"], "fx_test_fire")
-        # the dialog also gets the effect's particle description (read from the snapshot with
-        # the draft's look) and a reader for its sprite textures
-        from cdmw.services.effect_preview_model import EffectPreview
-
-        self.assertIsInstance(seen["effect_preview"], EffectPreview)
-        self.assertEqual(seen["effect_preview"].stem, "fx_test_fire")
-        self.assertEqual(len(seen["effect_preview"].emitters), 2)
-        self.assertTrue(callable(seen["texture_reader"]))
-        self.assertIsNone(seen["texture_reader"]("effect/texture/not_in_the_snapshot.dds"))
-        self.assertEqual(seen["rotation"], (0.0, 0.0, 0.0))
-        self.assertEqual(tab.controller.draft.effect_scale, 0.75)
-        self.assertEqual(tab.controller.draft.effect_offset, (0.1, 0.0, -0.2))
-        self.assertEqual(tab.controller.draft.effect_rotation, (0.0, 90.0, -15.0))
-        self.assertEqual(tab.controller.current_spec().effect_rotation_degrees, (0.0, 90.0, -15.0))
-        # the look: a colour and four factors go into the spec's EffectLook; as shipped by default
-        self.assertTrue(tab.controller.current_spec().effect_look.is_default)
-        perks.set_effect_color((0.2, 0.4, 1.0))
-        perks.look_factors["intensity"].setValue(2.0)
-        perks.look_factors["rate"].setValue(0.5)
-        look = tab.controller.current_spec().effect_look
-        self.assertEqual((look.color, look.intensity, look.size, look.rate, look.lifetime), ((0.2, 0.4, 1.0), 2.0, 1.0, 0.5, 1.0))
-        self.assertIn("#3366ff", perks.color_button.text())
-        perks.effect_reset_button.click()
-        reset = tab.controller.current_spec()
-        self.assertIsNone(reset.effect_look.color)
-        self.assertTrue(reset.effect_look.is_default)
-        self.assertEqual((reset.effect_scale, reset.effect_offset), (1.0, (0.0, 0.0, 0.0)))
-        self.assertEqual(reset.effect_rotation_degrees, (0.0, 0.0, 0.0))
-        self.assertEqual(perks.color_button.text(), "Colour: as shipped")
-        # a second tab loads the cache instead of indexing again
-        again = self._tab()
-        again.start_snapshot()
-        again.controller.effect_cache_path = self.root / "effect_catalogue.json"
-        self.assertTrue(again.controller.load_effect_catalogue())
-        self.assertEqual(len(again.controller.effect_catalogue), 3)
-        perks.use_effect.setChecked(False)
+        effects.search.setText("firefly")
+        stems = [effects.library_model.row(index).stem for index in range(effects.library_model.rowCount())]
+        self.assertEqual(stems, ["", "fx_test_fire"])
+        effects.search.setText("ice")
+        stems = [effects.library_model.row(index).stem for index in range(effects.library_model.rowCount())]
+        self.assertEqual(stems, ["", "fx_test_fire", "fx_test_ice"], "filtering keeps the committed selection")
+        self.assertTrue(tab.controller.effect_facts("fx_test_ice").walk_note, "an undecoded effect remains placeable as shipped")
+        effects.search.setText("")
+        effects.choose_effect("")
+        self.assertTrue(effects.apply_staged())
         self.assertEqual(tab.controller.draft.effect_stem, "")
         self.assertIsNone(tab.controller.current_spec().effect)
         # build the plan

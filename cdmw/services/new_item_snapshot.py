@@ -37,10 +37,9 @@ from cdmw.models import ArchiveEntry
 TABLE_DIR = "gamedata/binary__/client/bin"
 PALOC_DIR = "gamedata/stringtable/binary__"
 PAPPT_PATH = "character/bin__/partprefabtable.pappt"
-#: Where the shipped effect binaries live; a weapon effect names one by stem.
+#: Where the shipped effect binaries live; a visual effect names one by stem.
 EFFECT_DIR = "effect/binary__/releasebin/"
-#: The shipped prefab whose EffectComponent is the donor for a weapon effect: the thrown
-#: lightning spear, the one weapon prefab that carries one.
+#: The shipped prefab whose EffectComponent is the structural donor for item effects.
 EFFECT_DONOR_PREFAB = "character/bin__/prefab/1_pc/01_phm/weapon/10_thrownweapon/cd_phm_10_thrownspear_0001.prefab"
 #: The effect the donor names, replaced by the item's own.
 EFFECT_DONOR_PATH = "pafx_kliff_titan_lightning_spear_loop_001a.level.effect"
@@ -91,7 +90,7 @@ class NewItemSnapshot:
     #: package root has none; a new icon needs a row in it to draw.
     pathc: Optional[PathcTable] = None
     #: Stems of the shipped effect binaries (`effect/binary__/releasebin/<stem>.pae`),
-    #: what a weapon effect may name.
+    #: what a visual effect may name.
     effect_stems: FrozenSet[str] = frozenset()
     _status_ranges: Optional[Mapping[int, Tuple[int, int, int, int]]] = field(default=None, repr=False)
     _socket_users: Optional[Mapping[int, int]] = field(default=None, repr=False)

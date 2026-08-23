@@ -371,7 +371,13 @@ internal sealed partial class MeshViewport
         var fitMode = JsonString(camera, "fit_mode", string.Empty).Trim().ToLowerInvariant();
         if (fitMode == "fit" || JsonBool(camera, "fit", JsonBool(camera, "fit_to_view", false)))
         {
-            var bounds = SceneBoundsForContext(contextId);
+            var fitRole = JsonString(camera, "fit_role", contextId).Trim().ToLowerInvariant();
+            var fitContextId = fitRole is "original" or "reference" or "original_only"
+                ? "reference"
+                : fitRole is "replacement" or "imported" or "editable" or "modify"
+                    ? "editable"
+                    : contextId;
+            var bounds = SceneBoundsForContext(fitContextId);
             context.CameraMinimum = bounds.Min;
             context.CameraMaximum = bounds.Max;
             context.Zoom = FitZoomForBounds(bounds);

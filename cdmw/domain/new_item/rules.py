@@ -214,13 +214,13 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         except (TypeError, ValueError):
             scale = float("nan")
         if not 0.01 <= scale <= 10.0:
-            issues.append(_issue("effect.scale", "effect_scale", "The effect scale is a factor between 0.01 and 10 (the shipped spear carries 0.7)."))
+            issues.append(_issue("effect.scale", "effect_scale", "The effect scale is a factor between 0.01 and 10."))
         offset = tuple(spec.effect_offset)
         if len(offset) != 3 or any(not -5.0 <= float(v) <= 5.0 for v in offset):
-            issues.append(_issue("effect.offset", "effect_offset", "The effect offset is three metres-scale numbers within 5 of the weapon's origin."))
+            issues.append(_issue("effect.offset", "effect_offset", "The effect position is three metre-scale numbers within 5 of the item's origin."))
         rotation = tuple(spec.effect_rotation_degrees)
         if len(rotation) != 3 or any(not -180.0 <= float(v) <= 180.0 for v in rotation):
-            issues.append(_issue("effect.rotation", "effect_rotation_degrees", "The effect rotation is three Euler degrees about the weapon's axes (x, then y, then z), each within 180."))
+            issues.append(_issue("effect.rotation", "effect_rotation_degrees", "The effect rotation is three Euler degrees about the item's axes (x, then y, then z), each within 180."))
         look = spec.effect_look
         for name in ("intensity", "size", "rate", "lifetime"):
             try:
@@ -322,7 +322,7 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
         stem = str(spec.effect).split(".", 1)[0]
         if context.effect_stems and stem not in context.effect_stems:
             issues.append(_issue("effect.unknown", "effect", f"No shipped effect is named {stem}."))
-        issues.append(_issue("effect.unproven", "effect", "A weapon effect is grafted into the item's prefabs as an EffectComponent, the way the shipped thrown lightning spear carries one; a grafted fire has drawn in game, and an effect made for another weapon may need a scale or an offset to sit on this one.", "warning"))
+        issues.append(_issue("effect.unproven", "effect", "The visual effect is grafted into every compatible prefab the item owns as an EffectComponent. Compatibility is checked structurally; verify the final placement and fit in game.", "warning"))
 
     for field_name, value in (("name_key", spec.name_key), ("desc_key", spec.desc_key)):
         if value is not None and str(value) in context.localization_keys:

@@ -227,7 +227,40 @@ def _draw_general_icon(
     accent: QColor,
     subtle: QColor,
 ) -> None:
-    if key in {"undo", "redo"}:
+    if key in {"view_front", "view_side", "view_top"}:
+        painter.drawRect(5, 5, 10, 10)
+        painter.setPen(_icon_pen(subtle, 1.2))
+        painter.drawLine(5, 5, 8, 2)
+        painter.drawLine(15, 5, 18, 2)
+        painter.drawLine(8, 2, 18, 2)
+        painter.drawLine(15, 15, 18, 12)
+        painter.drawLine(18, 2, 18, 12)
+        painter.setPen(_icon_pen(accent, 2.0))
+        if key == "view_front":
+            painter.drawRect(5, 5, 10, 10)
+        elif key == "view_side":
+            painter.drawLine(15, 5, 18, 2)
+            painter.drawLine(18, 2, 18, 12)
+            painter.drawLine(18, 12, 15, 15)
+        else:
+            painter.drawLine(5, 5, 8, 2)
+            painter.drawLine(8, 2, 18, 2)
+            painter.drawLine(18, 2, 15, 5)
+    elif key == "frame":
+        painter.drawLine(4, 8, 4, 4)
+        painter.drawLine(4, 4, 8, 4)
+        painter.drawLine(12, 4, 16, 4)
+        painter.drawLine(16, 4, 16, 8)
+        painter.drawLine(16, 12, 16, 16)
+        painter.drawLine(16, 16, 12, 16)
+        painter.drawLine(8, 16, 4, 16)
+        painter.drawLine(4, 16, 4, 12)
+    elif key == "pause":
+        painter.setBrush(QBrush(accent))
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(5, 4, 3, 12, 1, 1)
+        painter.drawRoundedRect(12, 4, 3, 12, 1, 1)
+    elif key in {"undo", "redo"}:
         if key == "undo":
             painter.drawArc(4, 5, 12, 10, 25 * 16, 255 * 16)
             painter.drawLine(5, 9, 3, 6)

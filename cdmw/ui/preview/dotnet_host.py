@@ -416,6 +416,14 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
             return False
         fit = bool(state.get("fit_to_view", self._fit_to_view))
         role = str(state.get("role", "replacement") or "replacement").strip().lower()
+        fit_role_value = str(state.get("fit_role", "") or "").strip().lower()
+        fit_role = (
+            "reference"
+            if fit_role_value in {"reference", "original"}
+            else "editable"
+            if fit_role_value
+            else ""
+        )
         self._camera_generation += 1
         camera = {
             "role": "reference" if role in {"reference", "original"} else "editable",
@@ -426,6 +434,8 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
             "pan": [pan[0], pan[1]],
             "command_generation": self._camera_generation,
         }
+        if fit_role:
+            camera["fit_role"] = fit_role
         self._presentation_state["camera"] = camera
         sent = self._remember_presentation_state({"camera": camera})
         if sent:
@@ -440,6 +450,8 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
                 "pitch": pitch,
                 "pan": pan,
             }
+            if fit_role:
+                self._view_state["fit_role"] = fit_role
             self._view_states_by_role[role] = dict(self._view_state)
             self.view_state_changed.emit(zoom, fit)
             self.view_state_payload_changed.emit(dict(self._view_state))
@@ -454,6 +466,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         fit_to_view: Optional[bool] = None,
         pan: Sequence[float] = (0.0, 0.0, 0.0),
         role: str = "replacement",
+        fit_role: Optional[str] = None,
     ) -> bool:
         return self.restore_view_state(
             {
@@ -463,6 +476,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
                 "zoom_factor": self._zoom_factor if zoom_factor is None else zoom_factor,
                 "fit_to_view": self._fit_to_view if fit_to_view is None else fit_to_view,
                 "pan": pan,
+                **({"fit_role": fit_role} if fit_role is not None else {}),
             }
         )
 

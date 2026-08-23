@@ -328,13 +328,10 @@ class EffectPresetTests(unittest.TestCase):
 
         stems = [preset.stem for preset in EFFECT_PRESETS]
         self.assertEqual(len(stems), len(set(stems)), "no stem twice")
-        self.assertTrue(all(preset.label and preset.element for preset in EFFECT_PRESETS))
-        proven = [preset.stem for preset in EFFECT_PRESETS if preset.proven]
-        self.assertEqual(proven, ["fx_cc_firesweapon_a__fire1"], "the fire seen drawing in game")
-        self.assertTrue(all(0.01 <= preset.scale <= 10.0 for preset in EFFECT_PRESETS))
-        by_stem = {preset.stem: preset for preset in EFFECT_PRESETS}
-        self.assertLess(by_stem["fx_body_lightning_loop_a__weaponr_titan_01"].scale, 0.5, "the titan's lightning ran metres past a sword at 1.0")
-        self.assertLess(by_stem["fx_cc_firesweapon_a__fire1"].scale, 1.0, "the fire sweep reached past the tip at 1.0")
+        self.assertTrue(all(preset.stem and preset.element for preset in EFFECT_PRESETS))
+        self.assertTrue(all(not preset.label for preset in EFFECT_PRESETS), "the compatibility table supplies no UI labels")
+        self.assertTrue(all(not preset.proven and not preset.note for preset in EFFECT_PRESETS))
+        self.assertTrue(all(preset.scale == 1.0 for preset in EFFECT_PRESETS), "all visible choices start at neutral scale")
         self.assertEqual(presets_for(None), EFFECT_PRESETS)
         self.assertEqual([p.stem for p in presets_for({"fx_cc_firesweapon_a__fire1", "nothing"})], ["fx_cc_firesweapon_a__fire1"])
         self.assertEqual(presets_for(set()), ())

@@ -13,11 +13,10 @@ from __future__ import annotations
 
 import shutil
 import tempfile
-import threading
 from pathlib import Path
-from typing import Callable, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QThread, Qt, QTimer
+from PySide6.QtCore import QThread, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -37,12 +36,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.modding.mesh_parser import ParsedMesh
+if TYPE_CHECKING:
+    from cdmw.services.mesh_workflow_service import ParsedMesh
 from cdmw.services.effect_placement_preview import (
     ANCHOR_TINT,
     EFFECT_AXIS_TINTS,
     framing_bounds_for,
-    mesh_names_textures,
     BODY_TINT,
     ITEM_TINT,
     REACH_TINT,
@@ -66,41 +65,38 @@ from cdmw.ui.new_item.effect_placement_dialog_support import (
     remembered_orbit_inversion,
     swatch as _swatch,
 )
+from cdmw.ui.new_item.effect_placement_guided import EffectPlacementGuidedMixin
+from cdmw.ui.new_item.effect_placement_package import EffectPlacementPackageMixin
+from cdmw.ui.new_item.effect_placement_construction import EffectPlacementConstructionMixin
+from cdmw.ui.new_item.effect_placement_constants import (
+    REACH_HIDDEN_ABOVE,
+    ROTATION_DECIMALS,
+    ROTATION_STEP,
+    SCALE_DECIMALS,
+    SCALE_MAXIMUM,
+    SCALE_MINIMUM,
+    STANDING_VIEW_ANGLES,
+)
 from cdmw.ui.new_item.ui_kit import DetailsToggle
 from cdmw.workers.utility_workers import UtilityWorker
 
 Vec3 = Tuple[float, float, float]
 
-__all__ = ["EffectPlacementDialog", "describe_effect_preview"]
+__all__ = ["EffectPlacementDialog", "EffectPlacementWorkspace", "describe_effect_preview"]
 
 
-#: how many times the item's own length a reach may be before its frame starts hidden
-REACH_HIDDEN_ABOVE = 6.0
+class EffectPlacementWorkspace(
+    EffectPlacementGuidedMixin,
+    EffectPlacementPackageMixin,
+    EffectPlacementConstructionMixin,
+    QWidget,
+):
+    """Resident placement body shared by Step 5 and the compatibility dialog."""
 
-#: What the effect's scale can be, and to how many decimals. Three rather than two because
-#: fitting a forty-metre reach to a one-metre sword lands on 0.025, and the dialog has to
-#: hold the same number the box shows: kept apart, an edit of any other field silently
-#: took the box's rounding.
-SCALE_MINIMUM = 0.01
-SCALE_MAXIMUM = 10.0
-SCALE_DECIMALS = 3
-
-#: The standing views, as the camera angles (yaw, pitch) in degrees the host takes, in
-#: the order the buttons appear. The game holds a weapon at the origin with the blade
-#: toward -z and the character facing the same way, so yaw 0 looks the character in the
-#: face and yaw 90 stands to its side, which is the view that shows a blade end to end.
-#: The titles and what each one is for live at the buttons, where the localizer finds them.
-STANDING_VIEW_ANGLES: tuple = ((0.0, 8.0), (90.0, 8.0), (0.0, -80.0), (-35.0, 20.0))
-
-
-#: How the rotation boxes step and read: whole tenths of a degree, five degrees a click.
-ROTATION_DECIMALS = 1
-ROTATION_STEP = 5.0
-
-
-class EffectPlacementDialog(QDialog):
-    """Move, turn and scale the effect on the item; read `offset`, `rotation` (item-frame
-    Euler x, y, z degrees, applied in that order) and `scale` after accept."""
+    apply_requested = Signal()
+    transform_changed = Signal()
+    look_changed = Signal()
+    _standing_view_angles = STANDING_VIEW_ANGLES
 
     def __init__(
         self,
@@ -121,16 +117,25 @@ class EffectPlacementDialog(QDialog):
         # builds the game's own character, on the worker thread: reading a rig and a body
         # out of the archives is a second the dialog should not spend frozen
         character_builder: Optional[Callable[[], object]] = None,
+        color: Optional[Vec3] = None,
+        intensity: float = 1.0,
+        particle_size: float = 1.0,
+        spawn_rate: float = 1.0,
+        lifetime: float = 1.0,
+        compatibility_ui: bool = False,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Place the effect on the item")
-        self.setModal(True)
-        self.resize(960, 640)
         self._item_mesh = item_mesh
         self._box = (tuple(float(v) for v in box_min), tuple(float(v) for v in box_max))
         self.offset: Vec3 = tuple(float(v) for v in offset)  # type: ignore[assignment]
         self.rotation: Vec3 = tuple(wrap_degrees(float(v)) for v in rotation)  # type: ignore[assignment]
         self.scale: float = float(scale)
+        self.color: Optional[Vec3] = None if color is None else tuple(float(v) for v in color)  # type: ignore[assignment]
+        self.intensity = float(intensity)
+        self.particle_size = float(particle_size)
+        self.spawn_rate = float(spawn_rate)
+        self.lifetime = float(lifetime)
+        self._compatibility_ui = bool(compatibility_ui)
         self._output_root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_effect_placement"
         self._preview: Optional[EffectPlacementPreview] = None
         self._effect_preview = effect_preview
@@ -143,312 +148,26 @@ class EffectPlacementDialog(QDialog):
         self._frame = PlacementFrame(None)
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
+        self._package_generation = 0
+        self._active_package_generation = 0
+        self._pending_package: Optional[tuple] = None
+        self._loading_preview: Optional[EffectPlacementPreview] = None
+        self._loading_sockets: tuple = ()
+        self._loading_view_state: Optional[dict[str, object]] = None
+        self._retired_previews: list[EffectPlacementPreview] = []
+        self._package_ack_connected = False
         self._closed = False
+        self._compatibility_only_widgets: list[QWidget] = []
 
-        layout = QVBoxLayout(self)
-        # One compact context row replaces two explanatory paragraphs. The distinctions
-        # that still matter stay available on the model value's tooltip.
-        context = QHBoxLayout()
-        context.addWidget(QLabel("Effect"))
-        self.effect_name_label = QLabel(str(effect_label or "-"))
-        context.addWidget(self.effect_name_label, 1)
-        model_caption = QLabel("Model")
-        showing = QLabel("")
-        if item_label == "placed":
-            showing.setText("Imported")
-            showing.setToolTip("Showing your imported model, at the placement set on step 3.")
-        elif item_label == "applied":
-            showing.setText("Imported")
-            showing.setToolTip("Showing your imported model, as applied.")
-        elif item_label == "template":
-            showing.setText("Template")
-            showing.setToolTip("Showing the template's model; import one on step 3 to place the effect on your own.")
-        has_model_context = bool(showing.text())
-        model_caption.setVisible(has_model_context)
-        showing.setVisible(has_model_context)
-        context.addWidget(model_caption)
-        context.addWidget(showing)
-        layout.addLayout(context)
-        self.showing_label = showing
-        body = QHBoxLayout()
-        layout.addLayout(body, 1)
+        layout = self._build_placement_ui(
+            effect_label=effect_label,
+            item_label=item_label,
+            host_factory=host_factory or _default_host_factory,
+            effect_preview=effect_preview,
+        )
 
-        self.host = None
-        factory = host_factory or _default_host_factory
-        try:
-            self.host = factory(self)
-        except Exception as exc:  # noqa: BLE001 - the viewport is optional; the numbers still work
-            self.host = None
-            self._host_error = str(exc)
-        else:
-            self._host_error = ""
-        self.view_buttons: list[QPushButton] = []
-        self.view_group = QButtonGroup(self)
-        self.view_group.setExclusive(True)
-        if self.host is not None:
-            self.host.setMinimumSize(560, 420)
-            self.host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-            viewport_column = QVBoxLayout()
-            viewport_column.setContentsMargins(0, 0, 0, 0)
-            viewport_column.addWidget(self.host, 1)
-            views = QHBoxLayout()
-            views.addWidget(QLabel("View"))
-            self._add_view_button(views, "Front", "Looking the character in the face: which side of the item the effect sits on.")
-            self._add_view_button(views, "Side", "From the character's side: the blade end to end, and how far up it the effect sits.")
-            self._add_view_button(views, "Top", "From above: how far in front of or behind the item the effect sits.")
-            self._add_view_button(views, "Angled", "The three-quarter view the dialog opens on.")
-            self.view_buttons[-1].setChecked(True)
-            views.addStretch(1)
-            viewport_column.addLayout(views)
-            # Keep the gesture reference without spending a permanent line on it.
-            self.host.setToolTip(
-                "Turn the view: drag with the right mouse button. Shift-drag pans, the wheel zooms. "
-                "The left button drags the orange anchor."
-            )
-            body.addLayout(viewport_column, 1)
-        else:
-            missing = QLabel("The resident viewport is not available here; set the numbers by hand." + (f" ({self._host_error})" if self._host_error else ""))
-            missing.setWordWrap(True)
-            body.addWidget(missing, 1)
-
-        # the panel keeps to its own width: left to itself it takes half the dialog and
-        # the viewport -- the thing being looked at -- gets what is left
-        side_panel = QWidget()
-        # wide enough for the widest row -- "Anchor" and its four buttons -- plus the
-        # scroll bar beside it; narrower than that and the last button is clipped away
-        side_panel.setMaximumWidth(400)
-        side = QVBoxLayout(side_panel)
-        # Two primary groups and nothing loose. Fourteen controls, five legend rows and four
-        # labels in one column read as a wall: what moves the effect, what is drawn, and
-        # what the effect is are three different questions and they now look like three.
-        place_box = QGroupBox("Placement")
-        place = QVBoxLayout(place_box)
-        view_box = QGroupBox("Preview")
-        view = QVBoxLayout(view_box)
-        side.setContentsMargins(0, 0, 0, 0)
-        # The panel scrolls rather than being squeezed. Asked for less height than it
-        # needs, a column of layouts does not clip -- it compresses every child below its
-        # minimum, and a form's labels end up drawn on top of each other. A short dialog on
-        # a small screen is exactly that case.
-        side_scroll = QScrollArea()
-        side_scroll.setWidget(side_panel)
-        side_scroll.setWidgetResizable(True)
-        side_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        side_scroll.setMaximumWidth(424)
-        # and a floor: the viewport expands, so without one it takes the width and the
-        # panel is squeezed until its last button is clipped off the edge
-        side_scroll.setMinimumWidth(368)
-        body.addWidget(side_scroll)
-        tools = QHBoxLayout()
-        self.move_button = QPushButton("Move")
-        self.move_button.setCheckable(True)
-        self.move_button.setChecked(True)
-        self.rotate_button = QPushButton("Rotate")
-        self.rotate_button.setCheckable(True)
-        self.rotate_button.setToolTip("Turn the effect about the item: drag a ring for its axis.")
-        self.scale_button = QPushButton("Scale")
-        self.scale_button.setCheckable(True)
-        self.move_button.clicked.connect(lambda: self._choose_tool("move"))
-        self.rotate_button.clicked.connect(lambda: self._choose_tool("rotate"))
-        self.scale_button.clicked.connect(lambda: self._choose_tool("scale"))
-        tools.addWidget(self.move_button)
-        tools.addWidget(self.rotate_button)
-        tools.addWidget(self.scale_button)
-        place.addLayout(tools)
-        form = QFormLayout()
-        self.scale_spin = QDoubleSpinBox()
-        self.scale_spin.setRange(SCALE_MINIMUM, SCALE_MAXIMUM)
-        self.scale_spin.setDecimals(SCALE_DECIMALS)
-        self.scale_spin.setSingleStep(0.05)
-        self.scale_spin.setValue(self.scale)
-        self.scale_spin.valueChanged.connect(self._numbers_edited)
-        form.addRow("Scale", self.scale_spin)
-        self.offset_spins: list[QDoubleSpinBox] = []
-        for axis, value in zip(("Offset x (m)", "Offset y (m)", "Offset z (m)"), self.offset):
-            spin = QDoubleSpinBox()
-            spin.setRange(-5.0, 5.0)
-            spin.setDecimals(3)
-            spin.setSingleStep(0.01)
-            spin.setValue(float(value))
-            spin.valueChanged.connect(self._numbers_edited)
-            form.addRow(axis, spin)
-            self.offset_spins.append(spin)
-        self.rotation_spins: list[QDoubleSpinBox] = []
-        for axis, value in zip(("Rotation x (°)", "Rotation y (°)", "Rotation z (°)"), self.rotation):
-            spin = QDoubleSpinBox()
-            spin.setRange(-180.0, 180.0)
-            spin.setDecimals(ROTATION_DECIMALS)
-            spin.setSingleStep(ROTATION_STEP)
-            spin.setWrapping(True)
-            spin.setValue(float(value))
-            spin.setToolTip("Turns the effect about the item's own axes, degrees; x, then y, then z.")
-            spin.valueChanged.connect(self._numbers_edited)
-            form.addRow(axis, spin)
-            self.rotation_spins.append(spin)
-        place.addLayout(form)
-        width, height, depth = (high - low for low, high in zip(*self._box))
-        self._box_size = (width, height, depth)
-        places = QHBoxLayout()
-        places.addWidget(QLabel("Anchor"))
-        self._add_place_button(places, "Hand", "hand", "Put the effect's origin back at the hand the item is held by.")
-        self._add_place_button(places, "Middle", "middle", "Put the effect's origin at the middle of the item.")
-        self._add_place_button(places, "Tip", "tip", "Put the effect's origin at the far end of the item: a blade's point.")
-        # the game's own answer, when the item's socket file gave one: shown once the
-        # character has been read, because until then there is nothing behind it
-        self.trail_button = QPushButton("Trail")
-        self.trail_button.setToolTip("Put the effect's origin where the game hangs this weapon's own trail.")
-        self.trail_button.clicked.connect(lambda _checked=False: self._put_it_at("trail"))
-        self.trail_button.setVisible(False)
-        places.addWidget(self.trail_button)
-        places.addStretch(1)
-        place.addLayout(places)
-        reach_row = QHBoxLayout()
-        self.show_reach = QCheckBox("Show the reach")
-        self.show_reach.setToolTip("The effect's own bounding box as a thin frame, at this scale and offset: how far it can throw particles.")
-        # A frame around a one-metre sword is worth seeing; a frame twenty metres across is
-        # a pair of orange columns crossing the view with the item a speck between them, and
-        # the camera opens on the frame rather than on the thing being placed. Effects made
-        # for bosses and set pieces reach that far, so their frame starts hidden.
-        low, high = self._item_bounds()
-        item_length = max(high[axis] - low[axis] for axis in range(3))
-        reach_length = max(width, height, depth) * self.scale
-        self._reach_dwarfs_the_item = bool(item_length > 0 and reach_length > item_length * REACH_HIDDEN_ABOVE)
-        self.show_reach.setChecked(not self._reach_dwarfs_the_item)
-        self.show_reach.toggled.connect(lambda _checked: self._reach_toggled())
-        reach_row.addWidget(self.show_reach)
-        reach_row.addStretch(1)
-        view.addLayout(reach_row)
-        # its own line: a checkbox and a button share a row well in English and in almost
-        # no other language, and this panel keeps to 360 px
-        fit_row = QHBoxLayout()
-        self.fit_button = QPushButton("Fit it to the item")
-        self.fit_button.setToolTip("Set the scale so the effect's reach is about as long as the item; the offset is left alone.")
-        self.fit_button.clicked.connect(self._fit_reach_to_item)
-        fit_row.addWidget(self.fit_button)
-        fit_row.addStretch(1)
-        place.addLayout(fit_row)
-        self.show_particles = QCheckBox("Show the particles")
-        self.show_particles.setToolTip("The effect's own fire, drawn approximately. Turn it off to see the item under it.")
-        self.show_particles.setChecked(True)
-        self.show_particles.toggled.connect(lambda checked: self._show_particles(bool(checked)))
-        particle_row = QHBoxLayout()
-        particle_row.addWidget(self.show_particles)
-        # Hiding the fire answers "what is under it". Holding it answers "where exactly is
-        # this one", which a cloud in motion never lets anyone read.
-        self.pause_button = QPushButton("Pause")
-        self.pause_button.setCheckable(True)
-        self.pause_button.setToolTip("Hold the particles where they are, still drawn, so a moving cloud can be read.")
-        self.pause_button.toggled.connect(lambda checked: self._pause_particles(bool(checked)))
-        particle_row.addWidget(self.pause_button)
-        particle_row.addStretch(1)
-        view.addLayout(particle_row)
-        self.show_character = QCheckBox("Show the character")
-        self.show_character.setToolTip("A figure 1.75 m tall holding the item, so the effect's size reads against something known.")
-        self.show_character.setChecked(True)
-        backdrop_row = QHBoxLayout()
-        backdrop_row.addWidget(QLabel("Backdrop"))
-        self.backdrop_choice = QComboBox()
-        # named at the call site rather than in the table above, because a name in a
-        # module-level tuple never reaches the localizer
-        self.backdrop_choice.addItem("Dark", BACKDROP_DARK)
-        self.backdrop_choice.addItem("Grey", BACKDROP_GREY)
-        self.backdrop_choice.addItem("Black", BACKDROP_BLACK)
-        self.backdrop_choice.setToolTip(
-            "What the viewport clears to. An effect adds its light to whatever is behind it, so it reads best on a dark "
-            "backdrop; the grey is the one the Mesh Editor judges materials on, where a dark clear lets dark textures "
-            "melt into it."
-        )
-        remembered = remembered_backdrop()
-        for index, value in enumerate(BACKDROPS):
-            if value.casefold() == remembered.casefold():
-                self.backdrop_choice.setCurrentIndex(index)
-                break
-        self.backdrop_choice.currentIndexChanged.connect(lambda _index: self._backdrop_changed())
-        backdrop_row.addWidget(self.backdrop_choice, 1)
-        orbit_row = QHBoxLayout()
-        self.invert_orbit_x_checkbox = QCheckBox("Invert orbit X")
-        self.invert_orbit_y_checkbox = QCheckBox("Invert orbit Y")
-        self.invert_orbit_x_checkbox.setToolTip(
-            "Reverse horizontal orbit. With this enabled, dragging left or right rotates the camera around the model in the opposite direction."
-        )
-        self.invert_orbit_y_checkbox.setToolTip(
-            "Reverse vertical orbit. With this enabled, dragging up or down tilts the camera around the model in the opposite direction."
-        )
-        invert_x, invert_y = remembered_orbit_inversion()
-        self.invert_orbit_x_checkbox.setChecked(invert_x)
-        self.invert_orbit_y_checkbox.setChecked(invert_y)
-        self.invert_orbit_x_checkbox.toggled.connect(
-            lambda _checked: self._apply_orbit_preferences(remember=True)
-        )
-        self.invert_orbit_y_checkbox.toggled.connect(
-            lambda _checked: self._apply_orbit_preferences(remember=True)
-        )
-        orbit_row.addWidget(self.invert_orbit_x_checkbox)
-        orbit_row.addWidget(self.invert_orbit_y_checkbox)
-        orbit_row.addStretch(1)
-        self.show_character.toggled.connect(lambda _checked: self._apply_scene_visibility())
-        view.addWidget(self.show_character)
-        view.addLayout(backdrop_row)
-        view.addLayout(orbit_row)
-        side.addWidget(place_box)
-        side.addWidget(view_box)
-        self.size_label = QLabel("")
-        self.size_label.setWordWrap(True)
-        side.addWidget(self.size_label)
-        # what each thing in the viewport is, in the colour it is drawn: the question a
-        # reader asks first, and one the numbers beside the viewport cannot answer
-        # The legend answers a question asked once. It stays a click away rather than five
-        # rows of the panel for ever.
-        self.legend_toggle = DetailsToggle("", title="What the colours mean")
-        legend_column = QVBoxLayout()
-        legend_column.setContentsMargins(0, 0, 0, 0)
-        self.legend_rows: dict = {}
-        self._add_legend_row(legend_column, "anchor", ANCHOR_TINT, "the effect's origin - drag this one")
-        axes = QLabel()
-        axes.setTextFormat(Qt.TextFormat.RichText)
-        axes.setWordWrap(True)
-        axes.setText(
-            f"{_swatch(EFFECT_AXIS_TINTS[0])}{_swatch(EFFECT_AXIS_TINTS[1])}{_swatch(EFFECT_AXIS_TINTS[2])} "
-            "the effect's own x, y and z, which the rotation turns"
-        )
-        legend_column.addWidget(axes)
-        self.legend_rows["axes"] = axes
-        self._add_legend_row(legend_column, "item", ITEM_TINT, "your item")
-        self._add_legend_row(legend_column, "body", BODY_TINT, "a character, 1.75 m tall, for scale")
-        self._add_legend_row(legend_column, "reach", REACH_TINT, "how far the effect can throw particles")
-        self._add_legend_row(legend_column, "particles", PARTICLE_TINT, "the particles, read approximately")
-        self.legend_toggle.body.setVisible(False)
-        legend_holder = QWidget()
-        legend_holder.setLayout(legend_column)
-        self.legend_toggle.layout().addWidget(legend_holder)
-        legend_holder.setVisible(False)
-        self.legend_toggle.toggle.toggled.connect(legend_holder.setVisible)
-        side.addWidget(self.legend_toggle)
-        self._refresh_legend()
-        self.emitters_toggle = DetailsToggle(describe_effect_preview(effect_preview), title="What the effect is made of")
-        self.emitters_label = self.emitters_toggle.body
-        self.emitters_toggle.setVisible(effect_preview is not None)
-        side.addWidget(self.emitters_toggle)
-        # what the preview could not read, where the reader will see it. The emitters of a
-        # third of the shipped effects spawn their particles on the surface of a mesh, and
-        # when the archives do not carry that mesh the preview scatters them instead: the
-        # shape on screen is then a stand-in, and the game draws something else.
-        self.caveat = QLabel("")
-        self.caveat.setWordWrap(True)
-        self.caveat.setObjectName("new_item_warning")
-        self.caveat.setVisible(False)
-        side.addWidget(self.caveat)
-        self.status = QLabel("Preparing the viewport...")
-        self.status.setWordWrap(True)
-        side.addWidget(self.status)
-        side.addStretch(1)
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Apply")
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        side.addWidget(buttons)
-        self._refresh_size_label()
+        if not self._compatibility_ui:
+            self._build_guided_presentation(layout)
 
         if self.host is not None:
             self.host.alignment_drag_finished.connect(self._drag_finished)
@@ -459,120 +178,13 @@ class EffectPlacementDialog(QDialog):
             if rotated is not None:
                 rotated.connect(self._rotation_finished)
             self.host.controller.state_changed.connect(self._host_state)
+            package_applied = getattr(self.host.controller, "package_applied", None)
+            if package_applied is not None:
+                package_applied.connect(self._package_load_applied)
+                self._package_ack_connected = True
             QTimer.singleShot(0, self._start_package)
         else:
             self.status.setText("")
-
-    # ------------------------------------------------------------------ package
-
-    def _start_package(self) -> None:
-        if self._closed:
-            return
-        mesh, box = self._item_mesh, self._box
-        root = self._output_root
-        effect_preview, texture_reader = self._effect_preview, self._texture_reader
-        builder = self._character_builder
-        # only when the mesh names any: the synthesis pass is seconds, and for a mesh with
-        # no textures to resolve it would be seconds spent on nothing
-        textured = mesh_names_textures(mesh)
-
-        def task(_log, stop_event: threading.Event) -> tuple[EffectPlacementPreview, tuple]:
-            character, rotation, effect_sockets = None, None, ()
-            if builder is not None and not stop_event.is_set():
-                try:
-                    reference = builder()
-                except Exception:  # noqa: BLE001 - no character is a smaller loss than no dialog
-                    reference = None
-                if reference is not None:
-                    character = getattr(reference, "mesh", None)
-                    rotation = getattr(reference, "item_rotation", None)
-                    effect_sockets = tuple(getattr(reference, "effect_sockets", ()) or ())
-            preview = build_effect_placement_package(
-                mesh, box[0], box[1], output_root=root, cancelled=stop_event.is_set,
-                include_item_textures=textured,
-                character_mesh=character, item_rotation=rotation if character is not None else None,
-                effect_preview=effect_preview, texture_reader=texture_reader,
-            )
-            return preview, effect_sockets
-
-        worker = UtilityWorker(task, task_accepts_cancel=True)
-        thread = QThread(self)
-        worker.moveToThread(thread)
-        self._thread, self._worker = thread, worker
-        worker.completed.connect(self._package_ready)
-        worker.error.connect(self._package_failed)
-        worker.finished.connect(self._worker_finished, Qt.DirectConnection)
-        thread.finished.connect(self._build_finished, Qt.QueuedConnection)
-        thread.started.connect(worker.run)
-        thread.start()
-
-    def _package_ready(self, result: object) -> None:
-        sockets = ()
-        if isinstance(result, tuple) and len(result) == 2:
-            result, sockets = result
-        if not isinstance(result, EffectPlacementPreview):
-            return
-        if self._closed:
-            self._remove_owned_package(result)
-            return
-        if self.host is None:
-            return
-        self._effect_sockets = tuple(sockets or ())
-        self._preview = result
-        self._frame = PlacementFrame(result.item_rotation)
-        if result.item_rotation is not None:
-            self._say_the_character_is_the_game_s()
-        self._offer_the_trail_socket()
-        if self.host.load_package(result.package_dir, reset_view=True):
-            self.host.set_display_mode("overlay")
-            self.status.setText("Loading the viewport...")
-        else:
-            self.status.setText("The resident viewport rejected the placement package.")
-
-    def _package_failed(self, message: object) -> None:
-        if not self._closed:
-            self.status.setText(f"The placement preview could not be built: {message}")
-
-    def _worker_finished(self) -> None:
-        worker = self._worker
-        if worker is not None and worker.thread() is QThread.currentThread():
-            worker.moveToThread(self.thread())
-        QThread.currentThread().quit()
-
-    def _build_finished(self) -> None:
-        thread, worker = self._thread, self._worker
-        if thread is not None and not thread.wait(0):
-            QTimer.singleShot(0, self._build_finished)
-            return
-        self._thread = None
-        self._worker = None
-        if worker is not None:
-            worker.deleteLater()
-        if thread is not None:
-            thread.deleteLater()
-
-    def _host_state(self, state: str, message: str) -> None:
-        if self._closed or self.host is None:
-            return
-        if str(state) == "ready" and self._preview is not None:
-            self.host.set_display_mode("overlay")
-            self.host.set_viewport_display_mode("textured")
-            self.host.set_alignment_state(enabled=True)
-            # the backdrop the reader last chose, sent once the viewport can take it
-            self._backdrop_changed()
-            self._apply_orbit_preferences()
-            self._sync_host()
-            self._apply_scene_visibility()
-            self._point_camera(yaw=STANDING_VIEW_ANGLES[-1][0], pitch=STANDING_VIEW_ANGLES[-1][1])
-            sentences = []
-            if self._preview.preview_file is not None and not self._host_draws_particles():
-                sentences.append("This viewport build draws no particles yet; the anchor shows where the effect sits.")
-            if self._preview.missing_textures:
-                sentences.append(f"{len(self._preview.missing_textures)} sprite texture(s) could not be read from the archives.")
-            self.status.setText(" ".join(sentences))
-            self._show_caveats()
-        elif str(state) == "error":
-            self.status.setText(str(message or "The viewport reported an error."))
 
     def _show_caveats(self) -> None:
         """Say what the preview could not read, before the reader trusts what it shows."""
@@ -720,9 +332,9 @@ class EffectPlacementDialog(QDialog):
         self._point_camera(yaw=float(yaw), pitch=float(pitch))
 
     def _point_camera(self, *, yaw: Optional[float] = None, pitch: Optional[float] = None) -> None:
-        """Send the camera, at the zoom the subject needs. The view fits the item and the
-        character; with the reach frame shown it has to hold that instead, which for a
-        boss effect is twenty times as wide."""
+        """Send the visible overlay camera, fitted from the stable item reference. The
+        view fits the item and character; with the reach frame shown it has to hold that
+        instead, which for a boss effect can be twenty times as wide."""
 
         host = self.host
         setter = getattr(host, "set_view", None) if host is not None else None
@@ -739,22 +351,19 @@ class EffectPlacementDialog(QDialog):
             yaw = float(state.get("yaw", STANDING_VIEW_ANGLES[-1][0])) if yaw is None else yaw
             pitch = float(state.get("pitch", STANDING_VIEW_ANGLES[-1][1])) if pitch is None else pitch
         try:
-            # The item and character are the stable reference role. Fitting the editable
-            # role follows the moving effect anchor instead; after a small scale and a
-            # non-zero offset that leaves the item outside the camera and the view black.
+            # Overlay presentation links its visible camera to the editable role, while
+            # the item and character are the stable bounds that camera must fit from.
+            # Keeping those roles separate prevents a moved effect from dragging the
+            # camera centre away from the item.
             setter(
                 yaw=float(yaw), pitch=float(pitch), zoom_factor=self._zoom_for_the_subject(),
-                fit_to_view=True, role="reference",
+                fit_to_view=True, role="replacement", fit_role="reference",
             )
         except Exception:  # noqa: BLE001 - a host without the call keeps the view it has
             pass
 
     def _zoom_for_the_subject(self) -> float:
-        """1.0 frames what the package framed on; less zooms out to hold the reach frame.
-
-        A frame shown but out of view is worse than no frame: the reader ticks the box,
-        nothing changes on screen, and the twenty metres the effect claims stay abstract.
-        """
+        """1.0 frames the item reference; less zooms out to hold the visible reach."""
 
         if not self.show_reach.isChecked():
             return 1.0
@@ -778,12 +387,12 @@ class EffectPlacementDialog(QDialog):
             self._sync_host()
             return
         low, high = self._item_bounds()
-        if where == "hand":
+        if where in {"hand", "origin"}:
             self._set_numbers((0.0, 0.0, 0.0), self.scale)
             self._sync_host()
             return
         centre = tuple((low[axis] + high[axis]) / 2.0 for axis in range(3))
-        if where == "middle":
+        if where in {"middle", "center"}:
             self._set_numbers(centre, self.scale)
             self._sync_host()
             return
@@ -791,7 +400,9 @@ class EffectPlacementDialog(QDialog):
         longest = max(range(3), key=lambda axis: high[axis] - low[axis])
         far = high[longest] if abs(high[longest]) >= abs(low[longest]) else low[longest]
         offset = list(centre)
-        offset[longest] = far * 0.92
+        # The guided asset-neutral End anchor is the actual bound. The legacy Tip
+        # compatibility button retains its historical 92% inset.
+        offset[longest] = far if where == "end" else far * 0.92
         self._set_numbers(tuple(offset), self.scale)  # type: ignore[arg-type]
         self._sync_host()
 
@@ -802,7 +413,7 @@ class EffectPlacementDialog(QDialog):
 
     def _fit_reach_to_item(self) -> None:
         """A scale that makes the effect's reach about the item's own length: a starting
-        point for effects whose reach is tens of metres around a one-metre weapon."""
+        point for effects whose reach is tens of metres around a one-metre item."""
 
         low, high = self._item_bounds()
         item = max(high[axis] - low[axis] for axis in range(3))
@@ -824,15 +435,22 @@ class EffectPlacementDialog(QDialog):
     def _offer_the_trail_socket(self) -> None:
         """Show the Trail button when the item's own socket file named one.
 
-        Only then: the socket files are shared between weapons and a borrowed one puts the
-        trail at another weapon's tip, which is a worse answer than not offering it.
+        Only then: a borrowed or absent socket can belong to another visual prefab, which
+        is a worse answer than not offering it.
         """
 
         point = self._trail_point()
-        self.trail_button.setVisible(point is not None)
+        self.trail_button.setVisible(point is not None and self._compatibility_ui)
+        anchor_choice = getattr(self, "anchor_choice", None)
+        if anchor_choice is not None:
+            index = anchor_choice.findData("trail")
+            if point is not None and index < 0:
+                anchor_choice.addItem("Trail Socket", "trail")
+            elif point is None and index >= 0:
+                anchor_choice.removeItem(index)
         if point is not None:
             self.trail_button.setToolTip(
-                "Put the effect's origin where the game hangs this weapon's own trail "
+                "Put the effect's origin at this item's Trail Socket "
                 f"({point[0]:.2f}, {point[1]:.2f}, {point[2]:.2f} m)."
             )
 
@@ -851,11 +469,11 @@ class EffectPlacementDialog(QDialog):
         once it is the one on screen."""
 
         self.show_character.setToolTip(
-            "The game's own character, holding the item in the hand and at the angle the game holds it."
+            "The game's own character provides a size reference for the item and effect."
         )
         row = getattr(self, "legend_rows", {}).get("body")
         if row is not None:
-            row.setText(f"{_swatch(BODY_TINT)} the game's character, holding the item")
+            row.setText(f"{_swatch(BODY_TINT)} the game's character, for scale")
 
     def _item_bounds(self) -> Tuple[Vec3, Vec3]:
         mesh = self._item_mesh
@@ -925,6 +543,7 @@ class EffectPlacementDialog(QDialog):
         self.scale_spin.setValue(self.scale)
         self.scale_spin.blockSignals(False)
         self._refresh_size_label()
+        self.transform_changed.emit()
 
     def _numbers_edited(self, *_args) -> None:
         self.offset = tuple(float(spin.value()) for spin in self.offset_spins)  # type: ignore[assignment]
@@ -932,6 +551,7 @@ class EffectPlacementDialog(QDialog):
         self.scale = float(self.scale_spin.value())
         self._refresh_size_label()
         self._sync_host()
+        self.transform_changed.emit()
 
     def _drag_finished(self, dx: float, dy: float, dz: float) -> None:
         # the drag is in the scene the reader is looking at; the numbers are the item's own
@@ -979,6 +599,8 @@ class EffectPlacementDialog(QDialog):
         return (("effect placement preview", self._thread, self._worker),) if self._thread is not None else ()
 
     def request_shutdown(self) -> None:
+        if self._closed:
+            return
         self._closed = True
         worker = self._worker
         if worker is not None:
@@ -987,6 +609,19 @@ class EffectPlacementDialog(QDialog):
         if thread is not None:
             thread.requestInterruption()
             thread.quit()
+        host = self.host
+        if host is not None:
+            try:
+                host.controller.shutdown()
+            except Exception:  # noqa: BLE001
+                pass
+        self._remove_owned_package(self._preview)
+        self._remove_owned_package(self._loading_preview)
+        for retired in self._retired_previews:
+            self._remove_owned_package(retired)
+        self._loading_preview = None
+        self._loading_view_state = None
+        self._retired_previews = []
 
     def _remove_owned_package(self, preview: Optional[EffectPlacementPreview]) -> bool:
         """Remove only one package directory created directly under this workspace root."""
@@ -1004,16 +639,63 @@ class EffectPlacementDialog(QDialog):
         shutil.rmtree(candidate, ignore_errors=True)
         return True
 
+
+class EffectPlacementDialog(QDialog):
+    """Thin modal compatibility wrapper around :class:`EffectPlacementWorkspace`."""
+
+    def __init__(self, parent: Optional[QWidget] = None, **kwargs) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Place the effect on the item")
+        self.setModal(True)
+        self.resize(960, 640)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.workspace = EffectPlacementWorkspace(self, compatibility_ui=True, **kwargs)
+        self.workspace.apply_button.setVisible(False)
+        self.workspace.setVisible(True)
+        layout.addWidget(self.workspace, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Apply")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    @property
+    def offset(self) -> Vec3:
+        return self.workspace.offset
+
+    @property
+    def rotation(self) -> Vec3:
+        return self.workspace.rotation
+
+    @property
+    def scale(self) -> float:
+        return self.workspace.scale
+
+    def __getattr__(self, name: str):
+        workspace = self.__dict__.get("workspace")
+        if workspace is not None:
+            return getattr(workspace, name)
+        raise AttributeError(name)
+
+    def __setattr__(self, name: str, value) -> None:
+        workspace = self.__dict__.get("workspace")
+        if workspace is not None and name != "workspace" and hasattr(workspace, name):
+            setattr(workspace, name, value)
+            return
+        super().__setattr__(name, value)
+
+    def apply_deltas(self, *args, **kwargs) -> None:
+        self.workspace.apply_deltas(*args, **kwargs)
+
+    def iter_shutdown_workers(self):
+        return self.workspace.iter_shutdown_workers()
+
+    def request_shutdown(self) -> None:
+        self.workspace.request_shutdown()
+
     def done(self, result: int) -> None:  # noqa: D401 - Qt override
         self.request_shutdown()
-        host = self.host
-        if host is not None:
-            try:
-                host.controller.shutdown()
-            except Exception:  # noqa: BLE001
-                pass
-        preview = self._preview
-        self._remove_owned_package(preview)
         super().done(result)
 
 

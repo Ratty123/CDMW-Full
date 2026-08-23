@@ -28,7 +28,9 @@ $TestsByArea = @{
         "tests/test_localization_catalog_contracts.py",
         # New Item Studio: headless construction, and a plan driven through its panels.
         "tests/test_new_item_studio_tab.py",
-        "tests/test_effect_placement_dialog.py"
+        "tests/test_effect_placement_dialog.py",
+        "tests/test_new_item_effect_workspace.py",
+        "tests/test_new_item_workflow_header.py"
     )
     stability = @(
         "tests/test_runtime_dependency_smoke.py",
@@ -91,7 +93,7 @@ $TestsByArea = @{
         "tests/test_multichangeinfo_table.py",
         # New Item Studio, phase 6b: the texture registry (meta/0.pathc) a new icon must be registered in.
         "tests/test_pathc_format.py",
-        # New Item Studio, phase 7: grafting a component (a weapon effect) into a prefab.
+        # New Item Studio visual effects: grafting a component into compatible item prefabs.
         "tests/test_prefab_component_graft.py",
         # New Item Studio, phase 8: the UI's icon registry a new icon must be declared in.
         "tests/test_item_icon_registry.py",
@@ -100,6 +102,8 @@ $TestsByArea = @{
         "tests/test_new_item_materials.py",
         "tests/test_effect_binary.py",
         "tests/test_effect_catalogue.py",
+        "tests/test_new_item_effect_targets.py",
+        "tests/test_new_item_effect_proof.py",
         "tests/test_effect_placement_preview.py",
         "tests/test_effect_edit.py"
     )

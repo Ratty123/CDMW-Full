@@ -1,5 +1,5 @@
 """Place an effect on an item in the .NET viewport: a small anchor mesh the gizmo moves.
-The game draws a grafted effect at the weapon's origin, transformed by the
+The game draws a grafted effect at the item's origin, transformed by the
 ``_offsetTransform`` the studio writes (a uniform scale and an offset). This module
 packages a small anchor (an octahedron a few centimetres across, at the effect's
 origin) as the editable mesh for the resident .NET viewport, with the item's own
@@ -9,8 +9,8 @@ the particle layer draws the effect's approximate reading around it (see
 the studio adds to its offset and scale. What the effect *spans* (its reach, from
 `EffectData._boundingBoxMin/Max`) travels along as numbers for the dialog's text;
 it is not drawn, since a box the size of the reach hides the item.
-The scene is the item's frame: the weapon's origin is the hand, +z toward the
-pommel, the blade toward -z; a helm sits at head height. The anchor is authored at
+The scene is the item's frame: an equipped asset may begin at a hand, head or body
+attachment. The anchor is authored at
 scale 1.0 at the effect's own origin, so the placement transform the viewport
 applies is exactly the ``_offsetTransform`` the game will.
 """
@@ -196,7 +196,7 @@ from cdmw.services.effect_character_reference import CHARACTER_SUBMESH_PREFIX as
 EFFECT_BODY_SUBMESH = "effect_body"
 EFFECT_BODY_MATERIAL = "effect_body"
 
-#: Where a weapon's own origin sits on the character holding it: the hand, about a metre
+#: Where a held item's own origin sits on the character: about a metre
 #: off the ground, with the body a little behind it and the character facing -z. The
 #: numbers are the shipped characters' proportions to the nearest few centimetres, which is
 #: all a scale reference needs to be -- the question it answers is whether an effect is the

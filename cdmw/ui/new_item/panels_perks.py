@@ -1,4 +1,4 @@
-"""New Item Studio, panel 5: perks (the Abyss Gear socket items the item carries) and a weapon effect.
+"""New Item Studio, panel 5: gameplay perks and staged visual effects.
 
 Perks are the item row's default socket items: the tooltip's "Insight I", "Malicebane I"
 lines. The panel offers every gem the archives know, by English name, and holds up to
@@ -7,10 +7,9 @@ eight of them (no shipped item carries more than four). The gems are of two kind
 which grant Abyss skills, the elemental abilities among them (Volcanic Eruption, Frost
 Hail, Orbs of Lightning, Storm Fang, Groundsurge, Tempest of Destruction, Wind Slash...);
 shipped items embed both kinds by default (Crow Storm on the White Crow witch's war
-hammer, Storm Fang on Endour's helm), so an elemental ability is a perk away. An effect is one of the
-shipped effect binaries, grafted into the item's own prefabs as an EffectComponent; a
-grafted fire drew on the sword in game (2026-08-18), and the presets start from the
-effects named for weapons and elements.
+hammer, Storm Fang on Endour's helm), so an elemental ability is a perk away. A visual
+effect is one of the shipped effect binaries, structurally preflighted and grafted into
+every compatible prefab the new item owns.
 """
 
 from __future__ import annotations
@@ -31,18 +30,18 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QTabWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from cdmw.domain.new_item.effects import presets_for
 from cdmw.ui.new_item.controller import NewItemStudioController
+from cdmw.ui.new_item.effect_workspace import GuidedEffectsWorkspace
 from cdmw.ui.new_item.ui_kit import DetailsToggle, NoteLabel, WARN, intro_label
 
 MAX_PERKS = 8
 SAFE_PERKS = 4
-SUGGESTED_EFFECT_TERMS = ("fire", "lightning", "ice", "aura", "sword", "weapon")
 
 
 class PerksPanel(QGroupBox):
@@ -51,11 +50,30 @@ class PerksPanel(QGroupBox):
         self._controller = controller
         self._syncing_effect = False
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label(
-            "Gameplay perks change the item's built-in abilities or stats. Weapon effects change appearance only; "
+        self._legacy_intro = intro_label(
+            "Gameplay perks change the item's built-in abilities or stats. Visual effects change appearance only; "
             "they do not add fire, ice, lightning or other attack damage."
-        ))
+        )
+        layout.addWidget(self._legacy_intro)
 
+        perks = self._build_perks_section()
+        layout.addWidget(perks)
+
+        effect = self._build_effect_section()
+        layout.addWidget(effect)
+
+        self.custom_perks.setVisible(False)
+        self._own_perks_changed(False)
+        self._use_effect_changed(False)
+
+        self._install_workspace(layout, perks, effect)
+
+        controller.snapshot_ready.connect(self._refresh_all)
+        controller.effect_catalogue_ready.connect(self._catalogue_ready)
+        controller.template_changed.connect(self._template_changed)
+        self._refresh_all()
+
+    def _build_perks_section(self) -> QGroupBox:
         perks = QGroupBox("Gameplay perks and abilities")
         perks_layout = QVBoxLayout(perks)
         self.template_perks = QLabel("The clone carries the template's own perks.")
@@ -105,28 +123,41 @@ class PerksPanel(QGroupBox):
         self.experimental_perks.toggled.connect(self._perk_limit_changed)
         custom_layout.addWidget(self.experimental_perks)
         perks_layout.addWidget(self.custom_perks)
-        layout.addWidget(perks)
+        return perks
 
-        effect = QGroupBox("Weapon effect (optional)")
+    def _build_effect_section(self) -> QGroupBox:
+        effect = QGroupBox("Visual effect (optional)")
         effect_layout = QVBoxLayout(effect)
         self.visual_only = intro_label("Visual only — this does not change attack damage or apply an elemental status.")
         effect_layout.addWidget(self.visual_only)
         self.effect_support = NoteLabel("")
         effect_layout.addWidget(self.effect_support)
-        self.use_effect = QCheckBox("Add a visual effect to the drawn weapon")
-        self.use_effect.setToolTip("The effect is grafted into the new item's weapon prefabs. The shipped items keep theirs.")
+        self.use_effect = QCheckBox("Add a visual effect to the item")
+        self.use_effect.setToolTip("The effect is grafted only into compatible prefabs the new item owns. Shipped shared prefabs stay untouched.")
         self.use_effect.toggled.connect(self._use_effect_changed)
         effect_layout.addWidget(self.use_effect)
+        self.effect_primary = self._build_effect_primary()
+        effect_layout.addWidget(self.effect_primary)
+        self.effect_advanced = self._build_effect_advanced()
+        self.effect_advanced.setVisible(False)
+        effect_layout.addWidget(self.effect_advanced)
+        #: Everything below the opt-in is hidden while it is off. Advanced controls remain
+        #: folded until separately requested.
+        self._effect_rows = (self.effect_primary,)
+        for row in self._effect_rows:
+            row.setVisible(False)
+        return effect
 
+    def _build_effect_primary(self) -> QWidget:
         self.effect_primary = QWidget()
         primary_layout = QVBoxLayout(self.effect_primary)
         primary_layout.setContentsMargins(0, 0, 0, 0)
         choose = QFormLayout()
         choose.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.effect_preset = QComboBox()
-        self.effect_preset.setToolTip("Curated shipped visual effects with a sensible starting scale. Their names describe appearance, not damage.")
+        self.effect_preset.setToolTip("Compatibility control retained for older integrations; use the Effect Library in the visible workspace.")
         self.effect_preset.currentIndexChanged.connect(self._preset_chosen)
-        choose.addRow("Curated visual:", self.effect_preset)
+        choose.addRow("Visual:", self.effect_preset)
         primary_layout.addLayout(choose)
         self.effect_selection = NoteLabel("")
         primary_layout.addWidget(self.effect_selection)
@@ -142,13 +173,14 @@ class PerksPanel(QGroupBox):
         self.effect_advanced_toggle.setAutoRaise(True)
         self.effect_advanced_toggle.toggled.connect(self._toggle_effect_advanced)
         primary_layout.addWidget(self.effect_advanced_toggle)
-        effect_layout.addWidget(self.effect_primary)
+        return self.effect_primary
 
+    def _build_effect_advanced(self) -> QGroupBox:
         self.effect_advanced = QGroupBox("Advanced effect browser and tuning")
         advanced_layout = QVBoxLayout(self.effect_advanced)
         advanced_warning = NoteLabel("")
         advanced_warning.set_note(
-            "Custom effect files, recolouring and particle tuning are experimental. A built-in fire visual has drawn in game; customized looks are not proven.",
+            "Recolouring and particle tuning require a fully decoded effect. Verify the final visual fit in game.",
             WARN,
         )
         advanced_layout.addWidget(advanced_warning)
@@ -182,7 +214,7 @@ class PerksPanel(QGroupBox):
         self.effect_scale.setSingleStep(0.1)
         self.effect_scale.setDecimals(2)
         self.effect_scale.setValue(1.0)
-        self.effect_scale.setToolTip("A uniform scale on the grafted effect. Effects made for bigger weapons (the titan's lightning, the fire sweep) reach past a sword at 1.0; the shipped spear carries 0.7.")
+        self.effect_scale.setToolTip("A uniform scale on the grafted effect. Use Fit to item as a neutral starting point for effects authored at a different size.")
         self.effect_scale.valueChanged.connect(self._effect_transform_changed)
         placement_form.addRow("Visual scale:", self.effect_scale)
         self.effect_offset = []
@@ -192,7 +224,7 @@ class PerksPanel(QGroupBox):
             box.setSingleStep(0.05)
             box.setDecimals(2)
             box.setValue(0.0)
-            box.setToolTip("Moves the effect along the weapon's own axes, in metres, from the weapon's origin.")
+            box.setToolTip("Moves the effect along the item's own axes, in metres, from the item's origin.")
             box.valueChanged.connect(self._effect_transform_changed)
             placement_form.addRow(f"Offset {axis} (m):", box)
             self.effect_offset.append(box)
@@ -204,7 +236,7 @@ class PerksPanel(QGroupBox):
             box.setDecimals(1)
             box.setWrapping(True)
             box.setValue(0.0)
-            box.setToolTip("Turns the effect about the weapon's own axes, in degrees; x, then y, then z. The viewport's Rotate tool sets the same numbers.")
+            box.setToolTip("Turns the effect about the item's own axes, in degrees; x, then y, then z. The viewport's Rotate tool sets the same numbers.")
             box.valueChanged.connect(self._effect_transform_changed)
             placement_form.addRow(f"Rotation {axis} (°):", box)
             self.effect_rotation.append(box)
@@ -244,32 +276,43 @@ class PerksPanel(QGroupBox):
         self.effect_reset_button.clicked.connect(self._reset_effect_tuning)
         advanced_layout.addWidget(self.effect_reset_button)
         self.effect_note = DetailsToggle(
-            "The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for "
-            "other weapons may sit or scale oddly; the scale and offset above move them, the presets carry a starting scale, and "
-            "Place in viewport shows the effect's box (and its particles, approximately) on the item. A colour edit recolours the "
+            "The effect starts at the item's origin. Origin, Center, End and an exposed Trail Socket provide asset-neutral anchors; "
+            "scale, position and rotation refine the placement, and the viewport shows the effect's bounds and approximate particles. A colour edit recolours the "
             "effect's data on a clone; whether each colour or particle field changes the in-game result is experimental.",
             title="How the effect and its look work",
         )
         advanced_layout.addWidget(self.effect_note)
-        self.effect_advanced.setVisible(False)
-        effect_layout.addWidget(self.effect_advanced)
-        #: Everything below the opt-in is hidden while it is off. Advanced controls remain
-        #: folded until separately requested.
-        self._effect_rows = (self.effect_primary,)
-        for row in self._effect_rows:
-            row.setVisible(False)
-        layout.addWidget(effect)
+        return self.effect_advanced
 
-        self.custom_perks.setVisible(False)
-        self._own_perks_changed(False)
-        self._use_effect_changed(False)
-        layout.addStretch(1)
-        controller.snapshot_ready.connect(self._refresh_all)
-        controller.effect_catalogue_ready.connect(self._catalogue_ready)
-        controller.template_changed.connect(self._template_changed)
-        self._refresh_all()
+    def _install_workspace(self, layout: QVBoxLayout, perks: QGroupBox, effect: QGroupBox) -> None:
+        # Step 5 is one full-height page with two real workspaces. The legacy effect
+        # widgets stay alive as compatibility objects for existing callers, but are no
+        # longer presented; the resident staged workspace owns the visible Effects tab.
+        self.tabs = QTabWidget()
+        self.tabs.setObjectName("new_item_perks_effects_tabs")
+        self.perks_page = QWidget()
+        perks_page_layout = QVBoxLayout(self.perks_page)
+        perks_page_layout.setContentsMargins(12, 10, 12, 10)
+        perks_page_layout.addWidget(perks)
+        perks_page_layout.addStretch(1)
+        self.effects_workspace = GuidedEffectsWorkspace(self._controller)
+        self.effects_page = self.effects_workspace
+        self.tabs.addTab(self.perks_page, "Perks")
+        self.tabs.addTab(self.effects_page, "Effects")
+        self.tabs.setCurrentWidget(self.effects_page)
+        self.own_perks.toggled.connect(self._show_perks_when_customizing)
+        while layout.count():
+            layout.takeAt(0)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.tabs, 1)
+        self._legacy_intro.setVisible(False)
+        effect.setVisible(False)
 
     # ------------------------------------------------------------------ perks
+
+    def _show_perks_when_customizing(self, checked: bool) -> None:
+        if checked:
+            self.tabs.setCurrentWidget(self.perks_page)
 
     def _refresh_all(self) -> None:
         self._refresh_catalogue()
@@ -418,7 +461,7 @@ class PerksPanel(QGroupBox):
             self._controller.invalidate_plan()
         else:
             # Opting in does not silently choose the first of thousands of files. The
-            # curated selector and advanced browser both start on an explicit placeholder.
+            # The compatibility selector and advanced browser both start on an explicit placeholder.
             self._effect_changed(self.effect.currentIndex())
         self._refresh_effect_selection()
 
@@ -587,31 +630,15 @@ class PerksPanel(QGroupBox):
         self.effect_facts.setText(text)
 
     def _refresh_presets(self) -> None:
-        available = set(self._controller.effect_stems("", limit=100000))
         self.effect_preset.blockSignals(True)
         try:
             self.effect_preset.clear()
-            self.effect_preset.addItem("Choose a preset...", "")
-            for preset in presets_for(available):
-                label = preset.label + (" (proven)" if preset.proven else "")
-                self.effect_preset.addItem(label, preset.stem)
-                if preset.note:
-                    self.effect_preset.setItemData(self.effect_preset.count() - 1, f"{preset.stem}: {preset.note}", Qt.ItemDataRole.ToolTipRole)
+            self.effect_preset.addItem("", "")
         finally:
             self.effect_preset.blockSignals(False)
-        self._sync_preset_to_effect()
 
     def _preset_chosen(self, index: int) -> None:
-        if self._syncing_effect:
-            return
-        stem = self.effect_preset.itemData(index) if index >= 0 else ""
-        if stem:
-            scale = 1.0
-            for preset in presets_for(None):
-                if preset.stem == str(stem):
-                    scale = float(preset.scale)
-                    break
-            self.choose_effect(str(stem), scale=scale)
+        return
 
     def _refresh_effects(self, *_args) -> None:
         current = str(self._controller.draft.effect_stem or "")
@@ -651,6 +678,12 @@ class PerksPanel(QGroupBox):
     def choose_effect(self, stem: str, *, scale: float = 1.0) -> None:
         """Select an effect by stem (used by tests and by callers with a known effect)."""
 
+        workspace = getattr(self, "effects_workspace", None)
+        if workspace is not None:
+            workspace.choose_effect(stem, scale=scale)
+            self.tabs.setCurrentWidget(self.effects_page)
+            return
+
         clean = str(stem or "").strip()
         if not clean:
             return
@@ -671,11 +704,9 @@ class PerksPanel(QGroupBox):
         self._refresh_effect_selection()
 
     def _sync_preset_to_effect(self) -> None:
-        stem = str(self._controller.draft.effect_stem or "")
-        index = self.effect_preset.findData(stem) if stem else 0
         self._syncing_effect = True
         try:
-            self.effect_preset.setCurrentIndex(index if index >= 0 else 0)
+            self.effect_preset.setCurrentIndex(0)
         finally:
             self._syncing_effect = False
 
@@ -685,39 +716,33 @@ class PerksPanel(QGroupBox):
             self.effect_selection.set_note("No visual effect. Gameplay damage is unchanged.", None)
             return
         if not stem:
-            self.effect_selection.set_note("Choose a curated visual. Nothing is added until one is selected.", WARN)
+            self.effect_selection.set_note("Choose an effect. Nothing is added until one is selected and applied.", WARN)
             return
-        preset = next((item for item in presets_for(None) if item.stem == stem), None)
-        label = preset.label if preset is not None else stem
         draft = self._controller.draft
         customized = bool(
             draft.effect_color is not None
-            or draft.effect_scale != (float(preset.scale) if preset is not None else 1.0)
+            or draft.effect_scale != 1.0
             or draft.effect_offset != (0.0, 0.0, 0.0)
             or any(value != 1.0 for value in (draft.effect_intensity, draft.effect_size, draft.effect_rate, draft.effect_lifetime))
         )
         suffix = " Advanced tuning differs from its starting values." if customized else " Using its starting values."
-        self.effect_selection.set_note(f"Selected visual: {label}. Visual only; attack damage is unchanged.{suffix}", WARN if customized else None)
+        self.effect_selection.set_note(f"Selected visual: {stem}. Visual only; attack damage is unchanged.{suffix}", WARN if customized else None)
 
     def _refresh_effect_support(self) -> None:
         snapshot = self._controller.snapshot
         key = self._controller.draft.template_key
         if snapshot is None or key is None:
             supported = False
-            text = "Choose a template before adding a weapon visual."
+            text = "Choose a template before adding a visual effect."
         else:
             row = snapshot.row(int(key))
             equip = snapshot.equip_type_name(row) or "Unknown equipment type"
-            compact = "".join(character for character in equip.casefold() if character.isalnum())
-            armour_tokens = ("armor", "armour", "helm", "glove", "handwear", "boot", "shoe", "footwear", "ring", "earring", "necklace", "belt", "cloak", "cape")
-            supported = not any(token in compact for token in armour_tokens)
-            text = (
-                f"{equip}: weapon-prefab visuals are available, but each effect still needs an in-game fit check."
-                if supported else
-                f"{equip}: this prefab effect path is unavailable for armour and accessories, so no visual effect will be exported."
-            )
-        if not supported and self.use_effect.isChecked():
-            self.use_effect.setChecked(False)
+            candidate = self._controller.draft.effect_stem
+            if not candidate:
+                candidate = next(iter(self._controller.effect_stems("", limit=1)), "")
+            compatibility = self._controller.effect_target_compatibility(candidate) if candidate else None
+            supported = bool(compatibility is not None and compatibility.supported)
+            text = compatibility.message if compatibility is not None else f"{equip}: no effect target could be checked."
         self.use_effect.setEnabled(supported)
         self.effect_support.set_note(text, None if supported else WARN)
         self._refresh_effect_selection()
@@ -732,10 +757,17 @@ class PerksPanel(QGroupBox):
     def effect_summary(self) -> tuple[str, bool]:
         stem = str(self._controller.draft.effect_stem or "")
         if not stem:
-            return ("Weapon effect: choose a visual", False) if self.use_effect.isChecked() else ("Weapon effect: none", False)
-        preset = next((item for item in presets_for(None) if item.stem == stem), None)
-        label = preset.label if preset is not None else stem
-        return f"Weapon effect: {label} (visual only)", True
+            return "Visual effect: none", False
+        return f"Visual effect: {stem} (visual only)", True
+
+    def has_staged_effect_changes(self) -> bool:
+        return self.effects_workspace.has_staged_changes()
+
+    def apply_staged_effect(self) -> bool:
+        return self.effects_workspace.apply_staged()
+
+    def discard_staged_effect(self) -> None:
+        self.effects_workspace.discard_staged()
 
     def _placement_dialogs(self):
         from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementDialog
@@ -743,12 +775,13 @@ class PerksPanel(QGroupBox):
         return tuple(self.findChildren(EffectPlacementDialog))
 
     def iter_shutdown_workers(self):
-        workers = []
+        workers = list(self.effects_workspace.iter_shutdown_workers())
         for dialog in self._placement_dialogs():
             workers.extend(dialog.iter_shutdown_workers())
         return tuple(workers)
 
     def request_shutdown(self) -> None:
+        self.effects_workspace.request_shutdown()
         for dialog in self._placement_dialogs():
             dialog.request_shutdown()
 

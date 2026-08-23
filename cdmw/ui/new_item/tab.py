@@ -17,8 +17,6 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -39,6 +37,7 @@ from cdmw.ui.new_item.panels_placement import PlacementPanel
 from cdmw.ui.new_item.panels_stats import StatsPanel
 from cdmw.ui.new_item.panels_template import TemplatePanel
 from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, NoteLabel, note, step_style, tinted
+from cdmw.ui.new_item.workflow_header import WorkflowHeader, WorkflowStepState
 
 
 #: the left rail: the step list and the item so far, and how many characters one of its lines holds
@@ -73,11 +72,13 @@ class NewItemStudioTab(QWidget):
         controller: Optional[NewItemStudioController] = None,
         get_archive_entries: Optional[Callable[[], Iterable[ArchiveEntry]]] = None,
         get_package_root: Optional[Callable[[], str]] = None,
+        effect_dirty_prompt: Optional[Callable[[], str]] = None,
     ) -> None:
         super().__init__(parent)
         self._window = window
         self._get_entries = get_archive_entries or (lambda: getattr(window, "archive_entries", None) or ())
         self._get_package_root = get_package_root or (lambda: _window_package_root(window))
+        self._effect_dirty_prompt = effect_dirty_prompt or self._prompt_for_staged_effect
         self.controller = controller or NewItemStudioController(service=service, parent=self)
         cache_root = getattr(window, "archive_cache_root", None)
         if cache_root is not None and self.controller.effect_cache_path is None:
@@ -90,6 +91,8 @@ class NewItemStudioTab(QWidget):
         self._model_part_editor_widget: object | None = None
         self._model_part_editor_controller: object | None = None
         self._model_part_editor_session_id = ""
+        self._current_step = 0
+        self._syncing_step = False
 
         self._status = QLabel("New Item Studio reads the item, string, store, group and language tables once, then plans a new item against them.")
         self._status.setWordWrap(True)
@@ -190,12 +193,14 @@ class NewItemStudioTab(QWidget):
             self.placement_panel._refresh_groups()
             self.identity_panel.refresh_issues()
             self._refresh_summary()
+            self.controller.start_effect_index()
             return
         try:
             self.controller.log_message.disconnect(self._status.setText)
         except (RuntimeError, TypeError):
             pass
         self._mount_panels()
+        self.controller.start_effect_index()
         if self._pending_template is not None:
             key, self._pending_template = self._pending_template, None
             self.template_panel.prefill(key)
@@ -235,74 +240,65 @@ class NewItemStudioTab(QWidget):
         controller.template_changed.connect(lambda _key: self.identity_panel.refresh_issues())
         controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
 
-        # one step at a time: a step list on the left (as tall as its seven lines), under it
-        # the item so far, one tinted line per step; the step's panel fills the right;
-        # Back/Next along the bottom
+        # One guided workspace: the clickable header owns navigation, the current page
+        # owns the whole width, and the footer keeps Back / progress / Continue stable.
         self.setStyleSheet(step_style(self.palette()))
-        self.steps = QListWidget()
+        self.steps = WorkflowHeader()
         self.steps.setObjectName("new_item_steps")
-        self.steps.setFixedWidth(RAIL_WIDTH)
-        self.steps.setSpacing(2)
-        self.steps.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.pages = QStackedWidget()
         self._panels = (self.template_panel, self.identity_panel, self.model_panel, self.stats_panel, self.perks_panel, self.placement_panel, self.output_panel)
-        for panel in self._panels:
-            item = QListWidgetItem(panel.title())
-            item.setToolTip(panel.toolTip())
-            self.steps.addItem(item)
+        for index, panel in enumerate(self._panels):
+            item = self.steps.item(index)
+            if item is not None:
+                item.setToolTip(panel.toolTip())
             panel.setObjectName("new_item_step")
-            # the panel takes the height its content needs and sits at the top; the page
-            # below it is plain background, not an empty frame
-            # The panel goes into the scroll area itself: with a holder widget in between,
-            # the area sized that holder to the viewport and left it shorter than the
-            # panel's own minimum, so the widgets under a grown table were drawn over it.
-            page = QScrollArea()
-            page.setWidgetResizable(True)
-            page.setFrameShape(QScrollArea.NoFrame)
-            page.setWidget(panel)
+            if index == 4:
+                panel.setProperty("guidedFullHeight", True)
+                panel.setTitle("")
+                # The placement workspace itself owns the only vertical scroller, in its
+                # right inspector. Wrapping it here would create nested scrolling and a
+                # horizontal bar at the supported 1280 px window.
+                page = panel
+            else:
+                page = QScrollArea()
+                page.setWidgetResizable(True)
+                page.setFrameShape(QScrollArea.NoFrame)
+                page.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                page.setWidget(panel)
             self.pages.addWidget(page)
         self.steps.currentRowChanged.connect(self._show_step)
-        rows_height = sum(self.steps.sizeHintForRow(i) + 2 * self.steps.spacing() for i in range(self.steps.count()))
-        self.steps.setFixedHeight(rows_height + 2 * self.steps.frameWidth() + 6)
 
-        self.summary_box = QGroupBox("Your item so far")
+        # The old rail summary remains computed authority. It is hidden and projected
+        # onto each header step's tooltip and accessible text instead of taking a column.
+        self.summary_box = QGroupBox("Workflow state")
         summary_layout = QVBoxLayout(self.summary_box)
-        self.summary = NoteLabel("")
+        summary_layout.setContentsMargins(0, 0, 0, 0)
+        self.summary = NoteLabel("", parent=self.summary_box)
         self.summary.setObjectName("new_item_summary")
         summary_layout.addWidget(self.summary)
         green, amber, red, blue = tinted("green", OK), tinted("amber", WARN), tinted("red", BLOCK), tinted("blue", EDIT)
         self.summary_box.setToolTip(f"{green} settled, {amber} wants a decision or an in-game check, {red} blocks the plan, {blue} differs from the template.")
-        summary_layout.addStretch(1)
-        rail = QVBoxLayout()
-        rail.setContentsMargins(0, 0, 0, 0)
-        rail.setSpacing(8)
-        rail.addWidget(self.steps)
-        rail.addWidget(self.summary_box, 1)
-        rail_widget = QWidget()
-        rail_widget.setLayout(rail)
-        rail_widget.setFixedWidth(RAIL_WIDTH)
+        self.summary_box.setVisible(False)
 
-        columns = QHBoxLayout()
-        columns.setContentsMargins(0, 0, 0, 0)
-        columns.setSpacing(10)
-        columns.addWidget(rail_widget)
-        columns.addWidget(self.pages, 1)
         body = QWidget()
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(12, 12, 12, 8)
-        body_layout.setSpacing(8)
-        body_layout.addLayout(columns, 1)
+        body_layout.setContentsMargins(8, 8, 8, 8)
+        body_layout.setSpacing(0)
+        body_layout.addWidget(self.steps)
+        body_layout.addWidget(self.pages, 1)
         footer = QHBoxLayout()
+        footer.setContentsMargins(14, 10, 8, 4)
         self.back_button = QPushButton("Back")
         self.back_button.clicked.connect(lambda: self._step_by(-1))
-        self.next_button = QPushButton("Next")
-        self.next_button.clicked.connect(lambda: self._step_by(+1))
+        self.continue_button = QPushButton("Continue")
+        self.continue_button.clicked.connect(lambda: self._step_by(+1))
+        self.next_button = self.continue_button  # compatibility alias
         footer.addWidget(self.back_button)
-        footer.addWidget(self.next_button)
         self.step_hint = QLabel("")
-        self.step_hint.setObjectName("new_item_intro")
-        footer.addSpacing(16)
+        self.step_hint.setObjectName("new_item_step_counter")
+        self.step_hint.setAlignment(Qt.AlignCenter)
         footer.addWidget(self.step_hint, 1)
+        footer.addWidget(self.continue_button)
         body_layout.addLayout(footer)
         self._layout.addWidget(body, 1)
         controller.template_changed.connect(self._refresh_summary)
@@ -319,28 +315,74 @@ class NewItemStudioTab(QWidget):
         self.perks_panel.use_effect.toggled.connect(self._refresh_summary)
         self.perks_panel.effect.currentIndexChanged.connect(self._refresh_summary)
         self.perks_panel.own_perks.toggled.connect(self._refresh_summary)
+        self.perks_panel.effects_workspace.staged_changed.connect(self._effect_staged_changed)
         # The stats tables are deliberately not wired here: every edit on that step
         # invalidates the plan, which refreshes the rail once, after the draft changed.
         # A table's itemChanged fires once per cell it is given, so listening to it ran
         # the summary, and two full validations, once per cell of every rebuild.
-        self.steps.setCurrentRow(0)
-        self._refresh_summary()
+        self._show_step(0)
         self.template_panel._refresh_matches()
         self.placement_panel._refresh_stores()
 
     # ------------------------------------------------------------------ steps
 
     def _show_step(self, row: int) -> None:
-        if row < 0:
+        if self._syncing_step or not 0 <= int(row) < self.pages.count():
             return
+        row = int(row)
+        previous = int(self._current_step)
+        if self._panels_built and previous == 4 and row != 4 and self.perks_panel.has_staged_effect_changes():
+            action = str(self._effect_dirty_prompt() or "stay").casefold()
+            if action == "apply":
+                if not self.perks_panel.apply_staged_effect():
+                    action = "stay"
+            elif action == "discard":
+                self.perks_panel.discard_staged_effect()
+            if action not in {"apply", "discard"}:
+                self._syncing_step = True
+                try:
+                    self.steps.setCurrentRow(previous)
+                finally:
+                    self._syncing_step = False
+                self._refresh_summary()
+                return
         # the template list takes a row once the reader settles on it; leaving the step
         # is settling on it, and the steps after read the template
         if self._panels_built:
             self.template_panel.apply_pending_pick()
+        self._current_step = row
         self.pages.setCurrentIndex(row)
         self.back_button.setEnabled(row > 0)
-        self.next_button.setEnabled(row < self.pages.count() - 1)
-        self.step_hint.setText(f"Step {row + 1} of {self.pages.count()}" + ("" if row < self.pages.count() - 1 else ": build the plan, then write or install it"))
+        self.continue_button.setEnabled(
+            row < self.pages.count() - 1
+            and not (row == 4 and self.perks_panel.has_staged_effect_changes())
+        )
+        self.step_hint.setText(f"Step {row + 1} of {self.pages.count()}")
+        self._refresh_summary()
+
+    def _prompt_for_staged_effect(self) -> str:
+        prompt = QMessageBox(self)
+        prompt.setIcon(QMessageBox.Icon.Warning)
+        prompt.setWindowTitle("Apply placement changes?")
+        prompt.setText("The Effects workspace has placement or look changes that have not been applied.")
+        apply_button = prompt.addButton("Apply", QMessageBox.ButtonRole.AcceptRole)
+        discard_button = prompt.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
+        stay_button = prompt.addButton("Stay", QMessageBox.ButtonRole.RejectRole)
+        prompt.setDefaultButton(apply_button)
+        prompt.exec()
+        clicked = prompt.clickedButton()
+        if clicked is apply_button:
+            return "apply"
+        if clicked is discard_button:
+            return "discard"
+        if clicked is stay_button:
+            return "stay"
+        return "stay"
+
+    def _effect_staged_changed(self, dirty: object) -> None:
+        if self._current_step == 4:
+            self.continue_button.setEnabled(not bool(dirty))
+        self._refresh_summary()
 
     def _step_by(self, delta: int) -> None:
         row = self.steps.currentRow() + int(delta)
@@ -372,8 +414,8 @@ class NewItemStudioTab(QWidget):
         lines = []
         template = controller.template_name()
         lines.append(note(f"Template: {template}", OK) if template else note("Template: choose one", WARN))
+        english = (draft.display_names or {}).get("eng", "")
         if draft.internal_name:
-            english = (draft.display_names or {}).get("eng", "")
             lines.append(note(f"Name: {draft.internal_name} ({english})", OK) if english else note(f"Name: {draft.internal_name}, no English display name yet", WARN))
         else:
             lines.append(note("Name: not set", WARN))
@@ -392,7 +434,7 @@ class NewItemStudioTab(QWidget):
         perks_text, perks_changed = self.perks_panel.perks_summary()
         lines.append(note(perks_text, EDIT if perks_changed else OK))
         effect_text, effect_changed = self.perks_panel.effect_summary()
-        effect_tone = WARN if self.perks_panel.use_effect.isChecked() and not draft.effect_stem else EDIT if effect_changed else OK
+        effect_tone = WARN if self.perks_panel.has_staged_effect_changes() else EDIT if effect_changed else OK
         lines.append(note(effect_text, effect_tone))
         if draft.placement_kind.value != "none" and draft.store_name:
             lines.append(note(f"Shop: {draft.store_name}", OK))
@@ -403,6 +445,62 @@ class NewItemStudioTab(QWidget):
         else:
             lines.append(note("Plan: not built yet", WARN))
         self.summary.set_lines(lines, line_chars=RAIL_CHARS)
+
+        name_context = f"Name: {draft.internal_name or 'not set'}"
+        if blocked:
+            name_context += f"; {len(blocked)} issue(s) block the plan"
+        if imported is not None and controller.model_result is None:
+            model_context = f"Model: {imported.label}; placement not applied"
+        elif imported is not None or controller.model_result is not None:
+            model_context = f"Model: {imported.label if imported is not None else 'imported'}; placed"
+        else:
+            model_context = "Model: template"
+        distribution_context = (
+            f"Distribution: {draft.store_name}"
+            if draft.placement_kind.value != "none" and draft.store_name
+            else "Distribution: not sold anywhere"
+        )
+        output_context = (
+            f"Output: plan ready for item {controller.plan.spec.item_key}"
+            if controller.plan is not None
+            else "Output: plan not built"
+        )
+        step_contexts = (
+            f"Template: {template or 'choose one'}",
+            name_context,
+            model_context,
+            stats_text,
+            f"{perks_text}; {effect_text}"
+            + ("; staged placement must be applied or discarded" if self.perks_panel.has_staged_effect_changes() else ""),
+            distribution_context,
+            output_context,
+        )
+        step_states = (
+            WorkflowStepState.COMPLETED if template else WorkflowStepState.BLOCKED,
+            WorkflowStepState.BLOCKED
+            if blocked
+            else WorkflowStepState.COMPLETED
+            if draft.internal_name and english
+            else WorkflowStepState.PENDING,
+            WorkflowStepState.PENDING
+            if imported is not None and controller.model_result is None
+            else WorkflowStepState.COMPLETED,
+            WorkflowStepState.COMPLETED,
+            WorkflowStepState.PENDING
+            if self.perks_panel.has_staged_effect_changes()
+            else WorkflowStepState.COMPLETED,
+            WorkflowStepState.COMPLETED
+            if draft.placement_kind.value != "none" and draft.store_name
+            else WorkflowStepState.PENDING,
+            WorkflowStepState.COMPLETED if controller.plan is not None else WorkflowStepState.PENDING,
+        )
+        for index, context in enumerate(step_contexts):
+            item = self.steps.item(index)
+            if item is None:
+                continue
+            item.setState(step_states[index])
+            item.setToolTip(context)
+            item.setAccessibleText(f"Step {index + 1}, {item.text()}. {context}")
 
     # ------------------------------------------------------------------ entry points
 

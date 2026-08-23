@@ -34,12 +34,14 @@ from cdmw.ui.new_item.model_import import (
     mesh_centroid,
     prepare_model_import_mesh_edit,
 )
-from cdmw.services.effect_catalogue import EffectCatalogue, EffectFacts, build_effect_catalogue, catalogue_signature, load_effect_catalogue, save_effect_catalogue
+from cdmw.services.effect_catalogue import EffectCatalogue
 from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
 from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
 from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService
 from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
+from cdmw.ui.new_item.effect_workspace_controller import NewItemEffectWorkspaceControllerMixin
 from cdmw.ui.new_item.state import NewItemDraft, StatGrid, spec_from_draft, stat_grid_for, status_label, with_template
+from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
 from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
@@ -49,7 +51,7 @@ from cdmw.workers.utility_workers import UtilityWorker
 _NOT_READ = object()
 
 
-class NewItemStudioController(QObject):
+class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
     busy_changed = Signal(bool)
     log_message = Signal(str)
     status_message = Signal(str, bool)
@@ -74,6 +76,9 @@ class NewItemStudioController(QObject):
     #: the imported model's placement over the template moved (a ModelPlacement)
     model_placement_changed = Signal(object)
     effect_catalogue_ready = Signal()
+    effect_catalogue_progress = Signal(int, int, str)
+    effect_catalogue_failed = Signal(str)
+    effect_changed = Signal(object)
 
     def __init__(
         self,
@@ -123,6 +128,11 @@ class NewItemStudioController(QObject):
         self.effect_catalogue: Optional[EffectCatalogue] = None
         #: Where the catalogue cache lives; None keeps it in memory only.
         self.effect_cache_path: Optional[Path] = None
+        self._effect_lane = EffectCatalogueIndexLane(synchronous=self._synchronous, parent=self)
+        self._effect_lane.log_message.connect(self.log_message.emit)
+        self._effect_lane.progress.connect(self.effect_catalogue_progress.emit)
+        self._effect_lane.failed.connect(self.effect_catalogue_failed.emit)
+        self._effect_lane.completed.connect(self._publish_effect_catalogue)
         #: Identities this studio has already handed out but the snapshot may not see: a
         #: plan built earlier, or an item written as a loose mod rather than installed.
         #: Without them a second item would take the first one's key and stem, and
@@ -431,32 +441,12 @@ class NewItemStudioController(QObject):
             return ()
         return tuple(self.snapshot.row(self.draft.template_key).socket_items)
 
-    def effect_stems(self, text: str = "", *, limit: int = 300) -> Tuple[str, ...]:
-        """Shipped effect stems matching `text`, alphabetical. With the catalogue indexed
-        the match runs over the effect's emitters, textures and meshes as well as its
-        stem, and every word of `text` must match; before, over the stem alone."""
-
-        if self.snapshot is None:
-            return ()
-        if self.effect_catalogue is not None and len(self.effect_catalogue):
-            return tuple(item.stem for item in self.effect_catalogue.search(text, limit=limit))
-        needle = str(text or "").strip().casefold()
-        stems = [stem for stem in self.snapshot.effect_stems if not needle or needle in stem.casefold()]
-        return tuple(sorted(stems)[:limit])
-
-    def effect_facts(self, stem: str) -> Optional[EffectFacts]:
-        """What the catalogue knows about `stem`, or None before indexing."""
-
-        if self.effect_catalogue is None:
-            return None
-        return self.effect_catalogue.get(stem)
-
     def item_mesh_as_planned(self):
-        """The mesh a weapon effect will actually sit on, and a word for what it is:
+        """The mesh a visual effect will actually sit on, and a word for what it is:
         the applied import, else the imported model at the placement set so far, else
         the template's own. The effect dialog asks for this rather than
         :meth:`item_mesh_for_preview`, whose imported model only appears once Apply
-        the placement has run, so an effect was judged against the template's blade.
+        the placement has run, so an effect was judged against the template instead.
         Returns `(mesh, kind)` where kind is "placed", "applied" or "template"; the mesh
         is None when there is nothing to parse."""
 
@@ -611,38 +601,6 @@ class NewItemStudioController(QObject):
 
         return (("template", self.draft.template_key, entry.path), build)
 
-    def effect_preview_for_placement(self, stem: str = ""):
-        """The chosen effect's simulation description with the draft's look applied, and a
-        reader for its sprite textures, for the placement dialog's viewport; (None, None)
-        when there is no snapshot, no effect, or the effect will not read."""
-
-        from cdmw.domain.new_item.spec import EffectLook
-        from cdmw.services.effect_preview_model import preview_effect_from_snapshot
-
-        snapshot = self.snapshot
-        chosen = str(stem or self.draft.effect_stem or "")
-        if snapshot is None or not chosen:
-            return None, None
-        draft = self.draft
-        look = EffectLook(
-            color=tuple(float(v) for v in draft.effect_color) if draft.effect_color is not None else None,
-            intensity=float(draft.effect_intensity), size=float(draft.effect_size),
-            rate=float(draft.effect_rate), lifetime=float(draft.effect_lifetime),
-        )
-        try:
-            preview = preview_effect_from_snapshot(snapshot, chosen, look)
-        except Exception as exc:  # noqa: BLE001 - the box still places; the description is extra
-            self.log_message.emit(f"The effect {chosen} gave no particle description: {exc}")
-            return None, None
-
-        def read_texture(path: str) -> Optional[bytes]:
-            try:
-                return snapshot.payload(path) if snapshot.has_entry(path) else None
-            except Exception:  # noqa: BLE001
-                return None
-
-        return preview, read_texture
-
     def character_reference(self):
         """The game's own character for the placement viewport, or None.
 
@@ -729,51 +687,6 @@ class NewItemStudioController(QObject):
         parts = tuple((name, name) for name in names)
         self._material_parts = (stamp, parts)
         return parts
-
-    def effect_box(self, stem: str = "") -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
-        """The chosen effect's bounding box at scale 1.0, or a metre cube before indexing."""
-
-        facts = self.effect_facts(stem or self.draft.effect_stem)
-        if facts is None or all(abs(v) < 1e-9 for v in (*facts.box_min, *facts.box_max)):
-            return (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)
-        return facts.box_min, facts.box_max
-
-    def load_effect_catalogue(self) -> bool:
-        """Take the on-disk catalogue when it was built for these archives' effects."""
-
-        if self.snapshot is None or self.effect_cache_path is None:
-            return False
-        catalogue = load_effect_catalogue(self.effect_cache_path, signature=catalogue_signature(self.snapshot))
-        if catalogue is None:
-            return False
-        self.effect_catalogue = catalogue
-        self.effect_catalogue_ready.emit()
-        return True
-
-    def start_effect_index(self) -> bool:
-        """Read and decode every shipped effect into the catalogue (a minute, once)."""
-
-        if self.snapshot is None:
-            self.status_message.emit("Read the archives first.", True)
-            return False
-        if self.load_effect_catalogue():
-            return True
-        snapshot = self.snapshot
-
-        def task(log, stop_event):
-            return build_effect_catalogue(snapshot, on_log=log, stop_event=stop_event)
-
-        def done(result: object) -> None:
-            if isinstance(result, EffectCatalogue):
-                self.effect_catalogue = result
-                if self.effect_cache_path is not None:
-                    try:
-                        save_effect_catalogue(result, self.effect_cache_path)
-                    except OSError as exc:
-                        self.log_message.emit(f"The effect catalogue could not be cached: {exc}")
-                self.effect_catalogue_ready.emit()
-
-        return self._run("effects", task, done, lambda message: self.status_message.emit(message, True))
 
     def import_dependency_context(self):
         """A dependency context for importing a model over the template's mesh: the
@@ -1366,7 +1279,11 @@ class NewItemStudioController(QObject):
     # ------------------------------------------------------------------ shutdown
 
     def iter_shutdown_workers(self) -> Tuple[Tuple[str, QThread, object], ...]:
-        return ((self._lane or "task", self._thread, self._worker),) if self._thread is not None else ()
+        workers = []
+        if self._thread is not None:
+            workers.append((self._lane or "task", self._thread, self._worker))
+        workers.extend(self._effect_lane.iter_shutdown_workers())
+        return tuple(workers)
 
     def request_shutdown(self) -> None:
         self._shutdown_requested = True
@@ -1380,6 +1297,7 @@ class NewItemStudioController(QObject):
         else:
             self._cleanup_model_source(self.model_import)
             self.model_import = None
+        self._effect_lane.request_shutdown()
 
     def shutdown(self) -> None:
         self.request_shutdown()
