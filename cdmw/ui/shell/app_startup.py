@@ -15,6 +15,7 @@ from cdmw.constants import APP_NAME, APP_ORGANIZATION, DEFAULT_UI_THEME
 from cdmw.services.bundled_helper_availability import bundled_helper_resolution_snapshot
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.app_icon import load_app_icon
+from cdmw.ui.combo_popup_limiter import ensure_app_combo_popup_limiter
 from cdmw.ui.shell.icon_controller import AppWindowIconEventFilter
 from cdmw.ui.shell.responsiveness_controller import AutoTreeColumnWidthEventFilter
 from cdmw.ui.shell.theme_controller import apply_app_theme, apply_window_data_fonts, apply_window_ui_fonts
@@ -42,6 +43,7 @@ def prepare_shell_application(
     app.setApplicationName(APP_NAME)
     app.setStyle("Fusion")
     ensure_app_wheel_guard(app)
+    ensure_app_combo_popup_limiter(app)
 
     startup_settings = (
         create_settings(settings_file_path=settings_file_path)

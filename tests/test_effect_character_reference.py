@@ -382,11 +382,9 @@ class PackageFrameTests(unittest.TestCase):
         self.assertGreater(high[1] - low[1], 0.9)
 
     def test_the_character_is_tinted_like_the_figure_it_replaced(self) -> None:
-        """The item's materials come out of the package builder with no base colour, which
-        the renderer draws as a black body on a dark background. The character is cut from
-        the archives and carries the same nothing, so the tint pass has to reach it."""
+        """The character is a synthetic scale reference; the item keeps its own material."""
 
-        from cdmw.services.effect_placement_preview import BODY_TINT, ITEM_TINT
+        from cdmw.services.effect_placement_preview import BODY_TINT
 
         preview = self._package(character_mesh=_body(2), item_rotation=QUARTER_TURN)
         payload = json.loads((Path(preview.package_dir) / "net_materials.json").read_text(encoding="utf-8"))
@@ -396,7 +394,7 @@ class PackageFrameTests(unittest.TestCase):
         }
         self.assertIn(f"{CHARACTER_SUBMESH_PREFIX}body", tints, "the character reached the materials file")
         self.assertEqual(tints[f"{CHARACTER_SUBMESH_PREFIX}body"], tuple(BODY_TINT))
-        self.assertEqual(tints["steel"], tuple(ITEM_TINT), "and the item is still the item")
+        self.assertEqual(tints["steel"], (), "the item's canonical material is not rewritten")
 
     def test_without_a_character_the_scene_is_the_item_s_own_frame(self) -> None:
         preview = self._package()

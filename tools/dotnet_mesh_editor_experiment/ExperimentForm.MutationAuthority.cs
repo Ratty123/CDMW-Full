@@ -143,7 +143,21 @@ internal sealed partial class ExperimentForm
         {
             _pendingMutationRequests.Remove(pending.RequestId);
         }
-        _statusLabel.Text = $"Command result: {status}.";
+        if (string.Equals(pending.Command, "separate", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(status, "applied", StringComparison.OrdinalIgnoreCase))
+        {
+            ReportRevealedPartStatus(clearPending: false);
+        }
+        else if (_createdPartReportPending
+            && string.Equals(pending.EventName, "selection_request", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(status, "applied", StringComparison.OrdinalIgnoreCase))
+        {
+            ReportRevealedPartStatus();
+        }
+        else
+        {
+            _statusLabel.Text = $"Command result: {status}.";
+        }
     }
 
     private bool TryPrepareCorrelatedSelectionUpdate(

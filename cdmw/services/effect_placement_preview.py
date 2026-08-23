@@ -353,13 +353,11 @@ BODY_TINT = (0.20, 0.23, 0.28)
 
 
 def _tint_anchor_material(materials_path: Path) -> None:
-    """Colour the package's materials: the anchor orange, the reach cage a dimmer orange,
-    and the item itself a light neutral grey.
+    """Style only the synthetic placement helpers and character reference.
 
-    The item's own materials come out of the package builder with no texture and no base
-    colour, which the renderer draws as a black body: on the viewport's dark background
-    that is an invisible sword with a rim of specular. Best effort: a package whose
-    materials file is missing or unreadable keeps what the builder wrote.
+    Item rows are the canonical material contract shared with Model & Icon. Changing
+    their alpha, roughness, metalness or tint here made the same imported mesh look like
+    a different material in Effects. A missing or unreadable manifest stays untouched.
     """
 
     import json
@@ -375,28 +373,29 @@ def _tint_anchor_material(materials_path: Path) -> None:
         if not isinstance(item, dict):
             continue
         material = str(item.get("material", ""))
-        item["alpha_mode"] = "opaque"
-        item["opacity_factor"] = 1.0
         parameters = dict(item.get("parameters", {}) or {})
         if material == EFFECT_BODY_MATERIAL or material.startswith(CHARACTER_MATERIAL_PREFIX):
-            item["double_sided"] = True
-            parameters.update({"base_tint_color": list(BODY_TINT), "base_tint_strength": 1.0, "roughness": 0.9, "metalness": 0.0})
+            tint, roughness = BODY_TINT, 0.9
         elif material == EFFECT_ANCHOR_MATERIAL:
-            item["double_sided"] = True
-            parameters.update({"base_tint_color": list(ANCHOR_TINT), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
+            tint, roughness = ANCHOR_TINT, 0.6
         elif material == EFFECT_REACH_MATERIAL:
-            item["double_sided"] = True
-            parameters.update({"base_tint_color": list(REACH_TINT), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
+            tint, roughness = REACH_TINT, 0.6
         elif material in EFFECT_AXIS_MATERIALS:
-            item["double_sided"] = True
             tint = EFFECT_AXIS_TINTS[EFFECT_AXIS_MATERIALS.index(material)]
-            parameters.update({"base_tint_color": list(tint), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
-        elif str(item.get("texture", "") or "").strip():
-            # it has textures of its own: tinting them would be painting over the thing the
-            # reader came to look at
-            parameters.update({"roughness": 0.55, "metalness": 0.0})
+            roughness = 0.6
         else:
-            parameters.update({"base_tint_color": list(ITEM_TINT), "base_tint_strength": 1.0, "roughness": 0.55, "metalness": 0.0})
+            continue
+        item["alpha_mode"] = "opaque"
+        item["opacity_factor"] = 1.0
+        item["double_sided"] = True
+        parameters.update(
+            {
+                "base_tint_color": list(tint),
+                "base_tint_strength": 1.0,
+                "roughness": roughness,
+                "metalness": 0.0,
+            }
+        )
         item["parameters"] = parameters
         changed = True
     if changed:

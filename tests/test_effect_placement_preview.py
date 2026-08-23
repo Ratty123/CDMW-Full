@@ -19,7 +19,6 @@ from cdmw.services.effect_placement_preview import (
     EFFECT_AXIS_TINTS,
     EFFECT_BODY_MATERIAL,
     EFFECT_REACH_MATERIAL,
-    ITEM_TINT,
     REACH_TINT,
     _tint_anchor_material,
     anchor_axis_triad,
@@ -94,7 +93,11 @@ class AnchorAndScaleTests(unittest.TestCase):
             self.assertEqual(anchor["opacity_factor"], 1.0)
             self.assertTrue(anchor["double_sided"])
             self.assertEqual(anchor["parameters"]["base_tint_color"], [1.0, 0.45, 0.1])
-            self.assertEqual(steel["alpha_mode"], "opaque")
+            self.assertEqual(
+                steel,
+                {"submesh_index": 1, "material": "steel", "alpha_mode": "opaque", "opacity_factor": 1.0, "parameters": {}},
+                "the item's canonical material row is byte-semantic authority",
+            )
             # a missing file is left alone
             _tint_anchor_material(Path(folder) / "missing.json")
 
@@ -131,7 +134,7 @@ class PackageTests(unittest.TestCase):
             ]
             self.assertTrue(item_materials, "the item's own materials are in the package")
             for name in item_materials:
-                self.assertEqual(tints[name], ITEM_TINT, f"{name} would draw black")
+                self.assertEqual(tints[name], (), f"{name} must keep the canonical material contract")
 
     def test_the_package_puts_the_anchor_first_and_the_item_as_reference(self) -> None:
         if os.environ.get("CDMW_SKIP_DOTNET_PACKAGE_TESTS") == "1":

@@ -203,13 +203,14 @@ class TabTests(unittest.TestCase):
         model, perks, groups = tab.model_panel, tab.perks_panel, tab.placement_panel
         self.assertFalse(model.clear_button.isVisibleTo(model), "nothing to discard until a model is imported")
         for widget in model._import_widgets:
-            self.assertFalse(widget.isVisibleTo(model), "the import's controls wait for the import radio")
+            self.assertTrue(widget.isHidden(), "the import's controls wait for the import radio")
         model.import_model.setChecked(True)
         for widget in model._import_widgets:
-            self.assertTrue(widget.isVisibleTo(model))
-        self.assertFalse(perks.catalogue.isVisibleTo(perks), "the perk catalogue waits to be asked for")
+            self.assertFalse(widget.isHidden())
+        self.assertFalse(perks.perk_results.isVisibleTo(perks), "the perk catalogue waits to be asked for")
         perks.own_perks.setChecked(True)
-        self.assertTrue(perks.catalogue.isVisibleTo(perks))
+        self.assertTrue(perks.perk_results.isVisibleTo(perks))
+        self.assertFalse(perks.catalogue.isVisibleTo(perks), "the legacy combo is data-only")
         self.assertEqual([perks.tabs.tabText(index) for index in range(perks.tabs.count())], ["Perks", "Effects"])
         self.assertIs(perks.tabs.currentWidget(), perks.perks_page, "customizing perks reveals the Perks tab")
         perks.tabs.setCurrentWidget(perks.effects_page)
@@ -239,7 +240,7 @@ class TabTests(unittest.TestCase):
         for index in range(tab.steps.count()):
             tab.show_step(index)
             self.app.processEvents()
-            if index == 4:
+            if index in {2, 4}:
                 self.assertNotIsInstance(tab.pages.currentWidget(), QScrollArea)
             else:
                 self.assertIsInstance(tab.pages.currentWidget(), QScrollArea)
@@ -602,6 +603,40 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_perk_search_list_double_click_adds_and_remove_button_removes(self) -> None:
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+
+        tab = self._tab()
+        tab.resize(1280, 720)
+        tab.show()
+        tab.prefill_template(TEMPLATE)
+        tab.show_step(4)
+        perks = tab.perks_panel
+        perks.own_perks.setChecked(True)
+        perks.perk_filter.setText("Swift")
+        self.app.processEvents()
+        item = perks.perk_results.item(0)
+        self.assertIsNotNone(item)
+        before = tuple(tab.controller.draft.socket_items or ())
+        QTest.mouseClick(
+            perks.perk_results.viewport(),
+            Qt.MouseButton.LeftButton,
+            pos=perks.perk_results.visualItemRect(item).center(),
+        )
+        QTest.mouseDClick(
+            perks.perk_results.viewport(),
+            Qt.MouseButton.LeftButton,
+            pos=perks.perk_results.visualItemRect(item).center(),
+        )
+        self.assertEqual(tuple(tab.controller.draft.socket_items or ()), (*before, 1002812))
+        perks.chosen.setCurrentRow(perks.chosen.count() - 1)
+        perks.remove_button.click()
+        self.assertEqual(tuple(tab.controller.draft.socket_items or ()), before)
+        tab.close()
+        tab.deleteLater()
+        self.app.processEvents()
+
     def test_guided_effect_navigation_applies_discards_or_stays(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
@@ -657,7 +692,7 @@ class TabTests(unittest.TestCase):
         for width, height in ((1280, 720), (1600, 900)):
             tab.resize(width, height)
             self.app.processEvents()
-            self.assertEqual(tab.steps.height(), 76)
+            self.assertEqual(tab.steps.height(), 46)
             self.assertEqual(tab.step_hint.text(), "Step 5 of 7")
             self.assertEqual(tab.back_button.text(), "Back")
             self.assertEqual(tab.continue_button.text(), "Continue")
@@ -708,6 +743,48 @@ class TabTests(unittest.TestCase):
         tab.request_shutdown()
         tab.close()
         tab.deleteLater()
+
+    def test_model_workspace_keeps_preview_fixed_and_controls_in_four_tabs(self) -> None:
+        from PySide6.QtWidgets import QScrollArea
+
+        tab = self._tab()
+        tab.resize(1280, 720)
+        tab.show()
+        tab.prefill_template(TEMPLATE)
+        tab.show_step(2)
+        self.app.processEvents()
+        panel = tab.model_panel
+
+        self.assertIs(tab.pages.currentWidget(), panel)
+        self.assertEqual([panel.inspector_tabs.tabText(index) for index in range(4)], ["Model", "Placement", "Appearance", "Icon"])
+        self.assertTrue(all(isinstance(panel.inspector_tabs.widget(index), QScrollArea) for index in range(4)))
+        self.assertIs(panel.operation_banner.parentWidget(), panel.workspace_splitter.widget(0))
+        self.assertEqual(panel.title(), "")
+        sizes = panel.workspace_splitter.sizes()
+        self.assertAlmostEqual(sizes[0] / sum(sizes), 0.35, delta=0.07)
+        self.assertGreaterEqual(panel.workspace_splitter.widget(0).width(), 340)
+        self.assertGreaterEqual(panel.workspace_splitter.widget(1).width(), 520)
+        preview_parent = panel.preview.parentWidget()
+        for index in range(4):
+            panel.inspector_tabs.setCurrentIndex(index)
+            self.app.processEvents()
+            self.assertIs(panel.preview.parentWidget(), preview_parent)
+        self.assertEqual(panel.inspector_tabs.currentWidget().horizontalScrollBar().maximum(), 0)
+
+        frames = []
+        panel.operation_spinner.frame_advanced.connect(frames.append)
+        tab.controller._lane = "model_apply"
+        panel._busy_changed(True)
+        panel.operation_spinner._advance()
+        self.assertTrue(panel.operation_banner.isVisibleTo(panel))
+        self.assertTrue(frames)
+        with patch.object(tab.controller, "cancel_operation", return_value=True) as cancel:
+            panel.cancel_operation_button.click()
+        cancel.assert_called_once_with("model_apply")
+        panel._busy_changed(False)
+        tab.close()
+        tab.deleteLater()
+        self.app.processEvents()
 
     def test_snapshot_panels_and_a_plan_through_the_panels(self) -> None:
         from PySide6.QtCore import Qt
@@ -1011,6 +1088,9 @@ class TabTests(unittest.TestCase):
         self.assertEqual(seen["path"], Path(r"E:/models/box.zip"))
         self.assertIs(tab.controller.model_import, source)
         self.assertEqual(tab.controller.draft.model_source, ModelSource.IMPORTED)
+        self.assertTrue(panel.inspector_tabs.isTabEnabled(1))
+        panel.inspector_tabs.setCurrentIndex(1)
+        self.app.processEvents()
         self.assertTrue(panel.placement_group.isVisibleTo(panel))
         self.assertTrue(panel.import_model.isChecked())
         # a glTF source needs the vertical texture flip, and the panel shows it
@@ -1135,8 +1215,9 @@ class TabTests(unittest.TestCase):
             standalone_controller = None
             standalone_pending_dotnet_topology_request = None
 
-            def open_mesh_session(self, opened, *, session_id, mode):
+            def open_mesh_session(self, opened, *, session_id, mode, initial_element_type=""):
                 self.assert_mode = mode
+                self.assert_element_type = initial_element_type
                 edited = clone_mesh_for_editing(opened)
                 split_faces_to_submesh(edited, selected_faces_by_submesh={0: {0}})
                 split_faces_to_submesh(edited, selected_faces_by_submesh={0: {0}})
@@ -1175,6 +1256,7 @@ class TabTests(unittest.TestCase):
 
         tab.model_panel.open_part_editor_button.click()
         self.assertEqual(editor.assert_mode, "edit")
+        self.assertEqual(editor.assert_element_type, "face")
         self.assertIs(activated[-1], container)
         self.assertFalse(tab.model_panel.use_part_editor_button.isHidden())
 
@@ -1388,6 +1470,49 @@ class TabTests(unittest.TestCase):
         self.assertTrue(controller.iter_shutdown_workers())
         while controller._thread is not None and time.monotonic() < deadline + 1.0:
             self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertEqual(controller.iter_shutdown_workers(), ())
+
+    def test_model_operation_progress_and_cancel_are_correlated(self) -> None:
+        from PySide6.QtCore import QEventLoop
+
+        from cdmw.ui.new_item.controller import NewItemStudioController
+
+        controller = NewItemStudioController()
+        progress = []
+        errors = []
+        completed = []
+        statuses = []
+        controller.operation_progress.connect(lambda *values: progress.append(values))
+        controller.status_message.connect(lambda *values: statuses.append(values))
+
+        def task(_log, report, stop_event):
+            report(1, 3, "Transforming mesh")
+            while not stop_event.wait(0.005):
+                pass
+            report(2, 3, "Late progress must not replace Cancelling")
+            return object()
+
+        self.assertTrue(
+            controller._run(
+                "model_apply",
+                task,
+                completed.append,
+                errors.append,
+                task_accepts_progress=True,
+            )
+        )
+        deadline = time.monotonic() + 2.0
+        while not progress and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertTrue(controller.cancel_operation("model_apply"))
+        while controller._thread is not None and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertIn(("model_apply", 1, 3, "Transforming mesh"), progress)
+        self.assertTrue(any(values[-1] == "Cancelling…" for values in progress))
+        self.assertFalse(any(values[-1].startswith("Late progress") for values in progress))
+        self.assertEqual(completed, [])
+        self.assertEqual(errors, [])
+        self.assertIn(("Operation cancelled.", False), statuses)
         self.assertEqual(controller.iter_shutdown_workers(), ())
 
     def test_a_builder_result_handed_in_directly_and_the_material_route(self) -> None:

@@ -158,6 +158,10 @@ class EffectPlacementWorkspace(
         self._package_ack_connected = False
         self._closed = False
         self._compatibility_only_widgets: list[QWidget] = []
+        self._initial_package_timer = QTimer(self)
+        self._initial_package_timer.setSingleShot(True)
+        self._initial_package_timer.setInterval(0)
+        self._initial_package_timer.timeout.connect(self._start_package)
 
         layout = self._build_placement_ui(
             effect_label=effect_label,
@@ -182,9 +186,19 @@ class EffectPlacementWorkspace(
             if package_applied is not None:
                 package_applied.connect(self._package_load_applied)
                 self._package_ack_connected = True
-            QTimer.singleShot(0, self._start_package)
         else:
             self.status.setText("")
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().showEvent(event)
+        if (
+            self.host is not None
+            and not self._closed
+            and self._preview is None
+            and self._thread is None
+            and not self._initial_package_timer.isActive()
+        ):
+            self._initial_package_timer.start()
 
     def _show_caveats(self) -> None:
         """Say what the preview could not read, before the reader trusts what it shows."""
@@ -602,6 +616,7 @@ class EffectPlacementWorkspace(
         if self._closed:
             return
         self._closed = True
+        self._initial_package_timer.stop()
         worker = self._worker
         if worker is not None:
             worker.stop()

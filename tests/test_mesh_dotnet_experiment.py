@@ -424,6 +424,8 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
     assert geometry_materials["submeshes"][0]["packaged_channels"] == {}
     assert geometry_materials["submeshes"][0]["resource_channels"] == {}
     assert geometry_materials["submeshes"][0]["material_synthesis"]["reason"] == "textures_on_demand"
+    assert geometry_package.material_signature == "geometry_only"
+    assert geometry_materials["material_signature"] == "geometry_only"
     assert not (geometry_package.package_dir / "textures").exists()
     assert not (geometry_package.package_dir / "material_synthesis").exists()
 

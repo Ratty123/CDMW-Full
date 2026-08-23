@@ -215,6 +215,7 @@ class MeshEditorSessionMixin:
         session_id: str = "",
         mode: str = "object",
         source_skeleton: object | None = None,
+        initial_element_type: str = "",
     ) -> _tab.MeshEditSessionView:
         if not isinstance(mesh, _tab.ParsedMesh):
             raise TypeError("mesh must be ParsedMesh")
@@ -222,6 +223,10 @@ class MeshEditorSessionMixin:
         self.standalone_compare_mode = "edited"
         self.standalone_controller = _tab.MeshEditorController()
         self.standalone_source_skeleton = source_skeleton
+        requested_element = str(initial_element_type or "").strip().casefold()
+        if requested_element in {"vertex", "edge", "face"}:
+            self.current_element_type = requested_element
+            self.standalone_controller.active_element_type = requested_element
         view = self.standalone_controller.open_mesh(
             mesh,
             session_id=str(session_id or "mesh-editor-standalone"),

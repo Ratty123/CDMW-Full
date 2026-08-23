@@ -9,12 +9,14 @@ internal sealed partial class MeshViewport
         IEnumerable<int> selectableSubmeshIndices,
         IEnumerable<int> hiddenSubmeshIndices)
     {
+        InvalidatePaintProjectionCache("visible_editable_parts");
         _geometryLayerSelectableSubmeshes.Clear();
         _geometryLayerSelectableSubmeshes.UnionWith(selectableSubmeshIndices.Where(index => index >= 0));
         _geometryLayerSelectionFilterActive = true;
         _scene.SetPresentationHiddenSubmeshes(hiddenSubmeshIndices.Where(index => index >= 0));
         PruneSelectionToActiveGeometryLayer();
         ApplySceneState();
+        QueuePaintProjectionPrewarm();
         NotifyViewStateChanged();
     }
 

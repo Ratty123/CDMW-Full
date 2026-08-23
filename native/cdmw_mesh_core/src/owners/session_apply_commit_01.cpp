@@ -120,6 +120,12 @@ void mesh_editor_append_apply_submeshes(
     std::map<int, MeshSessionSubmesh>& native_session,
     MeshEditorApplyState& state
 ) {
+    std::set<std::string> existing_names;
+    for (const auto& entry : native_session) {
+        if (!entry.second.name.empty()) {
+            existing_names.insert(entry.second.name);
+        }
+    }
     for (SubmeshMeshEditResult& result : state.results) {
         if (!result.append_submesh || !result.topology_changed
             || result.vertices.empty() || result.faces.empty()) {
@@ -136,7 +142,13 @@ void mesh_editor_append_apply_submeshes(
             const std::string base_name = source->second.name.empty()
                 ? std::string("part_") + std::to_string(source_index)
                 : source->second.name;
-            result.name = base_name + result.name_suffix;
+            const std::string requested_name = base_name + result.name_suffix;
+            std::string unique_name = requested_name;
+            for (int suffix = 2; existing_names.find(unique_name) != existing_names.end(); ++suffix) {
+                unique_name = requested_name + " " + std::to_string(suffix);
+            }
+            result.name = unique_name;
+            existing_names.insert(unique_name);
             result.material = source->second.material;
             result.texture = source->second.texture;
             result.extra_attrs = source->second.extra_attrs;

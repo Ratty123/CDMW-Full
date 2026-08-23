@@ -350,6 +350,13 @@ internal sealed partial class MeshViewport
             polygon.Max(point => point.X),
             polygon.Max(point => point.Y));
         var cache = EnsurePaintProjectionCache(CurrentCamera());
+        if (cache is null)
+        {
+            // The authoritative region request still carries the polygon to
+            // native selection. Local echo waits for the correlated cache build
+            // instead of touching a partially built projection from input.
+            return;
+        }
         if (_selectionDragTargetMode == "edge")
         {
             foreach (var edge in _edgeTopology.Edges)

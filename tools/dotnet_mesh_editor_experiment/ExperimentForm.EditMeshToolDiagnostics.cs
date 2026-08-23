@@ -60,6 +60,7 @@ internal sealed partial class ExperimentForm
             var selectionReleaseRecovery = RunSelectionReleaseRecoveryDiagnostic(protocolEvents);
             var pendingSelectionTopology = RunPendingSelectionTopologyDiagnostic(formProtocolEvents);
             var controlSurface = RunEditMeshControlSurfaceDiagnostics();
+            var createPartControl = RunCreatePartFromSelectionDiagnostic(formProtocolEvents);
             var finalFrame = RunEditMeshDiagnosticFrame();
             var formProtocolOk = formProtocolEvents.Any(item =>
                     item.Name == "command_request"
@@ -92,6 +93,7 @@ internal sealed partial class ExperimentForm
                     && selectionReleaseRecovery.GetValueOrDefault("ok") is true
                     && pendingSelectionTopology.GetValueOrDefault("ok") is true
                     && controlSurface.GetValueOrDefault("ok") is true
+                    && createPartControl.GetValueOrDefault("ok") is true
                     && formProtocolOk
                     && finalFrame.GetValueOrDefault("ok") is true
                     && allRowsCovered
@@ -116,6 +118,7 @@ internal sealed partial class ExperimentForm
                 ["selection_release_recovery"] = selectionReleaseRecovery,
                 ["pending_selection_topology"] = pendingSelectionTopology,
                 ["control_surface"] = controlSurface,
+                ["create_part_from_selection"] = createPartControl,
                 ["form_protocol_ok"] = formProtocolOk,
                 ["captured_viewport_protocol_events"] = protocolEvents.Count,
                 ["captured_form_protocol_events"] = formProtocolEvents.Select(item =>
@@ -150,7 +153,7 @@ internal sealed partial class ExperimentForm
             "Clear Selection", "Select All", "Invert", "Undo", "Redo",
             "Grow", "Shrink", "-X", "+X", "-Y", "+Y", "-Z", "+Z",
             "Delete Selection", "Duplicate Selection", "Subdivide", "Refine Smooth",
-            "Split Selection Into Part",
+            "Create Part from Selection",
             "All", "None", "Hide", "Duplicate", "Delete",
             "Copy", "Paste", "Rename", "Up", "Down",
             "Create Profile...", "Save Profile", "Delete Profile", "Save Preset...", "Delete Preset",
@@ -345,6 +348,90 @@ internal sealed partial class ExperimentForm
         };
     }
 
+    private Dictionary<string, object?> RunCreatePartFromSelectionDiagnostic(
+        List<(string Name, Dictionary<string, object?> Payload)> formProtocolEvents)
+    {
+        if (_createPartFromSelectionButton is null || _document.Submeshes.Count == 0)
+        {
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = false,
+                ["reason"] = "Create Part control was not constructed.",
+            };
+        }
+        var previousTarget = _selectionTarget.SelectedIndex;
+        var protocolStart = formProtocolEvents.Count;
+        try
+        {
+            ActivateTool("select", "Select");
+            _selectionTarget.SelectedItem = "Faces";
+            _ = _viewport.UpdateSelection(
+                new Dictionary<int, HashSet<int>>(),
+                new Dictionary<int, HashSet<int>> { [0] = new HashSet<int> { 0 } },
+                new Dictionary<int, HashSet<(int A, int B)>>(),
+                new HashSet<int>(),
+                revision: _viewport.AcknowledgedSelectionRevision + 1);
+            RefreshCreatePartFromSelectionButton();
+            var enabled = _createPartFromSelectionButton.Enabled;
+            _ = _viewport.UpdateSelection(
+                new Dictionary<int, HashSet<int>>(),
+                new Dictionary<int, HashSet<int>>
+                {
+                    [0] = new HashSet<int> { 0 },
+                    [1] = new HashSet<int> { 0 },
+                },
+                new Dictionary<int, HashSet<(int A, int B)>>(),
+                new HashSet<int>(),
+                revision: _viewport.AcknowledgedSelectionRevision + 1);
+            RefreshCreatePartFromSelectionButton();
+            var mixedPartEnabled = _createPartFromSelectionButton.Enabled;
+            _ = _viewport.UpdateSelection(
+                new Dictionary<int, HashSet<int>>(),
+                new Dictionary<int, HashSet<int>> { [0] = new HashSet<int> { 0 } },
+                new Dictionary<int, HashSet<(int A, int B)>>(),
+                new HashSet<int>(),
+                revision: _viewport.AcknowledgedSelectionRevision + 1);
+            RefreshCreatePartFromSelectionButton();
+            var clickMethod = typeof(Button).GetMethod(
+                "OnClick",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            clickMethod?.Invoke(_createPartFromSelectionButton, new object[] { EventArgs.Empty });
+            var emitted = formProtocolEvents
+                .Skip(protocolStart)
+                .Where(item => item.Name == "command_request")
+                .Select(item => item.Payload)
+                .ToArray();
+            var payload = emitted.LastOrDefault();
+            var requestId = payload is null ? 0 : Convert.ToInt64(payload.GetValueOrDefault("request_id") ?? 0);
+            if (requestId > 0)
+            {
+                _pendingMutationRequests.Remove(requestId);
+            }
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = enabled
+                    && !mixedPartEnabled
+                    && payload is not null
+                    && string.Equals(Convert.ToString(payload.GetValueOrDefault("command")), "separate", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(Convert.ToString(payload.GetValueOrDefault("target_mode")), "face", StringComparison.OrdinalIgnoreCase),
+                ["button_enabled"] = enabled,
+                ["mixed_part_button_enabled"] = mixedPartEnabled,
+                ["command"] = payload?.GetValueOrDefault("command"),
+                ["target_mode"] = payload?.GetValueOrDefault("target_mode"),
+                ["request_id"] = requestId,
+            };
+        }
+        finally
+        {
+            _viewport.ResetSelectionAuthority();
+            if (previousTarget >= 0 && previousTarget < _selectionTarget.Items.Count)
+            {
+                _selectionTarget.SelectedIndex = previousTarget;
+            }
+            RefreshCreatePartFromSelectionButton();
+        }
+    }
+
     private static IEnumerable<Control> DescendantControls(Control root)
     {
         foreach (Control child in root.Controls)
@@ -390,6 +477,10 @@ internal sealed partial class ExperimentForm
         var beginStarted = Stopwatch.GetTimestamp();
         _viewport.BeginInteractionSoak(mode, start);
         var beginMs = ElapsedMilliseconds(beginStarted);
+        if (mode.StartsWith("select_", StringComparison.Ordinal))
+        {
+            _ = _viewport.WaitForPaintProjectionCacheForInteractionSoak(10_000, out _);
+        }
         foreach (var point in points)
         {
             var sampleStarted = Stopwatch.GetTimestamp();

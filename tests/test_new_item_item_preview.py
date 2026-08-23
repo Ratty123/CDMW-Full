@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import threading
@@ -346,7 +347,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
             frame.show_placement(lambda _stop: None, token="p", placement=ModelPlacement())
         self.assertEqual(started[0][0], "p")
         # what _start_package records, and what _package_ready reads back without a token
-        frame._building = ("p", True)
+        frame._building = ("p", True, "materials")
         frame._package_ready(Path("pkg"))
         self.assertEqual(frame._loaded_token, "p")
         self.assertTrue(frame._loaded_is_placement)
@@ -394,7 +395,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertIsNone(frame.host, "no viewport until the frame shows")
         frame._package_ready(Path("pkg"), "t", False)
         self.assertIsNone(frame.host)
-        self.assertEqual(frame._deferred_package, (Path("pkg"), "t", False))
+        self.assertEqual(frame._deferred_package, (Path("pkg"), "t", False, "materials"))
         with patch.object(ItemPreviewFrame, "isVisible", lambda self_: True):
             frame.showEvent(None)
         self.assertIsNotNone(frame.host, "the viewport starts on show")
@@ -432,6 +433,107 @@ class ItemPreviewFrameTests(unittest.TestCase):
             frame.show(None)
             self.assertIsNone(frame._pending)
         frame._closed = True
+
+    def test_progressive_placement_loads_geometry_then_materials_without_camera_reset(self) -> None:
+        from PySide6.QtCore import QEventLoop
+
+        from cdmw.ui.new_item.item_preview import (
+            ItemPreviewFrame,
+            PlacementScene,
+            ProgressivePreviewSource,
+        )
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_progressive_"))
+        frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
+        frame._ensure_host()
+        host = frame.host
+        built = []
+
+        def build_package(source, *, include_material_resources, output_root, **_kwargs):
+            stage = "full" if include_material_resources else "geometry"
+            built.append(stage)
+            package = Path(output_root) / stage
+            package.mkdir(parents=True, exist_ok=True)
+            return package
+
+        def upgrade_package(geometry_package, _source, *, output_root, **_kwargs):
+            self.assertEqual(Path(geometry_package), Path(output_root) / "geometry")
+            built.append("materials")
+            package = Path(output_root) / "materials"
+            package.mkdir(parents=True, exist_ok=True)
+            return package
+
+        source = ProgressivePreviewSource(
+            geometry=lambda _stop: PlacementScene(template=object(), model=object()),
+            materials=lambda _stop: PlacementScene(template=object(), model=object()),
+        )
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", build_package), patch(
+            "cdmw.ui.new_item.item_preview.upgrade_item_preview_package_materials",
+            upgrade_package,
+        ):
+            frame.show_placement(source, token="progressive", placement=ModelPlacement())
+            deadline = time.monotonic() + 2.0
+            while len([call for call in frame.host.calls if call[0] == "load_package"]) < 2 and time.monotonic() < deadline:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+
+        loads = [call for call in frame.host.calls if call[0] == "load_package"]
+        self.assertEqual(built, ["geometry", "materials"])
+        self.assertEqual([call[2]["reset_view"] for call in loads], [True, False])
+        self.assertIs(frame.host, host, "the resident host is reused for both stages")
+        frame.host.controller.state_changed.emit("ready", "")
+        self.app.processEvents()
+        self.assertFalse((output / "geometry").exists(), "the old package retires only after ready")
+        self.assertTrue((output / "materials").exists())
+        frame.shutdown()
+
+    def test_material_upgrade_reuses_the_geometry_package_files(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.item_preview import (
+            PlacementScene,
+            build_item_preview_package,
+            upgrade_item_preview_package_materials,
+        )
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_upgrade_"))
+        mesh = ParsedMesh(
+            path="item.pac",
+            format="pac",
+            submeshes=[SubMesh(
+                name="item",
+                material="item",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                faces=[(0, 1, 2)],
+            )],
+        )
+        scene = PlacementScene(template=None, model=mesh, placement=ModelPlacement())
+        geometry = build_item_preview_package(
+            scene,
+            token="geometry",
+            output_root=output,
+            stop_event=threading.Event(),
+            include_material_resources=False,
+        )
+        geometry_bytes = (geometry / "scene.obj").read_bytes()
+
+        with patch(
+            "cdmw.services.mesh_dotnet_experiment._export_dotnet_obj_paths",
+            side_effect=AssertionError("the material stage must not export geometry"),
+        ):
+            materials = upgrade_item_preview_package_materials(
+                geometry,
+                scene,
+                output_root=output,
+                stop_event=threading.Event(),
+            )
+
+        self.assertEqual((materials / "scene.obj").read_bytes(), geometry_bytes)
+        self.assertNotEqual(
+            json.loads((materials / "net_materials.json").read_text(encoding="utf-8"))["material_signature"],
+            "geometry_only",
+        )
 
 
 if __name__ == "__main__":

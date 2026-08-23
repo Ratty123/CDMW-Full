@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import QAbstractListModel, QModelIndex, QRect, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -74,16 +74,40 @@ def effect_category(stem: str, authoring_name: str = "") -> str:
 
 
 def effect_display_label(stem: str, authoring_name: str = "") -> str:
-    """A neutral mechanical label; the exact stem remains visible underneath it."""
+    """Return a neutral, stem-authoritative label with stable token casing."""
 
-    source = str(authoring_name or stem or "").replace("\\", "/").rsplit("/", 1)[-1]
+    source = str(stem or authoring_name or "").replace("\\", "/").rsplit("/", 1)[-1]
     source = re.sub(r"\.(?:level\.)?effect$", "", source, flags=re.I)
-    tokens = re.findall(r"[A-Za-z]+|\d+[A-Za-z]*", source)
-    while tokens and tokens[0].casefold() in {"fx", "pafx", "vfx", "effect", "cdem"}:
-        tokens.pop(0)
-    if not tokens:
-        return str(stem or "No effect")
-    return " ".join(token.upper() if token.isupper() else token.capitalize() for token in tokens)
+    source = re.sub(r"\.(?:pae|paem|pafx)$", "", source, flags=re.I)
+    sections = source.split("__", 1)
+    acronyms = {"aoe", "cc", "dds", "lod", "npc", "pvp", "uv", "vfx"}
+
+    def words(section: str, *, first: bool) -> str:
+        separated = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", section)
+        tokens = re.findall(r"[A-Za-z]+\d+[A-Za-z]*|\d+[A-Za-z]*|[A-Za-z]+", separated)
+        while tokens and tokens[0].casefold() in {"fx", "pafx", "vfx", "effect", "cdem", "cdfx"}:
+            tokens.pop(0)
+        if first and tokens and tokens[0].casefold() == "action":
+            tokens.pop(0)
+        rendered = []
+        for token in tokens:
+            match = re.fullmatch(r"([A-Za-z]+)(\d+[A-Za-z]*)", token)
+            if match:
+                head, tail = match.groups()
+                rendered.append((head.upper() if len(head) <= 2 else head.capitalize()) + tail)
+            elif re.fullmatch(r"\d+[A-Za-z]+", token):
+                rendered.append(token.casefold())
+            elif token.casefold() in acronyms or (token.isupper() and len(token) <= 4):
+                rendered.append(token.upper())
+            else:
+                rendered.append(token.capitalize())
+        return " ".join(rendered)
+
+    family = words(sections[0], first=True)
+    variant = words(sections[1], first=False) if len(sections) > 1 else ""
+    if family and variant:
+        return f"{family} · {variant}"
+    return family or variant or str(stem or "No effect")
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +134,36 @@ class EffectLibraryRow:
             behavior=behavior,
             facts=facts,
         )
+
+
+def _unique_effect_labels(stems: tuple[str, ...]) -> dict[str, str]:
+    """Disambiguate the rare normalized collision with the shortest stem suffix."""
+
+    labels = {stem: effect_display_label(stem) for stem in stems}
+    groups: dict[str, list[str]] = {}
+    for stem, label in labels.items():
+        groups.setdefault(label.casefold(), []).append(stem)
+    for grouped in groups.values():
+        if len(grouped) < 2:
+            continue
+        parts = {stem: tuple(token for token in re.split(r"[_/]+", stem) if token) for stem in grouped}
+        qualifiers: dict[str, str] = {}
+        maximum = max((len(value) for value in parts.values()), default=1)
+        for depth in range(1, maximum + 1):
+            candidates = {stem: "_".join(value[-depth:]) for stem, value in parts.items()}
+            if len({value.casefold() for value in candidates.values()}) == len(grouped):
+                qualifiers = candidates
+                break
+        rendered = {stem: effect_display_label(qualifiers.get(stem, stem)) for stem in grouped}
+        if len({value.casefold() for value in rendered.values()}) != len(grouped):
+            namespaces = {stem: (parts[stem][0].upper() if parts[stem] else stem) for stem in grouped}
+            if len({value.casefold() for value in namespaces.values()}) == len(grouped):
+                rendered = namespaces
+            else:
+                rendered = {stem: qualifiers.get(stem, stem).replace("_", " ") for stem in grouped}
+        for stem in grouped:
+            labels[stem] = f"{labels[stem]} · {rendered[stem]}"
+    return labels
 
 
 class EffectLibraryModel(QAbstractListModel):
@@ -154,7 +208,7 @@ class EffectLibraryModel(QAbstractListModel):
         if role == int(Qt.ItemDataRole.AccessibleTextRole):
             return f"{item.label}; {item.stem or 'no effect'}; {item.behavior}"
         if role == int(Qt.ItemDataRole.SizeHintRole):
-            return QSize(0, 52)
+            return QSize(0, 36)
         if role == self.StemRole:
             return item.stem
         if role == self.LabelRole:
@@ -169,10 +223,10 @@ class EffectLibraryModel(QAbstractListModel):
 
 
 class EffectLibraryDelegate(QStyledItemDelegate):
-    """Two-line, virtualized 52 px library row with glyph and behavior badge."""
+    """Compact one-line virtualized row; technical authority stays in the tooltip."""
 
     def sizeHint(self, option, index):  # noqa: N802 - Qt override
-        return QSize(max(300, option.rect.width()), 52)
+        return QSize(max(260, option.rect.width()), 36)
 
     def paint(self, painter: QPainter, option, index: QModelIndex) -> None:  # noqa: D401
         painter.save()
@@ -182,30 +236,18 @@ class EffectLibraryDelegate(QStyledItemDelegate):
         painter.fillRect(option.rect, background)
 
         foreground = palette.highlightedText().color() if selected else palette.text().color()
-        muted = QColor(foreground)
-        muted.setAlpha(155)
-        rect = option.rect.adjusted(12, 4, -10, -4)
+        rect = option.rect.adjusted(10, 2, -8, -2)
         glyph = str(index.data(EffectLibraryModel.GlyphRole) or "◇")
         painter.setPen(foreground)
         glyph_font = painter.font()
-        glyph_font.setPointSize(max(glyph_font.pointSize() + 5, 14))
+        glyph_font.setPointSize(max(glyph_font.pointSize() + 2, 11))
         painter.setFont(glyph_font)
-        painter.drawText(QRect(rect.left(), rect.top(), 32, rect.height()), Qt.AlignmentFlag.AlignCenter, glyph)
+        painter.drawText(QRect(rect.left(), rect.top(), 24, rect.height()), Qt.AlignmentFlag.AlignCenter, glyph)
 
-        badge = str(index.data(EffectLibraryModel.BehaviorRole) or "")
-        badge_width = max(48, painter.fontMetrics().horizontalAdvance(badge) + 18)
-        badge_rect = QRect(rect.right() - badge_width, rect.top() + 10, badge_width, 24)
-        badge_colour = palette.mid().color()
-        badge_colour.setAlpha(110)
-        painter.setBrush(badge_colour)
-        painter.setPen(palette.mid().color())
-        painter.drawRoundedRect(badge_rect, 4, 4)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-
-        text_left = rect.left() + 44
-        text_right = badge_rect.left() - 10
-        label_rect = QRect(text_left, rect.top() + 2, max(10, text_right - text_left), 22)
-        stem_rect = QRect(text_left, rect.top() + 25, max(10, text_right - text_left), 18)
+        behavior = str(index.data(EffectLibraryModel.BehaviorRole) or "")
+        behavior_glyph = "↻" if behavior == "Loop" else "•" if behavior == "One-shot" else "×"
+        behavior_rect = QRect(rect.right() - 22, rect.top(), 22, rect.height())
+        label_rect = QRect(rect.left() + 34, rect.top(), max(10, behavior_rect.left() - rect.left() - 40), rect.height())
         label_font = option.font
         label_font.setBold(True)
         painter.setFont(label_font)
@@ -216,19 +258,9 @@ class EffectLibraryDelegate(QStyledItemDelegate):
             label_rect.width(),
         )
         painter.drawText(label_rect, Qt.AlignmentFlag.AlignVCenter, label)
-        stem_font = option.font
-        stem_font.setPointSize(max(7, stem_font.pointSize() - 1))
-        painter.setFont(stem_font)
-        painter.setPen(muted)
-        stem = painter.fontMetrics().elidedText(
-            str(index.data(EffectLibraryModel.StemRole) or "No shipped effect"),
-            Qt.TextElideMode.ElideRight,
-            stem_rect.width(),
-        )
-        painter.drawText(stem_rect, Qt.AlignmentFlag.AlignVCenter, stem)
         painter.setFont(option.font)
         painter.setPen(foreground)
-        painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, badge)
+        painter.drawText(behavior_rect, Qt.AlignmentFlag.AlignCenter, behavior_glyph)
         painter.restore()
 
 
@@ -266,6 +298,7 @@ class GuidedEffectsWorkspace(QWidget):
         self._reset_view_next = True
         self._preview_retry_remaining = 1
         self._placement_root = Path(tempfile.mkdtemp(prefix="cdmw_effect_workspace_"))
+        self._label_by_stem = _unique_effect_labels(tuple(controller.effect_stems("", limit=None)))
 
         self.selection_timer = QTimer(self)
         self.selection_timer.setSingleShot(True)
@@ -275,6 +308,10 @@ class GuidedEffectsWorkspace(QWidget):
         self.look_timer.setSingleShot(True)
         self.look_timer.setInterval(250)
         self.look_timer.timeout.connect(self._rebuild_preview)
+        self._initial_preview_timer = QTimer(self)
+        self._initial_preview_timer.setSingleShot(True)
+        self._initial_preview_timer.setInterval(0)
+        self._initial_preview_timer.timeout.connect(self._rebuild_preview)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -288,8 +325,8 @@ class GuidedEffectsWorkspace(QWidget):
         library.setObjectName("effect_library_panel")
         library.setMinimumWidth(300)
         library_layout = QVBoxLayout(library)
-        library_layout.setContentsMargins(14, 12, 12, 10)
-        library_layout.setSpacing(10)
+        library_layout.setContentsMargins(8, 8, 8, 6)
+        library_layout.setSpacing(6)
         title = QLabel("Effect Library")
         title.setObjectName("effect_library_heading")
         library_layout.addWidget(title)
@@ -298,7 +335,28 @@ class GuidedEffectsWorkspace(QWidget):
         self.search.setPlaceholderText("Search effects…")
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._refresh_library)
-        library_layout.addWidget(self.search)
+        search_row = QHBoxLayout()
+        search_row.setSpacing(4)
+        search_row.addWidget(self.search, 1)
+        self.behavior_group = QButtonGroup(self)
+        self.behavior_group.setExclusive(True)
+        self.behavior_all = QToolButton()
+        self.behavior_all.setText("All")
+        self.behavior_all.setToolTip("Show loop and one-shot effects")
+        self.loop_only = QToolButton()
+        self.loop_only.setText("↻")
+        self.loop_only.setToolTip("Show loops only")
+        self.one_shot_only = QToolButton()
+        self.one_shot_only.setText("•")
+        self.one_shot_only.setToolTip("Show one-shot effects only")
+        for button in (self.behavior_all, self.loop_only, self.one_shot_only):
+            button.setCheckable(True)
+            button.setProperty("effectChip", True)
+            button.clicked.connect(self._refresh_library)
+            self.behavior_group.addButton(button)
+            search_row.addWidget(button)
+        self.behavior_all.setChecked(True)
+        library_layout.addLayout(search_row)
         self.compatibility_label = QLabel("Choose a template to check compatibility.")
         self.compatibility_label.setObjectName("effect_compatibility")
         self.compatibility_label.setWordWrap(True)
@@ -325,13 +383,7 @@ class GuidedEffectsWorkspace(QWidget):
         self.category_buttons["All"].setChecked(True)
         self.category_panel.resized.connect(self._reflow_category_chips)
         library_layout.addWidget(self.category_panel)
-        QTimer.singleShot(0, lambda: self._reflow_category_chips(self.category_panel.width()))
-        self.loop_only = QToolButton()
-        self.loop_only.setText("Loop")
-        self.loop_only.setCheckable(True)
-        self.loop_only.setProperty("effectChip", True)
-        self.loop_only.clicked.connect(self._refresh_library)
-        library_layout.addWidget(self.loop_only, alignment=Qt.AlignmentFlag.AlignLeft)
+        self._reflow_category_chips(self.category_panel.width())
 
         self.library_model = EffectLibraryModel(self)
         self.library_view = QListView()
@@ -345,6 +397,11 @@ class GuidedEffectsWorkspace(QWidget):
         self.library_view.setSpacing(0)
         self.library_view.selectionModel().currentChanged.connect(self._library_selection_changed)
         library_layout.addWidget(self.library_view, 1)
+        self.selection_detail = QLabel("No shipped effect")
+        self.selection_detail.setObjectName("effect_selection_detail")
+        self.selection_detail.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.selection_detail.setToolTip("Exact shipped effect stem")
+        library_layout.addWidget(self.selection_detail)
 
         self.placement_holder = QWidget()
         self.placement_holder.setMinimumWidth(820)
@@ -376,7 +433,7 @@ class GuidedEffectsWorkspace(QWidget):
         controller.model_changed.connect(self._source_changed)
         controller.model_placement_changed.connect(self._source_changed)
         self._refresh_library()
-        QTimer.singleShot(0, self._rebuild_preview)
+        self._initial_preview_timer.start()
 
     @property
     def staged_state(self) -> EffectWorkspaceState:
@@ -488,9 +545,12 @@ class GuidedEffectsWorkspace(QWidget):
         for stem in stems:
             facts = self._controller.effect_facts(stem)
             row = EffectLibraryRow.from_stem(stem, facts)
+            row = replace(row, label=self._label_by_stem.get(stem, row.label))
             if stem != selected and category != "All" and row.category != category:
                 continue
             if stem != selected and self.loop_only.isChecked() and row.behavior != "Loop":
+                continue
+            if stem != selected and self.one_shot_only.isChecked() and row.behavior != "One-shot":
                 continue
             rows.append(row)
         rows.sort(key=lambda item: item.stem.casefold())
@@ -498,6 +558,7 @@ class GuidedEffectsWorkspace(QWidget):
         try:
             self.library_model.replace_rows((EffectLibraryRow("", "No effect", "Other", "Off"), *rows))
             self._select_stem(selected)
+            self._refresh_selection_detail(selected)
         finally:
             self._syncing = False
 
@@ -511,11 +572,17 @@ class GuidedEffectsWorkspace(QWidget):
         if self._syncing or not current.isValid():
             return
         stem = str(current.data(EffectLibraryModel.StemRole) or "")
+        self._refresh_selection_detail(stem)
         self._staged = self._committed if stem == self._committed.stem else EffectWorkspaceState.defaults(stem)
         self._sync_placement_from_state()
         self._refresh_compatibility()
         self._publish_dirty()
         self.selection_timer.start()
+
+    def _refresh_selection_detail(self, stem: str) -> None:
+        exact = str(stem or "").strip()
+        self.selection_detail.setText(exact or "No shipped effect")
+        self.selection_detail.setToolTip(exact or "Clear the visual effect and all placement/look tuning.")
 
     def _sync_placement_from_state(self) -> None:
         placement = self.placement
@@ -593,13 +660,18 @@ class GuidedEffectsWorkspace(QWidget):
 
     def _refresh_compatibility(self) -> None:
         if not self._staged.stem:
-            self.compatibility_label.setText("No effect will be added to this item.")
+            self.compatibility_label.setText("No effect selected")
             return
         compatibility = self._controller.effect_target_compatibility(self._staged.stem)
         if compatibility is None:
             self.compatibility_label.setText("Choose a template to check compatibility.")
         elif compatibility.supported:
-            self.compatibility_label.setText(compatibility.message)
+            targets = getattr(compatibility, "target_prefabs", None)
+            if targets is None:
+                self.compatibility_label.setText(str(getattr(compatibility, "message", "Compatible")))
+            else:
+                count = len(targets)
+                self.compatibility_label.setText(f"Compatible  ·  {count} target{'s' if count != 1 else ''}")
         else:
             self.compatibility_label.setText("\n".join(compatibility.errors))
 
@@ -702,6 +774,7 @@ class GuidedEffectsWorkspace(QWidget):
         return self.placement.iter_shutdown_workers() if self.placement is not None else ()
 
     def request_shutdown(self) -> None:
+        self._initial_preview_timer.stop()
         self.selection_timer.stop()
         self.look_timer.stop()
         if self.placement is not None:

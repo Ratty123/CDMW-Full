@@ -1056,7 +1056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 518,
+          "line": 532,
           "sink": "setText"
         }
       ]
@@ -1086,7 +1086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 407,
+          "line": 465,
           "sink": "set_note"
         }
       ]
@@ -1116,7 +1116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 301,
+          "line": 359,
           "sink": "_spin"
         }
       ]
@@ -3546,7 +3546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 630,
+          "line": 691,
           "sink": "setText"
         }
       ]
@@ -3556,7 +3556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 630,
+          "line": 691,
           "sink": "setText"
         }
       ]
@@ -3566,7 +3566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 630,
+          "line": 691,
           "sink": "setText"
         }
       ]
@@ -3576,12 +3576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -3842,6 +3842,16 @@
       ]
     },
     {
+      "key": "A progressive material upgrade requires a placement scene.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 172,
+          "sink": "TypeError"
+        }
+      ]
+    },
+    {
       "key": "A read-only summary of the current workflow: source roots, selected backend, texture policy, direct-backend controls, and the main safety/export behavior that will be used when you run.",
       "origins": [
         {
@@ -3931,7 +3941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 187,
+          "line": 244,
           "sink": "setToolTip"
         }
       ]
@@ -3961,7 +3971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 217,
+          "line": 241,
           "sink": "setToolTip"
         }
       ]
@@ -3971,7 +3981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 179,
+          "line": 236,
           "sink": "setToolTip"
         }
       ]
@@ -4720,11 +4730,6 @@
       "key": "Add",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 115,
-          "sink": "QPushButton"
-        },
-        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 943,
           "sink": "addItem"
@@ -5026,7 +5031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 135,
+          "line": 159,
           "sink": "QCheckBox"
         }
       ]
@@ -5098,6 +5103,16 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 263,
           "sink": "EmptyStateTreeWidget"
+        }
+      ]
+    },
+    {
+      "key": "Add selected perk",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 114,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -5271,7 +5286,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 169,
+          "line": 193,
           "sink": "setText"
         }
       ]
@@ -5406,7 +5421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 179,
+          "line": 203,
           "sink": "QGroupBox"
         }
       ]
@@ -5966,7 +5981,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 318,
+          "line": 344,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 376,
           "sink": "setText"
         },
         {
@@ -5976,7 +5996,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 101,
+          "line": 103,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -6131,17 +6151,17 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 453,
+          "line": 568,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 681,
+          "line": 798,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 847,
+          "line": 1010,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -6781,7 +6801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 204,
+          "line": 218,
           "sink": "setToolTip"
         }
       ]
@@ -6791,7 +6811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 425,
+          "line": 486,
           "sink": "emit"
         }
       ]
@@ -7331,7 +7351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 561,
+          "line": 562,
           "sink": "set_part_editor_state"
         },
         {
@@ -7374,6 +7394,11 @@
     {
       "key": "Appearance",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 486,
+          "sink": "add_inspector_tab"
+        },
         {
           "path": "cdmw/ui/settings_tab.py",
           "line": 202,
@@ -7631,12 +7656,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 623,
+          "line": 740,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 692,
+          "line": 809,
           "sink": "set_note"
         }
       ]
@@ -7706,12 +7731,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 658,
+          "line": 673,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 368,
+          "line": 369,
           "sink": "addButton"
         },
         {
@@ -7966,7 +7991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 366,
+          "line": 367,
           "sink": "setWindowTitle"
         }
       ]
@@ -8016,7 +8041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 316,
+          "line": 374,
           "sink": "QPushButton"
         }
       ]
@@ -11952,6 +11977,16 @@
       ]
     },
     {
+      "key": "Available perks",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 98,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Average FPS",
       "origins": [
         {
@@ -12081,12 +12116,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 291,
+          "line": 292,
           "sink": "QPushButton"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 223,
+          "line": 222,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         },
         {
@@ -12106,7 +12141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 313,
+          "line": 371,
           "sink": "setToolTip"
         }
       ]
@@ -12116,7 +12151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 253,
+          "line": 277,
           "sink": "setToolTip"
         }
       ]
@@ -12836,7 +12871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 453,
+          "line": 568,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -13211,7 +13246,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 224,
+          "line": 223,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -13291,7 +13326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 272,
+          "line": 296,
           "sink": "addRow"
         }
       ]
@@ -13311,7 +13346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 294,
+          "line": 342,
           "sink": "setToolTip"
         }
       ]
@@ -13556,7 +13591,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 176,
+          "line": 178,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -13575,6 +13610,16 @@
       "key": "Brush larger",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Brush or select faces, then choose Create Part from Selection. Return here to use the edited parts.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 610,
+          "sink": "set_part_editor_state"
+        }
+      ]
     },
     {
       "key": "Brush preset name",
@@ -13616,7 +13661,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 177,
+          "line": 179,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -14191,7 +14236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 196,
+          "line": 220,
           "sink": "QPushButton"
         }
       ]
@@ -14286,7 +14331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 317,
+          "line": 375,
           "sink": "setToolTip"
         }
       ]
@@ -14316,17 +14361,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1163,
+          "line": 1220,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1170,
+          "line": 1227,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1179,
+          "line": 1236,
           "sink": "emit"
         },
         {
@@ -14751,8 +14796,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 756,
+          "line": 883,
           "sink": "set_note"
+        }
+      ]
+    },
+    {
+      "key": "Building the item's mesh…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 884,
+          "sink": "setText"
         }
       ]
     },
@@ -14781,7 +14836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 776,
+          "line": 935,
           "sink": "set_note"
         }
       ]
@@ -14791,7 +14846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 421,
+          "line": 553,
           "sink": "emit"
         }
       ]
@@ -14821,7 +14876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 914,
+          "line": 963,
           "sink": "log"
         }
       ]
@@ -16065,6 +16120,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 399,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/replace_assistant/archive_picker.py",
           "line": 79,
           "sink": "QPushButton"
@@ -16086,7 +16146,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MorphRefit.cs",
-          "line": 1077,
+          "line": 1078,
           "sink": "csharp:Text="
         },
         {
@@ -16262,6 +16322,21 @@
       ]
     },
     {
+      "key": "Cancelling…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 1326,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 904,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Candidate Source",
       "origins": [
         {
@@ -16396,7 +16471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 803,
+          "line": 962,
           "sink": "setText"
         }
       ]
@@ -16406,7 +16481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 123,
+          "line": 180,
           "sink": "setToolTip"
         }
       ]
@@ -16426,7 +16501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 568,
+          "line": 774,
           "sink": "emit"
         }
       ]
@@ -16456,7 +16531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 547,
+          "line": 753,
           "sink": "emit"
         }
       ]
@@ -18211,7 +18286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 855,
+          "line": 1018,
           "sink": "getExistingDirectory"
         }
       ]
@@ -18241,7 +18316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 401,
+          "line": 459,
           "sink": "set_note"
         }
       ]
@@ -18336,7 +18411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 566,
+          "line": 627,
           "sink": "emit"
         }
       ]
@@ -18346,7 +18421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 747,
+          "line": 808,
           "sink": "set_note"
         }
       ]
@@ -18356,7 +18431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 823,
+          "line": 866,
           "sink": "emit"
         }
       ]
@@ -18391,12 +18466,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 302,
+          "line": 360,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 600,
+          "line": 667,
           "sink": "setText"
         }
       ]
@@ -18406,12 +18481,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 353,
+          "line": 410,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 645,
+          "line": 717,
           "sink": "setText"
         }
       ]
@@ -18451,7 +18526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 651,
+          "line": 712,
           "sink": "addItem"
         }
       ]
@@ -18461,7 +18536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 562,
+          "line": 623,
           "sink": "emit"
         }
       ]
@@ -18471,7 +18546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 719,
+          "line": 780,
           "sink": "set_note"
         }
       ]
@@ -18521,7 +18596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 847,
+          "line": 1010,
           "sink": "getOpenFileName"
         }
       ]
@@ -18531,7 +18606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1126,
+          "line": 1183,
           "sink": "emit"
         }
       ]
@@ -18636,7 +18711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 146,
+          "line": 203,
           "sink": "QPushButton"
         }
       ]
@@ -18727,6 +18802,16 @@
       ]
     },
     {
+      "key": "Choose or import the model, place it, tune its appearance, and choose the inventory icon.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 121,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Choose original DDS",
       "origins": [
         {
@@ -18796,7 +18881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 453,
+          "line": 568,
           "sink": "getOpenFileName"
         }
       ]
@@ -18916,7 +19001,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 215,
+          "line": 214,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -19626,8 +19711,13 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 153,
+          "line": 207,
           "sink": "python-return:data"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 585,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -20161,7 +20251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 681,
+          "line": 798,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -20571,7 +20661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 213,
+          "line": 270,
           "sink": "QPushButton"
         },
         {
@@ -20596,7 +20686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 257,
+          "line": 281,
           "sink": "addRow"
         }
       ]
@@ -20606,12 +20696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 562,
+          "line": 679,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 551,
+          "line": 612,
           "sink": "setText"
         }
       ]
@@ -20621,17 +20711,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 248,
+          "line": 272,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 516,
+          "line": 577,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 547,
+          "line": 608,
           "sink": "setText"
         }
       ]
@@ -20716,7 +20806,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MutationAuthority.cs",
-          "line": 146,
+          "line": 159,
           "sink": "csharp:.Text="
         }
       ]
@@ -20771,7 +20861,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MorphRefit.cs",
-          "line": 955,
+          "line": 956,
           "sink": "csharp:.Text="
         }
       ]
@@ -21111,7 +21201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 158,
+          "line": 182,
           "sink": "setToolTip"
         }
       ]
@@ -21133,6 +21223,16 @@
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
           "line": 1042,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Compatible  ·  {value_0} target{value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 674,
+          "sink": "setText"
         }
       ]
     },
@@ -22046,7 +22146,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 293,
+          "line": 294,
           "sink": "QPushButton"
         },
         {
@@ -23547,6 +23647,46 @@
       ]
     },
     {
+      "key": "Create Part from Selection",
+      "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 117,
+          "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 119,
+          "sink": "csharp:AccessibleName="
+        }
+      ]
+    },
+    {
+      "key": "Create Part requires Faces selection mode.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
+          "line": 745,
+          "sink": "_send_dotnet_command_result"
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 163,
+          "sink": "csharp:.Text="
+        }
+      ]
+    },
+    {
+      "key": "Create Part requires selected faces from exactly one source part.",
+      "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 168,
+          "sink": "csharp:.Text="
+        }
+      ]
+    },
+    {
       "key": "Create Profile...",
       "origins": [
         {
@@ -23703,6 +23843,21 @@
           "path": "cdmw/ui/shell/workspace_controller.py",
           "line": 210,
           "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Created part '{value_0}' from {value_1} moved face(s).",
+      "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 203,
+          "sink": "csharp:.Text="
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 215,
+          "sink": "csharp:.Text="
         }
       ]
     },
@@ -24616,7 +24771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 82,
+          "line": 83,
           "sink": "QCheckBox"
         }
       ]
@@ -25831,7 +25986,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 191,
+          "line": 193,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -27216,7 +27371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 369,
+          "line": 370,
           "sink": "addButton"
         }
       ]
@@ -27256,7 +27411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 102,
+          "line": 159,
           "sink": "QPushButton"
         }
       ]
@@ -27346,12 +27501,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -27361,12 +27516,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -28156,7 +28311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 252,
+          "line": 276,
           "sink": "QPushButton"
         }
       ]
@@ -28266,7 +28421,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 192,
+          "line": 194,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -28531,7 +28686,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 679,
+          "line": 686,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -29441,7 +29596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 293,
+          "line": 330,
           "sink": "QLabel"
         }
       ]
@@ -29456,7 +29611,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 540,
+          "line": 601,
           "sink": "getColor"
         }
       ]
@@ -29466,7 +29621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 195,
+          "line": 219,
           "sink": "addRow"
         }
       ]
@@ -29496,7 +29651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 618,
+          "line": 690,
           "sink": "setText"
         }
       ]
@@ -29516,7 +29671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 301,
+          "line": 326,
           "sink": "addTab"
         }
       ]
@@ -29911,7 +30066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 425,
+          "line": 486,
           "sink": "emit"
         }
       ]
@@ -30627,6 +30782,16 @@
       ]
     },
     {
+      "key": "Exact shipped effect stem",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 403,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Exact topology rebuild",
       "origins": [
         {
@@ -30961,7 +31126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 121,
+          "line": 145,
           "sink": "QCheckBox"
         }
       ]
@@ -33481,7 +33646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 147,
+          "line": 204,
           "sink": "setToolTip"
         }
       ]
@@ -33491,7 +33656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 440,
+          "line": 555,
           "sink": "setText"
         }
       ]
@@ -33501,7 +33666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 474,
+          "line": 589,
           "sink": "emit"
         }
       ]
@@ -33511,7 +33676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 681,
+          "line": 798,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -33716,7 +33881,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 181,
+          "line": 183,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         },
         {
@@ -35266,7 +35431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 181,
+          "line": 196,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -35506,7 +35671,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 225,
+          "line": 224,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -35616,7 +35781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 312,
+          "line": 370,
           "sink": "QPushButton"
         }
       ]
@@ -35877,11 +36042,11 @@
       ]
     },
     {
-      "key": "Flip the imported textures vertically (V)",
+      "key": "Flip textures vertically (V)",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 231,
+          "line": 288,
           "sink": "QCheckBox"
         }
       ]
@@ -36151,7 +36316,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 371,
+          "line": 453,
           "sink": "QPushButton"
         },
         {
@@ -36311,7 +36476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 442,
+          "line": 557,
           "sink": "setText"
         }
       ]
@@ -36416,7 +36581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 155,
+          "line": 212,
           "sink": "QPushButton"
         }
       ]
@@ -36608,6 +36773,11 @@
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
           "line": 84,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 341,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -36618,16 +36788,6 @@
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
           "line": 85,
           "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Frame the model",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 293,
-          "sink": "QPushButton"
         }
       ]
     },
@@ -36756,7 +36916,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 223,
+          "line": 222,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -37146,7 +37306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 77,
+          "line": 78,
           "sink": "QGroupBox"
         }
       ]
@@ -37156,7 +37316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 53,
+          "line": 54,
           "sink": "intro_label"
         }
       ]
@@ -37487,26 +37647,6 @@
       ]
     },
     {
-      "key": "Give the imported model the template's cloth and physics",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 186,
-          "sink": "QCheckBox"
-        }
-      ]
-    },
-    {
-      "key": "Give the item its own icon (from a picture, or captured in the viewport)",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 359,
-          "sink": "QRadioButton"
-        }
-      ]
-    },
-    {
       "key": "Give the socket a name",
       "origins": [
         {
@@ -37551,7 +37691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 285,
+          "line": 347,
           "sink": "QLabel"
         }
       ]
@@ -37666,7 +37806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 198,
+          "line": 255,
           "sink": "QGroupBox"
         }
       ]
@@ -37736,7 +37876,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 167,
+          "line": 169,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -37841,7 +37981,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 280,
+          "line": 336,
           "sink": "QCheckBox"
         },
         {
@@ -39141,7 +39281,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 66,
+          "line": 68,
           "sink": "csharp:.Text="
         }
       ]
@@ -39156,7 +39296,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 105,
+          "line": 107,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -39666,7 +39806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 223,
+          "line": 280,
           "sink": "setToolTip"
         }
       ]
@@ -39676,7 +39816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 278,
+          "line": 302,
           "sink": "DetailsToggle"
         }
       ]
@@ -39846,8 +39986,13 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 353,
+          "line": 435,
           "sink": "QGroupBox"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 487,
+          "sink": "add_inspector_tab"
         }
       ]
     },
@@ -40026,7 +40171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 815,
+          "line": 974,
           "sink": "setText"
         }
       ]
@@ -40441,7 +40586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 364,
+          "line": 446,
           "sink": "setPlaceholderText"
         }
       ]
@@ -40461,7 +40606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 367,
+          "line": 449,
           "sink": "QPushButton"
         }
       ]
@@ -40471,7 +40616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 847,
+          "line": 1010,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -40926,7 +41071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 558,
+          "line": 559,
           "sink": "set_part_editor_state"
         }
       ]
@@ -40936,7 +41081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 681,
+          "line": 798,
           "sink": "getOpenFileName"
         }
       ]
@@ -40946,7 +41091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 94,
+          "line": 151,
           "sink": "QPushButton"
         },
         {
@@ -40961,7 +41106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 905,
+          "line": 954,
           "sink": "emit"
         }
       ]
@@ -40971,7 +41116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 502,
+          "line": 619,
           "sink": "setToolTip"
         }
       ]
@@ -41121,7 +41266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 240,
+          "line": 297,
           "sink": "DetailsToggle"
         }
       ]
@@ -41131,7 +41276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 240,
+          "line": 297,
           "sink": "DetailsToggle"
         }
       ]
@@ -41243,6 +41388,16 @@
           "path": "cdmw/ui/archive_browser/mesh_dds_preview.py",
           "line": 37,
           "sink": "FileNotFoundError"
+        }
+      ]
+    },
+    {
+      "key": "Imported appearance",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 460,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -42146,7 +42301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 610,
+          "line": 682,
           "sink": "setText"
         }
       ]
@@ -42671,12 +42826,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 696,
+          "line": 702,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 700,
+          "line": 706,
           "sink": "question"
         }
       ]
@@ -42701,12 +42856,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 670,
+          "line": 676,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 674,
+          "line": 680,
           "sink": "question"
         }
       ]
@@ -42751,7 +42906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 700,
+          "line": 706,
           "sink": "question"
         }
       ]
@@ -42761,7 +42916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 674,
+          "line": 680,
           "sink": "question"
         }
       ]
@@ -42906,7 +43061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 279,
+          "line": 294,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -42941,7 +43096,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 103,
+          "line": 105,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         },
         {
@@ -43612,6 +43767,26 @@
       ]
     },
     {
+      "key": "Item preview material upgrade cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 169,
+          "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 184,
+          "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 204,
+          "sink": "RunCancelled"
+        }
+      ]
+    },
+    {
       "key": "Item {value_0}",
       "origins": [
         {
@@ -43626,7 +43801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 768,
+          "line": 811,
           "sink": "emit"
         }
       ]
@@ -44407,11 +44582,21 @@
       ]
     },
     {
+      "key": "Keep template cloth and physics",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 243,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Keep template perks",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 101,
+          "line": 130,
           "sink": "QPushButton"
         }
       ]
@@ -44431,7 +44616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 355,
+          "line": 437,
           "sink": "QRadioButton"
         }
       ]
@@ -44441,7 +44626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 87,
+          "line": 143,
           "sink": "QRadioButton"
         }
       ]
@@ -45161,7 +45346,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 224,
+          "line": 223,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -45381,7 +45566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 272,
+          "line": 296,
           "sink": "addRow"
         }
       ]
@@ -46391,7 +46576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 302,
+          "line": 307,
           "sink": "setText"
         }
       ]
@@ -46411,7 +46596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 734,
+          "line": 739,
           "sink": "emit"
         },
         {
@@ -46573,6 +46758,21 @@
           "path": "cdmw/ui/model_library/view_state.py",
           "line": 270,
           "sink": "_set_status"
+        }
+      ]
+    },
+    {
+      "key": "Loading model textures…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 555,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 730,
+          "sink": "emit"
         }
       ]
     },
@@ -46771,7 +46971,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 504,
+          "line": 704,
           "sink": "emit"
         }
       ]
@@ -47148,11 +47348,6 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 622,
           "sink": "_skeleton_pose_button"
-        },
-        {
-          "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 330,
-          "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_playback.py",
@@ -47596,7 +47791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 201,
+          "line": 258,
           "sink": "setToolTip"
         }
       ]
@@ -48191,7 +48386,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 60,
+          "line": 62,
           "sink": "csharp:.Text="
         }
       ]
@@ -49206,7 +49401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 354,
+          "line": 369,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -49236,7 +49431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 976,
+          "line": 987,
           "sink": "ValueError"
         }
       ]
@@ -49276,7 +49471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 617,
+          "line": 632,
           "sink": "_set_dotnet_status"
         },
         {
@@ -49301,7 +49496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 805,
+          "line": 841,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -49401,7 +49596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 743,
+          "line": 754,
           "sink": "ValueError"
         }
       ]
@@ -49666,17 +49861,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 219,
+          "line": 234,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 612,
+          "line": 627,
           "sink": "_reject_pending_dotnet_topology_command"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 644,
+          "line": 659,
           "sink": "_reject_pending_dotnet_topology_command"
         }
       ]
@@ -49696,12 +49891,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 299,
+          "line": 314,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 686,
+          "line": 701,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -49711,7 +49906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 592,
+          "line": 603,
           "sink": "RunCancelled"
         }
       ]
@@ -49721,7 +49916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 522,
+          "line": 529,
           "sink": "RuntimeError"
         }
       ]
@@ -49731,7 +49926,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 524,
+          "line": 531,
           "sink": "RuntimeError"
         }
       ]
@@ -49741,7 +49936,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 557,
+          "line": 564,
           "sink": "RuntimeError"
         }
       ]
@@ -49751,7 +49946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 559,
+          "line": 566,
           "sink": "RuntimeError"
         }
       ]
@@ -49761,7 +49956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 562,
+          "line": 569,
           "sink": "RuntimeError"
         }
       ]
@@ -49771,7 +49966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 530,
+          "line": 537,
           "sink": "RuntimeError"
         }
       ]
@@ -49801,7 +49996,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_material_package.py",
-          "line": 968,
+          "line": 1030,
           "sink": "RunCancelled"
         }
       ]
@@ -49846,7 +50041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 875,
+          "line": 886,
           "sink": "ValueError"
         }
       ]
@@ -49856,7 +50051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 872,
+          "line": 883,
           "sink": "ValueError"
         }
       ]
@@ -49866,7 +50061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 907,
+          "line": 918,
           "sink": "ValueError"
         }
       ]
@@ -49876,12 +50071,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 905,
+          "line": 916,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 909,
+          "line": 920,
           "sink": "ValueError"
         }
       ]
@@ -49956,7 +50151,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 746,
+          "line": 757,
           "sink": "ValueError"
         }
       ]
@@ -49996,7 +50191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 937,
+          "line": 948,
           "sink": "ValueError"
         }
       ]
@@ -50006,7 +50201,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 898,
+          "line": 909,
           "sink": "ValueError"
         }
       ]
@@ -50016,7 +50211,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 917,
+          "line": 928,
           "sink": "ValueError"
         }
       ]
@@ -50026,7 +50221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 895,
+          "line": 906,
           "sink": "ValueError"
         }
       ]
@@ -50411,7 +50606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 587,
+          "line": 588,
           "sink": "set_part_editor_state"
         }
       ]
@@ -50456,7 +50651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 867,
+          "line": 872,
           "sink": "emit"
         }
       ]
@@ -50466,7 +50661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 858,
+          "line": 863,
           "sink": "emit"
         }
       ]
@@ -50486,12 +50681,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 997,
+          "line": 1054,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 998,
+          "line": 1055,
           "sink": "emit"
         }
       ]
@@ -50511,12 +50706,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 580,
+          "line": 581,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 598,
+          "line": 604,
           "sink": "set_part_editor_state"
         }
       ]
@@ -50526,12 +50721,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 323,
+          "line": 328,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 324,
+          "line": 329,
           "sink": "emit"
         }
       ]
@@ -50626,12 +50821,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 550,
+          "line": 551,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 583,
+          "line": 584,
           "sink": "set_part_editor_state"
         }
       ]
@@ -50651,7 +50846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 322,
+          "line": 337,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -50661,7 +50856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 369,
+          "line": 374,
           "sink": "emit"
         }
       ]
@@ -50681,7 +50876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 305,
+          "line": 310,
           "sink": "emit"
         }
       ]
@@ -50816,7 +51011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 243,
+          "line": 258,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -50881,7 +51076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 819,
+          "line": 824,
           "sink": "emit"
         }
       ]
@@ -52286,7 +52481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 711,
+          "line": 726,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -52336,7 +52531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 201,
+          "line": 216,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -52616,8 +52811,13 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 85,
+          "line": 141,
           "sink": "QGroupBox"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 484,
+          "sink": "add_inspector_tab"
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
@@ -52991,7 +53191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 681,
+          "line": 798,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -53162,6 +53362,16 @@
       ]
     },
     {
+      "key": "Model source ready",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 891,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
       "key": "Model stem:",
       "origins": [
         {
@@ -53196,12 +53406,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -53211,7 +53421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 431,
+          "line": 432,
           "sink": "note"
         }
       ]
@@ -53231,7 +53441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 429,
+          "line": 430,
           "sink": "note"
         }
       ]
@@ -53241,7 +53451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 427,
+          "line": 428,
           "sink": "note"
         }
       ]
@@ -53251,12 +53461,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -53266,12 +53476,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -53761,7 +53971,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 286,
+          "line": 348,
           "sink": "QRadioButton"
         },
         {
@@ -53781,7 +53991,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 156,
+          "line": 158,
           "sink": "csharp:csharp-wrapper:GizmoButton[0]"
         },
         {
@@ -53841,7 +54051,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 163,
+          "line": 165,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -53861,22 +54071,22 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 732,
+          "line": 738,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 741,
+          "line": 747,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 744,
+          "line": 750,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 748,
+          "line": 754,
           "sink": "question"
         }
       ]
@@ -53918,6 +54128,16 @@
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
           "line": 607,
           "sink": "csharp:.Text="
+        }
+      ]
+    },
+    {
+      "key": "Move selected Faces from one source part into a uniquely named appended part.",
+      "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 120,
+          "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
     },
@@ -54006,7 +54226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 748,
+          "line": 754,
           "sink": "question"
         }
       ]
@@ -54096,7 +54316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 227,
+          "line": 251,
           "sink": "setToolTip"
         }
       ]
@@ -54156,7 +54376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 270,
+          "line": 294,
           "sink": "setToolTip"
         }
       ]
@@ -54166,7 +54386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 270,
+          "line": 294,
           "sink": "setToolTip"
         }
       ]
@@ -54176,7 +54396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 270,
+          "line": 294,
           "sink": "setToolTip"
         }
       ]
@@ -54186,7 +54406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 270,
+          "line": 294,
           "sink": "setToolTip"
         }
       ]
@@ -54231,7 +54451,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MorphRefit.cs",
-          "line": 1071,
+          "line": 1072,
           "sink": "csharp:.Text="
         }
       ]
@@ -54571,7 +54791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 421,
+          "line": 422,
           "sink": "note"
         }
       ]
@@ -54581,12 +54801,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -54596,7 +54816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 419,
+          "line": 420,
           "sink": "note"
         }
       ]
@@ -54606,7 +54826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 419,
+          "line": 420,
           "sink": "note"
         }
       ]
@@ -55426,7 +55646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/workflow_header.py",
-          "line": 255,
+          "line": 279,
           "sink": "setAccessibleName"
         }
       ]
@@ -56682,11 +56902,11 @@
       ]
     },
     {
-      "key": "No effect will be added to this item.",
+      "key": "No effect selected",
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 596,
+          "line": 663,
           "sink": "setText"
         }
       ]
@@ -57021,7 +57241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1157,
+          "line": 1214,
           "sink": "emit"
         },
         {
@@ -57131,12 +57351,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 109,
+          "line": 166,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 599,
+          "line": 716,
           "sink": "set_note"
         }
       ]
@@ -57196,7 +57416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 150,
+          "line": 165,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -58286,32 +58506,32 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 670,
-          "sink": "_finish_pending_textured_view"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 675,
-          "sink": "emit"
+          "sink": "_finish_pending_textured_view"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 739,
-          "sink": "_finish_pending_textured_view"
+          "line": 680,
+          "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 744,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 759,
           "sink": "_finish_pending_textured_view"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
+          "line": 749,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 764,
+          "sink": "_finish_pending_textured_view"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
+          "line": 769,
           "sink": "emit"
         },
         {
@@ -58427,6 +58647,21 @@
       ]
     },
     {
+      "key": "No shipped effect",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 400,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 584,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "No shipped equipment carries {value_0}, so there is no value to go by; whatever you type here is a guess.",
       "origins": [
         {
@@ -58441,7 +58676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 122,
+          "line": 146,
           "sink": "setToolTip"
         }
       ]
@@ -58941,7 +59176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 716,
+          "line": 777,
           "sink": "set_note"
         }
       ]
@@ -59071,7 +59306,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 102,
+          "line": 104,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -59341,12 +59576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 625,
+          "line": 742,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 694,
+          "line": 811,
           "sink": "set_note"
         }
       ]
@@ -59641,7 +59876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 744,
+          "line": 750,
           "sink": "information"
         }
       ]
@@ -60346,7 +60581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 83,
+          "line": 84,
           "sink": "setToolTip"
         }
       ]
@@ -60427,21 +60662,11 @@
       ]
     },
     {
-      "key": "Offset x / y / z (m):",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 305,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Offset {value_0} (m):",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 229,
+          "line": 253,
           "sink": "addRow"
         }
       ]
@@ -61561,12 +61786,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 115,
+          "line": 172,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 427,
+          "line": 542,
           "sink": "setText"
         },
         {
@@ -61786,7 +62011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 165,
+          "line": 189,
           "sink": "setToolTip"
         }
       ]
@@ -61861,27 +62086,27 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 941,
+          "line": 998,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 616,
+          "line": 622,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 620,
+          "line": 626,
           "sink": "set_part_editor_state"
         }
       ]
     },
     {
-      "key": "Open this imported model in Mesh Editor. Select Faces with Click, Brush, Rectangle or Lasso, use Split Selection Into Part, then return here and choose Use Mesh Editor changes.",
+      "key": "Open this imported model in Mesh Editor. Select faces with Click, Brush, Rectangle or Lasso, choose Create Part from Selection, then return here and choose Use Mesh Editor changes.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 116,
+          "line": 173,
           "sink": "setToolTip"
         }
       ]
@@ -62427,6 +62652,21 @@
       ]
     },
     {
+      "key": "Operation cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 1339,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 1350,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "Operation {value_0} is already closed",
       "origins": [
         {
@@ -62571,7 +62811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 202,
+          "line": 226,
           "sink": "addRow"
         }
       ]
@@ -62711,7 +62951,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 226,
+          "line": 225,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
         }
       ]
@@ -63391,12 +63631,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -63406,12 +63646,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -63446,7 +63686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 273,
+          "line": 329,
           "sink": "addItem"
         },
         {
@@ -63756,7 +63996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 277,
+          "line": 333,
           "sink": "setToolTip"
         }
       ]
@@ -65136,7 +65376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 272,
+          "line": 296,
           "sink": "addRow"
         }
       ]
@@ -65176,7 +65416,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 94,
+          "line": 96,
           "sink": "csharp:csharp-wrapper:AddSection[1]"
         }
       ]
@@ -66161,7 +66401,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 261,
+          "line": 275,
           "sink": "setText"
         },
         {
@@ -66191,7 +66431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 261,
+          "line": 275,
           "sink": "setText"
         }
       ]
@@ -66386,7 +66626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 300,
+          "line": 325,
           "sink": "addTab"
         }
       ]
@@ -66406,7 +66646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 754,
+          "line": 815,
           "sink": "python-return:perks_summary"
         }
       ]
@@ -66416,7 +66656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 755,
+          "line": 816,
           "sink": "python-return:perks_summary"
         }
       ]
@@ -66586,7 +66826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 95,
+          "line": 152,
           "sink": "setToolTip"
         }
       ]
@@ -66686,7 +66926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 372,
+          "line": 454,
           "sink": "setToolTip"
         }
       ]
@@ -66801,7 +67041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 164,
+          "line": 188,
           "sink": "QPushButton"
         }
       ]
@@ -66811,7 +67051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 648,
+          "line": 663,
           "sink": "setWindowTitle"
         }
       ]
@@ -66821,7 +67061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 264,
+          "line": 321,
           "sink": "QGroupBox"
         }
       ]
@@ -66845,8 +67085,13 @@
           "sink": "QGroupBox"
         },
         {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 485,
+          "sink": "add_inspector_tab"
+        },
+        {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 154,
+          "line": 156,
           "sink": "csharp:csharp-wrapper:AddSection[1]"
         }
       ]
@@ -67321,8 +67566,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 444,
+          "line": 501,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Plain PBR materials (recommended)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 225,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -67366,7 +67621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 446,
+          "line": 447,
           "sink": "note"
         }
       ]
@@ -67376,7 +67631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 444,
+          "line": 445,
           "sink": "note"
         }
       ]
@@ -67746,7 +68001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 726,
+          "line": 732,
           "sink": "warning"
         }
       ]
@@ -67928,6 +68183,16 @@
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
           "line": 205,
           "sink": "_add_guided_axis_row"
+        }
+      ]
+    },
+    {
+      "key": "Position X / Y / Z (m)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 363,
+          "sink": "QLabel"
         }
       ]
     },
@@ -68577,6 +68842,16 @@
       ]
     },
     {
+      "key": "Preparing Mesh Editor changes…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 888,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Preparing Mesh Editor geometry...",
       "origins": [
         {
@@ -69191,17 +69466,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 957,
+          "line": 1014,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 759,
+          "line": 887,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 636,
+          "line": 642,
           "sink": "set_part_editor_state"
         }
       ]
@@ -69226,7 +69501,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 648,
+          "line": 720,
           "sink": "setText"
         }
       ]
@@ -70836,7 +71111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 326,
+          "line": 384,
           "sink": "QGroupBox"
         }
       ]
@@ -71626,7 +71901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 452,
+          "line": 466,
           "sink": "setToolTip"
         }
       ]
@@ -71981,7 +72256,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 179,
+          "line": 181,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -72071,7 +72346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 518,
+          "line": 532,
           "sink": "setText"
         }
       ]
@@ -72091,7 +72366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 197,
+          "line": 221,
           "sink": "setToolTip"
         }
       ]
@@ -72146,7 +72421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1109,
+          "line": 1166,
           "sink": "emit"
         },
         {
@@ -72636,7 +72911,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 531,
+          "line": 532,
           "sink": "append_log"
         },
         {
@@ -72691,8 +72966,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 754,
+          "line": 880,
           "sink": "set_note"
+        }
+      ]
+    },
+    {
+      "key": "Reading the model file…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 881,
+          "sink": "setText"
         }
       ]
     },
@@ -72751,8 +73036,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 842,
-          "sink": "log"
+          "line": 889,
+          "sink": "report"
         }
       ]
     },
@@ -73976,7 +74261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 249,
+          "line": 273,
           "sink": "setToolTip"
         }
       ]
@@ -73996,7 +74281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 182,
+          "line": 206,
           "sink": "set_note"
         }
       ]
@@ -74936,7 +75221,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 187,
+          "line": 189,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -75806,7 +76091,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 98,
+          "line": 127,
           "sink": "QPushButton"
         },
         {
@@ -75886,12 +76171,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 766,
+          "line": 772,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 770,
+          "line": 776,
           "sink": "question"
         }
       ]
@@ -77801,7 +78086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 850,
+          "line": 855,
           "sink": "emit"
         }
       ]
@@ -78121,7 +78406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 275,
+          "line": 299,
           "sink": "QPushButton"
         }
       ]
@@ -78576,7 +78861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 427,
+          "line": 542,
           "sink": "setText"
         }
       ]
@@ -79061,7 +79346,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 224,
+          "line": 223,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -79341,12 +79626,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 286,
+          "line": 348,
           "sink": "QRadioButton"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 156,
+          "line": 158,
           "sink": "csharp:csharp-wrapper:GizmoButton[0]"
         },
         {
@@ -79437,6 +79722,16 @@
       ]
     },
     {
+      "key": "Rotation X / Y / Z (°)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 363,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Rotation and scale use the fixed centre of the original source bounds. Each completed gesture is one undoable history action, and drafts restore both geometry and controls.",
       "origins": [
         {
@@ -79467,16 +79762,6 @@
       ]
     },
     {
-      "key": "Rotation x / y / z (°):",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 305,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Rotation yaw, pitch, roll",
       "origins": [
         {
@@ -79491,7 +79776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 241,
+          "line": 265,
           "sink": "addRow"
         }
       ]
@@ -80386,7 +80671,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MorphRefit.cs",
-          "line": 1076,
+          "line": 1077,
           "sink": "csharp:Text="
         }
       ]
@@ -80441,7 +80726,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MorphRefit.cs",
-          "line": 1064,
+          "line": 1065,
           "sink": "csharp:Text="
         }
       ]
@@ -80871,7 +81156,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 286,
+          "line": 348,
           "sink": "QRadioButton"
         },
         {
@@ -80896,7 +81181,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 156,
+          "line": 158,
           "sink": "csharp:csharp-wrapper:GizmoButton[0]"
         },
         {
@@ -80912,6 +81197,16 @@
         {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 1143,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Scale X / Y / Z",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 363,
           "sink": "QLabel"
         }
       ]
@@ -80963,16 +81258,6 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 127,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Scale x / y / z:",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 305,
-          "sink": "QLabel"
         }
       ]
     },
@@ -81491,7 +81776,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 1150,
+          "line": 1160,
           "sink": "csharp:.Text="
         }
       ]
@@ -81732,16 +82017,6 @@
       ]
     },
     {
-      "key": "Search by perk name or internal ID",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 109,
-          "sink": "setPlaceholderText"
-        }
-      ]
-    },
-    {
       "key": "Search complete.",
       "origins": [
         {
@@ -81756,7 +82031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 190,
+          "line": 214,
           "sink": "setPlaceholderText"
         }
       ]
@@ -81766,7 +82041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 298,
+          "line": 335,
           "sink": "setPlaceholderText"
         }
       ]
@@ -81892,6 +82167,16 @@
       ]
     },
     {
+      "key": "Search perks or internal IDs",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 100,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "Search preview",
       "origins": [
         {
@@ -81986,7 +82271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 192,
+          "line": 216,
           "sink": "addRow"
         }
       ]
@@ -82368,16 +82653,6 @@
           "path": "cdmw/ui/text_search/controller.py",
           "line": 29,
           "sink": "getExistingDirectory"
-        }
-      ]
-    },
-    {
-      "key": "Select Faces in Mesh Editor and use Split Selection Into Part. Return here to use the edited parts.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 604,
-          "sink": "set_part_editor_state"
         }
       ]
     },
@@ -84481,7 +84756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 767,
+          "line": 803,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -85141,7 +85416,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 90,
+          "line": 92,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -85178,6 +85453,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_views.py",
           "line": 129,
           "sink": "python-return:_part_selection_summary_text"
+        }
+      ]
+    },
+    {
+      "key": "Selected perks",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 121,
+          "sink": "QLabel"
         }
       ]
     },
@@ -85256,7 +85541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 729,
+          "line": 790,
           "sink": "set_note"
         }
       ]
@@ -85266,7 +85551,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 133,
+          "line": 242,
           "sink": "csharp:.Text="
         }
       ]
@@ -85336,7 +85621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 366,
+          "line": 391,
           "sink": "setText"
         }
       ]
@@ -85401,7 +85686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 191,
+          "line": 206,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -85441,7 +85726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 170,
+          "line": 185,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -86616,7 +86901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 442,
+          "line": 443,
           "sink": "note"
         }
       ]
@@ -86626,7 +86911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 440,
+          "line": 441,
           "sink": "note"
         }
       ]
@@ -87092,6 +87377,26 @@
       ]
     },
     {
+      "key": "Show loop and one-shot effects",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 345,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Show loops only",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 348,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Show lower-level object layout, context, catalog, and byte-map views. The main workflow views remain visible by default.",
       "origins": [
         {
@@ -87118,6 +87423,16 @@
           "path": "cdmw/ui/model_preview_settings_dialog.py",
           "line": 713,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Show one-shot effects only",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_workspace.py",
+          "line": 351,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -87776,7 +88091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 274,
+          "line": 330,
           "sink": "addItem"
         }
       ]
@@ -88576,7 +88891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 170,
+          "line": 227,
           "sink": "setToolTip"
         }
       ]
@@ -90246,7 +90561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 272,
+          "line": 296,
           "sink": "addRow"
         }
       ]
@@ -90373,11 +90688,6 @@
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ColourSection.cs",
           "line": 56,
           "sink": "csharp:csharp-wrapper:StyledButton[0]"
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 193,
-          "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
     },
@@ -91466,7 +91776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 370,
+          "line": 371,
           "sink": "addButton"
         }
       ]
@@ -91516,7 +91826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 360,
+          "line": 361,
           "sink": "setText"
         }
       ]
@@ -91526,7 +91836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 503,
+          "line": 504,
           "sink": "setAccessibleText"
         }
       ]
@@ -91536,7 +91846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/workflow_header.py",
-          "line": 86,
+          "line": 97,
           "sink": "setAccessibleName"
         }
       ]
@@ -91591,7 +91901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1200,
+          "line": 1265,
           "sink": "emit"
         }
       ]
@@ -91876,7 +92186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 217,
+          "line": 274,
           "sink": "QLabel"
         },
         {
@@ -91896,7 +92206,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 180,
+          "line": 182,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         },
         {
@@ -92121,7 +92431,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 186,
+          "line": 188,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -92246,7 +92556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 482,
+          "line": 497,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -92343,6 +92653,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 79,
           "sink": "_add_collision_read_only_item"
+        }
+      ]
+    },
+    {
+      "key": "Supports glTF, GLB, OBJ, DAE, FBX through Blender, and zip files containing one model.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 148,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -92711,7 +93031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 368,
+          "line": 450,
           "sink": "setToolTip"
         }
       ]
@@ -92741,7 +93061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 335,
+          "line": 412,
           "sink": "QPushButton"
         }
       ]
@@ -92761,7 +93081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 336,
+          "line": 413,
           "sink": "setToolTip"
         }
       ]
@@ -93561,8 +93881,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 276,
+          "line": 332,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Template preview cancelled",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 596,
+          "sink": "RunCancelled"
         }
       ]
     },
@@ -93581,7 +93911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 416,
+          "line": 417,
           "sink": "note"
         }
       ]
@@ -93606,12 +93936,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 416,
+          "line": 417,
           "sink": "note"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -93886,7 +94216,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 63,
+          "line": 65,
           "sink": "csharp:.Text="
         }
       ]
@@ -95296,7 +95626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 367,
+          "line": 368,
           "sink": "setText"
         }
       ]
@@ -95336,32 +95666,32 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 949,
+          "line": 1006,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 951,
+          "line": 1008,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 956,
+          "line": 1013,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 973,
+          "line": 1030,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 414,
+          "line": 468,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 416,
+          "line": 470,
           "sink": "ValueError"
         }
       ]
@@ -95496,7 +95826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1024,
+          "line": 1081,
           "sink": "emit"
         }
       ]
@@ -95516,17 +95846,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 670,
+          "line": 676,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 696,
+          "line": 702,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 722,
+          "line": 728,
           "sink": "warning"
         },
         {
@@ -95721,7 +96051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 741,
+          "line": 747,
           "sink": "warning"
         }
       ]
@@ -95751,7 +96081,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 164,
+          "line": 166,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -95791,7 +96121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 799,
+          "line": 958,
           "sink": "setText"
         }
       ]
@@ -95801,7 +96131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 566,
+          "line": 772,
           "sink": "emit"
         }
       ]
@@ -95836,7 +96166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 79,
+          "line": 80,
           "sink": "QLabel"
         }
       ]
@@ -95881,7 +96211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 214,
+          "line": 271,
           "sink": "setToolTip"
         }
       ]
@@ -95891,7 +96221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 552,
+          "line": 669,
           "sink": "getColor"
         }
       ]
@@ -95966,7 +96296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 136,
+          "line": 160,
           "sink": "setToolTip"
         }
       ]
@@ -95986,7 +96316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 278,
+          "line": 302,
           "sink": "DetailsToggle"
         }
       ]
@@ -96026,7 +96356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 521,
+          "line": 535,
           "sink": "setToolTip"
         }
       ]
@@ -96161,7 +96491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 471,
+          "line": 485,
           "sink": "setToolTip"
         }
       ]
@@ -96171,7 +96501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 811,
+          "line": 970,
           "sink": "setText"
         }
       ]
@@ -96181,7 +96511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 360,
+          "line": 442,
           "sink": "setToolTip"
         }
       ]
@@ -96191,7 +96521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1130,
+          "line": 1187,
           "sink": "emit"
         },
         {
@@ -96216,7 +96546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 208,
+          "line": 265,
           "sink": "setToolTip"
         }
       ]
@@ -96311,7 +96641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1157,
+          "line": 1214,
           "sink": "emit"
         },
         {
@@ -96342,26 +96672,16 @@
       ]
     },
     {
-      "key": "The model (the template's, or one of your own placed over it) and the inventory icon.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 70,
-          "sink": "intro_label"
-        }
-      ]
-    },
-    {
       "key": "The model could not be read: {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 866,
+          "line": 915,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 867,
+          "line": 916,
           "sink": "emit"
         }
       ]
@@ -96391,18 +96711,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 847,
+          "line": 896,
           "sink": "emit"
         }
       ]
     },
     {
-      "key": "The model starts fitted to the template; the gizmo and the numbers move it from there. Apply the placement builds the item's mesh from it.",
+      "key": "The model starts fitted to the template. Move it with the gizmo or numbers, then apply the placement.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 266,
-          "sink": "intro_label"
+          "line": 323,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -96411,7 +96731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 685,
+          "line": 728,
           "sink": "emit"
         }
       ]
@@ -96456,7 +96776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 610,
+          "line": 671,
           "sink": "setText"
         }
       ]
@@ -96486,7 +96806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 922,
+          "line": 979,
           "sink": "emit"
         }
       ]
@@ -96546,7 +96866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1147,
+          "line": 1204,
           "sink": "emit"
         }
       ]
@@ -96606,7 +96926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 446,
+          "line": 603,
           "sink": "emit"
         }
       ]
@@ -96618,6 +96938,36 @@
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
           "line": 398,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "The progressive geometry package is not workspace-owned.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 167,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The progressive geometry package is outside this preview workspace.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 165,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The progressive scene sidecar is not a JSON object.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 191,
+          "sink": "ValueError"
         }
       ]
     },
@@ -96696,7 +97046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 195,
+          "line": 315,
           "sink": "setText"
         }
       ]
@@ -96726,7 +97076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 506,
+          "line": 707,
           "sink": "emit"
         }
       ]
@@ -96861,7 +97211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1038,
+          "line": 1095,
           "sink": "emit"
         }
       ]
@@ -96981,7 +97331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 468,
+          "line": 583,
           "sink": "emit"
         }
       ]
@@ -96991,7 +97341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 329,
+          "line": 354,
           "sink": "setText"
         }
       ]
@@ -97011,7 +97361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 327,
+          "line": 352,
           "sink": "setText"
         }
       ]
@@ -97031,7 +97381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 647,
+          "line": 690,
           "sink": "emit"
         }
       ]
@@ -97091,7 +97441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 780,
+          "line": 939,
           "sink": "setText"
         }
       ]
@@ -97101,7 +97451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 544,
+          "line": 750,
           "sink": "emit"
         }
       ]
@@ -97111,12 +97461,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 178,
+          "line": 298,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 239,
+          "line": 360,
           "sink": "setText"
         }
       ]
@@ -98416,7 +98766,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 223,
+          "line": 222,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -98456,7 +98806,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 903,
+          "line": 909,
           "sink": "csharp:.Text="
         }
       ]
@@ -98556,7 +98906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 448,
+          "line": 462,
           "sink": "addItem"
         }
       ]
@@ -98621,7 +98971,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 162,
+          "line": 164,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -98701,7 +99051,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 166,
+          "line": 168,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -99066,7 +99416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 239,
+          "line": 263,
           "sink": "setToolTip"
         }
       ]
@@ -99841,7 +100191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_startup.py",
-          "line": 140,
+          "line": 142,
           "sink": "RuntimeError"
         }
       ]
@@ -100001,7 +100351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 770,
+          "line": 776,
           "sink": "question"
         }
       ]
@@ -100866,7 +101216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 122,
+          "line": 179,
           "sink": "QPushButton"
         }
       ]
@@ -101082,11 +101432,11 @@
       ]
     },
     {
-      "key": "Use a model file of your own (glTF, GLB, OBJ, DAE, FBX with Blender, or a zip holding one)",
+      "key": "Use a custom icon",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 91,
+          "line": 441,
           "sink": "QRadioButton"
         }
       ]
@@ -101108,6 +101458,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 46,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "Use an imported model",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 147,
+          "sink": "QRadioButton"
         }
       ]
     },
@@ -101457,11 +101817,11 @@
       ]
     },
     {
-      "key": "Use the game's plain PBR shaders for the imported textures (recommended)",
+      "key": "Use the imported model when sheathed",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 168,
+          "line": 234,
           "sink": "QCheckBox"
         }
       ]
@@ -101741,7 +102101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 643,
+          "line": 649,
           "sink": "set_part_editor_state"
         }
       ]
@@ -102531,7 +102891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 271,
+          "line": 327,
           "sink": "QLabel"
         }
       ]
@@ -102541,7 +102901,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 214,
+          "line": 213,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -102721,7 +103081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 129,
+          "line": 153,
           "sink": "QGroupBox"
         }
       ]
@@ -102731,7 +103091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 760,
+          "line": 821,
           "sink": "python-return:effect_summary"
         }
       ]
@@ -102741,7 +103101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 761,
+          "line": 822,
           "sink": "python-return:effect_summary"
         }
       ]
@@ -102761,7 +103121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 365,
+          "line": 422,
           "sink": "QLabel"
         }
       ]
@@ -102771,7 +103131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 131,
+          "line": 155,
           "sink": "intro_label"
         }
       ]
@@ -102781,7 +103141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 219,
+          "line": 243,
           "sink": "addRow"
         }
       ]
@@ -102791,7 +103151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 160,
+          "line": 184,
           "sink": "addRow"
         }
       ]
@@ -103001,7 +103361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 125,
+          "line": 140,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -103041,7 +103401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 93,
+          "line": 108,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -103096,7 +103456,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 627,
+          "line": 633,
           "sink": "set_part_editor_state"
         }
       ]
@@ -103221,7 +103581,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MorphRefit.cs",
-          "line": 856,
+          "line": 857,
           "sink": "csharp:.Text="
         }
       ]
@@ -103266,7 +103626,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MorphRefit.cs",
-          "line": 872,
+          "line": 873,
           "sink": "csharp:.Text="
         }
       ]
@@ -103591,7 +103951,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 681,
+          "line": 798,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -104442,16 +104802,6 @@
       ]
     },
     {
-      "key": "When sheathed on the back, draw the imported model (not the template's borrowed scabbard)",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 177,
-          "sink": "QCheckBox"
-        }
-      ]
-    },
-    {
       "key": "When should I use Texture Replacer?",
       "origins": [
         {
@@ -105111,7 +105461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 273,
+          "line": 274,
           "sink": "QGroupBox"
         }
       ]
@@ -105131,7 +105481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/workflow_header.py",
-          "line": 252,
+          "line": 276,
           "sink": "ValueError"
         }
       ]
@@ -106582,22 +106932,22 @@
       ]
     },
     {
-      "key": "Your model (textured) over the template, or the template alone. Orbit and zoom; the icon is taken from this view.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 328,
-          "sink": "intro_label"
-        }
-      ]
-    },
-    {
       "key": "Your model only",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 275,
+          "line": 331,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Your model over the template. Orbit, zoom, move it with the gizmo, and capture the icon from this view.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 387,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -106726,7 +107076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 681,
+          "line": 798,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -107216,7 +107566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 279,
+          "line": 280,
           "sink": "tinted"
         }
       ]
@@ -107976,7 +108326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 279,
+          "line": 280,
           "sink": "tinted"
         },
         {
@@ -108426,17 +108776,17 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 93,
+          "line": 108,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 125,
+          "line": 140,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 181,
+          "line": 196,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -108606,22 +108956,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 62,
+          "line": 77,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 243,
+          "line": 258,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 322,
+          "line": 337,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 650,
+          "line": 665,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -109386,17 +109736,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 354,
+          "line": 369,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 482,
+          "line": 497,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 505,
+          "line": 520,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -109486,7 +109836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 711,
+          "line": 726,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -111156,7 +111506,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 595,
+          "line": 596,
           "sink": "open_mesh_session"
         }
       ]
@@ -111166,7 +111516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 748,
+          "line": 759,
           "sink": "_resolve_package_output_path"
         }
       ]
@@ -111266,12 +111616,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 854,
+          "line": 865,
           "sink": "_resolve_package_output_path"
         },
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 950,
+          "line": 961,
           "sink": "_resolve_package_output_path"
         }
       ]
@@ -111281,7 +111631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 951,
+          "line": 962,
           "sink": "_resolve_package_output_path"
         }
       ]
@@ -111446,42 +111796,42 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 170,
+          "line": 185,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 201,
+          "line": 216,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 220,
+          "line": 235,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 279,
+          "line": 294,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 300,
+          "line": 315,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 689,
+          "line": 704,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 711,
+          "line": 726,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 806,
+          "line": 842,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -111566,7 +111916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 751,
+          "line": 762,
           "sink": "_resolve_package_output_path"
         }
       ]
@@ -112443,6 +112793,16 @@
           "path": "tools/placement_studio/constraints.py",
           "line": 416,
           "sink": "Guide"
+        }
+      ]
+    },
+    {
+      "key": "export",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 1223,
+          "sink": "_run"
         }
       ]
     },
@@ -113441,7 +113801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 681,
+          "line": 798,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -113466,7 +113826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 232,
+          "line": 289,
           "sink": "setToolTip"
         }
       ]
@@ -113601,7 +113961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 279,
+          "line": 280,
           "sink": "tinted"
         },
         {
@@ -114458,6 +114818,21 @@
           "path": "tools/placement_studio/viewport.py",
           "line": 984,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "install",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 1230,
+          "sink": "_run"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 1239,
+          "sink": "_run"
         }
       ]
     },
@@ -116446,7 +116821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 220,
+          "line": 221,
           "sink": "TypeError"
         }
       ]
@@ -118121,7 +118496,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 679,
+          "line": 686,
           "sink": "csharp:StatusRequested?.Invoke("
         },
         {
@@ -118256,7 +118631,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 679,
+          "line": 686,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -118565,8 +118940,18 @@
       "key": "overlay",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 1245,
+          "sink": "_run"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 1251,
+          "sink": "_run"
+        },
+        {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 273,
+          "line": 329,
           "sink": "addItem"
         },
         {
@@ -119263,6 +119648,16 @@
           "path": "cdmw/ui/archive_browser/attachment_visual_preview.py",
           "line": 178,
           "sink": "ModelPreviewData"
+        }
+      ]
+    },
+    {
+      "key": "plan",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 1216,
+          "sink": "_run"
         }
       ]
     },
@@ -120561,7 +120956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 279,
+          "line": 280,
           "sink": "tinted"
         },
         {
@@ -122326,57 +122721,57 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 161,
+          "line": 176,
           "sink": "_reject_dotnet_request_without_session"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 170,
+          "line": 185,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 181,
+          "line": 196,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 191,
+          "line": 206,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 201,
+          "line": 216,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 220,
+          "line": 235,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 243,
+          "line": 258,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 254,
+          "line": 269,
           "sink": "_reject_dotnet_request_without_session"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 354,
+          "line": 369,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 650,
+          "line": 665,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 689,
+          "line": 704,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -197002,6 +197397,16 @@
       ]
     },
     {
+      "key": "snapshot",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 1097,
+          "sink": "_run"
+        }
+      ]
+    },
+    {
       "key": "so the original DDS controls format, dimensions, mips, and output path.",
       "origins": [
         {
@@ -197426,7 +197831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 191,
+          "line": 206,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -197501,7 +197906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 747,
+          "line": 758,
           "sink": "_resolve_package_output_path"
         }
       ]
@@ -197596,22 +198001,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 273,
+          "line": 288,
           "sink": "_reject_dotnet_request_without_session"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 279,
+          "line": 294,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 650,
+          "line": 665,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 689,
+          "line": 704,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -198051,7 +198456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 809,
+          "line": 968,
           "sink": "ValueError"
         }
       ]
@@ -198151,7 +198556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 82,
+          "line": 111,
           "sink": "ValueError"
         }
       ]
@@ -198451,7 +198856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 448,
+          "line": 462,
           "sink": "addItem"
         }
       ]
@@ -198651,7 +199056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 150,
+          "line": 165,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -199961,7 +200366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 444,
+          "line": 501,
           "sink": "warning"
         }
       ]
@@ -200131,7 +200536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 630,
+          "line": 691,
           "sink": "setText"
         }
       ]
@@ -200811,7 +201216,7 @@
         },
         {
           "path": "cdmw/ui/new_item/workflow_header.py",
-          "line": 304,
+          "line": 371,
           "sink": "setAccessibleDescription"
         },
         {
@@ -202016,7 +202421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 599,
+          "line": 660,
           "sink": "setText"
         }
       ]
@@ -202186,7 +202591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 513,
+          "line": 567,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -202196,7 +202601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 509,
+          "line": 563,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -202291,7 +202696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 519,
+          "line": 573,
           "sink": "python-return:fbx_needs_blender_message"
         }
       ]
@@ -202346,7 +202751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 471,
+          "line": 586,
           "sink": "emit"
         }
       ]
@@ -202386,7 +202791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 203,
+          "line": 217,
           "sink": "setText"
         }
       ]
@@ -203126,7 +203531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 280,
+          "line": 281,
           "sink": "setToolTip"
         }
       ]
@@ -203301,7 +203706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 476,
+          "line": 490,
           "sink": "setText"
         }
       ]
@@ -203311,7 +203716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 424,
+          "line": 425,
           "sink": "note"
         }
       ]
@@ -203391,7 +203796,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 145,
+          "line": 254,
           "sink": "csharp:.Text="
         }
       ]
@@ -203986,7 +204391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 418,
+          "line": 420,
           "sink": "python-return:_perk_label"
         },
         {
@@ -204166,7 +204571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 437,
+          "line": 439,
           "sink": "python-return:perk_details"
         }
       ]
@@ -204426,7 +204831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/ui_kit.py",
-          "line": 209,
+          "line": 207,
           "sink": "tinted"
         },
         {
@@ -204551,7 +204956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 747,
+          "line": 808,
           "sink": "set_note"
         }
       ]
@@ -204596,7 +205001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 622,
+          "line": 739,
           "sink": "note"
         }
       ]
@@ -205006,7 +205411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 615,
+          "line": 732,
           "sink": "note"
         }
       ]
@@ -205156,7 +205561,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 502,
+          "line": 503,
           "sink": "setToolTip"
         }
       ]
@@ -205166,7 +205571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 155,
+          "line": 209,
           "sink": "python-return:data"
         }
       ]
@@ -205351,7 +205756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 215,
+          "line": 217,
           "sink": "python-return:suggest_internal_name"
         }
       ]
@@ -205361,7 +205766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 215,
+          "line": 217,
           "sink": "python-return:suggest_internal_name"
         }
       ]
@@ -205566,7 +205971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/ui_kit.py",
-          "line": 126,
+          "line": 124,
           "sink": "python-return:elided"
         }
       ]

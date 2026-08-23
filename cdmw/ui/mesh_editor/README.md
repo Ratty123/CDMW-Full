@@ -90,11 +90,13 @@ resident session; per-face source indices are ancestor bookkeeping, never a
 selection space. Geometry and selection are one native history pair, so one
 Undo or Redo restores both. The Builder adopts the native remapped selection
 after topology rather than clearing its mirror independently.
-The visible topology section also offers **Split Selection Into Part**. It sends
-the existing `separate` command after current selection authority has landed,
-moves the selected faces into one appended submesh, and retains the source part's
-vertex channels and material route. New Item Studio can open an imported source
-here and accept a stable resident revision back into its placement/build workflow.
+The Selection panel offers **Create Part from Selection**. It sends the existing
+`separate` command after current or provisional Brush selection authority has landed,
+requires Faces from exactly one source part, moves those faces into a uniquely named
+appended submesh, and retains the source part's vertex channels and material route. The
+new Parts row is selected and revealed with its moved-face count. New Item Studio opens
+an imported source here with Faces as the target while keeping Orbit as the neutral
+initial tool, then accepts a stable resident revision back into its placement/build workflow.
 Normal tools include service-routed recalc, tangent generation, flip,
 sharpen/soften, weighted normals, and source-normal copy commands; cleanup
 tools include remove doubles, delete loose vertices, compact orphans, winding
@@ -377,10 +379,20 @@ treats region face selection as projected triangle hits, applies native
 visible-depth filtering when requested for brush or region selection, and pushes
 the resulting selection groups back to the D3D11 preview host.
 Topology commands first drain the final correlated selection request. A
-Subdivide or Refine Smooth click made while Brush/Lasso selection is still
+Subdivide, Refine Smooth or Create Part click made while Brush/Lasso selection is still
 provisional is queued without the helper's older `local_selection` snapshot and
 runs against resident selection authority after mouse-up; a failed or cancelled
 selection terminal cancels the queued command.
+
+Brush projection is resident across short gestures. Arming Select or settling the
+camera starts an immutable background projection build; a first dab that arrives early
+is queued against that correlated build rather than constructing the whole mesh on the
+WinForms input thread. Depth tiles are prepared only where the brush touches. Geometry,
+topology, vertex positions, camera/model matrices, viewport size, X-Ray, or visible and
+editable part changes invalidate the cache; ending a gesture does not. Selection status
+adds build, hit, invalidation, stale-build, and cold/warm first-dab timings, and the GPU
+interaction soak exercises repeated short Face Brush gestures as well as the existing
+held stroke and authoritative mouse-up paths.
 
 Copy/Paste is an internal Mesh Editor clipboard (`Ctrl+C`/`Ctrl+V`), not the OS
 clipboard. Faces copy exactly; vertex or wire selections copy only fully

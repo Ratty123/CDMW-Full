@@ -126,6 +126,45 @@ def test_vectorized_slot_compositor_remains_cancellable_between_row_chunks(
     assert not (tmp_path / "cancelled").exists()
 
 
+def test_external_material_factors_keep_vector_and_scalar_bytes_equal(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("numpy")
+    from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
+
+    image = QImage(str(_pattern(tmp_path / "material.png", 39, 31, 13)))
+    texture_input = PreviewMaterialTextureInput(
+        slot_kind="material",
+        parameter_name="_metallicRoughnessTexture",
+        semantic_type="material",
+        semantic_subtype="metallic_roughness",
+        packed_channels=("roughness", "metallic"),
+        material_parameters=(
+            PreviewMaterialParameterInput(parameter_kind="float", parameter_name="_roughnessFactor", numeric_value=0.55),
+            PreviewMaterialParameterInput(parameter_kind="float", parameter_name="_metallicFactor", numeric_value=0.35),
+            PreviewMaterialParameterInput(parameter_kind="float", parameter_name="_gltfTextureStrength_occlusion", numeric_value=0.4),
+        ),
+    )
+
+    def run(folder: str):
+        slots, urls = material_combiner_images._generate_material_maps(
+            image,
+            tmp_path / folder,
+            "surface",
+            decode_mode="metallic_roughness",
+            input_item=texture_input,
+            flip_vertical=False,
+            max_dimension=128,
+        )
+        return slots, tuple(_image_bytes(url, "RGBA") if url else b"" for url in urls)
+
+    vector = run("vector_factors")
+    monkeypatch.setattr(material_combiner_images, "_numpy_module", lambda: None)
+    scalar = run("scalar_factors")
+    assert vector == scalar
+
+
 def _texture_input(path: Path, **fields):
     from cdmw.models import PreviewMaterialTextureInput
 

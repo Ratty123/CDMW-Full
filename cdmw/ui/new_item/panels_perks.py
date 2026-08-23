@@ -49,6 +49,7 @@ class PerksPanel(QGroupBox):
         super().__init__("5. Perks & Effects", parent)
         self._controller = controller
         self._syncing_effect = False
+        self._syncing_catalogue = False
         layout = QVBoxLayout(self)
         self._legacy_intro = intro_label(
             "Gameplay perks change the item's built-in abilities or stats. Visual effects change appearance only; "
@@ -87,14 +88,42 @@ class PerksPanel(QGroupBox):
         self.custom_perks = QWidget()
         custom_layout = QVBoxLayout(self.custom_perks)
         custom_layout.setContentsMargins(0, 0, 0, 0)
+        custom_layout.setSpacing(6)
         self.perk_count = QLabel("")
         self.perk_count.setWordWrap(True)
-        custom_layout.addWidget(self.perk_count)
-        chosen_row = QHBoxLayout()
+        columns = QHBoxLayout()
+        columns.setSpacing(8)
+        available_column = QVBoxLayout()
+        available_column.setSpacing(4)
+        available_column.addWidget(QLabel("Available perks"))
+        self.perk_filter = QLineEdit()
+        self.perk_filter.setPlaceholderText("Search perks or internal IDs")
+        self.perk_filter.setClearButtonEnabled(True)
+        self.perk_filter.textChanged.connect(self._refresh_catalogue)
+        available_column.addWidget(self.perk_filter)
+        self.perk_results = QListWidget()
+        self.perk_results.setObjectName("new_item_perk_results")
+        self.perk_results.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.perk_results.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.perk_results.setFixedHeight(210)
+        self.perk_results.currentItemChanged.connect(self._available_perk_changed)
+        self.perk_results.itemDoubleClicked.connect(
+            lambda _item, _column=0: self._add_selected()
+        )
+        available_column.addWidget(self.perk_results, 1)
+        self.add_button = QPushButton("Add selected perk")
+        self.add_button.clicked.connect(self._add_selected)
+        available_column.addWidget(self.add_button)
+        columns.addLayout(available_column, 1)
+
+        selected_column = QVBoxLayout()
+        selected_column.setSpacing(4)
+        selected_column.addWidget(QLabel("Selected perks"))
+        selected_column.addWidget(self.perk_count)
         self.chosen = QListWidget()
         self.chosen.currentItemChanged.connect(self._chosen_perk_changed)
-        chosen_row.addWidget(self.chosen, 1)
-        buttons = QVBoxLayout()
+        selected_column.addWidget(self.chosen, 1)
+        buttons = QHBoxLayout()
         self.remove_button = QPushButton("Remove")
         self.remove_button.clicked.connect(self._remove_selected)
         buttons.addWidget(self.remove_button)
@@ -102,20 +131,15 @@ class PerksPanel(QGroupBox):
         self.reset_button.clicked.connect(self._reset_to_template)
         buttons.addWidget(self.reset_button)
         buttons.addStretch(1)
-        chosen_row.addLayout(buttons)
-        custom_layout.addLayout(chosen_row)
-        add_row = QHBoxLayout()
-        self.perk_filter = QLineEdit()
-        self.perk_filter.setPlaceholderText("Search by perk name or internal ID")
-        self.perk_filter.textChanged.connect(self._refresh_catalogue)
-        add_row.addWidget(self.perk_filter, 1)
-        self.catalogue = QComboBox()
+        selected_column.addLayout(buttons)
+        columns.addLayout(selected_column, 1)
+        custom_layout.addLayout(columns, 1)
+
+        # Compatibility data adapter for older integrations. It mirrors the visible list
+        # but never opens a popup; the inline list is the sole presented catalogue.
+        self.catalogue = QComboBox(self.custom_perks)
+        self.catalogue.setVisible(False)
         self.catalogue.currentIndexChanged.connect(self._catalogue_perk_changed)
-        add_row.addWidget(self.catalogue, 2)
-        self.add_button = QPushButton("Add")
-        self.add_button.clicked.connect(self._add_selected)
-        add_row.addWidget(self.add_button)
-        custom_layout.addLayout(add_row)
         self.perk_details = NoteLabel("")
         custom_layout.addWidget(self.perk_details)
         self.experimental_perks = QCheckBox("Experimental: allow five to eight perks")
@@ -292,7 +316,8 @@ class PerksPanel(QGroupBox):
         self.tabs.setObjectName("new_item_perks_effects_tabs")
         self.perks_page = QWidget()
         perks_page_layout = QVBoxLayout(self.perks_page)
-        perks_page_layout.setContentsMargins(12, 10, 12, 10)
+        perks_page_layout.setContentsMargins(8, 6, 8, 6)
+        perks_page_layout.setSpacing(6)
         perks_page_layout.addWidget(perks)
         perks_page_layout.addStretch(1)
         self.effects_workspace = GuidedEffectsWorkspace(self._controller)
@@ -370,22 +395,54 @@ class PerksPanel(QGroupBox):
         self._update_add_enabled()
 
     def _refresh_catalogue(self, *_args) -> None:
-        current = self.catalogue.currentData()
+        current_item = self.perk_results.currentItem()
+        current = current_item.data(Qt.ItemDataRole.UserRole) if current_item is not None else self.catalogue.currentData()
+        entries = tuple(self._controller.perk_catalogue(self.perk_filter.text()))
+        self._syncing_catalogue = True
+        self.perk_results.blockSignals(True)
         self.catalogue.blockSignals(True)
         try:
+            self.perk_results.clear()
             self.catalogue.clear()
-            for key, label in self._controller.perk_catalogue(self.perk_filter.text()):
+            selected_row = -1
+            for row, (key, label) in enumerate(entries):
+                item = QListWidgetItem(label)
+                item.setData(Qt.ItemDataRole.UserRole, key)
+                item.setToolTip(self._controller.perk_details(int(key)))
+                self.perk_results.addItem(item)
                 self.catalogue.addItem(label, key)
-            if current is not None:
-                index = self.catalogue.findData(current)
-                if index >= 0:
-                    self.catalogue.setCurrentIndex(index)
+                if key == current:
+                    selected_row = row
+            if selected_row < 0 and entries:
+                selected_row = 0
+            self.perk_results.setCurrentRow(selected_row)
+            if selected_row >= 0:
+                self.catalogue.setCurrentIndex(selected_row)
         finally:
             self.catalogue.blockSignals(False)
-        self._catalogue_perk_changed(self.catalogue.currentIndex())
+            self.perk_results.blockSignals(False)
+            self._syncing_catalogue = False
+        self._available_perk_changed(self.perk_results.currentItem(), None)
 
     def _catalogue_perk_changed(self, _index: int) -> None:
+        if self._syncing_catalogue:
+            return
         key = self.catalogue.currentData()
+        for row in range(self.perk_results.count()):
+            if self.perk_results.item(row).data(Qt.ItemDataRole.UserRole) == key:
+                self.perk_results.setCurrentRow(row)
+                break
+        self._refresh_perk_details(int(key) if isinstance(key, int) else None)
+        self._update_add_enabled()
+
+    def _available_perk_changed(self, current, _previous) -> None:
+        key = current.data(Qt.ItemDataRole.UserRole) if current is not None else None
+        if isinstance(key, int):
+            index = self.catalogue.findData(key)
+            if index >= 0 and self.catalogue.currentIndex() != index:
+                self.catalogue.blockSignals(True)
+                self.catalogue.setCurrentIndex(index)
+                self.catalogue.blockSignals(False)
         self._refresh_perk_details(int(key) if isinstance(key, int) else None)
         self._update_add_enabled()
 
@@ -395,7 +452,8 @@ class PerksPanel(QGroupBox):
 
     def _refresh_perk_details(self, key: Optional[int] = None) -> None:
         if key is None:
-            current = self.catalogue.currentData()
+            item = self.perk_results.currentItem()
+            current = item.data(Qt.ItemDataRole.UserRole) if item is not None else self.catalogue.currentData()
             key = int(current) if isinstance(current, int) else None
         if key is None:
             self.perk_details.set_note("Choose a perk to see what the game calls it and whether shipped equipment uses it.", None)
@@ -412,10 +470,13 @@ class PerksPanel(QGroupBox):
     def _update_add_enabled(self) -> None:
         selected = len(self._controller.draft.socket_items or ())
         limit = MAX_PERKS if self.experimental_perks.isChecked() else SAFE_PERKS
-        self.add_button.setEnabled(self.own_perks.isChecked() and self.catalogue.currentData() is not None and selected < limit)
+        current = self.perk_results.currentItem()
+        key = current.data(Qt.ItemDataRole.UserRole) if current is not None else self.catalogue.currentData()
+        self.add_button.setEnabled(self.own_perks.isChecked() and isinstance(key, int) and selected < limit)
 
     def _add_selected(self) -> None:
-        key = self.catalogue.currentData()
+        current = self.perk_results.currentItem()
+        key = current.data(Qt.ItemDataRole.UserRole) if current is not None else self.catalogue.currentData()
         draft = self._controller.draft
         if not isinstance(key, int) or draft.socket_items is None:
             return

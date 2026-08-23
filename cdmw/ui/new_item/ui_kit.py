@@ -49,12 +49,10 @@ _COLORS = {
     EDIT: "#3d7bd9",
 }
 
-#: the step pages: a bold title on the group box, room around the content; the muted
-#: colour is filled in per palette by :func:`step_style` (a fixed "dark" role is invisible
-#: on the app's dark theme)
+#: Guided pages use the header as their only title. Internal group boxes retain their
+#: ordinary captions, while the outer compatibility QGroupBox is visually neutral.
 STEP_STYLE = (
-    "QGroupBox#new_item_step { font-weight: bold; margin-top: 14px; }"
-    "QGroupBox#new_item_step::title { subcontrol-origin: margin; left: 4px; padding: 0 4px; font-size: 11pt; }"
+    "QGroupBox#new_item_step { font-weight: normal; }"
     "QGroupBox#new_item_step QGroupBox { font-weight: normal; }"
     "QLabel#new_item_intro { color: %(muted)s; }"
     "QLabel#new_item_details { color: %(muted)s; }"
@@ -92,9 +90,9 @@ def step_style(palette) -> str:
     muted = muted_color(palette)
     return (STEP_STYLE % {"muted": muted}) + f"""
         QWidget#new_item_steps, QStackedWidget {{ background: {background}; }}
-        QGroupBox#new_item_step[guidedFullHeight="true"] {{ border: none; margin-top: 0; padding: 0; }}
+        QGroupBox#new_item_step[guidedPage="true"] {{ border: none; margin-top: 0; padding: 0; }}
         QTabWidget#new_item_perks_effects_tabs::pane {{ border: 1px solid {border}; background: {background}; }}
-        QTabWidget#new_item_perks_effects_tabs QTabBar::tab {{ min-height: 32px; padding: 0 28px; border: none; color: {muted}; }}
+        QTabWidget#new_item_perks_effects_tabs QTabBar::tab {{ min-height: 30px; padding: 0 20px; border: none; color: {muted}; }}
         QTabWidget#new_item_perks_effects_tabs QTabBar::tab:selected {{ color: {text}; border-bottom: 2px solid {active}; }}
         QFrame#effect_library_panel, QWidget#effect_inspector {{ background: {panel}; }}
         QWidget#effect_viewport_panel {{ background: {background}; }}
@@ -104,12 +102,12 @@ def step_style(palette) -> str:
         QLabel#effect_compatibility {{ color: {muted}; }}
         QLabel#effect_visual_caution {{ color: #d18a00; border-top: 1px solid {border}; }}
         QListView#effect_library {{ border: 1px solid {border}; background: {panel}; outline: none; }}
-        QLineEdit#effect_search {{ min-height: 32px; border: 1px solid {border}; padding: 0 10px; background: {background}; }}
-        QToolButton[effectChip="true"] {{ min-height: 26px; padding: 0 6px; border: 1px solid {border}; border-radius: 4px; }}
+        QLineEdit#effect_search {{ min-height: 30px; border: 1px solid {border}; padding: 0 8px; background: {background}; }}
+        QToolButton[effectChip="true"] {{ min-height: 24px; padding: 0 5px; border: 1px solid {border}; border-radius: 4px; }}
         QToolButton[effectChip="true"]:checked {{ color: white; background: {active}; border-color: {active}; }}
-        QPushButton[effectToolbarButton="true"] {{ min-height: 32px; padding: 0 2px; }}
+        QPushButton[effectToolbarButton="true"] {{ min-height: 30px; padding: 0 2px; }}
         QGroupBox#new_item_step QLineEdit, QGroupBox#new_item_step QComboBox,
-        QGroupBox#new_item_step QDoubleSpinBox, QGroupBox#new_item_step QPushButton {{ min-height: 32px; }}
+        QGroupBox#new_item_step QDoubleSpinBox, QGroupBox#new_item_step QPushButton {{ min-height: 30px; }}
         QLabel#new_item_step_counter {{ color: {muted}; }}
     """
 

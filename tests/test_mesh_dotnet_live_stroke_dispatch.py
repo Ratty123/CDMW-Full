@@ -358,6 +358,43 @@ def test_topology_waiting_for_selection_drops_the_stale_helper_snapshot() -> Non
         harness.deleteLater()
 
 
+def test_create_part_selection_requires_faces_from_one_source_part() -> None:
+    one_part = MeshEditSelection.from_maps(faces_by_submesh={2: (4, 7)})
+    two_parts = MeshEditSelection.from_maps(faces_by_submesh={1: (2,), 2: (3,)})
+    vertex_only = MeshEditSelection.from_maps(vertices_by_submesh={1: (2,)})
+
+    assert MeshEditorDotNetCommandMixin._separate_selection_diagnostic(one_part) is None
+    assert "one source part" in str(
+        MeshEditorDotNetCommandMixin._separate_selection_diagnostic(two_parts)
+    )
+    assert "selected faces" in str(
+        MeshEditorDotNetCommandMixin._separate_selection_diagnostic(vertex_only)
+    )
+
+
+def test_create_part_waits_for_pending_face_brush_authority() -> None:
+    harness = _Harness(_Controller())
+    try:
+        harness.standalone_native_selection_stroke_id = "selection-face-1"
+        assert harness._queue_dotnet_topology_after_selection(
+            "separate",
+            {
+                "command": "separate",
+                "target_mode": "face",
+                "selection_pending": True,
+                "request_id": 191,
+                "local_selection": {"faces_by_submesh": {"0": [1]}},
+            },
+        )
+        queued = harness.standalone_pending_dotnet_topology_request
+        assert queued is not None
+        assert queued["command"] == "separate"
+        assert queued["target_mode"] == "face"
+        assert "local_selection" not in queued
+    finally:
+        harness.deleteLater()
+
+
 def test_failed_selection_rejects_its_queued_topology_command() -> None:
     controller = _Controller()
     harness = _Harness(controller)

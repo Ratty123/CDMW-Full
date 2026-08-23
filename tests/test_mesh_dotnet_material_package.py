@@ -56,6 +56,34 @@ def _write_manifest(
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def test_identical_submesh_material_inputs_are_synthesized_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = _submesh("first")
+    second = _submesh("second")
+    first.material = second.material = "shared"
+    first.texture = second.texture = "shared"
+    original = mesh_dotnet_material_package._synthesize_dotnet_material_channels
+    calls = 0
+
+    def tracked(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        mesh_dotnet_material_package,
+        "_synthesize_dotnet_material_channels",
+        tracked,
+    )
+
+    payload = _write_manifest(tmp_path / "deduplicated", [first, second])
+
+    assert len(payload["submeshes"]) == 2
+    assert calls == 1
+
+
 def test_material_image_reader_falls_back_to_valid_file_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

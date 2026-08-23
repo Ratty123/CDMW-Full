@@ -29,7 +29,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
         command_name: str,
         request_payload: Mapping[str, object],
     ) -> bool:
-        if command_name not in {"subdivide", "subdivide_selection", "refine", "refine_smooth"}:
+        if command_name not in {"subdivide", "subdivide_selection", "refine", "refine_smooth", "separate"}:
             return False
         if not str(self.standalone_native_selection_stroke_id or "").strip():
             return False
@@ -52,6 +52,21 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
         self.standalone_pending_dotnet_topology_request = queued_payload
         self._set_dotnet_status("Finishing the selection gesture before applying topology...")
         return True
+
+    @staticmethod
+    def _separate_selection_diagnostic(selection: object) -> str | None:
+        """Require component Faces from exactly one source part for Create Part."""
+        face_map = getattr(selection, "face_map", lambda: {})()
+        selected_faces: dict[int, tuple[int, ...]] = {}
+        for submesh_index, faces in dict(face_map or {}).items():
+            normalized = tuple(int(face) for face in (faces or ()))
+            if normalized:
+                selected_faces[int(submesh_index)] = normalized
+        if not selected_faces:
+            return "Create Part requires selected faces from exactly one source part."
+        if len(selected_faces) != 1:
+            return "Create Part requires faces belonging to one source part."
+        return None
 
     def _reject_pending_dotnet_topology_command(self, reason: str) -> None:
         payload = self.standalone_pending_dotnet_topology_request
@@ -725,6 +740,27 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
         )
         action_selection = local_selection if selection_supplied else None
         target_mode = str(payload.get("target_mode", "") or "").strip().lower()
+        if command == "separate":
+            if target_mode != "face":
+                self._send_dotnet_command_result(
+                    command,
+                    ok=False,
+                    status="invalid_selection",
+                    diagnostics=("Create Part requires Faces selection mode.",),
+                    request_payload=payload,
+                )
+                return False
+            selection_for_separate = local_selection if selection_supplied else controller.session_view().selection
+            diagnostic = self._separate_selection_diagnostic(selection_for_separate)
+            if diagnostic is not None:
+                self._send_dotnet_command_result(
+                    command,
+                    ok=False,
+                    status="invalid_selection",
+                    diagnostics=(diagnostic,),
+                    request_payload=payload,
+                )
+                return False
         embedded_result = self._handle_dotnet_embedded_part_command(
             command,
             local_selection,
@@ -760,7 +796,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
                 action = mesh_editor_actions_by_key().get(action_key)
                 params: dict[str, object] = dict(action.params) if action is not None else {}
                 if (
-                    action_key in {"transform_move", "delete", "duplicate", "subdivide", "refine_smooth"}
+                    action_key in {"transform_move", "delete", "duplicate", "subdivide", "refine_smooth", "separate"}
                     and selection_supplied
                     and local_selection.is_empty()
                 ):

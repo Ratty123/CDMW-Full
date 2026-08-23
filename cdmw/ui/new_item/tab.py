@@ -252,12 +252,13 @@ class NewItemStudioTab(QWidget):
             if item is not None:
                 item.setToolTip(panel.toolTip())
             panel.setObjectName("new_item_step")
-            if index == 4:
+            panel.setTitle("")
+            panel.setProperty("guidedPage", True)
+            if index in {2, 4}:
                 panel.setProperty("guidedFullHeight", True)
-                panel.setTitle("")
-                # The placement workspace itself owns the only vertical scroller, in its
-                # right inspector. Wrapping it here would create nested scrolling and a
-                # horizontal bar at the supported 1280 px window.
+                # The Model and Effects workspaces own their local inspector scrollers.
+                # Wrapping either page here would make its resident viewport move when a
+                # side panel scrolls and can introduce a horizontal bar at 1280 px.
                 page = panel
             else:
                 page = QScrollArea()
@@ -287,7 +288,7 @@ class NewItemStudioTab(QWidget):
         body_layout.addWidget(self.steps)
         body_layout.addWidget(self.pages, 1)
         footer = QHBoxLayout()
-        footer.setContentsMargins(14, 10, 8, 4)
+        footer.setContentsMargins(8, 6, 8, 2)
         self.back_button = QPushButton("Back")
         self.back_button.clicked.connect(lambda: self._step_by(-1))
         self.continue_button = QPushButton("Continue")
@@ -592,7 +593,12 @@ class NewItemStudioTab(QWidget):
         mesh = getattr(getattr(source, "scene", None), "mesh", None)
         session_id = f"new-item-model:{id(source):x}:{int(getattr(source, 'mesh_generation', 0) or 0)}"
         try:
-            view = editor.open_mesh_session(mesh, session_id=session_id, mode="edit")
+            view = editor.open_mesh_session(
+                mesh,
+                session_id=session_id,
+                mode="edit",
+                initial_element_type="face",
+            )
             mesh_controller = editor.standalone_controller
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self.model_panel.set_part_editor_state(False, f"Mesh Editor could not open this imported model: {exc}")
@@ -603,7 +609,7 @@ class NewItemStudioTab(QWidget):
         self._model_part_editor_session_id = str(getattr(view, "session_id", "") or session_id)
         self.model_panel.set_part_editor_state(
             True,
-            "Select Faces in Mesh Editor and use Split Selection Into Part. Return here to use the edited parts.",
+            "Brush or select faces, then choose Create Part from Selection. Return here to use the edited parts.",
         )
         self._activate_model_part_editor()
 

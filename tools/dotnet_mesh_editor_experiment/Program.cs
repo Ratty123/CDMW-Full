@@ -911,6 +911,7 @@ internal sealed partial class MeshViewport : Control
             }
             CancelActiveStroke();
             _activeTool = next;
+            QueuePaintProjectionPrewarm();
             UpdateGpuViewport();
             Invalidate();
         }

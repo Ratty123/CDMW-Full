@@ -22,7 +22,7 @@ internal sealed partial class MeshViewport
     // further out than the largest brush radius can never be painted.
     private const int PaintEdgeBucketViewportMarginPixels = 288;
 
-    private void PreparePaintOcclusionGrid(PaintProjectionCache cache)
+    private static void PreparePaintOcclusionGrid(PaintProjectionCache cache)
     {
         if (cache.BuiltForXRay)
         {
@@ -36,6 +36,144 @@ internal sealed partial class MeshViewport
             (cache.ViewportHeight + PaintOcclusionCellPixels - 1) / PaintOcclusionCellPixels);
         cache.OcclusionDepths = new float[cache.OcclusionColumns * cache.OcclusionRows];
         Array.Fill(cache.OcclusionDepths, float.PositiveInfinity);
+        cache.OcclusionPrepared = new bool[cache.OcclusionDepths.Length];
+    }
+
+    private static void RasterizePaintOcclusionTriangleCell(
+        PaintProjectionCache cache,
+        int row,
+        int column,
+        PointF a,
+        float depthA,
+        PointF b,
+        float depthB,
+        PointF c,
+        float depthC)
+    {
+        var area = ((b.X - a.X) * (c.Y - a.Y)) - ((b.Y - a.Y) * (c.X - a.X));
+        if (Math.Abs(area) <= 1.0e-9f)
+        {
+            return;
+        }
+        var x = (column + 0.5f) * PaintOcclusionCellPixels;
+        var y = (row + 0.5f) * PaintOcclusionCellPixels;
+        var w0 = (((b.X - x) * (c.Y - y)) - ((b.Y - y) * (c.X - x))) / area;
+        var w1 = (((c.X - x) * (a.Y - y)) - ((c.Y - y) * (a.X - x))) / area;
+        var w2 = 1.0f - w0 - w1;
+        if (w0 < -0.001f || w1 < -0.001f || w2 < -0.001f)
+        {
+            return;
+        }
+        var depth = (w0 * depthA) + (w1 * depthB) + (w2 * depthC);
+        if (!float.IsFinite(depth))
+        {
+            return;
+        }
+        var offset = (row * cache.OcclusionColumns) + column;
+        if (depth < cache.OcclusionDepths[offset])
+        {
+            cache.OcclusionDepths[offset] = depth;
+        }
+    }
+
+    private static void EnsurePaintOcclusionTile(
+        PaintProjectionCache cache,
+        int row,
+        int column)
+    {
+        if (cache.BuiltForXRay
+            || cache.OcclusionDepths.Length == 0
+            || cache.OcclusionPrepared.Length == 0)
+        {
+            return;
+        }
+        var tileIndex = (row * cache.OcclusionColumns) + column;
+        if (cache.OcclusionPrepared[tileIndex])
+        {
+            return;
+        }
+        cache.OcclusionPrepared[tileIndex] = true;
+        var projectionCellColumn = Math.Clamp(
+            (int)MathF.Floor(((column + 0.5f) * PaintOcclusionCellPixels) / PaintProjectionCellPixels),
+            0,
+            cache.GridColumns - 1);
+        var projectionCellRow = Math.Clamp(
+            (int)MathF.Floor(((row + 0.5f) * PaintOcclusionCellPixels) / PaintProjectionCellPixels),
+            0,
+            cache.GridRows - 1);
+        var stamp = cache.BeginFaceQuery();
+        foreach (var pair in cache.Points)
+        {
+            var submeshIndex = pair.Key;
+            var points = pair.Value;
+            var depths = cache.Depths[submeshIndex];
+            var faces = cache.Faces[submeshIndex];
+            var bounds = cache.FaceBounds[submeshIndex];
+            var buckets = cache.FaceBuckets[submeshIndex];
+            var candidates = cache.FaceQueryCandidates[submeshIndex];
+            var stamps = cache.FaceVisitStamps[submeshIndex];
+            candidates.Clear();
+            foreach (var faceIndex in buckets[(projectionCellRow * cache.GridColumns) + projectionCellColumn])
+            {
+                if (faceIndex >= 0 && faceIndex < stamps.Length && stamps[faceIndex] != stamp)
+                {
+                    stamps[faceIndex] = stamp;
+                    candidates.Add(faceIndex);
+                }
+            }
+            foreach (var faceIndex in cache.LargeFaceCandidates[submeshIndex])
+            {
+                if (faceIndex >= 0 && faceIndex < stamps.Length && stamps[faceIndex] != stamp)
+                {
+                    stamps[faceIndex] = stamp;
+                    candidates.Add(faceIndex);
+                }
+            }
+            foreach (var faceIndex in candidates)
+            {
+                if (faceIndex < 0 || faceIndex >= faces.Length || !bounds[faceIndex].Contains(
+                        (column + 0.5f) * PaintOcclusionCellPixels,
+                        (row + 0.5f) * PaintOcclusionCellPixels))
+                {
+                    continue;
+                }
+                var face = faces[faceIndex];
+                if (face.A < 0 || face.B < 0 || face.C < 0
+                    || face.A >= points.Length || face.B >= points.Length || face.C >= points.Length)
+                {
+                    continue;
+                }
+                RasterizePaintOcclusionTriangleCell(
+                    cache,
+                    row,
+                    column,
+                    points[face.A],
+                    depths[face.A],
+                    points[face.B],
+                    depths[face.B],
+                    points[face.C],
+                    depths[face.C]);
+            }
+        }
+    }
+
+    private static void EnsurePaintOcclusionForBounds(PaintProjectionCache cache, RectangleF bounds)
+    {
+        if (cache.BuiltForXRay || cache.OcclusionDepths.Length == 0)
+        {
+            return;
+        }
+        var left = Math.Clamp((int)MathF.Floor(bounds.Left / PaintOcclusionCellPixels), 0, cache.OcclusionColumns - 1);
+        var right = Math.Clamp((int)MathF.Floor(bounds.Right / PaintOcclusionCellPixels), 0, cache.OcclusionColumns - 1);
+        var top = Math.Clamp((int)MathF.Floor(bounds.Top / PaintOcclusionCellPixels), 0, cache.OcclusionRows - 1);
+        var bottom = Math.Clamp((int)MathF.Floor(bounds.Bottom / PaintOcclusionCellPixels), 0, cache.OcclusionRows - 1);
+        for (var row = top; row <= bottom; row++)
+        {
+            for (var column = left; column <= right; column++)
+            {
+                EnsurePaintOcclusionTile(cache, row, column);
+            }
+        }
     }
 
     private static void RasterizePaintOcclusionTriangle(
@@ -189,9 +327,10 @@ internal sealed partial class MeshViewport
                 (depthA + depthB + depthC) / 3.0f);
     }
 
-    private void BuildPaintEdgeBuckets(PaintProjectionCache cache)
+    private static void BuildPaintEdgeBuckets(
+        PaintProjectionCache cache,
+        IReadOnlyList<PaintProjectionEdge> edges)
     {
-        var edges = _edgeTopology.Edges;
         var pendingBuckets = new List<int>?[cache.GridColumns * cache.GridRows];
         var largeCandidates = new List<int>();
         var marginLeft = -(float)PaintEdgeBucketViewportMarginPixels;

@@ -490,6 +490,7 @@ class DialogTests(unittest.TestCase):
                 host_factory=lambda parent: _Host(parent),
             )
             self.addCleanup(dialog.deleteLater)
+            dialog.show()
             self._settle(lambda: dialog._thread is not None and dialog._thread.isRunning())
             started = time.monotonic()
             dialog.reject()
@@ -600,6 +601,7 @@ class DialogTests(unittest.TestCase):
                     compatibility_ui=True,
                 )
                 self.addCleanup(workspace.deleteLater)
+                workspace.show()
                 self._settle(lambda: started)
                 workspace.set_content(
                     item_mesh=_blade(),

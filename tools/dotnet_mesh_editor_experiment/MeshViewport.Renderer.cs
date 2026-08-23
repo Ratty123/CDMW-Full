@@ -308,6 +308,7 @@ internal sealed partial class MeshViewport
         {
             _renderSurfaceResizeTimer.Stop();
             UpdateGpuViewport();
+            QueuePaintProjectionPrewarm();
             return;
         }
         _renderSurfaceResizeTimer.Stop();
@@ -336,6 +337,7 @@ internal sealed partial class MeshViewport
         }
         viewport.Bounds = ClientRectangle;
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
     }
 
     public void InvalidateRenderSurface()
@@ -404,6 +406,7 @@ internal sealed partial class MeshViewport
 
     public void ApplySceneState()
     {
+        InvalidatePaintProjectionCacheIfStale("scene_state");
         if (_scene.HasAuthoritativeFrame)
         {
             var viewCenter = _center;
@@ -421,6 +424,7 @@ internal sealed partial class MeshViewport
         _d3d11Viewport?.Invalidate();
         RequestFrame();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
         Invalidate();
     }
 

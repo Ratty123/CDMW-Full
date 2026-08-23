@@ -79,9 +79,12 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert _section_stack(program, "Transform") == "leftStack"
     assert _section_stack(program, "Brush Tools") == "leftStack"
     assert _section_stack(program, "Topology") == "leftStack"
-    assert 'CommandButton("Split Selection Into Part", "separate")' in program
-    assert "ButtonRow(separateSelectionButton)" in program
-    assert '"Split Selection Into Part",' in _source("ExperimentForm.EditMeshToolDiagnostics.cs")
+    assert "CreatePartFromSelectionButton" in _source("ExperimentForm.PartsSection.cs")
+    assert 'CreatePartFromSelectionButton()' in program
+    assert 'CommandButton("Split Selection Into Part", "separate")' not in program
+    assert "ButtonRow(separateSelectionButton)" not in program
+    assert '"Create Part from Selection"' in _source("ExperimentForm.EditMeshToolDiagnostics.cs")
+    assert '"Create Part from Selection",' in _source("ExperimentForm.EditMeshToolDiagnostics.cs")
     command_guard = program.split(
         "private long WriteCommandRequest", maxsplit=1
     )[1].split("var targetMode = SelectionTarget();", maxsplit=1)[0]

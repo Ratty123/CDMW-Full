@@ -147,10 +147,12 @@ internal sealed partial class ExperimentForm
             LabeledControl("Selection mode", _selectionOperation),
             _xray,
             // No Select button: its list row arms the tool. Grow and Shrink are commands, so they stay.
-            ButtonRow(CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink")));
+            ButtonRow(CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink")),
+            CreatePartFromSelectionButton());
         selectionSection.Name = "CompactSelectionSection";
         _selectionSection = selectionSection;
         _meshEditOnlySections.Add(selectionSection);
+        _selectionTarget.SelectedIndexChanged += (_, _) => RefreshCreatePartFromSelectionButton();
         _placementSection = AddSection(leftStack, "Placement",
             SceneComparisonControl(),
             ButtonRow(GizmoButton("Move", "move"), GizmoButton("Rotate", "rotate"), GizmoButton("Scale", "scale")));
@@ -190,12 +192,10 @@ internal sealed partial class ExperimentForm
         // keeps its own pair for whole-part actions.
         var deleteSelectionButton = CommandButton("Delete Selection", "delete");
         var duplicateSelectionButton = CommandButton("Duplicate Selection", "duplicate");
-        var separateSelectionButton = CommandButton("Split Selection Into Part", "separate");
         RegisterTopologyMutationButton(subdivideButton);
         RegisterTopologyMutationButton(refineButton);
         RegisterTopologyMutationButton(deleteSelectionButton);
         RegisterTopologyMutationButton(duplicateSelectionButton);
-        RegisterTopologyMutationButton(separateSelectionButton);
         var topologySection = AddHelpSection(
             leftStack,
             "Topology",
@@ -203,8 +203,7 @@ internal sealed partial class ExperimentForm
             + "Subdivide and Refine Smooth require a selection and never change the whole mesh implicitly.",
             out _,
             ButtonRow(deleteSelectionButton, duplicateSelectionButton),
-            ButtonRow(subdivideButton, refineButton),
-            ButtonRow(separateSelectionButton));
+            ButtonRow(subdivideButton, refineButton));
         topologySection.Name = "CompactTopologySection";
         _topologySection = topologySection;
         _meshEditOnlySections.Add(topologySection);

@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Diagnostics;
 using System.Numerics;
 
 namespace Cdmw.MeshEditorExperiment;
@@ -50,6 +51,30 @@ internal sealed partial class MeshViewport
             Math.Clamp((int)Math.Round(projected.Y), 1, Math.Max(1, ClientSize.Height - 2)));
     }
 
+    internal void ResetPaintProjectionCacheForInteractionSoak() =>
+        InvalidatePaintProjectionCache("interaction_soak_cold_start");
+
+    internal bool WaitForPaintProjectionCacheForInteractionSoak(
+        int timeoutMilliseconds,
+        out double maximumHeartbeatGapMs)
+    {
+        var deadline = Stopwatch.StartNew();
+        var previous = Stopwatch.GetTimestamp();
+        maximumHeartbeatGapMs = 0.0;
+        while (_paintProjectionBuildActive && deadline.ElapsedMilliseconds < Math.Max(1, timeoutMilliseconds))
+        {
+            Application.DoEvents();
+            Thread.Sleep(1);
+            var current = Stopwatch.GetTimestamp();
+            maximumHeartbeatGapMs = Math.Max(
+                maximumHeartbeatGapMs,
+                Stopwatch.GetElapsedTime(previous, current).TotalMilliseconds);
+            previous = current;
+        }
+        Application.DoEvents();
+        return !_paintProjectionBuildActive && _paintProjection is not null;
+    }
+
     internal void BeginInteractionSoak(string mode, Point start)
     {
         _interactionSoakMode = NormalizeInteractionSoakMode(mode);
@@ -94,6 +119,20 @@ internal sealed partial class MeshViewport
         {
             throw new InvalidOperationException($"Could not begin {_interactionSoakMode} interaction soak stroke.");
         }
+    }
+
+    internal void BeginShortFaceBrushInteractionSoak(Point start)
+    {
+        _interactionSoakMode = "select_brush_face";
+        (_interactionSoakSelectionShape, _interactionSoakSelectionTarget) =
+            SelectionInteractionSoakMode(_interactionSoakMode);
+        _interactionSoakPrevious = start;
+        _interactionSoakCoveragePixels = 0.0;
+        _scene.SetInteractionMode("mesh_edit");
+        ActiveTool = "select";
+        SetSelectionDragMode(_interactionSoakSelectionShape);
+        BeginSelectionDrag(start, _interactionSoakSelectionTarget);
+        MaybeEmitSelectionPaintSample(start);
     }
 
     internal void StepInteractionSoak(Point point)
@@ -156,7 +195,7 @@ internal sealed partial class MeshViewport
         && _selectionPaintToggleTouchedVertices.Count == 0
         && _selectionPaintToggleTouchedFaces.Count == 0
         && _selectionPaintToggleTouchedEdges.Count == 0
-        && _paintProjection is null;
+        && _pendingPaintSample is null;
 
     internal MeshInteractionSoakResult FinishInteractionSoak(
         Point point,

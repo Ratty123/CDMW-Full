@@ -882,6 +882,12 @@ internal sealed partial class ExperimentForm
             WriteEditRevisionAck(root, "preview_triangle_update_ack", "rejected", revision, 0, "invalid_payload");
             return;
         }
+        PendingMutationRequest? topologyMutation = null;
+        var topologyRequestId = JsonLongValue(root, "request_id");
+        if (topologyRequestId > 0)
+        {
+            _pendingMutationRequests.TryGetValue(topologyRequestId, out topologyMutation);
+        }
         if (changedCount > 0)
         {
             var editableSubmeshCount = Math.Max(
@@ -901,6 +907,10 @@ internal sealed partial class ExperimentForm
             RefreshSubmeshList();
             _viewport.Invalidate();
             _statusLabel.Text = "Topology preview updated by MeshService; Python session remains authoritative.";
+            if (string.Equals(topologyMutation?.Command, "separate", StringComparison.OrdinalIgnoreCase))
+            {
+                RevealCreatedPart(affectedSubmeshes.Max());
+            }
         }
         MarkEditRevisionApplied(revision);
         WriteEditRevisionAck(root, "preview_triangle_update_ack", "applied", revision, changedCount, "");
@@ -1204,6 +1214,7 @@ internal sealed partial class ExperimentForm
             CompleteCorrelatedSelectionUpdate(pending);
         }
         _viewport.Invalidate();
+        RefreshCreatePartFromSelectionButton();
         return true;
     }
 }

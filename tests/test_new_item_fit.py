@@ -73,6 +73,46 @@ class FitTests(unittest.TestCase):
         self.assertEqual(fitted_placement(None, self.TEMPLATE).offset, (0.0, 0.0, 0.0))
         self.assertEqual(fitted_placement(self.TEMPLATE, None).scale, (1.0, 1.0, 1.0))
 
+    def test_bake_uses_the_native_affine_path_and_preserves_direction_channels(self) -> None:
+        from unittest.mock import patch
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.model_import import ModelPlacement, bake_mesh
+
+        mesh = ParsedMesh(
+            path="source",
+            format="gltf",
+            submeshes=[SubMesh(
+                name="part",
+                vertices=[(1.0, 0.0, 0.0)],
+                normals=[(1.0, 0.0, 0.0)],
+                tangents=[(1.0, 0.0, 0.0, -1.0)],
+                faces=[],
+            )],
+        )
+        seen = {}
+
+        def native(submeshes, *, position_matrices_by_index, **_kwargs):
+            seen.update(position_matrices_by_index)
+            matrix = position_matrices_by_index[0]
+            x, y, z = submeshes[0].vertices[0]
+            submeshes[0].vertices = [(
+                matrix[0] * x + matrix[1] * y + matrix[2] * z + matrix[3],
+                matrix[4] * x + matrix[5] * y + matrix[6] * z + matrix[7],
+                matrix[8] * x + matrix[9] * y + matrix[10] * z + matrix[11],
+            )]
+            return {0}
+
+        placement = ModelPlacement(offset=(2.0, 3.0, 4.0), rotation=(0.0, 0.0, 90.0))
+        with patch("cdmw.services.mesh_workflow_service.apply_native_mesh_affine_transform_submeshes", native):
+            baked = bake_mesh(mesh, placement)
+
+        self.assertEqual(set(seen), {0})
+        self.assertAlmostEqual(baked.submeshes[0].vertices[0][0], 2.0, places=6)
+        self.assertAlmostEqual(baked.submeshes[0].vertices[0][1], 4.0, places=6)
+        self.assertEqual(baked.submeshes[0].tangents[0][3], -1.0)
+        self.assertAlmostEqual(baked.submeshes[0].normals[0][1], 1.0, places=6)
+
 
 class UnimportableModelTests(unittest.TestCase):
     """What the studio says when a file holds nothing it can read. Half the models on the

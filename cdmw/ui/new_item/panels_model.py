@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import QSettings, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -20,6 +21,9 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QRadioButton,
+    QScrollArea,
+    QSplitter,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -29,7 +33,7 @@ from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.item_preview import GIZMO_TOOLS, ItemPreviewFrame
 from cdmw.ui.new_item.model_import import ModelPlacement
 from cdmw.ui.new_item.state import glow_choice
-from cdmw.ui.new_item.ui_kit import EDIT, OK, WARN, DetailsToggle, NoteLabel, intro_label, note
+from cdmw.ui.new_item.ui_kit import EDIT, OK, WARN, DetailsToggle, NoteLabel, note
 
 IMPORT_FILE_FILTER = (
     "Model files (*.gltf *.glb *.obj *.dae *.fbx *.zip);;glTF / GLB (*.gltf *.glb);;Wavefront OBJ (*.obj);;"
@@ -48,8 +52,53 @@ def _spin(minimum: float, maximum: float, step: float, decimals: int, suffix: st
     if suffix:
         spin.setSuffix(suffix)
     spin.setKeyboardTracking(False)
-    spin.setMinimumWidth(88)
+    spin.setMinimumWidth(72)
     return spin
+
+
+class _BusySpinner(QWidget):
+    """Small timer-driven spinner whose paint cadence is also testable."""
+
+    frame_advanced = Signal(int)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._frame = 0
+        self._timer = QTimer(self)
+        self._timer.setInterval(60)
+        self._timer.timeout.connect(self._advance)
+        self.setFixedSize(22, 22)
+
+    def sizeHint(self) -> QSize:
+        return QSize(22, 22)
+
+    def set_running(self, running: bool) -> None:
+        if running:
+            if not self._timer.isActive():
+                self._timer.start()
+        else:
+            self._timer.stop()
+            self._frame = 0
+            self.update()
+
+    def _advance(self) -> None:
+        self._frame = (self._frame + 1) % 12
+        self.frame_advanced.emit(self._frame)
+        self.update()
+
+    def paintEvent(self, _event) -> None:  # noqa: N802 - Qt override
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.translate(self.width() / 2.0, self.height() / 2.0)
+        painter.rotate(float(self._frame * 30))
+        base = QColor(self.palette().highlight().color())
+        for index in range(12):
+            colour = QColor(base)
+            colour.setAlpha(45 + index * 17)
+            painter.setPen(QPen(colour, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.drawLine(0, -6, 0, -9)
+            painter.rotate(30.0)
+        painter.end()
 
 
 class ModelPanel(QGroupBox):
@@ -67,20 +116,27 @@ class ModelPanel(QGroupBox):
         super().__init__("3. Model and icon", parent)
         self._controller = controller
         outer = QVBoxLayout(self)
-        outer.addWidget(intro_label("The model (the template's, or one of your own placed over it) and the inventory icon."))
-        # two columns: the choices and numbers on the left, the viewport on the right with
-        # the height to itself, so the step uses the width instead of stacking everything
-        columns = QHBoxLayout()
-        columns.setSpacing(12)
-        outer.addLayout(columns, 1)
-        left = QWidget()
-        left.setMaximumWidth(640)
-        left.setMinimumWidth(420)
-        layout = QVBoxLayout(left)
-        layout.setContentsMargins(0, 0, 0, 0)
-        columns.addWidget(left, 0)
+        outer.setContentsMargins(8, 6, 8, 6)
+        outer.setSpacing(6)
+        self.setToolTip("Choose or import the model, place it, tune its appearance, and choose the inventory icon.")
+        self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.workspace_splitter.setObjectName("new_item_model_workspace_splitter")
+        outer.addWidget(self.workspace_splitter, 1)
+        inspector = QWidget(self.workspace_splitter)
+        inspector.setObjectName("new_item_model_inspector")
+        inspector.setMinimumWidth(340)
+        inspector_layout = QVBoxLayout(inspector)
+        inspector_layout.setContentsMargins(0, 0, 0, 0)
+        inspector_layout.setSpacing(0)
+        self.inspector_tabs = QTabWidget(inspector)
+        self.inspector_tabs.setObjectName("new_item_model_inspector_tabs")
+        inspector_layout.addWidget(self.inspector_tabs, 1)
         self.preview = ItemPreviewFrame(self)
         self._syncing_numbers = False
+        self._show_preview_timer = QTimer(self)
+        self._show_preview_timer.setSingleShot(True)
+        self._show_preview_timer.setInterval(0)
+        self._show_preview_timer.timeout.connect(self.refresh_preview)
 
         model = QGroupBox("Model")
         model_layout = QVBoxLayout(model)
@@ -88,7 +144,8 @@ class ModelPanel(QGroupBox):
         self.keep_model.setChecked(True)
         self.keep_model.toggled.connect(self._model_source_changed)
         model_layout.addWidget(self.keep_model)
-        self.import_model = QRadioButton("Use a model file of your own (glTF, GLB, OBJ, DAE, FBX with Blender, or a zip holding one)")
+        self.import_model = QRadioButton("Use an imported model")
+        self.import_model.setToolTip("Supports glTF, GLB, OBJ, DAE, FBX through Blender, and zip files containing one model.")
         model_layout.addWidget(self.import_model)
         row = QHBoxLayout()
         self.import_button = QPushButton("Import a model file...")
@@ -114,8 +171,8 @@ class ModelPanel(QGroupBox):
         part_editor_buttons = QHBoxLayout()
         self.open_part_editor_button = QPushButton("Open in Mesh Editor")
         self.open_part_editor_button.setToolTip(
-            "Open this imported model in Mesh Editor. Select Faces with Click, Brush, Rectangle or Lasso, use Split Selection "
-            "Into Part, then return here and choose Use Mesh Editor changes."
+            "Open this imported model in Mesh Editor. Select faces with Click, Brush, Rectangle or Lasso, choose Create Part "
+            "from Selection, then return here and choose Use Mesh Editor changes."
         )
         self.open_part_editor_button.clicked.connect(self.part_editor_open_requested.emit)
         part_editor_buttons.addWidget(self.open_part_editor_button)
@@ -165,7 +222,7 @@ class ModelPanel(QGroupBox):
         self.busy_bar.setFixedHeight(6)
         self.busy_bar.setVisible(False)
         model_layout.addWidget(self.busy_bar)
-        self.plain_pbr = QCheckBox("Use the game's plain PBR shaders for the imported textures (recommended)")
+        self.plain_pbr = QCheckBox("Plain PBR materials (recommended)")
         self.plain_pbr.setChecked(True)
         self.plain_pbr.setToolTip(
             "SkinnedMeshStandard: base colour, normal, roughness/metal, the shaders the shipped texture-driven weapons use, "
@@ -174,7 +231,7 @@ class ModelPanel(QGroupBox):
         )
         self.plain_pbr.toggled.connect(self._material_route_changed)
         model_layout.addWidget(self.plain_pbr)
-        self.own_sheath = QCheckBox("When sheathed on the back, draw the imported model (not the template's borrowed scabbard)")
+        self.own_sheath = QCheckBox("Use the imported model when sheathed")
         self.own_sheath.setChecked(True)
         self.own_sheath.setToolTip(
             "A weapon's sheathed look is a part of its own (the _IN stems), usually borrowed from another item, so an imported "
@@ -183,7 +240,7 @@ class ModelPanel(QGroupBox):
         )
         self.own_sheath.toggled.connect(self._sheath_changed)
         model_layout.addWidget(self.own_sheath)
-        self.keep_physics = QCheckBox("Give the imported model the template's cloth and physics")
+        self.keep_physics = QCheckBox("Keep template cloth and physics")
         self.keep_physics.setToolTip(
             "A template's mesh physics file binds cloth and collision to that template's own vertices. On a model of your own "
             "those indices land wherever they land, which is how a handle ends up swinging like a cape. Off, the item is written "
@@ -228,7 +285,7 @@ class ModelPanel(QGroupBox):
         self.glow_box.toggled.connect(lambda _on: self._glow_changed())
         model_layout.addWidget(self.glow_box)
         self._set_glow_swatch()
-        self.flip_texture_v = QCheckBox("Flip the imported textures vertically (V)")
+        self.flip_texture_v = QCheckBox("Flip textures vertically (V)")
         self.flip_texture_v.setToolTip(
             "glTF, GLB, OBJ and DAE put V's origin at the bottom and the game samples it from the top, so their textures need the "
             "flip or they draw mirrored along the model. Ticked for those formats; untick it if your source is already in the "
@@ -258,15 +315,14 @@ class ModelPanel(QGroupBox):
             self.own_sheath,
             import_tips,
         )
-        layout.addWidget(model)
+        self.model_group = model
 
         # ---- placement: the model over the template, in the viewport below
         self.placement_group = QGroupBox("Place the model over the template")
         placement_layout = QVBoxLayout(self.placement_group)
-        placement_layout.addWidget(intro_label(
-            "The model starts fitted to the template; the gizmo and the numbers move it from there. "
-            "Apply the placement builds the item's mesh from it."
-        ))
+        self.placement_group.setToolTip(
+            "The model starts fitted to the template. Move it with the gizmo or numbers, then apply the placement."
+        )
         view_row = QHBoxLayout()
         view_row.addWidget(QLabel("View:"))
         self.view_mode = QComboBox()
@@ -281,32 +337,34 @@ class ModelPanel(QGroupBox):
         self.grid_visible.setChecked(True)
         self.grid_visible.toggled.connect(self.preview.set_grid_visible)
         view_row.addWidget(self.grid_visible)
-        view_row.addSpacing(12)
-        view_row.addWidget(QLabel("Gizmo:"))
+        view_row.addStretch(1)
+        self.frame_view_button = QPushButton("Frame")
+        self.frame_view_button.setToolTip("Bring the camera back onto the model where it sits now.")
+        self.frame_view_button.clicked.connect(self.preview.fit_view)
+        view_row.addWidget(self.frame_view_button)
+        placement_layout.addLayout(view_row)
+        gizmo_row = QHBoxLayout()
+        gizmo_row.addWidget(QLabel("Gizmo:"))
         self.gizmo_buttons = {"move": QRadioButton("Move"), "rotate": QRadioButton("Rotate"), "scale": QRadioButton("Scale")}
         for tool in GIZMO_TOOLS:
             button = self.gizmo_buttons[tool]
             button.toggled.connect(lambda checked, t=tool: self.preview.set_gizmo_tool(t) if checked else None)
-            view_row.addWidget(button)
+            gizmo_row.addWidget(button)
         self.gizmo_buttons["move"].setChecked(True)
-        view_row.addSpacing(12)
-        self.frame_view_button = QPushButton("Frame the model")
-        self.frame_view_button.setToolTip("Bring the camera back onto the model where it sits now.")
-        self.frame_view_button.clicked.connect(self.preview.fit_view)
-        view_row.addWidget(self.frame_view_button)
-        view_row.addStretch(1)
-        placement_layout.addLayout(view_row)
+        gizmo_row.addStretch(1)
+        placement_layout.addLayout(gizmo_row)
         numbers = QGridLayout()
-        numbers.setHorizontalSpacing(8)
+        numbers.setHorizontalSpacing(6)
+        numbers.setVerticalSpacing(4)
         self.offset_spins = tuple(_spin(-50.0, 50.0, 0.01, 3, " m") for _ in range(3))
         self.rotation_spins = tuple(_spin(-360.0, 360.0, 1.0, 1, "\u00b0") for _ in range(3))
         self.scale_spins = tuple(_spin(0.0001, 1000.0, 0.01, 4) for _ in range(3))
-        for row, (title, spins) in enumerate((("Offset x / y / z (m):", self.offset_spins), ("Rotation x / y / z (\u00b0):", self.rotation_spins), ("Scale x / y / z:", self.scale_spins))):
-            numbers.addWidget(QLabel(title), row, 0)
+        for row, (title, spins) in enumerate((("Position X / Y / Z (m)", self.offset_spins), ("Rotation X / Y / Z (\u00b0)", self.rotation_spins), ("Scale X / Y / Z", self.scale_spins))):
+            numbers.addWidget(QLabel(title), row * 2, 0, 1, 3)
             for axis, spin in enumerate(spins):
                 spin.valueChanged.connect(self._numbers_changed)
-                numbers.addWidget(spin, row, 1 + axis)
-        numbers.setColumnStretch(4, 1)
+                numbers.addWidget(spin, row * 2 + 1, axis)
+                numbers.setColumnStretch(axis, 1)
         placement_layout.addLayout(numbers)
         action_row = QHBoxLayout()
         self.fit_button = QPushButton("Fit to the template")
@@ -317,16 +375,35 @@ class ModelPanel(QGroupBox):
         self.apply_button.setToolTip("Build the item's mesh from the model at this placement (the Builder's import over the template's mesh, a few seconds).")
         self.apply_button.clicked.connect(self._controller.start_model_apply)
         action_row.addWidget(self.apply_button)
-        self.apply_status = NoteLabel("", None)
-        action_row.addWidget(self.apply_status, 1)
+        action_row.addStretch(1)
         placement_layout.addLayout(action_row)
+        self.apply_status = NoteLabel("", None)
+        placement_layout.addWidget(self.apply_status)
         self.placement_group.setVisible(False)
-        layout.addWidget(self.placement_group)
 
         preview = QGroupBox("Preview: the item as it will be")
+        preview.setMinimumWidth(520)
         preview_layout = QVBoxLayout(preview)
-        preview_layout.addWidget(intro_label("Your model (textured) over the template, or the template alone. Orbit and zoom; the icon is taken from this view."))
-        self.preview.setMinimumHeight(420)
+        preview.setToolTip("Your model over the template. Orbit, zoom, move it with the gizmo, and capture the icon from this view.")
+        self.operation_banner = QWidget(preview)
+        operation_layout = QVBoxLayout(self.operation_banner)
+        operation_layout.setContentsMargins(0, 0, 0, 0)
+        operation_layout.setSpacing(3)
+        operation_row = QHBoxLayout()
+        operation_row.setSpacing(6)
+        self.operation_spinner = _BusySpinner(self.operation_banner)
+        operation_row.addWidget(self.operation_spinner)
+        self.operation_label = QLabel("")
+        self.operation_label.setObjectName("new_item_intro")
+        operation_row.addWidget(self.operation_label, 1)
+        self.cancel_operation_button = QPushButton("Cancel")
+        self.cancel_operation_button.clicked.connect(self._cancel_operation)
+        operation_row.addWidget(self.cancel_operation_button)
+        operation_layout.addLayout(operation_row)
+        operation_layout.addWidget(self.busy_bar)
+        self.operation_banner.setVisible(False)
+        inspector_layout.addWidget(self.operation_banner)
+        self.preview.setMinimumHeight(300)
         self.preview.status_changed.connect(self._preview_status)
         self.preview.captured.connect(self._inline_capture_done)
         self.preview.placement_changed.connect(self._gizmo_moved)
@@ -347,8 +424,13 @@ class ModelPanel(QGroupBox):
         self.icon_thumbnail.setVisible(False)
         preview_row.addWidget(self.icon_thumbnail)
         preview_layout.addLayout(preview_row)
-        columns.addWidget(preview, 1)
+        self.workspace_splitter.addWidget(inspector)
+        self.workspace_splitter.addWidget(preview)
+        self.workspace_splitter.setStretchFactor(0, 35)
+        self.workspace_splitter.setStretchFactor(1, 65)
+        self.workspace_splitter.setSizes((420, 780))
         self._preview_mesh_token: object = None
+        self._preview_busy = False
 
         icon = QGroupBox("Icon")
         icon_layout = QVBoxLayout(icon)
@@ -356,7 +438,7 @@ class ModelPanel(QGroupBox):
         self.keep_icon.setChecked(True)
         self.keep_icon.toggled.connect(self._icon_source_changed)
         icon_layout.addWidget(self.keep_icon)
-        self.generate_icon = QRadioButton("Give the item its own icon (from a picture, or captured in the viewport)")
+        self.generate_icon = QRadioButton("Use a custom icon")
         self.generate_icon.setToolTip("The icon is fitted and encoded against the template icon's DDS format, the way the Builder's Generate Icon does. Unproven in game until the first check.")
         icon_layout.addWidget(self.generate_icon)
         source_row = QHBoxLayout()
@@ -373,7 +455,36 @@ class ModelPanel(QGroupBox):
         self.icon_folder_button.clicked.connect(self._pick_icon_folder)
         source_row.addWidget(self.icon_folder_button)
         icon_layout.addLayout(source_row)
-        layout.addWidget(icon)
+        self.icon_group = icon
+
+        appearance = QGroupBox("Imported appearance")
+        appearance_layout = QVBoxLayout(appearance)
+        appearance_layout.setContentsMargins(8, 8, 8, 8)
+        for widget in (
+            self.plain_pbr,
+            self.own_sheath,
+            self.keep_physics,
+            self.glow_box,
+            self.flip_texture_v,
+            import_tips,
+        ):
+            appearance_layout.addWidget(widget)
+        appearance_layout.addStretch(1)
+        self.appearance_group = appearance
+
+        def add_inspector_tab(widget: QWidget, title: str) -> None:
+            page = QScrollArea(self.inspector_tabs)
+            page.setObjectName(f"new_item_model_{title.casefold()}_scroll")
+            page.setWidgetResizable(True)
+            page.setFrameShape(QScrollArea.Shape.NoFrame)
+            page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            page.setWidget(widget)
+            self.inspector_tabs.addTab(page, title)
+
+        add_inspector_tab(self.model_group, "Model")
+        add_inspector_tab(self.placement_group, "Placement")
+        add_inspector_tab(self.appearance_group, "Appearance")
+        add_inspector_tab(self.icon_group, "Icon")
 
         controller.model_changed.connect(self._show_model)
         controller.model_changed.connect(lambda _result: self.refresh_preview())
@@ -381,7 +492,7 @@ class ModelPanel(QGroupBox):
         controller.model_import_changed.connect(lambda _source: self.refresh_preview())
         controller.model_placement_changed.connect(self._placement_changed)
         controller.busy_changed.connect(self._busy_changed)
-        layout.addStretch(1)
+        controller.operation_progress.connect(self._operation_progress)
         controller.template_changed.connect(lambda _key: self._show_model(controller.model_result))
         controller.template_changed.connect(lambda _key: self.refresh_preview())
         # the parts a glow is chosen by are the template's, so the list follows it
@@ -417,6 +528,10 @@ class ModelPanel(QGroupBox):
         for widget in self._import_widgets:
             widget.setVisible(not keep)
         self.clear_button.setVisible(self._controller.model_import is not None)
+        has_source = self._controller.model_import is not None
+        has_import = has_source or self._controller.model_result is not None
+        self.inspector_tabs.setTabEnabled(1, has_source)
+        self.inspector_tabs.setTabEnabled(2, has_import)
         if keep:
             self.flip_texture_v.setVisible(False)
 
@@ -497,6 +612,8 @@ class ModelPanel(QGroupBox):
             self.glow_parts.addItem(item)
         self.glow_parts.blockSignals(False)
         self.glow_box.setEnabled(bool(parts))
+        if parts:
+            self.inspector_tabs.setTabEnabled(2, True)
         if not parts:
             self.glow_box.setChecked(False)
             self.glow_box.setToolTip("Import a model on this step to choose which of its parts glow.")
@@ -636,7 +753,7 @@ class ModelPanel(QGroupBox):
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         super().showEvent(event)
-        QTimer.singleShot(0, self.refresh_preview)
+        self._show_preview_timer.start()
 
     def refresh_preview(self) -> None:
         """Show the item as it will be in the inline viewport, textured: the imported
@@ -749,17 +866,60 @@ class ModelPanel(QGroupBox):
             self.use_part_editor_button,
         ):
             widget.setEnabled(not busy)
-        self.busy_bar.setVisible(bool(busy) and lane in {"model_import", "model_apply", "model_part_edit"})
+        model_busy = bool(busy) and lane in {"model_import", "model_apply", "model_part_edit"}
+        self.operation_banner.setVisible(model_busy or self._preview_busy)
+        self.operation_spinner.set_running(model_busy or self._preview_busy)
+        self.cancel_operation_button.setVisible(model_busy)
+        self.cancel_operation_button.setEnabled(model_busy)
+        if model_busy:
+            self.busy_bar.setRange(0, 0)
+            self.busy_bar.setVisible(True)
+        elif not self._preview_busy:
+            self.busy_bar.setVisible(False)
         if busy and lane == "model_import":
             self.model_status.set_note("Reading the model file...", EDIT)
+            self.operation_label.setText("Reading the model file…")
         elif busy and lane == "model_apply":
             self.apply_status.set_note("Building the item's mesh at this placement...", EDIT)
+            self.operation_label.setText("Building the item's mesh…")
         elif busy and lane == "model_part_edit":
             self.part_editor_status.setVisible(True)
             self.part_editor_status.set_note("Preparing the Mesh Editor changes...", EDIT)
+            self.operation_label.setText("Preparing Mesh Editor changes…")
+        self._refresh_placement_enabled()
+
+    def _operation_progress(self, lane: str, current: int, total: int, detail: str) -> None:
+        if str(lane) not in {"model_import", "model_apply", "model_part_edit"}:
+            return
+        self.operation_label.setText(str(detail or "Working…"))
+        if int(total) > 0:
+            self.busy_bar.setRange(0, int(total))
+            self.busy_bar.setValue(max(0, min(int(total), int(current))))
+        else:
+            self.busy_bar.setRange(0, 0)
+
+    def _cancel_operation(self) -> None:
+        lane = str(getattr(self._controller, "_lane", "") or "")
+        if self._controller.cancel_operation(lane):
+            self.operation_label.setText("Cancelling…")
+            self.cancel_operation_button.setEnabled(False)
 
     def _preview_status(self, text: str) -> None:
-        self.preview_status.setText(str(text or ""))
+        message = str(text or "")
+        self.preview_status.setText(message)
+        self._preview_busy = message in {
+            "Building the preview...",
+            "Loading the viewport...",
+            "Loading model textures…",
+        }
+        if not self._controller.busy:
+            self.operation_banner.setVisible(self._preview_busy)
+            self.operation_spinner.set_running(self._preview_busy)
+            self.cancel_operation_button.setVisible(False)
+            self.busy_bar.setRange(0, 0)
+            self.busy_bar.setVisible(self._preview_busy)
+            if self._preview_busy:
+                self.operation_label.setText(message.replace("...", "…"))
         self._refresh_placement_enabled()
 
     def _refresh_placement_enabled(self) -> None:
@@ -767,11 +927,10 @@ class ModelPanel(QGroupBox):
         during a build the scene on screen is the one before, and nothing there is the
         item's to move."""
 
-        ready = bool(getattr(self.preview, "showing_placement", False))
+        ready = bool(getattr(self.preview, "showing_placement", False)) and not self._controller.busy
         for widget in (*self.offset_spins, *self.rotation_spins, *self.scale_spins, *self.gizmo_buttons.values(), self.view_mode, self.grid_visible, self.frame_view_button):
             widget.setEnabled(ready)
         building = self._controller.model_import is not None and not ready
-        self.busy_bar.setVisible(building or self.busy_bar.isVisible() and self._controller.busy)
         if building and not self._controller.busy:
             self.apply_status.set_note("Building the preview with your model...", EDIT)
 
@@ -822,12 +981,16 @@ class ModelPanel(QGroupBox):
             pass
 
     def shutdown_preview(self) -> None:
+        self._show_preview_timer.stop()
+        self.operation_spinner.set_running(False)
         try:
             self.preview.shutdown()
         except Exception:  # noqa: BLE001
             pass
 
     def request_shutdown_preview(self) -> None:
+        self._show_preview_timer.stop()
+        self.operation_spinner.set_running(False)
         try:
             self.preview.request_shutdown()
         except Exception:  # noqa: BLE001
