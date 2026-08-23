@@ -18,6 +18,7 @@ would have handed over: the rebuilt mesh and its side files.
 
 from __future__ import annotations
 
+import copy
 import math
 import shutil
 import tempfile
@@ -42,6 +43,7 @@ __all__ = [
     "load_model_import_source",
     "mesh_bounds",
     "mesh_centroid",
+    "prepare_model_import_mesh_edit",
 ]
 
 Vec3 = Tuple[float, float, float]
@@ -337,6 +339,8 @@ class ModelImportSource:
     flip_texture_v: bool = False
     #: how many times the bake changed, for the viewport's token
     bake_generation: int = 0
+    #: how many accepted Mesh Editor revisions changed the source geometry
+    mesh_generation: int = 0
     #: the (bake, placement) the studio applied last, when a result was built from this source
     applied: Optional[Tuple[ModelPlacement, ModelPlacement]] = field(default=None)
 
@@ -385,6 +389,74 @@ class ModelImportSource:
             return
         self.extract_root = None
         shutil.rmtree(root, ignore_errors=True)
+
+
+def prepare_model_import_mesh_edit(
+    mesh: object,
+    *,
+    scene: object,
+    model_path: Path,
+    stop_event: Optional[threading.Event] = None,
+) -> tuple[object, object, Optional[Bounds], Optional[Vec3], int]:
+    """Prepare one Mesh Editor revision for New Item Studio off the UI thread.
+
+    The edited mesh becomes a fresh scene/preview pair while the imported scene's
+    texture bindings and supplemental-file context stay unchanged. The caller owns
+    publication and must reject a result whose model or editor session went stale.
+    """
+
+    from cdmw.domain.cancellation import raise_if_cancelled
+    from cdmw.services.mesh_dotnet_material_state import set_dotnet_preview_texture_flip_vertical
+    from cdmw.services.mesh_workflow_service import ParsedMesh
+    from cdmw.services.preview_workflow_service import attach_scene_preview_textures, parsed_mesh_to_preview_model
+
+    if not isinstance(mesh, ParsedMesh):
+        raise TypeError("The Mesh Editor revision could not be captured safely.")
+    if not tuple(mesh.submeshes or ()):
+        raise ValueError("The Mesh Editor revision could not be captured safely.")
+    raise_if_cancelled(stop_event)
+    _name_separated_parts_uniquely(mesh)
+    edited_scene = copy.copy(scene)
+    setattr(edited_scene, "mesh", mesh)
+    preview_model = parsed_mesh_to_preview_model(mesh)
+    raise_if_cancelled(stop_event)
+    texture_count = int(attach_scene_preview_textures(preview_model, edited_scene, Path(model_path)) or 0)
+    set_dotnet_preview_texture_flip_vertical(
+        preview_model,
+        scene_import_normalizes_texture_v(
+            getattr(mesh, "format", ""),
+            getattr(mesh, "path", "") or str(model_path),
+        ),
+    )
+    raise_if_cancelled(stop_event)
+    return edited_scene, preview_model, mesh_bounds(mesh), mesh_centroid(mesh), texture_count
+
+
+def _name_separated_parts_uniquely(mesh: object) -> None:
+    """Give repeated face separations stable, independently addressable names.
+
+    The generic Mesh Editor correctly inherits the source part's name for every
+    separation. New Item needs distinct names because Glow and material routing are
+    selected by part name; rename only topology-created parts, never source-authored
+    duplicates.
+    """
+
+    seen: set[str] = set()
+    for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
+        name = str(getattr(submesh, "name", "") or "").strip()
+        separated = hasattr(submesh, "cdmw_mesh_edit_topology_source_submesh_index")
+        if separated:
+            base = name or str(getattr(submesh, "material", "") or "").strip() or f"part {index}"
+            candidate = base
+            suffix = 2
+            while candidate.casefold() in seen:
+                candidate = f"{base} {suffix}"
+                suffix += 1
+            if candidate != name:
+                submesh.name = candidate
+            name = candidate
+        if name:
+            seen.add(name.casefold())
 
 
 #: What a model file might be that the studio cannot read, and what to do about it. FBX is

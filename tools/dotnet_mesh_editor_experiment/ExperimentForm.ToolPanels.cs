@@ -190,10 +190,12 @@ internal sealed partial class ExperimentForm
         // keeps its own pair for whole-part actions.
         var deleteSelectionButton = CommandButton("Delete Selection", "delete");
         var duplicateSelectionButton = CommandButton("Duplicate Selection", "duplicate");
+        var separateSelectionButton = CommandButton("Split Selection Into Part", "separate");
         RegisterTopologyMutationButton(subdivideButton);
         RegisterTopologyMutationButton(refineButton);
         RegisterTopologyMutationButton(deleteSelectionButton);
         RegisterTopologyMutationButton(duplicateSelectionButton);
+        RegisterTopologyMutationButton(separateSelectionButton);
         var topologySection = AddHelpSection(
             leftStack,
             "Topology",
@@ -201,7 +203,8 @@ internal sealed partial class ExperimentForm
             + "Subdivide and Refine Smooth require a selection and never change the whole mesh implicitly.",
             out _,
             ButtonRow(deleteSelectionButton, duplicateSelectionButton),
-            ButtonRow(subdivideButton, refineButton));
+            ButtonRow(subdivideButton, refineButton),
+            ButtonRow(separateSelectionButton));
         topologySection.Name = "CompactTopologySection";
         _topologySection = topologySection;
         _meshEditOnlySections.Add(topologySection);

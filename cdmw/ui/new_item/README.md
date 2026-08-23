@@ -50,6 +50,15 @@ rotation convention (the helper's yaw/pitch/roll) and the pipeline's x-then-y-
 then-z are the same matrix re-expressed, proven in
 `tests/test_new_item_item_preview.py` and the studio tab tests.
 
+An imported source can be opened in the resident Mesh Editor from this step without
+starting a second authoring process. Faces selected there can be moved into a new
+submesh with **Split Selection Into Part**. **Use Mesh Editor changes** drains pending
+selection authority, captures a stable resident revision in the controller's worker,
+rebuilds the source's textured preview, and invalidates any placement build made from
+the previous geometry. The Mesh Editor session remains open so another revision can be
+accepted without losing its history. New Item exposes the generated submesh name beside
+the source materials for per-part Glow. This is face separation, not a knife/cap tool.
+
 UI code here never touches the archives: reading is the service's snapshot,
 writing is `ArchiveMutationService` through the service's `install`, and the
 loose export is built in a sibling staging directory and published only when

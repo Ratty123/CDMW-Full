@@ -597,9 +597,9 @@ internal sealed partial class ExperimentForm : Form
             return 0;
         }
         var normalizedCommand = (command ?? string.Empty).Trim().ToLowerInvariant();
-        var topologyCanWaitForSelection = normalizedCommand is "subdivide" or "refine_smooth"
+        var topologyCanWaitForSelection = normalizedCommand is "subdivide" or "refine_smooth" or "separate"
             && _viewport.HasPendingSelectionAuthority;
-        if (normalizedCommand is "transform_move" or "delete" or "duplicate" or "subdivide" or "refine_smooth" or "copy"
+        if (normalizedCommand is "transform_move" or "delete" or "duplicate" or "subdivide" or "refine_smooth" or "separate" or "copy"
             && !_viewport.HasEditableSelection
             && !topologyCanWaitForSelection)
         {

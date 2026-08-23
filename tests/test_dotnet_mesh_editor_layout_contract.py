@@ -79,6 +79,14 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert _section_stack(program, "Transform") == "leftStack"
     assert _section_stack(program, "Brush Tools") == "leftStack"
     assert _section_stack(program, "Topology") == "leftStack"
+    assert 'CommandButton("Split Selection Into Part", "separate")' in program
+    assert "ButtonRow(separateSelectionButton)" in program
+    assert '"Split Selection Into Part",' in _source("ExperimentForm.EditMeshToolDiagnostics.cs")
+    command_guard = program.split(
+        "private long WriteCommandRequest", maxsplit=1
+    )[1].split("var targetMode = SelectionTarget();", maxsplit=1)[0]
+    assert 'normalizedCommand is "subdivide" or "refine_smooth" or "separate"' in command_guard
+    assert 'or "refine_smooth" or "separate" or "copy"' in command_guard
     assert _section_stack(program, "Action History") == "rightStack"
     assert _section_stack(program, "Viewport") == "rightStack"
     # Parts builds through its own owner, which carries the selected-part

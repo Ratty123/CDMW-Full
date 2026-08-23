@@ -9,6 +9,7 @@ except `start_install`, which goes through `ArchiveMutationService`.
 
 from __future__ import annotations
 
+import copy
 import threading
 from dataclasses import replace
 from pathlib import Path
@@ -20,7 +21,19 @@ from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
 from cdmw.ui.new_item.blender_setting import blender_for_fbx
-from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, bake_mesh, build_placed_import, fbx_needing_blender, fbx_needs_blender_message, fitted_placement, load_model_import_source, mesh_bounds, mesh_centroid
+from cdmw.ui.new_item.model_import import (
+    ModelImportSource,
+    ModelPlacement,
+    bake_mesh,
+    build_placed_import,
+    fbx_needing_blender,
+    fbx_needs_blender_message,
+    fitted_placement,
+    load_model_import_source,
+    mesh_bounds,
+    mesh_centroid,
+    prepare_model_import_mesh_edit,
+)
 from cdmw.services.effect_catalogue import EffectCatalogue, EffectFacts, build_effect_catalogue, catalogue_signature, load_effect_catalogue, save_effect_catalogue
 from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
 from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
@@ -54,6 +67,10 @@ class NewItemStudioController(QObject):
     #: a model file was not read, with the reason: the step says so where the reader is,
     #: since the window's status line is not where they are looking
     model_import_failed = Signal(str)
+    #: an imported model accepted one stable Mesh Editor revision
+    model_part_edit_finished = Signal(object)
+    #: the Mesh Editor revision could not be captured or prepared
+    model_part_edit_failed = Signal(str)
     #: the imported model's placement over the template moved (a ModelPlacement)
     model_placement_changed = Signal(object)
     effect_catalogue_ready = Signal()
@@ -538,7 +555,7 @@ class NewItemStudioController(QObject):
                 model = source.baked_preview_mesh()
                 return PlacementScene(template=template_build(stop_event), model=model, placement=placement, model_bounds=source.baked_bounds())
 
-            return (("placement", id(source), source.bake_generation, template_token), build_scene)
+            return (("placement", id(source), source.bake_generation, source.mesh_generation, template_token), build_scene)
         result = self.model_result
         model = getattr(result, "preview_model", None)
         if result is not None and model is not None and getattr(model, "meshes", None):
@@ -697,6 +714,13 @@ class NewItemStudioController(QObject):
         try:
             for binding in tuple(getattr(getattr(source, "scene", None), "material_bindings", ()) or ()):
                 name = str(getattr(binding, "material_name", "") or "").strip()
+                if name and name not in names:
+                    names.append(name)
+            scene_mesh = getattr(getattr(source, "scene", None), "mesh", None)
+            for submesh in tuple(getattr(scene_mesh, "submeshes", ()) or ()):
+                if not hasattr(submesh, "cdmw_mesh_edit_topology_source_submesh_index"):
+                    continue
+                name = str(getattr(submesh, "name", "") or "").strip()
                 if name and name not in names:
                     names.append(name)
         except Exception as exc:  # noqa: BLE001 - no list is a smaller loss than no step
@@ -985,6 +1009,82 @@ class NewItemStudioController(QObject):
             self.status_message.emit(f"The placement could not be built: {message}", True)
 
         return self._run("model_apply", task, done, failed)
+
+    def start_model_part_edit_apply(
+        self,
+        source: ModelImportSource,
+        mesh_controller: object,
+        *,
+        expected_session_id: str,
+        wait_for_updates: Optional[Callable[[float], bool]] = None,
+    ) -> bool:
+        """Capture one stable Mesh Editor revision and publish it as this import.
+
+        Resident geometry hydration and textured-preview preparation both run in the
+        owned worker lane. Publication remains source/session/revision correlated.
+        """
+
+        if source is not self.model_import:
+            self.status_message.emit("Open this imported model in Mesh Editor first.", True)
+            return False
+        session_id = str(expected_session_id or "")
+        scene = copy.copy(source.scene)
+        model_path = Path(source.model_path)
+
+        def task(log, stop_event):
+            if callable(wait_for_updates) and not wait_for_updates(10.0):
+                raise RuntimeError("The Mesh Editor revision could not be captured safely.")
+            if str(getattr(mesh_controller, "active_session_id", "") or "") != session_id:
+                raise RuntimeError("The Mesh Editor revision could not be captured safely.")
+            before = mesh_controller.session_view()
+            mesh = mesh_controller.working_mesh(clone=True)
+            after = mesh_controller.session_view()
+            if before.session_id != session_id or after.session_id != session_id or before.revision != after.revision:
+                raise RuntimeError("The Mesh Editor revision could not be captured safely.")
+            log("Preparing the Mesh Editor changes...")
+            prepared = prepare_model_import_mesh_edit(
+                mesh,
+                scene=scene,
+                model_path=model_path,
+                stop_event=stop_event,
+            )
+            return after.revision, prepared
+
+        def done(result: object) -> None:
+            if source is not self.model_import:
+                return
+            try:
+                revision, prepared = result  # type: ignore[misc]
+                current = mesh_controller.session_view()
+                if current.session_id != session_id or current.revision != int(revision):
+                    raise RuntimeError("The Mesh Editor revision could not be captured safely.")
+                edited_scene, preview_model, bounds, centroid, texture_count = prepared
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                failed(str(exc))
+                return
+            source.scene = edited_scene
+            source.preview_model = preview_model
+            source.bounds = bounds
+            source.centroid = centroid
+            source.texture_count = int(texture_count)
+            source.mesh_generation += 1
+            source._baked_scene_mesh = None
+            source._baked_preview_mesh = None
+            source.applied = None
+            self._material_parts = ()
+            if self.model_result is not None:
+                self.set_imported_model(None, None)
+            else:
+                self.invalidate_plan()
+            self.model_import_changed.emit(source)
+            self.model_part_edit_finished.emit(source)
+
+        def failed(message: str) -> None:
+            said = f"Mesh Editor changes could not be used: {message}"
+            self.status_message.emit(said, True)
+            self.model_part_edit_failed.emit(said)
+
+        return self._run("model_part_edit", task, done, failed)
 
     def discard_model(self) -> None:
         """Drop the imported model, its placement and any result: back to the template's model."""
