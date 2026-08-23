@@ -15,6 +15,11 @@ worker, never UI callbacks. Shutdown requests cancellation and leaves live
 threads discoverable to the shell close sweep; no New Item widget waits on its
 own worker. The `panels_*.py` modules edit the draft and ask the
 controller for facts; `tab.py` composes them, and forwards install to the shell.
+The Identity panel keeps item keys and model stems automatic until **Manual** is
+chosen; manual mode starts from the same collision-free allocation the planner
+would make. Identifier editors enforce the domain's character and 64-character
+limits, and per-field state icons point at the exact collision or format issue
+reported in the existing Checks box.
 
 The default Stats view labels ItemInfo values as raw game data and compares a
 selected cell with the template and shipped range; arbitrary stats, flat values,

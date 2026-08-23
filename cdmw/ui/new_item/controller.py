@@ -10,6 +10,7 @@ except `start_install`, which goes through `ArchiveMutationService`.
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
@@ -186,6 +187,34 @@ class NewItemStudioController(QObject):
             if candidate.casefold() not in taken:
                 return candidate
         return ""
+
+    def suggest_identity_allocations(self) -> Tuple[Optional[int], Optional[str]]:
+        """The key and, when needed, stem automatic planning would choose now.
+
+        Identity controls use this only to seed an explicit manual override. The
+        allocation remains owned by :class:`NewItemService`, including the identities
+        reserved by earlier plans that the archive snapshot cannot see yet.
+        """
+
+        if self.snapshot is None or self.draft.template_key is None:
+            return None, None
+        unallocated = replace(
+            self.current_spec(),
+            item_key=None,
+            stem=None,
+            name_key=None,
+            desc_key=None,
+        )
+        try:
+            allocated = self.service.allocate(
+                unallocated,
+                self.snapshot,
+                reserved_keys=self.issued_keys,
+                reserved_stems=self.issued_stems,
+            )
+        except NewItemPlanError:
+            return None, None
+        return allocated.item_key, allocated.stem
 
     def template_summary(self) -> Tuple[str, ...]:
         if self.snapshot is None or self.draft.template_key is None:

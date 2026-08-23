@@ -363,6 +363,74 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_identity_controls_expose_automatic_and_manual_values(self) -> None:
+        from PySide6.QtGui import QValidator
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        identity = tab.identity_panel
+
+        self.assertEqual(identity.internal_name.maxLength(), 64)
+        self.assertEqual(identity.stem.maxLength(), 64)
+        self.assertEqual(
+            identity.internal_name.validator().validate("9 bad name", 0)[0],
+            QValidator.State.Invalid,
+        )
+        self.assertEqual(
+            identity.internal_name.validator().validate("My_Clone2", 0)[0],
+            QValidator.State.Acceptable,
+        )
+        self.assertEqual(
+            identity.stem.validator().validate("CD_PHM/Sword", 0)[0],
+            QValidator.State.Invalid,
+        )
+        self.assertEqual(
+            identity.stem.validator().validate("cd_phm_01_sword_9109", 0)[0],
+            QValidator.State.Acceptable,
+        )
+
+        self.assertFalse(identity.item_key_manual.isChecked())
+        self.assertFalse(identity.item_key.isEnabled())
+        self.assertIsNone(tab.controller.draft.item_key)
+        self.assertEqual(identity.item_key_state.property("identityState"), "auto")
+        identity.item_key_manual.click()
+        self.assertTrue(identity.item_key.isEnabled())
+        self.assertEqual(identity.item_key.minimum(), 1)
+        self.assertEqual(identity.item_key.value(), 1_990_000)
+        self.assertEqual(tab.controller.draft.item_key, 1_990_000)
+        identity.item_key.setValue(0)
+        self.assertEqual(identity.item_key.value(), 1)
+        self.assertEqual(tab.controller.draft.item_key, 1)
+        identity.item_key.setValue(1_990_005)
+        self.assertEqual(tab.controller.draft.item_key, 1_990_005)
+        identity.item_key_manual.click()
+        self.assertFalse(identity.item_key.isEnabled())
+        self.assertEqual(identity.item_key.minimum(), 0)
+        self.assertEqual(identity.item_key.value(), 0)
+        self.assertIsNone(tab.controller.draft.item_key)
+
+        tab.model_panel.import_model.setChecked(True)
+        self.assertFalse(identity.stem_manual.isChecked())
+        self.assertFalse(identity.stem.isEnabled())
+        identity.stem_manual.click()
+        self.assertTrue(identity.stem.isEnabled())
+        self.assertEqual(identity.stem.text(), "cd_phm_01_sword_9109")
+        self.assertEqual(tab.controller.draft.stem, "cd_phm_01_sword_9109")
+        identity.stem_manual.click()
+        self.assertFalse(identity.stem.isEnabled())
+        self.assertEqual(identity.stem.text(), "")
+        self.assertEqual(tab.controller.draft.stem, "")
+
+        identity.display_name.setText("Test item")
+        identity.internal_name.setText("Ziane_OneHandSword")
+        self.assertEqual(identity.internal_name.text(), "Ziane_OneHandSword")
+        self.assertEqual(tab.controller.draft.internal_name, "Ziane_OneHandSword")
+        self.assertIn("internal_name.taken", {issue.code for issue in tab.controller.validate()})
+        self.assertEqual(identity.internal_name_state.property("identityState"), "block")
+        self.assertIn("already exists", identity.internal_name_state.toolTip())
+        tab.close()
+        tab.deleteLater()
+
     def test_stats_and_perk_resets_clear_hidden_state_and_safe_limits(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
