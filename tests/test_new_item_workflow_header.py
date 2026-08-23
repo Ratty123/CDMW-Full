@@ -157,15 +157,29 @@ class WorkflowHeaderTests(unittest.TestCase):
             self.assertEqual(self.header.height(), 46)
 
     def test_progress_track_animates_to_the_active_step(self) -> None:
+        class Clock:
+            value = 0
+
+            def elapsed(self) -> int:
+                return self.value
+
         self.assertEqual(self.header._progress_position, 0.0)
         self.assertTrue(self.header.setCurrentRow(4))
-        QTest.qWait(self.header._progress_animation.duration() + 20)
+        self.header._progress_tick.stop()
+        clock = Clock()
+        self.header._progress_elapsed = clock
+        clock.value = self.header._progress_animation.duration() // 2
+        self.header._advance_progress_animation()
+        self.assertGreater(self.header._progress_position, 0.0)
+        self.assertLess(self.header._progress_position, 4.0)
+        clock.value = self.header._progress_animation.duration()
+        self.header._advance_progress_animation()
         self.assertAlmostEqual(self.header._progress_position, 4.0, places=2)
 
     def test_progress_track_reaches_the_active_step_when_animation_is_throttled(self) -> None:
         self.assertTrue(self.header.setCurrentRow(5))
         self.header._progress_tick.stop()
-        QTest.qWait(self.header._progress_animation.duration() + 20)
+        self.header._finish_progress_animation()
         self.assertAlmostEqual(self.header._progress_position, 5.0, places=2)
 
     def test_dark_palette_uses_required_active_cyan(self) -> None:

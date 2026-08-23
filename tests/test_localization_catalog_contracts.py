@@ -11,7 +11,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSettings, Qt
+from PySide6.QtCore import QAbstractTableModel, QEvent, QModelIndex, QSettings, Qt
 from PySide6.QtGui import QAction, QFontMetrics, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QApplication,
@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QWidgetItem,
 )
 
 import cdmw.ui.localization as localization_module
@@ -660,6 +661,20 @@ def test_readonly_plain_and_rich_text_switch_back_to_english_and_shutdown_clears
     localizer.shutdown()
     assert app.property("_cdmw_ui_localizer") is None
     root.deleteLater()
+
+
+def test_runtime_filter_ignores_qt_internal_layout_items(tmp_path: Path) -> None:
+    app = _app()
+    root = QWidget()
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="en")
+    localizer.activate_runtime_tracking(root, application=app)
+    item = QWidgetItem(root)
+
+    assert localizer.eventFilter(item, QEvent(QEvent.Type.LayoutRequest)) is False
+
+    localizer.shutdown()
+    root.deleteLater()
+    app.processEvents()
 
 
 def test_locale_aware_presentation_formatters_use_selected_locale(tmp_path: Path) -> None:

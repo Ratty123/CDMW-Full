@@ -13,10 +13,18 @@ class ComboPopupLimiter(QObject):
     MAX_SCREEN_FRACTION = 0.40
     MAX_SCREEN_WIDTH_FRACTION = 0.70
 
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
-        if event.type() == QEvent.Type.Show and watched.metaObject().className() == "QComboBoxPrivateContainer":
+    def eventFilter(self, watched: object, event: QEvent) -> bool:  # noqa: N802
+        if (
+            event.type() == QEvent.Type.Show
+            and isinstance(watched, QWidget)
+            and watched.metaObject().className() == "QComboBoxPrivateContainer"
+        ):
             QTimer.singleShot(0, lambda popup=watched: self._clamp(popup))
-        return super().eventFilter(watched, event)
+        # Qt's localization dispatcher can pass a QWidgetItem here even though
+        # QObject.eventFilter accepts only QObject. Returning False is the standard
+        # "not handled" result and lets Qt continue dispatch without re-entering the
+        # incompatible base binding.
+        return False
 
     @classmethod
     def _clamp(cls, popup: QObject | None) -> None:
