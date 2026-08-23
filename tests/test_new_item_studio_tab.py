@@ -1622,10 +1622,9 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
-    def test_an_imported_model_is_textured_and_listed_before_it_is_applied(self) -> None:
-        """Both of these were wrong for the same reason: they waited for the Builder result,
-        which only exists once Apply the placement has run. Before that the studio still has
-        the import's own textured decode and its material wrappers."""
+    def test_an_imported_model_is_textured_and_listed_before_and_after_apply(self) -> None:
+        """The live import owns preview materials and part names throughout the workflow;
+        the Builder result owns output, not the source PBR appearance."""
 
         from types import SimpleNamespace
 
@@ -1638,6 +1637,8 @@ class TabTests(unittest.TestCase):
                 uvs=[(0.0, 0.0)] * 3, normals=[(0.0, 1.0, 0.0)] * 3, faces=[(0, 1, 2)],
                 vertex_count=3, face_count=1,
             )
+            part.preview_material_texture_inputs = (texture,)
+            part.preview_material_parameters = (texture,)
             return ParsedMesh(
                 path="import.pac", format="pac", submeshes=[part], bbox_min=(0.0, 0.0, 0.0),
                 bbox_max=(0.1, 0.1, 0.0), total_vertices=3, total_faces=1, has_uvs=True,
@@ -1666,6 +1667,24 @@ class TabTests(unittest.TestCase):
             planned.submeshes[0].texture, "frostmourne_basecolor.png",
             "the effect viewport gets the textured decode, not the bare geometry",
         )
+
+        controller.model_result = SimpleNamespace(preview_model=object())
+        with patch.object(
+            controller,
+            "_textured_preview_mesh",
+            return_value=mesh("template_synthesized.png"),
+        ) as rebuilt_material_fallback:
+            planned, kind = controller.item_mesh_as_planned()
+        self.assertEqual(kind, "applied")
+        self.assertEqual(
+            planned.submeshes[0].texture,
+            "frostmourne_basecolor.png",
+            "Apply must not replace Model & Icon's source materials with the rebuilt template material row",
+        )
+        self.assertEqual(planned.submeshes[0].preview_material_texture_inputs, ("frostmourne_basecolor.png",))
+        self.assertEqual(planned.submeshes[0].preview_material_parameters, ("frostmourne_basecolor.png",))
+        rebuilt_material_fallback.assert_not_called()
+        controller.model_result = None
 
         # the parts are the model's own materials, in the order the file declares them and
         # each one once. The template's parts are never among them: `cd_phm_02_hammer_sub_0002`

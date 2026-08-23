@@ -50,6 +50,10 @@ Stay. The reusable `EffectPlacementWorkspace` keeps one renderer resident, rebui
 effect/look packages without resetting the camera, and retains old package files until
 the correlated renderer acknowledgement. Reset actions clear the corresponding draft
 authority, and the workflow summary reports effective changes rather than UI mode.
+For an imported item, Effects always derives its placed preview from the live import
+source before and after **Apply placement**, so its PBR rows are the same authority that
+Model & Icon displays. The rebuilt PAC remains output authority but its borrowed template
+material wrappers never replace the import's source materials in the placement viewport.
 
 The Model & Icon step is a fixed two-pane workspace: Model, Placement, Appearance and
 Icon are independently scrolling inspector tabs, while the 65% preview pane remains

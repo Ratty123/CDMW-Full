@@ -453,9 +453,12 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         is None when there is nothing to parse."""
 
         source = self.model_import
-        if self.model_result is None and source is not None:
+        if source is not None:
             # the textured preview decode, not the bare scene mesh: a `.pac`'s geometry
-            # names no textures, and this is the same mesh the Model step draws
+            # names no textures, and this is the same mesh the Model step draws. The
+            # rebuilt result deliberately borrows the template's material wrappers; it
+            # is output authority, but using it here replaces the import's PBR authority
+            # with a synthesized template surface after Apply.
             mesh = None
             for candidate in (source.baked_preview_mesh, source.baked_scene_mesh):
                 try:
@@ -466,9 +469,9 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                     mesh = baked
                     break
             if mesh is not None:
-                return mesh, "placed"
-        # the applied import's own preview decode, which carries its textures: the same
-        # thing the Model step draws, rather than the bare `.pac` geometry that names none
+                return mesh, "applied" if self.model_result is not None else "placed"
+        # A restored applied result may have no live import source. Its preview decode is
+        # still preferable to the bare `.pac` geometry that names no textures.
         textured = self._textured_preview_mesh()
         if textured is not None:
             return textured, "applied"
