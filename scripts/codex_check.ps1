@@ -27,7 +27,8 @@ $TestsByArea = @{
         "tests/test_window_feature_controller.py",
         "tests/test_localization_catalog_contracts.py",
         # New Item Studio: headless construction, and a plan driven through its panels.
-        "tests/test_new_item_studio_tab.py"
+        "tests/test_new_item_studio_tab.py",
+        "tests/test_effect_placement_dialog.py"
     )
     stability = @(
         "tests/test_runtime_dependency_smoke.py",

@@ -513,7 +513,7 @@ class EffectPlacementDialog(QDialog):
         if not isinstance(result, EffectPlacementPreview):
             return
         if self._closed:
-            shutil.rmtree(result.package_dir.parent, ignore_errors=True)
+            self._remove_owned_package(result)
             return
         if self.host is None:
             return
@@ -988,6 +988,22 @@ class EffectPlacementDialog(QDialog):
             thread.requestInterruption()
             thread.quit()
 
+    def _remove_owned_package(self, preview: Optional[EffectPlacementPreview]) -> bool:
+        """Remove only one package directory created directly under this workspace root."""
+
+        if preview is None:
+            return False
+        root = self._output_root.resolve(strict=False)
+        candidate = Path(preview.package_dir).resolve(strict=False)
+        try:
+            relative = candidate.relative_to(root)
+        except ValueError:
+            return False
+        if len(relative.parts) != 1 or not relative.name.startswith("package_"):
+            return False
+        shutil.rmtree(candidate, ignore_errors=True)
+        return True
+
     def done(self, result: int) -> None:  # noqa: D401 - Qt override
         self.request_shutdown()
         host = self.host
@@ -997,8 +1013,7 @@ class EffectPlacementDialog(QDialog):
             except Exception:  # noqa: BLE001
                 pass
         preview = self._preview
-        if preview is not None:
-            shutil.rmtree(preview.package_dir.parent, ignore_errors=True)
+        self._remove_owned_package(preview)
         super().done(result)
 
 
