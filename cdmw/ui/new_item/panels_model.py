@@ -264,8 +264,8 @@ class ModelPanel(QGroupBox):
         self.placement_group = QGroupBox("Place the model over the template")
         placement_layout = QVBoxLayout(self.placement_group)
         placement_layout.addWidget(intro_label(
-            "The model starts at its fit to the template; the gizmo and the numbers move it from there (origin = the hand, "
-            "blade toward -z). Apply the placement builds the item's mesh from it."
+            "The model starts fitted to the template; the gizmo and the numbers move it from there. "
+            "Apply the placement builds the item's mesh from it."
         ))
         view_row = QHBoxLayout()
         view_row.addWidget(QLabel("View:"))

@@ -192,10 +192,10 @@ class NewItemDraft:
     own_enhancement_rows: bool = False
     #: The perks (Abyss Gear socket items) the item carries; None keeps the template's.
     socket_items: Optional[List[int]] = None
-    #: A weapon effect stem (`fx_cc_firesweapon_a__fire1`); empty for none.
+    #: A shipped visual-effect stem (`fx_cc_firesweapon_a__fire1`); empty for none.
     effect_stem: str = ""
-    #: the grafted effect's uniform scale, offset (x, y, z, metres in the weapon's axes)
-    #: and turn (Euler degrees about the weapon's axes, x then y then z)
+    #: the grafted effect's uniform scale, offset (x, y, z, metres in the item's axes)
+    #: and turn (Euler degrees about the item's axes, x then y then z)
     effect_scale: float = 1.0
     effect_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     effect_rotation: Tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -216,6 +216,50 @@ class NewItemDraft:
         self.stem = ""
         self.item_key = None
         self.socket_items = None
+
+
+@dataclass(frozen=True, slots=True)
+class EffectWorkspaceState:
+    """One staged effect choice, transform and look before it reaches the draft."""
+
+    stem: str = ""
+    scale: float = 1.0
+    offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    rotation: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    color: Optional[Tuple[float, float, float]] = None
+    intensity: float = 1.0
+    size: float = 1.0
+    rate: float = 1.0
+    lifetime: float = 1.0
+
+    @classmethod
+    def from_draft(cls, draft: NewItemDraft) -> "EffectWorkspaceState":
+        return cls(
+            stem=str(draft.effect_stem or ""),
+            scale=float(draft.effect_scale),
+            offset=tuple(float(value) for value in draft.effect_offset),
+            rotation=tuple(float(value) for value in draft.effect_rotation),
+            color=None if draft.effect_color is None else tuple(float(value) for value in draft.effect_color),
+            intensity=float(draft.effect_intensity),
+            size=float(draft.effect_size),
+            rate=float(draft.effect_rate),
+            lifetime=float(draft.effect_lifetime),
+        )
+
+    @classmethod
+    def defaults(cls, stem: str = "") -> "EffectWorkspaceState":
+        return cls(stem=str(stem or "").strip())
+
+    def write_to(self, draft: NewItemDraft) -> None:
+        draft.effect_stem = str(self.stem or "")
+        draft.effect_scale = float(self.scale)
+        draft.effect_offset = tuple(float(value) for value in self.offset)
+        draft.effect_rotation = tuple(float(value) for value in self.rotation)
+        draft.effect_color = None if self.color is None else tuple(float(value) for value in self.color)
+        draft.effect_intensity = float(self.intensity)
+        draft.effect_size = float(self.size)
+        draft.effect_rate = float(self.rate)
+        draft.effect_lifetime = float(self.lifetime)
 
 
 def stat_edits_from_grid(draft: NewItemDraft, grid: StatGrid) -> Tuple[Tuple[StatEdit, ...], Tuple[BuyPriceEdit, ...]]:
@@ -325,7 +369,7 @@ EFFECT_KIND = "level"
 
 
 def effect_reference(stem: str) -> Optional[str]:
-    """`<stem>.level.effect`, the persistent form a weapon carries; None for no stem."""
+    """`<stem>.level.effect`, the persistent form an item carries; None for no stem."""
 
     clean = str(stem or "").strip()
     return f"{clean}.{EFFECT_KIND}.effect" if clean else None

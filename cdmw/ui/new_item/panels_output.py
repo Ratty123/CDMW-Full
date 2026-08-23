@@ -33,7 +33,7 @@ CHECKLIST = (
     "An imported model's textures read as the source's (albedo, shine and glow); the plain PBR shaders are the first thing to switch off if they do not.",
     "The icon shows (a generated icon at a new path is the first thing to check).",
     "Its stats match the grid; an added level is the least-proven part.",
-    "The tooltip lists the perks you chose; a weapon effect, if any, shows on the drawn blade.",
+    "The tooltip lists the perks you chose; a visual effect, if any, appears on each compatible visual prefab the new item owns.",
 )
 
 

@@ -225,15 +225,14 @@ class NewItemSpec:
     #: The Abyss Gear items embedded by default (the tooltip's perk lines), as item keys;
     #: None keeps the template's. The shipped rows carry up to four.
     socket_items: Optional[Tuple[int, ...]] = None
-    #: A persistent visual on the weapon: an effect reference such as
+    #: A persistent visual on the item: an effect reference such as
     #: `fx_cc_firesweapon_a__fire1.level.effect` (`effect/binary__/releasebin/<stem>.pae`),
     #: grafted into the item's own prefabs as an `EffectComponent`. None for none. Any
     #: effect gives the item its own model family (prefabs of its own), copying the
     #: template's mesh when no model is imported.
     effect: Optional[str] = None
-    #: The grafted effect's `_offsetTransform`: a uniform scale (the titan's weapon lightning
-    #: and the fire sweep are sized for bigger weapons; the spear's own carried 0.7), an
-    #: offset in the weapon's own axes, metres, and a turn about those axes as Euler
+    #: The grafted effect's `_offsetTransform`: a uniform scale, an offset in the item's
+    #: own axes in metres, and a turn about those axes as Euler
     #: degrees applied x, then y, then z -- the order the placement viewport composes.
     #: The transform's quaternion field is proven in shipped data (the spear carries a
     #: quarter turn about z); the studio's own written turn awaits an in-game fit check.

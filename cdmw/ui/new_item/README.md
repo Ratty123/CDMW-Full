@@ -8,9 +8,10 @@ it as a loose mod or install it.
 draft). `controller.py` holds the draft, the read-only archive snapshot and the
 last plan. Every plan is pinned to a draft revision: changing any plan input
 invalidates it, and a worker result from an older revision is discarded. The
-controller runs the snapshot, plan, export, install, the model import and
-the placement build through `cdmw/workers/new_item_workers.py` on one owned
-thread at a time. Mod-folder and icon-folder scans are part of that planning
+controller runs the snapshot, plan, export, install and model import through
+`cdmw/workers/new_item_workers.py` on one owned task lane. The effect metadata
+index has a separate cancellable lane, and the resident placement workspace owns
+its serialized latest-wins package lane. Mod-folder and icon-folder scans are part of that planning
 worker, never UI callbacks. Shutdown requests cancellation and leaves live
 threads discoverable to the shell close sweep; no New Item widget waits on its
 own worker. The `panels_*.py` modules edit the draft and ask the
@@ -24,19 +25,27 @@ reported in the existing Checks box.
 The default Stats view labels ItemInfo values as raw game data and compares a
 selected cell with the template and shipped range; arbitrary stats, flat values,
 extra levels and separate enhancement rows stay under an experimental fold. One
-draft change on that step is one rail refresh: every edit goes through the panel's
+draft change on that step is one workflow-state refresh: every edit goes through the panel's
 `_draft_changed` (refill the grid when its shape changed, then `invalidate_plan`),
 the tab refreshes its summary from `plan_invalidated` alone, never from the tables'
 own signals (Qt emits one per cell a refill writes), and the tables' signals are
 blocked while they are filled. `build_context` is memoized per template on the
 read-only snapshot, so a validation is set lookups, not a rebuild of the sets. The
-Perks & Effects keeps gameplay perks separate from visual-only effects. Four perks is
+horizontal seven-step header replaces the old summary rail while retaining that
+calculated state in per-step tooltips and accessibility text. Its footer keeps Back,
+`Step N of 7` and Continue stable. Step 5 is a non-scrolling full-height page with
+Perks and Effects tabs. Perks & Effects keeps gameplay perks separate from visual-only effects. Four perks is
 the evidence-backed default cap and five to eight requires an explicit experimental
 opt-in. Effect support is structural rather than equipment-name based: the service
 dry-runs the real component graft against every prefab the item will own, accepts only
-an all-target success, and never edits a shared borrowed prefab. Reset actions clear
-the corresponding draft authority, and the workflow summary reports effective changes
-rather than UI mode.
+an all-target success, and never edits a shared borrowed prefab. The Effects tab lists
+every shipped stem with a neutral label, exact authority text, deterministic category
+and behavior badge. Selection, placement and look are staged; Apply publishes one draft
+change, while Continue stays disabled and direct navigation offers Apply, Discard or
+Stay. The reusable `EffectPlacementWorkspace` keeps one renderer resident, rebuilds
+effect/look packages without resetting the camera, and retains old package files until
+the correlated renderer acknowledgement. Reset actions clear the corresponding draft
+authority, and the workflow summary reports effective changes rather than UI mode.
 
 The Model and icon step imports a model file itself: `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
@@ -73,4 +82,9 @@ import is replaced, discarded, fails, or the studio closes. Entry points: the to
 `new_item_studio` and the Item Finder's `Clone as new item...`; a ready Builder
 result can still be handed in through the tab's `receive_imported_model`.
 
-Related tests: `tests/test_new_item_studio_tab.py`.
+Related tests: `tests/test_new_item_studio_tab.py`,
+`tests/test_new_item_workflow_header.py`, `tests/test_new_item_effect_workspace.py`,
+`tests/test_effect_placement_dialog.py`, `tests/test_new_item_effect_targets.py`, and
+`tests/test_new_item_effect_proof.py`. The explicitly invoked real-corpus gate is
+`tools/new_item_effect_proof.py report`; it keeps evidence under system temp and is not
+part of an ordinary automated check.

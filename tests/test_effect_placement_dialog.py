@@ -22,13 +22,14 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from PySide6.QtCore import QObject, Signal  # noqa: E402
-from PySide6.QtWidgets import QApplication, QWidget  # noqa: E402
+from PySide6.QtWidgets import QApplication, QLabel, QScrollArea, QWidget  # noqa: E402
 
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh  # noqa: E402
 from cdmw.services.effect_placement_preview import EffectPlacementPreview  # noqa: E402
 from cdmw.ui.new_item.effect_placement_dialog import (  # noqa: E402
     STANDING_VIEW_ANGLES,
     EffectPlacementDialog,
+    EffectPlacementWorkspace,
 )
 
 
@@ -63,6 +64,7 @@ class _Host(QWidget):
         super().__init__(parent)
         self.views: list = []
         self.view_roles: list = []
+        self.view_fit_roles: list = []
         self.zooms: list = []
         self.hidden: tuple = ()
         self.particles: list = []
@@ -70,6 +72,7 @@ class _Host(QWidget):
         self.paused: list = []
         self.backdrops: list = []
         self.camera_bindings: list = []
+        self.restored_views: list[dict] = []
         self.gizmo_tools: list = []
         self.remembered: tuple = ()
         self.loaded = None
@@ -79,15 +82,30 @@ class _Host(QWidget):
         self.gizmo_tools.append(str(tool))
         return True
 
-    def set_view(self, *, yaw, pitch, zoom_factor=None, fit_to_view=None, role="replacement", **_rest) -> bool:
+    def set_view(
+        self,
+        *,
+        yaw,
+        pitch,
+        zoom_factor=None,
+        fit_to_view=None,
+        role="replacement",
+        fit_role=None,
+        **_rest,
+    ) -> bool:
         self.views.append((float(yaw), float(pitch), fit_to_view))
         self.view_roles.append(str(role))
+        self.view_fit_roles.append(None if fit_role is None else str(fit_role))
         self.zooms.append(None if zoom_factor is None else round(float(zoom_factor), 4))
         return True
 
     def view_state_snapshot(self) -> dict:
         yaw, pitch, _fit = self.views[-1] if self.views else (-35.0, 20.0, True)
-        return {"yaw": yaw, "pitch": pitch}
+        return {"role": "reference", "yaw": yaw, "pitch": pitch, "zoom_factor": 1.25, "fit_to_view": True}
+
+    def restore_view_state(self, state) -> bool:
+        self.restored_views.append(dict(state))
+        return True
 
     def set_effect_particles_visible(self, visible: bool) -> bool:
         self.particles.append(bool(visible))
@@ -127,6 +145,22 @@ class _Host(QWidget):
 
     def set_camera_drag_bindings(self, **_bindings) -> bool:
         self.camera_bindings.append(dict(_bindings))
+        return True
+
+
+class _AckController(_Controller):
+    package_applied = Signal(str, int)
+
+
+class _AckHost(_Host):
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.controller = _AckController(self)
+        self.loaded_requests = []
+
+    def load_package(self, package_dir, reset_view: bool = False) -> bool:
+        self.loaded = Path(package_dir)
+        self.loaded_requests.append((self.loaded, bool(reset_view)))
         return True
 
 
@@ -185,20 +219,23 @@ class DialogTests(unittest.TestCase):
             dialog.host.views,
             [(yaw, pitch, True) for yaw, pitch in STANDING_VIEW_ANGLES],
         )
-        self.assertEqual(dialog.host.view_roles, ["reference"] * len(STANDING_VIEW_ANGLES))
+        self.assertEqual(dialog.host.view_roles, ["replacement"] * len(STANDING_VIEW_ANGLES))
+        self.assertEqual(dialog.host.view_fit_roles, ["reference"] * len(STANDING_VIEW_ANGLES))
 
-    def test_camera_follows_the_item_reference_not_the_moving_effect(self) -> None:
-        """The anchor is the editable role. Replacing its local bounds with the item's
-        made every later camera fit follow a fabricated box at the effect offset; after
-        fitting a large reach down, the item and character fell outside the view."""
+    def test_camera_frames_the_item_through_the_visible_overlay_role(self) -> None:
+        """Overlay draws through the editable camera. Camera commands sent to the
+        reference role update a hidden stored view and leave the item as a dot."""
 
         dialog = self._dialog(offset=(3.704, 0.756, -0.344), scale=0.6)
         dialog._host_state("ready", "")
         self.assertEqual(dialog.host.remembered, (), "the editable role keeps its own bounds")
-        self.assertEqual(dialog.host.view_roles[-1], "reference", "the opening fit follows the item")
+        self.assertEqual(dialog.host.view_roles[-1], "replacement", "the opening fit drives the visible overlay")
+        self.assertEqual(dialog.host.view_fit_roles[-1], "reference", "the item supplies the fit bounds")
 
         dialog._fit_reach_to_item()
-        self.assertEqual(dialog.host.view_roles[-1], "reference", "Fit keeps the item and character in frame")
+        self.assertEqual(dialog.host.view_roles[-1], "replacement", "Fit keeps driving the visible overlay")
+        self.assertEqual(dialog.host.view_fit_roles[-1], "reference", "Fit remains centred on the item")
+        self.assertEqual(dialog.host.zooms[-1], 1.0, "an item-sized reach uses the item fit")
         self.assertLess(dialog.scale, 0.1, "the reported large-reach case is represented")
 
     def test_the_places_on_the_item_move_the_offset_along_its_long_axis(self) -> None:
@@ -426,7 +463,7 @@ class DialogTests(unittest.TestCase):
         self.assertEqual(dialog._frame.rotation, quarter, "and the dialog carries its numbers across it")
         self.assertEqual(dialog._preview.body_submesh_count, 1)
         self.assertIn("game's character", dialog.legend_rows["body"].text())
-        self.assertIn("the angle the game holds it", dialog.show_character.toolTip())
+        self.assertIn("size reference", dialog.show_character.toolTip())
         dialog._closed = True
 
     def test_closing_during_package_build_never_waits_on_the_ui_thread(self) -> None:
@@ -481,6 +518,109 @@ class DialogTests(unittest.TestCase):
             )
             self.assertFalse(dialog._remove_owned_package(preview))
             self.assertTrue(marker.is_file())
+
+    def test_an_old_package_is_kept_until_the_correlated_load_ack(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            first_dir = root / "package_first"
+            second_dir = root / "package_second"
+            first_dir.mkdir()
+            second_dir.mkdir()
+            (first_dir / "keep.txt").write_text("old", encoding="utf-8")
+            workspace = EffectPlacementWorkspace(
+                item_mesh=_blade(),
+                box_min=(-1.0, -1.0, -1.0),
+                box_max=(1.0, 1.0, 1.0),
+                output_root=root,
+                host_factory=lambda parent: _AckHost(parent),
+                compatibility_ui=True,
+            )
+            self.addCleanup(workspace.deleteLater)
+            first = EffectPlacementPreview(
+                package_dir=first_dir,
+                box_submesh_index=0,
+                item_submesh_count=1,
+                box_min=(-1.0, -1.0, -1.0),
+                box_max=(1.0, 1.0, 1.0),
+            )
+            second = EffectPlacementPreview(
+                package_dir=second_dir,
+                box_submesh_index=0,
+                item_submesh_count=1,
+                box_min=(-1.0, -1.0, -1.0),
+                box_max=(1.0, 1.0, 1.0),
+            )
+            workspace._preview = first
+            workspace._package_generation = 1
+            workspace._active_package_generation = 1
+            workspace._package_ready((1, second, (), False))
+            self.assertTrue(first_dir.is_dir(), "the renderer may still own the old package")
+            self.assertIs(workspace._preview, first)
+            self.assertEqual(workspace.host.loaded_requests[-1], (second_dir, False))
+            workspace.host.controller.package_applied.emit(str(second_dir), 1)
+            self.assertFalse(first_dir.exists())
+            self.assertTrue(second_dir.is_dir())
+            self.assertIs(workspace._preview, second)
+            self.assertEqual(workspace.host.restored_views[-1]["role"], "reference")
+            workspace.request_shutdown()
+            self.assertFalse(second_dir.exists())
+
+    def test_rapid_rebuilds_publish_only_the_latest_package_and_keep_the_camera(self) -> None:
+        started = False
+        calls = []
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def build(_mesh, _low, _high, *, output_root, cancelled, **_kwargs):
+                nonlocal started
+                output = Path(output_root)
+                calls.append(output)
+                index = sum(path == output for path in calls)
+                if output == root and index == 1:
+                    started = True
+                    while not cancelled():
+                        time.sleep(0.005)
+                package = output / f"package_{index}"
+                package.mkdir()
+                return EffectPlacementPreview(
+                    package_dir=package,
+                    box_submesh_index=0,
+                    item_submesh_count=1,
+                    box_min=(-1.0, -1.0, -1.0),
+                    box_max=(1.0, 1.0, 1.0),
+                )
+
+            with patch("cdmw.ui.new_item.effect_placement_dialog.build_effect_placement_package", side_effect=build):
+                workspace = EffectPlacementWorkspace(
+                    item_mesh=_blade(),
+                    box_min=(-1.0, -1.0, -1.0),
+                    box_max=(1.0, 1.0, 1.0),
+                    output_root=root,
+                    host_factory=lambda parent: _AckHost(parent),
+                    compatibility_ui=True,
+                )
+                self.addCleanup(workspace.deleteLater)
+                self._settle(lambda: started)
+                workspace.set_content(
+                    item_mesh=_blade(),
+                    box_min=(-20.0, -20.0, -20.0),
+                    box_max=(20.0, 20.0, 20.0),
+                    effect_label="fx_latest",
+                    effect_preview=None,
+                    texture_reader=None,
+                    reset_view=False,
+                )
+                self._settle(lambda: len(workspace.host.loaded_requests) == 1)
+                loaded, reset = workspace.host.loaded_requests[0]
+                self.assertEqual(loaded, root / "package_2")
+                self.assertFalse(reset, "effect/look rebuilds preserve the camera")
+                self.assertFalse(workspace.show_reach.isChecked(), "oversized bounds fold away instead of reframing the item")
+                self.assertFalse((root / "package_1").exists(), "the stale build was discarded")
+                workspace.host.controller.package_applied.emit(str(loaded), 2)
+                self.assertIsNotNone(workspace._preview)
+                self.assertEqual(workspace.host.restored_views[-1]["zoom_factor"], 1.25)
+                workspace.request_shutdown()
+                self._settle(lambda: workspace._thread is None)
 
     def test_the_trail_button_appears_only_when_the_item_has_its_own_trail(self) -> None:
         """Weapons share socket files, so a borrowed one puts the trail at another weapon's
@@ -601,6 +741,104 @@ class DialogTests(unittest.TestCase):
             self.assertFalse(label.isVisibleTo(dialog), "and its rows are not taking room")
         dialog.legend_toggle.toggle.setChecked(True)
         self.assertTrue(dialog.legend_rows["anchor"].isVisibleTo(dialog), "one click and it is there")
+
+    def test_guided_presentation_exposes_the_exact_toolbar_and_inspector_controls(self) -> None:
+        workspace = EffectPlacementWorkspace(
+            item_mesh=_blade(),
+            box_min=(-1.0, -1.0, -1.0),
+            box_max=(1.0, 1.0, 1.0),
+            host_factory=lambda parent: _Host(parent),
+            compatibility_ui=False,
+        )
+        self.addCleanup(workspace.request_shutdown)
+        self.addCleanup(workspace.deleteLater)
+        workspace.resize(1000, 700)
+        workspace.show()
+        self.app.processEvents()
+        visible_scrolls = [scroll.objectName() for scroll in workspace.findChildren(QScrollArea) if scroll.isVisibleTo(workspace)]
+        self.assertEqual(visible_scrolls, ["effect_inspector_scroll"])
+        inspector_scroll = workspace.preview_splitter.widget(1)
+        self.assertEqual(inspector_scroll.horizontalScrollBar().maximum(), 0)
+        inspector_width = inspector_scroll.viewport().width()
+        apply_bottom = workspace.apply_button.mapTo(
+            inspector_scroll.viewport(), workspace.apply_button.rect().bottomRight()
+        ).y()
+        self.assertLess(apply_bottom, inspector_scroll.viewport().height(), "Apply stays visible at the 900px-window body height")
+        for spin in (*workspace.offset_spins, *workspace.rotation_spins):
+            right_edge = spin.mapTo(inspector_scroll.viewport(), spin.rect().bottomRight()).x()
+            self.assertLess(right_edge, inspector_width, "every axis value remains visible at the inspector minimum")
+        self.assertGreater(workspace.offset_spins[0].x(), 80, "the Position caption and X control do not overlap")
+        self.assertGreater(workspace.rotation_spins[0].x(), 80, "the Rotation caption and X control do not overlap")
+        orphaned_captions = [
+            label.text()
+            for label in workspace.findChildren(QLabel)
+            if label.parent() is workspace and label.isVisibleTo(workspace) and label.text() in {"Effect", "Model", "View"}
+        ]
+        self.assertEqual(orphaned_captions, [])
+        self.assertEqual(
+            [workspace.move_button.text(), workspace.rotate_button.text(), workspace.scale_button.text()],
+            ["Move", "Rotate", "Scale"],
+        )
+        self.assertEqual([button.text() for button in workspace.view_buttons[:3]], ["Front", "Side", "Top"])
+        self.assertEqual((workspace.frame_button.text(), workspace.pause_button.text()), ("Frame", "Pause"))
+        for button in (
+            workspace.move_button,
+            workspace.rotate_button,
+            workspace.scale_button,
+            *workspace.view_buttons[:3],
+            workspace.frame_button,
+            workspace.pause_button,
+        ):
+            self.assertFalse(button.icon().isNull(), button.text())
+        self.assertEqual([workspace.anchor_choice.itemText(i) for i in range(workspace.anchor_choice.count())], ["Origin", "Center", "End"])
+        self.assertEqual(workspace.show_reach.text(), "Show bounds")
+        self.assertEqual(workspace.fit_button.text(), "Fit")
+        self.assertEqual([workspace.backdrop_choice.itemText(i) for i in range(workspace.backdrop_choice.count())], ["Neutral", "Dark", "Black"])
+        self.assertEqual(set(workspace.look_spins), {"intensity", "particle_size", "spawn_rate", "lifetime"})
+        workspace.look_spins["intensity"].setValue(20.0)
+        self.assertEqual(workspace.look_sliders["intensity"].value(), 1000)
+        workspace.look_sliders["intensity"].setValue(0)
+        self.assertEqual(workspace.look_spins["intensity"].value(), 1.0)
+        workspace.anchor_choice.setCurrentIndex(workspace.anchor_choice.findData("center"))
+        self.assertAlmostEqual(workspace.offset[2], -0.35)
+        workspace.anchor_choice.setCurrentIndex(workspace.anchor_choice.findData("end"))
+        self.assertAlmostEqual(workspace.offset[2], -0.9)
+        workspace.scale_spin.setValue(2.0)
+        workspace.rotation_spins[1].setValue(45.0)
+        workspace.guided_restore_button.click()
+        self.assertEqual((workspace.scale, workspace.offset, workspace.rotation), (1.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
+
+        from cdmw.services.effect_character_reference import TRAIL_SOCKET
+
+        workspace._effect_sockets = ((TRAIL_SOCKET, (0.1, 0.2, -0.9)),)
+        workspace._offer_the_trail_socket()
+        trail = workspace.anchor_choice.findData("trail")
+        self.assertGreaterEqual(trail, 0)
+        self.assertEqual(workspace.anchor_choice.itemText(trail), "Trail Socket")
+        workspace.anchor_choice.setCurrentIndex(trail)
+        self.assertEqual(tuple(round(value, 6) for value in workspace.offset), (0.1, 0.2, -0.9))
+
+    def test_an_exact_decoder_reason_disables_only_look_authoring(self) -> None:
+        workspace = EffectPlacementWorkspace(
+            item_mesh=_blade(),
+            box_min=(-1.0, -1.0, -1.0),
+            box_max=(1.0, 1.0, 1.0),
+            host_factory=lambda _parent: None,
+        )
+        self.addCleanup(workspace.request_shutdown)
+        self.addCleanup(workspace.deleteLater)
+        reason = "unexpected marker at byte 418"
+        workspace.set_decoder_reason(reason)
+        self.assertEqual(workspace.decoder_reason.text(), reason)
+        self.assertFalse(workspace.colour_as_shipped.isEnabled())
+        self.assertTrue(workspace.scale_spin.isEnabled(), "numeric placement remains available")
+        workspace.set_decoder_reason("")
+        self.assertTrue(workspace.look_spins["intensity"].isEnabled())
+
+        self.assertFalse(workspace.show_reach.isEnabled())
+        self.assertFalse(workspace.backdrop_choice.isEnabled())
+        self.assertFalse(workspace.show_character.isEnabled())
+        self.assertTrue(workspace.fit_button.isEnabled(), "Fit remains a numeric scale operation")
 
     def test_the_context_and_actions_are_compact_and_specific(self) -> None:
         from PySide6.QtWidgets import QDialogButtonBox

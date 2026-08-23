@@ -1,4 +1,4 @@
-"""Graft a component from one ``.prefab`` into another: the writer a weapon effect needs.
+"""Graft a component from one ``.prefab`` into another: the writer an item effect needs.
 
 The shipped thrown lightning spear (``cd_phm_10_thrownspear_0001.prefab``) draws its
 aura through an ``EffectComponent`` in its root ``SceneObject``'s ``_components``

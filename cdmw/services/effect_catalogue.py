@@ -12,7 +12,9 @@ what they are made of and not only by what they are called.
 from __future__ import annotations
 
 import json
+import os
 import threading
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, Iterable, Mapping, Optional, Tuple
@@ -90,10 +92,10 @@ class EffectCatalogue:
     def get(self, stem: str) -> Optional[EffectFacts]:
         return self.facts.get(str(stem or ""))
 
-    def search(self, needle: str = "", *, limit: int = 300) -> Tuple[EffectFacts, ...]:
+    def search(self, needle: str = "", *, limit: Optional[int] = 300) -> Tuple[EffectFacts, ...]:
         out = [item for item in self.facts.values() if item.matches(needle)]
         out.sort(key=lambda item: item.stem)
-        return tuple(out[:limit])
+        return tuple(out if limit is None else out[: max(0, int(limit))])
 
 
 def effect_facts_from_document(stem: str, document: EffectDocument) -> EffectFacts:
@@ -208,8 +210,17 @@ def save_effect_catalogue(catalogue: EffectCatalogue, path: Path) -> None:
         "signature": catalogue.signature,
         "effects": [asdict(item) for item in catalogue.facts.values()],
     }
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def load_effect_catalogue(path: Path, *, signature: str = "") -> Optional[EffectCatalogue]:

@@ -1832,6 +1832,27 @@ def test_preview_host_restores_absolute_camera_and_rejects_mutation(tmp_path: Pa
     controller.shutdown()
 
 
+def test_preview_host_can_fit_the_visible_camera_from_another_role(tmp_path: Path) -> None:
+    controller, _process, package = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(package)
+
+    assert host.set_view(
+        yaw=-35.0,
+        pitch=20.0,
+        zoom_factor=1.0,
+        fit_to_view=True,
+        role="replacement",
+        fit_role="reference",
+    )
+
+    _event, payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert payload["camera"]["role"] == "editable"
+    assert payload["camera"]["fit_role"] == "reference"
+    assert host.view_state_snapshot()["fit_role"] == "reference"
+    controller.shutdown()
+
+
 def test_preview_host_changes_viewport_display_mode_through_resident_presentation(tmp_path: Path) -> None:
     controller, _process, package = _start_controller(tmp_path)
     host = DotNetPreviewHostFrame(profile="preview", controller=controller)

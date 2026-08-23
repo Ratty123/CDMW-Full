@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from cdmw.core.effect_binary import decode_effect_binary
 from cdmw.services.effect_catalogue import (
@@ -44,6 +45,9 @@ class EffectFactsTests(unittest.TestCase):
         catalogue = EffectCatalogue(facts={self.facts.stem: self.facts})
         self.assertEqual([item.stem for item in catalogue.search("ember")], [])
         self.assertEqual([item.stem for item in catalogue.search("circle")], [self.facts.stem])
+        many = EffectCatalogue(facts={f"fx_{index:04d}": self.facts for index in range(400)})
+        self.assertEqual(len(many.search()), 300)
+        self.assertEqual(len(many.search(limit=None)), 400)
         self.assertIs(catalogue.get(self.facts.stem), self.facts)
         self.assertIsNone(catalogue.get("nothing"))
 
@@ -72,6 +76,17 @@ class CatalogueCacheTests(unittest.TestCase):
             path.write_text("{not json", encoding="utf-8")
             self.assertIsNone(load_effect_catalogue(path))
             self.assertIsNone(load_effect_catalogue(Path(folder) / "missing.json"))
+
+    def test_a_failed_atomic_replace_keeps_the_previous_cache(self) -> None:
+        catalogue = EffectCatalogue(signature="1:0:0")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "effects.json"
+            path.write_text("previous", encoding="utf-8")
+            with patch("cdmw.services.effect_catalogue.os.replace", side_effect=OSError("locked")):
+                with self.assertRaisesRegex(OSError, "locked"):
+                    save_effect_catalogue(catalogue, path)
+            self.assertEqual(path.read_text(encoding="utf-8"), "previous")
+            self.assertEqual(tuple(path.parent.glob(".*.tmp")), ())
 
 
 if __name__ == "__main__":

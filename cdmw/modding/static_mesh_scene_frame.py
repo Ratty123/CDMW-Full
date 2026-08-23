@@ -121,7 +121,7 @@ class StaticMeshSceneFrame:
     #: How the reference role is drawn in overlay comparison: "wire" (the Mesh Editor's
     #: convention, the original as a wire ghost over the replacement) or "solid". A scene
     #: whose reference is the subject rather than the thing being replaced -- the item a
-    #: weapon effect is placed on -- wants it solid, or the item shows only as a wire.
+    #: visual effect is placed on -- wants it solid, or the item shows only as a wire.
     reference_draw: str = "wire"
 
     def with_protocol_context(

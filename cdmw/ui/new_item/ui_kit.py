@@ -78,9 +78,40 @@ def muted_color(palette) -> str:
 
 
 def step_style(palette) -> str:
-    """`STEP_STYLE` with the muted colour for this palette."""
+    """Professional guided-workspace roles, exact on dark and palette-derived elsewhere."""
 
-    return STEP_STYLE % {"muted": muted_color(palette)}
+    from PySide6.QtGui import QPalette
+
+    window = palette.color(QPalette.ColorRole.Window)
+    dark = window.lightness() < 128
+    background = "#16191c" if dark else window.name()
+    panel = "#1d2125" if dark else palette.color(QPalette.ColorRole.Base).name()
+    border = "#343a40" if dark else palette.color(QPalette.ColorRole.Mid).name()
+    active = "#078de5" if dark else palette.color(QPalette.ColorRole.Highlight).name()
+    text = palette.color(QPalette.ColorRole.WindowText).name()
+    muted = muted_color(palette)
+    return (STEP_STYLE % {"muted": muted}) + f"""
+        QWidget#new_item_steps, QStackedWidget {{ background: {background}; }}
+        QGroupBox#new_item_step[guidedFullHeight="true"] {{ border: none; margin-top: 0; padding: 0; }}
+        QTabWidget#new_item_perks_effects_tabs::pane {{ border: 1px solid {border}; background: {background}; }}
+        QTabWidget#new_item_perks_effects_tabs QTabBar::tab {{ min-height: 32px; padding: 0 28px; border: none; color: {muted}; }}
+        QTabWidget#new_item_perks_effects_tabs QTabBar::tab:selected {{ color: {text}; border-bottom: 2px solid {active}; }}
+        QFrame#effect_library_panel, QWidget#effect_inspector {{ background: {panel}; }}
+        QWidget#effect_viewport_panel {{ background: {background}; }}
+        QScrollArea#effect_inspector_scroll {{ border: none; background: {panel}; }}
+        QSplitter#effect_workspace_splitter::handle, QSplitter#effect_placement_splitter::handle {{ background: {border}; width: 1px; }}
+        QLabel#effect_library_heading, QLabel#effect_inspector_heading {{ font-weight: 600; color: {text}; }}
+        QLabel#effect_compatibility {{ color: {muted}; }}
+        QLabel#effect_visual_caution {{ color: #d18a00; border-top: 1px solid {border}; }}
+        QListView#effect_library {{ border: 1px solid {border}; background: {panel}; outline: none; }}
+        QLineEdit#effect_search {{ min-height: 32px; border: 1px solid {border}; padding: 0 10px; background: {background}; }}
+        QToolButton[effectChip="true"] {{ min-height: 26px; padding: 0 6px; border: 1px solid {border}; border-radius: 4px; }}
+        QToolButton[effectChip="true"]:checked {{ color: white; background: {active}; border-color: {active}; }}
+        QPushButton[effectToolbarButton="true"] {{ min-height: 32px; padding: 0 2px; }}
+        QGroupBox#new_item_step QLineEdit, QGroupBox#new_item_step QComboBox,
+        QGroupBox#new_item_step QDoubleSpinBox, QGroupBox#new_item_step QPushButton {{ min-height: 32px; }}
+        QLabel#new_item_step_counter {{ color: {muted}; }}
+    """
 
 
 def elided(text: str, max_chars: int) -> str:
