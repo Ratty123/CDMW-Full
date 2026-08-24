@@ -33,8 +33,10 @@ blocked while they are filled. `build_context` is memoized per template on the
 read-only snapshot, so a validation is set lookups, not a rebuild of the sets. The
 horizontal seven-step header replaces the old summary rail while retaining that
 calculated state in per-step tooltips and accessibility text. Its footer keeps Back,
-`Step N of 7` and Continue stable. Step 5 is a non-scrolling full-height page with
-Perks and Effects tabs. The navigator is a compact 46 px row; the outer pages do not
+`Step N of 7` and Continue stable. Output keeps Build plan and its review in the
+left column, with every write and install action in the right. Step 5 is a
+non-scrolling full-height page with Perks and Effects tabs. The navigator is a
+compact 46 px row; the outer pages do not
 repeat numbered titles underneath it. Perks & Effects keeps gameplay perks separate
 from visual-only effects. Perks are chosen through searchable Available and Selected
 lists that grow with the workspace rather than a popup catalogue. Four perks is
