@@ -877,11 +877,11 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
-    def test_model_workspace_shows_model_icon_and_placement_in_two_columns(self) -> None:
-        from PySide6.QtWidgets import QScrollArea, QTabWidget
+    def test_model_workspace_shows_model_icon_placement_and_preview_in_three_columns(self) -> None:
+        from PySide6.QtWidgets import QScrollArea, QSizePolicy, QTabWidget
 
         tab = self._tab()
-        tab.resize(1280, 720)
+        tab.resize(1720, 720)
         tab.show()
         tab.prefill_template(TEMPLATE)
         tab.show_step(2)
@@ -892,20 +892,24 @@ class TabTests(unittest.TestCase):
         self.assertIsNone(panel.findChild(QTabWidget, "new_item_model_inspector_tabs"))
         self.assertIsInstance(panel.model_icon_scroll, QScrollArea)
         self.assertIs(panel.model_icon_scroll.widget(), panel.model_icon_content)
+        self.assertEqual(panel.workspace_splitter.sizePolicy().horizontalPolicy(), QSizePolicy.Policy.Ignored)
+        self.assertEqual(panel.workspace_splitter.count(), 3)
         self.assertIs(panel.workspace_splitter.widget(0), panel.model_icon_column)
         self.assertIs(panel.workspace_splitter.widget(1), panel.placement_column)
+        self.assertIs(panel.workspace_splitter.widget(2), panel.preview_group)
         self.assertIs(panel.operation_banner.parentWidget(), panel.placement_column)
-        self.assertIs(panel.preview_group.parentWidget(), panel.placement_column)
+        self.assertIs(panel.preview_group.parentWidget(), panel.workspace_splitter)
         self.assertIs(panel.preview.parentWidget(), panel.preview_group)
         self.assertEqual(panel.title(), "")
         sizes = panel.workspace_splitter.sizes()
-        self.assertAlmostEqual(sizes[0] / sum(sizes), 0.50, delta=0.07)
+        self.assertGreater(sizes[2], sizes[1])
         self.assertGreaterEqual(panel.workspace_splitter.widget(0).width(), 620)
         self.assertGreaterEqual(panel.workspace_splitter.widget(1).width(), 520)
+        self.assertGreaterEqual(panel.workspace_splitter.widget(2).width(), 520)
         self.assertEqual(panel.model_icon_scroll.horizontalScrollBar().maximum(), 0)
 
         for group in (panel.model_group, panel.placement_group, panel.icon_group):
-            self.assertEqual(group.title(), "", "the two-column layout needs no repeated section name")
+            self.assertEqual(group.title(), "", "the three-column layout needs no repeated section name")
         self.assertEqual(
             [panel.model_group.accessibleName(), panel.icon_group.accessibleName(), panel.placement_group.accessibleName()],
             ["Model", "Icon", "Placement"],
@@ -927,11 +931,13 @@ class TabTests(unittest.TestCase):
         ):
             self.assertTrue(panel.model_icon_column.isAncestorOf(control), f"{control!r} belongs to the Model/Icon column")
             self.assertFalse(panel.model_icon_content.isAncestorOf(control), f"{control!r} stays visible below the Model scroller")
-        for control in (panel.view_mode, panel.offset_spins[0], panel.apply_button, panel.preview):
+        for control in (panel.view_mode, panel.offset_spins[0], panel.apply_button):
             self.assertTrue(panel.placement_column.isAncestorOf(control), f"{control!r} belongs to the Placement column")
+        self.assertTrue(panel.preview_group.isAncestorOf(panel.preview))
+        self.assertFalse(panel.placement_column.isAncestorOf(panel.preview))
         panel.placement_group.setVisible(True)
 
-        for width, height in ((1280, 720), (1600, 900)):
+        for width, height in ((1720, 720), (1920, 900)):
             tab.resize(width, height)
             self.app.processEvents()
             panel.model_icon_scroll.verticalScrollBar().setValue(0)
@@ -945,8 +951,9 @@ class TabTests(unittest.TestCase):
             self.assertLessEqual(panel.icon_source.geometry().bottom(), panel.icon_group.rect().bottom())
             self.assertLessEqual(panel.apply_button.geometry().bottom(), panel.placement_group.rect().bottom())
             self.assertIs(panel.preview.parentWidget(), panel.preview_group)
-            self.assertGreaterEqual(panel.preview.height(), 240)
-            self.assertLessEqual(panel.preview_group.geometry().bottom(), panel.placement_column.rect().bottom())
+            self.assertEqual(panel.preview_group.height(), panel.workspace_splitter.height())
+            self.assertGreaterEqual(panel.preview.height(), 300)
+            self.assertLessEqual(panel.preview_group.geometry().bottom(), panel.workspace_splitter.rect().bottom())
             self.assertLessEqual(panel.preview.geometry().bottom(), panel.preview_group.rect().bottom())
 
             panel.import_model.setChecked(True)
@@ -959,10 +966,13 @@ class TabTests(unittest.TestCase):
 
         frames = []
         panel.operation_spinner.frame_advanced.connect(frames.append)
+        preview_height = panel.preview_group.height()
         tab.controller._lane = "model_apply"
         panel._busy_changed(True)
+        self.app.processEvents()
         panel.operation_spinner._advance()
         self.assertTrue(panel.operation_banner.isVisibleTo(panel))
+        self.assertEqual(panel.preview_group.height(), preview_height)
         self.assertTrue(frames)
         with patch.object(tab.controller, "cancel_operation", return_value=True) as cancel:
             panel.cancel_operation_button.click()

@@ -64,10 +64,10 @@ material wrappers never replace the import's source materials in the placement v
 The current per-part Glow colour and strength are copied into those same rows when the
 Effects package is built, and returning to the step refreshes changes made in Model & Placement.
 
-The Model & Placement step is a fixed two-column workspace. A top-packed Model scroller
-and always-visible Icon choices share the left column; Placement controls, pinned operation
-status and the resident preview stay together on the right. The repeated Model / Placement /
-Icon tab strip is gone, so all three surfaces stay mounted at once. It imports a model file itself:
+The Model & Placement step is a fixed three-column workspace. A top-packed Model scroller
+and always-visible Icon choices share the left column, Placement controls and pinned operation
+status occupy the middle column, and the resident Preview owns the full-height right column.
+The repeated Model / Placement / Icon tab strip is gone, so all three surfaces stay mounted at once. It imports a model file itself:
 `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
 `item_preview.py` publishes fitted geometry first, then upgrades a copied package with
