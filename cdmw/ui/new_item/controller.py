@@ -444,9 +444,9 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
     def _perk_label(key: int, row, english, users) -> str:
         entry = english.get(row.name_key) if row.name_key else None
         label = str(entry.text) if entry is not None else str(row.string_key)
-        # a gem nothing in the game carries is a gem with no evidence it may sit in an
-        # equipment row at all, which is worth seeing before it is picked
-        return label if users.get(int(key)) else f"{label} — experimental"
+        # Ranked names are self-explanatory; keep the marker for unproven standalone perks.
+        ranked = str(row.string_key or "").endswith(("_II", "_III"))
+        return label if users.get(int(key)) or ranked else f"{label} — experimental"
 
     def perk_details(self, key: int) -> str:
         """One perk's localized meaning, category, shipped use and internal identity."""
