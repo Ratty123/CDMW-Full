@@ -169,7 +169,7 @@ def test_loaded_preview_settings_keep_existing_persistence_keys() -> None:
 def test_gizmo_preview_settings_restore_from_main_preview_config() -> None:
     values: dict[str, object] = {
         "archive/model_use_textures": True,
-        "preview/d3d11_lighting_defaults_version": 6,
+        "preview/d3d11_lighting_defaults_version": 7,
         "preview/gizmo_x_axis_color": "#123456",
         "preview/gizmo_y_axis_color": "#234567",
         "preview/gizmo_z_axis_color": "#345678",
@@ -203,6 +203,61 @@ def test_gizmo_preview_settings_restore_from_main_preview_config() -> None:
     assert restored.gizmo_size_scale == 1.8
     assert restored.gizmo_label_size_pixels == 18.0
     assert restored.gizmo_handle_size_pixels == 11.0
+
+
+def _legacy_v6_preview_settings(**overrides: object) -> dict[str, object]:
+    values: dict[str, object] = {
+        "preview/d3d11_lighting_defaults_version": 6,
+        "preview/d3d11_ao_strength": 0.45,
+        "preview/d3d11_roughness_bias": -0.04,
+        "preview/d3d11_metalness_scale": 1.45,
+        "preview/d3d11_environment_strength": 0.62,
+        "preview/ambient_strength": 0.84,
+        "preview/diffuse_wrap_bias": 0.58,
+        "preview/diffuse_light_scale": 0.62,
+        "preview/specular_base": 0.055,
+        "preview/specular_max": 0.52,
+        "preview/d3d11_tone_exposure": 1.0,
+        "preview/d3d11_tone_contrast": 1.08,
+        "preview/d3d11_tone_gamma": 1.0,
+    }
+    values.update(overrides)
+    return values
+
+
+def _read_preview_settings(values: dict[str, object]) -> ModelPreviewRenderSettings:
+    settings_store = SimpleNamespace(
+        value=lambda key, default=None: values.get(key, default),
+        setValue=values.__setitem__,
+    )
+    reader = SimpleNamespace(
+        settings=settings_store,
+        _read_bool=lambda key, default: bool(values.get(key, default)),
+        _read_float=lambda key, default: float(values.get(key, default)),
+        _read_int=lambda key, default: int(values.get(key, default)),
+    )
+    return ArchivePreviewSettingsMixin._read_model_preview_render_settings(reader)  # type: ignore[arg-type]
+
+
+def test_legacy_v6_default_preview_tuning_migrates_to_calibrated_gamma() -> None:
+    values = _legacy_v6_preview_settings()
+
+    restored = _read_preview_settings(values)
+
+    assert restored.d3d11_tone_gamma == pytest.approx(0.92)
+    assert values["preview/d3d11_tone_gamma"] == pytest.approx(0.92)
+    assert values["preview/d3d11_lighting_defaults_version"] == 7
+
+
+def test_legacy_v6_custom_preview_tuning_is_not_replaced() -> None:
+    values = _legacy_v6_preview_settings(**{"preview/d3d11_environment_strength": 0.71})
+
+    restored = _read_preview_settings(values)
+
+    assert restored.d3d11_tone_gamma == pytest.approx(1.0)
+    assert restored.d3d11_environment_strength == pytest.approx(0.71)
+    assert values["preview/d3d11_tone_gamma"] == pytest.approx(1.0)
+    assert values["preview/d3d11_lighting_defaults_version"] == 7
 
 
 def test_main_window_keeps_saved_preview_values_and_placeholder_without_preview_use() -> None:

@@ -9566,17 +9566,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 766,
+          "line": 787,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 767,
+          "line": 788,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 768,
+          "line": 789,
           "sink": "append_archive_log"
         }
       ]
@@ -9661,7 +9661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 574,
+          "line": 595,
           "sink": "set_status_message"
         }
       ]
@@ -9991,7 +9991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 538,
+          "line": 559,
           "sink": "set_status_message"
         }
       ]
@@ -10011,7 +10011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 726,
+          "line": 747,
           "sink": "append_archive_log"
         }
       ]
@@ -19741,7 +19741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 534,
+          "line": 555,
           "sink": "append_archive_log"
         }
       ]
@@ -73031,7 +73031,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 766,
+          "line": 787,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -75991,7 +75991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 691,
+          "line": 712,
           "sink": "set_status_message"
         }
       ]
@@ -76366,7 +76366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 502,
+          "line": 523,
           "sink": "setToolTip"
         }
       ]
@@ -77561,7 +77561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 543,
+          "line": 564,
           "sink": "set_status_message"
         }
       ]
@@ -95256,7 +95256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 756,
+          "line": 777,
           "sink": "append_archive_log"
         }
       ]
@@ -95266,7 +95266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 778,
+          "line": 799,
           "sink": "append_archive_log"
         }
       ]
@@ -98676,7 +98676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 545,
+          "line": 566,
           "sink": "set_status_message"
         }
       ]
@@ -100636,7 +100636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 689,
+          "line": 710,
           "sink": "set_status_message"
         }
       ]

@@ -25,7 +25,7 @@ _DOTNET_AUDIT_PRESENTATION_PROFILE: dict[str, object] = {
     "emissive_gain": 2.2,
     "tone_exposure": 1.0,
     "tone_contrast": 1.08,
-    "tone_gamma": 1.0,
+    "tone_gamma": 0.92,
     "sampling_filter": "anisotropic",
     "max_anisotropy": 16,
     "mip_lod_bias": -2.0,

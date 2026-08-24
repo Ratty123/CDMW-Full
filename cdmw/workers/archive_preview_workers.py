@@ -540,6 +540,9 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                 payload.preview_model,
                 render_settings=render_settings,
                 stop_event=self.stop_event,
+                # The canonical .NET package compiler owns material synthesis.
+                # A preparatory combiner here would bake the same graph twice.
+                enable_material_combiner=False,
             )
             payload = dataclasses.replace(
                 payload,

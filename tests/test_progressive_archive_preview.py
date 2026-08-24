@@ -5,7 +5,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from cdmw.core import archive
-from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
+from cdmw.models import (
+    ArchiveEntry,
+    ArchivePreviewResult,
+    ModelPreviewData,
+    ModelPreviewMesh,
+    ModelPreviewRenderSettings,
+)
 from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
 from cdmw.ui.archive_browser.preview_loading import ArchivePreviewLoadingMixin
 from cdmw.ui.archive_browser.workers import _archive_preview_debounce_ms
@@ -63,6 +69,56 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
             ("normal", "material", "height", "emissive"),
             ArchivePreviewCacheMixin._archive_preview_support_texture_slots(settings),
         )
+
+    def test_full_dotnet_package_uses_one_canonical_material_synthesis_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_dir = Path(temp_dir) / "canonical-package"
+            worker = ArchivePreviewWorker(
+                request_id=1,
+                entry=_entry("character/model/body.pac", ".pac"),
+                companion_entry=None,
+                texture_entries_by_normalized_path={},
+                texture_entries_by_basename={},
+                sidecar_entries_by_texture_path=None,
+                sidecar_entries_by_texture_basename=None,
+                loose_search_roots=(),
+                attach_preview_images=False,
+                native_preview_package_cache_root=Path(temp_dir),
+            )
+            model = _preview_model(1)
+            payload = ArchivePreviewResult(
+                status="ok",
+                preview_model=model,
+                preferred_view="model",
+            )
+            prepare_calls: list[dict[str, object]] = []
+
+            def prepare(preview_model: object, **kwargs: object):
+                prepare_calls.append(dict(kwargs))
+                return preview_model, SimpleNamespace()
+
+            with (
+                patch(
+                    "cdmw.workers.archive_preview_workers.build_archive_preview_result",
+                    return_value=payload,
+                ),
+                patch(
+                    "cdmw.workers.archive_preview_workers.prepare_model_preview",
+                    side_effect=prepare,
+                ),
+                patch(
+                    "cdmw.workers.archive_preview_workers.build_or_lookup_dotnet_preview_package_from_model",
+                    return_value=SimpleNamespace(package_dir=package_dir),
+                ),
+            ):
+                result = worker._build_archive_preview_payload(
+                    quality_tier="full",
+                    render_settings=ModelPreviewRenderSettings(),
+                )
+
+        self.assertEqual(1, len(prepare_calls))
+        self.assertIs(False, prepare_calls[0]["enable_material_combiner"])
+        self.assertEqual(str(package_dir), result.dotnet_preview_package_path)
 
     def test_native_model_preview_uses_key_repeat_selection_dwell(self) -> None:
         # Still above the ~30 ms key-repeat interval, so a held arrow key keeps

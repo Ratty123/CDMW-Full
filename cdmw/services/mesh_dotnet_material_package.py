@@ -831,7 +831,7 @@ def _synthesize_dotnet_material_channels(
             settings=MaterialPreviewCombinerSettings(
                 normal_strength_floor=0.5,
                 normal_strength_cap=1.0,
-                height_amount=0.028,
+                height_amount=0.04,
                 support_map_max_dimension=256,
                 preserve_texture_orientation=True,
             ),

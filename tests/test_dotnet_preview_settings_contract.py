@@ -173,6 +173,7 @@ def test_visual_audit_profile_matches_mesh_editor_production_defaults() -> None:
         for key in expected
     } == expected
     assert _DOTNET_AUDIT_PRESENTATION_PROFILE["profile"] == "mesh_editor_default_v1"
+    assert "public float ToneGamma { get; init; } = 0.92f;" in constants
     assert defaults.disable_tint is False
     assert _DOTNET_AUDIT_PRESENTATION_PROFILE["disable_tint"] is False
     assert "DisableTint { get; init; } = true;" not in constants
