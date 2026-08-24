@@ -557,7 +557,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
             "d3d11_emissive_gain": float(getattr(settings, "d3d11_emissive_gain", 2.2)),
             "d3d11_tone_exposure": float(getattr(settings, "d3d11_tone_exposure", 1.0)),
             "d3d11_tone_contrast": float(getattr(settings, "d3d11_tone_contrast", 1.08)),
-            "d3d11_tone_gamma": float(getattr(settings, "d3d11_tone_gamma", 1.0)),
+            "d3d11_tone_gamma": float(getattr(settings, "d3d11_tone_gamma", 0.92)),
             "d3d11_texture_address_mode": str(getattr(settings, "d3d11_texture_address_mode", "wrap") or "wrap"),
             "ambient_strength": float(getattr(settings, "ambient_strength", 0.84) or 0.84),
             "diffuse_wrap_bias": float(getattr(settings, "diffuse_wrap_bias", 0.58) or 0.58),

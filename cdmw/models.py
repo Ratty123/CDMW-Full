@@ -1804,7 +1804,7 @@ class ModelPreviewRenderSettings:
     d3d11_emissive_gain: float = 2.2
     d3d11_tone_exposure: float = 1.00
     d3d11_tone_contrast: float = 1.08
-    d3d11_tone_gamma: float = 1.00
+    d3d11_tone_gamma: float = 0.92
     d3d11_texture_address_mode: str = "wrap"
     ambient_strength: float = 0.84
     diffuse_wrap_bias: float = 0.58

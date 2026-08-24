@@ -97,7 +97,7 @@ class ArchivePreviewSettingsMixin:
         d3d11_tone_exposure = self._read_float("preview/d3d11_tone_exposure", defaults.d3d11_tone_exposure)
         d3d11_tone_contrast = self._read_float("preview/d3d11_tone_contrast", defaults.d3d11_tone_contrast)
         d3d11_tone_gamma = self._read_float("preview/d3d11_tone_gamma", defaults.d3d11_tone_gamma)
-        if legacy_lighting_version < 6:
+        if legacy_lighting_version < 7:
             def _near(current: float, expected: float) -> bool:
                 try:
                     return abs(float(current) - float(expected)) <= 1e-6
@@ -155,7 +155,28 @@ class ArchivePreviewSettingsMixin:
                 and _near(d3d11_tone_contrast, 1.00)
                 and _near(d3d11_tone_gamma, 1.00)
             )
-            if old_saved_defaults_v1 or old_saved_defaults_v2 or old_saved_defaults_v3 or old_saved_defaults_v4 or old_saved_defaults_v5:
+            old_saved_defaults_v6 = (
+                _near(d3d11_ao_strength, 0.45)
+                and _near(d3d11_roughness_bias, -0.04)
+                and _near(d3d11_metalness_scale, 1.45)
+                and _near(d3d11_environment_strength, 0.62)
+                and _near(ambient_strength, 0.84)
+                and _near(diffuse_wrap_bias, 0.58)
+                and _near(diffuse_light_scale, 0.62)
+                and _near(specular_base, 0.055)
+                and _near(specular_max, 0.52)
+                and _near(d3d11_tone_exposure, 1.00)
+                and _near(d3d11_tone_contrast, 1.08)
+                and _near(d3d11_tone_gamma, 1.00)
+            )
+            if (
+                old_saved_defaults_v1
+                or old_saved_defaults_v2
+                or old_saved_defaults_v3
+                or old_saved_defaults_v4
+                or old_saved_defaults_v5
+                or old_saved_defaults_v6
+            ):
                 d3d11_ao_strength = defaults.d3d11_ao_strength
                 d3d11_roughness_bias = defaults.d3d11_roughness_bias
                 d3d11_metalness_scale = defaults.d3d11_metalness_scale
@@ -180,7 +201,7 @@ class ArchivePreviewSettingsMixin:
                 self.settings.setValue("preview/d3d11_tone_exposure", d3d11_tone_exposure)
                 self.settings.setValue("preview/d3d11_tone_contrast", d3d11_tone_contrast)
                 self.settings.setValue("preview/d3d11_tone_gamma", d3d11_tone_gamma)
-            self.settings.setValue("preview/d3d11_lighting_defaults_version", 6)
+            self.settings.setValue("preview/d3d11_lighting_defaults_version", 7)
         return clamp_model_preview_render_settings(
             ModelPreviewRenderSettings(
                 use_textures_by_default=self._read_bool("archive/model_use_textures", defaults.use_textures_by_default),

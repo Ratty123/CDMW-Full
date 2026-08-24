@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PySide6.QtGui import QColor, QImage
@@ -82,6 +83,44 @@ def test_identical_submesh_material_inputs_are_synthesized_once(
 
     assert len(payload["submeshes"]) == 2
     assert calls == 1
+
+
+def test_package_synthesis_uses_the_shared_combiner_relief_strength(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    material_map = _image(tmp_path / "material.png", (255, 128, 32, 255))
+    submesh = _submesh("relief")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_materialTexture",
+            preview_texture_path=str(material_map),
+            semantic_type="material",
+            semantic_subtype="metallic_roughness",
+            packed_channels=("roughness", "metallic"),
+            visualized=True,
+        ),
+    )
+    observed_settings: list[object] = []
+
+    def combine(*_args: object, settings: object, **_kwargs: object) -> object:
+        observed_settings.append(settings)
+        return SimpleNamespace(outputs=(), notes=(), texture_flip_vertical=False)
+
+    monkeypatch.setattr(mesh_dotnet_material_package, "combine_preview_material", combine)
+
+    mesh_dotnet_material_package._synthesize_dotnet_material_channels(
+        submesh,
+        {},
+        {},
+        output_dir=tmp_path / "synthesis",
+        batch_index=0,
+        cancelled=None,
+    )
+
+    assert len(observed_settings) == 1
+    assert observed_settings[0].height_amount == pytest.approx(0.04)
 
 
 def test_material_image_reader_falls_back_to_valid_file_bytes(

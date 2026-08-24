@@ -200,7 +200,7 @@ def _builder_presentation_payloads() -> tuple[dict[str, object], dict[str, objec
         "d3d11_emissive_gain": 2.2,
         "d3d11_tone_exposure": 1.0,
         "d3d11_tone_contrast": 1.08,
-        "d3d11_tone_gamma": 1.0,
+        "d3d11_tone_gamma": 0.92,
         "d3d11_texture_address_mode": "wrap",
         "max_anisotropy": 16,
         "d3d11_mip_lod_bias": -2.0,

@@ -1466,7 +1466,7 @@ def write_isolated_d3d11_preview_package(
     shininess_max = _safe_float(getattr(settings, "shininess_max", 152.0), 152.0)
     tone_exposure = _safe_float(getattr(settings, "d3d11_tone_exposure", 1.00), 1.00)
     tone_contrast = _safe_float(getattr(settings, "d3d11_tone_contrast", 1.08), 1.08)
-    tone_gamma = _safe_float(getattr(settings, "d3d11_tone_gamma", 1.00), 1.00)
+    tone_gamma = _safe_float(getattr(settings, "d3d11_tone_gamma", 0.92), 0.92)
     camera_orbit_modifier, camera_pan_modifier = resolve_camera_bindings(
         getattr(settings, "camera_orbit_modifier", None),
         getattr(settings, "camera_pan_modifier", None),

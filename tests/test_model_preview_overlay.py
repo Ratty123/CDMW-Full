@@ -571,7 +571,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertAlmostEqual(2.2, defaults.d3d11_emissive_gain)
         self.assertAlmostEqual(1.00, defaults.d3d11_tone_exposure)
         self.assertAlmostEqual(1.08, defaults.d3d11_tone_contrast)
-        self.assertAlmostEqual(1.00, defaults.d3d11_tone_gamma)
+        self.assertAlmostEqual(0.92, defaults.d3d11_tone_gamma)
         self.assertGreater(defaults.specular_max, 0.0)
 
     def test_enhanced_relief_shader_path_is_gated(self) -> None:
