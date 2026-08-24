@@ -18446,12 +18446,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 50,
+          "line": 51,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 102,
+          "line": 113,
           "sink": "setText"
         }
       ]
@@ -96101,7 +96101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 48,
+          "line": 49,
           "sink": "QGroupBox"
         }
       ]
@@ -200806,7 +200806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 63,
+          "line": 64,
           "sink": "QListWidgetItem"
         }
       ]

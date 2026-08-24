@@ -10,9 +10,9 @@ from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWi
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.ui_kit import intro_label
 
-#: How long the list waits before it takes a row as chosen. Long enough that arrow-keying
-#: through the list passes rows without rebuilding five steps at each one, short enough
-#: that a click reads as instant.
+#: How long keyboard row navigation waits before it takes a row as chosen. Long enough
+#: that arrow-keying through the list passes rows without rebuilding five steps at each
+#: one. An explicit mouse click commits immediately through ``_apply_clicked_pick``.
 _SETTLE_MS = 180
 
 
@@ -35,10 +35,11 @@ class TemplatePanel(QGroupBox):
         self.matches = QListWidget()
         self.matches.setMinimumHeight(160)
         self.matches.currentItemChanged.connect(self._pick)
+        self.matches.itemClicked.connect(self._apply_clicked_pick)
         # Choosing a template rebuilds five steps, which is ~100 ms of work that has to
         # happen; arrow-keying down the list asked for it once per row it passed through.
-        # The list still moves at once (Qt owns that); the work waits for the reader to
-        # settle on one, and a click is indistinguishable from settling immediately.
+        # The list still moves at once (Qt owns that); navigation waits for the reader to
+        # settle on one, while an explicit mouse click takes that row immediately.
         self._pick_timer = QTimer(self)
         self._pick_timer.setSingleShot(True)
         self._pick_timer.setInterval(_SETTLE_MS)
@@ -82,6 +83,16 @@ class TemplatePanel(QGroupBox):
         key, self._pending_key = self._pending_key, None
         if key is not None and key != self._controller.draft.template_key:
             self._controller.set_template(key)
+
+    def _apply_clicked_pick(self, current: QListWidgetItem) -> None:
+        """Take an explicitly clicked row now; only row navigation needs settling."""
+
+        if self._syncing:
+            return
+        key = current.data(Qt.UserRole)
+        self._pick_timer.stop()
+        self._pending_key = key if isinstance(key, int) and key != self._controller.draft.template_key else None
+        self._apply_pick()
 
     def apply_pending_pick(self) -> None:
         """Take the pending row now: leaving the step must not leave it unchosen."""

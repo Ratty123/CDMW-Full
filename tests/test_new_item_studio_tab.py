@@ -1966,6 +1966,38 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_clicking_a_template_applies_before_navigation_settles(self) -> None:
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+
+        tab = self._tab(window=None)
+        tab.resize(1280, 720)
+        tab.show()
+        tab.prefill_template(TEMPLATE)
+        panel = tab.template_panel
+        panel.filter_edit.clear()
+        self.app.processEvents()
+        target = next(
+            panel.matches.item(row)
+            for row in range(panel.matches.count())
+            if panel.matches.item(row).data(Qt.UserRole) == OTHER
+        )
+        panel.matches.scrollToItem(target)
+
+        taken: list = []
+        tab.controller.set_template = lambda key: taken.append(key)  # type: ignore[method-assign]
+        QTest.mouseClick(
+            panel.matches.viewport(),
+            Qt.MouseButton.LeftButton,
+            pos=panel.matches.visualItemRect(target).center(),
+        )
+
+        self.assertEqual(taken, [OTHER], "a deliberate click does not wait for the navigation timer")
+        self.assertFalse(panel._pick_timer.isActive())
+        self.assertIsNone(panel._pending_key)
+        tab.close()
+        tab.deleteLater()
+
     def test_walking_the_template_list_rebuilds_once_the_reader_stops(self) -> None:
         """Choosing a template rebuilds five steps: 65 ms against the real archives, and
         1,926 ms before the corpus measure moved to the snapshot worker. The list asked
