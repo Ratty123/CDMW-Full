@@ -29,7 +29,7 @@ from PySide6.QtWidgets import QAbstractButton, QSizePolicy, QWidget
 DEFAULT_STEP_LABELS = (
     "Template",
     "Identity",
-    "Model & Icon",
+    "Model & Placement",
     "Stats & Prices",
     "Perks & Effects",
     "Distribution",

@@ -877,8 +877,8 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
-    def test_model_workspace_keeps_preview_fixed_and_merges_appearance_into_model(self) -> None:
-        from PySide6.QtWidgets import QScrollArea
+    def test_model_workspace_shows_model_icon_and_placement_in_two_columns(self) -> None:
+        from PySide6.QtWidgets import QScrollArea, QTabWidget
 
         tab = self._tab()
         tab.resize(1280, 720)
@@ -889,54 +889,73 @@ class TabTests(unittest.TestCase):
         panel = tab.model_panel
 
         self.assertIs(tab.pages.currentWidget(), panel)
-        self.assertEqual([panel.inspector_tabs.tabText(index) for index in range(3)], ["Model", "Placement", "Icon"])
-        self.assertTrue(all(isinstance(panel.inspector_tabs.widget(index), QScrollArea) for index in range(3)))
-        self.assertIs(panel.operation_banner.parentWidget(), panel.workspace_splitter.widget(0))
+        self.assertIsNone(panel.findChild(QTabWidget, "new_item_model_inspector_tabs"))
+        self.assertIsInstance(panel.model_icon_scroll, QScrollArea)
+        self.assertIs(panel.model_icon_scroll.widget(), panel.model_icon_content)
+        self.assertIs(panel.workspace_splitter.widget(0), panel.model_icon_column)
+        self.assertIs(panel.workspace_splitter.widget(1), panel.placement_column)
+        self.assertIs(panel.operation_banner.parentWidget(), panel.placement_column)
+        self.assertIs(panel.preview_group.parentWidget(), panel.placement_column)
+        self.assertIs(panel.preview.parentWidget(), panel.preview_group)
         self.assertEqual(panel.title(), "")
         sizes = panel.workspace_splitter.sizes()
-        self.assertAlmostEqual(sizes[0] / sum(sizes), 0.35, delta=0.07)
-        self.assertGreaterEqual(panel.workspace_splitter.widget(0).width(), 340)
+        self.assertAlmostEqual(sizes[0] / sum(sizes), 0.50, delta=0.07)
+        self.assertGreaterEqual(panel.workspace_splitter.widget(0).width(), 620)
         self.assertGreaterEqual(panel.workspace_splitter.widget(1).width(), 520)
-        preview_parent = panel.preview.parentWidget()
-        for index in range(3):
-            panel.inspector_tabs.setCurrentIndex(index)
-            self.app.processEvents()
-            self.assertIs(panel.preview.parentWidget(), preview_parent)
-        self.assertEqual(panel.inspector_tabs.currentWidget().horizontalScrollBar().maximum(), 0)
+        self.assertEqual(panel.model_icon_scroll.horizontalScrollBar().maximum(), 0)
 
         for group in (panel.model_group, panel.placement_group, panel.icon_group):
-            self.assertEqual(group.title(), "", "the tab already supplies the visible section name")
-        model_page = panel.inspector_tabs.widget(0)
+            self.assertEqual(group.title(), "", "the two-column layout needs no repeated section name")
+        self.assertEqual(
+            [panel.model_group.accessibleName(), panel.icon_group.accessibleName(), panel.placement_group.accessibleName()],
+            ["Model", "Icon", "Placement"],
+        )
         for control in (
+            panel.keep_model,
+            panel.import_model,
             panel.plain_pbr,
             panel.own_sheath,
             panel.keep_physics,
             panel.glow_box,
             panel.flip_texture_v,
         ):
-            self.assertTrue(model_page.isAncestorOf(control), f"{control!r} belongs to the Model tab")
+            self.assertTrue(panel.model_icon_content.isAncestorOf(control), f"{control!r} belongs to the Model scroller")
+        for control in (
+            panel.keep_icon,
+            panel.generate_icon,
+            panel.icon_source,
+        ):
+            self.assertTrue(panel.model_icon_column.isAncestorOf(control), f"{control!r} belongs to the Model/Icon column")
+            self.assertFalse(panel.model_icon_content.isAncestorOf(control), f"{control!r} stays visible below the Model scroller")
+        for control in (panel.view_mode, panel.offset_spins[0], panel.apply_button, panel.preview):
+            self.assertTrue(panel.placement_column.isAncestorOf(control), f"{control!r} belongs to the Placement column")
+        panel.placement_group.setVisible(True)
 
         for width, height in ((1280, 720), (1600, 900)):
             tab.resize(width, height)
             self.app.processEvents()
-            for index, first_control, next_control in (
-                (0, panel.keep_model, panel.import_model),
-                (2, panel.keep_icon, panel.generate_icon),
-            ):
-                panel.inspector_tabs.setCurrentIndex(index)
-                self.app.processEvents()
-                page = panel.inspector_tabs.currentWidget()
-                first_y = first_control.mapTo(page.viewport(), first_control.rect().topLeft()).y()
-                next_y = next_control.mapTo(page.viewport(), next_control.rect().topLeft()).y()
-                self.assertLessEqual(first_y, 24, f"tab {index} starts at the top at {width}x{height}")
-                self.assertLessEqual(next_y - first_y, 36, f"tab {index} rows stay compact at {width}x{height}")
+            panel.model_icon_scroll.verticalScrollBar().setValue(0)
+            first_y = panel.keep_model.mapTo(panel.model_icon_scroll.viewport(), panel.keep_model.rect().topLeft()).y()
+            next_y = panel.import_model.mapTo(panel.model_icon_scroll.viewport(), panel.import_model.rect().topLeft()).y()
+            self.assertLessEqual(first_y, 24, f"the Model/Icon column starts at the top at {width}x{height}")
+            self.assertLessEqual(next_y - first_y, 36, f"the model choice stays compact at {width}x{height}")
+            self.assertTrue(panel.model_group.isVisibleTo(panel))
+            self.assertTrue(panel.icon_group.isVisibleTo(panel))
+            self.assertLessEqual(panel.icon_group.geometry().bottom(), panel.model_icon_column.rect().bottom())
+            self.assertLessEqual(panel.icon_source.geometry().bottom(), panel.icon_group.rect().bottom())
+            self.assertLessEqual(panel.apply_button.geometry().bottom(), panel.placement_group.rect().bottom())
+            self.assertIs(panel.preview.parentWidget(), panel.preview_group)
+            self.assertGreaterEqual(panel.preview.height(), 240)
+            self.assertLessEqual(panel.preview_group.geometry().bottom(), panel.placement_column.rect().bottom())
+            self.assertLessEqual(panel.preview.geometry().bottom(), panel.preview_group.rect().bottom())
 
             panel.import_model.setChecked(True)
-            panel.inspector_tabs.setCurrentIndex(0)
             self.app.processEvents()
-            model_page = panel.inspector_tabs.currentWidget()
-            blender_y = panel.blender_button.mapTo(model_page.viewport(), panel.blender_button.rect().topLeft()).y()
-            self.assertLessEqual(blender_y, 260, f"the complete Model form stays packed at {width}x{height}")
+            panel.model_icon_scroll.verticalScrollBar().setValue(0)
+            self.assertTrue(panel.icon_group.isVisibleTo(panel))
+            self.assertLessEqual(panel.icon_group.geometry().bottom(), panel.model_icon_column.rect().bottom())
+            blender_y = panel.blender_button.mapTo(panel.model_icon_scroll.viewport(), panel.blender_button.rect().topLeft()).y()
+            self.assertLessEqual(blender_y, 260, f"the complete model form stays packed at {width}x{height}")
 
         frames = []
         panel.operation_spinner.frame_advanced.connect(frames.append)
@@ -975,7 +994,6 @@ class TabTests(unittest.TestCase):
         entry = tab.controller.template_entries()[0]
         tab.receive_imported_model(entry, ModelFiles(pac_data=b"PAC imported"), scene=None)
         panel = tab.model_panel
-        panel.inspector_tabs.setCurrentIndex(0)
         self.app.processEvents()
         self.assertTrue(panel.own_sheath.isVisibleTo(panel))
         self.assertTrue(panel.keep_physics.isVisibleTo(panel))
@@ -1296,10 +1314,11 @@ class TabTests(unittest.TestCase):
         self.assertEqual(seen["path"], Path(r"E:/models/box.zip"))
         self.assertIs(tab.controller.model_import, source)
         self.assertEqual(tab.controller.draft.model_source, ModelSource.IMPORTED)
-        self.assertTrue(panel.inspector_tabs.isTabEnabled(1))
-        panel.inspector_tabs.setCurrentIndex(1)
         self.app.processEvents()
         self.assertTrue(panel.placement_group.isVisibleTo(panel))
+        self.assertTrue(panel.model_group.isVisibleTo(panel))
+        self.assertTrue(panel.icon_group.isVisibleTo(panel))
+        self.assertTrue(panel.preview.isVisibleTo(panel))
         self.assertTrue(panel.import_model.isChecked())
         # a glTF source needs the vertical texture flip, and the panel shows it
         self.assertTrue(source.flip_texture_v is False or source.flip_texture_v is True)
@@ -1887,7 +1906,7 @@ class TabTests(unittest.TestCase):
         self.assertEqual(
             planned.submeshes[0].texture,
             "frostmourne_basecolor.png",
-            "Apply must not replace Model & Icon's source materials with the rebuilt template material row",
+            "Apply must not replace Model & Placement's source materials with the rebuilt template material row",
         )
         self.assertEqual(planned.submeshes[0].preview_material_texture_inputs, ("frostmourne_basecolor.png",))
         self.assertEqual(planned.submeshes[0].preview_material_parameters, ("frostmourne_basecolor.png",))

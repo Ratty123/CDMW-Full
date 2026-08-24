@@ -59,14 +59,16 @@ the correlated renderer acknowledgement. Reset actions clear the corresponding d
 authority, and the workflow summary reports effective changes rather than UI mode.
 For an imported item, Effects always derives its placed preview from the live import
 source before and after **Apply placement**, so its PBR rows are the same authority that
-Model & Icon displays. The rebuilt PAC remains output authority but its borrowed template
+Model & Placement displays. The rebuilt PAC remains output authority but its borrowed template
 material wrappers never replace the import's source materials in the placement viewport.
 The current per-part Glow colour and strength are copied into those same rows when the
-Effects package is built, and returning to the step refreshes changes made in Model & Icon.
+Effects package is built, and returning to the step refreshes changes made in Model & Placement.
 
-The Model & Icon step is a fixed two-pane workspace: Model, Placement and Icon are
-independently scrolling inspector tabs, while the 65% preview pane remains
-full-height and never moves with them. It imports a model file itself: `model_import.py` reads it
+The Model & Placement step is a fixed two-column workspace. A top-packed Model scroller
+and always-visible Icon choices share the left column; Placement controls, pinned operation
+status and the resident preview stay together on the right. The repeated Model / Placement /
+Icon tab strip is gone, so all three surfaces stay mounted at once. It imports a model file itself:
+`model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
 `item_preview.py` publishes fitted geometry first, then upgrades a copied package with
 canonical materials without restarting the renderer, re-exporting geometry or resetting

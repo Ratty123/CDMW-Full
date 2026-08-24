@@ -324,7 +324,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.show()
         self.app.processEvents()
 
-        self.assertTrue(workspace.selection_timer.isActive(), "re-entering Effects refreshes the current Model & Icon appearance")
+        self.assertTrue(workspace.selection_timer.isActive(), "re-entering Effects refreshes the current Model & Placement appearance")
         self._settle(lambda: bool(workspace.placement.content_calls))
         self.assertIs(workspace.placement.content_calls[-1]["item_mesh"], updated)
 
