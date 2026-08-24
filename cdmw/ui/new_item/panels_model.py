@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -119,6 +120,7 @@ class ModelPanel(QGroupBox):
         self.setToolTip("Choose or import the model, place it, tune its appearance, and choose the inventory icon.")
         self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.workspace_splitter.setObjectName("new_item_model_workspace_splitter")
+        self.workspace_splitter.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         outer.addWidget(self.workspace_splitter, 1)
 
         self.model_icon_column = QWidget(self.workspace_splitter)
@@ -421,7 +423,7 @@ class ModelPanel(QGroupBox):
         operation_layout.addLayout(operation_row)
         operation_layout.addWidget(self.busy_bar)
         self.operation_banner.setVisible(False)
-        self.preview.setMinimumHeight(240)
+        self.preview.setMinimumHeight(300)
         self.preview.status_changed.connect(self._preview_status)
         self.preview.captured.connect(self._inline_capture_done)
         self.preview.placement_changed.connect(self._gizmo_moved)
@@ -477,12 +479,13 @@ class ModelPanel(QGroupBox):
         model_icon_column_layout.addWidget(self.icon_group)
         placement_column_layout.addWidget(self.placement_group)
         placement_column_layout.addWidget(self.operation_banner)
-        placement_column_layout.addWidget(self.preview_group, 1)
+        placement_column_layout.addStretch(1)
         self.workspace_splitter.addWidget(self.model_icon_column)
         self.workspace_splitter.addWidget(self.placement_column)
-        self.workspace_splitter.setStretchFactor(0, 1)
-        self.workspace_splitter.setStretchFactor(1, 1)
-        self.workspace_splitter.setSizes((620, 620))
+        self.workspace_splitter.addWidget(self.preview_group)
+        for index, factor in enumerate((5, 4, 7)):
+            self.workspace_splitter.setStretchFactor(index, factor)
+        self.workspace_splitter.setSizes((620, 520, 880))
 
         controller.model_changed.connect(self._show_model)
         controller.model_changed.connect(lambda _result: self.refresh_preview())
