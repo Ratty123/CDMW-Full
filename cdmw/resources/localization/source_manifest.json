@@ -20110,6 +20110,16 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
+          "line": 441,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
+          "line": 442,
+          "sink": "setAccessibleName"
+        },
+        {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
           "line": 735,
           "sink": "QPushButton"
@@ -20182,6 +20192,11 @@
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
           "line": 120,
+          "sink": "question"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_shell.py",
+          "line": 908,
           "sink": "question"
         }
       ]
@@ -26821,7 +26836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 599,
+          "line": 600,
           "sink": "setToolTip"
         }
       ]
@@ -26831,7 +26846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 597,
+          "line": 598,
           "sink": "setToolTip"
         }
       ]
@@ -27377,6 +27392,11 @@
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
           "line": 120,
+          "sink": "question"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_shell.py",
+          "line": 908,
           "sink": "question"
         }
       ]
@@ -28836,7 +28856,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 341,
+          "line": 342,
           "sink": "addTab"
         }
       ]
@@ -50321,7 +50341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 802,
+          "line": 803,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50711,7 +50731,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 869,
+          "line": 870,
           "sink": "RuntimeError"
         }
       ]

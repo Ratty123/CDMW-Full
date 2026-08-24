@@ -61,6 +61,9 @@ are hidden from the normal product surface.
 The five direct output buttons use explicit normal, hover, pressed, and disabled
 states. Validation-gated outputs and receipt-gated restore stay visibly
 unavailable until their prerequisites exist.
+The resident strip keeps **Close** at its far edge. It remains available while
+session work is active, confirms before discarding edits, and returns Mesh Editor
+to its empty state through the same nonblocking worker and renderer teardown path.
 `start_standalone_native_preview()` and its async counterpart are the live entry
 point into that renderer: they push session and scene state to a running .NET
 editor process, or start one when none is running. The Python D3D11 preview host

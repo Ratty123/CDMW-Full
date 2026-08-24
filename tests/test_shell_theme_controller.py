@@ -95,6 +95,7 @@ class ShellThemeControllerTests(unittest.TestCase):
             "MeshEditorBuildModButton",
             "MeshEditorInstallOverlayButton",
             "MeshEditorRestoreOverlayButton",
+            "MeshEditorCloseSessionButton",
         )
         theme = UI_THEME_SCHEMES["graphite"]
 

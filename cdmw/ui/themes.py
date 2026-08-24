@@ -223,20 +223,44 @@ def build_app_stylesheet(
     QLabel, QCheckBox, QToolButton {{
         background: transparent;
     }}
-    QToolButton#ArchiveActionMenuButton, QToolButton#MeshEditorRunValidationReportButton, QToolButton#MeshEditorExportMeshFileButton, QToolButton#MeshEditorBuildModButton, QToolButton#MeshEditorInstallOverlayButton, QToolButton#MeshEditorRestoreOverlayButton {{
+    QToolButton#ArchiveActionMenuButton,
+    QToolButton#MeshEditorRunValidationReportButton,
+    QToolButton#MeshEditorExportMeshFileButton,
+    QToolButton#MeshEditorBuildModButton,
+    QToolButton#MeshEditorInstallOverlayButton,
+    QToolButton#MeshEditorRestoreOverlayButton,
+    QToolButton#MeshEditorCloseSessionButton {{
         background: {theme["button"]};
         color: {theme["text"]};
         border: 1px solid {theme["button_border"]};
         border-radius: 4px;
         padding: {metrics["button_pad_y"]}px {metrics["button_pad_x"]}px;
     }}
-    QToolButton#ArchiveActionMenuButton:hover, QToolButton#MeshEditorRunValidationReportButton:hover, QToolButton#MeshEditorExportMeshFileButton:hover, QToolButton#MeshEditorBuildModButton:hover, QToolButton#MeshEditorInstallOverlayButton:hover, QToolButton#MeshEditorRestoreOverlayButton:hover {{
+    QToolButton#ArchiveActionMenuButton:hover,
+    QToolButton#MeshEditorRunValidationReportButton:hover,
+    QToolButton#MeshEditorExportMeshFileButton:hover,
+    QToolButton#MeshEditorBuildModButton:hover,
+    QToolButton#MeshEditorInstallOverlayButton:hover,
+    QToolButton#MeshEditorRestoreOverlayButton:hover,
+    QToolButton#MeshEditorCloseSessionButton:hover {{
         background: {theme["button_hover"]};
     }}
-    QToolButton#ArchiveActionMenuButton:pressed, QToolButton#MeshEditorRunValidationReportButton:pressed, QToolButton#MeshEditorExportMeshFileButton:pressed, QToolButton#MeshEditorBuildModButton:pressed, QToolButton#MeshEditorInstallOverlayButton:pressed, QToolButton#MeshEditorRestoreOverlayButton:pressed {{
+    QToolButton#ArchiveActionMenuButton:pressed,
+    QToolButton#MeshEditorRunValidationReportButton:pressed,
+    QToolButton#MeshEditorExportMeshFileButton:pressed,
+    QToolButton#MeshEditorBuildModButton:pressed,
+    QToolButton#MeshEditorInstallOverlayButton:pressed,
+    QToolButton#MeshEditorRestoreOverlayButton:pressed,
+    QToolButton#MeshEditorCloseSessionButton:pressed {{
         background: {theme["button_pressed"]};
     }}
-    QToolButton#ArchiveActionMenuButton:disabled, QToolButton#MeshEditorRunValidationReportButton:disabled, QToolButton#MeshEditorExportMeshFileButton:disabled, QToolButton#MeshEditorBuildModButton:disabled, QToolButton#MeshEditorInstallOverlayButton:disabled, QToolButton#MeshEditorRestoreOverlayButton:disabled {{
+    QToolButton#ArchiveActionMenuButton:disabled,
+    QToolButton#MeshEditorRunValidationReportButton:disabled,
+    QToolButton#MeshEditorExportMeshFileButton:disabled,
+    QToolButton#MeshEditorBuildModButton:disabled,
+    QToolButton#MeshEditorInstallOverlayButton:disabled,
+    QToolButton#MeshEditorRestoreOverlayButton:disabled,
+    QToolButton#MeshEditorCloseSessionButton:disabled {{
         color: {theme["button_disabled_text"]};
         background: {theme["button_disabled"]};
         border-color: {theme["border"]};
@@ -488,7 +512,14 @@ def build_app_stylesheet(
         padding: {metrics["list_pad_y"] + 1}px {metrics["list_pad_x"]}px;
         border-radius: 3px;
     }}
-    QListWidget::item:selected, QTreeWidget::item:selected, QToolButton#MeshEditorRunValidationReportButton:pressed, QToolButton#MeshEditorExportMeshFileButton:pressed, QToolButton#MeshEditorBuildModButton:pressed, QToolButton#MeshEditorInstallOverlayButton:pressed, QToolButton#MeshEditorRestoreOverlayButton:pressed {{
+    QListWidget::item:selected,
+    QTreeWidget::item:selected,
+    QToolButton#MeshEditorRunValidationReportButton:pressed,
+    QToolButton#MeshEditorExportMeshFileButton:pressed,
+    QToolButton#MeshEditorBuildModButton:pressed,
+    QToolButton#MeshEditorInstallOverlayButton:pressed,
+    QToolButton#MeshEditorRestoreOverlayButton:pressed,
+    QToolButton#MeshEditorCloseSessionButton:pressed {{
         background: {theme["accent_soft"]};
         color: {theme["text_strong"]};
     }}
@@ -496,7 +527,20 @@ def build_app_stylesheet(
         padding: {metrics["list_pad_y"]}px {metrics["list_pad_x"]}px;
     }}
     QLineEdit:focus, QPlainTextEdit:focus, QTextBrowser:focus, QComboBox:focus, QSpinBox:focus,
-    QListWidget:focus, QTreeWidget:focus, QToolButton#MeshEditorRunValidationReportButton:hover:enabled, QToolButton#MeshEditorExportMeshFileButton:hover:enabled, QToolButton#MeshEditorBuildModButton:hover:enabled, QToolButton#MeshEditorInstallOverlayButton:hover:enabled, QToolButton#MeshEditorRestoreOverlayButton:hover:enabled, QToolButton#MeshEditorRunValidationReportButton:pressed, QToolButton#MeshEditorExportMeshFileButton:pressed, QToolButton#MeshEditorBuildModButton:pressed, QToolButton#MeshEditorInstallOverlayButton:pressed, QToolButton#MeshEditorRestoreOverlayButton:pressed {{
+    QListWidget:focus,
+    QTreeWidget:focus,
+    QToolButton#MeshEditorRunValidationReportButton:hover:enabled,
+    QToolButton#MeshEditorExportMeshFileButton:hover:enabled,
+    QToolButton#MeshEditorBuildModButton:hover:enabled,
+    QToolButton#MeshEditorInstallOverlayButton:hover:enabled,
+    QToolButton#MeshEditorRestoreOverlayButton:hover:enabled,
+    QToolButton#MeshEditorCloseSessionButton:hover:enabled,
+    QToolButton#MeshEditorRunValidationReportButton:pressed,
+    QToolButton#MeshEditorExportMeshFileButton:pressed,
+    QToolButton#MeshEditorBuildModButton:pressed,
+    QToolButton#MeshEditorInstallOverlayButton:pressed,
+    QToolButton#MeshEditorRestoreOverlayButton:pressed,
+    QToolButton#MeshEditorCloseSessionButton:pressed {{
         border: 1px solid {theme["accent"]};
     }}
     QHeaderView::section {{
