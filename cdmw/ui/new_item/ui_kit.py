@@ -101,7 +101,11 @@ def step_style(palette) -> str:
         QLabel#effect_library_heading, QLabel#effect_inspector_heading {{ font-weight: 600; color: {text}; }}
         QLabel#effect_compatibility {{ color: {muted}; }}
         QLabel#effect_visual_caution {{ color: #d18a00; border-top: 1px solid {border}; }}
-        QListView#effect_library {{ border: 1px solid {border}; background: {panel}; outline: none; }}
+        QTableView#effect_library {{ border: 1px solid {border}; background: {panel}; alternate-background-color: {background}; outline: none; }}
+        QTableView#effect_library::item {{ border: none; padding: 0 4px; }}
+        QTableView#effect_library::item:hover {{ background: {border}; }}
+        QTableView#effect_library::item:selected {{ color: white; background: {active}; }}
+        QTableView#effect_library QHeaderView::section {{ min-height: 20px; padding: 0 4px; font-weight: normal; }}
         QLineEdit#effect_search {{ min-height: 30px; border: 1px solid {border}; padding: 0 8px; background: {background}; }}
         QToolButton[effectChip="true"] {{ min-height: 24px; padding: 0 5px; border: 1px solid {border}; border-radius: 4px; }}
         QToolButton[effectChip="true"]:checked {{ color: white; background: {active}; border-color: {active}; }}

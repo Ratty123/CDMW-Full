@@ -8,20 +8,19 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QAbstractListModel, QModelIndex, QRect, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QPainter
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QButtonGroup,
     QFrame,
     QGridLayout,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListView,
     QMessageBox,
     QSplitter,
-    QStyle,
-    QStyledItemDelegate,
+    QTableView,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -169,12 +168,21 @@ def _unique_effect_labels(stems: tuple[str, ...]) -> dict[str, str]:
     return labels
 
 
-class EffectLibraryModel(QAbstractListModel):
+def _effect_dimensions(facts: Optional[EffectFacts]) -> str:
+    if facts is None:
+        return "—"
+    values = (0.0 if abs(float(value)) < 1e-12 else float(value) for value in facts.size)
+    return "×".join(f"{value:.3g}" for value in values)
+
+
+class EffectLibraryModel(QAbstractTableModel):
+    COLUMN_HEADERS = ("", "Effect", "Type", "Size")
     StemRole = int(Qt.ItemDataRole.UserRole) + 1
     LabelRole = StemRole + 1
     CategoryRole = StemRole + 2
     BehaviorRole = StemRole + 3
     GlyphRole = StemRole + 4
+    DimensionsRole = StemRole + 5
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -190,6 +198,27 @@ class EffectLibraryModel(QAbstractListModel):
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802 - Qt override
         return 0 if parent.isValid() else len(self._rows)
 
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802 - Qt override
+        return 0 if parent.isValid() else len(self.COLUMN_HEADERS)
+
+    def headerData(  # noqa: N802 - Qt override
+        self,
+        section: int,
+        orientation: Qt.Orientation,
+        role: int = int(Qt.ItemDataRole.DisplayRole),
+    ):
+        if orientation != Qt.Orientation.Horizontal or not 0 <= int(section) < len(self.COLUMN_HEADERS):
+            return None
+        if role == int(Qt.ItemDataRole.DisplayRole):
+            return self.COLUMN_HEADERS[int(section)]
+        if role == int(Qt.ItemDataRole.TextAlignmentRole):
+            return (
+                Qt.AlignmentFlag.AlignCenter
+                if int(section) == 0
+                else Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            )
+        return None
+
     def row(self, index: int) -> Optional[EffectLibraryRow]:
         return self._rows[index] if 0 <= int(index) < len(self._rows) else None
 
@@ -197,21 +226,33 @@ class EffectLibraryModel(QAbstractListModel):
         wanted = str(stem or "")
         for row, item in enumerate(self._rows):
             if item.stem == wanted:
-                return self.index(row, 0)
+                return self.index(row, 1)
         return QModelIndex()
 
     def data(self, index: QModelIndex, role: int = int(Qt.ItemDataRole.DisplayRole)):  # noqa: D401
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
             return None
         item = self._rows[index.row()]
+        dimensions = _effect_dimensions(item.facts)
         if role == int(Qt.ItemDataRole.DisplayRole):
-            return item.label
+            return (
+                CATEGORY_GLYPHS.get(item.category, CATEGORY_GLYPHS["Other"]),
+                item.label,
+                item.behavior,
+                dimensions,
+            )[index.column()]
         if role == int(Qt.ItemDataRole.ToolTipRole):
             return item.stem or "Clear the visual effect and all placement/look tuning."
         if role == int(Qt.ItemDataRole.AccessibleTextRole):
             return f"{item.label}; {item.stem or 'no effect'}; {item.behavior}"
+        if role == int(Qt.ItemDataRole.TextAlignmentRole):
+            return (
+                Qt.AlignmentFlag.AlignCenter
+                if index.column() == 0
+                else Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            )
         if role == int(Qt.ItemDataRole.SizeHintRole):
-            return QSize(0, 36)
+            return QSize((24, 170, 64, 108)[index.column()], 24)
         if role == self.StemRole:
             return item.stem
         if role == self.LabelRole:
@@ -222,49 +263,9 @@ class EffectLibraryModel(QAbstractListModel):
             return item.behavior
         if role == self.GlyphRole:
             return CATEGORY_GLYPHS.get(item.category, CATEGORY_GLYPHS["Other"])
+        if role == self.DimensionsRole:
+            return dimensions
         return None
-
-
-class EffectLibraryDelegate(QStyledItemDelegate):
-    """Compact one-line virtualized row; technical authority stays in the tooltip."""
-
-    def sizeHint(self, option, index):  # noqa: N802 - Qt override
-        return QSize(max(260, option.rect.width()), 36)
-
-    def paint(self, painter: QPainter, option, index: QModelIndex) -> None:  # noqa: D401
-        painter.save()
-        selected = bool(option.state & QStyle.StateFlag.State_Selected)
-        palette = option.palette
-        background = palette.highlight().color() if selected else palette.base().color()
-        painter.fillRect(option.rect, background)
-
-        foreground = palette.highlightedText().color() if selected else palette.text().color()
-        rect = option.rect.adjusted(10, 2, -8, -2)
-        glyph = str(index.data(EffectLibraryModel.GlyphRole) or "◇")
-        painter.setPen(foreground)
-        glyph_font = painter.font()
-        glyph_font.setPointSize(max(glyph_font.pointSize() + 2, 11))
-        painter.setFont(glyph_font)
-        painter.drawText(QRect(rect.left(), rect.top(), 24, rect.height()), Qt.AlignmentFlag.AlignCenter, glyph)
-
-        behavior = str(index.data(EffectLibraryModel.BehaviorRole) or "")
-        behavior_glyph = "↻" if behavior == "Loop" else "•" if behavior == "One-shot" else "×"
-        behavior_rect = QRect(rect.right() - 22, rect.top(), 22, rect.height())
-        label_rect = QRect(rect.left() + 34, rect.top(), max(10, behavior_rect.left() - rect.left() - 40), rect.height())
-        label_font = option.font
-        label_font.setBold(True)
-        painter.setFont(label_font)
-        painter.setPen(foreground)
-        label = painter.fontMetrics().elidedText(
-            str(index.data(EffectLibraryModel.LabelRole) or ""),
-            Qt.TextElideMode.ElideRight,
-            label_rect.width(),
-        )
-        painter.drawText(label_rect, Qt.AlignmentFlag.AlignVCenter, label)
-        painter.setFont(option.font)
-        painter.setPen(foreground)
-        painter.drawText(behavior_rect, Qt.AlignmentFlag.AlignCenter, behavior_glyph)
-        painter.restore()
 
 
 class _CategoryChipPanel(QWidget):
@@ -390,15 +391,34 @@ class GuidedEffectsWorkspace(QWidget):
         self._reflow_category_chips(self.category_panel.width())
 
         self.library_model = EffectLibraryModel(self)
-        self.library_view = QListView()
+        self.library_view = QTableView()
         self.library_view.setObjectName("effect_library")
         self.library_view.setModel(self.library_model)
-        self.library_view.setItemDelegate(EffectLibraryDelegate(self.library_view))
-        self.library_view.setUniformItemSizes(True)
-        self.library_view.setSelectionMode(QListView.SelectionMode.SingleSelection)
+        self.library_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.library_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.library_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.library_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.library_view.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
-        self.library_view.setSpacing(0)
+        self.library_view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.library_view.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.library_view.setWordWrap(False)
+        self.library_view.setMouseTracking(True)
+        self.library_view.setAlternatingRowColors(True)
+        self.library_view.setShowGrid(False)
+        self.library_view.setCornerButtonEnabled(False)
+        vertical_header = self.library_view.verticalHeader()
+        vertical_header.setVisible(False)
+        vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        vertical_header.setMinimumSectionSize(20)
+        vertical_header.setDefaultSectionSize(24)
+        horizontal_header = self.library_view.horizontalHeader()
+        horizontal_header.setFixedHeight(22)
+        horizontal_header.setMinimumSectionSize(20)
+        horizontal_header.setStretchLastSection(False)
+        horizontal_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        horizontal_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        horizontal_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        horizontal_header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        horizontal_header.resizeSection(0, 24)
         self.library_view.selectionModel().currentChanged.connect(self._library_selection_changed)
         library_layout.addWidget(self.library_view, 1)
         self.selection_detail = QLabel("")
@@ -571,7 +591,7 @@ class GuidedEffectsWorkspace(QWidget):
         index = self.library_model.index_for_stem(stem)
         if index.isValid():
             self.library_view.setCurrentIndex(index)
-            self.library_view.scrollTo(index, QListView.ScrollHint.EnsureVisible)
+            self.library_view.scrollTo(index, QAbstractItemView.ScrollHint.EnsureVisible)
 
     def _library_selection_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
         if self._syncing or not current.isValid():

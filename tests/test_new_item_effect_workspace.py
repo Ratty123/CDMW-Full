@@ -15,7 +15,14 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from PySide6.QtCore import QDeadlineTimer, QEventLoop, QObject, QThread, Qt, Signal  # noqa: E402
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget  # noqa: E402
+from PySide6.QtWidgets import (  # noqa: E402
+    QAbstractItemView,
+    QApplication,
+    QLabel,
+    QPushButton,
+    QTableView,
+    QWidget,
+)
 
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh  # noqa: E402
 from cdmw.services.effect_catalogue import EffectCatalogue  # noqa: E402
@@ -220,9 +227,41 @@ class EffectWorkspaceTests(unittest.TestCase):
         rows = tuple(EffectLibraryRow.from_stem(f"fx_{index:04d}", None) for index in range(6000))
         model.replace_rows((EffectLibraryRow("", "No effect", "Other", "Off"), *rows))
         self.assertEqual(model.rowCount(), 6001)
-        self.assertEqual(model.data(model.index(0), EffectLibraryModel.StemRole), "")
-        self.assertEqual(model.data(model.index(6000), EffectLibraryModel.StemRole), "fx_5999")
-        self.assertEqual(model.data(model.index(6000), int(Qt.ItemDataRole.SizeHintRole)).height(), 36)
+        self.assertEqual(model.columnCount(), 4)
+        self.assertEqual(
+            [model.headerData(column, Qt.Orientation.Horizontal) for column in range(model.columnCount())],
+            ["", "Effect", "Type", "Size"],
+        )
+        self.assertEqual(model.data(model.index(0, 0), EffectLibraryModel.StemRole), "")
+        self.assertEqual(model.data(model.index(6000, 0), EffectLibraryModel.StemRole), "fx_5999")
+        self.assertEqual(model.data(model.index(6000, 0), int(Qt.ItemDataRole.SizeHintRole)).height(), 24)
+
+    def test_effect_table_uses_compact_regular_rows_and_metadata_columns(self) -> None:
+        controller = _Controller()
+        facts = SimpleNamespace(name="", loops=False, walk_note="", size=(2.5, 2.53, 2.64))
+        controller.effect_facts = lambda stem: facts if stem == "fx_fire_hit" else None
+        workspace, _controller, _confirmations = self._workspace(controller)
+        view = workspace.library_view
+        model = workspace.library_model
+        index = model.index_for_stem("fx_fire_hit")
+
+        self.assertIsInstance(view, QTableView)
+        self.assertEqual(
+            [model.data(model.index(index.row(), column)) for column in range(model.columnCount())],
+            ["♨", "Fire Hit", "One-shot", "2.5×2.53×2.64"],
+        )
+        self.assertEqual(view.rowHeight(index.row()), 24)
+        self.assertFalse(view.font().bold())
+        self.assertFalse(view.horizontalHeader().font().bold())
+        self.assertFalse(view.verticalHeader().isVisible())
+        self.assertTrue(view.horizontalHeader().isVisible())
+        self.assertTrue(view.hasMouseTracking())
+        self.assertTrue(view.alternatingRowColors())
+        self.assertFalse(view.showGrid())
+        self.assertEqual(view.selectionBehavior(), QAbstractItemView.SelectionBehavior.SelectRows)
+
+        view.setCurrentIndex(model.index(index.row(), 3))
+        self.assertEqual(workspace.staged_state.stem, "fx_fire_hit", "every metadata cell selects its effect row")
 
     def test_selection_is_staged_and_apply_publishes_once(self) -> None:
         workspace, controller, confirmations = self._workspace()
