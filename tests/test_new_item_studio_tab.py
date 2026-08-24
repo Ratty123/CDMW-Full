@@ -263,10 +263,11 @@ class TabTests(unittest.TestCase):
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
         template_intro = tab.template_panel.layout().itemAt(0).widget().text()
-        import_tips = next(
-            details
-            for details in tab.model_panel.findChildren(DetailsToggle)
-            if details.toggle.text() == "Import tips"
+        self.assertFalse(
+            any(
+                details.toggle.text() == "Import tips"
+                for details in tab.model_panel.findChildren(DetailsToggle)
+            )
         )
         visible_copy = "\n".join(
             (
@@ -278,7 +279,6 @@ class TabTests(unittest.TestCase):
                 tab.stats_panel.table.toolTip(),
                 tab.stats_panel.new_stat.toolTip(),
                 tab.output_panel.checklist.body.text(),
-                import_tips.body.text(),
             )
         ).lower()
         self.assertIn("equipment_clone", visible_copy)
@@ -287,8 +287,6 @@ class TabTests(unittest.TestCase):
         self.assertNotIn("armour", visible_copy)
         self.assertIn("optional sheathed variant", visible_copy)
         self.assertIn("when the template has one", visible_copy)
-        self.assertIn("template's attachment and character-part behavior", visible_copy)
-        self.assertLess(len(import_tips.body.text()), 300)
         tab.close()
         tab.deleteLater()
 
@@ -869,7 +867,7 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
-    def test_model_workspace_keeps_preview_fixed_and_controls_in_four_tabs(self) -> None:
+    def test_model_workspace_keeps_preview_fixed_and_merges_appearance_into_model(self) -> None:
         from PySide6.QtWidgets import QScrollArea
 
         tab = self._tab()
@@ -881,8 +879,8 @@ class TabTests(unittest.TestCase):
         panel = tab.model_panel
 
         self.assertIs(tab.pages.currentWidget(), panel)
-        self.assertEqual([panel.inspector_tabs.tabText(index) for index in range(4)], ["Model", "Placement", "Appearance", "Icon"])
-        self.assertTrue(all(isinstance(panel.inspector_tabs.widget(index), QScrollArea) for index in range(4)))
+        self.assertEqual([panel.inspector_tabs.tabText(index) for index in range(3)], ["Model", "Placement", "Icon"])
+        self.assertTrue(all(isinstance(panel.inspector_tabs.widget(index), QScrollArea) for index in range(3)))
         self.assertIs(panel.operation_banner.parentWidget(), panel.workspace_splitter.widget(0))
         self.assertEqual(panel.title(), "")
         sizes = panel.workspace_splitter.sizes()
@@ -890,21 +888,30 @@ class TabTests(unittest.TestCase):
         self.assertGreaterEqual(panel.workspace_splitter.widget(0).width(), 340)
         self.assertGreaterEqual(panel.workspace_splitter.widget(1).width(), 520)
         preview_parent = panel.preview.parentWidget()
-        for index in range(4):
+        for index in range(3):
             panel.inspector_tabs.setCurrentIndex(index)
             self.app.processEvents()
             self.assertIs(panel.preview.parentWidget(), preview_parent)
         self.assertEqual(panel.inspector_tabs.currentWidget().horizontalScrollBar().maximum(), 0)
 
-        for group in (panel.model_group, panel.placement_group, panel.appearance_group, panel.icon_group):
+        for group in (panel.model_group, panel.placement_group, panel.icon_group):
             self.assertEqual(group.title(), "", "the tab already supplies the visible section name")
+        model_page = panel.inspector_tabs.widget(0)
+        for control in (
+            panel.plain_pbr,
+            panel.own_sheath,
+            panel.keep_physics,
+            panel.glow_box,
+            panel.flip_texture_v,
+        ):
+            self.assertTrue(model_page.isAncestorOf(control), f"{control!r} belongs to the Model tab")
 
         for width, height in ((1280, 720), (1600, 900)):
             tab.resize(width, height)
             self.app.processEvents()
             for index, first_control, next_control in (
                 (0, panel.keep_model, panel.import_model),
-                (3, panel.keep_icon, panel.generate_icon),
+                (2, panel.keep_icon, panel.generate_icon),
             ):
                 panel.inspector_tabs.setCurrentIndex(index)
                 self.app.processEvents()
@@ -958,7 +965,7 @@ class TabTests(unittest.TestCase):
         entry = tab.controller.template_entries()[0]
         tab.receive_imported_model(entry, ModelFiles(pac_data=b"PAC imported"), scene=None)
         panel = tab.model_panel
-        panel.inspector_tabs.setCurrentIndex(2)
+        panel.inspector_tabs.setCurrentIndex(0)
         self.app.processEvents()
         self.assertTrue(panel.own_sheath.isVisibleTo(panel))
         self.assertTrue(panel.keep_physics.isVisibleTo(panel))
@@ -1907,7 +1914,7 @@ class TabTests(unittest.TestCase):
         # and it lands where the reader is looking, not only in the window's status line
         self.assertIn("MagicSword.fbx", panel.model_status.text())
 
-        # the row that answers it is on the step, not folded behind Import tips: a refusal
+        # the row that answers it is directly on Model: a refusal
         # naming a button nobody can see is the same as no answer. It shows with the rest
         # of the import controls, which is the moment the question can be asked at all.
         panel.import_model.setChecked(True)
