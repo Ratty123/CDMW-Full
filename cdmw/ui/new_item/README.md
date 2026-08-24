@@ -16,6 +16,9 @@ worker, never UI callbacks. Shutdown requests cancellation and leaves live
 threads discoverable to the shell close sweep; no New Item widget waits on its
 own worker. The `panels_*.py` modules edit the draft and ask the
 controller for facts; `tab.py` composes them, and forwards install to the shell.
+The Template panel commits an explicit mouse click immediately, while keyboard
+row navigation keeps its 180 ms latest-row settle so holding an arrow key does
+not rebuild every dependent step along the way.
 The Identity panel keeps item keys and model stems automatic until **Manual** is
 chosen; manual mode starts from the same collision-free allocation the planner
 would make. Identifier editors enforce the domain's character and 64-character
