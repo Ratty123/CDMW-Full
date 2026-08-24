@@ -305,6 +305,29 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertGreaterEqual(calls, 2)
         self.assertFalse(workspace.placeholder.isVisibleTo(workspace))
 
+    def test_show_refreshes_an_existing_preview_after_model_step_changes(self) -> None:
+        controller = _Controller()
+        current = {"mesh": _mesh()}
+        controller.item_mesh_as_planned = lambda: (current["mesh"], "placed")
+        workspace, _controller, _confirmations = self._workspace(controller)
+        self._settle(lambda: workspace.placement is not None)
+        workspace.selection_timer.stop()
+        workspace.look_timer.stop()
+        workspace._initial_preview_timer.stop()
+        workspace.placement.content_calls.clear()
+
+        updated = _mesh()
+        updated.path = "item-with-new-appearance.pac"
+        current["mesh"] = updated
+        workspace.hide()
+        self.app.processEvents()
+        workspace.show()
+        self.app.processEvents()
+
+        self.assertTrue(workspace.selection_timer.isActive(), "re-entering Effects refreshes the current Model & Icon appearance")
+        self._settle(lambda: bool(workspace.placement.content_calls))
+        self.assertIs(workspace.placement.content_calls[-1]["item_mesh"], updated)
+
     def test_reselecting_the_committed_effect_restores_its_values(self) -> None:
         controller = _Controller()
         committed = EffectWorkspaceState(

@@ -469,7 +469,7 @@ class GuidedEffectsWorkspace(QWidget):
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt override
         super().showEvent(event)
-        if self.placement is None and self._controller.draft.template_key is not None:
+        if self._controller.draft.template_key is not None:
             self._preview_retry_remaining = 1
             self.selection_timer.start()
 

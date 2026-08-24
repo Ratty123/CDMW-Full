@@ -61,6 +61,8 @@ For an imported item, Effects always derives its placed preview from the live im
 source before and after **Apply placement**, so its PBR rows are the same authority that
 Model & Icon displays. The rebuilt PAC remains output authority but its borrowed template
 material wrappers never replace the import's source materials in the placement viewport.
+The current per-part Glow colour and strength are copied into those same rows when the
+Effects package is built, and returning to the step refreshes changes made in Model & Icon.
 
 The Model & Icon step is a fixed two-pane workspace: Model, Placement and Icon are
 independently scrolling inspector tabs, while the 65% preview pane remains
