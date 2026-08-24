@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -136,6 +137,8 @@ class OutputPanel(QGroupBox):
         layout.addWidget(self.busy_bar)
         self.busy_state = NoteLabel("", None)
         layout.addWidget(self.busy_state)
+        content = QGridLayout()
+        content.setContentsMargins(0, 0, 0, 0)
 
         build = QGroupBox("1. Build the plan")
         build_layout = QHBoxLayout(build)
@@ -145,7 +148,7 @@ class OutputPanel(QGroupBox):
         build_layout.addWidget(self.build_button)
         self.plan_state = NoteLabel("Not built yet. Every change on the other steps clears the plan, so build it last.", WARN)
         build_layout.addWidget(self.plan_state, 1)
-        layout.addWidget(build)
+        content.addWidget(build, 0, 0)
 
         review = QGroupBox("2. What the plan will change")
         review_layout = QVBoxLayout(review)
@@ -156,7 +159,7 @@ class OutputPanel(QGroupBox):
         self._summary_default_maximum = self.summary.maximumHeight()
         self._summary_compact = None
         review_layout.addWidget(self.summary)
-        layout.addWidget(review, 1)
+        content.addWidget(review, 1, 0)
 
         write = QGroupBox("3. Write it")
         write_layout = QVBoxLayout(write)
@@ -241,7 +244,11 @@ class OutputPanel(QGroupBox):
             title="After installing, check in game",
         )
         write_layout.addWidget(self.checklist)
-        layout.addWidget(write)
+        content.addWidget(write, 0, 1, 2, 1)
+        content.setColumnStretch(0, 1)
+        content.setColumnStretch(1, 1)
+        content.setRowStretch(1, 1)
+        layout.addLayout(content, 1)
 
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)

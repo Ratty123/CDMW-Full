@@ -1587,6 +1587,31 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_output_places_plan_and_review_left_of_write_actions(self) -> None:
+        from PySide6.QtWidgets import QGridLayout, QGroupBox
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        panel = tab.output_panel
+        sections = {group.title(): group for group in panel.findChildren(QGroupBox)}
+        content = next(
+            panel.layout().itemAt(index).layout()
+            for index in range(panel.layout().count())
+            if panel.layout().itemAt(index).layout() is not None
+        )
+
+        self.assertIsInstance(content, QGridLayout)
+        positions = {
+            content.itemAt(index).widget(): content.getItemPosition(index)
+            for index in range(content.count())
+        }
+        self.assertEqual(positions[sections["1. Build the plan"]], (0, 0, 1, 1))
+        self.assertEqual(positions[sections["2. What the plan will change"]], (1, 0, 1, 1))
+        self.assertEqual(positions[sections["3. Write it"]], (0, 1, 2, 1))
+        self.assertEqual((content.columnStretch(0), content.columnStretch(1)), (1, 1))
+        tab.close()
+        tab.deleteLater()
+
     def test_an_install_reads_the_archives_again(self) -> None:
         """The installed item is only in the snapshot after a re-read, so the studio does
         one itself; without it the next item would be allocated the same key."""
