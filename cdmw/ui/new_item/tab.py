@@ -190,7 +190,7 @@ class NewItemStudioTab(QWidget):
             self.stats_panel.rebuild()
             self.perks_panel._refresh_all()
             self.placement_panel._refresh_stores()
-            self.placement_panel._refresh_groups()
+            # The install changes group membership, not the catalogue; keep its Qt item wrappers.
             self.identity_panel.refresh_issues()
             self._refresh_summary()
             self.controller.start_effect_index()

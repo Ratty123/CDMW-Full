@@ -1656,6 +1656,35 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_post_install_snapshot_completion_preserves_group_picker_items(self) -> None:
+        """A reread updates archive data without rebuilding the unchanged group picker."""
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        group_list = tab.placement_panel.group_list
+        original_snapshot = tab.controller.snapshot
+        original_groups = tuple((group.key, group.name) for group in original_snapshot.item_groups)
+        original_items = tuple(group_list.item(row) for row in range(group_list.count()))
+        self.assertTrue(original_items)
+
+        tab._reread_after_install()
+
+        self.assertIsNot(tab.controller.snapshot, original_snapshot, "the real snapshot task completed")
+        self.assertEqual(
+            tuple((group.key, group.name) for group in tab.controller.snapshot.item_groups),
+            original_groups,
+            "installing an item changes group membership, not the group catalogue",
+        )
+        self.assertEqual(group_list.count(), len(original_items))
+        for row, item in enumerate(original_items):
+            self.assertIs(
+                group_list.item(row),
+                item,
+                "the post-install reread must not release and recreate unchanged Qt item wrappers",
+            )
+        tab.close()
+        tab.deleteLater()
+
     def test_every_plan_input_clears_a_ready_plan(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
