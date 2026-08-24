@@ -1628,6 +1628,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             "MeshEditorBuildModButton",
             "MeshEditorInstallOverlayButton",
             "MeshEditorRestoreOverlayButton",
+            "MeshEditorCloseSessionButton",
         ):
             output = workspace.findChild(QToolButton, output_name)
             assert output is not None

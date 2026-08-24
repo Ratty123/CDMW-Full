@@ -136,6 +136,7 @@ class MeshEditorWorkspace(
     build_mod_requested = Signal()
     install_overlay_requested = Signal()
     restore_overlay_requested = Signal()
+    close_session_requested = Signal()
     save_rebuild_report_requested = Signal()
 
     def __init__(

@@ -164,6 +164,7 @@ class MeshEditorTabShellMixin(
         page.build_mod_requested.connect(self._start_mesh_mod_build_requested)
         page.install_overlay_requested.connect(self._start_mesh_overlay_prepare_requested)
         page.restore_overlay_requested.connect(self._restore_last_mesh_overlay_requested)
+        page.close_session_requested.connect(self._close_standalone_session_requested)
         page.save_rebuild_report_requested.connect(self._save_standalone_rebuild_report_requested)
         self.standalone_preview_stack = page.preview_stack
         self.standalone_native_host_frame = page.native_host_frame
@@ -894,3 +895,23 @@ class MeshEditorTabShellMixin(
         for submesh_index, texture_path in tuple(self.standalone_texture_preview_overrides.items()):
             if 0 <= int(submesh_index) < len(submeshes):
                 submeshes[int(submesh_index)].texture = str(texture_path)
+
+    def _close_standalone_session_requested(self) -> None:
+        if not self.has_active_standalone_session():
+            return
+        controller = self.standalone_controller
+        try:
+            revision = int(controller.session_view().revision) if controller is not None else 0
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            revision = 0
+        if revision > 0:
+            confirmed = _tab.QMessageBox.question(
+                self,
+                "Discard Unsaved Mesh Editor Changes?",
+                "Close this Mesh Editor session without saving its latest geometry and layer changes?",
+                _tab.QMessageBox.Yes | _tab.QMessageBox.No,
+                _tab.QMessageBox.No,
+            )
+            if confirmed != _tab.QMessageBox.Yes:
+                return
+        self.show_empty_state()

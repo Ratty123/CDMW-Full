@@ -2,24 +2,32 @@ from __future__ import annotations
 
 import os
 import time
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QDialog
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QToolButton
 
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_shell import _MeshEditorSaveAwareDialog
 from cdmw.ui.mesh_editor.tab import MeshEditorTab
 
 
 class _SlowController:
-    def __init__(self) -> None:
+    def __init__(self, *, revision: int = 0) -> None:
         self.close_called = False
+        self.active_session_id = "slow-session"
+        self._revision = int(revision)
+
+    def session_view(self) -> SimpleNamespace:
+        return SimpleNamespace(revision=self._revision)
 
     def close_active_session(self) -> None:
         self.close_called = True
         time.sleep(0.25)
+        self.active_session_id = ""
 
 
 class _RetiringDispatcher:
@@ -50,6 +58,45 @@ def test_close_standalone_session_detaches_slow_controller_without_waiting() -> 
 
     assert elapsed < 0.05
     assert tab.standalone_controller is None
+    assert dispatcher.cancelled
+    assert dispatcher.retired == [controller]
+    assert not controller.close_called
+    tab.standalone_live_stroke_dispatcher = None
+    tab.deleteLater()
+    app.processEvents()
+
+
+def test_close_session_button_confirms_edits_and_returns_to_empty_state_without_waiting() -> None:
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings("CDMWTests", "MeshEditorCloseSessionButton")
+    settings.clear()
+    tab = MeshEditorTab(settings=settings)
+    controller = _SlowController(revision=1)
+    dispatcher = _RetiringDispatcher()
+    tab.standalone_controller = controller  # type: ignore[assignment]
+    tab.standalone_live_stroke_dispatcher = dispatcher  # type: ignore[assignment]
+    tab.workspace_stack.setCurrentWidget(tab.standalone_workspace)
+    tab._sync_state()
+    close_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorCloseSessionButton")
+
+    assert close_button is not None
+    assert close_button.isEnabled()
+    with patch(
+        "cdmw.ui.mesh_editor.tab.QMessageBox.question",
+        side_effect=(QMessageBox.No, QMessageBox.Yes),
+    ) as question:
+        close_button.click()
+        assert tab.standalone_controller is controller
+        assert tab.workspace_stack.currentWidget() is tab.standalone_workspace
+
+        started = time.perf_counter()
+        close_button.click()
+        elapsed = time.perf_counter() - started
+
+    assert question.call_count == 2
+    assert elapsed < 0.05
+    assert tab.standalone_controller is None
+    assert tab.workspace_stack.currentWidget() is tab.empty_state
     assert dispatcher.cancelled
     assert dispatcher.retired == [controller]
     assert not controller.close_called
