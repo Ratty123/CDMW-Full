@@ -70,7 +70,7 @@ class StatsPanel(QGroupBox):
         ladder_layout = QVBoxLayout(ladder)
         self.table = QTableWidget(0, 0)
         self.table.setToolTip(
-            "Stat columns are stored ItemInfo values: DDD is the raw attack field every weapon carries. "
+            "Stat columns are stored ItemInfo values: DDD is the raw attack field when this equipment has one. "
             "Price columns are currencies charged at that enhancement level."
         )
         self.table.cellChanged.connect(self._cell_changed)
@@ -170,7 +170,7 @@ class StatsPanel(QGroupBox):
         self.new_stat = QComboBox()
         self.new_stat.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.new_stat.setMinimumContentsLength(24)
-        self.new_stat.setToolTip("Every status entry the game has. The ones some shipped weapon or armour carries come first; the rest are marked unproven, since no shipped equipment row carries them.")
+        self.new_stat.setToolTip("Every status entry the game has. Entries carried by shipped equipment come first; the rest are marked unproven, since no shipped equipment row carries them.")
         add_form.addRow("Add a raw stat:", self.new_stat)
         self.new_stat_value = QSpinBox()
         self.new_stat_value.setRange(-2_000_000_000, 2_000_000_000)

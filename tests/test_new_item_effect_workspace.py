@@ -195,8 +195,25 @@ class EffectWorkspaceTests(unittest.TestCase):
             "Boss Hit 01 · Metal Spark K5",
         )
         self.assertEqual(effect_display_label("cdfx_flash_01a"), "Flash 01a")
+        self.assertEqual(
+            effect_display_label("fx_cc_firesweapon_a__fire1"),
+            "CC Firesweapon A · Fire 1",
+        )
         labels = _unique_effect_labels(("fx_action_hit__spark_a", "pafx_action_hit__spark_a"))
         self.assertEqual(len(set(labels.values())), 2)
+
+    def test_no_effect_uses_the_pinned_row_without_repeating_empty_status(self) -> None:
+        workspace, _controller, _confirmations = self._workspace()
+        workspace.choose_effect("")
+        self.app.processEvents()
+        self.assertFalse(workspace.compatibility_label.isVisibleTo(workspace))
+        self.assertFalse(workspace.selection_detail.isVisibleTo(workspace))
+
+        workspace.choose_effect("fx_fire_hit")
+        self.app.processEvents()
+        self.assertTrue(workspace.compatibility_label.isVisibleTo(workspace))
+        self.assertTrue(workspace.selection_detail.isVisibleTo(workspace))
+        self.assertEqual(workspace.selection_detail.text(), "fx_fire_hit")
 
     def test_the_virtual_model_keeps_all_six_thousand_rows(self) -> None:
         model = EffectLibraryModel()

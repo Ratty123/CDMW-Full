@@ -225,18 +225,17 @@ class ModelPanel(QGroupBox):
         self.plain_pbr = QCheckBox("Plain PBR materials (recommended)")
         self.plain_pbr.setChecked(True)
         self.plain_pbr.setToolTip(
-            "SkinnedMeshStandard: base colour, normal, roughness/metal, the shaders the shipped texture-driven weapons use, "
+            "SkinnedMeshStandard: base colour, normal and roughness/metal, the material route used by shipped texture-driven equipment, "
             "with a real _sp map from the source. Off: the Builder's layered material goes in as it came, and the game draws "
             "its own detail layers over the imported textures."
         )
         self.plain_pbr.toggled.connect(self._material_route_changed)
         model_layout.addWidget(self.plain_pbr)
-        self.own_sheath = QCheckBox("Use the imported model when sheathed")
+        self.own_sheath = QCheckBox("Use imported model when sheathed or holstered")
         self.own_sheath.setChecked(True)
         self.own_sheath.setToolTip(
-            "A weapon's sheathed look is a part of its own (the _IN stems), usually borrowed from another item, so an imported "
-            "sword would show that scabbard beside it. On: the borrowed record is cloned under the item's stem and pointed at the "
-            "imported mesh. Off: the template's stays borrowed."
+            "Shown only when the template exposes an alternate _IN visual part. On: that borrowed record is cloned under the "
+            "new item's stem and pointed at the imported mesh. Off: the template's alternate visual remains borrowed."
         )
         self.own_sheath.toggled.connect(self._sheath_changed)
         model_layout.addWidget(self.own_sheath)
@@ -277,7 +276,7 @@ class ModelPanel(QGroupBox):
         self.glow_intensity.setSingleStep(0.5)
         self.glow_intensity.setDecimals(1)
         self.glow_intensity.setValue(4.0)
-        self.glow_intensity.setToolTip("How strongly they glow. The shipped magic weapons run 1 to 10; the game's own limit is 20.")
+        self.glow_intensity.setToolTip("How strongly the selected parts glow. Shipped emissive equipment commonly uses 1 to 10; the format limit is 20.")
         self.glow_intensity.valueChanged.connect(lambda _value: self._glow_changed())
         glow_row.addWidget(self.glow_intensity)
         glow_row.addStretch(1)
@@ -295,12 +294,9 @@ class ModelPanel(QGroupBox):
         self.flip_texture_v.toggled.connect(self._flip_texture_v_changed)
         model_layout.addWidget(self.flip_texture_v)
         import_tips = DetailsToggle(
-            "Import tips. Head cover and placement come from the template: an imported model inherits the template's part prefabs "
-            "(which character parts it occupies, and any mesh drawn beside it, such as a helm's helmet hair), so pick a helm template "
-            "for the look it gives in game (the Northern Fighter's Plate Helm keeps the face drawn; the Unyielding Warrior's and Canta "
-            "helms hide the head). Where the model sits: on the shipped swords the guard's handle-side edge is 0.10 m in front of the "
-            "hand (offset z, + toward the pommel), and a helm wants manual placement (a source in centimetres: scale 0.01, no "
-            "rotation, origin at the head, about y 1.745, z -0.03). Fit to the template gives a first guess; the gizmo does the rest.",
+            "Imported models inherit the template's attachment and character-part behavior. Start with a template that already "
+            "equips in the intended slot, then use Fit to template and the gizmo for placement. Sources authored in centimetres "
+            "commonly need scale 0.01.",
             title="Import tips",
         )
         model_layout.addWidget(import_tips)
@@ -535,9 +531,13 @@ class ModelPanel(QGroupBox):
         keep = self.keep_model.isChecked()
         for widget in self._import_widgets:
             widget.setVisible(not keep)
+        has_sheathed_variant = self._controller.template_has_sheathed_variant()
+        self.own_sheath.setVisible(not keep and has_sheathed_variant)
+        self.own_sheath.setEnabled(not keep and has_sheathed_variant)
         self.clear_button.setVisible(self._controller.model_import is not None)
         has_source = self._controller.model_import is not None
         has_import = has_source or self._controller.model_result is not None
+        self.keep_physics.setVisible(has_import and self._controller.template_has_model_physics())
         self.inspector_tabs.setTabEnabled(1, has_source)
         self.inspector_tabs.setTabEnabled(2, has_import)
         if keep:
@@ -914,12 +914,15 @@ class ModelPanel(QGroupBox):
 
     def _preview_status(self, text: str) -> None:
         message = str(text or "")
-        self.preview_status.setText(message)
         self._preview_busy = message in {
             "Building the preview...",
             "Loading the viewport...",
             "Loading model textures…",
         }
+        # Loading belongs to the pinned operation bar. Repeating the same sentence in
+        # the preview footer makes one operation look like two. Errors, readiness notes
+        # and capture results still use the footer.
+        self.preview_status.setText("" if self._preview_busy else message)
         if not self._controller.busy:
             self.operation_banner.setVisible(self._preview_busy)
             self.operation_spinner.set_running(self._preview_busy)

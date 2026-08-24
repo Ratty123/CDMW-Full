@@ -53,7 +53,7 @@ class PerksPanel(QGroupBox):
         layout = QVBoxLayout(self)
         self._legacy_intro = intro_label(
             "Gameplay perks change the item's built-in abilities or stats. Visual effects change appearance only; "
-            "they do not add fire, ice, lightning or other attack damage."
+            "they do not add damage, stats or elemental status effects."
         )
         layout.addWidget(self._legacy_intro)
 
@@ -105,7 +105,7 @@ class PerksPanel(QGroupBox):
         self.perk_results.setObjectName("new_item_perk_results")
         self.perk_results.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.perk_results.setTextElideMode(Qt.TextElideMode.ElideRight)
-        self.perk_results.setFixedHeight(210)
+        self.perk_results.setMinimumHeight(210)
         self.perk_results.currentItemChanged.connect(self._available_perk_changed)
         self.perk_results.itemDoubleClicked.connect(
             lambda _item, _column=0: self._add_selected()
@@ -121,6 +121,7 @@ class PerksPanel(QGroupBox):
         selected_column.addWidget(QLabel("Selected perks"))
         selected_column.addWidget(self.perk_count)
         self.chosen = QListWidget()
+        self.chosen.setMinimumHeight(210)
         self.chosen.currentItemChanged.connect(self._chosen_perk_changed)
         selected_column.addWidget(self.chosen, 1)
         buttons = QHBoxLayout()
@@ -152,7 +153,7 @@ class PerksPanel(QGroupBox):
     def _build_effect_section(self) -> QGroupBox:
         effect = QGroupBox("Visual effect (optional)")
         effect_layout = QVBoxLayout(effect)
-        self.visual_only = intro_label("Visual only — this does not change attack damage or apply an elemental status.")
+        self.visual_only = intro_label("Visual only — this does not change stats, damage or elemental status effects.")
         effect_layout.addWidget(self.visual_only)
         self.effect_support = NoteLabel("")
         effect_layout.addWidget(self.effect_support)
@@ -315,17 +316,18 @@ class PerksPanel(QGroupBox):
         self.tabs = QTabWidget()
         self.tabs.setObjectName("new_item_perks_effects_tabs")
         self.perks_page = QWidget()
-        perks_page_layout = QVBoxLayout(self.perks_page)
-        perks_page_layout.setContentsMargins(8, 6, 8, 6)
-        perks_page_layout.setSpacing(6)
-        perks_page_layout.addWidget(perks)
-        perks_page_layout.addStretch(1)
+        self.perks_page_layout = QVBoxLayout(self.perks_page)
+        self.perks_page_layout.setContentsMargins(8, 6, 8, 6)
+        self.perks_page_layout.setSpacing(6)
+        self.perks_page_layout.addWidget(perks)
+        self.perks_page_layout.addStretch(1)
         self.effects_workspace = GuidedEffectsWorkspace(self._controller)
         self.effects_page = self.effects_workspace
         self.tabs.addTab(self.perks_page, "Perks")
         self.tabs.addTab(self.effects_page, "Effects")
         self.tabs.setCurrentWidget(self.effects_page)
         self.own_perks.toggled.connect(self._show_perks_when_customizing)
+        self._show_perks_when_customizing(self.own_perks.isChecked())
         while layout.count():
             layout.takeAt(0)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -336,6 +338,8 @@ class PerksPanel(QGroupBox):
     # ------------------------------------------------------------------ perks
 
     def _show_perks_when_customizing(self, checked: bool) -> None:
+        self.perks_page_layout.setStretch(0, 1 if checked else 0)
+        self.perks_page_layout.setStretch(1, 0 if checked else 1)
         if checked:
             self.tabs.setCurrentWidget(self.perks_page)
 
@@ -374,11 +378,6 @@ class PerksPanel(QGroupBox):
             item = QListWidgetItem(self._controller.perk_label(key))
             item.setData(Qt.UserRole, int(key))
             self.chosen.addItem(item)
-        # the box is as tall as what it holds (two rows at the least, the eight-perk cap at
-        # the most), so two chosen perks do not sit in half a panel of empty list
-        rows = max(2, min(8, self.chosen.count()))
-        height = rows * max(18, self.chosen.sizeHintForRow(0) if self.chosen.count() else 18) + 2 * self.chosen.frameWidth() + 4
-        self.chosen.setFixedHeight(height)
         if current_key is not None:
             for index in range(self.chosen.count()):
                 if self.chosen.item(index).data(Qt.UserRole) == current_key:
@@ -774,7 +773,7 @@ class PerksPanel(QGroupBox):
     def _refresh_effect_selection(self) -> None:
         stem = str(self._controller.draft.effect_stem or "")
         if not self.use_effect.isChecked():
-            self.effect_selection.set_note("No visual effect. Gameplay damage is unchanged.", None)
+            self.effect_selection.set_note("No visual effect. Item behavior is unchanged.", None)
             return
         if not stem:
             self.effect_selection.set_note("Choose an effect. Nothing is added until one is selected and applied.", WARN)
@@ -787,7 +786,7 @@ class PerksPanel(QGroupBox):
             or any(value != 1.0 for value in (draft.effect_intensity, draft.effect_size, draft.effect_rate, draft.effect_lifetime))
         )
         suffix = " Advanced tuning differs from its starting values." if customized else " Using its starting values."
-        self.effect_selection.set_note(f"Selected visual: {stem}. Visual only; attack damage is unchanged.{suffix}", WARN if customized else None)
+        self.effect_selection.set_note(f"Selected visual: {stem}. Visual only; item behavior is unchanged.{suffix}", WARN if customized else None)
 
     def _refresh_effect_support(self) -> None:
         snapshot = self._controller.snapshot

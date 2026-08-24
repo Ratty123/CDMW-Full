@@ -36,15 +36,17 @@ calculated state in per-step tooltips and accessibility text. Its footer keeps B
 `Step N of 7` and Continue stable. Step 5 is a non-scrolling full-height page with
 Perks and Effects tabs. The navigator is a compact 46 px row; the outer pages do not
 repeat numbered titles underneath it. Perks & Effects keeps gameplay perks separate
-from visual-only effects. Perks are chosen through fixed-height searchable Available
-and Selected lists rather than a popup catalogue. Four perks is
+from visual-only effects. Perks are chosen through searchable Available and Selected
+lists that grow with the workspace rather than a popup catalogue. Four perks is
 the evidence-backed default cap and five to eight requires an explicit experimental
 opt-in. Effect support is structural rather than equipment-name based: the service
 dry-runs the real component graft against every prefab the item will own, accepts only
 an all-target success, and never edits a shared borrowed prefab. The Effects tab uses
-36 px virtualized rows with neutral stem-derived names and compact behavior glyphs; the
-exact stem stays searchable and appears in selection details and tooltips instead of
-being repeated under every row. Selection, placement and look are staged; Apply publishes one draft
+36 px virtualized rows with neutral stem-derived names, separated numeric suffixes and
+compact behavior glyphs; the exact stem stays searchable and appears in selection
+details and tooltips instead of being repeated under every row. `No effect` is the
+single empty-state row, so blank
+compatibility and exact-stem labels do not repeat it. Selection, placement and look are staged; Apply publishes one draft
 change, while Continue stays disabled and direct navigation offers Apply, Discard or
 Stay. The reusable `EffectPlacementWorkspace` keeps one renderer resident, rebuilds
 effect/look packages without resetting the camera, and retains old package files until
@@ -64,7 +66,10 @@ canonical materials without restarting the renderer, re-exporting geometry or re
 the camera. Generated material synthesis is deduplicated across identical submesh inputs.
 Apply runs through the controller's cancellable progress lane; its spinner, current phase,
 percentage when available and Cancel action remain live while conflicting placement edits
-are disabled. The viewport shows the model over the template with the
+are disabled. Preview-loading text stays in that pinned operation bar while errors and
+ready/capture messages remain below the viewport. Template-specific Appearance controls
+for alternate sheathed/holstered visuals and inherited cloth/physics are hidden when the
+selected family cannot use them. The viewport shows the model over the template with the
 gizmo (`PlacementScene`), a glow ticked on the step lights its parts in that
 viewport live (`glow_preview_parameter_groups` in the materials service builds
 the renderer's parameter groups from the same three values the plan will write,
@@ -75,6 +80,10 @@ placement into the static replacement's transform for the headless Builder impor
 rotation convention (the helper's yaw/pitch/roll) and the pipeline's x-then-y-
 then-z are the same matrix re-expressed, proven in
 `tests/test_new_item_item_preview.py` and the studio tab tests.
+
+Distribution and Output keep their long lists and plan summary in local scrollable
+controls. Their compact heights avoid an outer page scroll at 1280×720 in the graphite
+theme, while both controls expand again at 1600×900.
 
 An imported source can be opened in the resident Mesh Editor from this step without
 starting a second authoring process. It opens with Faces as the target while retaining

@@ -24,11 +24,11 @@ class TemplatePanel(QGroupBox):
         self._controller = controller
         self._syncing = False
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("Every new item is a copy of a shipped one: the template sets what it is (slot, type, sockets, animations, sheath); everything after changes the copy. Equipment only."))
+        layout.addWidget(intro_label("Every new item is a copy of a shipped one: the template sets its slot, type, sockets, animations and any optional sheathed variant; everything after changes the copy. Equipment only."))
         row = QHBoxLayout()
         row.addWidget(QLabel("Find:"))
         self.filter_edit = QLineEdit()
-        self.filter_edit.setPlaceholderText("Internal name or item key, e.g. Ziane_OneHandSword or 1001295")
+        self.filter_edit.setPlaceholderText("Internal name or item key")
         self.filter_edit.textChanged.connect(self._refresh_matches)
         row.addWidget(self.filter_edit, 1)
         layout.addLayout(row)

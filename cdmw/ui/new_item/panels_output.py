@@ -26,10 +26,15 @@ from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
 from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, DetailsToggle, NoteLabel
 
+# Keep the review editor compact in the small shell viewport. It has its own scroll
+# bar, so the plan remains available without making the whole Output step scroll.
+_COMPACT_PAGE_HEIGHT = 650
+_COMPACT_SUMMARY_HEIGHT = 120
+
 CHECKLIST = (
     "In game: the item shows in the shop you chose (or in the inventory when given by other means).",
     "Its name and description read right in your language.",
-    "It equips, draws and sheathes; the imported model, if any, renders.",
+    "It equips and displays correctly in every supported state, including sheathed or holstered when the template has one; the imported model, if any, renders.",
     "An imported model's textures read as the source's (albedo, shine and glow); the plain PBR shaders are the first thing to switch off if they do not.",
     "The icon shows (a generated icon at a new path is the first thing to check).",
     "Its stats match the grid; an added level is the least-proven part.",
@@ -147,7 +152,9 @@ class OutputPanel(QGroupBox):
         self.summary = QPlainTextEdit()
         self.summary.setReadOnly(True)
         self.summary.setPlaceholderText("The plan's summary, warnings and touched files appear here.")
-        self.summary.setMinimumHeight(160)
+        self.summary.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
+        self._summary_default_maximum = self.summary.maximumHeight()
+        self._summary_compact = None
         review_layout.addWidget(self.summary)
         layout.addWidget(review, 1)
 
@@ -251,6 +258,16 @@ class OutputPanel(QGroupBox):
         controller.busy_changed.connect(self._busy_changed)
         controller.template_changed.connect(lambda _key: self._show_plan(None))
         self._busy_changed(False)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        compact = self.height() <= _COMPACT_PAGE_HEIGHT
+        if compact == self._summary_compact:
+            return
+        self._summary_compact = compact
+        self.summary.setMaximumHeight(
+            _COMPACT_SUMMARY_HEIGHT if compact else self._summary_default_maximum
+        )
 
     # ------------------------------------------------------------------ actions
 

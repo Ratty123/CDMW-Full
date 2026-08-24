@@ -257,6 +257,131 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_new_item_copy_is_equipment_neutral_and_sheathed_wording_is_conditional(self) -> None:
+        from cdmw.ui.new_item.ui_kit import DetailsToggle
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        template_intro = tab.template_panel.layout().itemAt(0).widget().text()
+        import_tips = next(
+            details
+            for details in tab.model_panel.findChildren(DetailsToggle)
+            if details.toggle.text() == "Import tips"
+        )
+        visible_copy = "\n".join(
+            (
+                template_intro,
+                tab.template_panel.filter_edit.placeholderText(),
+                tab.identity_panel.internal_name.placeholderText(),
+                tab.identity_panel.internal_name.toolTip(),
+                tab.identity_panel.stem.placeholderText(),
+                tab.stats_panel.table.toolTip(),
+                tab.stats_panel.new_stat.toolTip(),
+                tab.output_panel.checklist.body.text(),
+                import_tips.body.text(),
+            )
+        ).lower()
+        self.assertIn("equipment_clone", visible_copy)
+        self.assertNotIn("sword", visible_copy)
+        self.assertNotIn("weapon", visible_copy)
+        self.assertNotIn("armour", visible_copy)
+        self.assertIn("optional sheathed variant", visible_copy)
+        self.assertIn("when the template has one", visible_copy)
+        self.assertIn("template's attachment and character-part behavior", visible_copy)
+        self.assertLess(len(import_tips.body.text()), 300)
+        tab.close()
+        tab.deleteLater()
+
+    def test_distribution_and_output_fit_at_common_window_heights(self) -> None:
+        from PySide6.QtGui import QPalette
+        from PySide6.QtWidgets import QTabWidget
+        from cdmw.ui.themes import build_app_palette, build_app_stylesheet
+
+        old_palette = QPalette(self.app.palette())
+        old_stylesheet = self.app.styleSheet()
+        self.app.setPalette(build_app_palette("graphite"))
+        self.app.setStyleSheet(build_app_stylesheet("graphite"))
+        tab = self._tab()
+        host = QTabWidget()
+        host.addTab(tab, "New Item Studio")
+        try:
+            host.show()
+            tab.prefill_template(TEMPLATE)
+            for width, height in ((1280, 720), (1600, 900)):
+                host.resize(width, height)
+                tab.show_step(5)
+                placement = tab.placement_panel
+                placement.explicit.setChecked(True)
+                placement.swap.setChecked(True)
+                self.app.processEvents()
+                page = tab.pages.currentWidget()
+                self.assertEqual(
+                    page.verticalScrollBar().maximum(),
+                    0,
+                    f"Distribution has an outer scroll at {width}x{height}",
+                )
+                self.assertEqual(placement.group_list.minimumHeight(), 96)
+                self.assertTrue(placement.group_list.isVisibleTo(placement))
+                self.assertTrue(placement.store.isVisibleTo(placement))
+                if width == 1280:
+                    self.assertLessEqual(placement.group_list.height(), 140)
+                else:
+                    self.assertGreater(placement.group_list.height(), 140)
+
+                tab.show_step(6)
+                self.app.processEvents()
+                page = tab.pages.currentWidget()
+                output = tab.output_panel
+                self.assertEqual(
+                    page.verticalScrollBar().maximum(),
+                    0,
+                    f"Output has an outer scroll at {width}x{height}",
+                )
+                self.assertEqual(output.summary.minimumHeight(), 120)
+                if width == 1280:
+                    self.assertLessEqual(output.summary.height(), 120)
+                else:
+                    self.assertGreater(output.summary.height(), 120, "the larger viewport still gives the review room")
+        finally:
+            tab.request_shutdown()
+            tab.shutdown()
+            host.close()
+            host.deleteLater()
+            self.app.setStyleSheet(old_stylesheet)
+            self.app.setPalette(old_palette)
+            self.app.processEvents()
+
+    def test_custom_perks_use_the_available_workspace_instead_of_short_fixed_lists(self) -> None:
+        from PySide6.QtWidgets import QTabWidget
+
+        tab = self._tab()
+        host = QTabWidget()
+        host.addTab(tab, "New Item Studio")
+        host.resize(1280, 720)
+        host.show()
+        tab.prefill_template(TEMPLATE)
+        tab.show_step(4)
+        perks = tab.perks_panel
+        perks.own_perks.setChecked(True)
+        self.app.processEvents()
+
+        compact_available = perks.perk_results.height()
+        compact_selected = perks.chosen.height()
+        self.assertGreaterEqual(compact_available, 300)
+        self.assertGreaterEqual(compact_selected, 300)
+        self.assertTrue(perks.add_button.isVisibleTo(perks))
+        self.assertTrue(perks.remove_button.isVisibleTo(perks))
+
+        host.resize(1600, 900)
+        self.app.processEvents()
+        self.assertGreater(perks.perk_results.height(), compact_available)
+        self.assertGreater(perks.chosen.height(), compact_selected)
+        tab.request_shutdown()
+        tab.shutdown()
+        host.close()
+        host.deleteLater()
+        self.app.processEvents()
+
     def test_the_preview_source_is_the_import_else_the_template_decoded_with_textures(self) -> None:
         """Step 3's viewport shows the imported model's own preview decode (textures and
         all) when there is one, else the template's mesh decoded from the archives with
@@ -807,6 +932,47 @@ class TabTests(unittest.TestCase):
             panel.cancel_operation_button.click()
         cancel.assert_called_once_with("model_apply")
         panel._busy_changed(False)
+
+        panel._preview_status("Loading model textures…")
+        self.app.processEvents()
+        self.assertTrue(panel.operation_banner.isVisibleTo(panel))
+        self.assertEqual(panel.operation_label.text(), "Loading model textures…")
+        self.assertEqual(panel.preview_status.text(), "", "the pinned busy state is not repeated below the viewport")
+        panel._preview_status("Preview ready.")
+        self.assertFalse(panel.operation_banner.isVisibleTo(panel))
+        self.assertEqual(panel.preview_status.text(), "Preview ready.")
+        tab.close()
+        tab.deleteLater()
+        self.app.processEvents()
+
+    def test_import_appearance_hides_template_specific_controls_when_they_cannot_apply(self) -> None:
+        from types import SimpleNamespace
+
+        from cdmw.services.new_item_planning import ModelFiles
+
+        tab = self._tab(window=SimpleNamespace())
+        tab.resize(1280, 720)
+        tab.show()
+        tab.prefill_template(TEMPLATE)
+        tab.show_step(2)
+        entry = tab.controller.template_entries()[0]
+        tab.receive_imported_model(entry, ModelFiles(pac_data=b"PAC imported"), scene=None)
+        panel = tab.model_panel
+        panel.inspector_tabs.setCurrentIndex(2)
+        self.app.processEvents()
+        self.assertTrue(panel.own_sheath.isVisibleTo(panel))
+        self.assertTrue(panel.keep_physics.isVisibleTo(panel))
+
+        neutral_family = SimpleNamespace(borrowed_parts=(), files_for=lambda _role: ())
+        with patch.object(type(tab.controller.snapshot), "family", return_value=neutral_family):
+            panel._refresh_import_widgets()
+            self.app.processEvents()
+            self.assertFalse(panel.own_sheath.isVisibleTo(panel))
+            self.assertFalse(panel.own_sheath.isEnabled())
+            self.assertFalse(panel.keep_physics.isVisibleTo(panel))
+
+        tab.request_shutdown()
+        tab.shutdown()
         tab.close()
         tab.deleteLater()
         self.app.processEvents()
