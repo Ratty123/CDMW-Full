@@ -5971,12 +5971,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 347,
+          "line": 348,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 380,
+          "line": 381,
           "sink": "setText"
         },
         {
@@ -18461,7 +18461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 675,
+          "line": 695,
           "sink": "setText"
         }
       ]
@@ -18471,12 +18471,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 415,
+          "line": 435,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 727,
+          "line": 747,
           "sink": "setText"
         }
       ]
@@ -19701,7 +19701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 210,
+          "line": 245,
           "sink": "python-return:data"
         }
       ]
@@ -21216,7 +21216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 682,
+          "line": 702,
           "sink": "setText"
         }
       ]
@@ -29581,7 +29581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 333,
+          "line": 334,
           "sink": "QLabel"
         }
       ]
@@ -29636,7 +29636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 700,
+          "line": 720,
           "sink": "setText"
         }
       ]
@@ -30771,12 +30771,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 407,
+          "line": 427,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 590,
+          "line": 610,
           "sink": "setToolTip"
         }
       ]
@@ -42261,7 +42261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 691,
+          "line": 711,
           "sink": "setText"
         }
       ]
@@ -67501,7 +67501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 506,
+          "line": 526,
           "sink": "warning"
         }
       ]
@@ -69436,7 +69436,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 730,
+          "line": 750,
           "sink": "setText"
         }
       ]
@@ -81976,7 +81976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 338,
+          "line": 339,
           "sink": "setPlaceholderText"
         }
       ]
@@ -87316,7 +87316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 348,
+          "line": 349,
           "sink": "setToolTip"
         }
       ]
@@ -87326,7 +87326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 351,
+          "line": 352,
           "sink": "setToolTip"
         }
       ]
@@ -87366,7 +87366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 354,
+          "line": 355,
           "sink": "setToolTip"
         }
       ]
@@ -103066,7 +103066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 427,
+          "line": 447,
           "sink": "QLabel"
         }
       ]
@@ -200301,7 +200301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 506,
+          "line": 526,
           "sink": "warning"
         }
       ]
@@ -204766,7 +204766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/ui_kit.py",
-          "line": 207,
+          "line": 211,
           "sink": "tinted"
         },
         {
@@ -205506,7 +205506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 212,
+          "line": 247,
           "sink": "python-return:data"
         }
       ]
@@ -205906,7 +205906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/ui_kit.py",
-          "line": 124,
+          "line": 128,
           "sink": "python-return:elided"
         }
       ]

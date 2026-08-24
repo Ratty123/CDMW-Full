@@ -47,9 +47,9 @@ the evidence-backed default cap and five to eight requires an explicit experimen
 opt-in. Effect support is structural rather than equipment-name based: the service
 dry-runs the real component graft against every prefab the item will own, accepts only
 an all-target success, and never edits a shared borrowed prefab. The Effects tab uses
-36 px virtualized rows with neutral stem-derived names, separated numeric suffixes and
-compact behavior glyphs; the exact stem stays searchable and appears in selection
-details and tooltips instead of being repeated under every row. `No effect` is the
+24 px virtualized table rows with neutral stem-derived names, separated numeric suffixes,
+and compact Type and approximate Size columns; the exact stem stays searchable and
+appears in selection details and tooltips instead of being repeated under every row. `No effect` is the
 single empty-state row, so blank
 compatibility and exact-stem labels do not repeat it. Selection, placement and look are staged; Apply publishes one draft
 change, while Continue stays disabled and direct navigation offers Apply, Discard or
