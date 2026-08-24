@@ -204,6 +204,35 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         row = self.snapshot.rows.get(int(self.draft.template_key))
         return row.string_key if row is not None else ""
 
+    def template_has_sheathed_variant(self) -> bool:
+        """Whether the chosen template exposes an alternate ``_IN`` visual part.
+
+        The Appearance control that clones an imported model into that part is useful
+        only for templates that actually have one. Armour, accessories and equipment
+        without a sheathed/holstered state should not be shown a no-op weapon control.
+        """
+
+        if self.snapshot is None or self.draft.template_key is None:
+            return False
+        try:
+            family = self.snapshot.family(self.draft.template_key)
+        except Exception:  # noqa: BLE001 - an unresolved family has no usable variant
+            return False
+        from cdmw.services.new_item_effect_targets import is_sheathed_family_part
+
+        return any(is_sheathed_family_part(part) for part in family.borrowed_parts)
+
+    def template_has_model_physics(self) -> bool:
+        """Whether the chosen model family has cloth/collision data to preserve."""
+
+        if self.snapshot is None or self.draft.template_key is None:
+            return False
+        try:
+            family = self.snapshot.family(self.draft.template_key)
+        except Exception:  # noqa: BLE001 - an unresolved family exposes no option
+            return False
+        return any(item.exists for item in family.files_for("hkx"))
+
     def suggest_internal_name(self) -> str:
         """`<Template>_New`, or `_New2`, `_New3`... until no shipped item has the name."""
 

@@ -94,7 +94,10 @@ def effect_display_label(stem: str, authoring_name: str = "") -> str:
             match = re.fullmatch(r"([A-Za-z]+)(\d+[A-Za-z]*)", token)
             if match:
                 head, tail = match.groups()
-                rendered.append((head.upper() if len(head) <= 2 else head.capitalize()) + tail)
+                if len(head) <= 2 or head.casefold() in acronyms or (head.isupper() and len(head) <= 4):
+                    rendered.append((head.upper() if len(head) <= 4 else head.capitalize()) + tail)
+                else:
+                    rendered.extend((head.capitalize(), tail.casefold()))
             elif re.fullmatch(r"\d+[A-Za-z]+", token):
                 rendered.append(token.casefold())
             elif token.casefold() in acronyms or (token.isupper() and len(token) <= 4):
@@ -357,9 +360,10 @@ class GuidedEffectsWorkspace(QWidget):
             search_row.addWidget(button)
         self.behavior_all.setChecked(True)
         library_layout.addLayout(search_row)
-        self.compatibility_label = QLabel("Choose a template to check compatibility.")
+        self.compatibility_label = QLabel("")
         self.compatibility_label.setObjectName("effect_compatibility")
         self.compatibility_label.setWordWrap(True)
+        self.compatibility_label.setVisible(False)
         library_layout.addWidget(self.compatibility_label)
 
         self.category_panel = _CategoryChipPanel()
@@ -397,10 +401,11 @@ class GuidedEffectsWorkspace(QWidget):
         self.library_view.setSpacing(0)
         self.library_view.selectionModel().currentChanged.connect(self._library_selection_changed)
         library_layout.addWidget(self.library_view, 1)
-        self.selection_detail = QLabel("No shipped effect")
+        self.selection_detail = QLabel("")
         self.selection_detail.setObjectName("effect_selection_detail")
         self.selection_detail.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.selection_detail.setToolTip("Exact shipped effect stem")
+        self.selection_detail.setVisible(False)
         library_layout.addWidget(self.selection_detail)
 
         self.placement_holder = QWidget()
@@ -581,8 +586,9 @@ class GuidedEffectsWorkspace(QWidget):
 
     def _refresh_selection_detail(self, stem: str) -> None:
         exact = str(stem or "").strip()
-        self.selection_detail.setText(exact or "No shipped effect")
-        self.selection_detail.setToolTip(exact or "Clear the visual effect and all placement/look tuning.")
+        self.selection_detail.setText(exact)
+        self.selection_detail.setToolTip("Exact shipped effect stem" if exact else "")
+        self.selection_detail.setVisible(bool(exact))
 
     def _sync_placement_from_state(self) -> None:
         placement = self.placement
@@ -660,8 +666,10 @@ class GuidedEffectsWorkspace(QWidget):
 
     def _refresh_compatibility(self) -> None:
         if not self._staged.stem:
-            self.compatibility_label.setText("No effect selected")
+            self.compatibility_label.setText("")
+            self.compatibility_label.setVisible(False)
             return
+        self.compatibility_label.setVisible(True)
         compatibility = self._controller.effect_target_compatibility(self._staged.stem)
         if compatibility is None:
             self.compatibility_label.setText("Choose a template to check compatibility.")
@@ -676,6 +684,7 @@ class GuidedEffectsWorkspace(QWidget):
             self.compatibility_label.setText("\n".join(compatibility.errors))
 
     def _catalogue_progress(self, done: int, total: int, stem: str) -> None:
+        self.compatibility_label.setVisible(True)
         if int(total) <= 0:
             self.compatibility_label.setText(str(stem))
             return
@@ -687,6 +696,7 @@ class GuidedEffectsWorkspace(QWidget):
         self._sync_placement_from_state()
 
     def _catalogue_failed(self, message: str) -> None:
+        self.compatibility_label.setVisible(True)
         self.compatibility_label.setText(f"Effect metadata could not be indexed: {message}")
 
     def _effect_committed_elsewhere(self, _state: object) -> None:

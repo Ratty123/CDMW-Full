@@ -22,6 +22,12 @@ from cdmw.domain.new_item.spec import ItemGroupsChoice, PlacementKind
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel, intro_label, tone_color
 
+# A normal shell tab leaves about 600 px for a guided page at 1280x720. Keep the
+# optional group picker inside that page; its own list remains scrollable when there
+# are more groups than the compact viewport can show.
+_COMPACT_PAGE_HEIGHT = 650
+_COMPACT_GROUP_LIST_HEIGHT = 140
+
 
 class PlacementPanel(QGroupBox):
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
@@ -81,8 +87,10 @@ class PlacementPanel(QGroupBox):
         self.group_filter.textChanged.connect(self._refresh_groups)
         groups_layout.addWidget(self.group_filter)
         self.group_list = QListWidget()
-        self.group_list.setMinimumHeight(120)
+        self.group_list.setMinimumHeight(96)
         self.group_list.setMaximumHeight(260)
+        self._group_list_default_maximum = self.group_list.maximumHeight()
+        self._group_list_compact = None
         self.group_list.itemChanged.connect(self._group_toggled)
         groups_layout.addWidget(self.group_list)
         layout.addWidget(groups)
@@ -91,6 +99,16 @@ class PlacementPanel(QGroupBox):
         self._placement_changed(True)
         controller.snapshot_ready.connect(self._refresh_stores)
         controller.template_changed.connect(self._template_changed)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        compact = self.height() <= _COMPACT_PAGE_HEIGHT
+        if compact == self._group_list_compact:
+            return
+        self._group_list_compact = compact
+        self.group_list.setMaximumHeight(
+            _COMPACT_GROUP_LIST_HEIGHT if compact else self._group_list_default_maximum
+        )
 
     # ------------------------------------------------------------------ shop
 
