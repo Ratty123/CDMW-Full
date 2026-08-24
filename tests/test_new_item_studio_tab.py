@@ -741,6 +741,16 @@ class TabTests(unittest.TestCase):
         self.app.processEvents()
         item = perks.perk_results.item(0)
         self.assertIsNotNone(item)
+        self.assertNotIn("experimental", item.text().casefold(), "the III suffix already identifies the perk rank")
+        self.assertIn("experimental", item.toolTip().casefold(), "the evidence warning stays in the perk details")
+        standalone_row = tab.controller.snapshot.rows[1002791]
+        standalone_label = tab.controller._perk_label(
+            1002791,
+            standalone_row,
+            tab.controller.snapshot.english.index(),
+            {},
+        )
+        self.assertTrue(standalone_label.endswith(" — experimental"), "an unproven standalone perk keeps the marker")
         before = tuple(tab.controller.draft.socket_items or ())
         QTest.mouseClick(
             perks.perk_results.viewport(),
