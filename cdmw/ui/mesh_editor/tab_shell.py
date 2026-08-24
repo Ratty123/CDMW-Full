@@ -899,12 +899,7 @@ class MeshEditorTabShellMixin(
     def _close_standalone_session_requested(self) -> None:
         if not self.has_active_standalone_session():
             return
-        controller = self.standalone_controller
-        try:
-            revision = int(controller.session_view().revision) if controller is not None else 0
-        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
-            revision = 0
-        if revision > 0:
+        if int(getattr(self, "current_undo_count", 0) or 0) > 0:
             confirmed = _tab.QMessageBox.question(
                 self,
                 "Discard Unsaved Mesh Editor Changes?",

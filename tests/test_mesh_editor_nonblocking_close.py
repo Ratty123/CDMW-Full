@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import time
-from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -16,13 +15,9 @@ from cdmw.ui.mesh_editor.tab import MeshEditorTab
 
 
 class _SlowController:
-    def __init__(self, *, revision: int = 0) -> None:
+    def __init__(self) -> None:
         self.close_called = False
         self.active_session_id = "slow-session"
-        self._revision = int(revision)
-
-    def session_view(self) -> SimpleNamespace:
-        return SimpleNamespace(revision=self._revision)
 
     def close_active_session(self) -> None:
         self.close_called = True
@@ -71,10 +66,11 @@ def test_close_session_button_confirms_edits_and_returns_to_empty_state_without_
     settings = QSettings("CDMWTests", "MeshEditorCloseSessionButton")
     settings.clear()
     tab = MeshEditorTab(settings=settings)
-    controller = _SlowController(revision=1)
+    controller = _SlowController()
     dispatcher = _RetiringDispatcher()
     tab.standalone_controller = controller  # type: ignore[assignment]
     tab.standalone_live_stroke_dispatcher = dispatcher  # type: ignore[assignment]
+    tab.current_undo_count = 1
     tab.workspace_stack.setCurrentWidget(tab.standalone_workspace)
     tab._sync_state()
     close_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorCloseSessionButton")
