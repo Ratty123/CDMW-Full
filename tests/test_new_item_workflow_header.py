@@ -47,6 +47,7 @@ class WorkflowHeaderTests(unittest.TestCase):
             [self.header.item(index).text() for index in range(self.header.count())],
             list(DEFAULT_STEP_LABELS),
         )
+        self.assertEqual(DEFAULT_STEP_LABELS[2], "Model & Placement")
         self.assertIsNone(self.header.item(-1))
         self.assertIsNone(self.header.item(self.header.count()))
 
@@ -131,10 +132,10 @@ class WorkflowHeaderTests(unittest.TestCase):
         self.assertTrue(button.property("workflowBlocked"))
 
     def test_step_metadata_is_available_to_the_parent(self) -> None:
-        self.assertTrue(self.header.setStepToolTip(2, "Choose the model and icon."))
-        self.assertEqual(self.header.item(2).toolTip(), "Choose the model and icon.")
-        self.assertTrue(self.header.setItemAccessibleText(2, "Model and icon: needs review"))
-        self.assertEqual(self.header.stepButton(2).accessibleName(), "Model and icon: needs review")
+        self.assertTrue(self.header.setStepToolTip(2, "Choose the model, icon, and placement."))
+        self.assertEqual(self.header.item(2).toolTip(), "Choose the model, icon, and placement.")
+        self.assertTrue(self.header.setItemAccessibleText(2, "Model and placement: needs review"))
+        self.assertEqual(self.header.stepButton(2).accessibleName(), "Model and placement: needs review")
         self.assertTrue(self.header.setItemData(2, 9001, {"valid": False}))
         self.assertEqual(self.header.itemData(2, 9001), {"valid": False})
         self.assertFalse(self.header.setStepToolTip(99, "ignored"))

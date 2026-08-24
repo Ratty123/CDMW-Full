@@ -355,7 +355,7 @@ BODY_TINT = (0.20, 0.23, 0.28)
 def _tint_anchor_material(materials_path: Path) -> None:
     """Style only the synthetic placement helpers and character reference.
 
-    Item rows are the canonical material contract shared with Model & Icon. Changing
+    Item rows are the canonical material contract shared with Model & Placement. Changing
     their alpha, roughness, metalness or tint here made the same imported mesh look like
     a different material in Effects. A missing or unreadable manifest stays untouched.
     """

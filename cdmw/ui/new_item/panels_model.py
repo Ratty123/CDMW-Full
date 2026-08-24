@@ -1,4 +1,4 @@
-"""New Item Studio, panel 3: the model (template or imported) and the icon."""
+"""New Item Studio, panel 3: model, icon, and imported-model placement."""
 
 from __future__ import annotations
 
@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QScrollArea,
     QSplitter,
-    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -102,8 +101,7 @@ class _BusySpinner(QWidget):
 
 
 class ModelPanel(QGroupBox):
-    """Keep the template's model or import one and place it over the template here, in
-    the step's own viewport (the gizmo, the numbers); keep the icon or generate one."""
+    """Choose the model and icon beside the imported-model placement workspace."""
 
     #: a glow was pushed to the viewport at least once: only then does an all-unticked
     #: draft still need a restoring push
@@ -113,7 +111,7 @@ class ModelPanel(QGroupBox):
     part_editor_apply_requested = Signal()
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
-        super().__init__("3. Model and icon", parent)
+        super().__init__("3. Model and placement", parent)
         self._controller = controller
         outer = QVBoxLayout(self)
         outer.setContentsMargins(8, 6, 8, 6)
@@ -122,15 +120,32 @@ class ModelPanel(QGroupBox):
         self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.workspace_splitter.setObjectName("new_item_model_workspace_splitter")
         outer.addWidget(self.workspace_splitter, 1)
-        inspector = QWidget(self.workspace_splitter)
-        inspector.setObjectName("new_item_model_inspector")
-        inspector.setMinimumWidth(340)
-        inspector_layout = QVBoxLayout(inspector)
-        inspector_layout.setContentsMargins(0, 0, 0, 0)
-        inspector_layout.setSpacing(0)
-        self.inspector_tabs = QTabWidget(inspector)
-        self.inspector_tabs.setObjectName("new_item_model_inspector_tabs")
-        inspector_layout.addWidget(self.inspector_tabs, 1)
+
+        self.model_icon_column = QWidget(self.workspace_splitter)
+        self.model_icon_column.setObjectName("new_item_model_icon_column")
+        self.model_icon_column.setMinimumWidth(620)
+        model_icon_column_layout = QVBoxLayout(self.model_icon_column)
+        model_icon_column_layout.setContentsMargins(0, 0, 0, 0)
+        model_icon_column_layout.setSpacing(6)
+        self.model_icon_scroll = QScrollArea(self.model_icon_column)
+        self.model_icon_scroll.setObjectName("new_item_model_icon_scroll")
+        self.model_icon_scroll.setWidgetResizable(True)
+        self.model_icon_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.model_icon_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.model_icon_content = QWidget(self.model_icon_scroll)
+        model_icon_content_layout = QVBoxLayout(self.model_icon_content)
+        model_icon_content_layout.setContentsMargins(0, 0, 0, 0)
+        model_icon_content_layout.setSpacing(6)
+        self.model_icon_scroll.setWidget(self.model_icon_content)
+        model_icon_column_layout.addWidget(self.model_icon_scroll, 1)
+
+        self.placement_column = QWidget(self.workspace_splitter)
+        self.placement_column.setObjectName("new_item_placement_column")
+        self.placement_column.setMinimumWidth(520)
+        placement_column_layout = QVBoxLayout(self.placement_column)
+        placement_column_layout.setContentsMargins(0, 0, 0, 0)
+        placement_column_layout.setSpacing(6)
+
         self.preview = ItemPreviewFrame(self)
         self._syncing_numbers = False
         self._show_preview_timer = QTimer(self)
@@ -139,6 +154,8 @@ class ModelPanel(QGroupBox):
         self._show_preview_timer.timeout.connect(self.refresh_preview)
 
         model = QGroupBox("Model")
+        model.setTitle("")
+        model.setAccessibleName("Model")
         model_layout = QVBoxLayout(model)
         self.keep_model = QRadioButton("Keep the template's model (no new model files)")
         self.keep_model.setChecked(True)
@@ -305,8 +322,10 @@ class ModelPanel(QGroupBox):
         )
         self.model_group = model
 
-        # ---- placement: the model over the template, in the viewport below
+        # ---- placement: the model over the template, beside its resident viewport
         self.placement_group = QGroupBox("Place the model over the template")
+        self.placement_group.setTitle("")
+        self.placement_group.setAccessibleName("Placement")
         placement_layout = QVBoxLayout(self.placement_group)
         self.placement_group.setToolTip(
             "The model starts fitted to the template. Move it with the gizmo or numbers, then apply the placement."
@@ -347,12 +366,23 @@ class ModelPanel(QGroupBox):
         self.offset_spins = tuple(_spin(-50.0, 50.0, 0.01, 3, " m") for _ in range(3))
         self.rotation_spins = tuple(_spin(-360.0, 360.0, 1.0, 1, "\u00b0") for _ in range(3))
         self.scale_spins = tuple(_spin(0.0001, 1000.0, 0.01, 4) for _ in range(3))
-        for row, (title, spins) in enumerate((("Position X / Y / Z (m)", self.offset_spins), ("Rotation X / Y / Z (\u00b0)", self.rotation_spins), ("Scale X / Y / Z", self.scale_spins))):
-            numbers.addWidget(QLabel(title), row * 2, 0, 1, 3)
+        for axis, title in enumerate(("X", "Y", "Z")):
+            axis_label = QLabel(title)
+            axis_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            numbers.addWidget(axis_label, 0, axis + 1)
+        for row, (title, spins) in enumerate(
+            (
+                ("Position X / Y / Z (m)", self.offset_spins),
+                ("Rotation X / Y / Z (\u00b0)", self.rotation_spins),
+                ("Scale X / Y / Z", self.scale_spins),
+            ),
+            start=1,
+        ):
+            numbers.addWidget(QLabel(title), row, 0)
             for axis, spin in enumerate(spins):
                 spin.valueChanged.connect(self._numbers_changed)
-                numbers.addWidget(spin, row * 2 + 1, axis)
-                numbers.setColumnStretch(axis, 1)
+                numbers.addWidget(spin, row, axis + 1)
+                numbers.setColumnStretch(axis + 1, 1)
         placement_layout.addLayout(numbers)
         action_row = QHBoxLayout()
         self.fit_button = QPushButton("Fit to the template")
@@ -370,10 +400,11 @@ class ModelPanel(QGroupBox):
         self.placement_group.setVisible(False)
 
         preview = QGroupBox("Preview: the item as it will be")
+        self.preview_group = preview
         preview.setMinimumWidth(520)
         preview_layout = QVBoxLayout(preview)
         preview.setToolTip("Your model over the template. Orbit, zoom, move it with the gizmo, and capture the icon from this view.")
-        self.operation_banner = QWidget(preview)
+        self.operation_banner = QWidget(self.placement_column)
         operation_layout = QVBoxLayout(self.operation_banner)
         operation_layout.setContentsMargins(0, 0, 0, 0)
         operation_layout.setSpacing(3)
@@ -390,8 +421,7 @@ class ModelPanel(QGroupBox):
         operation_layout.addLayout(operation_row)
         operation_layout.addWidget(self.busy_bar)
         self.operation_banner.setVisible(False)
-        inspector_layout.addWidget(self.operation_banner)
-        self.preview.setMinimumHeight(300)
+        self.preview.setMinimumHeight(240)
         self.preview.status_changed.connect(self._preview_status)
         self.preview.captured.connect(self._inline_capture_done)
         self.preview.placement_changed.connect(self._gizmo_moved)
@@ -412,15 +442,12 @@ class ModelPanel(QGroupBox):
         self.icon_thumbnail.setVisible(False)
         preview_row.addWidget(self.icon_thumbnail)
         preview_layout.addLayout(preview_row)
-        self.workspace_splitter.addWidget(inspector)
-        self.workspace_splitter.addWidget(preview)
-        self.workspace_splitter.setStretchFactor(0, 35)
-        self.workspace_splitter.setStretchFactor(1, 65)
-        self.workspace_splitter.setSizes((420, 780))
         self._preview_mesh_token: object = None
         self._preview_busy = False
 
         icon = QGroupBox("Icon")
+        icon.setTitle("")
+        icon.setAccessibleName("Icon")
         icon_layout = QVBoxLayout(icon)
         self.keep_icon = QRadioButton("Keep the template's icon")
         self.keep_icon.setChecked(True)
@@ -445,26 +472,17 @@ class ModelPanel(QGroupBox):
         icon_layout.addLayout(source_row)
         self.icon_group = icon
 
-        def add_inspector_tab(widget: QWidget, title: str) -> None:
-            page = QScrollArea(self.inspector_tabs)
-            page.setObjectName(f"new_item_model_{title.casefold()}_scroll")
-            page.setWidgetResizable(True)
-            page.setFrameShape(QScrollArea.Shape.NoFrame)
-            page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            widget.setTitle("")
-            widget.setAccessibleName(title)
-            content = QWidget(page)
-            content_layout = QVBoxLayout(content)
-            content_layout.setContentsMargins(0, 0, 0, 0)
-            content_layout.setSpacing(0)
-            content_layout.addWidget(widget)
-            content_layout.addStretch(1)
-            page.setWidget(content)
-            self.inspector_tabs.addTab(page, title)
-
-        add_inspector_tab(self.model_group, "Model")
-        add_inspector_tab(self.placement_group, "Placement")
-        add_inspector_tab(self.icon_group, "Icon")
+        model_icon_content_layout.addWidget(self.model_group)
+        model_icon_content_layout.addStretch(1)
+        model_icon_column_layout.addWidget(self.icon_group)
+        placement_column_layout.addWidget(self.placement_group)
+        placement_column_layout.addWidget(self.operation_banner)
+        placement_column_layout.addWidget(self.preview_group, 1)
+        self.workspace_splitter.addWidget(self.model_icon_column)
+        self.workspace_splitter.addWidget(self.placement_column)
+        self.workspace_splitter.setStretchFactor(0, 1)
+        self.workspace_splitter.setStretchFactor(1, 1)
+        self.workspace_splitter.setSizes((620, 620))
 
         controller.model_changed.connect(self._show_model)
         controller.model_changed.connect(lambda _result: self.refresh_preview())
@@ -514,7 +532,6 @@ class ModelPanel(QGroupBox):
         has_source = self._controller.model_import is not None
         has_import = has_source or self._controller.model_result is not None
         self.keep_physics.setVisible(has_import and self._controller.template_has_model_physics())
-        self.inspector_tabs.setTabEnabled(1, has_source)
         if keep:
             self.flip_texture_v.setVisible(False)
 

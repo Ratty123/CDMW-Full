@@ -347,7 +347,7 @@ def glow_preview_parameter_groups(mesh: object, glow: object = None) -> Tuple[Di
 def glow_preview_mesh(mesh: object, glow: object = None) -> object:
     """Copy a preview mesh with the current Glow choice in its material authority.
 
-    Effects builds a fresh resident package instead of sharing Model & Icon's live
+    Effects builds a fresh resident package instead of sharing Model & Placement's live
     parameter channel. Put the same overrides on a copy of its input mesh so material
     synthesis carries the chosen parts, colour and strength into that package without
     changing the reusable imported source.
