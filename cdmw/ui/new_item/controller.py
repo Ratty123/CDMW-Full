@@ -207,7 +207,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
     def template_has_sheathed_variant(self) -> bool:
         """Whether the chosen template exposes an alternate ``_IN`` visual part.
 
-        The Appearance control that clones an imported model into that part is useful
+        The Model option that clones an imported model into that part is useful
         only for templates that actually have one. Armour, accessories and equipment
         without a sheathed/holstered state should not be shown a no-op weapon control.
         """

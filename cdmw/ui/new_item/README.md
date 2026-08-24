@@ -57,8 +57,8 @@ source before and after **Apply placement**, so its PBR rows are the same author
 Model & Icon displays. The rebuilt PAC remains output authority but its borrowed template
 material wrappers never replace the import's source materials in the placement viewport.
 
-The Model & Icon step is a fixed two-pane workspace: Model, Placement, Appearance and
-Icon are independently scrolling inspector tabs, while the 65% preview pane remains
+The Model & Icon step is a fixed two-pane workspace: Model, Placement and Icon are
+independently scrolling inspector tabs, while the 65% preview pane remains
 full-height and never moves with them. It imports a model file itself: `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
 `item_preview.py` publishes fitted geometry first, then upgrades a copied package with
@@ -67,10 +67,11 @@ the camera. Generated material synthesis is deduplicated across identical submes
 Apply runs through the controller's cancellable progress lane; its spinner, current phase,
 percentage when available and Cancel action remain live while conflicting placement edits
 are disabled. Preview-loading text stays in that pinned operation bar while errors and
-ready/capture messages remain below the viewport. Template-specific Appearance controls
-for alternate sheathed/holstered visuals and inherited cloth/physics are hidden when the
-selected family cannot use them. The viewport shows the model over the template with the
-gizmo (`PlacementScene`), a glow ticked on the step lights its parts in that
+ready/capture messages remain below the viewport. Imported-material, Glow and
+template-specific controls live with the model; alternate sheathed/holstered visuals
+and inherited cloth/physics are hidden when the selected family cannot use them. The
+viewport shows the model over the template with the gizmo (`PlacementScene`), a glow
+ticked on the step lights its parts in that
 viewport live (`glow_preview_parameter_groups` in the materials service builds
 the renderer's parameter groups from the same three values the plan will write,
 re-sent whole after every package rebuild; un-ticking restores the import's own

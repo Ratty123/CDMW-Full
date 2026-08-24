@@ -33,7 +33,7 @@ from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.item_preview import GIZMO_TOOLS, ItemPreviewFrame
 from cdmw.ui.new_item.model_import import ModelPlacement
 from cdmw.ui.new_item.state import glow_choice
-from cdmw.ui.new_item.ui_kit import EDIT, OK, WARN, DetailsToggle, NoteLabel, note
+from cdmw.ui.new_item.ui_kit import EDIT, OK, WARN, NoteLabel, note
 
 IMPORT_FILE_FILTER = (
     "Model files (*.gltf *.glb *.obj *.dae *.fbx *.zip);;glTF / GLB (*.gltf *.glb);;Wavefront OBJ (*.obj);;"
@@ -293,13 +293,6 @@ class ModelPanel(QGroupBox):
         self.flip_texture_v.setVisible(False)
         self.flip_texture_v.toggled.connect(self._flip_texture_v_changed)
         model_layout.addWidget(self.flip_texture_v)
-        import_tips = DetailsToggle(
-            "Imported models inherit the template's attachment and character-part behavior. Start with a template that already "
-            "equips in the intended slot, then use Fit to template and the gizmo for placement. Sources authored in centimetres "
-            "commonly need scale 0.01.",
-            title="Import tips",
-        )
-        model_layout.addWidget(import_tips)
         #: the import's own controls: shown once a model of your own is asked for, so the
         #: step is two radio buttons while the template's model is kept
         self._import_widgets = (
@@ -309,7 +302,6 @@ class ModelPanel(QGroupBox):
             self.blender_holder,
             self.plain_pbr,
             self.own_sheath,
-            import_tips,
         )
         self.model_group = model
 
@@ -453,21 +445,6 @@ class ModelPanel(QGroupBox):
         icon_layout.addLayout(source_row)
         self.icon_group = icon
 
-        appearance = QGroupBox("Imported appearance")
-        appearance_layout = QVBoxLayout(appearance)
-        appearance_layout.setContentsMargins(8, 8, 8, 8)
-        for widget in (
-            self.plain_pbr,
-            self.own_sheath,
-            self.keep_physics,
-            self.glow_box,
-            self.flip_texture_v,
-            import_tips,
-        ):
-            appearance_layout.addWidget(widget)
-        appearance_layout.addStretch(1)
-        self.appearance_group = appearance
-
         def add_inspector_tab(widget: QWidget, title: str) -> None:
             page = QScrollArea(self.inspector_tabs)
             page.setObjectName(f"new_item_model_{title.casefold()}_scroll")
@@ -487,7 +464,6 @@ class ModelPanel(QGroupBox):
 
         add_inspector_tab(self.model_group, "Model")
         add_inspector_tab(self.placement_group, "Placement")
-        add_inspector_tab(self.appearance_group, "Appearance")
         add_inspector_tab(self.icon_group, "Icon")
 
         controller.model_changed.connect(self._show_model)
@@ -539,7 +515,6 @@ class ModelPanel(QGroupBox):
         has_import = has_source or self._controller.model_result is not None
         self.keep_physics.setVisible(has_import and self._controller.template_has_model_physics())
         self.inspector_tabs.setTabEnabled(1, has_source)
-        self.inspector_tabs.setTabEnabled(2, has_import)
         if keep:
             self.flip_texture_v.setVisible(False)
 
@@ -620,8 +595,6 @@ class ModelPanel(QGroupBox):
             self.glow_parts.addItem(item)
         self.glow_parts.blockSignals(False)
         self.glow_box.setEnabled(bool(parts))
-        if parts:
-            self.inspector_tabs.setTabEnabled(2, True)
         if not parts:
             self.glow_box.setChecked(False)
             self.glow_box.setToolTip("Import a model on this step to choose which of its parts glow.")
