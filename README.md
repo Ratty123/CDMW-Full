@@ -25,7 +25,7 @@ is smaller and safer to hand to someone who is not modding.
 | **Format status** | `schemas/archive_content_capabilities.v1.json` |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-> `0.11.0-alpha.6` is the current source version and has not been published as a
+> `0.11.0-alpha.7` is the current source version and has not been published as a
 > release yet. The newest build on the Releases page is `0.10.0-alpha.2`.
 
 ---
