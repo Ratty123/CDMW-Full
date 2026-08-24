@@ -14,6 +14,7 @@ roughness was clamped towards matte).
 
 from __future__ import annotations
 
+import copy
 import re
 import tempfile
 from dataclasses import dataclass, field
@@ -341,6 +342,42 @@ def glow_preview_parameter_groups(mesh: object, glow: object = None) -> Tuple[Di
         {"source_submesh_indices": list(indices), "editor_role": "replacement_preview", **values}
         for values, indices in buckets.values()
     )
+
+
+def glow_preview_mesh(mesh: object, glow: object = None) -> object:
+    """Copy a preview mesh with the current Glow choice in its material authority.
+
+    Effects builds a fresh resident package instead of sharing Model & Icon's live
+    parameter channel. Put the same overrides on a copy of its input mesh so material
+    synthesis carries the chosen parts, colour and strength into that package without
+    changing the reusable imported source.
+    """
+
+    if glow is None or not tuple(getattr(glow, "parts", ()) or ()):
+        return mesh
+    updates: Dict[int, Dict[str, object]] = {}
+    parameter_names = ("emissive_intensity", "emissive_color", "emissive_color_authoritative")
+    for group in glow_preview_parameter_groups(mesh, glow):
+        values = {name: group.get(name) for name in parameter_names}
+        for index in group["source_submesh_indices"]:
+            updates[int(index)] = values
+
+    submeshes = []
+    for index, source in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
+        submesh = copy.copy(source)
+        overrides = getattr(source, "preview_native_material_overrides", {}) or {}
+        overrides = dict(overrides) if isinstance(overrides, Mapping) else {}
+        for name, value in updates[index].items():
+            if value is None:
+                overrides.pop(name, None)
+            else:
+                overrides[name] = value
+        submesh.preview_native_material_overrides = overrides
+        submeshes.append(submesh)
+
+    result = copy.copy(mesh)
+    result.submeshes = submeshes
+    return result
 
 
 def route_plain_pbr(

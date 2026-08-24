@@ -110,6 +110,50 @@ class GlowChoiceHelperTests(unittest.TestCase):
         self.assertEqual(choice.intensity, 7.5)
 
 
+class EffectPreviewMeshRoutingTests(unittest.TestCase):
+    def test_the_effect_preview_mesh_carries_the_current_glow_without_mutating_the_import(self) -> None:
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.controller import NewItemStudioController
+
+        app = QApplication.instance() or QApplication([])
+        part = SubMesh(
+            name="blade", material="steel",
+            vertices=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0)],
+            uvs=[(0.0, 0.0)] * 3, normals=[(0.0, 1.0, 0.0)] * 3, faces=[(0, 1, 2)],
+            vertex_count=3, face_count=1,
+        )
+        part.preview_native_material_overrides = {"roughness": 0.7}
+        imported = ParsedMesh(
+            path="import.pac", format="pac", submeshes=[part], bbox_min=(0.0, 0.0, 0.0),
+            bbox_max=(0.1, 0.1, 0.0), total_vertices=3, total_faces=1, has_uvs=True,
+        )
+        controller = NewItemStudioController(synchronous=True)
+        controller.draft.template_key = 1
+        controller.model_import = SimpleNamespace(
+            label="import.pac",
+            baked_preview_mesh=lambda: imported,
+            baked_scene_mesh=lambda: imported,
+            baked_bounds=lambda: (imported.bbox_min, imported.bbox_max),
+        )
+        controller.draft.glow_parts = ("steel",)
+        controller.draft.glow_color = (0.1, 0.8, 0.2)
+        controller.draft.glow_intensity = 9.0
+
+        planned, kind = controller.item_mesh_as_planned()
+
+        self.assertEqual(kind, "placed")
+        overrides = planned.submeshes[0].preview_native_material_overrides
+        self.assertEqual(overrides["roughness"], 0.7, "the import's other appearance authority remains")
+        self.assertEqual(overrides["emissive_color"], [0.1, 0.8, 0.2])
+        self.assertTrue(overrides["emissive_color_authoritative"])
+        self.assertEqual(overrides["emissive_intensity"], 9.0)
+        self.assertEqual(part.preview_native_material_overrides, {"roughness": 0.7}, "the live import remains reusable")
+        controller.request_shutdown()
+        self.assertIsNotNone(app)
+
+
 class _RememberingController:
     def __init__(self, result: bool = True) -> None:
         self.result = result

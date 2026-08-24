@@ -36,15 +36,15 @@ from cdmw.ui.new_item.model_import import (
 )
 from cdmw.services.effect_catalogue import EffectCatalogue
 from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
+from cdmw.services.new_item_materials import glow_preview_mesh
 from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
 from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService
 from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
 from cdmw.ui.new_item.effect_workspace_controller import NewItemEffectWorkspaceControllerMixin
-from cdmw.ui.new_item.state import NewItemDraft, StatGrid, spec_from_draft, stat_grid_for, status_label, with_template
+from cdmw.ui.new_item.state import NewItemDraft, StatGrid, glow_choice, spec_from_draft, stat_grid_for, status_label, with_template
 from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
 from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
-
 
 #: "not read yet", which None cannot say: an install with no character must not be
 #: re-read on every dialog.
@@ -498,16 +498,16 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                     mesh = baked
                     break
             if mesh is not None:
-                return mesh, "applied" if self.model_result is not None else "placed"
+                return glow_preview_mesh(mesh, glow_choice(self.draft)), "applied" if self.model_result is not None else "placed"
         # A restored applied result may have no live import source. Its preview decode is
         # still preferable to the bare `.pac` geometry that names no textures.
         textured = self._textured_preview_mesh()
         if textured is not None:
-            return textured, "applied"
+            return glow_preview_mesh(textured, glow_choice(self.draft)), "applied"
         mesh = self.item_mesh_for_preview()
         if mesh is None:
             return None, ""
-        return mesh, "applied" if self.model_result is not None else "template"
+        return glow_preview_mesh(mesh, glow_choice(self.draft)), "applied" if self.model_result is not None else "template"
 
     def _textured_preview_mesh(self):
         """The applied import as a mesh that names its textures, or None.

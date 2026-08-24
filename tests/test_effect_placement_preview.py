@@ -103,6 +103,26 @@ class AnchorAndScaleTests(unittest.TestCase):
 
 
 class PackageTests(unittest.TestCase):
+    def test_the_item_material_package_carries_the_current_glow(self) -> None:
+        from cdmw.domain.new_item.spec import GlowChoice
+        from cdmw.services.new_item_materials import glow_preview_mesh
+
+        if os.environ.get("CDMW_SKIP_DOTNET_PACKAGE_TESTS") == "1":
+            self.skipTest("dotnet package tests skipped by request")
+        item = glow_preview_mesh(
+            _blade(), GlowChoice(parts=("steel",), color=(0.1, 0.8, 0.2), intensity=9.0),
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            preview = build_effect_placement_package(
+                item, (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5),
+                output_root=Path(folder), include_body=False,
+            )
+            materials = json.loads((preview.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+        steel = next(row for row in materials["submeshes"] if row["material"] == "steel")
+        self.assertEqual(steel["parameters"]["emissive_color"], [0.1, 0.8, 0.2])
+        self.assertTrue(steel["parameters"]["emissive_color_authoritative"])
+        self.assertEqual(steel["parameters"]["emissive_intensity"], 9.0)
+
     def test_the_item_is_drawn_as_itself_rather_than_as_the_overlay_wire(self) -> None:
         """Overlay comparison exists so a replacement can be read against the original, so
         the renderer skips the reference in the solid pass and draws it as a wire ghost.
