@@ -84,9 +84,12 @@ and the final Builder use; for a wearable, neutral effect placement starts at th
 origin so the gizmo opens on the helmet or armour rather than at the character's feet. A
 feet-at-zero bind-space stand-in is used when the matching archive body is unavailable.
 
-The Model & Placement step is a fixed three-column workspace. A top-packed Model scroller
+The Model & Placement step is a fixed three-column workspace. A top-packed Model pane
 and always-visible Icon choices share the left column, Placement controls and pinned operation
 status occupy the middle column, and the resident Preview owns the full-height right column.
+Titleless section frames reserve no empty caption gutter, and the part, colour and strength
+controls collapse while Glow is off, so the imported-model form fits the common 720 px
+workspace height without scrolling; enabling Glow expands those controls in the same pane.
 That Preview is the exact frame prepared under Template rather than a second renderer or
 package load.
 The repeated Model / Placement / Icon tab strip is gone, so all three surfaces stay mounted at once. It imports a model file itself:

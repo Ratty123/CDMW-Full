@@ -91,6 +91,7 @@ def step_style(palette) -> str:
     return (STEP_STYLE % {"muted": muted}) + f"""
         QWidget#new_item_steps, QStackedWidget {{ background: {background}; }}
         QGroupBox#new_item_step[guidedPage="true"] {{ border: none; margin-top: 0; padding: 0; }}
+        QGroupBox#new_item_step QGroupBox[titlelessSection="true"] {{ margin-top: 0; padding-top: 0; }}
         QTabWidget#new_item_perks_effects_tabs::pane {{ border: 1px solid {border}; background: {background}; }}
         QTabWidget#new_item_perks_effects_tabs QTabBar::tab {{ min-height: 30px; padding: 0 20px; border: none; color: {muted}; }}
         QTabWidget#new_item_perks_effects_tabs QTabBar::tab:selected {{ color: {text}; border-bottom: 2px solid {active}; }}

@@ -1091,7 +1091,16 @@ class TabTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_model_workspace_shows_model_icon_placement_and_preview_in_three_columns(self) -> None:
+        from PySide6.QtGui import QPalette
         from PySide6.QtWidgets import QScrollArea, QSizePolicy, QTabWidget
+        from cdmw.ui.themes import build_app_palette, build_app_stylesheet
+
+        old_palette = QPalette(self.app.palette())
+        old_stylesheet = self.app.styleSheet()
+        self.addCleanup(self.app.setPalette, old_palette)
+        self.addCleanup(self.app.setStyleSheet, old_stylesheet)
+        self.app.setPalette(build_app_palette("graphite"))
+        self.app.setStyleSheet(build_app_stylesheet("graphite"))
 
         tab = self._tab()
         tab.resize(1720, 720)
@@ -1123,6 +1132,7 @@ class TabTests(unittest.TestCase):
 
         for group in (panel.model_group, panel.placement_group, panel.icon_group):
             self.assertEqual(group.title(), "", "the three-column layout needs no repeated section name")
+            self.assertTrue(group.property("titlelessSection"), "a blank caption must not reserve a dark title gutter")
         self.assertEqual(
             [panel.model_group.accessibleName(), panel.icon_group.accessibleName(), panel.placement_group.accessibleName()],
             ["Model", "Icon", "Placement"],
@@ -1149,6 +1159,13 @@ class TabTests(unittest.TestCase):
         self.assertTrue(panel.preview_group.isAncestorOf(panel.preview))
         self.assertFalse(panel.placement_column.isAncestorOf(panel.preview))
         panel.placement_group.setVisible(True)
+        panel.model_status.setText(
+            "helmet.zip: 3,393 vertices, 1 part(s), 3 texture(s) of its own\n"
+            "Discovered 4 glTF texture reference(s).\n"
+            "Placed over template.pac: the rebuilt mesh is 348,247 bytes, 4 side file(s)"
+        )
+        panel.keep_physics.setVisible(True)
+        panel.flip_texture_v.setVisible(True)
 
         for width, height in ((1720, 720), (1920, 900)):
             tab.resize(width, height)
@@ -1156,7 +1173,7 @@ class TabTests(unittest.TestCase):
             panel.model_icon_scroll.verticalScrollBar().setValue(0)
             first_y = panel.keep_model.mapTo(panel.model_icon_scroll.viewport(), panel.keep_model.rect().topLeft()).y()
             next_y = panel.import_model.mapTo(panel.model_icon_scroll.viewport(), panel.import_model.rect().topLeft()).y()
-            self.assertLessEqual(first_y, 24, f"the Model/Icon column starts at the top at {width}x{height}")
+            self.assertLessEqual(first_y, 12, f"the Model/Icon column starts without a dead title gutter at {width}x{height}")
             self.assertLessEqual(next_y - first_y, 36, f"the model choice stays compact at {width}x{height}")
             self.assertTrue(panel.model_group.isVisibleTo(panel))
             self.assertTrue(panel.icon_group.isVisibleTo(panel))
@@ -1172,6 +1189,12 @@ class TabTests(unittest.TestCase):
             panel.import_model.setChecked(True)
             self.app.processEvents()
             panel.model_icon_scroll.verticalScrollBar().setValue(0)
+            self.assertEqual(
+                panel.model_icon_scroll.verticalScrollBar().maximum(),
+                0,
+                f"the inactive-Glow imported-model form fits without scrolling at {width}x{height}",
+            )
+            self.assertTrue(panel.glow_parts.isHidden(), "inactive Glow details do not consume the model pane")
             self.assertTrue(panel.icon_group.isVisibleTo(panel))
             self.assertLessEqual(panel.icon_group.geometry().bottom(), panel.model_icon_column.rect().bottom())
             blender_y = panel.blender_button.mapTo(panel.model_icon_scroll.viewport(), panel.blender_button.rect().topLeft()).y()
@@ -2523,6 +2546,7 @@ class TabTests(unittest.TestCase):
         tab.prefill_template(TEMPLATE)
         panel = tab.model_panel
         self.assertFalse(panel.glow_box.isChecked(), "nothing glows unless it is asked for")
+        self.assertTrue(all(widget.isHidden() for widget in panel._glow_detail_widgets))
         self.assertEqual(tab.controller.current_spec().glow, None)
 
         # nothing to glow until a model is imported: the route that writes a glow runs
@@ -2537,8 +2561,10 @@ class TabTests(unittest.TestCase):
         panel.refresh_glow_parts()
         self.assertEqual([panel.glow_parts.item(row).text() for row in range(panel.glow_parts.count())], ["blade", "grip"])
         self.assertTrue(panel.glow_box.isEnabled())
+        self.assertTrue(all(widget.isHidden() for widget in panel._glow_detail_widgets))
 
         panel.glow_box.setChecked(True)
+        self.assertTrue(all(not widget.isHidden() for widget in panel._glow_detail_widgets))
         panel.glow_parts.item(0).setCheckState(Qt.CheckState.Checked)
         panel.glow_intensity.setValue(6.5)
         tab.controller.draft.glow_color = (0.0, 0.5, 1.0)
@@ -2548,6 +2574,7 @@ class TabTests(unittest.TestCase):
         self.assertEqual(glow.hex_color(), "#0080FFFF")
 
         panel.glow_box.setChecked(False)
+        self.assertTrue(all(widget.isHidden() for widget in panel._glow_detail_widgets))
         self.assertIsNone(tab.controller.current_spec().glow, "turned off, nothing glows again")
         tab.close()
         tab.deleteLater()
