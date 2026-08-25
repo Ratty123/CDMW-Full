@@ -1202,14 +1202,44 @@ def _apply_placement_to_editable_role(scene_state: dict, placement: Mapping[str,
     editable = roles.get("editable") if isinstance(roles, dict) else None
     if not isinstance(editable, dict):
         return
-    matrix = _placement_matrix(placement["translation"], placement["rotation_degrees"], placement["scale"])
+    translation = _triple(tuple(placement["translation"]), (0.0, 0.0, 0.0))
+    manual_matrix = _placement_matrix((0.0, 0.0, 0.0), placement["rotation_degrees"], placement["scale"])
     alignment = scene_state.get("automatic_alignment")
     anchor = _triple(tuple(alignment.get("source_anchor", ()) or ()), (0.0, 0.0, 0.0)) if isinstance(alignment, Mapping) else (0.0, 0.0, 0.0)
-    scene_state["placement_pivot"] = [
-        anchor[0] * matrix[0] + anchor[1] * matrix[4] + anchor[2] * matrix[8] + matrix[12],
-        anchor[0] * matrix[1] + anchor[1] * matrix[5] + anchor[2] * matrix[9] + matrix[13],
-        anchor[0] * matrix[2] + anchor[1] * matrix[6] + anchor[2] * matrix[10] + matrix[14],
-    ]
+    automatic_values = alignment.get("model_matrix") if isinstance(alignment, Mapping) else None
+    try:
+        automatic = [float(value) for value in automatic_values] if isinstance(automatic_values, Sequence) else []
+    except (TypeError, ValueError):
+        automatic = []
+    if len(automatic) == 16:
+        # Row-vector scene composition is automatic alignment followed by the manual
+        # scale/X/Y/Z suffix. Keep the automatic source anchor at its acknowledged pivot
+        # while that suffix changes, exactly as NetSceneState does during a live drag.
+        matrix = [0.0] * 16
+        for row in range(3):
+            for column in range(3):
+                matrix[row * 4 + column] = sum(
+                    automatic[row * 4 + index] * manual_matrix[index * 4 + column]
+                    for index in range(3)
+                )
+        matrix[15] = 1.0
+        automatic_pivot = (
+            anchor[0] * automatic[0] + anchor[1] * automatic[4] + anchor[2] * automatic[8] + automatic[12],
+            anchor[0] * automatic[1] + anchor[1] * automatic[5] + anchor[2] * automatic[9] + automatic[13],
+            anchor[0] * automatic[2] + anchor[1] * automatic[6] + anchor[2] * automatic[10] + automatic[14],
+        )
+        pivot = tuple(automatic_pivot[index] + translation[index] for index in range(3))
+        matrix[12] = pivot[0] - (anchor[0] * matrix[0] + anchor[1] * matrix[4] + anchor[2] * matrix[8])
+        matrix[13] = pivot[1] - (anchor[0] * matrix[1] + anchor[1] * matrix[5] + anchor[2] * matrix[9])
+        matrix[14] = pivot[2] - (anchor[0] * matrix[2] + anchor[1] * matrix[6] + anchor[2] * matrix[10])
+    else:
+        matrix = _placement_matrix(translation, placement["rotation_degrees"], placement["scale"])
+        pivot = (
+            anchor[0] * matrix[0] + anchor[1] * matrix[4] + anchor[2] * matrix[8] + matrix[12],
+            anchor[0] * matrix[1] + anchor[1] * matrix[5] + anchor[2] * matrix[9] + matrix[13],
+            anchor[0] * matrix[2] + anchor[1] * matrix[6] + anchor[2] * matrix[10] + matrix[14],
+        )
+    scene_state["placement_pivot"] = list(pivot)
     local = scene_state.get("_editable_local_bounds")
     if local is None:
         bounds = editable.get("world_bounds")

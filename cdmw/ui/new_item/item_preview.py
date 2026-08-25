@@ -59,12 +59,14 @@ class PlacementScene:
     `ModelPreviewData` or a `ParsedMesh`; `placement` is where the model sits when the
     package is written (baked into the scene frame, so the helper's placement numbers,
     its gizmo pivot and the model matrix start out consistent); `model_bounds` the
-    model's bounds in its own space, for the host's placement fallback."""
+    model's bounds in its own space, for the host's placement fallback; `model_origin`
+    is the source origin after the first fit was baked into those vertices."""
 
     template: Any
     model: Any
     placement: ModelPlacement = field(default_factory=ModelPlacement)
     model_bounds: Any = None
+    model_origin: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,7 +159,7 @@ def build_item_preview_package(
             _as_parsed_mesh(model), output_root=output_root,
             reference_mesh=_as_parsed_mesh(reference) if reference is not None else None,
             comparison_mode="overlay", interaction_mode="placement", cancelled=stop_event.is_set,
-            scene_transform=item.placement.build_transform(),
+            scene_transform=item.placement.build_transform(origin=item.model_origin),
             include_material_resources=bool(include_material_resources),
         )
     elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):

@@ -134,7 +134,12 @@ class ItemPreviewPackageTests(unittest.TestCase):
             # placement baked into the scene frame as the pipeline's own transform
             from cdmw.ui.new_item.model_import import ModelPlacement
 
-            scene = item_preview.PlacementScene(template=mesh, model=mesh, placement=ModelPlacement(offset=(0.0, 0.0, -0.3), rotation=(90.0, 0.0, 0.0), scale=(2.0, 2.0, 2.0)))
+            scene = item_preview.PlacementScene(
+                template=mesh,
+                model=mesh,
+                placement=ModelPlacement(offset=(0.0, 0.0, -0.3), rotation=(90.0, 0.0, 0.0), scale=(2.0, 2.0, 2.0)),
+                model_origin=(0.0, 1.7, 0.0),
+            )
             item_preview.build_item_preview_package(scene, token=4, output_root=root, stop_event=threading.Event())
             _mesh, kwargs = seen["mesh_calls"][-1]
             self.assertIs(kwargs["reference_mesh"], mesh)
@@ -144,6 +149,8 @@ class ItemPreviewPackageTests(unittest.TestCase):
             self.assertEqual(transform.offset_xyz, (0.0, 0.0, -0.3))
             self.assertEqual(transform.rotate_xyz_degrees, (90.0, 0.0, 0.0))
             self.assertEqual(transform.scale_xyz, (2.0, 2.0, 2.0))
+            self.assertEqual(transform.source_anchor, (0.0, 1.7, 0.0))
+            self.assertEqual(transform.target_anchor, (0.0, 1.7, 0.0))
         # cleanup removes the transient parent for the model route, the package itself otherwise
         self.assertEqual(item_preview.package_cleanup_root(root / "cdmw_dotnet_preview_x" / "package", root), root / "cdmw_dotnet_preview_x")
         self.assertEqual(item_preview.package_cleanup_root(root / "mesh_pkg", root), root / "mesh_pkg")
@@ -188,6 +195,46 @@ class PlacementConventionTests(unittest.TestCase):
         # (0, 0, 1) scaled by 2 and turned 90 degrees about y lands on +x: (2, 0, 0), then the offset
         self.assertEqual([round(v, 6) for v in state["placement_pivot"]], [2.25, 0.0, -0.4])
         self.assertEqual([round(v, 6) for v in state["roles"]["editable"]["world_bounds"]["min"]], [0.25, 0.0, -2.4])
+
+        # A first fit can bake a helmet up to the character's head while the placement
+        # numbers still start at zero. The full authoritative alignment keeps that baked
+        # origin under the gizmo and rotates/scales around it instead of world zero.
+        identity = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        origin = (0.0, 1.7, 0.0)
+        state = {
+            "automatic_alignment": {"model_matrix": identity, "source_anchor": list(origin), "target_anchor": list(origin)},
+            "roles": {"editable": {"model_matrix": identity, "world_bounds": {"min": [-0.2, 1.5, -0.2], "max": [0.2, 1.9, 0.2]}}},
+        }
+        _apply_placement_to_editable_role(
+            state,
+            {"translation": (0.25, 0.0, -0.4), "rotation_degrees": (90.0, 0.0, 0.0), "scale": (2.0, 2.0, 2.0)},
+        )
+        matrix = state["roles"]["editable"]["model_matrix"]
+        moved_origin = (
+            origin[0] * matrix[0] + origin[1] * matrix[4] + origin[2] * matrix[8] + matrix[12],
+            origin[0] * matrix[1] + origin[1] * matrix[5] + origin[2] * matrix[9] + matrix[13],
+            origin[0] * matrix[2] + origin[1] * matrix[6] + origin[2] * matrix[10] + matrix[14],
+        )
+        self.assertEqual([round(value, 6) for value in state["placement_pivot"]], [0.25, 1.7, -0.4])
+        self.assertEqual([round(value, 6) for value in moved_origin], [0.25, 1.7, -0.4])
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.modding.static_mesh_scene_frame import build_authoritative_static_scene_frame
+
+        mesh = ParsedMesh(
+            path="helmet",
+            format="dae",
+            submeshes=[SubMesh(name="helmet", vertices=[(-0.2, 1.5, -0.2), (0.2, 1.9, 0.2)], faces=[])],
+        )
+        placement = ModelPlacement(offset=(0.25, 0.0, -0.4), rotation=(90.0, 0.0, 0.0), scale=(2.0, 2.0, 2.0))
+        frame = build_authoritative_static_scene_frame(
+            mesh,
+            mesh,
+            placement.build_transform(origin=origin),
+        )
+        built_origin = frame.transform.transform_point(origin)
+        self.assertEqual([round(value, 6) for value in frame.placement_pivot], [0.25, 1.7, -0.4])
+        self.assertEqual([round(value, 6) for value in built_origin], [0.25, 1.7, -0.4])
 
 
 class ModelImportBuildTests(unittest.TestCase):
@@ -258,6 +305,7 @@ class ModelImportBuildTests(unittest.TestCase):
             chosen_path=Path("a.gltf"), model_path=Path("a.gltf"), scene=SceneImportResult(mesh=mesh),
             preview_model=None, bounds=((0, 0, 0), (1, 1, 1)), flip_texture_v=True,
         )
+        source.set_bake(ModelPlacement(offset=(0.0, 1.7, 0.0)))
         seen = {}
 
         def fake_build(entry, obj_path, **kwargs):
@@ -270,6 +318,8 @@ class ModelImportBuildTests(unittest.TestCase):
         self.assertTrue(options.texture_uv_transforms, "the flip goes into the build")
         self.assertTrue(all(t.flip_v for t in options.texture_uv_transforms))
         self.assertTrue(options.full_import_model_replacement, "the imported model owns the materials")
+        self.assertEqual(options.transform.source_anchor, (0.0, 1.7, 0.0))
+        self.assertEqual(options.transform.target_anchor, (0.0, 1.7, 0.0))
         # off: no UV transforms at all
         source.flip_texture_v = False
         seen.clear()

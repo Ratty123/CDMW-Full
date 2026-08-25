@@ -1349,10 +1349,35 @@ class TabTests(unittest.TestCase):
         )
         seen = {}
         template_box = ((-0.1, -0.1, -1.0), (0.1, 0.1, 0.2))  # the test snapshot's pac is not a real mesh
-        bounds_patch = patch.object(type(tab.controller), "template_bounds", lambda self_: template_box)
-        bounds_patch.start()
-        self.addCleanup(bounds_patch.stop)
-        with patch("cdmw.ui.new_item.controller.load_model_import_source", lambda path, **kw: seen.setdefault("path", path) and source),              patch("cdmw.ui.new_item.panels_model.QFileDialog.getOpenFileName", return_value=(r"E:/models/box.zip", "")):
+        template_mesh = ParsedMesh(
+            path="template.pac",
+            format="pac",
+            submeshes=[SubMesh(
+                name="template",
+                vertices=[
+                    (x, y, z)
+                    for x in (template_box[0][0], template_box[1][0])
+                    for y in (template_box[0][1], template_box[1][1])
+                    for z in (template_box[0][2], template_box[1][2])
+                ],
+                faces=[],
+            )],
+        )
+        with patch.object(
+            tab.controller,
+            "_template_geometry_build",
+            return_value=(("template",), lambda _stop: template_mesh),
+        ), patch.object(
+            tab.controller,
+            "_template_uses_weapon_fit",
+            return_value=True,
+        ), patch(
+            "cdmw.ui.new_item.controller.load_model_import_source",
+            lambda path, **kw: seen.setdefault("path", path) and source,
+        ), patch(
+            "cdmw.ui.new_item.panels_model.QFileDialog.getOpenFileName",
+            return_value=(r"E:/models/box.zip", ""),
+        ):
             panel.import_button.click()
         self.assertEqual(seen["path"], Path(r"E:/models/box.zip"))
         self.assertIs(tab.controller.model_import, source)
@@ -1387,6 +1412,7 @@ class TabTests(unittest.TestCase):
         self.assertIs(scene.template, blade, "no decode: the bare template mesh is the reference")
         self.assertEqual(scene.placement, tab.controller.model_placement, "the scene is written at the placement")
         self.assertEqual(scene.model_bounds, source.baked_bounds())
+        self.assertEqual(scene.model_origin, source.baked_origin())
         self.assertEqual(token[2], source.bake_generation, "the token moves with the bake")
         # the numbers move the placement
         panel.offset_spins[2].setValue(-0.25)
@@ -1421,6 +1447,108 @@ class TabTests(unittest.TestCase):
         self.assertFalse(panel.placement_group.isVisibleTo(panel))
         tab.close()
         tab.deleteLater()
+
+    def test_model_import_fits_a_slow_template_without_blocking_the_ui_thread(self) -> None:
+        """The source reader was asynchronous but its completion callback parsed the
+        template PAC twice on the UI thread. A slow template therefore still produced a
+        real Windows AppHang after the DAE worker had already finished."""
+
+        from types import SimpleNamespace
+
+        from PySide6.QtCore import QThread, QTimer
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.controller import NewItemStudioController
+        from cdmw.ui.new_item.model_import import ModelImportSource
+
+        imported_mesh = ParsedMesh(
+            path="helmet.dae",
+            format="dae",
+            submeshes=[SubMesh(name="helmet", vertices=[(-1.0, -1.0, -1.0), (1.0, 1.0, 1.0)], faces=[])],
+        )
+        template_mesh = ParsedMesh(
+            path="helmet_template.pac",
+            format="pac",
+            submeshes=[SubMesh(name="helmet", vertices=[(-0.2, 1.5, -0.2), (0.2, 1.9, 0.2)], faces=[])],
+        )
+        source = ModelImportSource(
+            chosen_path=Path("helmet.zip"),
+            model_path=Path("helmet.dae"),
+            scene=SimpleNamespace(mesh=imported_mesh, material_bindings=()),
+            preview_model=SimpleNamespace(meshes=[]),
+            bounds=((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0)),
+            centroid=(0.0, 0.0, 0.0),
+        )
+        controller = NewItemStudioController(synchronous=False)
+        controller.snapshot = object()
+        controller.draft.template_key = 7
+        heartbeats: list[float] = []
+        fit_threads: list[QThread] = []
+        timer = QTimer()
+        timer.setInterval(10)
+        timer.timeout.connect(lambda: heartbeats.append(time.perf_counter()))
+
+        def slow_worker_template(_stop_event):
+            fit_threads.append(QThread.currentThread())
+            time.sleep(0.25)
+            return template_mesh
+
+        def slow_ui_template():
+            fit_threads.append(QThread.currentThread())
+            time.sleep(0.25)
+            return template_mesh
+
+        try:
+            timer.start()
+            baseline_until = time.perf_counter() + 0.04
+            while time.perf_counter() < baseline_until:
+                self.app.processEvents()
+                time.sleep(0.002)
+            with patch.object(
+                controller,
+                "_template_geometry_build",
+                return_value=(("template",), slow_worker_template),
+            ), patch.object(
+                controller,
+                "_template_uses_weapon_fit",
+                return_value=False,
+            ), patch.object(
+                controller,
+                "_template_mesh",
+                side_effect=slow_ui_template,
+            ), patch(
+                "cdmw.ui.new_item.controller.load_model_import_source",
+                return_value=source,
+            ):
+                returned_at = time.perf_counter()
+                self.assertTrue(controller.start_model_import(Path("helmet.dae")))
+                self.assertLess(time.perf_counter() - returned_at, 0.05, "starting the worker returns immediately")
+                deadline = time.perf_counter() + 2.0
+                while time.perf_counter() < deadline and controller.busy:
+                    self.app.processEvents()
+                    time.sleep(0.002)
+            after_until = time.perf_counter() + 0.04
+            while time.perf_counter() < after_until:
+                self.app.processEvents()
+                time.sleep(0.002)
+            timer.stop()
+
+            gaps = [later - earlier for earlier, later in zip(heartbeats, heartbeats[1:])]
+            self.assertIs(controller.model_import, source)
+            self.assertFalse(controller.busy)
+            self.assertTrue(fit_threads)
+            self.assertTrue(all(thread is not controller.thread() for thread in fit_threads))
+            self.assertLess(max(gaps, default=0.0), 0.12, "the 10 ms UI heartbeat stays live during the template fit")
+            self.assertFalse(source.fit_match_grip, "a helmet template receives the centred equipment fit")
+            self.assertAlmostEqual(source.baked_origin()[1], 1.7, places=6)
+        finally:
+            timer.stop()
+            controller.request_shutdown()
+            deadline = time.perf_counter() + 2.0
+            while time.perf_counter() < deadline and controller.iter_shutdown_workers():
+                self.app.processEvents()
+                time.sleep(0.002)
+            controller.deleteLater()
 
     def test_imported_model_parts_round_trip_through_mesh_editor(self) -> None:
         """The handoff never reads resident geometry on the UI thread: the New Item

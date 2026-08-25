@@ -73,6 +73,10 @@ status occupy the middle column, and the resident Preview owns the full-height r
 The repeated Model / Placement / Icon tab strip is gone, so all three surfaces stay mounted at once. It imports a model file itself:
 `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
+and the same cancellable worker reads the template geometry and retains its bounds and
+centroid for later re-fit. Weapon-family paths use the grip/heavy-end fit; armour,
+accessories and other families keep a centred axis fit instead of being interpreted as
+weapons.
 `item_preview.py` publishes fitted geometry first, then upgrades a copied package with
 canonical materials without restarting the renderer, re-exporting geometry or resetting
 the camera. FBX conversion relinks an explicitly referenced missing image by exact basename
@@ -94,7 +98,10 @@ the renderer's parameter groups from the same three values the plan will write,
 re-sent whole after every package rebuild; un-ticking restores the import's own
 emissive), and `ModelPlacement.build_transform()` turns the
 placement into the static replacement's transform for the headless Builder import
-(`build_placed_import`), whose result is what the plan writes. The viewport's
+(`build_placed_import`), whose result is what the plan writes. The fit's baked source
+origin is the shared preview/build anchor, so the gizmo stays on a model whose template
+location is away from world zero and manual rotation/scale happens around that origin.
+The viewport's
 rotation convention (the helper's yaw/pitch/roll) and the pipeline's x-then-y-
 then-z are the same matrix re-expressed, proven in
 `tests/test_new_item_item_preview.py` and the studio tab tests.

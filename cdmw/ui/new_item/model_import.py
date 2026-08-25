@@ -4,11 +4,11 @@ The Model and icon step takes a model file (glTF, GLB, OBJ, DAE, or a zip holdin
 reads it the way the Model Library does (the scene import, the source's own textures), and
 shows it in the step's viewport over the template's mesh, where the gizmo and the numbers
 place it. Two layers: the *fit* (`fitted_placement`: scaled to the template's length, turned
-onto its axes, centred on it) is baked into the mesh itself (`bake_mesh`), so the numbers
-the user sees and the gizmo moves start at zero and a ring drag turns the model about a
-world axis, the way the Mesh Editor's does; the *placement* on top is one convention
-everywhere: scale, then the rotations about x, y and z, then the offset, all about the
-baked model's origin (the hand, for a weapon). The helper composes a gizmo drag that way
+onto its axes, and centred or grip-aligned for the template family) is baked into the mesh
+itself (`bake_mesh`), so the numbers the user sees and the gizmo moves start at zero; the
+*placement* on top is one convention everywhere: scale, then the rotations about x, y and
+z, then the offset, all about the baked model's origin (the hand, for a weapon). The helper
+composes a gizmo drag that way
 (`ManualLinearMatrix`), the host's fallback matrix does, and so does the static
 replacement pipeline (`_rotate_xyz`), so `ModelPlacement.build_transform()` hands the
 numbers over as they are. Applying the placement runs the Builder's import headlessly over
@@ -118,9 +118,13 @@ class ModelPlacement:
             x * m[2] + y * m[6] + z * m[10] + m[14],
         )
 
-    def build_transform(self) -> StaticReplacementTransform:
+    def build_transform(self, *, origin: Optional[Sequence[float]] = None) -> StaticReplacementTransform:
         """The static replacement pipeline's transform for this placement: manual mode
-        (no anchor, no auto scale, no fit), the same scale, rotation and offset."""
+        (no auto scale or fit), the same scale, rotation and offset. ``origin`` names the
+        already-baked source origin when the mesh's first fit moved it away from world
+        zero; using it as both anchors keeps the build and the gizmo on that origin."""
+
+        anchor = _vec(origin, (0.0, 0.0, 0.0)) if origin is not None else None
 
         return StaticReplacementTransform(
             rotate_xyz_degrees=tuple(float(v) for v in self.rotation),
@@ -130,6 +134,8 @@ class ModelPlacement:
             fit_to_original_bbox=False,
             scale_to_original_length=False,
             alignment_mode="manual",
+            source_anchor=anchor,
+            target_anchor=anchor,
         )
 
     @property
@@ -191,15 +197,13 @@ def fitted_placement(
     *,
     source_centroid: Optional[Vec3] = None,
     template_centroid: Optional[Vec3] = None,
+    match_grip: bool = True,
 ) -> ModelPlacement:
-    """A first placement: the source scaled (uniformly) so its longest extent matches the
-    template's, turned by right angles so its long axis lies along the template's long
-    axis and its middle axis along the template's middle one (a blade's face the way the
-    template's faces), pointing the way the template points when both centroids say
-    which end is the heavy one (a hilt), and moved so the grips meet: the two bounding
-    boxes are centred on each other across the short axes, and along the long one the end
-    away from the heavy end is matched instead, because that is the end a weapon is held
-    by. The user takes it from there."""
+    """A first placement: scale uniformly to the template's longest extent, turn by right
+    angles so the long and middle axes match, then centre the bounding boxes. Weapon
+    families additionally use the two centroids to point their heavy ends the same way
+    and align the opposite grip ends. Armour and accessories keep the generic centred
+    fit, without treating one end as a handle. The user takes it from there."""
 
     if source_bounds is None or template_bounds is None:
         return ModelPlacement()
@@ -224,7 +228,7 @@ def fitted_placement(
         long_fit = abs(_dot(turned.apply(unit(s_order[0])), unit(t_order[0])))
         mid_fit = abs(_dot(turned.apply(unit(s_order[1])), unit(t_order[1])))
         value = round(long_fit, 6) + round(mid_fit, 6) * 0.5
-        if s_lean is not None and t_lean is not None:
+        if match_grip and s_lean is not None and t_lean is not None:
             lean = turned.apply(s_lean)
             for weight, axis, threshold in ((0.25, t_order[0], 0.02), (0.125, t_order[1], 0.02)):
                 theirs = t_lean[axis]
@@ -255,7 +259,7 @@ def fitted_placement(
     # reading of the centroid the turn above already trusts.
     axis = t_order[0]
     turned_lean = placement.apply(s_lean) if s_lean is not None else None
-    if t_lean is not None and turned_lean is not None:
+    if match_grip and t_lean is not None and turned_lean is not None:
         threshold = 0.02
         theirs, ours = t_lean[axis], turned_lean[axis]
         if abs(theirs) > threshold * t_ext[axis] and abs(ours) > threshold * t_ext[axis]:
@@ -405,6 +409,11 @@ class ModelImportSource:
     owns_extract_root: bool = False
     #: the mean vertex, for the fit's sense of which end is the heavy one
     centroid: Optional[Vec3] = None
+    #: immutable template facts prepared with the import on its worker. Re-fit uses these
+    #: instead of reading and parsing the template PAC again on the UI thread.
+    fit_template_bounds: Optional[Bounds] = None
+    fit_template_centroid: Optional[Vec3] = None
+    fit_match_grip: bool = True
     #: the fit baked into the mesh the viewport and the build see; the numbers start at zero on top
     bake: ModelPlacement = field(default_factory=ModelPlacement)
     #: flip the source's textures vertically in the build. glTF, GLB, OBJ and DAE put V's
@@ -432,6 +441,11 @@ class ModelImportSource:
         self.bake_generation += 1
         self._baked_scene_mesh = None
         self._baked_preview_mesh = None
+
+    def baked_origin(self) -> Vec3:
+        """The source model's origin after its first fit was baked into the vertices."""
+
+        return self.bake.apply((0.0, 0.0, 0.0))
 
     _baked_scene_mesh: object = field(default=None, repr=False)
     _baked_preview_mesh: object = field(default=None, repr=False)
@@ -806,7 +820,7 @@ def build_placed_import(
 
     options = dc_replace(
         apply_full_import_model_replacement_preset(),
-        transform=placement.build_transform(),
+        transform=placement.build_transform(origin=source.baked_origin()),
         texture_uv_transforms=list(flip_v_transforms(source.scene.mesh) if source.flip_texture_v else ()),
     )
     if on_progress is not None:
