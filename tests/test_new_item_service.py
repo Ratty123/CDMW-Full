@@ -378,6 +378,9 @@ class SnapshotTests(_PackageCase):
         self.assertEqual(other.template.key, OTHER)
         self.assertEqual(self.snapshot.item_names()[TEMPLATE], "Ziane_OneHandSword")
         self.assertIs(self.snapshot.item_names(), self.snapshot.item_names())
+        self.assertEqual(self.snapshot.item_display_names()[TEMPLATE], "Wolf's Fang")
+        self.assertEqual(self.snapshot.item_display_names()[OTHER], "Cigar")
+        self.assertIs(self.snapshot.item_display_names(), self.snapshot.item_display_names())
 
 
 class PlanTests(_PackageCase):

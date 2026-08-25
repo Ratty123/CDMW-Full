@@ -95,6 +95,7 @@ class NewItemSnapshot:
     _status_ranges: Optional[Mapping[int, Tuple[int, int, int, int]]] = field(default=None, repr=False)
     _socket_users: Optional[Mapping[int, int]] = field(default=None, repr=False)
     _item_names: Optional[Mapping[int, str]] = field(default=None, repr=False)
+    _item_display_names: Mapping[int, str] = field(default_factory=dict, repr=False)
     #: template key -> the validation context built for it; see :func:`build_context`
     _contexts: Dict[int, NewItemContext] = field(default_factory=dict, repr=False)
     _families: Dict[int, ItemModelFamily] = field(default_factory=dict, repr=False)
@@ -253,6 +254,11 @@ class NewItemSnapshot:
         if self._item_names is None:
             self._item_names = {int(key): row.string_key for key, row in self.rows.items()}
         return self._item_names
+
+    def item_display_names(self) -> Mapping[int, str]:
+        """`{item key: English item name}` for rows whose localisation exists."""
+
+        return self._item_display_names
 
     def status_value_ranges(self) -> Mapping[int, Tuple[int, int, int, int]]:
         """`{status key: (entries, low, median, high)}` over shipped equipment rows.
@@ -435,6 +441,14 @@ def build_snapshot(
     if english_entry is None:
         raise NewItemSnapshotError("the archives have no English localisation table")
     english = parse_paloc(bytes(read(english_entry)), name=english_entry.path)
+    english_by_key = english.index()
+    item_display_names: Dict[int, str] = {}
+    for key, row in rows.items():
+        entry = english_by_key.get(row.name_key) if row.name_key else None
+        display_name = str(getattr(entry, "text", "") or "").strip()
+        if display_name:
+            item_display_names[int(key)] = display_name
+    del english_by_key
 
     model_candidates = entries_by_extension.get(".pac", ()) if entries_by_extension else by_path.values()
     model_paths = (
@@ -487,6 +501,7 @@ def build_snapshot(
         model_stems=model_stems,
         pathc=pathc,
         effect_stems=effect_stems,
+        _item_display_names=item_display_names,
         _index_maps=(entries_by_normalized_path, entries_by_basename)
         if entries_by_normalized_path and entries_by_basename
         else None,

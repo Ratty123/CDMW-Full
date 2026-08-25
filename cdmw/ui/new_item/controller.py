@@ -17,6 +17,7 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, 
 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
+from cdmw.core.archive_name_search import _archive_name_search_text_match, parse_archive_search_query
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
@@ -169,23 +170,55 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         self._model_cleanup_lane.retire(source)
 
     def template_options(self, text: str = "", *, limit: int = 60) -> List[Tuple[int, str, str]]:
-        """(key, internal name, equip type) for equipment whose name or key matches `text`."""
+        """(key, result label, equip type) for equipment matching Archive Browser-style terms."""
 
         if self.snapshot is None:
             return []
-        needle = str(text or "").strip().casefold()
-        out: List[Tuple[int, str, str]] = []
+        raw_needle = str(text or "").strip().casefold()
+        query = parse_archive_search_query(text)
+        display_names = self.snapshot.item_display_names()
+        ranked: List[Tuple[int, str, int, str, str]] = []
+
+        def term_matches(term, name_fields: Tuple[str, str], all_fields: Tuple[str, str, str, str]) -> bool:
+            fields = name_fields if term.field == "name" else all_fields if term.field == "any" else ()
+            value = str(term.value or "").casefold()
+            return any(
+                _archive_name_search_text_match(field, term)
+                or bool(value and not term.glob and not term.phrase and value in field.casefold())
+                for field in fields
+                if field
+            )
+
         for key, row in self.snapshot.rows.items():
             equip = self.snapshot.equip_type_name(row)
             if not equip:
                 continue
-            if needle and needle not in row.string_key.casefold() and needle != str(key):
+
+            internal_name = str(row.string_key or "")
+            display_name = str(display_names.get(int(key), "") or "")
+            name_fields = (internal_name, display_name)
+            all_fields = (*name_fields, equip, str(key))
+
+            if not query.is_empty and not any(
+                all(
+                    not term_matches(term, name_fields, all_fields)
+                    if term.negated
+                    else term_matches(term, name_fields, all_fields)
+                    for term in group
+                )
+                for group in query.groups
+            ):
                 continue
-            out.append((key, row.string_key, equip))
-            if len(out) >= limit:
-                break
-        out.sort(key=lambda item: item[1].casefold())
-        return out
+
+            label = internal_name
+            if display_name and display_name.casefold() != internal_name.casefold():
+                label = f"{internal_name} — {display_name}"
+            exact_values = {str(key), internal_name.casefold(), display_name.casefold()}
+            rank = 0 if raw_needle and raw_needle in exact_values else 1
+            ranked.append((rank, internal_name.casefold(), int(key), label, equip))
+
+        ranked.sort(key=lambda item: (item[0], item[1], item[2]))
+        return [(key, label, equip) for _rank, _name, key, label, equip in ranked[:limit]]
 
     def template_name(self) -> str:
         """The template's internal name, or "" before one is chosen."""

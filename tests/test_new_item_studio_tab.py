@@ -2492,6 +2492,52 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_template_search_normalizes_terms_and_includes_localized_item_names(self) -> None:
+        from dataclasses import replace
+
+        tab = self._tab(window=None)
+        tab.prefill_template(TEMPLATE)
+        panel = tab.template_panel
+
+        panel.filter_edit.setText("fang ziane")
+        self.app.processEvents()
+
+        self.assertEqual(panel.matches.count(), 1)
+        self.assertEqual(
+            panel.matches.item(0).text(),
+            "Ziane_OneHandSword — Wolf's Fang  (1001295, OneHandSword)",
+        )
+        self.assertEqual(
+            [key for key, _label, _equip in tab.controller.template_options('"wolf\'s fang" OR cigar')],
+            [OTHER, TEMPLATE],
+        )
+        self.assertEqual(
+            [key for key, _label, _equip in tab.controller.template_options("sword -cigar")],
+            [TEMPLATE],
+        )
+        helmet_key = 1000036
+        tab.controller.snapshot.rows = {
+            **tab.controller.snapshot.rows,
+            helmet_key: replace(
+                tab.controller.snapshot.rows[TEMPLATE],
+                key=helmet_key,
+                string_key="Redrin_Fabric_Helm",
+                name_key="",
+            ),
+        }
+        self.assertEqual(
+            [key for key, _label, _equip in tab.controller.template_options("helmet red")],
+            [helmet_key],
+            "Archive Browser's helmet-to-helm alias and token prefixes are preserved",
+        )
+        self.assertEqual(
+            tab.controller.template_options(limit=1)[0][0],
+            OTHER,
+            "the display limit is applied after the complete match set is sorted",
+        )
+        tab.close()
+        tab.deleteLater()
+
     def test_walking_the_template_list_rebuilds_once_the_reader_stops(self) -> None:
         """Choosing a template rebuilds five steps: 65 ms against the real archives, and
         1,926 ms before the corpus measure moved to the snapshot worker. The list asked
