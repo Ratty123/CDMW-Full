@@ -67501,7 +67501,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 580,
+          "line": 589,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -67511,7 +67511,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 574,
+          "line": 583,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -67521,7 +67521,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 576,
+          "line": 585,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -96026,7 +96026,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 523,
+          "line": 532,
           "sink": "python-return:character_reference_from_snapshot"
         }
       ]
@@ -96141,12 +96141,12 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 521,
+          "line": 530,
           "sink": "python-return:character_reference_from_snapshot"
         },
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 571,
+          "line": 580,
           "sink": "python-return:held_character_from_snapshot"
         }
       ]
@@ -107361,7 +107361,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 190,
+          "line": 199,
           "sink": "ValueError"
         }
       ]

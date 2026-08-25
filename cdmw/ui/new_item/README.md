@@ -77,10 +77,12 @@ material wrappers never replace the import's source materials in the placement v
 The current per-part Glow colour and strength are copied into those same rows when the
 Effects package is built, and returning to the step refreshes changes made in Model & Placement.
 The character reference follows the template's player rig. Weapon families still compose
-the item's child socket with the hand socket; armour families keep the item and matching
-body in their shared bind frame, with a feet-at-zero bind-space stand-in when that archive
-body is unavailable. A helmet therefore remains at head height instead of being recentered
-onto a weapon hand.
+the item's child socket with the hand socket. Armour families reuse Placement Studio's
+upright bind frame: the item, effect anchor and offsets take the static wearable frame's
+quarter turn about X while the matching body stays at its bind origin. A feet-at-zero
+bind-space stand-in is used when that archive body is unavailable. A helmet therefore
+remains at head height instead of being recentered onto a weapon hand or left on the
+static frame's -Z axis.
 
 The Model & Placement step is a fixed three-column workspace. A top-packed Model scroller
 and always-visible Icon choices share the left column, Placement controls and pinned operation

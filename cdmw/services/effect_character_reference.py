@@ -27,10 +27,11 @@ those: sword_0039's prefab names sword_0001's file). Failing that, the frame mos
 weapons of the same kind use stands in, and failing that the item is hung on the body
 socket alone and the dialog says so.
 
-Wearable armour already lives in the matching rig's bind frame. It must stay there rather
-than being recentered onto the weapon hand; a helmet's vertices and transferred skin weights
-are what put it around the head. When the matching archive body is unavailable, the dialog
-uses a bind-space stand-in instead of the weapon-hand stand-in.
+Wearable armour's static replacement mesh and the matching rig do not use the same axes.
+Placement Studio presents the rig in its upright bind frame; the static armour frame joins it
+through a quarter turn about X. It must take that turn rather than being recentered onto the
+weapon hand. When the matching archive body is unavailable, the dialog uses a bind-space
+stand-in instead of the weapon-hand stand-in.
 
 Everything here is best effort. An install missing any piece gets a truthful stand-in rather
 than an error.
@@ -84,6 +85,14 @@ _BODY_LOD_STEM = "_lod_"
 
 #: The rotation that leaves everything where it is.
 IDENTITY_ROTATION: Tuple[float, ...] = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+#: Static armour is authored with height along -Z; Placement Studio's bind frame is upright
+#: along +Y. This is its +90 degree X turn in the archive/.NET row-vector convention:
+#: ``(x, y, z) -> (x, -z, y)``.
+_WEARABLE_TO_BIND_ROTATION: Tuple[float, ...] = (
+    1.0, 0.0, 0.0,
+    0.0, 0.0, 1.0,
+    0.0, -1.0, 0.0,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,8 +116,8 @@ class CharacterReference:
 class HeldCharacter:
     """The scene body and the optional turn from item space into that body frame.
 
-    Weapons move the body around the held origin and carry a rotation. Wearables keep the
-    matching body's bind frame and use ``None`` because item and scene coordinates agree.
+    Weapons move the body around the held origin and carry their attachment rotation.
+    Wearables keep the matching body's bind frame and carry the static-armour-to-bind turn.
     """
 
     mesh: ParsedMesh
@@ -550,7 +559,7 @@ def held_character_from_snapshot(
             sources = reference.sources
         wearable = HeldCharacter(
             mesh=mesh,
-            item_rotation=None,
+            item_rotation=_WEARABLE_TO_BIND_ROTATION,
             socket="",
             child_socket="",
             held_from="wearable",
