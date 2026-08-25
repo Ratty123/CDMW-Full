@@ -14356,17 +14356,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1399,
+          "line": 1432,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1406,
+          "line": 1439,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1415,
+          "line": 1448,
           "sink": "emit"
         },
         {
@@ -14871,7 +14871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1123,
+          "line": 1156,
           "sink": "log"
         }
       ]
@@ -16321,7 +16321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1505,
+          "line": 1538,
           "sink": "emit"
         },
         {
@@ -18426,7 +18426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 997,
+          "line": 1030,
           "sink": "emit"
         }
       ]
@@ -18596,7 +18596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1362,
+          "line": 1395,
           "sink": "emit"
         }
       ]
@@ -41116,7 +41116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1113,
+          "line": 1146,
           "sink": "emit"
         }
       ]
@@ -43781,7 +43781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 911,
+          "line": 944,
           "sink": "emit"
         }
       ]
@@ -50661,12 +50661,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1215,
+          "line": 1248,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1216,
+          "line": 1249,
           "sink": "emit"
         }
       ]
@@ -53346,7 +53346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1048,
+          "line": 1081,
           "sink": "progress"
         }
       ]
@@ -55771,22 +55771,22 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 378,
+          "line": 384,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 392,
+          "line": 398,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 401,
+          "line": 407,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 420,
+          "line": 426,
           "sink": "raise_if_cancelled"
         },
         {
@@ -57211,7 +57211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1393,
+          "line": 1426,
           "sink": "emit"
         },
         {
@@ -62041,7 +62041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1158,
+          "line": 1191,
           "sink": "emit"
         },
         {
@@ -62611,12 +62611,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1524,
+          "line": 1557,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1535,
+          "line": 1568,
           "sink": "emit"
         },
         {
@@ -69436,7 +69436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1175,
+          "line": 1208,
           "sink": "log"
         },
         {
@@ -72401,7 +72401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1345,
+          "line": 1378,
           "sink": "emit"
         },
         {
@@ -72661,7 +72661,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 379,
+          "line": 385,
           "sink": "log"
         }
       ]
@@ -72671,7 +72671,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 402,
+          "line": 408,
           "sink": "log"
         }
       ]
@@ -72681,7 +72681,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 393,
+          "line": 399,
           "sink": "log"
         }
       ]
@@ -72876,7 +72876,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 421,
+          "line": 427,
           "sink": "log"
         }
       ]
@@ -72976,7 +72976,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 462,
+          "line": 476,
           "sink": "log"
         }
       ]
@@ -73016,7 +73016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1026,
+          "line": 1059,
           "sink": "report"
         }
       ]
@@ -89256,7 +89256,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 498,
+          "line": 513,
           "sink": "log"
         }
       ]
@@ -91901,7 +91901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1444,
+          "line": 1477,
           "sink": "emit"
         }
       ]
@@ -93891,7 +93891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 674,
+          "line": 707,
           "sink": "RunCancelled"
         }
       ]
@@ -95666,22 +95666,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1167,
+          "line": 1200,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1169,
+          "line": 1202,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1174,
+          "line": 1207,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1191,
+          "line": 1224,
           "sink": "RuntimeError"
         },
         {
@@ -95826,7 +95826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1251,
+          "line": 1284,
           "sink": "emit"
         }
       ]
@@ -96521,7 +96521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1366,
+          "line": 1399,
           "sink": "emit"
         },
         {
@@ -96641,7 +96641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1393,
+          "line": 1426,
           "sink": "emit"
         },
         {
@@ -96676,12 +96676,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1074,
+          "line": 1107,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1075,
+          "line": 1108,
           "sink": "emit"
         }
       ]
@@ -96711,7 +96711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1053,
+          "line": 1086,
           "sink": "emit"
         }
       ]
@@ -96731,7 +96731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 828,
+          "line": 861,
           "sink": "emit"
         }
       ]
@@ -96806,7 +96806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1139,
+          "line": 1172,
           "sink": "emit"
         }
       ]
@@ -96866,7 +96866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1383,
+          "line": 1416,
           "sink": "emit"
         }
       ]
@@ -97211,7 +97211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1274,
+          "line": 1307,
           "sink": "emit"
         }
       ]
@@ -97381,7 +97381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 789,
+          "line": 822,
           "sink": "emit"
         }
       ]
@@ -97391,7 +97391,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 466,
+          "line": 480,
           "sink": "log"
         }
       ]
@@ -112821,7 +112821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1402,
+          "line": 1435,
           "sink": "_run"
         }
       ]
@@ -114846,12 +114846,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1409,
+          "line": 1442,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1418,
+          "line": 1451,
           "sink": "_run"
         }
       ]
@@ -118961,12 +118961,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1424,
+          "line": 1457,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1430,
+          "line": 1463,
           "sink": "_run"
         },
         {
@@ -119676,7 +119676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1395,
+          "line": 1428,
           "sink": "_run"
         }
       ]
@@ -197421,7 +197421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1276,
+          "line": 1309,
           "sink": "_run"
         }
       ]
@@ -204411,7 +204411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 440,
+          "line": 473,
           "sink": "python-return:_perk_label"
         },
         {
@@ -204591,7 +204591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 459,
+          "line": 492,
           "sink": "python-return:perk_details"
         }
       ]
@@ -205776,7 +205776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 237,
+          "line": 270,
           "sink": "python-return:suggest_internal_name"
         }
       ]
@@ -205786,7 +205786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 237,
+          "line": 270,
           "sink": "python-return:suggest_internal_name"
         }
       ]

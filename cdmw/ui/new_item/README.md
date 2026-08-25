@@ -16,9 +16,12 @@ worker, never UI callbacks. Shutdown requests cancellation and leaves live
 threads discoverable to the shell close sweep; no New Item widget waits on its
 own worker. The `panels_*.py` modules edit the draft and ask the
 controller for facts; `tab.py` composes them, and forwards install to the shell.
-The Template panel commits an explicit mouse click immediately, while keyboard
-row navigation keeps its 180 ms latest-row settle so holding an arrow key does
-not rebuild every dependent step along the way. It mounts the same resident item
+The Template panel searches internal IDs, English item names, equipment types and
+item keys with Archive Browser's normalized terms, phrases, alternatives and exclusions.
+Its rows include the English item name when one exists, and the bounded result list is
+drawn from the complete sorted match set. An explicit mouse click commits immediately,
+while keyboard row navigation keeps its 180 ms latest-row settle so holding an arrow key
+does not rebuild every dependent step along the way. It mounts the same resident item
 viewport used by Model & Placement, so a selected helmet, armour piece or weapon can
 be orbited and zoomed before the workflow inherits it. Search, results and selected-item
 facts stay in a left column while the preview receives the wider right column and the
