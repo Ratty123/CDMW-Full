@@ -641,9 +641,11 @@ def _dotnet_initial_material_parameters(
         minimum=0.0,
         maximum=1.0,
     )
-    if is_gltf and roughness is None and "roughness" not in resolved_channels:
+    # glTF factors multiply their sampled channels and default to identity even
+    # when the corresponding texture is present.
+    if is_gltf and roughness is None:
         roughness = 1.0
-    if is_gltf and metallic is None and "metallic" not in resolved_channels:
+    if is_gltf and metallic is None:
         metallic = 1.0
     specular = None if native_hints is not None else _finite_float(
         overrides.get("specular", _material_parameter_value(source, "_specularFactor")),
