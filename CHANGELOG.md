@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+- **New Item Studio gives template selection and its preview separate side-by-side columns.** Search, results and the chosen-template facts stay together on the left, while the same resident orbitable preview receives the wider right column and the full working height before moving unchanged into **Model & Placement**.
+
 ## [0.11.0-alpha.8] - 2026-08-25
 
 ### Changed

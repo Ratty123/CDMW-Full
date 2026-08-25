@@ -391,6 +391,28 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_template_selection_and_preview_are_wide_side_by_side_columns(self) -> None:
+        tab = self._tab()
+        tab.resize(1600, 900)
+        tab.start_snapshot()
+        tab.show()
+        self.app.processEvents()
+
+        panel = tab.template_panel
+        selection = panel.selection_column.geometry()
+        preview = panel.preview_group.geometry()
+        self.assertTrue(panel.selection_column.isAncestorOf(panel.matches))
+        self.assertTrue(panel.selection_column.isAncestorOf(panel.summary))
+        self.assertTrue(panel.preview_group.isAncestorOf(panel.preview_holder))
+        self.assertLess(selection.right(), preview.left(), "selection stays left of the preview")
+        self.assertLessEqual(abs(selection.top() - preview.top()), 1)
+        self.assertLessEqual(abs(selection.bottom() - preview.bottom()), 1)
+        self.assertGreater(preview.width(), selection.width(), "the preview receives the wider column")
+
+        tab.shutdown()
+        tab.close()
+        tab.deleteLater()
+
     def test_effect_target_preflight_is_cached_by_template_and_effect(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)

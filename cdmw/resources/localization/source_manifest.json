@@ -18446,12 +18446,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 51,
+          "line": 56,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 142,
+          "line": 149,
           "sink": "setText"
         }
       ]
@@ -35326,7 +35326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 29,
+          "line": 34,
           "sink": "QLabel"
         }
       ]
@@ -42986,7 +42986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 31,
+          "line": 36,
           "sink": "setPlaceholderText"
         }
       ]
@@ -69756,7 +69756,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 56,
+          "line": 62,
           "sink": "QGroupBox"
         },
         {
@@ -70176,7 +70176,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 59,
+          "line": 65,
           "sink": "QLabel"
         }
       ]
@@ -96156,7 +96156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 49,
+          "line": 54,
           "sink": "QGroupBox"
         }
       ]
@@ -200891,7 +200891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 93,
+          "line": 100,
           "sink": "QListWidgetItem"
         }
       ]
