@@ -158,7 +158,10 @@ class ModelPanel(QGroupBox):
         model = QGroupBox("Model")
         model.setTitle("")
         model.setAccessibleName("Model")
+        model.setProperty("titlelessSection", True)
         model_layout = QVBoxLayout(model)
+        model_layout.setContentsMargins(8, 4, 8, 6)
+        model_layout.setSpacing(4)
         self.keep_model = QRadioButton("Keep the template's model (no new model files)")
         self.keep_model.setChecked(True)
         self.keep_model.toggled.connect(self._model_source_changed)
@@ -279,6 +282,8 @@ class ModelPanel(QGroupBox):
             "own model brought an emissive map."
         )
         glow_layout = QVBoxLayout(self.glow_box)
+        glow_layout.setContentsMargins(8, 6, 8, 6)
+        glow_layout.setSpacing(4)
         self.glow_parts = QListWidget()
         self.glow_parts.setToolTip("The item's material parts, as its model names them. Tick the ones that glow.")
         self.glow_parts.setMaximumHeight(110)
@@ -289,7 +294,8 @@ class ModelPanel(QGroupBox):
         self.glow_color_button.setToolTip("The colour the chosen parts glow in.")
         self.glow_color_button.clicked.connect(self._pick_glow_color)
         glow_row.addWidget(self.glow_color_button)
-        glow_row.addWidget(QLabel("Strength"))
+        self.glow_strength_label = QLabel("Strength")
+        glow_row.addWidget(self.glow_strength_label)
         self.glow_intensity = QDoubleSpinBox()
         self.glow_intensity.setRange(0.1, 20.0)
         self.glow_intensity.setSingleStep(0.5)
@@ -300,7 +306,15 @@ class ModelPanel(QGroupBox):
         glow_row.addWidget(self.glow_intensity)
         glow_row.addStretch(1)
         glow_layout.addLayout(glow_row)
+        self._glow_detail_widgets = (
+            self.glow_parts,
+            self.glow_color_button,
+            self.glow_strength_label,
+            self.glow_intensity,
+        )
+        self.glow_box.toggled.connect(self._set_glow_details_visible)
         self.glow_box.toggled.connect(lambda _on: self._glow_changed())
+        self._set_glow_details_visible(False)
         model_layout.addWidget(self.glow_box)
         self._set_glow_swatch()
         self.flip_texture_v = QCheckBox("Flip textures vertically (V)")
@@ -328,7 +342,10 @@ class ModelPanel(QGroupBox):
         self.placement_group = QGroupBox("Place the model over the template")
         self.placement_group.setTitle("")
         self.placement_group.setAccessibleName("Placement")
+        self.placement_group.setProperty("titlelessSection", True)
         placement_layout = QVBoxLayout(self.placement_group)
+        placement_layout.setContentsMargins(8, 4, 8, 6)
+        placement_layout.setSpacing(4)
         self.placement_group.setToolTip(
             "The model starts fitted to the template. Move it with the gizmo or numbers, then apply the placement."
         )
@@ -451,7 +468,10 @@ class ModelPanel(QGroupBox):
         icon = QGroupBox("Icon")
         icon.setTitle("")
         icon.setAccessibleName("Icon")
+        icon.setProperty("titlelessSection", True)
         icon_layout = QVBoxLayout(icon)
+        icon_layout.setContentsMargins(8, 4, 8, 6)
+        icon_layout.setSpacing(4)
         self.keep_icon = QRadioButton("Keep the template's icon")
         self.keep_icon.setChecked(True)
         self.keep_icon.toggled.connect(self._icon_source_changed)
@@ -632,6 +652,12 @@ class ModelPanel(QGroupBox):
             for row in range(self.glow_parts.count())
             if self.glow_parts.item(row).checkState() == Qt.CheckState.Checked
         )
+
+    def _set_glow_details_visible(self, visible: bool) -> None:
+        """Keep the inactive Glow choice to one compact row."""
+
+        for widget in self._glow_detail_widgets:
+            widget.setVisible(bool(visible))
 
     def _glow_changed(self) -> None:
         draft = self._controller.draft
