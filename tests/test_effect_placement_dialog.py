@@ -254,6 +254,38 @@ class DialogTests(unittest.TestCase):
         places["Middle"].click()
         self.assertAlmostEqual(dialog.offset[2], -0.35, places=3)
 
+    def test_a_wearable_origin_starts_the_gizmo_on_the_applied_helmet(self) -> None:
+        helmet = _blade()
+        helmet._cdmw_effect_item_origin = (0.01, 1.76, -0.05)
+        workspace = EffectPlacementWorkspace(
+            item_mesh=helmet,
+            box_min=(-1.0, -1.0, -1.0),
+            box_max=(1.0, 1.0, 1.0),
+            host_factory=lambda parent: _Host(parent),
+            compatibility_ui=True,
+        )
+        self.addCleanup(workspace.request_shutdown)
+        self.addCleanup(workspace.deleteLater)
+        workspace._initial_package_timer.stop()
+        workspace._preview = EffectPlacementPreview(
+            package_dir=Path("."),
+            box_submesh_index=0,
+            item_submesh_count=1,
+            box_min=(-1.0, -1.0, -1.0),
+            box_max=(1.0, 1.0, 1.0),
+        )
+
+        workspace._sync_host()
+
+        self.assertEqual(workspace.offset, (0.01, 1.76, -0.05))
+        self.assertEqual(
+            workspace.host.transforms[-1]["translation"],
+            (0.01, 1.76, -0.05),
+            "neutral placement sends the resident gizmo to the applied model origin",
+        )
+        workspace._put_it_at("origin")
+        self.assertEqual(workspace.offset, (0.01, 1.76, -0.05))
+
     def test_hiding_the_character_and_the_reach_hides_those_submeshes(self) -> None:
         dialog = self._dialog()
         dialog.show_reach.setChecked(True)

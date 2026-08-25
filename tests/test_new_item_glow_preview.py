@@ -111,6 +111,54 @@ class GlowChoiceHelperTests(unittest.TestCase):
 
 
 class EffectPreviewMeshRoutingTests(unittest.TestCase):
+    def test_effect_preview_reuses_model_and_placement_s_fitted_pivot(self) -> None:
+        from types import SimpleNamespace
+
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.controller import NewItemStudioController
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        app = QApplication.instance() or QApplication([])
+        part = SubMesh(
+            name="helmet",
+            material="steel",
+            vertices=[(0.0, 1.5, 0.0), (0.0, 2.0, 0.0), (0.2, 1.75, 0.0)],
+            uvs=[(0.0, 0.0)] * 3,
+            normals=[(0.0, 1.0, 0.0)] * 3,
+            faces=[(0, 1, 2)],
+        )
+        imported = ParsedMesh(
+            path="helmet.gltf",
+            format="gltf",
+            submeshes=[part],
+            bbox_min=(0.0, 1.5, 0.0),
+            bbox_max=(0.2, 2.0, 0.0),
+        )
+        controller = NewItemStudioController(synchronous=True)
+        controller.draft.template_key = 1
+        controller.snapshot = SimpleNamespace(
+            family=lambda _key: SimpleNamespace(
+                model_folder="character/model/1_pc/1_phm/armor/13_hel"
+            )
+        )
+        controller.model_import = SimpleNamespace(
+            baked_preview_mesh=lambda: imported,
+            baked_scene_mesh=lambda: imported,
+            baked_origin=lambda: (0.0, 1.75, 0.0),
+        )
+        controller.model_placement = ModelPlacement(rotation=(90.0, 0.0, 0.0))
+
+        planned, kind = controller.item_mesh_as_planned()
+
+        self.assertEqual(kind, "placed")
+        self.assertGreater(planned.bbox_min[1], 1.7, "Effects did not rotate the helmet around the feet")
+        self.assertLess(planned.bbox_max[2] - planned.bbox_min[2], 0.6)
+        self.assertEqual(planned._cdmw_effect_item_origin, (0.0, 1.75, 0.0))
+        controller.request_shutdown()
+        self.assertIsNotNone(app)
+
     def test_the_effect_preview_mesh_carries_the_current_glow_without_mutating_the_import(self) -> None:
         from PySide6.QtWidgets import QApplication
 

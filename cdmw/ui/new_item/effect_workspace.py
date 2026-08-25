@@ -301,6 +301,7 @@ class GuidedEffectsWorkspace(QWidget):
         self._syncing = False
         self._reset_view_next = True
         self._preview_retry_remaining = 1
+        self._origin_defaulted_stem: Optional[str] = None
         self._placement_root = Path(tempfile.mkdtemp(prefix="cdmw_effect_workspace_"))
         self._label_by_stem = _unique_effect_labels(tuple(controller.effect_stems("", limit=None)))
 
@@ -733,6 +734,7 @@ class GuidedEffectsWorkspace(QWidget):
     def _source_changed(self, *_args) -> None:
         self._committed = EffectWorkspaceState.from_draft(self._controller.draft)
         self._staged = self._committed
+        self._origin_defaulted_stem = None
         self._reset_view_next = True
         self._preview_retry_remaining = 1
         self._refresh_library()
@@ -753,9 +755,28 @@ class GuidedEffectsWorkspace(QWidget):
                     self.selection_timer.start(300)
             return
         self._preview_retry_remaining = 1
+        stem = self._staged.stem
+        raw_origin = getattr(mesh, "_cdmw_effect_item_origin", None)
+        try:
+            item_origin = tuple(float(value) for value in raw_origin)
+        except (TypeError, ValueError):
+            item_origin = ()
+        if len(item_origin) != 3:
+            item_origin = ()
+        if self._origin_defaulted_stem != stem:
+            self._origin_defaulted_stem = stem
+            if (
+                stem
+                and item_origin
+                and all(abs(float(value)) < 1e-9 for value in self._staged.offset)
+            ):
+                # A wearable mesh is rooted at the character, while its applied model
+                # origin is on the worn piece. Neutral placement starts at that origin so
+                # the gizmo and the effect open on the helmet instead of at the feet.
+                self._staged = replace(self._staged, offset=item_origin)
+                self._publish_dirty()
         model_source = getattr(self._controller, "model_import", None)
         model_source_usage = getattr(model_source, "acquire_usage", None)
-        stem = self._staged.stem
         box_min, box_max = self._controller.effect_box(stem)
         preview_builder, texture_reader = self._controller.effect_preview_for_placement(stem, self._staged)
         if self.placement is None:

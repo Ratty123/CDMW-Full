@@ -2235,8 +2235,8 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
-    def test_effect_character_uses_the_template_rig_and_turns_armour_into_bind_space(self) -> None:
-        """The escaped helmet bug: bypass the hand, but keep the wearable frame conversion."""
+    def test_effect_character_uses_the_template_rig_and_keeps_armour_in_bind_space(self) -> None:
+        """The escaped helmet bug: armour bypasses the hand and keeps its upright axes."""
 
         from types import SimpleNamespace
 
@@ -2296,11 +2296,7 @@ class TabTests(unittest.TestCase):
 
         self.assertEqual(requested, [folders[7], folders[9]], "one archive body read per rig")
         self.assertIs(helmet.mesh, mask.mesh, "helmet and mask share the cached PHW body")
-        self.assertEqual(
-            helmet.item_rotation,
-            (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0),
-            "the static helmet frame reuses Placement Studio's upright wearable frame",
-        )
+        self.assertIsNone(helmet.item_rotation)
         self.assertEqual(helmet.held_from, "wearable")
         self.assertEqual(helmet.mesh.bbox_min[1], 0.0, "armour stays at the body's origin")
         self.assertNotEqual(other_rig.mesh.path, helmet.mesh.path)

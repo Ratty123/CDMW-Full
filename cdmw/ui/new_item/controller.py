@@ -472,6 +472,32 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         Returns `(mesh, kind)` where kind is "placed", "applied" or "template"; the mesh
         is None when there is nothing to parse."""
 
+        wearable = self._template_is_wearable()
+
+        def finish(mesh, kind: str, origin=None):
+            preview = glow_preview_mesh(mesh, glow_choice(self.draft))
+            if wearable:
+                point = None
+                try:
+                    values = tuple(float(value) for value in origin) if origin is not None else ()
+                except (TypeError, ValueError):
+                    values = ()
+                if len(values) == 3:
+                    point = values
+                elif (
+                    getattr(preview, "bbox_min", None) is not None
+                    and getattr(preview, "bbox_max", None) is not None
+                ):
+                    point = tuple(
+                        (float(preview.bbox_min[axis]) + float(preview.bbox_max[axis])) * 0.5
+                        for axis in range(3)
+                    )
+                if point is not None:
+                    # The prefab transform is expressed in the item's archive axes. Effects
+                    # uses this placed source origin as the neutral helmet/armour anchor.
+                    setattr(preview, "_cdmw_effect_item_origin", point)
+            return preview, kind
+
         source = self.model_import
         if source is not None:
             # the textured preview decode, not the bare scene mesh: a `.pac`'s geometry
@@ -480,25 +506,47 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             # is output authority, but using it here replaces the import's PBR authority
             # with a synthesized template surface after Apply.
             mesh = None
+            source_origin = None
+            origin_reader = getattr(source, "baked_origin", None)
+            if callable(origin_reader):
+                try:
+                    values = tuple(float(value) for value in origin_reader())
+                except (TypeError, ValueError):
+                    values = ()
+                if len(values) == 3:
+                    source_origin = values
             for candidate in (source.baked_preview_mesh, source.baked_scene_mesh):
                 try:
-                    baked = bake_mesh(candidate(), self.model_placement)
+                    baked = bake_mesh(
+                        candidate(),
+                        self.model_placement,
+                        origin=source_origin,
+                    )
                 except Exception:  # noqa: BLE001 - fall back to whatever else there is
                     continue
                 if baked is not None:
                     mesh = baked
                     break
             if mesh is not None:
-                return glow_preview_mesh(mesh, glow_choice(self.draft)), "applied" if self.model_result is not None else "placed"
+                placed_origin = (
+                    tuple(source_origin[axis] + self.model_placement.offset[axis] for axis in range(3))
+                    if source_origin is not None
+                    else None
+                )
+                return finish(
+                    mesh,
+                    "applied" if self.model_result is not None else "placed",
+                    placed_origin,
+                )
         # A restored applied result may have no live import source. Its preview decode is
         # still preferable to the bare `.pac` geometry that names no textures.
         textured = self._textured_preview_mesh()
         if textured is not None:
-            return glow_preview_mesh(textured, glow_choice(self.draft)), "applied"
+            return finish(textured, "applied")
         mesh = self.item_mesh_for_preview()
         if mesh is None:
             return None, ""
-        return glow_preview_mesh(mesh, glow_choice(self.draft)), "applied" if self.model_result is not None else "template"
+        return finish(mesh, "applied" if self.model_result is not None else "template")
 
     def _textured_preview_mesh(self):
         """The applied import as a mesh that names its textures, or None.
@@ -919,6 +967,18 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         model_folder = str(family.model_folder or "").replace("\\", "/")
         folder = f"/{model_folder.strip('/').casefold()}/"
         return "/weapon/" in folder
+
+    def _template_is_wearable(self) -> bool:
+        """Whether the effect preview should use the placed model origin as its anchor."""
+
+        if self.snapshot is None or self.draft.template_key is None:
+            return False
+        try:
+            family = self.snapshot.family(self.draft.template_key)
+        except Exception:  # noqa: BLE001 - an unresolved family keeps the ordinary origin
+            return False
+        model_folder = str(family.model_folder or "").replace("\\", "/")
+        return "/armor/" in f"/{model_folder.strip('/').casefold()}/"
 
     def _template_mesh(self):
         saved, self.model_result = self.model_result, None

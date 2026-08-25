@@ -77,12 +77,12 @@ material wrappers never replace the import's source materials in the placement v
 The current per-part Glow colour and strength are copied into those same rows when the
 Effects package is built, and returning to the step refreshes changes made in Model & Placement.
 The character reference follows the template's player rig. Weapon families still compose
-the item's child socket with the hand socket. Armour families reuse Placement Studio's
-upright bind frame: the item, effect anchor and offsets take the static wearable frame's
-quarter turn about X while the matching body stays at its bind origin. A feet-at-zero
-bind-space stand-in is used when that archive body is unavailable. A helmet therefore
-remains at head height instead of being recentered onto a weapon hand or left on the
-static frame's -Z axis.
+the item's child socket with the hand socket. Armour families stay in Placement Studio's
+upright bind frame while the matching body remains at its bind origin. The placed preview
+bakes manual rotation and scale around the same fitted source origin that Model & Placement
+and the final Builder use; for a wearable, neutral effect placement starts at that applied
+origin so the gizmo opens on the helmet or armour rather than at the character's feet. A
+feet-at-zero bind-space stand-in is used when the matching archive body is unavailable.
 
 The Model & Placement step is a fixed three-column workspace. A top-packed Model scroller
 and always-visible Icon choices share the left column, Placement controls and pinned operation
@@ -115,7 +115,7 @@ ticked on the step lights its parts in that
 viewport live (`glow_preview_parameter_groups` in the materials service builds
 the renderer's parameter groups from the same three values the plan will write,
 re-sent whole after every package rebuild; un-ticking restores the import's own
-emissive), and `ModelPlacement.build_transform()` turns the
+emissive), and `ModelPlacement.build_transform()` plus the origin-aware preview bake turn the
 placement into the static replacement's transform for the headless Builder import
 (`build_placed_import`), whose result is what the plan writes. The fit's baked source
 origin is the shared preview/build anchor, so the gizmo stays on a model whose template

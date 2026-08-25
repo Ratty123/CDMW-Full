@@ -59,6 +59,7 @@ from cdmw.ui.new_item.effect_placement_dialog_support import (
     PARTICLE_TINT,
     PlacementFrame,
     describe_effect_preview,
+    placed_item_origin,
     remember_backdrop,
     remember_orbit_inversion,
     remembered_backdrop,
@@ -127,8 +128,15 @@ class EffectPlacementWorkspace(
     ) -> None:
         super().__init__(parent)
         self._item_mesh = item_mesh
+        self._item_origin = placed_item_origin(item_mesh)
         self._box = (tuple(float(v) for v in box_min), tuple(float(v) for v in box_max))
-        self.offset: Vec3 = tuple(float(v) for v in offset)  # type: ignore[assignment]
+        initial_offset = tuple(float(v) for v in offset)
+        if (
+            all(abs(value) < 1e-9 for value in initial_offset)
+            and any(abs(value) >= 1e-9 for value in self._item_origin)
+        ):
+            initial_offset = self._item_origin
+        self.offset: Vec3 = initial_offset  # type: ignore[assignment]
         self.rotation: Vec3 = tuple(wrap_degrees(float(v)) for v in rotation)  # type: ignore[assignment]
         self.scale: float = float(scale)
         self.color: Optional[Vec3] = None if color is None else tuple(float(v) for v in color)  # type: ignore[assignment]
@@ -405,7 +413,7 @@ class EffectPlacementWorkspace(
             return
         low, high = self._item_bounds()
         if where in {"hand", "origin"}:
-            self._set_numbers((0.0, 0.0, 0.0), self.scale)
+            self._set_numbers(self._item_origin, self.scale)
             self._sync_host()
             return
         centre = tuple((low[axis] + high[axis]) / 2.0 for axis in range(3))

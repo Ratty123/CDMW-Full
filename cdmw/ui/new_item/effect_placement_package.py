@@ -14,7 +14,11 @@ from cdmw.services.effect_placement_preview import (
 )
 from cdmw.services.effect_preview_model import EffectPreview
 from cdmw.ui.new_item.effect_placement_constants import REACH_HIDDEN_ABOVE
-from cdmw.ui.new_item.effect_placement_dialog_support import PlacementFrame, describe_effect_preview
+from cdmw.ui.new_item.effect_placement_dialog_support import (
+    PlacementFrame,
+    describe_effect_preview,
+    placed_item_origin,
+)
 from cdmw.workers.utility_workers import UtilityWorker
 
 if TYPE_CHECKING:
@@ -40,6 +44,7 @@ class EffectPlacementPackageMixin:
         reset_view: bool = False,
     ) -> None:
         self._item_mesh = item_mesh
+        self._item_origin = placed_item_origin(item_mesh)
         self._box = (tuple(float(v) for v in box_min), tuple(float(v) for v in box_max))
         self._box_size = tuple(high - low for low, high in zip(*self._box))
         low, high = self._item_bounds()
