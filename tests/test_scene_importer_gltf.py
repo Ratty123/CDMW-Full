@@ -187,6 +187,12 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertEqual(result.mesh.total_vertices, 3)
             self.assertEqual(result.mesh.total_faces, 1)
             self.assertTrue(result.mesh.has_uvs)
+            self.assertEqual(
+                [(0.0, 1.0), (1.0, 1.0), (0.0, 0.0)],
+                result.mesh.submeshes[0].uvs,
+                "a textureless material still keeps its authored TEXCOORD_0 channel",
+            )
+            self.assertNotIn("generated UVs", " ".join(result.diagnostics))
             self.assertIsNone(preview_model.meshes[0].preview_texture_flip_vertical)
 
     def test_zip_containing_gltf_imports_via_safe_extract_cache(self) -> None:

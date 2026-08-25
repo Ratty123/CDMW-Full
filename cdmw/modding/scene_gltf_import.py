@@ -189,7 +189,11 @@ def _collect_gltf_geometry(
                     else _gltf_material_texcoord_index(material_texture_slots, material_index)
                 ),
                 texcoord_transform=(uv_plan.transform if uv_plan is not None and uv_plan.bakes_transform else ()),
-                texcoord_rows=(uv_inputs.rows(uv_plan.source_texcoord) if uv_inputs is not None and uv_plan is not None else None),
+                texcoord_rows=(
+                    uv_inputs.rows(uv_plan.source_texcoord)
+                    if uv_inputs is not None and uv_plan is not None and uv_plan.slots
+                    else None
+                ),
             )
             skin_matrices: tuple[tuple[float, ...], ...] = ()
             if instance.skin_index >= 0 and instance.node_index >= 0:

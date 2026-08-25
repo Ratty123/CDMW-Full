@@ -46,14 +46,44 @@ _TIMEOUT_SECONDS = 180
 #: add-ons and preferences cannot change the result.
 _SCRIPT = """
 import bpy, json, sys
+from pathlib import Path
 
 source, target = sys.argv[-2], sys.argv[-1]
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.fbx(filepath=source)
+source_path = Path(source)
+target_path = Path(target)
+image_search_roots = (
+    source_path.parent,
+    source_path.parent / "textures",
+    source_path.parent.parent / "textures",
+    target_path.parent / "textures",
+)
+for image in bpy.data.images:
+    if image.users and not image.has_data:
+        wanted = Path(image.filepath).name.casefold()
+        if not wanted:
+            continue
+        for root in image_search_roots:
+            try:
+                candidate = next(
+                    (path for path in root.iterdir() if path.is_file() and path.name.casefold() == wanted),
+                    None,
+                )
+            except OSError:
+                continue
+            if candidate is None:
+                continue
+            image.filepath = str(candidate)
+            try:
+                image.reload()
+            except (OSError, RuntimeError):
+                pass
+            if image.has_data:
+                break
 meshes = [o for o in bpy.data.objects if o.type == "MESH"]
 vertices = sum(len(o.data.vertices) for o in meshes)
 materials = sorted({s.material.name for o in meshes for s in o.material_slots if s.material})
-images = sorted({i.name for i in bpy.data.images if i.users})
 bpy.ops.export_scene.gltf(
     filepath=target,
     export_format="GLB",
@@ -63,6 +93,7 @@ bpy.ops.export_scene.gltf(
     export_yup=True,
     use_selection=False,
 )
+images = sorted({i.name for i in bpy.data.images if i.users and i.has_data})
 print("CDMW_FBX_RESULT " + json.dumps({
     "objects": len(meshes),
     "vertices": vertices,

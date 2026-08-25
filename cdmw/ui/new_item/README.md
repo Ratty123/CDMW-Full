@@ -72,7 +72,12 @@ The repeated Model / Placement / Icon tab strip is gone, so all three surfaces s
 the way the Model Library does (the scene import, the source's own textures),
 `item_preview.py` publishes fitted geometry first, then upgrades a copied package with
 canonical materials without restarting the renderer, re-exporting geometry or resetting
-the camera. Generated material synthesis is deduplicated across identical submesh inputs.
+the camera. FBX conversion relinks an explicitly referenced missing image by exact basename
+from the extracted package's nearby texture folders; the shared preview then supplements an
+embedded base with clearly named Normal, AO, Roughness and Metallic maps without treating a
+Thickness map as colour. A textureless exported material still keeps its authored
+`TEXCOORD_0` channel instead of triggering an unnecessary auto-unwrap. Generated material
+synthesis is deduplicated across identical submesh inputs.
 Apply runs through the controller's cancellable progress lane; its spinner, current phase,
 percentage when available and Cancel action remain live while conflicting placement edits
 are disabled. Preview-loading text stays in that pinned operation bar while errors and
