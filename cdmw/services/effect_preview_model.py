@@ -36,6 +36,7 @@ from typing import Callable, Iterable, List, Mapping, Optional, Protocol, Sequen
 
 from cdmw.core.effect_binary import EffectDocument, ReflectNode, half_floats
 from cdmw.core.effect_edit import COLOR_CURVE_ID, TEMPERATURE_BRIGHTNESS, TEMPERATURE_RAMP, EmitterLayout, LookLike, emitter_paths_of
+from cdmw.domain.cancellation import RunCancelled
 
 __all__ = [
     "ALPHA_CURVE_ID",
@@ -278,6 +279,31 @@ def _sample_surface(mesh_path: str, meshes: Mapping[str, Sequence[Vec3]], count:
     rng = random.Random(len(vertices))
     picked = rng.sample(range(len(vertices)), count)
     return tuple((float(vertices[i][0]), float(vertices[i][1]), float(vertices[i][2])) for i in sorted(picked))
+
+
+def _sample_parsed_mesh_surface(parsed: object, count: int) -> Tuple[Vec3, ...]:
+    """Take the same deterministic global sample as :func:`_sample_surface` without
+    flattening every vertex in a potentially very large spawn mesh first."""
+
+    groups = []
+    for submesh in tuple(getattr(parsed, "submeshes", ()) or ()):
+        vertices = getattr(submesh, "vertices", ())
+        if vertices is not None and len(vertices):
+            groups.append(vertices)
+    total = sum(len(vertices) for vertices in groups)
+    if total <= 0 or count <= 0:
+        return ()
+    picked = list(range(total)) if total <= count else sorted(random.Random(total).sample(range(total), count))
+    sampled = []
+    group_index = 0
+    group_start = 0
+    for index in picked:
+        while index >= group_start + len(groups[group_index]):
+            group_start += len(groups[group_index])
+            group_index += 1
+        vertex = groups[group_index][index - group_start]
+        sampled.append(tuple(float(component) for component in vertex[:3]))
+    return tuple(sampled)  # type: ignore[return-value]
 
 
 #: What a shipped emitter says, for the ones that are not shipped at all. Medians over the
@@ -590,34 +616,49 @@ def preview_effect_from_snapshot(
     look: Optional[LookLike] = None,
     *,
     parse_mesh: Optional[Callable[[bytes, str], object]] = None,
+    cancelled: Optional[Callable[[], bool]] = None,
 ) -> EffectPreview:
     """Read `effect_reference` (`<stem>.pae` or a stem) and everything it names out of the
     archives, apply `look` the way the plan will (:func:`apply_effect_look` on the effect,
     its emitters and its render presets), and build the preview. Spawn meshes are parsed
     with `parse_mesh` (default: the app's mesh parser); one that fails to read is a note,
-    not an error."""
+    not an error. Expensive archive, binary and spawn-mesh stages observe
+    ``cancelled`` so a superseded placement request can leave the worker lane promptly."""
 
     from cdmw.core.effect_binary import decode_effect_binary
     from cdmw.core.effect_edit import apply_effect_look, emitter_layout_of, preset_names_of, preset_path
     from cdmw.services.new_item_snapshot import EFFECT_DIR
 
+    def check_cancelled() -> None:
+        if cancelled is not None and cancelled():
+            raise RunCancelled
+
+    check_cancelled()
     stem = str(effect_reference).split(".", 1)[0]
     effect_path = "".join((EFFECT_DIR, stem, ".pae"))
     if not snapshot.has_entry(effect_path):
         raise KeyError(f"the archives have no {effect_path}")
     source = snapshot.payload(effect_path)
+    check_cancelled()
     document = decode_effect_binary(source)
     emitter_documents: dict = {}
     layouts: dict = {}
     emitter_sources: dict = {}
     for emitter_path in emitter_paths_of(document):
+        check_cancelled()
         if not snapshot.has_entry(emitter_path):
             continue
         data = snapshot.payload(emitter_path)
+        check_cancelled()
         emitter_sources[emitter_path] = data
         layouts[emitter_path] = emitter_layout_of(decode_effect_binary(data))
     preset_sources: dict = {}
-    for kind, name in preset_names_of(document) + tuple(item for data in emitter_sources.values() for item in preset_names_of(decode_effect_binary(data))):
+    referenced_presets = list(preset_names_of(document))
+    for data in emitter_sources.values():
+        check_cancelled()
+        referenced_presets.extend(preset_names_of(decode_effect_binary(data)))
+    for kind, name in referenced_presets:
+        check_cancelled()
         if kind != "render" or name in preset_sources:
             continue
         path = preset_path(kind, name)
@@ -625,14 +666,18 @@ def preview_effect_from_snapshot(
             preset_sources[name] = snapshot.payload(path)
     apply = look is not None and not getattr(look, "is_default", False)
     if apply:
+        check_cancelled()
         source, _report = apply_effect_look(source, look, emitter_layouts=layouts)
+        check_cancelled()
         document = decode_effect_binary(source)
     for emitter_path, data in emitter_sources.items():
+        check_cancelled()
         if apply:
             data, _report = apply_effect_look(data, look)
         emitter_documents[emitter_path] = decode_effect_binary(data)
     preset_documents = {}
     for name, data in preset_sources.items():
+        check_cancelled()
         if apply:
             data, _report = apply_effect_look(data, look)
         preset_documents[name] = decode_effect_binary(data)
@@ -644,6 +689,7 @@ def preview_effect_from_snapshot(
         parser = _parse_mesh
     for holder in (document, *emitter_documents.values()):
         for node in holder.root.walk():
+            check_cancelled()
             value = node.value("_spawnMeshSurfaceFileName")
             if value is None or not str(value.value or "") or str(value.value) in meshes:
                 continue
@@ -651,12 +697,17 @@ def preview_effect_from_snapshot(
             if not snapshot.has_entry(path):
                 continue
             try:
+                check_cancelled()
                 parsed = parser(snapshot.payload(path), path.rsplit("/", 1)[-1])
-                vertices = [tuple(float(c) for c in vertex[:3]) for submesh in getattr(parsed, "submeshes", ()) for vertex in getattr(submesh, "vertices", ())]
+                check_cancelled()
+                vertices = _sample_parsed_mesh_surface(parsed, SURFACE_POINTS)
+            except RunCancelled:
+                raise
             except Exception:  # noqa: BLE001 - a spawn mesh that does not parse is a spread, and a note
                 vertices = []
             if vertices:
                 meshes[path] = vertices
+    check_cancelled()
     return build_effect_preview(stem, document, emitter_documents=emitter_documents, layouts=layouts, preset_documents=preset_documents, meshes=meshes)
 
 

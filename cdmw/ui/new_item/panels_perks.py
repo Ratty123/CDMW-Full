@@ -626,10 +626,7 @@ class PerksPanel(QGroupBox):
             self._controller.status_message.emit("Choose a template (or import a model) first; there is no mesh to place the effect on.", True)
             return
         box_min, box_max = self._controller.effect_box(stem)
-        effect_preview, texture_reader = self._controller.effect_preview_for_placement(stem)
-        if effect_preview is not None and self._controller.effect_facts(stem) is None:
-            # not indexed yet: the effect's own bounding box, read from its binary, not the metre cube
-            box_min, box_max = effect_preview.box_min, effect_preview.box_max
+        effect_preview_builder, texture_reader = self._controller.effect_preview_for_placement(stem)
         model_source = getattr(self._controller, "model_import", None)
         model_source_usage = getattr(model_source, "acquire_usage", None)
         dialog = self.placement_dialog_factory(
@@ -637,7 +634,7 @@ class PerksPanel(QGroupBox):
             offset=tuple(float(box.value()) for box in self.effect_offset),
             rotation=tuple(float(box.value()) for box in self.effect_rotation),
             scale=float(self.effect_scale.value()), effect_label=stem,
-            effect_preview=effect_preview, texture_reader=texture_reader,
+            effect_preview=effect_preview_builder, texture_reader=texture_reader,
             character_builder=self._controller.character_holding_the_item,
             model_source_usage=model_source_usage if callable(model_source_usage) else None,
         )

@@ -109,6 +109,31 @@ class PreviewTests(unittest.TestCase):
             self.assertFalse(default, f"{name} defaults to something that is not empty")
         self.assertEqual(_sample_surface("effect/mesh/x.pam", signature.parameters["meshes"].default, 8), ())
 
+    def test_spawn_mesh_sampling_reads_only_the_points_the_viewport_can_use(self) -> None:
+        from types import SimpleNamespace
+
+        from cdmw.services.effect_preview_model import SURFACE_POINTS, _sample_parsed_mesh_surface
+
+        class VirtualVertices:
+            def __init__(self, count: int) -> None:
+                self.count = count
+                self.read_indices = []
+
+            def __len__(self) -> int:
+                return self.count
+
+            def __getitem__(self, index: int):
+                self.read_indices.append(index)
+                return (float(index), 1.0, 2.0)
+
+        vertices = VirtualVertices(1_000_000)
+        parsed = SimpleNamespace(submeshes=(SimpleNamespace(vertices=vertices),))
+        sampled = _sample_parsed_mesh_surface(parsed, SURFACE_POINTS)
+
+        self.assertEqual(len(sampled), SURFACE_POINTS)
+        self.assertEqual(len(vertices.read_indices), SURFACE_POINTS)
+        self.assertEqual([point[0] for point in sampled], [float(index) for index in vertices.read_indices])
+
     def test_the_fire_loop_reads_as_two_billboard_emitters(self) -> None:
         preview = self._preview(EFFECT.read_bytes(), TRAIL.read_bytes())
         self.assertEqual([e.name for e in preview.emitters], ["emitter/cdem_last_fire_circle_trail_001a", "emitter/cdem_material_firefly_alpha_uberstandard"])
@@ -185,6 +210,17 @@ class PreviewTests(unittest.TestCase):
         self.assertGreater(mid[2], mid[0], "the look is applied before the preview is read")
         with self.assertRaises(KeyError):
             preview_effect_from_snapshot(snapshot, "no_such_effect")
+
+        from cdmw.domain.cancellation import RunCancelled
+
+        cancelled_snapshot = Snapshot()
+        with self.assertRaises(RunCancelled):
+            preview_effect_from_snapshot(
+                cancelled_snapshot,
+                "fx_hit_common_fire_attach_a_loop",
+                cancelled=lambda: True,
+            )
+        self.assertEqual(cancelled_snapshot.reads, [], "cancellation should win before the first archive payload read")
 
     def test_the_json_is_what_the_viewer_reads(self) -> None:
         preview = self._preview(EFFECT.read_bytes(), TRAIL.read_bytes())

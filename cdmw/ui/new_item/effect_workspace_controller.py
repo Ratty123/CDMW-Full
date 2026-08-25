@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Optional, Tuple
 
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.services.effect_catalogue import (
     EffectCatalogue,
     EffectFacts,
@@ -59,7 +60,11 @@ class NewItemEffectWorkspaceControllerMixin:
         return self.service.inspect_effect_targets(spec, self.snapshot)
 
     def effect_preview_for_placement(self, stem: str = "", state: Optional[EffectWorkspaceState] = None):
-        """Return the staged effect preview and its archive texture reader."""
+        """Return a frozen staged-preview builder and its archive texture reader.
+
+        The placement package lane invokes the builder with its cancellation probe; effect
+        binary, emitter, preset and spawn-mesh decoding must never run in this UI caller.
+        """
 
         from cdmw.domain.new_item.spec import EffectLook
         from cdmw.services.effect_preview_model import preview_effect_from_snapshot
@@ -76,11 +81,14 @@ class NewItemEffectWorkspaceControllerMixin:
             rate=float(look_source.rate),
             lifetime=float(look_source.lifetime),
         )
-        try:
-            preview = preview_effect_from_snapshot(snapshot, chosen, look)
-        except Exception as exc:  # noqa: BLE001 - numeric placement remains usable
-            self.log_message.emit(f"The effect {chosen} gave no particle description: {exc}")
-            return None, None
+        def build_preview(cancelled):
+            try:
+                return preview_effect_from_snapshot(snapshot, chosen, look, cancelled=cancelled)
+            except RunCancelled:
+                raise
+            except Exception as exc:  # noqa: BLE001 - numeric placement remains usable
+                self.log_message.emit(f"The effect {chosen} gave no particle description: {exc}")
+                return None
 
         def read_texture(path: str) -> Optional[bytes]:
             try:
@@ -88,7 +96,7 @@ class NewItemEffectWorkspaceControllerMixin:
             except Exception:  # noqa: BLE001 - one missing sprite does not remove placement
                 return None
 
-        return preview, read_texture
+        return build_preview, read_texture
 
     def effect_box(self, stem: str = "") -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         facts = self.effect_facts(stem or self.draft.effect_stem)
