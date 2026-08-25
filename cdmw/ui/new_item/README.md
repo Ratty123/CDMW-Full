@@ -20,8 +20,10 @@ The Template panel commits an explicit mouse click immediately, while keyboard
 row navigation keeps its 180 ms latest-row settle so holding an arrow key does
 not rebuild every dependent step along the way. It mounts the same resident item
 viewport used by Model & Placement, so a selected helmet, armour piece or weapon can
-be orbited and zoomed before the workflow inherits it; moving to step 3 reparents that
-live viewport without rebuilding its package or resetting its camera. Snapshot creation
+be orbited and zoomed before the workflow inherits it. Search, results and selected-item
+facts stay in a left column while the preview receives the wider right column and the
+full working height; moving to step 3 reparents that live viewport without rebuilding
+its package or resetting its camera. Snapshot creation
 reuses Archive Browser's published path, basename and extension indexes, and template
 previews follow the existing bounded .NET/Vortice package-cache setting. A durable hit
 is validated before archive decode or model preparation, so returning to a template does
