@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -21,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from PySide6.QtCore import QObject, Signal  # noqa: E402
+from PySide6.QtCore import QObject, QThread, QTimer, Signal  # noqa: E402
 from PySide6.QtWidgets import QApplication, QLabel, QScrollArea, QWidget  # noqa: E402
 
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh  # noqa: E402
@@ -498,6 +499,65 @@ class DialogTests(unittest.TestCase):
             self.assertTrue(dialog.iter_shutdown_workers())
             self._settle(lambda: dialog._thread is None)
             self.assertEqual(dialog.iter_shutdown_workers(), ())
+
+    def test_effect_decode_runs_on_the_package_worker_without_blocking_the_ui(self) -> None:
+        folder = tempfile.TemporaryDirectory(prefix="cdmw_effect_decode_worker_", ignore_cleanup_errors=True)
+        self.addCleanup(folder.cleanup)
+        output = Path(folder.name)
+        decode_started = threading.Event()
+        decode_cancelled = threading.Event()
+        latest_started = threading.Event()
+        decode_threads = []
+
+        def decode_preview(cancelled):
+            decode_threads.append(QThread.currentThread())
+            decode_started.set()
+            while True:
+                if cancelled():
+                    decode_cancelled.set()
+                    return None
+                time.sleep(0.005)
+
+        def decode_latest(_cancelled):
+            latest_started.set()
+            return None
+
+        workspace = EffectPlacementWorkspace(
+            item_mesh=_blade(),
+            box_min=(-1.0, -1.0, -1.0),
+            box_max=(1.0, 1.0, 1.0),
+            output_root=output,
+            host_factory=lambda parent: _Host(parent),
+            effect_preview=decode_preview,
+            compatibility_ui=True,
+        )
+        self.addCleanup(workspace.deleteLater)
+        workspace.show()
+        try:
+            self._settle(decode_started.is_set, timeout_ms=2_000)
+            self.assertTrue(decode_started.is_set(), "the deferred decoder never reached the package worker")
+            self.assertIsNot(decode_threads[0], self.app.thread())
+
+            heartbeat = []
+            QTimer.singleShot(0, lambda: heartbeat.append(True))
+            self._settle(lambda: bool(heartbeat), timeout_ms=500)
+            self.assertTrue(heartbeat, "the UI event loop stalled while the effect decoded")
+            self.assertTrue(workspace._thread is not None and workspace._thread.isRunning())
+
+            workspace.set_content(
+                item_mesh=_blade(),
+                box_min=(-2.0, -2.0, -2.0),
+                box_max=(2.0, 2.0, 2.0),
+                effect_label="latest",
+                effect_preview=decode_latest,
+                texture_reader=None,
+            )
+            self._settle(lambda: decode_cancelled.is_set() and latest_started.is_set(), timeout_ms=2_000)
+            self.assertTrue(decode_cancelled.is_set(), "the superseded decoder did not observe cancellation")
+            self.assertTrue(latest_started.is_set(), "the serialized lane did not launch the latest decoder")
+        finally:
+            workspace.request_shutdown()
+            self._settle(lambda: workspace._thread is None)
 
     def test_superseded_effect_package_releases_its_model_source_usage_after_teardown(self) -> None:
         acquired = False

@@ -3546,7 +3546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 693,
+          "line": 690,
           "sink": "setText"
         }
       ]
@@ -3556,7 +3556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 693,
+          "line": 690,
           "sink": "setText"
         }
       ]
@@ -3566,7 +3566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 693,
+          "line": 690,
           "sink": "setText"
         }
       ]
@@ -18416,7 +18416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 810,
+          "line": 807,
           "sink": "set_note"
         }
       ]
@@ -18516,7 +18516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 714,
+          "line": 711,
           "sink": "addItem"
         }
       ]
@@ -18536,7 +18536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 782,
+          "line": 779,
           "sink": "set_note"
         }
       ]
@@ -46946,7 +46946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 169,
+          "line": 195,
           "sink": "setText"
         },
         {
@@ -59131,7 +59131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 779,
+          "line": 776,
           "sink": "set_note"
         }
       ]
@@ -66611,7 +66611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 817,
+          "line": 814,
           "sink": "python-return:perks_summary"
         }
       ]
@@ -66621,7 +66621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 818,
+          "line": 815,
           "sink": "python-return:perks_summary"
         }
       ]
@@ -69456,7 +69456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 139,
+          "line": 148,
           "sink": "setText"
         }
       ]
@@ -72396,7 +72396,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace_controller.py",
-          "line": 114,
+          "line": 122,
           "sink": "emit"
         },
         {
@@ -85521,7 +85521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 792,
+          "line": 789,
           "sink": "set_note"
         }
       ]
@@ -96316,7 +96316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace_controller.py",
-          "line": 82,
+          "line": 90,
           "sink": "emit"
         }
       ]
@@ -96766,7 +96766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 673,
+          "line": 670,
           "sink": "setText"
         }
       ]
@@ -96816,7 +96816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 212,
+          "line": 238,
           "sink": "setText"
         }
       ]
@@ -97056,7 +97056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 176,
+          "line": 202,
           "sink": "setText"
         }
       ]
@@ -98291,7 +98291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 270,
+          "line": 296,
           "sink": "setText"
         }
       ]
@@ -100896,7 +100896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 87,
+          "line": 92,
           "sink": "setText"
         }
       ]
@@ -103081,7 +103081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 823,
+          "line": 820,
           "sink": "python-return:effect_summary"
         }
       ]
@@ -103091,7 +103091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 824,
+          "line": 821,
           "sink": "python-return:effect_summary"
         }
       ]
@@ -200546,7 +200546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 693,
+          "line": 690,
           "sink": "setText"
         }
       ]
@@ -202431,7 +202431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 662,
+          "line": 659,
           "sink": "setText"
         }
       ]
@@ -203611,7 +203611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 270,
+          "line": 296,
           "sink": "setText"
         }
       ]
@@ -204966,7 +204966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 810,
+          "line": 807,
           "sink": "set_note"
         }
       ]

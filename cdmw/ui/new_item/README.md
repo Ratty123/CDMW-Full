@@ -55,7 +55,10 @@ compatibility and exact-stem labels do not repeat it. Selection, placement and l
 change, while Continue stays disabled and direct navigation offers Apply, Discard or
 Stay. The reusable `EffectPlacementWorkspace` keeps one renderer resident, rebuilds
 effect/look packages without resetting the camera, and retains old package files until
-the correlated renderer acknowledgement. Reset actions clear the corresponding draft
+the correlated renderer acknowledgement. Effect, emitter, preset and spawn-mesh decoding
+runs in that cancellable lane rather than in the selection callback; spawn meshes are
+sampled directly to the 96 points the viewport uses instead of copying their full vertex
+arrays. Reset actions clear the corresponding draft
 authority, and the workflow summary reports effective changes rather than UI mode.
 For an imported item, Effects always derives its placed preview from the live import
 source before and after **Apply placement**, so its PBR rows are the same authority that

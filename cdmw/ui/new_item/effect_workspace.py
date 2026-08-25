@@ -757,9 +757,7 @@ class GuidedEffectsWorkspace(QWidget):
         model_source_usage = getattr(model_source, "acquire_usage", None)
         stem = self._staged.stem
         box_min, box_max = self._controller.effect_box(stem)
-        preview, texture_reader = self._controller.effect_preview_for_placement(stem, self._staged)
-        if preview is not None and self._controller.effect_facts(stem) is None:
-            box_min, box_max = preview.box_min, preview.box_max
+        preview_builder, texture_reader = self._controller.effect_preview_for_placement(stem, self._staged)
         if self.placement is None:
             kwargs = dict(
                 item_mesh=mesh,
@@ -776,7 +774,7 @@ class GuidedEffectsWorkspace(QWidget):
                 effect_label=stem,
                 item_label=item_label,
                 output_root=self._placement_root,
-                effect_preview=preview,
+                effect_preview=preview_builder,
                 texture_reader=texture_reader,
                 character_builder=self._controller.character_holding_the_item,
                 model_source_usage=model_source_usage if callable(model_source_usage) else None,
@@ -795,7 +793,7 @@ class GuidedEffectsWorkspace(QWidget):
                 box_min=box_min,
                 box_max=box_max,
                 effect_label=stem,
-                effect_preview=preview,
+                effect_preview=preview_builder,
                 texture_reader=texture_reader,
                 character_builder=self._controller.character_holding_the_item,
                 model_source_usage=model_source_usage if callable(model_source_usage) else None,

@@ -14,7 +14,7 @@ from cdmw.services.effect_placement_preview import (
 )
 from cdmw.services.effect_preview_model import EffectPreview
 from cdmw.ui.new_item.effect_placement_constants import REACH_HIDDEN_ABOVE
-from cdmw.ui.new_item.effect_placement_dialog_support import PlacementFrame
+from cdmw.ui.new_item.effect_placement_dialog_support import PlacementFrame, describe_effect_preview
 from cdmw.workers.utility_workers import UtilityWorker
 
 if TYPE_CHECKING:
@@ -33,7 +33,7 @@ class EffectPlacementPackageMixin:
         box_min: Vec3,
         box_max: Vec3,
         effect_label: str,
-        effect_preview: Optional[EffectPreview],
+        effect_preview: Optional[EffectPreview | Callable[[Callable[[], bool]], Optional[EffectPreview]]],
         texture_reader: Optional[Callable[[str], Optional[bytes]]],
         character_builder: Optional[Callable[[], object]] = None,
         model_source_usage: Optional[Callable[[], object]] = None,
@@ -51,6 +51,11 @@ class EffectPlacementPackageMixin:
         if self._reach_dwarfs_the_item and self.show_reach.isChecked():
             self.show_reach.setChecked(False)
         self._effect_preview = effect_preview
+        presented_preview = None if callable(effect_preview) else effect_preview
+        self.emitters_label.setText(describe_effect_preview(presented_preview))
+        self.emitters_toggle.setVisible(presented_preview is not None)
+        if presented_preview is None:
+            self.caveat.setVisible(False)
         self._texture_reader = texture_reader
         self._character_builder = character_builder
         self._model_source_usage = model_source_usage
@@ -104,6 +109,10 @@ class EffectPlacementPackageMixin:
             from cdmw.ui.new_item import effect_placement_dialog as facade
 
             character, rotation, effect_sockets = None, None, ()
+            resolved_effect_preview = effect_preview(stop_event.is_set) if callable(effect_preview) else effect_preview
+            resolved_box = box
+            if isinstance(resolved_effect_preview, EffectPreview):
+                resolved_box = (resolved_effect_preview.box_min, resolved_effect_preview.box_max)
             if builder is not None and not stop_event.is_set():
                 try:
                     reference = builder()
@@ -115,17 +124,17 @@ class EffectPlacementPackageMixin:
                     effect_sockets = tuple(getattr(reference, "effect_sockets", ()) or ())
             preview = facade.build_effect_placement_package(
                 mesh,
-                box[0],
-                box[1],
+                resolved_box[0],
+                resolved_box[1],
                 output_root=root,
                 cancelled=stop_event.is_set,
                 include_item_textures=textured,
                 character_mesh=character,
                 item_rotation=rotation if character is not None else None,
-                effect_preview=effect_preview,
+                effect_preview=resolved_effect_preview,
                 texture_reader=texture_reader,
             )
-            return generation, preview, effect_sockets, reset_view
+            return generation, preview, effect_sockets, reset_view, resolved_effect_preview
 
         worker = UtilityWorker(task, task_accepts_cancel=True)
         thread = QThread(self)
@@ -141,7 +150,10 @@ class EffectPlacementPackageMixin:
 
     def _package_ready(self, result: object) -> None:
         generation, sockets, reset_view = self._active_package_generation, (), True
-        if isinstance(result, tuple) and len(result) == 4:
+        presented_preview = self._effect_preview
+        if isinstance(result, tuple) and len(result) == 5:
+            generation, result, sockets, reset_view, presented_preview = result
+        elif isinstance(result, tuple) and len(result) == 4:
             generation, result, sockets, reset_view = result
         elif isinstance(result, tuple) and len(result) == 2:
             result, sockets = result
@@ -150,6 +162,20 @@ class EffectPlacementPackageMixin:
         if self._closed or int(generation) != self._package_generation or self.host is None:
             self._remove_owned_package(result)
             return
+        self._effect_preview = presented_preview
+        self._box = (tuple(float(value) for value in result.box_min), tuple(float(value) for value in result.box_max))
+        self._box_size = tuple(high - low for low, high in zip(*self._box))
+        low, high = self._item_bounds()
+        item_length = max(high[axis] - low[axis] for axis in range(3))
+        reach_length = max(self._box_size) * self.scale
+        self._reach_dwarfs_the_item = bool(
+            item_length > 0 and reach_length > item_length * REACH_HIDDEN_ABOVE
+        )
+        if self._reach_dwarfs_the_item and self.show_reach.isChecked():
+            self.show_reach.setChecked(False)
+        self._refresh_size_label()
+        self.emitters_label.setText(describe_effect_preview(presented_preview))
+        self.emitters_toggle.setVisible(presented_preview is not None)
         if self._loading_preview is not None:
             self._retired_previews.append(self._loading_preview)
         self._loading_preview = result

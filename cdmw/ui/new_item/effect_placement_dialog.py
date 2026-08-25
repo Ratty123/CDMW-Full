@@ -112,7 +112,7 @@ class EffectPlacementWorkspace(
         item_label: str = "",  # "placed", "applied", "template", or "" for no line
         output_root: Optional[Path] = None,
         host_factory=None,
-        effect_preview: Optional[EffectPreview] = None,
+        effect_preview: Optional[EffectPreview | Callable[[Callable[[], bool]], Optional[EffectPreview]]] = None,
         texture_reader: Optional[Callable[[str], Optional[bytes]]] = None,
         # builds the game's own character, on the worker thread: reading a rig and a body
         # out of the archives is a second the dialog should not spend frozen
@@ -170,7 +170,7 @@ class EffectPlacementWorkspace(
             effect_label=effect_label,
             item_label=item_label,
             host_factory=host_factory or _default_host_factory,
-            effect_preview=effect_preview,
+            effect_preview=None if callable(effect_preview) else effect_preview,
         )
 
         if not self._compatibility_ui:
