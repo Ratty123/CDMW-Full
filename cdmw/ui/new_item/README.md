@@ -18,7 +18,12 @@ own worker. The `panels_*.py` modules edit the draft and ask the
 controller for facts; `tab.py` composes them, and forwards install to the shell.
 The Template panel commits an explicit mouse click immediately, while keyboard
 row navigation keeps its 180 ms latest-row settle so holding an arrow key does
-not rebuild every dependent step along the way.
+not rebuild every dependent step along the way. It mounts the same resident item
+viewport used by Model & Placement, so a selected helmet, armour piece or weapon can
+be orbited and zoomed before the workflow inherits it; moving to step 3 reparents that
+live viewport without rebuilding its package or resetting its camera. Snapshot creation
+reuses Archive Browser's published path, basename and extension indexes, and template
+previews follow the existing bounded .NET/Vortice package-cache setting.
 The Identity panel keeps item keys and model stems automatic until **Manual** is
 chosen; manual mode starts from the same collision-free allocation the planner
 would make. Identifier editors enforce the domain's character and 64-character
@@ -70,6 +75,8 @@ Effects package is built, and returning to the step refreshes changes made in Mo
 The Model & Placement step is a fixed three-column workspace. A top-packed Model scroller
 and always-visible Icon choices share the left column, Placement controls and pinned operation
 status occupy the middle column, and the resident Preview owns the full-height right column.
+That Preview is the exact frame prepared under Template rather than a second renderer or
+package load.
 The repeated Model / Placement / Icon tab strip is gone, so all three surfaces stay mounted at once. It imports a model file itself:
 `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),

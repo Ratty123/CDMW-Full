@@ -57,7 +57,17 @@ class NewItemEffectWorkspaceControllerMixin:
             spec = replace(self.current_spec(), effect=effect_reference(stem))
         except ValueError:
             return None
-        return self.service.inspect_effect_targets(spec, self.snapshot)
+        cache_key = (
+            id(self.snapshot),
+            int(spec.template_key),
+            spec.model_source,
+            spec.sheathed_model,
+            str(spec.effect or ""),
+        )
+        cache = self._effect_target_compatibility_cache
+        if cache_key not in cache:
+            cache[cache_key] = self.service.inspect_effect_targets(spec, self.snapshot)
+        return cache[cache_key]
 
     def effect_preview_for_placement(self, stem: str = "", state: Optional[EffectWorkspaceState] = None):
         """Return a frozen staged-preview builder and its archive texture reader.

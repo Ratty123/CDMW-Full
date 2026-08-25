@@ -156,6 +156,50 @@ class ItemPreviewPackageTests(unittest.TestCase):
         self.assertEqual(item_preview.package_cleanup_root(root / "mesh_pkg", root), root / "mesh_pkg")
         self.assertEqual(item_preview.package_cleanup_root(root / "other" / "package", root), root / "other" / "package")
 
+    def test_a_cached_template_package_is_built_once(self) -> None:
+        from cdmw.models import ModelPreviewData, ModelPreviewMesh
+        from cdmw.services import mesh_dotnet_preview_package as package_service
+        from cdmw.ui.new_item.item_preview import build_item_preview_package
+
+        model = ModelPreviewData(
+            path="character/model/template.pac",
+            format="pac",
+            meshes=[ModelPreviewMesh(
+                material_name="template",
+                positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                normals=[(0.0, 0.0, 1.0)] * 3,
+                indices=[0, 1, 2],
+                source_submesh_index=0,
+            )],
+        )
+        token = ("template", 17, "template.pac", "0.pamt", "0.paz", 12, 34)
+        with tempfile.TemporaryDirectory(prefix="cdmw_item_preview_cache_") as temporary:
+            root = Path(temporary)
+            original = package_service.build_mesh_dotnet_experiment_package
+            with patch.object(
+                package_service,
+                "build_mesh_dotnet_experiment_package",
+                wraps=original,
+            ) as build:
+                first = build_item_preview_package(
+                    model,
+                    token=token,
+                    output_root=root,
+                    stop_event=threading.Event(),
+                    cache_mode="balanced",
+                )
+                second = build_item_preview_package(
+                    model,
+                    token=token,
+                    output_root=root,
+                    stop_event=threading.Event(),
+                    cache_mode="balanced",
+                )
+            self.assertEqual(build.call_count, 1)
+            self.assertEqual(first, second)
+            self.assertTrue(second.is_dir())
+
 
 class PlacementConventionTests(unittest.TestCase):
     def test_the_host_matrix_is_the_pipeline_transform_and_the_pivot_follows(self) -> None:
@@ -400,6 +444,19 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertAlmostEqual(tuning[1][1][0].d3d11_tone_gamma, 0.91)
         self.assertAlmostEqual(tuning[1][1][0].d3d11_ao_strength, 0.4)
         frame.shutdown()
+
+    def test_shutdown_keeps_a_durable_cached_package(self) -> None:
+        from cdmw.services.preview_rendering_service import dotnet_preview_package_derived_cache_root
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        with tempfile.TemporaryDirectory(prefix="cdmw_item_preview_cache_shutdown_") as temporary:
+            root = Path(temporary)
+            package = dotnet_preview_package_derived_cache_root(root) / "packages" / "cache-key" / "package"
+            package.mkdir(parents=True)
+            frame = ItemPreviewFrame(output_root=root, host_factory=self._fake_host_class())
+            frame._package_dir = package
+            frame.shutdown()
+            self.assertTrue(package.is_dir(), "closing the frame must not delete a durable cache entry")
 
     def test_a_placement_scene_takes_the_gizmo_and_the_numbers(self) -> None:
         from cdmw.ui.new_item.item_preview import ItemPreviewFrame, PlacementScene

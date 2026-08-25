@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import Callable, Iterable, Optional, Sequence
+from typing import Callable, Iterable, Mapping, Optional, Sequence
 
 from cdmw.core.item_icon_addition import NewItemIcon
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -76,6 +76,9 @@ def snapshot_task(
     service: NewItemService,
     read_entry: Optional[Callable[[ArchiveEntry], bytes]] = None,
     package_root: Optional[Path] = None,
+    entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    entries_by_extension: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
 ) -> Callable[[LogSink, threading.Event], NewItemSnapshot]:
     """Read every table a new item touches; seconds of work, once per archive scan.
 
@@ -92,7 +95,15 @@ def snapshot_task(
             if package_root is None:
                 raise ValueError("The archive list is empty and no package root was given.")
             listed = list_archive_entries(Path(package_root), log, stop_event)
-        return service.build_snapshot(listed, read_entry=read_entry, on_log=log, stop_event=stop_event)
+        return service.build_snapshot(
+            listed,
+            read_entry=read_entry,
+            on_log=log,
+            stop_event=stop_event,
+            entries_by_normalized_path=entries_by_normalized_path,
+            entries_by_basename=entries_by_basename,
+            entries_by_extension=entries_by_extension,
+        )
 
     return run
 

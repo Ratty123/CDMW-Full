@@ -17,7 +17,7 @@ import tempfile
 import threading
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
-from typing import Callable, Iterable, Mapping, Optional, Tuple
+from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.item_icon_addition import NewItemIcon, build_new_item_icon
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchResult
@@ -90,8 +90,19 @@ class NewItemService:
         read_entry: Optional[Callable[[ArchiveEntry], bytes]] = None,
         on_log: Optional[Callable[[str], None]] = None,
         stop_event: Optional[threading.Event] = None,
+        entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+        entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+        entries_by_extension: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     ) -> NewItemSnapshot:
-        return build_snapshot(entries, read_entry=read_entry, on_log=on_log, stop_event=stop_event)
+        return build_snapshot(
+            entries,
+            read_entry=read_entry,
+            on_log=on_log,
+            stop_event=stop_event,
+            entries_by_normalized_path=entries_by_normalized_path,
+            entries_by_basename=entries_by_basename,
+            entries_by_extension=entries_by_extension,
+        )
 
     def build_context(self, snapshot: NewItemSnapshot, template_key: int) -> NewItemContext:
         return build_context(snapshot, template_key)

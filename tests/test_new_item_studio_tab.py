@@ -257,36 +257,168 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_snapshot_receives_the_archive_browsers_published_indexes(self) -> None:
+        from types import SimpleNamespace
+
+        path_index: dict[str, tuple] = {}
+        basename_index: dict[str, tuple] = {}
+        extension_index: dict[str, tuple] = {}
+        for entry in self.entries:
+            path = str(entry.path).replace("\\", "/").strip("/").lower()
+            path_index[path] = (*path_index.get(path, ()), entry)
+            basename = path.rsplit("/", 1)[-1]
+            basename_index[basename] = (*basename_index.get(basename, ()), entry)
+            extension = Path(path).suffix.lower()
+            extension_index[extension] = (*extension_index.get(extension, ()), entry)
+        window = SimpleNamespace(
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            archive_entries_by_extension=extension_index,
+        )
+        tab = self._tab(window=window)
+        tab.start_snapshot()
+
+        reused_path_index, reused_basename_index = tab.controller.snapshot.archive_index_maps()
+        self.assertIs(reused_path_index, path_index)
+        self.assertIs(reused_basename_index, basename_index)
+        tab.close()
+        tab.deleteLater()
+
     def test_model_preview_tracks_the_shared_archive_render_settings(self) -> None:
         from types import SimpleNamespace
 
         from PySide6.QtCore import QObject, Signal
 
-        from cdmw.models import ModelPreviewRenderSettings
+        from cdmw.models import ArchivePerformanceSettings, ModelPreviewRenderSettings
 
         class SettingsTab(QObject):
             model_preview_settings_changed = Signal(object)
+            archive_performance_settings_changed = Signal(object)
 
         settings_tab = SettingsTab()
         initial = ModelPreviewRenderSettings(d3d11_tone_gamma=1.17, d3d11_ao_strength=0.7)
+        initial_performance = ArchivePerformanceSettings(native_preview_cache_mode="aggressive")
         window = SimpleNamespace(
             archive_cache_root=None,
             settings_tab=settings_tab,
             _current_model_preview_render_settings=lambda: initial,
+            _current_archive_performance_settings=lambda: initial_performance,
         )
         tab = self._tab(window=window)
         tab._mount_panels()
 
         self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_tone_gamma, 1.17)
         self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_ao_strength, 0.7)
+        self.assertEqual(tab.model_panel.preview._cache_mode, "aggressive")
 
         updated = ModelPreviewRenderSettings(d3d11_tone_gamma=0.91, d3d11_ao_strength=0.4)
         settings_tab.model_preview_settings_changed.emit(updated)
+        settings_tab.archive_performance_settings_changed.emit(
+            ArchivePerformanceSettings(native_preview_cache_mode="off")
+        )
         self.app.processEvents()
 
         self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_tone_gamma, 0.91)
         self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_ao_strength, 0.4)
+        self.assertEqual(tab.model_panel.preview._cache_mode, "off")
         tab.shutdown()
+        tab.close()
+        tab.deleteLater()
+
+    def test_template_and_model_steps_share_one_resident_preview(self) -> None:
+        from PySide6.QtCore import QObject, Signal
+        from PySide6.QtWidgets import QWidget
+
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        class HostSignals(QObject):
+            state_changed = Signal(str, str)
+            capture_completed = Signal(object)
+
+        class FakeController:
+            def __init__(self) -> None:
+                self._signals = HostSignals()
+                self.state_changed = self._signals.state_changed
+                self.capture_completed = self._signals.capture_completed
+
+            def shutdown(self) -> None:
+                pass
+
+        class FakeHost(QWidget):
+            alignment_drag_started = Signal()
+            alignment_drag_changed = Signal(float, float, float)
+            alignment_drag_finished = Signal(float, float, float)
+            alignment_rotation_changed = Signal(float, float, float)
+            alignment_rotation_finished = Signal(float, float, float)
+            alignment_scale_changed = Signal(float, float, float)
+            alignment_scale_finished = Signal(float, float, float)
+
+            def __init__(self, parent) -> None:
+                super().__init__(parent)
+                self.controller = FakeController()
+
+            def set_render_tuning(self, _settings) -> None:
+                pass
+
+            def set_icon_capture_mode(self, _enabled) -> None:
+                pass
+
+        tab = self._tab()
+        tab.resize(1280, 720)
+        tab.show()
+        preview = tab.model_panel.preview if tab._panels_built else None
+        self.assertIsNone(preview)
+        tab.start_snapshot()
+        preview = tab.model_panel.preview
+        preview._host_factory = FakeHost
+        started: list[object] = []
+
+        def fake_start(frame, request, **_kwargs) -> None:
+            started.append(request[0])
+            frame._thread = object()
+
+        with patch.object(ItemPreviewFrame, "_start_package", fake_start):
+            tab.template_panel.prefill(TEMPLATE)
+            resident_host = preview.host
+            self.assertIs(preview.parentWidget(), tab.template_panel.preview_holder)
+            self.assertEqual(len(started), 1)
+            tab.show_step(2)
+            self.app.processEvents()
+            self.assertIs(preview.parentWidget(), tab.model_panel.preview_group)
+            self.assertIs(preview.host, resident_host, "the native-host owner survives the page move")
+            self.assertEqual(len(started), 1, "moving the resident viewport must not rebuild its package")
+        preview._thread = None
+        tab.close()
+        tab.deleteLater()
+
+    def test_effect_target_preflight_is_cached_by_template_and_effect(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        controller = tab.controller
+        controller._effect_target_compatibility_cache.clear()
+        service_type = type(controller.service)
+        original = service_type.inspect_effect_targets
+        calls: list[object] = []
+
+        def counted(service, spec, snapshot):
+            calls.append((spec.template_key, spec.effect))
+            return original(service, spec, snapshot)
+
+        with patch.object(
+            service_type,
+            "inspect_effect_targets",
+            counted,
+        ):
+            first = controller.effect_target_compatibility("fx_test_fire")
+            second = controller.effect_target_compatibility("fx_test_fire")
+            self.assertIs(second, first)
+            self.assertEqual(len(calls), 1)
+            controller.set_template(OTHER)
+            before = len(calls)
+            other_first = controller.effect_target_compatibility("fx_test_fire")
+            other_second = controller.effect_target_compatibility("fx_test_fire")
+            self.assertIs(other_second, other_first)
+            self.assertEqual(len(calls), before + 1)
         tab.close()
         tab.deleteLater()
 
@@ -1386,7 +1518,13 @@ class TabTests(unittest.TestCase):
         self.assertTrue(panel.placement_group.isVisibleTo(panel))
         self.assertTrue(panel.model_group.isVisibleTo(panel))
         self.assertTrue(panel.icon_group.isVisibleTo(panel))
-        self.assertTrue(panel.preview.isVisibleTo(panel))
+        self.assertTrue(
+            panel.preview.isVisibleTo(tab.template_panel),
+            "the same resident preview starts under Template before Model & Placement opens",
+        )
+        tab.show_step(2)
+        self.app.processEvents()
+        self.assertTrue(panel.preview.isVisibleTo(panel), "the resident preview moves with its loaded scene")
         self.assertTrue(panel.import_model.isChecked())
         # a glTF source needs the vertical texture flip, and the panel shows it
         self.assertTrue(source.flip_texture_v is False or source.flip_texture_v is True)
