@@ -132,6 +132,56 @@ class BodyChoiceTests(unittest.TestCase):
         self.assertEqual(character_rig_model("1_pc/14_ptm/armor/18_acc"), "14_ptm")
 
 
+class EquipmentPlacementFrameTests(unittest.TestCase):
+    """Every EquipTypeInfo family in the 2026-08-25 archive snapshot has one frame."""
+
+    BODY_TYPES = frozenset({
+        "BackPack", "Bracelet", "Cloak", "DragonArmor", "Earring", "Foot", "Glass",
+        "Hand", "Helm", "HiddenEquip", "HorseArmor", "HorseHelm", "HorseSaddle",
+        "HorseShoe", "HorseStirrup", "Mask", "Necklace", "PetAccessory", "PetArmor",
+        "PetHelm", "Ring", "RobotBackPack", "RobotBody", "RobotCannon", "RobotFist",
+        "RobotFlameThrower", "RobotFoot", "RobotGatling", "RobotLaser", "RobotTongs",
+        "RobotWelding", "SpecialVehicleArmor", "SprayBag", "Upperbody",
+    })
+    HELD_TYPES = frozenset({
+        "Gauntlet", "Lantern", "OneHandAxe", "OneHandBow", "OneHandCannon",
+        "OneHandCrossBow", "OneHandDagger", "OneHandDrill", "OneHandFan", "OneHandFist",
+        "OneHandMace", "OneHandMusket", "OneHandPistol", "OneHandRapier", "OneHandSaw",
+        "OneHandShield", "OneHandShieldRight", "OneHandShotgun", "OneHandSword",
+        "OneHandTorch", "OneHandTowerShield", "ToolAxe", "ToolBasketSide", "ToolBroom",
+        "ToolBucketHeavy", "ToolCrutch", "ToolDrum", "ToolFishingRod", "ToolHammer",
+        "ToolHayfork", "ToolHoe", "ToolPickaxe", "ToolPotHead", "ToolPriestWandBig",
+        "ToolRake", "ToolSaw", "ToolShovel", "ToolStick", "ToolSythe", "Tooltrumpet",
+        "TwoHandAxe", "TwoHandBlowPipe", "TwoHandCannon", "TwoHandFlamethrower",
+        "TwoHandGiantSword", "TwoHandHalberd", "TwoHandHammer", "TwoHandIcethrower",
+        "TwoHandLightningthrower", "TwoHandPike", "TwoHandSpear", "TwoHandSword",
+        "TwoHandWarHammer",
+    })
+
+    def test_all_87_shipped_equipment_types_choose_the_authored_frame(self) -> None:
+        from cdmw.domain.new_item.placement import equipment_placement_frame
+
+        self.assertEqual(len(self.BODY_TYPES | self.HELD_TYPES), 87)
+        self.assertFalse(self.BODY_TYPES & self.HELD_TYPES)
+        self.assertEqual(
+            {equipment_placement_frame(name) for name in self.BODY_TYPES},
+            {"body"},
+        )
+        self.assertEqual(
+            {equipment_placement_frame(name) for name in self.HELD_TYPES},
+            {"held"},
+        )
+
+    def test_equipment_type_wins_and_folders_only_cover_missing_metadata(self) -> None:
+        from cdmw.domain.new_item.placement import equipment_placement_frame
+
+        self.assertEqual(equipment_placement_frame("Helm", "2_mon/not/armor"), "body")
+        self.assertEqual(equipment_placement_frame("ToolBroom", "6_object/tools"), "held")
+        self.assertEqual(equipment_placement_frame("", "1_pc/1_phm/armor/13_hel"), "body")
+        self.assertEqual(equipment_placement_frame("", "1_pc/1_phm/weapon/2_twohandweapon"), "held")
+        self.assertEqual(equipment_placement_frame("", "2_mon/unknown"), "unknown")
+
+
 class NoCharacterTests(unittest.TestCase):
     def test_archives_without_a_rig_give_none_rather_than_an_error(self) -> None:
         def read(_path: str) -> bytes:
@@ -215,6 +265,14 @@ class ChildFrameTests(unittest.TestCase):
         self.assertEqual((socket, where), ("Basic_ChildSocket", "prefab"))
         self.assertIsNotNone(matrix)
 
+    def test_the_template_s_primary_held_part_wins_without_lexicographic_reordering(self) -> None:
+        from cdmw.services.effect_character_reference import _preferred_prefab_paths
+
+        self.assertEqual(
+            _preferred_prefab_paths(("z_right.prefab", "a_left.prefab", "z_right_in.prefab")),
+            ("z_right.prefab", "a_left.prefab", "z_right_in.prefab"),
+        )
+
     def test_without_a_prefab_the_kind_s_own_convention_stands_in(self) -> None:
         from cdmw.services.effect_character_reference import item_child_frame
 
@@ -287,14 +345,93 @@ class HeldPoseTests(unittest.TestCase):
         self.assertEqual(dict(held.effect_sockets)[TRAIL_SOCKET], (0.0, 0.02, -1.1))
         self.assertEqual(hold_the_item(self._reference(), None).effect_sockets, ())
 
+    def test_the_template_part_uses_placement_and_animations_held_route(self) -> None:
+        from dataclasses import replace
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        from cdmw.services.effect_character_reference import _item_attachment_route
+        from tools.placement_studio.model import DescriptorPart
+
+        reference = replace(
+            self._reference(),
+            parts={
+                "CD_MainWeapon_Shield_L": DescriptorPart(
+                    part_name="CD_MainWeapon_Shield_L",
+                    out_socket="LForearm_Socket",
+                    out_child_socket="Basic_ChildSocket",
+                )
+            },
+        )
+        fields = (
+            SimpleNamespace(field_name="_attachedSocketName", value="Spine2_B_Shield_Socket"),
+            SimpleNamespace(field_name="_pivotSocketName", value="Spine2_B_Shield_ChildSocket"),
+            SimpleNamespace(field_name="_partName", value="CD_MainWeapon_Shield_L"),
+        )
+        with patch(
+            "cdmw.core.archive_attachment_patches.inspect_prefab_attachment_profile_fields",
+            return_value=fields,
+        ):
+            route = _item_attachment_route(("shield.prefab",), lambda _path: b"prefab", reference)
+
+        self.assertEqual(route, ("LForearm_Socket", "Basic_ChildSocket", "descriptor"))
+
+    def test_the_resolved_body_socket_replaces_the_right_hand_in_the_effect_scene(self) -> None:
+        from dataclasses import replace
+        from unittest.mock import patch
+
+        from cdmw.services.effect_character_reference import held_character_from_snapshot
+
+        archives = ChildFrameTests()
+        entries = archives._archives()
+
+        class Snapshot:
+            def __init__(self, payloads):
+                self._payloads = payloads
+                self.entries = {path: object() for path in payloads}
+
+            def payload(self, path):
+                return self._payloads[path]
+
+        left_forearm = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                        0.0, 0.0, 1.0, 0.0, -0.4, 1.2, 0.1, 1.0)
+        reference = replace(
+            self._reference(),
+            body_matrices={"LForearm_Socket": left_forearm},
+        )
+        with patch(
+            "cdmw.services.effect_character_reference._item_attachment_route",
+            return_value=("LForearm_Socket", "Basic_ChildSocket", "descriptor"),
+        ):
+            held, _said = held_character_from_snapshot(
+                Snapshot(entries), reference, prefab_paths=(HELD_PREFAB,),
+                model_folder="1_pc/1_phm/weapon/3_shield",
+            )
+
+        self.assertEqual(held.socket, "LForearm_Socket")
+        self.assertEqual(held.child_socket, "Basic_ChildSocket")
+        self.assertNotEqual(held.mesh.bbox_min, self._reference().body.bbox_min)
+
     def test_wearable_armour_stays_in_placement_studio_s_bind_frame(self) -> None:
         from cdmw.services.effect_character_reference import held_character_from_snapshot
 
+        class CatfishHelmetSnapshot:
+            entries = {}
+
+            @staticmethod
+            def row(key):
+                return key
+
+            @staticmethod
+            def equip_type_name(_row):
+                return "Helm"
+
         reference = self._reference()
         wearable, said = held_character_from_snapshot(
-            object(),
+            CatfishHelmetSnapshot(),
             reference,
-            model_folder="character/model/1_pc/1_phm/armor/13_hel",
+            model_folder="2_mon/cd_m0001_00_twofeet/cd_m0001_00_sir_catfish",
+            template_key=1001258,
         )
 
         self.assertIsNotNone(wearable)

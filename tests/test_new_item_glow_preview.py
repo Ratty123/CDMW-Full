@@ -139,8 +139,10 @@ class EffectPreviewMeshRoutingTests(unittest.TestCase):
         controller = NewItemStudioController(synchronous=True)
         controller.draft.template_key = 1
         controller.snapshot = SimpleNamespace(
+            row=lambda _key: SimpleNamespace(equip_type_key=1),
+            equip_type_name=lambda _row: "Helm",
             family=lambda _key: SimpleNamespace(
-                model_folder="character/model/1_pc/1_phm/armor/13_hel"
+                model_folder="2_mon/cd_m0001_00_twofeet/cd_m0001_00_sir_catfish"
             )
         )
         controller.model_import = SimpleNamespace(
@@ -156,6 +158,27 @@ class EffectPreviewMeshRoutingTests(unittest.TestCase):
         self.assertGreater(planned.bbox_min[1], 1.7, "Effects did not rotate the helmet around the feet")
         self.assertLess(planned.bbox_max[2] - planned.bbox_min[2], 0.6)
         self.assertEqual(planned._cdmw_effect_item_origin, (0.0, 1.75, 0.0))
+        self.assertFalse(controller._template_uses_weapon_fit())
+        controller.request_shutdown()
+        self.assertIsNotNone(app)
+
+    def test_a_tool_template_uses_the_same_held_frame_for_its_initial_fit(self) -> None:
+        from types import SimpleNamespace
+
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.new_item.controller import NewItemStudioController
+
+        app = QApplication.instance() or QApplication([])
+        controller = NewItemStudioController(synchronous=True)
+        controller.draft.template_key = 950001
+        controller.snapshot = SimpleNamespace(
+            row=lambda _key: SimpleNamespace(equip_type_key=1),
+            equip_type_name=lambda _row: "ToolBroom",
+            family=lambda _key: SimpleNamespace(model_folder="6_object/tools"),
+        )
+
+        self.assertTrue(controller._template_uses_weapon_fit())
         controller.request_shutdown()
         self.assertIsNotNone(app)
 

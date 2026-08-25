@@ -80,9 +80,12 @@ Model & Placement displays. The rebuilt PAC remains output authority but its bor
 material wrappers never replace the import's source materials in the placement viewport.
 The current per-part Glow colour and strength are copied into those same rows when the
 Effects package is built, and returning to the step refreshes changes made in Model & Placement.
-The character reference follows the template's player rig. Weapon families still compose
-the item's child socket with the hand socket. Armour families stay in Placement Studio's
-upright bind frame while the matching body remains at its bind origin. The placed preview
+The character reference follows the template's player rig. `EquipTypeInfo`, rather than
+the model folder's spelling, decides the frame. Hand-carried families reuse the selected
+prefab's primary part and Placement & Animations' held body/child socket route; body-,
+creature- and vehicle-mounted equipment stays in its upright authored bind frame. A folder
+and the established right-hand/basic pair are only fallbacks when template metadata is
+missing or malformed. The placed preview
 bakes manual rotation and scale around the same fitted source origin that Model & Placement
 and the final Builder use; for a wearable, neutral effect placement starts at that applied
 origin so the gizmo opens on the helmet or armour rather than at the character's feet. A

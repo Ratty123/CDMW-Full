@@ -821,7 +821,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             except Exception as exc:  # noqa: BLE001 - the convention frame stands in
                 self.log_message.emit(f"The template's prefabs could not be read for the placement viewport: {exc}")
         reference = self.character_reference(folder)
-        held, said = held_character_from_snapshot(snapshot, reference, prefab_paths=prefabs, model_folder=folder)
+        held, said = held_character_from_snapshot(snapshot, reference, prefab_paths=prefabs, model_folder=folder, template_key=template)
         if said:
             self.log_message.emit(said)
         self._held_character = (template, held)
@@ -989,29 +989,29 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         )
 
     def _template_uses_weapon_fit(self) -> bool:
-        """Whether this template's owned model lives in a weapon family."""
+        """Whether this template is hand-carried and benefits from grip alignment."""
 
         if self.snapshot is None or self.draft.template_key is None:
             return False
         try:
-            family = self.snapshot.family(self.draft.template_key)
+            row, family = self.snapshot.row(self.draft.template_key), self.snapshot.family(self.draft.template_key)
         except Exception:  # noqa: BLE001 - an unresolved family gets the generic fit
             return False
-        model_folder = str(family.model_folder or "").replace("\\", "/")
-        folder = f"/{model_folder.strip('/').casefold()}/"
-        return "/weapon/" in folder
+        from cdmw.domain.new_item.placement import HELD_PLACEMENT_FRAME, equipment_placement_frame
+
+        return equipment_placement_frame(self.snapshot.equip_type_name(row), family.model_folder) == HELD_PLACEMENT_FRAME
 
     def _template_is_wearable(self) -> bool:
-        """Whether the effect preview should use the placed model origin as its anchor."""
+        """Whether Effects should preserve the template's authored body-frame origin."""
 
         if self.snapshot is None or self.draft.template_key is None:
             return False
         try:
-            family = self.snapshot.family(self.draft.template_key)
+            row, family = self.snapshot.row(self.draft.template_key), self.snapshot.family(self.draft.template_key)
         except Exception:  # noqa: BLE001 - an unresolved family keeps the ordinary origin
             return False
-        model_folder = str(family.model_folder or "").replace("\\", "/")
-        return "/armor/" in f"/{model_folder.strip('/').casefold()}/"
+        from cdmw.domain.new_item.placement import BODY_PLACEMENT_FRAME, equipment_placement_frame
+        return equipment_placement_frame(self.snapshot.equip_type_name(row), family.model_folder) == BODY_PLACEMENT_FRAME
 
     def _template_mesh(self):
         saved, self.model_result = self.model_result, None
