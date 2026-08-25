@@ -26,6 +26,8 @@ from PySide6.QtCore import QThread, Qt, QTimer, Signal
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
+from cdmw.domain.cancellation import RunCancelled
+from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_settings
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.ui.new_item.model_import import ModelPlacement
 from cdmw.workers.utility_workers import UtilityWorker
@@ -71,6 +73,7 @@ class ProgressivePreviewSource:
 
     geometry: Callable[[threading.Event], Any]
     materials: Callable[[threading.Event], Any]
+    acquire_usage: Optional[Callable[[], object]] = None
 
     def __call__(self, stop_event: threading.Event) -> Any:
         """Compatibility: callers that know only the old callable get full materials."""
@@ -93,6 +96,25 @@ def _as_parsed_mesh(item: Any) -> ParsedMesh:
     return item
 
 
+def _prepare_preview_model(
+    item: Any,
+    *,
+    render_settings: object | None,
+    stop_event: threading.Event,
+) -> Any:
+    if getattr(item, "meshes", None) is None or hasattr(item, "submeshes"):
+        return item
+    from cdmw.services.preview_rendering_service import prepare_model_preview
+
+    prepared, _prepared_payload = prepare_model_preview(
+        item,
+        render_settings=render_settings,
+        stop_event=stop_event,
+        enable_material_combiner=False,
+    )
+    return prepared
+
+
 def build_item_preview_package(
     source: Any,
     *,
@@ -100,6 +122,7 @@ def build_item_preview_package(
     output_root: Path,
     stop_event: threading.Event,
     include_material_resources: bool = True,
+    render_settings: object | None = None,
 ) -> Path:
     """Build the viewport package for `source` off the UI thread and return its directory.
     `source` is a `ModelPreviewData` (the archive or import preview decode, textures
@@ -112,9 +135,27 @@ def build_item_preview_package(
     if isinstance(item, PlacementScene):
         from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
 
+        model = (
+            _prepare_preview_model(
+                item.model,
+                render_settings=render_settings,
+                stop_event=stop_event,
+            )
+            if include_material_resources
+            else item.model
+        )
+        reference = (
+            _prepare_preview_model(
+                item.template,
+                render_settings=render_settings,
+                stop_event=stop_event,
+            )
+            if include_material_resources and item.template is not None
+            else item.template
+        )
         package = build_mesh_dotnet_experiment_package(
-            _as_parsed_mesh(item.model), output_root=output_root,
-            reference_mesh=_as_parsed_mesh(item.template) if item.template is not None else None,
+            _as_parsed_mesh(model), output_root=output_root,
+            reference_mesh=_as_parsed_mesh(reference) if reference is not None else None,
             comparison_mode="overlay", interaction_mode="placement", cancelled=stop_event.is_set,
             scene_transform=item.placement.build_transform(),
             include_material_resources=bool(include_material_resources),
@@ -122,9 +163,14 @@ def build_item_preview_package(
     elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
         from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package_from_model
 
+        prepared_item = _prepare_preview_model(
+            item,
+            render_settings=render_settings,
+            stop_event=stop_event,
+        )
         output_root.mkdir(parents=True, exist_ok=True)
         package = build_or_lookup_dotnet_preview_package_from_model(
-            item, cache_root=output_root, archive_identity=f"new_item_preview:{token!r}", cache_mode="off",
+            prepared_item, cache_root=output_root, archive_identity=f"new_item_preview:{token!r}", cache_mode="off",
             cancelled=stop_event.is_set,
         )
     else:
@@ -144,10 +190,10 @@ def upgrade_item_preview_package_materials(
     *,
     output_root: Path,
     stop_event: threading.Event,
+    render_settings: object | None = None,
 ) -> Path:
     """Attach canonical materials to a copied geometry package without re-exporting it."""
 
-    from cdmw.domain.cancellation import RunCancelled
     from cdmw.services.mesh_dotnet_experiment import (
         _build_dotnet_scene_mesh,
         _scene_material_slot_indices,
@@ -170,8 +216,24 @@ def upgrade_item_preview_package_materials(
     item = source(stop_event) if callable(source) else source
     if not isinstance(item, PlacementScene):
         raise TypeError("A progressive material upgrade requires a placement scene.")
-    model = _as_parsed_mesh(item.model)
-    reference = _as_parsed_mesh(item.template) if item.template is not None else None
+    model = _as_parsed_mesh(
+        _prepare_preview_model(
+            item.model,
+            render_settings=render_settings,
+            stop_event=stop_event,
+        )
+    )
+    reference = (
+        _as_parsed_mesh(
+            _prepare_preview_model(
+                item.template,
+                render_settings=render_settings,
+                stop_event=stop_event,
+            )
+        )
+        if item.template is not None
+        else None
+    )
     target = root / f"package_{time.time_ns()}_materials"
     try:
         # The resident helper may be writing status/capture files under output while
@@ -257,9 +319,11 @@ class ItemPreviewFrame(QWidget):
         self._host_factory = host_factory or default_host_factory
         self.host = None
         self._host_error = ""
+        self._render_settings: ModelPreviewRenderSettings = clamp_model_preview_render_settings()
         self._package_dir: Optional[Path] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
+        self._active_source_usage: object | None = None
         self._closed = False
         #: (token, source) of the newest request; the build in flight may be older
         self._pending: Optional[tuple[Hashable, Any]] = None
@@ -327,7 +391,15 @@ class ItemPreviewFrame(QWidget):
         self.host.alignment_rotation_finished.connect(lambda x, y, z: self._drag_delta("rotate", (x, y, z), True))
         self.host.alignment_scale_changed.connect(lambda x, y, z: self._drag_delta("scale", (x, y, z), False))
         self.host.alignment_scale_finished.connect(lambda x, y, z: self._drag_delta("scale", (x, y, z), True))
+        self.host.set_render_tuning(self._render_settings)
         return True
+
+    def set_render_settings(self, settings: object | None) -> None:
+        """Use the same preview tuning as Archive Browser and update a live host."""
+
+        self._render_settings = clamp_model_preview_render_settings(settings)
+        if self.host is not None:
+            self.host.set_render_tuning(self._render_settings)
 
     def show_mesh(self, mesh: Optional[ParsedMesh]) -> None:
         """Show the bare `mesh` (None clears the view); a build already running is superseded."""
@@ -540,6 +612,10 @@ class ItemPreviewFrame(QWidget):
     ) -> None:
         root = self._output_root
         token, source = request
+        usage_source = resolved_source if resolved_source is not None else source
+        acquire_usage = getattr(usage_source, "acquire_usage", None)
+        source_usage = acquire_usage() if callable(acquire_usage) else None
+        render_settings = clamp_model_preview_render_settings(self._render_settings)
         # What this build is for, read back by `_package_ready`. It is kept here rather
         # than captured in a lambda on `completed`: a lambda is not a bound method of this
         # QObject, so Qt runs it on the worker's thread, and the viewport's process would
@@ -555,6 +631,8 @@ class ItemPreviewFrame(QWidget):
             self.status_changed.emit("Loading model textures…")
 
         def task(_log, stop_event: threading.Event) -> _PreviewBuildProduct:
+            if callable(acquire_usage) and source_usage is None:
+                raise RunCancelled("Operation cancelled.")
             candidate = resolved_source if resolved_source is not None else source
             if isinstance(candidate, ProgressivePreviewSource):
                 builder = candidate.materials if full_stage else candidate.geometry
@@ -569,6 +647,7 @@ class ItemPreviewFrame(QWidget):
                     item,
                     output_root=root,
                     stop_event=stop_event,
+                    render_settings=render_settings,
                 )
             else:
                 package_dir = build_item_preview_package(
@@ -577,6 +656,7 @@ class ItemPreviewFrame(QWidget):
                     output_root=root,
                     stop_event=stop_event,
                     include_material_resources=full_stage,
+                    render_settings=render_settings,
                 )
             return _PreviewBuildProduct(package_dir, upgrade_source, "materials" if full_stage else "geometry")
 
@@ -584,6 +664,7 @@ class ItemPreviewFrame(QWidget):
         thread = QThread(self)
         worker.moveToThread(thread)
         self._thread, self._worker = thread, worker
+        self._active_source_usage = source_usage
         # Every one of these is a bound method of this QObject, so Qt runs it on this
         # frame's thread. A plain function or a lambda is run on the worker's thread
         # instead: the viewport's process would be created there (and never report
@@ -620,6 +701,10 @@ class ItemPreviewFrame(QWidget):
             return
         self._thread = None
         self._worker = None
+        source_usage, self._active_source_usage = self._active_source_usage, None
+        release_usage = getattr(source_usage, "release", None)
+        if callable(release_usage):
+            release_usage()
         if worker is not None:
             worker.deleteLater()
         if thread is not None:

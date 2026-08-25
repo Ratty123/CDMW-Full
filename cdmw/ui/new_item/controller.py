@@ -43,6 +43,7 @@ from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotErro
 from cdmw.ui.new_item.effect_workspace_controller import NewItemEffectWorkspaceControllerMixin
 from cdmw.ui.new_item.state import NewItemDraft, StatGrid, glow_choice, spec_from_draft, stat_grid_for, status_label, with_template
 from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
+from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
 from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
@@ -125,7 +126,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         self._lane: str = ""
         self._cancel_requested_lane: str = ""
         self._shutdown_requested = False
-        self._model_sources_to_cleanup: list[object] = []
+        self._model_cleanup_lane = ModelSourceCleanupLane(synchronous=self._synchronous, parent=self)
         #: What every shipped effect is made of, once indexed (a minute, cached on disk).
         self.effect_catalogue: Optional[EffectCatalogue] = None
         #: Where the catalogue cache lives; None keeps it in memory only.
@@ -168,14 +169,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         self.plan_invalidated.emit()
 
     def _cleanup_model_source(self, source: Optional[ModelImportSource]) -> None:
-        cleanup = getattr(source, "cleanup", None)
-        if not callable(cleanup):
-            return
-        if self._thread is not None:
-            if not any(item is source for item in self._model_sources_to_cleanup):
-                self._model_sources_to_cleanup.append(source)
-            return
-        cleanup()
+        self._model_cleanup_lane.retire(source)
 
     def template_options(self, text: str = "", *, limit: int = 60) -> List[Tuple[int, str, str]]:
         """(key, internal name, equip type) for equipment whose name or key matches `text`."""
@@ -593,7 +587,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
 
             from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
 
-            build = ProgressivePreviewSource(build_geometry_scene, build_material_scene)
+            build = ProgressivePreviewSource(build_geometry_scene, build_material_scene, source.acquire_usage)
             return (("placement", id(source), source.bake_generation, source.mesh_generation, template_token), build)
         result = self.model_result
         model = getattr(result, "preview_model", None)
@@ -850,11 +844,11 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         previous_import = self.model_import
         had_import = previous_import is not None
         self.model_import = None
-        self._cleanup_model_source(previous_import)
         self.model_placement = ModelPlacement()
         self.template_changed.emit(template_key)
         if had_import:
             self.model_import_changed.emit(None)
+        self._cleanup_model_source(previous_import)
 
     def set_imported_model(self, entry: Optional[ArchiveEntry], result: object | None, scene: object | None = None) -> None:
         """Take a Builder result for the template's mesh; None clears it. `scene` is the
@@ -929,8 +923,6 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                 return
             previous = self.model_import
             self.model_import = result
-            if previous is not result:
-                self._cleanup_model_source(previous)
             result.set_bake(self._fitted_placement(result))
             self.model_placement = ModelPlacement()
             if self.model_result is not None:
@@ -939,6 +931,8 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             self.invalidate_plan()
             self.model_import_changed.emit(result)
             self.model_placement_changed.emit(self.model_placement)
+            if previous is not result:
+                self._cleanup_model_source(previous)
 
         def failed(message: str) -> None:
             # both places: the window's status line, and the step the reader is looking at,
@@ -992,16 +986,17 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         by_basename = getattr(context, "entries_by_basename", None)
 
         def task(log, progress, stop_event):
-            log(f"Building {entry.basename} from {source.label} at its placement...")
-            return build_placed_import(
-                entry,
-                source,
-                placement,
-                entries_by_normalized_path=by_path,
-                entries_by_basename=by_basename,
-                stop_event=stop_event,
-                on_progress=progress,
-            )
+            with source.usage():
+                log(f"Building {entry.basename} from {source.label} at its placement...")
+                return build_placed_import(
+                    entry,
+                    source,
+                    placement,
+                    entries_by_normalized_path=by_path,
+                    entries_by_basename=by_basename,
+                    stop_event=stop_event,
+                    on_progress=progress,
+                )
 
         def done(result: object) -> None:
             source.applied = (source.bake, placement)
@@ -1034,23 +1029,24 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         model_path = Path(source.model_path)
 
         def task(log, stop_event):
-            if callable(wait_for_updates) and not wait_for_updates(10.0):
-                raise RuntimeError("The Mesh Editor revision could not be captured safely.")
-            if str(getattr(mesh_controller, "active_session_id", "") or "") != session_id:
-                raise RuntimeError("The Mesh Editor revision could not be captured safely.")
-            before = mesh_controller.session_view()
-            mesh = mesh_controller.working_mesh(clone=True)
-            after = mesh_controller.session_view()
-            if before.session_id != session_id or after.session_id != session_id or before.revision != after.revision:
-                raise RuntimeError("The Mesh Editor revision could not be captured safely.")
-            log("Preparing the Mesh Editor changes...")
-            prepared = prepare_model_import_mesh_edit(
-                mesh,
-                scene=scene,
-                model_path=model_path,
-                stop_event=stop_event,
-            )
-            return after.revision, prepared
+            with source.usage():
+                if callable(wait_for_updates) and not wait_for_updates(10.0):
+                    raise RuntimeError("The Mesh Editor revision could not be captured safely.")
+                if str(getattr(mesh_controller, "active_session_id", "") or "") != session_id:
+                    raise RuntimeError("The Mesh Editor revision could not be captured safely.")
+                before = mesh_controller.session_view()
+                mesh = mesh_controller.working_mesh(clone=True)
+                after = mesh_controller.session_view()
+                if before.session_id != session_id or after.session_id != session_id or before.revision != after.revision:
+                    raise RuntimeError("The Mesh Editor revision could not be captured safely.")
+                log("Preparing the Mesh Editor changes...")
+                prepared = prepare_model_import_mesh_edit(
+                    mesh,
+                    scene=scene,
+                    model_path=model_path,
+                    stop_event=stop_event,
+                )
+                return after.revision, prepared
 
         def done(result: object) -> None:
             if source is not self.model_import:
@@ -1090,10 +1086,10 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
 
     def discard_model(self) -> None:
         """Drop the imported model, its placement and any result: back to the template's model."""
-
+        if self._lane in {"model_import", "model_apply", "model_part_edit"}:
+            self.cancel_operation(self._lane)
         previous = self.model_import
         self.model_import = None
-        self._cleanup_model_source(previous)
         self.model_placement = ModelPlacement()
         if self.model_result is not None:
             self.set_imported_model(None, None)
@@ -1101,6 +1097,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             self.draft.model_source = ModelSource.TEMPLATE
             self.invalidate_plan()
         self.model_import_changed.emit(None)
+        self._cleanup_model_source(previous)
 
     # ------------------------------------------------------------------ tasks
 
@@ -1360,14 +1357,20 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
 
     def _task_completed(self, result: object) -> None:
         if self._shutdown_requested:
-            cleanup = getattr(result, "cleanup", None)
-            if callable(cleanup):
-                cleanup()
+            if isinstance(result, ModelImportSource):
+                self._cleanup_model_source(result)
+            else:
+                cleanup = getattr(result, "cleanup", None)
+                if callable(cleanup):
+                    cleanup()
             return
         if self._cancel_requested_lane == self._lane:
-            cleanup = getattr(result, "cleanup", None)
-            if callable(cleanup):
-                cleanup()
+            if isinstance(result, ModelImportSource):
+                self._cleanup_model_source(result)
+            else:
+                cleanup = getattr(result, "cleanup", None)
+                if callable(cleanup):
+                    cleanup()
             self.status_message.emit("Operation cancelled.", False)
             return
         handler = self._on_done
@@ -1410,9 +1413,6 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             worker.deleteLater()
         if thread is not None:
             thread.deleteLater()
-        retired, self._model_sources_to_cleanup = self._model_sources_to_cleanup, []
-        for source in retired:
-            self._cleanup_model_source(source)
         if self._shutdown_requested:
             self._cleanup_model_source(self.model_import)
             self.model_import = None
@@ -1424,6 +1424,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         workers = []
         if self._thread is not None:
             workers.append((self._lane or "task", self._thread, self._worker))
+        workers.extend(self._model_cleanup_lane.iter_shutdown_workers())
         workers.extend(self._effect_lane.iter_shutdown_workers())
         return tuple(workers)
 
@@ -1436,9 +1437,8 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         if thread is not None:
             thread.requestInterruption()
             thread.quit()
-        else:
-            self._cleanup_model_source(self.model_import)
-            self.model_import = None
+        source, self.model_import = self.model_import, None
+        self._cleanup_model_source(source)
         self._effect_lane.request_shutdown()
 
     def shutdown(self) -> None:

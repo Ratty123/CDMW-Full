@@ -27,6 +27,21 @@ LogSink = Callable[[str], None]
 Task = Callable[[LogSink, threading.Event], object]
 
 
+def model_source_cleanup_task(source: object) -> Task:
+    """Wait for preview/build usages, then remove one retired import source."""
+
+    def run(_log: LogSink, _stop_event: threading.Event) -> object:
+        wait_until_unused = getattr(source, "wait_until_unused", None)
+        if callable(wait_until_unused):
+            wait_until_unused()
+        cleanup = getattr(source, "cleanup", None)
+        if callable(cleanup):
+            cleanup()
+        return None
+
+    return run
+
+
 def list_archive_entries(package_root: Path, log: LogSink, stop_event: threading.Event) -> tuple[ArchiveEntry, ...]:
     """Every entry of every package table under `package_root`, read directly.
 
@@ -278,6 +293,7 @@ __all__ = [
     "export_task",
     "install_overlay_task",
     "install_task",
+    "model_source_cleanup_task",
     "overlay_migration_task",
     "overlay_removal_task",
     "plan_task",

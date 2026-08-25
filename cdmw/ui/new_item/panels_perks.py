@@ -630,6 +630,8 @@ class PerksPanel(QGroupBox):
         if effect_preview is not None and self._controller.effect_facts(stem) is None:
             # not indexed yet: the effect's own bounding box, read from its binary, not the metre cube
             box_min, box_max = effect_preview.box_min, effect_preview.box_max
+        model_source = getattr(self._controller, "model_import", None)
+        model_source_usage = getattr(model_source, "acquire_usage", None)
         dialog = self.placement_dialog_factory(
             self, item_mesh=mesh, box_min=box_min, box_max=box_max, item_label=item_label,
             offset=tuple(float(box.value()) for box in self.effect_offset),
@@ -637,6 +639,7 @@ class PerksPanel(QGroupBox):
             scale=float(self.effect_scale.value()), effect_label=stem,
             effect_preview=effect_preview, texture_reader=texture_reader,
             character_builder=self._controller.character_holding_the_item,
+            model_source_usage=model_source_usage if callable(model_source_usage) else None,
         )
         if dialog.exec() != QDialog.Accepted:
             return

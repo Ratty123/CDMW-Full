@@ -753,6 +753,8 @@ class GuidedEffectsWorkspace(QWidget):
                     self.selection_timer.start(300)
             return
         self._preview_retry_remaining = 1
+        model_source = getattr(self._controller, "model_import", None)
+        model_source_usage = getattr(model_source, "acquire_usage", None)
         stem = self._staged.stem
         box_min, box_max = self._controller.effect_box(stem)
         preview, texture_reader = self._controller.effect_preview_for_placement(stem, self._staged)
@@ -777,6 +779,7 @@ class GuidedEffectsWorkspace(QWidget):
                 effect_preview=preview,
                 texture_reader=texture_reader,
                 character_builder=self._controller.character_holding_the_item,
+                model_source_usage=model_source_usage if callable(model_source_usage) else None,
             )
             if self._host_factory is not None:
                 kwargs["host_factory"] = self._host_factory
@@ -795,6 +798,7 @@ class GuidedEffectsWorkspace(QWidget):
                 effect_preview=preview,
                 texture_reader=texture_reader,
                 character_builder=self._controller.character_holding_the_item,
+                model_source_usage=model_source_usage if callable(model_source_usage) else None,
                 reset_view=self._reset_view_next,
             )
         self._reset_view_next = False

@@ -272,6 +272,11 @@ def parsed_mesh_from_model_preview(model: object) -> ParsedMesh:
         )
         copy_extra_submesh_attrs(source, submesh)
         setattr(submesh, "preview_role", str(getattr(source, "preview_role", "") or "archive_model"))
+        setattr(
+            submesh,
+            "preview_source_asset_path",
+            str(getattr(source, "preview_source_asset_path", "") or getattr(model, "path", "") or ""),
+        )
         setattr(submesh, "cdmw_mesh_edit_topology_source_submesh_index", source_index)
         setattr(submesh, "cdmw_native_source_submesh_index", source_index)
         setattr(submesh, "cdmw_native_source_local_submesh_index", source_index)

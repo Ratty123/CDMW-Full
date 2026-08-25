@@ -28,6 +28,8 @@ $TestsByArea = @{
         "tests/test_localization_catalog_contracts.py",
         # New Item Studio: headless construction, and a plan driven through its panels.
         "tests/test_combo_popup_limiter.py",
+        "tests/test_new_item_item_preview.py",
+        "tests/test_new_item_model_cleanup.py",
         "tests/test_new_item_studio_tab.py",
         "tests/test_new_item_glow_preview.py",
         "tests/test_effect_placement_dialog.py",

@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.models import ArchiveEntry
+from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, clamp_model_preview_render_settings
 from cdmw.services.new_item_service import NewItemService
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.panels_identity import IdentityPanel
@@ -86,6 +86,10 @@ class NewItemStudioTab(QWidget):
         self._pending_template: Optional[int] = None
         self._pending_model_import: Optional[Path] = None
         self._panels_built = False
+        preview_settings_provider = getattr(window, "_current_model_preview_render_settings", None)
+        self._preview_render_settings: ModelPreviewRenderSettings = clamp_model_preview_render_settings(
+            preview_settings_provider() if callable(preview_settings_provider) else None
+        )
         self._refreshing_checks = False
         self._model_part_editor_source: object | None = None
         self._model_part_editor_widget: object | None = None
@@ -119,8 +123,21 @@ class NewItemStudioTab(QWidget):
         self.controller.snapshot_failed.connect(self._snapshot_failed)
         self.controller.status_message.connect(self.status_message_requested.emit)
         self.controller.busy_changed.connect(self._bootstrap_busy_changed)
+        preview_settings_signal = getattr(
+            getattr(window, "settings_tab", None),
+            "model_preview_settings_changed",
+            None,
+        )
+        if preview_settings_signal is not None:
+            preview_settings_signal.connect(self.set_preview_render_settings)
 
     # ------------------------------------------------------------------ bootstrap
+
+    def set_preview_render_settings(self, settings: object | None) -> None:
+        self._preview_render_settings = clamp_model_preview_render_settings(settings)
+        model_panel = getattr(self, "model_panel", None)
+        if model_panel is not None:
+            model_panel.preview.set_render_settings(self._preview_render_settings)
 
     def _bootstrap_busy_changed(self, busy: object) -> None:
         """The bootstrap's own progress bar, while the archives are being read.
@@ -220,6 +237,7 @@ class NewItemStudioTab(QWidget):
         self.template_panel = TemplatePanel(controller)
         self.identity_panel = IdentityPanel(controller)
         self.model_panel = ModelPanel(controller)
+        self.model_panel.preview.set_render_settings(self._preview_render_settings)
         self.stats_panel = StatsPanel(controller)
         self.perks_panel = PerksPanel(controller)
         self.placement_panel = PlacementPanel(controller)

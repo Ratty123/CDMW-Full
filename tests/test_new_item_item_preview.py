@@ -16,6 +16,91 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
 class ItemPreviewPackageTests(unittest.TestCase):
+    def test_preview_model_adapter_keeps_complete_canonical_material_bindings(self) -> None:
+        from cdmw.models import ModelPreviewData, ModelPreviewMesh
+        from cdmw.modding.mesh_deformer import _EXTRA_SUBMESH_ATTRS
+        from cdmw.services.mesh_dotnet_material_bindings import _DOTNET_PREVIEW_MATERIAL_ATTRS
+        from cdmw.services.mesh_dotnet_preview_package import parsed_mesh_from_model_preview
+
+        self.assertEqual(set(_DOTNET_PREVIEW_MATERIAL_ATTRS) - set(_EXTRA_SUBMESH_ATTRS), set())
+
+        source = ModelPreviewMesh(
+            material_name="handle",
+            texture_name="handle_base",
+            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+            normals=[(0.0, 0.0, 1.0)] * 3,
+            indices=[0, 1, 2],
+            source_submesh_index=0,
+            preview_texture_path="handle_base.png",
+            preview_texture_dds_path="handle_base.dds",
+            preview_normal_texture_default_path="handle_normal.dds",
+            preview_normal_texture_default_name="handle_normal.dds",
+            preview_normal_texture_default_strength=0.8,
+            preview_material_texture_default_path="handle_material.dds",
+            preview_material_texture_default_name="handle_material.dds",
+            preview_material_texture_default_type="material",
+            preview_material_texture_default_subtype="standard_v2_material",
+            preview_material_texture_default_packed_channels=("ao", "roughness", "metalness"),
+            preview_height_texture_default_path="handle_height.dds",
+            preview_height_texture_default_name="handle_height.dds",
+            preview_emissive_texture_default_path="handle_emissive.dds",
+            preview_emissive_texture_default_name="handle_emissive.dds",
+        )
+        model = ModelPreviewData(path="character/weapon/handle.pac", format="pac", meshes=[source])
+
+        converted = parsed_mesh_from_model_preview(model).submeshes[0]
+
+        self.assertEqual(converted.preview_normal_texture_default_path, "handle_normal.dds")
+        self.assertEqual(converted.preview_normal_texture_default_strength, 0.8)
+        self.assertEqual(converted.preview_material_texture_default_subtype, "standard_v2_material")
+        self.assertEqual(
+            converted.preview_material_texture_default_packed_channels,
+            ("ao", "roughness", "metalness"),
+        )
+        self.assertEqual(converted.preview_height_texture_default_path, "handle_height.dds")
+        self.assertEqual(converted.preview_emissive_texture_default_path, "handle_emissive.dds")
+        self.assertEqual(converted.preview_source_asset_path, "character/weapon/handle.pac")
+
+    def test_preview_model_is_prepared_once_without_an_earlier_material_combine(self) -> None:
+        from cdmw.models import ModelPreviewData, ModelPreviewMesh, ModelPreviewRenderSettings
+        from cdmw.ui.new_item import item_preview
+
+        root = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_prepare_"))
+        source = ModelPreviewData(meshes=[ModelPreviewMesh()])
+        prepared = SimpleNamespace(meshes=[object()])
+        settings = ModelPreviewRenderSettings(d3d11_tone_gamma=1.17)
+        stop_event = threading.Event()
+        seen = {}
+
+        def fake_from_model(model, **_kwargs):
+            seen["model"] = model
+            return SimpleNamespace(package_dir=root / "prepared" / "package")
+
+        with patch(
+            "cdmw.services.preview_rendering_service.prepare_model_preview",
+            return_value=(prepared, None),
+        ) as prepare, patch(
+            "cdmw.services.mesh_dotnet_preview_package.build_or_lookup_dotnet_preview_package_from_model",
+            fake_from_model,
+        ):
+            result = item_preview.build_item_preview_package(
+                source,
+                token="prepared",
+                output_root=root,
+                stop_event=stop_event,
+                render_settings=settings,
+            )
+
+        self.assertEqual(result, root / "prepared" / "package")
+        self.assertIs(seen["model"], prepared)
+        prepare.assert_called_once_with(
+            source,
+            render_settings=settings,
+            stop_event=stop_event,
+            enable_material_combiner=False,
+        )
+
     def test_a_preview_model_goes_the_textured_route_and_a_mesh_the_bare_one(self) -> None:
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
         from cdmw.ui.new_item import item_preview
@@ -243,6 +328,29 @@ class ItemPreviewFrameTests(unittest.TestCase):
 
         return FakeHost
 
+    def test_shared_render_settings_apply_when_the_host_starts_and_change_live(self) -> None:
+        from cdmw.models import ModelPreviewRenderSettings
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        frame = ItemPreviewFrame(
+            output_root=Path(tempfile.mkdtemp(prefix="cdmw_item_preview_settings_")),
+            host_factory=self._fake_host_class(),
+        )
+        first = ModelPreviewRenderSettings(d3d11_tone_gamma=1.17, d3d11_ao_strength=0.7)
+        second = ModelPreviewRenderSettings(d3d11_tone_gamma=0.91, d3d11_ao_strength=0.4)
+
+        frame.set_render_settings(first)
+        frame._ensure_host()
+        frame.set_render_settings(second)
+
+        tuning = [call for call in frame.host.calls if call[0] == "set_render_tuning"]
+        self.assertEqual(len(tuning), 2)
+        self.assertAlmostEqual(tuning[0][1][0].d3d11_tone_gamma, 1.17)
+        self.assertAlmostEqual(tuning[0][1][0].d3d11_ao_strength, 0.7)
+        self.assertAlmostEqual(tuning[1][1][0].d3d11_tone_gamma, 0.91)
+        self.assertAlmostEqual(tuning[1][1][0].d3d11_ao_strength, 0.4)
+        frame.shutdown()
+
     def test_a_placement_scene_takes_the_gizmo_and_the_numbers(self) -> None:
         from cdmw.ui.new_item.item_preview import ItemPreviewFrame, PlacementScene
         from cdmw.ui.new_item.model_import import ModelPlacement
@@ -379,6 +487,59 @@ class ItemPreviewFrameTests(unittest.TestCase):
             while frame._thread is not None and time.monotonic() < deadline + 1.0:
                 self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
             self.assertEqual(frame.iter_shutdown_workers(), ())
+
+    def test_superseding_a_preview_releases_its_model_source_usage_after_worker_teardown(self) -> None:
+        from PySide6.QtCore import QEventLoop
+
+        from cdmw.domain.cancellation import RunCancelled
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame, ProgressivePreviewSource
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        temporary = tempfile.TemporaryDirectory(prefix="cdmw_item_preview_usage_")
+        self.addCleanup(temporary.cleanup)
+        output = Path(temporary.name)
+        frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
+        self.addCleanup(frame.shutdown)
+        self.addCleanup(frame.deleteLater)
+        acquired = threading.Event()
+        released = threading.Event()
+        build_started = threading.Event()
+
+        class Usage:
+            def release(self) -> None:
+                released.set()
+
+        def acquire_usage():
+            acquired.set()
+            return Usage()
+
+        def build_scene(stop_event: threading.Event):
+            build_started.set()
+            while not stop_event.wait(0.005):
+                pass
+            raise RunCancelled("superseded")
+
+        source = ProgressivePreviewSource(
+            geometry=build_scene,
+            materials=build_scene,
+            acquire_usage=acquire_usage,
+        )
+        frame.show_placement(source, token="import", placement=ModelPlacement())
+        deadline = time.monotonic() + 2.0
+        while not build_started.is_set() and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertTrue(acquired.is_set())
+        self.assertFalse(released.is_set())
+
+        frame.show(object(), token="template")
+        while not released.is_set() and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertTrue(released.is_set(), "the retired source is released only after the native thread stops")
+
+        frame.request_shutdown()
+        while frame.iter_shutdown_workers() and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertEqual(frame.iter_shutdown_workers(), ())
 
     def test_a_hidden_frame_builds_the_package_and_loads_it_when_shown(self) -> None:
         """The package builds ahead of the step (shown or not); the viewport starts, and the
