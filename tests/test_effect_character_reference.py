@@ -376,6 +376,35 @@ class HeldPoseTests(unittest.TestCase):
 
         self.assertEqual(route, ("LForearm_Socket", "Basic_ChildSocket", "descriptor"))
 
+    def test_an_older_prefab_s_part_name_still_selects_its_descriptor_route(self) -> None:
+        from dataclasses import replace
+        from unittest.mock import patch
+
+        from cdmw.services.effect_character_reference import _item_attachment_route
+        from tools.placement_studio.model import DescriptorPart
+
+        reference = replace(
+            self._reference(),
+            parts={
+                "CD_MainWeapon_HandCannon": DescriptorPart(
+                    part_name="CD_MainWeapon_HandCannon",
+                    out_socket="RHand_Socket",
+                    out_child_socket="Basic_ChildSocket",
+                )
+            },
+        )
+        with patch(
+            "cdmw.core.archive_attachment_patches.inspect_prefab_attachment_profile_fields",
+            return_value=(),
+        ):
+            route = _item_attachment_route(
+                ("cannon.prefab",),
+                lambda _path: b"schema\x00CD_MainWeapon_HandCannon\x00model",
+                reference,
+            )
+
+        self.assertEqual(route, ("RHand_Socket", "Basic_ChildSocket", "descriptor-name"))
+
     def test_the_resolved_body_socket_replaces_the_right_hand_in_the_effect_scene(self) -> None:
         from dataclasses import replace
         from unittest.mock import patch
