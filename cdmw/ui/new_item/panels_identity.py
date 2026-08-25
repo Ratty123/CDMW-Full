@@ -294,7 +294,15 @@ class IdentityPanel(QGroupBox):
             suggestion = self._controller.suggest_internal_name()
             if suggestion:
                 self._suggested_name = suggestion
-                self.internal_name.setText(suggestion)
+                # Template selection already invalidated the plan. Publishing this
+                # programmatic seed through textChanged used to invalidate and validate
+                # the same draft again before the template signal had finished.
+                self.internal_name.blockSignals(True)
+                try:
+                    self.internal_name.setText(suggestion)
+                finally:
+                    self.internal_name.blockSignals(False)
+                self._controller.draft.internal_name = suggestion
         self.refresh_issues()
 
     def refresh_issues(self) -> tuple:

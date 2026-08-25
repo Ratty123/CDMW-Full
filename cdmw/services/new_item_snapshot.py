@@ -16,7 +16,7 @@ import struct
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Tuple
+from typing import Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.item_model_family import ItemModelFamily, ItemModelFamilyError, discover_item_model_family
@@ -99,7 +99,7 @@ class NewItemSnapshot:
     _contexts: Dict[int, NewItemContext] = field(default_factory=dict, repr=False)
     _families: Dict[int, ItemModelFamily] = field(default_factory=dict, repr=False)
     _payloads: Dict[str, bytes] = field(default_factory=dict, repr=False)
-    _index_maps: Optional[Tuple[Mapping[str, Tuple[ArchiveEntry, ...]], Mapping[str, Tuple[ArchiveEntry, ...]]]] = field(default=None, repr=False)
+    _index_maps: Optional[Tuple[Mapping[str, Sequence[ArchiveEntry]], Mapping[str, Sequence[ArchiveEntry]]]] = field(default=None, repr=False)
 
     # ------------------------------------------------------------------ lookups
 
@@ -129,12 +129,14 @@ class NewItemSnapshot:
     def has_entry(self, path: str) -> bool:
         return str(path or "").replace("\\", "/").strip("/").lower() in self.entries
 
-    def archive_index_maps(self) -> Tuple[Mapping[str, Tuple[ArchiveEntry, ...]], Mapping[str, Tuple[ArchiveEntry, ...]]]:
+    def archive_index_maps(self) -> Tuple[Mapping[str, Sequence[ArchiveEntry]], Mapping[str, Sequence[ArchiveEntry]]]:
         """The whole listing the way the archive workflows index it: by normalized path
         and by basename, each to the entries that answer. The texture resolver walks these
         (a weapon's textures sit under `character/texture/`, not beside its mesh), so
-        they cover every entry. Built once on first use (a second or two over a full
-        install) and kept; a race between two threads only builds it twice."""
+        they cover every entry. A snapshot opened from Archive Browser retains its
+        published indexes; direct/headless callers build them once on first use (a second
+        or two over a full install). A race between two fallback builders only builds them
+        twice."""
 
         cached = self._index_maps
         if cached is not None:
@@ -340,13 +342,26 @@ def build_snapshot(
     read_entry: Optional[ReadEntry] = None,
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
+    entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    entries_by_extension: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
 ) -> NewItemSnapshot:
     """Read and parse every table a new item touches. Seconds of work; run it off the UI thread."""
 
     read = read_entry or _default_reader
     by_path: Dict[str, ArchiveEntry] = {}
-    for entry in entries:
-        by_path.setdefault(str(entry.path).replace("\\", "/").strip("/").lower(), entry)
+    if entries_by_normalized_path:
+        # Archive Browser already paid to normalize and group the complete listing.
+        # Reusing that published index avoids normalizing every path again when the
+        # studio opens; retain the first mounted answer, matching the old setdefault.
+        by_path = {
+            str(path): candidates[0]
+            for path, candidates in entries_by_normalized_path.items()
+            if candidates
+        }
+    else:
+        for entry in entries:
+            by_path.setdefault(str(entry.path).replace("\\", "/").strip("/").lower(), entry)
     if not by_path:
         raise NewItemSnapshotError("no archive entries were given")
 
@@ -399,7 +414,13 @@ def build_snapshot(
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     log("Reading the English localisation table...")
     paloc_entries: Dict[str, ArchiveEntry] = {}
-    for path, entry in by_path.items():
+    paloc_candidates = (
+        entries_by_extension.get(".paloc", ())
+        if entries_by_extension
+        else by_path.values()
+    )
+    for entry in paloc_candidates:
+        path = str(entry.path).replace("\\", "/").strip("/").lower()
         if path.startswith(PALOC_DIR + "/") and path.endswith(".paloc"):
             language = language_of_paloc_path(path)
             if language:
@@ -409,14 +430,24 @@ def build_snapshot(
         raise NewItemSnapshotError("the archives have no English localisation table")
     english = parse_paloc(bytes(read(english_entry)), name=english_entry.path)
 
+    model_candidates = entries_by_extension.get(".pac", ()) if entries_by_extension else by_path.values()
+    model_paths = (
+        str(entry.path).replace("\\", "/").strip("/").lower()
+        for entry in model_candidates
+    )
     model_stems = frozenset(
         path[len(MODEL_ROOT):].rsplit("/", 1)[-1][:-4]
-        for path in by_path
+        for path in model_paths
         if path.startswith(MODEL_ROOT) and path.endswith(".pac")
+    )
+    effect_candidates = entries_by_extension.get(".pae", ()) if entries_by_extension else by_path.values()
+    effect_paths = (
+        str(entry.path).replace("\\", "/").strip("/").lower()
+        for entry in effect_candidates
     )
     effect_stems = frozenset(
         path[len(EFFECT_DIR):-4]
-        for path in by_path
+        for path in effect_paths
         if path.startswith(EFFECT_DIR) and path.endswith(".pae") and "/" not in path[len(EFFECT_DIR):]
     )
     pathc: Optional[PathcTable] = None
@@ -450,6 +481,9 @@ def build_snapshot(
         model_stems=model_stems,
         pathc=pathc,
         effect_stems=effect_stems,
+        _index_maps=(entries_by_normalized_path, entries_by_basename)
+        if entries_by_normalized_path and entries_by_basename
+        else None,
     )
     # Measured here rather than the first time a stat is offered. The measure itself is
     # 17 ms over the corpus; the import it needs is 1.5 s, because an import made after

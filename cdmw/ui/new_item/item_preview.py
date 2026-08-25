@@ -125,6 +125,7 @@ def build_item_preview_package(
     stop_event: threading.Event,
     include_material_resources: bool = True,
     render_settings: object | None = None,
+    cache_mode: str = "off",
 ) -> Path:
     """Build the viewport package for `source` off the UI thread and return its directory.
     `source` is a `ModelPreviewData` (the archive or import preview decode, textures
@@ -164,6 +165,7 @@ def build_item_preview_package(
         )
     elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
         from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package_from_model
+        from cdmw.services.preview_rendering_service import dotnet_preview_package_cache_budget
 
         prepared_item = _prepare_preview_model(
             item,
@@ -171,9 +173,16 @@ def build_item_preview_package(
             stop_event=stop_event,
         )
         output_root.mkdir(parents=True, exist_ok=True)
+        cache_max_bytes, cache_target_bytes = dotnet_preview_package_cache_budget(cache_mode)
         package = build_or_lookup_dotnet_preview_package_from_model(
-            prepared_item, cache_root=output_root, archive_identity=f"new_item_preview:{token!r}", cache_mode="off",
+            prepared_item,
+            cache_root=output_root,
+            archive_identity=f"new_item_preview:{token!r}",
+            cache_mode=cache_mode,
+            max_bytes=cache_max_bytes,
+            target_bytes=cache_target_bytes,
             cancelled=stop_event.is_set,
+            metadata={"surface": "new_item_studio", "source_token": repr(token)},
         )
     else:
         from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
@@ -322,6 +331,7 @@ class ItemPreviewFrame(QWidget):
         self.host = None
         self._host_error = ""
         self._render_settings: ModelPreviewRenderSettings = clamp_model_preview_render_settings()
+        self._cache_mode = "off"
         self._package_dir: Optional[Path] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
@@ -403,6 +413,12 @@ class ItemPreviewFrame(QWidget):
         if self.host is not None:
             self.host.set_render_tuning(self._render_settings)
 
+    def set_cache_mode(self, mode: object) -> None:
+        """Use the shared bounded preview-package cache policy for later loads."""
+
+        normalized = str(mode or "off").strip().lower()
+        self._cache_mode = normalized if normalized in {"off", "balanced", "aggressive"} else "off"
+
     def show_mesh(self, mesh: Optional[ParsedMesh]) -> None:
         """Show the bare `mesh` (None clears the view); a build already running is superseded."""
 
@@ -471,7 +487,7 @@ class ItemPreviewFrame(QWidget):
     def _drop_deferred_package(self) -> None:
         deferred = self._deferred_package
         if deferred is not None:
-            shutil.rmtree(self._package_cleanup_root(deferred[0]), ignore_errors=True)
+            self._remove_package(deferred[0])
             self._deferred_package = None
 
     def show_placement(
@@ -618,6 +634,7 @@ class ItemPreviewFrame(QWidget):
         acquire_usage = getattr(usage_source, "acquire_usage", None)
         source_usage = acquire_usage() if callable(acquire_usage) else None
         render_settings = clamp_model_preview_render_settings(self._render_settings)
+        cache_mode = self._cache_mode
         # What this build is for, read back by `_package_ready`. It is kept here rather
         # than captured in a lambda on `completed`: a lambda is not a bound method of this
         # QObject, so Qt runs it on the worker's thread, and the viewport's process would
@@ -659,6 +676,7 @@ class ItemPreviewFrame(QWidget):
                     stop_event=stop_event,
                     include_material_resources=full_stage,
                     render_settings=render_settings,
+                    cache_mode=cache_mode,
                 )
             return _PreviewBuildProduct(package_dir, upgrade_source, "materials" if full_stage else "geometry")
 
@@ -760,10 +778,10 @@ class ItemPreviewFrame(QWidget):
         if not isinstance(result, Path):
             return
         if self._closed:
-            shutil.rmtree(self._package_cleanup_root(result), ignore_errors=True)
+            self._remove_package(result)
             return
         if self._pending is not None and token != self._pending[0]:
-            shutil.rmtree(self._package_cleanup_root(result), ignore_errors=True)
+            self._remove_package(result)
             return
         if stage == "geometry" and resolved_source is not None:
             self._upgrade_request = (token, resolved_source, bool(is_placement), result)
@@ -790,7 +808,7 @@ class ItemPreviewFrame(QWidget):
             self.host.set_display_mode("replacement_only")
             self.status_changed.emit("Loading the viewport...")
         else:
-            shutil.rmtree(self._package_cleanup_root(result), ignore_errors=True)
+            self._remove_package(result)
             self.status_changed.emit("The resident viewport rejected the preview package.")
 
     def _host_state(self, state: str, message: str) -> None:
@@ -812,7 +830,7 @@ class ItemPreviewFrame(QWidget):
             retired, self._retire_after_ready = self._retire_after_ready, []
             for package in retired:
                 if package != self._package_dir:
-                    shutil.rmtree(self._package_cleanup_root(package), ignore_errors=True)
+                    self._remove_package(package)
             building_materials = self._building is not None and self._building[2] == "materials"
             self.status_changed.emit("Loading model textures…" if building_materials else "")
             self.ready.emit()
@@ -891,12 +909,25 @@ class ItemPreviewFrame(QWidget):
             except Exception:  # noqa: BLE001
                 pass
         if self._package_dir is not None:
-            shutil.rmtree(self._package_cleanup_root(self._package_dir), ignore_errors=True)
+            self._remove_package(self._package_dir)
             self._package_dir = None
         retired, self._retire_after_ready = self._retire_after_ready, []
         for package in retired:
-            shutil.rmtree(self._package_cleanup_root(package), ignore_errors=True)
+            self._remove_package(package)
         self._drop_deferred_package()
+
+    def _remove_package(self, package_dir: Path) -> None:
+        """Remove one transient package; durable cache entries outlive this frame."""
+
+        from cdmw.services.preview_rendering_service import (
+            dotnet_preview_package_derived_cache_root,
+            is_durable_dotnet_preview_package_path,
+        )
+
+        derived_cache_root = dotnet_preview_package_derived_cache_root(self._output_root)
+        if is_durable_dotnet_preview_package_path(derived_cache_root, package_dir):
+            return
+        shutil.rmtree(self._package_cleanup_root(package_dir), ignore_errors=True)
 
     def _package_cleanup_root(self, package_dir: Path) -> Path:
         return package_cleanup_root(package_dir, self._output_root)

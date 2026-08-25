@@ -26,7 +26,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, clamp_model_preview_render_settings
+from cdmw.models import (
+    ArchiveEntry,
+    ModelPreviewRenderSettings,
+    clamp_archive_performance_settings,
+    clamp_model_preview_render_settings,
+)
 from cdmw.services.new_item_service import NewItemService
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.panels_identity import IdentityPanel
@@ -90,7 +95,12 @@ class NewItemStudioTab(QWidget):
         self._preview_render_settings: ModelPreviewRenderSettings = clamp_model_preview_render_settings(
             preview_settings_provider() if callable(preview_settings_provider) else None
         )
+        archive_settings_provider = getattr(window, "_current_archive_performance_settings", None)
+        self._preview_cache_mode = clamp_archive_performance_settings(
+            archive_settings_provider() if callable(archive_settings_provider) else None
+        ).native_preview_cache_mode
         self._refreshing_checks = False
+        self._effect_staged_dirty = False
         self._model_part_editor_source: object | None = None
         self._model_part_editor_widget: object | None = None
         self._model_part_editor_controller: object | None = None
@@ -130,6 +140,13 @@ class NewItemStudioTab(QWidget):
         )
         if preview_settings_signal is not None:
             preview_settings_signal.connect(self.set_preview_render_settings)
+        archive_settings_signal = getattr(
+            getattr(window, "settings_tab", None),
+            "archive_performance_settings_changed",
+            None,
+        )
+        if archive_settings_signal is not None:
+            archive_settings_signal.connect(self.set_archive_performance_settings)
 
     # ------------------------------------------------------------------ bootstrap
 
@@ -138,6 +155,12 @@ class NewItemStudioTab(QWidget):
         model_panel = getattr(self, "model_panel", None)
         if model_panel is not None:
             model_panel.preview.set_render_settings(self._preview_render_settings)
+
+    def set_archive_performance_settings(self, settings: object | None) -> None:
+        self._preview_cache_mode = clamp_archive_performance_settings(settings).native_preview_cache_mode
+        model_panel = getattr(self, "model_panel", None)
+        if model_panel is not None:
+            model_panel.preview.set_cache_mode(self._preview_cache_mode)
 
     def _bootstrap_busy_changed(self, busy: object) -> None:
         """The bootstrap's own progress bar, while the archives are being read.
@@ -186,7 +209,16 @@ class NewItemStudioTab(QWidget):
             else:
                 self._status.setText(f"Listing the archives under {package_root}, then reading the tables...")
             self.controller.log_message.connect(self._status.setText)
-        if not self.controller.start_snapshot(entries, package_root=package_root):
+        entries_by_normalized_path = getattr(self._window, "archive_entries_by_normalized_path", None)
+        entries_by_basename = getattr(self._window, "archive_entries_by_basename", None)
+        entries_by_extension = getattr(self._window, "archive_entries_by_extension", None)
+        if not self.controller.start_snapshot(
+            entries,
+            package_root=package_root,
+            entries_by_normalized_path=entries_by_normalized_path,
+            entries_by_basename=entries_by_basename,
+            entries_by_extension=entries_by_extension,
+        ):
             if not self._panels_built:
                 self._read_button.setEnabled(True)
                 self._progress.setVisible(False)
@@ -238,6 +270,8 @@ class NewItemStudioTab(QWidget):
         self.identity_panel = IdentityPanel(controller)
         self.model_panel = ModelPanel(controller)
         self.model_panel.preview.set_render_settings(self._preview_render_settings)
+        self.model_panel.preview.set_cache_mode(self._preview_cache_mode)
+        self.template_panel.mount_preview(self.model_panel.preview)
         self.stats_panel = StatsPanel(controller)
         self.perks_panel = PerksPanel(controller)
         self.placement_panel = PlacementPanel(controller)
@@ -255,7 +289,6 @@ class NewItemStudioTab(QWidget):
         self.output_panel.install_overlay_requested.connect(self._install_overlay)
         self.output_panel.overlay_migration_requested.connect(self._migrate_overlay)
         self.output_panel.overlay_removal_requested.connect(self._remove_overlay)
-        controller.template_changed.connect(lambda _key: self.identity_panel.refresh_issues())
         controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
 
         # One guided workspace: the clickable header owns navigation, the current page
@@ -370,6 +403,10 @@ class NewItemStudioTab(QWidget):
         if self._panels_built:
             self.template_panel.apply_pending_pick()
         self._current_step = row
+        if row == 0:
+            self.template_panel.mount_preview(self.model_panel.preview)
+        elif row == 2:
+            self.model_panel.mount_preview()
         self.pages.setCurrentIndex(row)
         self.back_button.setEnabled(row > 0)
         self.continue_button.setEnabled(
@@ -399,8 +436,12 @@ class NewItemStudioTab(QWidget):
         return "stay"
 
     def _effect_staged_changed(self, dirty: object) -> None:
+        staged_dirty = bool(dirty)
+        if staged_dirty == self._effect_staged_dirty:
+            return
+        self._effect_staged_dirty = staged_dirty
         if self._current_step == 4:
-            self.continue_button.setEnabled(not bool(dirty))
+            self.continue_button.setEnabled(not staged_dirty)
         self._refresh_summary()
 
     def _step_by(self, delta: int) -> None:

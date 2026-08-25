@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout
+from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.ui_kit import intro_label
@@ -53,8 +53,37 @@ class TemplatePanel(QGroupBox):
         self.summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
         chosen_layout.addWidget(self.summary)
         layout.addWidget(chosen)
+        preview_group = QGroupBox("Preview")
+        preview_group.setMinimumHeight(340)
+        preview_layout = QVBoxLayout(preview_group)
+        preview_note = QLabel(
+            "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; "
+            "mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view."
+        )
+        preview_note.setObjectName("new_item_intro")
+        preview_note.setWordWrap(True)
+        preview_layout.addWidget(preview_note)
+        self.preview_holder = QWidget(preview_group)
+        self.preview_holder_layout = QVBoxLayout(self.preview_holder)
+        self.preview_holder_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.addWidget(self.preview_holder, 1)
+        self.preview_status = QLabel("")
+        self.preview_status.setObjectName("new_item_intro")
+        self.preview_status.setWordWrap(True)
+        preview_layout.addWidget(self.preview_status)
+        layout.addWidget(preview_group, 1)
+        self._preview = None
         controller.snapshot_ready.connect(self._refresh_matches)
         controller.template_changed.connect(self._show_template)
+
+    def mount_preview(self, preview: QWidget) -> None:
+        """Keep the one resident item viewport under the selected template."""
+
+        if self._preview is not preview:
+            self._preview = preview
+            preview.status_changed.connect(self.preview_status.setText)
+        if preview.parentWidget() is not self.preview_holder:
+            self.preview_holder_layout.addWidget(preview, 1)
 
     def _refresh_matches(self, *_args) -> None:
         self._syncing = True
@@ -111,6 +140,7 @@ class TemplatePanel(QGroupBox):
     def _show_template(self, key: object) -> None:
         if key is None:
             self.summary.setText("Choose a template item.")
+            self.preview_status.setText("")
             return
         self.summary.setText("\n".join(self._controller.template_summary()))
 

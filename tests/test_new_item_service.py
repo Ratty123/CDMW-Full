@@ -339,6 +339,33 @@ class SnapshotTests(_PackageCase):
         self.assertTrue(context.store_insert_supported and context.stat_shape_edits_supported)
         self.assertEqual(snapshot_task(self.entries, service=self.service, read_entry=_read)(lambda _m: None, None).rows.keys(), snap.rows.keys())
 
+    def test_snapshot_reuses_the_archive_browsers_published_indexes(self) -> None:
+        path_index: dict[str, tuple] = {}
+        basename_index: dict[str, tuple] = {}
+        extension_index: dict[str, tuple] = {}
+        for entry in self.entries:
+            path = str(entry.path).replace("\\", "/").strip("/").lower()
+            path_index[path] = (*path_index.get(path, ()), entry)
+            basename = path.rsplit("/", 1)[-1]
+            basename_index[basename] = (*basename_index.get(basename, ()), entry)
+            extension = Path(path).suffix.lower()
+            extension_index[extension] = (*extension_index.get(extension, ()), entry)
+
+        snapshot = self.service.build_snapshot(
+            self.entries,
+            read_entry=_read,
+            entries_by_normalized_path=path_index,
+            entries_by_basename=basename_index,
+            entries_by_extension=extension_index,
+        )
+
+        reused_path_index, reused_basename_index = snapshot.archive_index_maps()
+        self.assertIs(reused_path_index, path_index)
+        self.assertIs(reused_basename_index, basename_index)
+        self.assertEqual(snapshot.row(TEMPLATE).string_key, self.snapshot.row(TEMPLATE).string_key)
+        self.assertEqual(snapshot.model_stems, self.snapshot.model_stems)
+        self.assertEqual(snapshot.effect_stems, self.snapshot.effect_stems)
+
 
     def test_the_validation_context_is_built_once_per_template(self) -> None:
         """The studio validates on every edit, and the context's frozensets span the

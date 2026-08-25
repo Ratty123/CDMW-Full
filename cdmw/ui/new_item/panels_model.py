@@ -405,6 +405,7 @@ class ModelPanel(QGroupBox):
         self.preview_group = preview
         preview.setMinimumWidth(520)
         preview_layout = QVBoxLayout(preview)
+        self.preview_layout = preview_layout
         preview.setToolTip("Your model over the template. Orbit, zoom, move it with the gizmo, and capture the icon from this view.")
         self.operation_banner = QWidget(self.placement_column)
         operation_layout = QVBoxLayout(self.operation_banner)
@@ -515,6 +516,12 @@ class ModelPanel(QGroupBox):
         self.plain_pbr.setEnabled(False)
         self.own_sheath.setEnabled(False)
         self._refresh_import_widgets()
+
+    def mount_preview(self) -> None:
+        """Move the shared resident viewport back into Model & Placement."""
+
+        if self.preview.parentWidget() is not self.preview_group:
+            self.preview_layout.insertWidget(0, self.preview, 1)
 
     def _model_source_changed(self, keep: bool) -> None:
         draft = self._controller.draft

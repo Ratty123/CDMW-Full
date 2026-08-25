@@ -13,7 +13,7 @@ import copy
 import threading
 from dataclasses import replace
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
@@ -130,6 +130,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         self._model_cleanup_lane = ModelSourceCleanupLane(synchronous=self._synchronous, parent=self)
         #: What every shipped effect is made of, once indexed (a minute, cached on disk).
         self.effect_catalogue: Optional[EffectCatalogue] = None
+        self._effect_target_compatibility_cache: Dict[tuple, object] = {}
         #: Where the catalogue cache lives; None keeps it in memory only.
         self.effect_cache_path: Optional[Path] = None
         self._effect_lane = EffectCatalogueIndexLane(synchronous=self._synchronous, parent=self)
@@ -630,7 +631,14 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                 raise RunCancelled("Template preview cancelled")
             return parse_pac(snapshot.payload(entry.path), entry.path)
 
-        return (("template-geometry", self.draft.template_key, entry.path), build)
+        entry_revision = (
+            entry.path,
+            str(getattr(entry, "pamt_path", "") or ""),
+            str(getattr(entry, "paz_file", "") or ""),
+            int(getattr(entry, "offset", 0) or 0),
+            int(getattr(entry, "comp_size", 0) or 0),
+        )
+        return (("template-geometry", self.draft.template_key, *entry_revision), build)
 
     def _template_preview_build(self):
         """`(token, build)` for the template's own mesh: the archive decode with its
@@ -676,7 +684,14 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                 return model
             return controller.item_mesh_for_preview()
 
-        return (("template", self.draft.template_key, entry.path), build)
+        entry_revision = (
+            entry.path,
+            str(getattr(entry, "pamt_path", "") or ""),
+            str(getattr(entry, "paz_file", "") or ""),
+            int(getattr(entry, "offset", 0) or 0),
+            int(getattr(entry, "comp_size", 0) or 0),
+        )
+        return (("template", self.draft.template_key, *entry_revision), build)
 
     def character_reference(self):
         """The game's own character for the placement viewport, or None.
@@ -1156,7 +1171,15 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
 
     # ------------------------------------------------------------------ tasks
 
-    def start_snapshot(self, entries: Iterable[ArchiveEntry], *, package_root: Optional[Path] = None) -> bool:
+    def start_snapshot(
+        self,
+        entries: Iterable[ArchiveEntry],
+        *,
+        package_root: Optional[Path] = None,
+        entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+        entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+        entries_by_extension: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    ) -> bool:
         """Read the tables from `entries`, or, with none, list the archives under
         `package_root` first (the shell's catalogue backend leaves the legacy list empty)."""
 
@@ -1164,7 +1187,15 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         if not frozen and package_root is None:
             self.snapshot_failed.emit("The archive list is empty; scan the archives first.")
             return False
-        task = snapshot_task(frozen, service=self.service, read_entry=self._read_entry, package_root=package_root)
+        task = snapshot_task(
+            frozen,
+            service=self.service,
+            read_entry=self._read_entry,
+            package_root=package_root,
+            entries_by_normalized_path=entries_by_normalized_path,
+            entries_by_basename=entries_by_basename,
+            entries_by_extension=entries_by_extension,
+        )
 
         def done(result: object) -> None:
             if isinstance(result, NewItemSnapshot):
@@ -1174,6 +1205,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                 self._character_reference = _NOT_READ
                 self._held_character = ()
                 self._material_parts = ()
+                self._effect_target_compatibility_cache.clear()
                 self.snapshot_ready.emit()
             else:
                 self.snapshot_failed.emit("The snapshot finished with an unexpected result.")
