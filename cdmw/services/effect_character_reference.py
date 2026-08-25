@@ -366,6 +366,16 @@ def _preferred_prefab_paths(prefab_paths: Sequence[str]) -> Tuple[str, ...]:
     return tuple(sorted(normalized, key=lambda path: "_in" in path))
 
 
+def _part_names_in_prefab(prefab: bytes) -> Tuple[str, ...]:
+    """Descriptor part names remain unambiguous ASCII even in older prefab layouts."""
+
+    import re
+
+    return tuple(
+        dict.fromkeys(match.decode("ascii") for match in re.findall(rb"CD_[A-Za-z0-9_]+", prefab))
+    )
+
+
 def _item_attachment_route(
     prefab_paths: Sequence[str],
     read: Callable[[str], bytes],
@@ -380,23 +390,29 @@ def _item_attachment_route(
 
     for prefab in _preferred_prefab_paths(prefab_paths):
         try:
+            payload = read(prefab)
             profile = {
                 item.field_name: item.value
-                for item in inspect_prefab_attachment_profile_fields(read(prefab))
+                for item in inspect_prefab_attachment_profile_fields(payload)
             }
         except Exception:  # noqa: BLE001 - another owned part may carry the route
             continue
-        if not profile:
-            continue
-        part = reference.parts.get(str(profile.get("_partName") or ""))
-        body_socket = str(getattr(part, "out_socket", "") or "")
-        child_socket = str(getattr(part, "out_child_socket", "") or "")
-        if body_socket:
-            return body_socket, child_socket or _CHILD_SOCKET, "descriptor"
-        body_socket = str(profile.get("_attachedSocketName") or "")
-        child_socket = str(profile.get("_pivotSocketName") or "")
-        if body_socket:
-            return body_socket, child_socket or _CHILD_SOCKET, "prefab"
+        if profile:
+            part = reference.parts.get(str(profile.get("_partName") or ""))
+            body_socket = str(getattr(part, "out_socket", "") or "")
+            child_socket = str(getattr(part, "out_child_socket", "") or "")
+            if body_socket:
+                return body_socket, child_socket or _CHILD_SOCKET, "descriptor"
+            body_socket = str(profile.get("_attachedSocketName") or "")
+            child_socket = str(profile.get("_pivotSocketName") or "")
+            if body_socket:
+                return body_socket, child_socket or _CHILD_SOCKET, "prefab"
+        for part_name in _part_names_in_prefab(payload):
+            part = reference.parts.get(part_name)
+            body_socket = str(getattr(part, "out_socket", "") or "")
+            child_socket = str(getattr(part, "out_child_socket", "") or "")
+            if body_socket:
+                return body_socket, child_socket or _CHILD_SOCKET, "descriptor-name"
     return reference.socket, _CHILD_SOCKET, "fallback"
 
 
