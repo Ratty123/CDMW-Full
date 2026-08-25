@@ -1029,7 +1029,7 @@ def build_archive_preview_result(
                     entry,
                     data,
                     note_flags,
-                    quality_tier=normalized_quality_tier,
+                    quality_tier=normalized_quality_tier, archive_entries_by_normalized_path=texture_entries_by_normalized_path, archive_entries_by_basename=texture_entries_by_basename,
                     stop_event=stop_event,
                 )
                 parsed_mesh_for_references = parsed_mesh

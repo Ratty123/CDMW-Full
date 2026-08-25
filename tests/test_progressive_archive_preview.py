@@ -1,10 +1,16 @@
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from cdmw.core import archive
+from cdmw.core.archive_mesh_appearance import (
+    apply_archive_mesh_appearance,
+    apply_archive_mesh_appearance_to_preview_model,
+)
+from cdmw.core.common import RunCancelled
 from cdmw.models import (
     ArchiveEntry,
     ArchivePreviewResult,
@@ -315,6 +321,106 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertEqual(60_000, full_model.face_count)
         self.assertIs(parsed_mesh, fast_parsed)
         self.assertIs(parsed_mesh, full_parsed)
+
+    def test_pac_preview_rebuilds_from_resolved_character_appearance(self) -> None:
+        source_model = _preview_model(1, fmt="pac")
+        appearance_model = _preview_model(2, fmt="pac")
+        parsed_mesh = SimpleNamespace(path="character/model/head.pac")
+        appearance_mesh = SimpleNamespace(path="character/model/head.pac")
+
+        with (
+            patch(
+                "cdmw.core.archive_model_preview.build_mesh_preview_from_bytes",
+                return_value=(source_model, parsed_mesh),
+            ),
+            patch(
+                "cdmw.core.archive_mesh_appearance.apply_archive_mesh_appearance",
+                return_value=(appearance_mesh, ("Applied head.pabc skeleton variation.",)),
+            ) as apply_appearance,
+            patch(
+                "cdmw.core.archive_mesh_import_scene_preview.parsed_mesh_to_preview_model",
+                return_value=appearance_model,
+            ) as rebuild_preview,
+        ):
+            preview, parsed, notes = archive._build_pac_model_preview_with_fallback(
+                _entry("character/model/head.pac", ".pac"),
+                b"data",
+                set(),
+                quality_tier="full",
+                archive_entries_by_normalized_path={"character/model/head.pac": ()},
+                archive_entries_by_basename={"head.pac": ()},
+            )
+
+        self.assertIs(appearance_model, preview)
+        self.assertIs(appearance_mesh, parsed)
+        self.assertIn("Applied head.pabc skeleton variation.", notes)
+        apply_appearance.assert_called_once()
+        rebuild_preview.assert_called_once_with(appearance_mesh)
+
+    def test_pac_appearance_preparation_honors_worker_cancellation_before_io(self) -> None:
+        stop_event = threading.Event()
+        stop_event.set()
+
+        with self.assertRaises(RunCancelled):
+            apply_archive_mesh_appearance(
+                _entry("character/model/head.pac", ".pac"),
+                SimpleNamespace(format="pac"),
+                b"PAR ",
+                archive_entries_by_normalized_path={},
+                archive_entries_by_basename={},
+                stop_event=stop_event,
+            )
+
+    def test_pac_appearance_failure_keeps_original_preview_and_reports_reason(self) -> None:
+        source_model = _preview_model(1, fmt="pac")
+        parsed_mesh = SimpleNamespace(format="pac")
+        with patch(
+            "cdmw.core.archive_mesh_appearance.apply_archive_mesh_appearance_for_preview",
+            return_value=(parsed_mesh, ("Character appearance deformation was not applied: broken PABC",)),
+        ):
+            preview, parsed, notes = apply_archive_mesh_appearance_to_preview_model(
+                _entry("character/model/head.pac", ".pac"),
+                b"PAR ",
+                source_model,
+                parsed_mesh,
+                path_index={},
+                basename_index={},
+                stop_event=None,
+            )
+
+        self.assertIs(source_model, preview)
+        self.assertIs(parsed_mesh, parsed)
+        self.assertIn("broken PABC", notes[0])
+
+    def test_pac_appearance_uses_indexed_pab_without_archive_wide_descriptor_scan(self) -> None:
+        model_entry = _entry("character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pac", ".pac")
+        pabc_entry = _entry("character/binary/skeletonvariation/head.pabc", ".pabc")
+        pab_entry = _entry("character/model/1_pc/2_phw/phw_01.pab", ".pab")
+        source_mesh = SimpleNamespace(format="pac")
+        appearance_mesh = SimpleNamespace(format="pac")
+        skeleton = SimpleNamespace(bones=(SimpleNamespace(),))
+        variation = SimpleNamespace(matched_record_count=1, record_count=1)
+
+        with (
+            patch("cdmw.core.archive_mesh_appearance._related_appearance_entries", return_value=(pabc_entry,)),
+            patch("cdmw.core.archive_mesh_appearance.read_archive_entry_data", return_value=(b"PAR data", False, "")),
+            patch("cdmw.core.archive_mesh_appearance.parse_pab", return_value=skeleton),
+            patch("cdmw.core.archive_mesh_appearance.parse_pabc_skeleton_variation", return_value=variation),
+            patch("cdmw.core.archive_mesh_appearance.resolve_pac_bone_palette", return_value=(0,)),
+            patch("cdmw.core.archive_mesh_appearance.apply_skeleton_variation_to_mesh", return_value=appearance_mesh),
+            patch("cdmw.core.archive_mesh_appearance.resolve_skeleton_for_model") as broad_resolver,
+        ):
+            result, notes = apply_archive_mesh_appearance(
+                model_entry,
+                source_mesh,
+                b"PAC data",
+                archive_entries_by_normalized_path={},
+                archive_entries_by_basename={"phw_01.pab": (pab_entry,)},
+            )
+
+        self.assertIs(appearance_mesh, result)
+        self.assertIn("1/1 records", notes[0])
+        broad_resolver.assert_not_called()
 
     def test_archive_preview_cache_key_has_quality_tier_source_guard(self) -> None:
         source = (

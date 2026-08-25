@@ -300,6 +300,8 @@ $TestsByArea = @{
         "tests/test_mesh_selection_tools.py",
         "tests/test_archive_structured_asset_preview.py",
         "tests/test_rigging_binary_parsers.py",
+        "tests/test_appearance_composite.py",
+        "tests/test_mesh_exporter_fbx.py",
         "tests/test_mesh_parser_path_argument_guard.py"
     )
 }

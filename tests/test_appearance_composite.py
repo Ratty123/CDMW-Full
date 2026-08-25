@@ -178,6 +178,47 @@ class AppearanceCompositeTests(unittest.TestCase):
         self.assertEqual(("character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac",), tuple(e.path for e in plan.components[0].resolved_model_entries))
         self.assertFalse(plan.components[0].unresolved_references)
 
+    def test_head_component_keeps_skeleton_variation_and_morph_target_context(self):
+        entries = self._entries(
+            (
+                (
+                    "character/appearance/1_pc/2_phw/damian.app_xml",
+                    '<Appearance><Head><Prefab Name="cd_phw_00_head_00_0111" /></Head></Appearance>',
+                ),
+                (
+                    "character/prefab/1_pc/02_phw/head/head/cd_phw_00_head_00_0111.prefabdata_xml",
+                    "<HeadPrefabData>"
+                    '<SkeletonVariationName FileName="1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pabc"/>'
+                    '<MorphTargetSet FileName="1_pc/2_phw/phw_damian.pamt"/>'
+                    "</HeadPrefabData>",
+                ),
+                ("character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pac", b"PAR "),
+                (
+                    "character/binary/skeletonvariation/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pabc",
+                    b"PAR ",
+                ),
+                ("character/model/1_pc/2_phw/phw_damian.pamt", b"PAR "),
+            )
+        )
+        path_index, basename_index = self._indexes(entries)
+
+        plan = build_appearance_composite_preview_plan(
+            entries[0],
+            entries,
+            path_index=path_index,
+            basename_index=basename_index,
+        )
+
+        self.assertEqual(1, len(plan.components))
+        self.assertEqual(
+            {
+                "character/prefab/1_pc/02_phw/head/head/cd_phw_00_head_00_0111.prefabdata_xml",
+                "character/binary/skeletonvariation/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pabc",
+                "character/model/1_pc/2_phw/phw_damian.pamt",
+            },
+            {entry.path for entry in plan.components[0].resolved_context_entries},
+        )
+
     def test_prefab_relationship_resolves_model_and_socket_context(self):
         entries = self._entries(
             (

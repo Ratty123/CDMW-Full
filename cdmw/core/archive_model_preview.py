@@ -21,6 +21,7 @@ from cdmw.models import (
 from cdmw.core.common import RunCancelled, raise_if_cancelled
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import _ARCHIVE_XML_LIKE_EXTENSIONS
+from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance_to_preview_model
 from cdmw.core.archive_scan_cache import (
     _HKX_CONTEXT_MODEL_PREVIEW_CACHE,
     _HKX_CONTEXT_MODEL_PREVIEW_CACHE_LIMIT,
@@ -947,6 +948,8 @@ def _build_pac_model_preview_with_fallback(
     note_flags: set[str],
     *,
     quality_tier: str = "full",
+    archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> Tuple[ModelPreviewData, ParsedMesh, List[str]]:
     normalized_quality_tier = _normalize_archive_preview_quality_tier(quality_tier)
@@ -955,6 +958,11 @@ def _build_pac_model_preview_with_fallback(
 
     try:
         model_preview, parsed_mesh = build_mesh_preview_from_bytes(data, entry.path)
+        model_preview, parsed_mesh, appearance_notes = apply_archive_mesh_appearance_to_preview_model(
+            entry, data, model_preview, parsed_mesh, path_index=archive_entries_by_normalized_path,
+            basename_index=archive_entries_by_basename, stop_event=stop_event,
+        )
+        info_extra_parts.extend(appearance_notes)
         if normalized_quality_tier == "fast":
             model_preview = _reduce_archive_preview_model_geometry(model_preview)
             info_extra_parts.append("Fast preview uses sampled PAC geometry while the full preview builds.")
@@ -968,6 +976,11 @@ def _build_pac_model_preview_with_fallback(
         try:
             padded_data = data + (b"\x00" * (entry.orig_size - len(data)))
             model_preview, parsed_mesh = build_mesh_preview_from_bytes(padded_data, entry.path)
+            model_preview, parsed_mesh, appearance_notes = apply_archive_mesh_appearance_to_preview_model(
+                entry, padded_data, model_preview, parsed_mesh, path_index=archive_entries_by_normalized_path,
+                basename_index=archive_entries_by_basename, stop_event=stop_event,
+            )
+            info_extra_parts.extend(appearance_notes)
             if normalized_quality_tier == "fast":
                 model_preview = _reduce_archive_preview_model_geometry(model_preview)
                 info_extra_parts.append("Fast preview uses sampled PAC geometry while the full preview builds.")

@@ -1,14 +1,50 @@
 from __future__ import annotations
 
 import struct
+import tempfile
 import unittest
+from pathlib import Path
 
+from cdmw.core.archive_format import crypt_chacha20_filename, lz4_block, try_decrypt_archive_entry_data
+from cdmw.models import ArchiveEntry
 from cdmw.modding.animation_parser import parse_paa_animation_clip
+from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.skeleton_parser import Bone, Skeleton
-from cdmw.modding.skeleton_variation_parser import PABC_RECORD_OFFSET, PABC_RECORD_STRIDE, parse_pabc_skeleton_variation
+from cdmw.modding.skeleton_variation_parser import (
+    PABC_RECORD_OFFSET,
+    PABC_RECORD_STRIDE,
+    apply_skeleton_variation_to_mesh,
+    parse_pabc_skeleton_variation,
+    parse_pamt_morph_target_set,
+)
 
 
 class RiggingBinaryParserTests(unittest.TestCase):
+    @staticmethod
+    def _transform(*, position: tuple[float, float, float]) -> tuple[float, ...]:
+        return (1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, *position)
+
+    def _pamt_payload(self) -> bytes:
+        root_hash = 0x11111111
+        bone_name = b"Root"
+        targets = (
+            (0xAAAA0001, b"base", 0, self._transform(position=(0.0, 0.0, 0.0))),
+            (0xAAAA0002, b"jawOpen", 10, self._transform(position=(0.0, 2.0, 0.0))),
+        )
+        data = bytearray(b"PAR " + bytes(12))
+        data.extend(struct.pack("<H", 1))
+        data.extend(struct.pack("<IB", root_hash, len(bone_name)))
+        data.extend(bone_name)
+        data.extend(struct.pack("<h", -1))
+        data.extend(struct.pack("<H", len(targets)))
+        for target_hash, name, marker, transform in targets:
+            data.extend(struct.pack("<IB", target_hash, len(name)))
+            data.extend(name)
+            data.extend(struct.pack("<H", marker))
+            data.extend(struct.pack("<20f", *(transform + transform)))
+        data.extend(b"\x00\x00")
+        return bytes(data)
+
     def test_pabc_parser_binds_stride_records_to_pab_bone_hashes(self) -> None:
         skeleton = Skeleton(
             bones=[
@@ -34,6 +70,98 @@ class RiggingBinaryParserTests(unittest.TestCase):
         self.assertEqual(4, variation.tail_size)
         self.assertEqual(3, len(variation.records[0].matrix_blocks))
         self.assertEqual(16, len(variation.records[0].matrix_blocks[0]))
+
+    def test_pamt_parser_recovers_named_facial_targets_and_bone_transforms(self) -> None:
+        morphs = parse_pamt_morph_target_set(self._pamt_payload(), "face.pamt")
+
+        self.assertEqual(1, morphs.bone_count)
+        self.assertEqual(2, morphs.target_count)
+        self.assertEqual(("base", "jawOpen"), tuple(target.name for target in morphs.targets))
+        self.assertEqual(10, morphs.targets[1].marker)
+        self.assertEqual((0.0, 2.0, 0.0), morphs.targets[1].bone_transforms[0].global_transform.position)
+        self.assertEqual("pamt_skeleton_morph_targets_v1", morphs.parser_mode)
+
+    def test_encrypted_in_archive_pamt_validates_as_a_compressed_par_payload(self) -> None:
+        if lz4_block is None:
+            self.skipTest("lz4 is not installed")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            plain = self._pamt_payload()
+            compressed = lz4_block.compress(plain, store_size=False)
+            encrypted = crypt_chacha20_filename(compressed, "phw_damian.pamt")
+            entry = ArchiveEntry(
+                path="character/model/1_pc/2_phw/phw_damian.pamt",
+                pamt_path=root / "0.pamt",
+                paz_file=root / "0.paz",
+                offset=0,
+                comp_size=len(compressed),
+                orig_size=len(plain),
+                flags=0x32,
+                paz_index=0,
+            )
+
+            decrypted, note = try_decrypt_archive_entry_data(entry, encrypted)
+
+            self.assertEqual("ChaCha20", note)
+            self.assertEqual(plain, lz4_block.decompress(decrypted, uncompressed_size=len(plain)))
+
+    def test_pabc_neutral_and_pamt_target_deform_the_mesh_without_changing_source(self) -> None:
+        identity = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+        neutral_global = list(identity)
+        neutral_global[12] = 1.0
+        local_values = self._transform(position=(1.0, 0.0, 0.0)) + (1.0,) * 6
+        pabc = bytearray(PABC_RECORD_OFFSET + PABC_RECORD_STRIDE + 2)
+        pabc[0:4] = b"PAR "
+        struct.pack_into("<I", pabc, 0x10, 1)
+        struct.pack_into(
+            "<I48f",
+            pabc,
+            PABC_RECORD_OFFSET,
+            0x11111111,
+            *(tuple(neutral_global) + tuple(neutral_global) + local_values),
+        )
+        skeleton = Skeleton(
+            bones=[
+                Bone(
+                    index=0,
+                    name="Root",
+                    name_hash=0x11111111,
+                    parent_index=-1,
+                    bind_matrix=identity,
+                    inv_bind_matrix=identity,
+                )
+            ],
+            bone_count=1,
+        )
+        source = ParsedMesh(
+            path="face.pac",
+            format="pac",
+            submeshes=[
+                SubMesh(
+                    name="Face",
+                    vertices=[(0.0, 0.0, 0.0)],
+                    normals=[(0.0, 0.0, 1.0)],
+                    bone_indices=[(0,)],
+                    bone_weights=[(1.0,)],
+                    vertex_count=1,
+                )
+            ],
+            total_vertices=1,
+            has_bones=True,
+        )
+
+        deformed = apply_skeleton_variation_to_mesh(
+            source,
+            skeleton,
+            (0,),
+            parse_pabc_skeleton_variation(bytes(pabc), "face.pabc", skeleton=skeleton),
+            morph_target_set=parse_pamt_morph_target_set(self._pamt_payload(), "face.pamt"),
+        )
+
+        self.assertEqual([(0.0, 0.0, 0.0)], source.submeshes[0].vertices)
+        self.assertEqual([(1.0, 0.0, 0.0)], deformed.submeshes[0].vertices)
+        self.assertEqual([(1.0, 2.0, 0.0)], deformed.submeshes[0].morph_targets["jawOpen"])
+        self.assertEqual([(0.0, 0.0, 1.0)], deformed.submeshes[0].normals)
 
     def test_paa_parser_builds_clip_only_from_exact_hash_owned_tables(self) -> None:
         skeleton = Skeleton(

@@ -280,6 +280,30 @@ def _find_matching_skeleton_entry(
     return None, detail, tuple(report.attempted_paths), report
 
 
+def _appearance_fbx_mesh(
+    entry: ArchiveEntry,
+    parsed_mesh: ParsedMesh,
+    skeleton: Skeleton,
+    bone_palette: Sequence[int] | None,
+    path_index: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+    basename_index: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+) -> tuple[ParsedMesh, Tuple[str, ...]]:
+    if entry.extension != ".pac" or not bone_palette:
+        return parsed_mesh, ()
+    from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
+
+    return apply_archive_mesh_appearance(
+        entry,
+        parsed_mesh,
+        getattr(parsed_mesh, "_cdmw_original_data", b"") or b"",
+        archive_entries_by_normalized_path=path_index or {},
+        archive_entries_by_basename=basename_index or {},
+        include_morph_targets=True,
+        skeleton=skeleton,
+        bone_palette=bone_palette,
+    )
+
+
 def export_archive_mesh(
     entry: ArchiveEntry,
     output_dir: Path,
@@ -308,12 +332,12 @@ def export_archive_mesh(
     output_dir.mkdir(parents=True, exist_ok=True)
     basename = _mesh_export_basename(entry)
     _safe_log(on_log, f"Exporting {entry.path} as {export_kind.upper()}...")
-
     output_paths: List[Path] = []
     skeleton: Optional[Skeleton] = None
     skeleton_entry: Optional[ArchiveEntry] = None
     skeleton_resolution_warning = ""
     skeleton_resolve_report: Optional[SkeletonResolveReport] = None
+    appearance_notes: Tuple[str, ...] = ()
     copied_related_count = 0
     should_resolve_skeleton = entry.extension == ".pac" and (
         export_kind == "fbx" or bool(resolve_skeleton_for_obj)
@@ -378,9 +402,8 @@ def export_archive_mesh(
                         f"{entry.path}: no bone palette resolved against {skeleton_entry.path if skeleton_entry else 'the skeleton'}; "
                         "exporting the armature without skin binding.",
                     )
-            output_paths.append(Path(export_fbx_with_skeleton(
-                parsed_mesh, skeleton, str(output_dir), basename, bone_palette=bone_palette
-            )))
+            export_mesh, appearance_notes = _appearance_fbx_mesh(entry, parsed_mesh, skeleton, bone_palette, archive_entries_by_normalized_path, archive_entries_by_basename)
+            output_paths.append(Path(export_fbx_with_skeleton(export_mesh, skeleton, str(output_dir), basename, bone_palette=bone_palette)))
         else:
             output_paths.append(Path(export_fbx(parsed_mesh, str(output_dir), basename)))
 
@@ -537,6 +560,7 @@ def export_archive_mesh(
     ]
     if copied_related_count:
         summary_lines.append(f"Referenced files copied: {copied_related_count:,}")
+    summary_lines.extend(appearance_notes)
     if skeleton_entry is not None and skeleton is not None and skeleton.bones:
         summary_lines.append(f"Skeleton: {skeleton_entry.path}")
         summary_lines.append(f"Skeleton bones: {len(skeleton.bones):,}")
@@ -548,7 +572,7 @@ def export_archive_mesh(
             if skeleton_resolve_report.descriptor_path:
                 summary_lines.append(f"Skeleton descriptor: {skeleton_resolve_report.descriptor_path}")
             if skeleton_resolve_report.skeleton_variation_path:
-                summary_lines.append(f"Skeleton variation: {skeleton_resolve_report.skeleton_variation_path}")
+                summary_lines.append(f"Skeleton resolver context variation: {skeleton_resolve_report.skeleton_variation_path}")
     elif export_kind == "fbx" and entry.extension == ".pac":
         summary_lines.append("Skeleton: mesh-only export")
         if skeleton_resolution_warning:
