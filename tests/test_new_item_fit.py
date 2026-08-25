@@ -1,10 +1,8 @@
-"""Gates for the first placement an imported weapon lands at (`fitted_placement`).
+"""Gates for the first placement an imported model lands at (`fitted_placement`).
 
-The fit is a guess the reader corrects, so the only thing that matters about it is which
-guess costs the least correction. For a weapon that is one long axis and a heavy end, the
-answer is the grip: matching the two bounding boxes' middles instead leaves the handle
-half a weapon from the hand, which is a big drag on every import whose mass sits at one
-end -- an axe, a hammer, a halberd.
+The fit is a guess the reader corrects. Weapons use their long axis and heavy end to meet
+at the grip; armour and accessories match the same axes but stay centred, because neither
+end of a helmet or boot is a handle.
 """
 
 from __future__ import annotations
@@ -62,6 +60,27 @@ class FitTests(unittest.TestCase):
         high = placement.apply(axe[1])
         middle = (min(low[2], high[2]) + max(low[2], high[2])) / 2.0
         self.assertAlmostEqual(middle, -0.40, places=3, msg="the template's own middle")
+
+    def test_a_nonweapon_fit_does_not_turn_a_helmet_to_match_heavy_ends(self) -> None:
+        helmet = bounds((-0.05, -0.02, -0.10), (0.05, 0.02, 0.90))
+        helmet_centroid = (0.0, 0.0, 0.55)
+
+        weapon_fit = fitted_placement(
+            helmet,
+            self.TEMPLATE,
+            source_centroid=helmet_centroid,
+            template_centroid=self.TEMPLATE_CENTROID,
+        )
+        armour_fit = fitted_placement(
+            helmet,
+            self.TEMPLATE,
+            source_centroid=helmet_centroid,
+            template_centroid=self.TEMPLATE_CENTROID,
+            match_grip=False,
+        )
+
+        self.assertNotEqual(weapon_fit.rotation, (0.0, 0.0, 0.0), "a weapon turns its heavy end to match")
+        self.assertEqual(armour_fit.rotation, (0.0, 0.0, 0.0), "armour keeps the cheapest centred orientation")
 
     def test_the_scale_still_matches_the_template_s_length(self) -> None:
         axe = bounds((-0.4, -0.1, -2.0), (0.4, 0.1, 0.0))

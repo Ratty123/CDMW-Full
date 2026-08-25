@@ -17,6 +17,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
@@ -577,13 +578,20 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                     model=source.baked_scene_mesh(),
                     placement=placement,
                     model_bounds=source.baked_bounds(),
+                    model_origin=source.baked_origin(),
                 )
 
             def build_material_scene(stop_event):
                 from cdmw.ui.new_item.item_preview import PlacementScene
 
                 model = source.baked_preview_mesh()
-                return PlacementScene(template=template_build(stop_event), model=model, placement=placement, model_bounds=source.baked_bounds())
+                return PlacementScene(
+                    template=template_build(stop_event),
+                    model=model,
+                    placement=placement,
+                    model_bounds=source.baked_bounds(),
+                    model_origin=source.baked_origin(),
+                )
 
             from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
 
@@ -873,7 +881,26 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         return mesh_centroid(self._template_mesh())
 
     def _fitted_placement(self, source: ModelImportSource) -> ModelPlacement:
-        return fitted_placement(source.bounds, self.template_bounds(), source_centroid=source.centroid, template_centroid=self.template_centroid())
+        return fitted_placement(
+            source.bounds,
+            source.fit_template_bounds,
+            source_centroid=source.centroid,
+            template_centroid=source.fit_template_centroid,
+            match_grip=source.fit_match_grip,
+        )
+
+    def _template_uses_weapon_fit(self) -> bool:
+        """Whether this template's owned model lives in a weapon family."""
+
+        if self.snapshot is None or self.draft.template_key is None:
+            return False
+        try:
+            family = self.snapshot.family(self.draft.template_key)
+        except Exception:  # noqa: BLE001 - an unresolved family gets the generic fit
+            return False
+        model_folder = str(family.model_folder or "").replace("\\", "/")
+        folder = f"/{model_folder.strip('/').casefold()}/"
+        return "/weapon/" in folder
 
     def _template_mesh(self):
         saved, self.model_result = self.model_result, None
@@ -907,6 +934,12 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             self.model_import_failed.emit(message)
             return False
 
+        import_snapshot = self.snapshot
+        import_template_key = int(self.draft.template_key)
+        template_geometry = self._template_geometry_build()
+        template_build = template_geometry[1] if template_geometry is not None else None
+        match_grip = self._template_uses_weapon_fit()
+
         def task(log, progress, stop_event):
             def report(message: str) -> None:
                 log(message)
@@ -914,6 +947,26 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
 
             report(f"Reading {chosen.name}...")
             result = load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=report)
+            template_mesh = None
+            if template_build is not None:
+                try:
+                    template_mesh = template_build(stop_event)
+                except RunCancelled:
+                    raise
+                except Exception:  # noqa: BLE001 - an unreadable template preserves the identity-fit fallback
+                    template_mesh = None
+            result.fit_template_bounds = mesh_bounds(template_mesh)
+            result.fit_template_centroid = mesh_centroid(template_mesh)
+            result.fit_match_grip = bool(match_grip)
+            result.set_bake(
+                fitted_placement(
+                    result.bounds,
+                    result.fit_template_bounds,
+                    source_centroid=result.centroid,
+                    template_centroid=result.fit_template_centroid,
+                    match_grip=result.fit_match_grip,
+                )
+            )
             progress(1, 1, "Model source ready")
             return result
 
@@ -921,9 +974,11 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             if not isinstance(result, ModelImportSource):
                 self.status_message.emit("The model import finished with an unexpected result.", True)
                 return
+            if self.snapshot is not import_snapshot or self.draft.template_key != import_template_key:
+                self._cleanup_model_source(result)
+                return
             previous = self.model_import
             self.model_import = result
-            result.set_bake(self._fitted_placement(result))
             self.model_placement = ModelPlacement()
             if self.model_result is not None:
                 self.set_imported_model(None, None)
