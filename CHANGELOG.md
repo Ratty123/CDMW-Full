@@ -15,7 +15,7 @@ The format is intentionally simple:
 - **New Item Studio gives template selection and its preview separate side-by-side columns.** Search, results and the chosen-template facts stay together on the left, while the same resident orbitable preview receives the wider right column and the full working height before moving unchanged into **Model & Placement**.
 
 ### Fixed
-- **New Item Studio keeps helmets and other armour on the character in Perks & Effects.** The placement viewport sent every equipment family through the weapon-only `RHand_Socket` frame, so a helmet that was correctly aligned and applied in **Model & Placement** appeared detached from the character. Armour now uses the template's matching player rig and shared bind frame; if that archive body is unavailable, a bind-space stand-in keeps its feet at zero and head at 1.75 m. Weapon child-socket and hand placement are unchanged.
+- **New Item Studio keeps helmets and other armour on the character in Perks & Effects.** The first correction stopped sending wearables through the weapon-only `RHand_Socket`, but then treated the static replacement mesh and Placement Studio's upright bind mesh as the same coordinate frame. They are a quarter turn apart: in the reported package the helmet occupied Z -1.93 to -1.56 while the character occupied Y 0.01 to 1.85. Armour now reuses Placement Studio's +90 degree X wearable-to-bind turn for the item, effect anchor and editable offsets while keeping the matching player body at its bind origin; if that archive body is unavailable, a bind-space stand-in keeps its feet at zero and head at 1.75 m. Weapon child-socket and hand placement are unchanged.
 
 ## [0.11.0-alpha.8] - 2026-08-25
 

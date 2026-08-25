@@ -602,9 +602,9 @@ def build_effect_placement_package(
     `character_mesh` is the body drawn for scale and pose: the game's own character from
     :func:`cdmw.services.effect_character_reference.build_character_reference` when the
     archives gave one, and the shipped stand-in otherwise. That character stands upright,
-    so with it comes `item_rotation`, the 3x3 that turns the item into the hand the way
-    the game holds it; the item and the anchor are baked into it and the dialog carries
-    its offsets across the same rotation."""
+    so with it comes `item_rotation`, the 3x3 that turns a weapon into its hand or a static
+    wearable into Placement Studio's bind frame; the item and anchor are baked into it and
+    the dialog carries its offsets across the same rotation."""
 
     from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
 
