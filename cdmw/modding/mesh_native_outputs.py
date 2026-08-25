@@ -605,10 +605,17 @@ def export_native_fbx(
     bone_palette: Sequence[int] | None = None,
     timeout_seconds: float = 20.0,
 ) -> bool:
+    has_morph_targets = any(
+        bool(getattr(submesh, "morph_targets", None)) for submesh in tuple(getattr(mesh, "submeshes", ()) or ())
+    )
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        if has_morph_targets:
+            raise RuntimeError("Native mesh core is required for FBX morph-target export")
         return False
     binary = find_native_mesh_core_binary()
     if binary is None:
+        if has_morph_targets:
+            raise RuntimeError("Native mesh core is required for FBX morph-target export")
         return False
     path = Path(fbx_path)
     staged_path = _compact_staged_output_path(path)
@@ -635,6 +642,28 @@ def export_native_fbx(
                 skin_payload = _write_bone_binary_payloads(prefix, skin_rows[0], skin_rows[1])
                 if skin_payload is not None:
                     item.update(skin_payload)
+            raw_morph_targets = getattr(submesh, "morph_targets", None)
+            if isinstance(raw_morph_targets, Mapping) and raw_morph_targets:
+                source_vertex_count = len(tuple(getattr(submesh, "vertices", ()) or ()))
+                morph_targets: list[dict[str, object]] = []
+                for morph_index, (raw_name, raw_vertices) in enumerate(raw_morph_targets.items()):
+                    name = str(raw_name or "").strip()
+                    vertices = tuple(raw_vertices or ())
+                    if not name:
+                        raise ValueError("FBX morph target name is empty")
+                    if len(vertices) != source_vertex_count:
+                        raise ValueError(
+                            f"FBX morph target {name} vertex count {len(vertices)} "
+                            f"does not match source count {source_vertex_count}"
+                        )
+                    target_path = prefix.with_name(prefix.name + f"_morph_{morph_index}.bin")
+                    morph_targets.append(
+                        {
+                            "name": name,
+                            "vertices_binary": _write_vec3_binary_payload(target_path, vertices),
+                        }
+                    )
+                item["morph_targets"] = morph_targets
             session_id = _ensure_native_mesh_session_submesh(
                 binary,
                 mesh,
@@ -682,7 +711,9 @@ def export_native_fbx(
             return False
         atomic_publish_files({staged_path: path})
         return path.is_file()
-    except (OSError, OverflowError, RuntimeError, ValueError):
+    except (OSError, OverflowError, RuntimeError, ValueError) as exc:
+        if has_morph_targets:
+            raise RuntimeError("Native FBX morph-target export failed") from exc
         return False
     finally:
         staged_path.unlink(missing_ok=True)

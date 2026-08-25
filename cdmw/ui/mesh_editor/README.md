@@ -443,10 +443,13 @@ animation documents can be converted to clips only when they already contain
 explicit bone-track rotation rows. Real PAA payloads can be converted to
 preview clips only when a keyframe table is exactly owned by an attached PAB
 bone hash at `table_offset - 8`; their playback timing is labeled by
-source/confidence and the default `30.0` FPS path is unproven. PABC skeleton
-variation payloads are parsed as read-only bone-hash records with three 4x4
-float blocks per record. PASEQC lane references can be threaded into parsed PAA
-clips as preview-only sequence segment metadata with per-field confidence; blend
+source/confidence and the default `30.0` FPS path is unproven. Model-linked PABC
+skeleton variations are parsed as bone-hash records and applied only to cloned
+Archive Browser/appearance preview geometry and visual FBX export. A linked
+morph-target PAMT supplies named global/local skeleton poses; FBX converts its
+non-base targets into Blender shape keys while the source/edit mesh stays exact.
+PASEQC lane references can be threaded into parsed PAA clips as preview-only
+sequence segment metadata with per-field confidence; blend
 and runtime sequence semantics remain unknown. The Skeleton inspector shows the
 currently active sequence lane/status when a segment covers the sampled playback
 time, and the read-only harness gates same-time repeat scrub output as
@@ -516,8 +519,8 @@ skeleton by matching bone names; `MeshEditorTab` carries that source skeleton
 through standalone sessions and the Skeleton panel `Transfer W` action. Direct
 local PAC/PAM/PAMLOD file sessions also load and attach a sibling or
 supplemental `.pab` skeleton when one is available.
-The read-only PAC/PAB/PABC relationship evidence and confidence rules behind
-that discovery are recorded outside this repository.
+`cdmw/core/archive_mesh_appearance.py` owns the read-only PAC/PAB/PABC/PAMT
+relationship resolution used by presentation preview and visual FBX export.
 Texture resolution is read-only. Mesh Editor reuses an already-resolved Archive
 Browser material context when one exists. A geometry-only handoff starts a
 request-correlated material-context worker over the same archive preview resolver;

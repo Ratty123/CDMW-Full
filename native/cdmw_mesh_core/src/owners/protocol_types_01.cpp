@@ -560,6 +560,7 @@ struct FbxExportResult {
     int submesh_count = 0;
     int vertex_count = 0;
     int face_count = 0;
+    int morph_target_count = 0;
 };
 
 struct FaceCornerTangents {

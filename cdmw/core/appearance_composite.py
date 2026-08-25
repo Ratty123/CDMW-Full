@@ -28,6 +28,7 @@ from cdmw.core.archive_relationships import (
     _candidate_basenames_for_xml_reference,
     build_archive_relationship_plan,
 )
+from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance_for_preview
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.model_preview import _build_model_preview
 from cdmw.models import (
@@ -40,14 +41,12 @@ from cdmw.models import (
 )
 from cdmw.modding.mesh_parser import SubMesh, parse_mesh
 
-
 _APPEARANCE_COMPONENT_SECTIONS = {"nude", "head", "hair", "armor", "accessory", "face", "body"}
 _MODEL_EXTENSIONS = {".pac", ".pam", ".pamlod"}
 _PREFAB_EXTENSIONS = {".prefab", ".pappt"}
 _MATERIAL_SIDECAR_EXTENSIONS = {".pac_xml", ".pam_xml", ".pamlod_xml", ".pami"}
-_CONTEXT_EXTENSIONS = {".prefabdata_xml", ".pab", ".pabc", ".pabv", ".pabgb", ".pabgh", ".hkx", ".hkt", ".sockets.xml"}
+_CONTEXT_EXTENSIONS = {".prefabdata_xml", ".pab", ".pabc", ".pamt", ".pabv", ".pabgb", ".pabgh", ".hkx", ".hkt", ".sockets.xml"}
 _DEFAULT_SELECTED_SECTIONS = {"nude", "head", "hair"}
-
 
 @dataclass(frozen=True, slots=True)
 class AppearanceCompositeComponent:
@@ -912,6 +911,7 @@ def _build_component_model_preview(
     raise_if_cancelled(stop_event)
     data, _decompressed, _note = read_archive_entry_data(model_entry, stop_event=stop_event)
     parsed_mesh = parse_mesh(data, model_entry.path)
+    parsed_mesh, appearance_notes = apply_archive_mesh_appearance_for_preview(model_entry, parsed_mesh, data, path_index, basename_index, component.resolved_context_entries, stop_event)
     source_submeshes = parsed_mesh.lod_levels[0] if parsed_mesh.format == "pamlod" and parsed_mesh.lod_levels else parsed_mesh.submeshes
     meshes = _preview_meshes_from_submeshes(source_submeshes)
     temp_model = ModelPreviewData(
@@ -925,7 +925,7 @@ def _build_component_model_preview(
     sidecar_texture_references: Tuple[object, ...] = ()
     sidecar_texts_by_normalized_path: Dict[str, Tuple[str, ...]] = {}
     sidecar_texts_by_basename: Dict[str, Tuple[str, ...]] = {}
-    info_lines: List[str] = []
+    info_lines: List[str] = list(appearance_notes)
     try:
         (
             sidecar_texture_references,

@@ -151,6 +151,7 @@ std::string fbx_export_report_json(const FbxExportResult& result) {
     out << ",\"submesh_count\":" << result.submesh_count
         << ",\"vertex_count\":" << result.vertex_count
         << ",\"face_count\":" << result.face_count
+        << ",\"morph_target_count\":" << result.morph_target_count
         << "}";
     return out.str();
 }

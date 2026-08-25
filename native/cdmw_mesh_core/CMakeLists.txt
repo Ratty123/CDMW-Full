@@ -28,6 +28,7 @@ set(MESH_CORE_OWNER_SOURCES
     # listed here is definition order.
     src/owners/interchange_fbx_nodes.cpp
     src/owners/interchange_02.cpp
+    src/owners/interchange_fbx_shapes.cpp
     src/owners/interchange_03.cpp
     src/owners/reports_01.cpp
     src/owners/reports_02.cpp

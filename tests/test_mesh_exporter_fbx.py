@@ -140,6 +140,16 @@ class FbxExporterTests(unittest.TestCase):
         finally:
             clear_native_mesh_core_fallback_counts()
 
+    def test_fbx_export_never_silently_drops_morph_targets_in_python_fallback(self) -> None:
+        mesh = _export_mesh()
+        mesh.submeshes[0].morph_targets = {
+            "jawOpen": [(0.0, 0.0, 0.0), (1.0, -0.25, 0.0), (2.0, -0.25, 0.0)]
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with mock.patch("cdmw.modding.mesh_native_outputs.find_native_mesh_core_binary", return_value=None):
+                with self.assertRaisesRegex(RuntimeError, "Native mesh core is required"):
+                    export_fbx(mesh, temp_dir, name="morph_fallback")
+
     def test_skeleton_fbx_export_uses_native_writer_before_python_node_writer(self) -> None:
         mesh = ParsedMesh(
             path="character/native.pac",
@@ -323,6 +333,26 @@ class FbxSkinExportTests(unittest.TestCase):
 
         for node in (b"Deformer", b"Skin", b"Cluster", b"Indexes", b"Weights", b"TransformLink", b"LimbNode"):
             self.assertIn(node, payload, f"{node!r} missing from the skinned FBX")
+
+    def test_native_export_writes_blender_shape_key_nodes(self) -> None:
+        mesh = _skinned_export_mesh()
+        mesh.submeshes[0].morph_targets = {
+            "jawOpen": [(0.0, 0.0, 0.0), (1.0, -0.25, 0.0), (0.0, 0.75, 0.0)]
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fbx_path = Path(
+                export_fbx_with_skeleton(
+                    mesh,
+                    _two_bone_skeleton(),
+                    temp_dir,
+                    name="facial",
+                    bone_palette=(0, 1),
+                )
+            )
+            payload = fbx_path.read_bytes()
+
+        for node in (b"BlendShape", b"BlendShapeChannel", b"FullWeights", b"jawOpen"):
+            self.assertIn(node, payload, f"{node!r} missing from the facial FBX")
 
     def test_unresolved_palette_exports_an_armature_without_binding(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

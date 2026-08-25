@@ -87,6 +87,7 @@ _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS: Tuple[str, ...] = (
     ".pappt",
     ".paem",
     ".pagbg",
+    ".pamt",
     ".pampg",
     ".palevel",
     ".paseq",
@@ -104,7 +105,6 @@ _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS: Tuple[str, ...] = (
     ".wem",
 )
 _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS = {".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}
-
 CHACHA20_HASH_INITVAL = 0x000C5EDE
 CHACHA20_IV_XOR = 0x60616263
 CHACHA20_XOR_DELTAS = (
