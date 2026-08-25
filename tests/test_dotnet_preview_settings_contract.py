@@ -231,6 +231,55 @@ def test_dotnet_material_tone_mapping_matches_native_reference_operator() -> Non
     assert "finalColor *= max(contrastedLuma, 0.0f) / max(currentLuma, 1e-5f);" in shader
 
 
+def test_dotnet_material_environment_uses_hdr_split_sum_ibl() -> None:
+    shader = _source("D3D11MaterialShaders.hlsl")
+
+    assert "float StudioSoftboxLobe(" in shader
+    assert "float3 PreviewEnvironmentRadiance(float3 reflectedView, float roughness)" in shader
+    assert "float3 PreviewEnvironmentIrradiance(float3 normal)" in shader
+    assert "float3 EnvironmentBrdfApprox(" in shader
+    assert "float3 environmentBrdf = EnvironmentBrdfApprox(" in shader
+    assert "float3 metalEnvironmentBrdf = EnvironmentBrdfApprox(" in shader
+    assert "float3 environmentDiffuse = materialReferenceAlbedo" in shader
+    assert "float3 metalMultipleScattering = environmentIrradiance" in shader
+    assert "float3(7.50f, 6.20f, 4.60f)" in shader
+    assert "const float studioHdrExposure = 1.65f;" in shader
+    assert "float3(1.25f, 1.25f, 1.25f)" not in shader
+    assert "litDiffuse + environmentDiffuse" in shader
+
+
+def test_every_material_aware_preview_route_uses_the_shared_hdr_renderer() -> None:
+    route_hosts = {
+        "archive browser": ROOT / "cdmw/ui/archive_browser/preview_layout.py",
+        "archive reference": ROOT / "cdmw/ui/archive_browser/reference_preview.py",
+        "archive attachment placement": ROOT / "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
+        "material sidecar": ROOT / "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py",
+        "static replacement": ROOT / "cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py",
+        "mesh editor": ROOT / "cdmw/ui/mesh_editor/workspace_shell_builder.py",
+        "model library": ROOT / "cdmw/ui/model_library/panels.py",
+        "new item model": ROOT / "cdmw/ui/new_item/item_preview.py",
+        "new item effects": ROOT / "cdmw/ui/new_item/effect_placement_dialog.py",
+    }
+    for route, path in route_hosts.items():
+        source = path.read_text(encoding="utf-8")
+        assert "DotNetPreviewHostFrame(" in source, route
+        assert "DotNetPreviewProfile." in source, route
+
+    host = (ROOT / "cdmw/ui/preview/dotnet_host.py").read_text(encoding="utf-8")
+    for setting in (
+        "d3d11_environment_strength",
+        "d3d11_tone_exposure",
+        "d3d11_tone_contrast",
+        "d3d11_tone_gamma",
+    ):
+        assert f'"{setting}"' in host
+
+    shader = _source("D3D11MaterialShaders.hlsl")
+    assert "StudioSoftboxLobe" in shader
+    assert "PreviewEnvironmentIrradiance" in shader
+    assert "EnvironmentBrdfApprox" in shader
+
+
 def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> None:
     shader = _source("D3D11MaterialShaders.hlsl")
     viewport = _source("D3D11MaterialViewport.PresentationSettings.cs")
@@ -297,7 +346,8 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "float3 sourceStableF0 = lerp(" in shader
     assert "float3 resolvedSurfaceF0 = sourceStableF0;" in shader
     assert "float3 resolvedSurfaceF0 = categoryMetal" not in shader
-    assert "SourceStableFresnel(ndotv, resolvedSurfaceF0)" in shader
+    assert "float3 environmentBrdf = EnvironmentBrdfApprox(" in shader
+    assert "resolvedSurfaceF0,\n        roughness,\n        ndotv);" in shader
     assert "return FresnelSchlick(cosTheta, reflectanceAtNormal);" in shader
     assert "float glossyCue = glossyNonmetal" in shader
     assert "litDiffuse += materialReferenceAlbedo * glossyCue * 0.22f;" in shader
@@ -373,8 +423,10 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "conservativeNonmetal ? 0.025f : 0.08f" in shader
     assert "float3 sourceStableF0 = lerp(" in shader
     assert "float3 PreviewEnvironmentRadiance(float3 reflectedView, float roughness)" in shader
-    assert "float3 radiance = float3(0.016f, 0.017f, 0.020f);" in shader
-    assert "float3(1.25f, 1.25f, 1.25f)" in shader
+    assert "float3 radiance = float3(0.070f, 0.065f, 0.060f);" in shader
+    assert "float3 PreviewEnvironmentIrradiance(float3 normal)" in shader
+    assert "float3 EnvironmentBrdfApprox(" in shader
+    assert "float3(1.25f, 1.25f, 1.25f)" not in shader
     assert "PreviewEnvironmentIntensity" not in shader
     assert "float environmentMaterialScale = categoryMetal" in shader
     assert "glossyNonmetal ? 0.18f" in shader
@@ -432,15 +484,16 @@ def test_dotnet_material_category_authority_reaches_native_response_fallback() -
     source_fresnel = shader.index("float3 sourceStableF0 = lerp(")
     sampled_specular = shader.index("SpecularTexture.Sample(MaterialSampler, uv).rgb")
     metal_fresnel_use = shader.index("float3 metalFresnel = SourceStableFresnel(metalHdotV, specularColor);")
-    environment_fresnel_use = shader.index(
-        "float3 environmentFresnel = SourceStableFresnel(ndotv, resolvedSurfaceF0);"
+    environment_brdf_use = shader.index(
+        "float3 environmentBrdf = EnvironmentBrdfApprox("
     )
     # Reflectance is established from the metal fraction before any specular map
     # is consulted, so a dielectric cannot take its F0 from a synthesized
     # specular texture and pick up a metallic sheen.  The map may only modulate
     # the metal response, hence it now follows sourceStableF0 rather than
-    # feeding it, and both still precede every Fresnel use.
-    assert source_fresnel < sampled_specular < metal_fresnel_use < environment_fresnel_use
+    # feeding it, and both still precede every direct Fresnel or environment
+    # BRDF use.
+    assert source_fresnel < sampled_specular < metal_fresnel_use < environment_brdf_use
     # Indented one level further than it used to be: the isotropic lobe is now the
     # else-branch of the hair anisotropy test.
     assert "SourceStableFresnel(\n                nonmetalCameraShape,\n                resolvedSurfaceF0)" in shader
