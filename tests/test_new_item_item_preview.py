@@ -176,6 +176,13 @@ class ItemPreviewPackageTests(unittest.TestCase):
         token = ("template", 17, "template.pac", "0.pamt", "0.paz", 12, 34)
         with tempfile.TemporaryDirectory(prefix="cdmw_item_preview_cache_") as temporary:
             root = Path(temporary)
+            source_calls = 0
+
+            def source(_stop_event):
+                nonlocal source_calls
+                source_calls += 1
+                return model
+
             original = package_service.build_mesh_dotnet_experiment_package
             with patch.object(
                 package_service,
@@ -183,21 +190,31 @@ class ItemPreviewPackageTests(unittest.TestCase):
                 wraps=original,
             ) as build:
                 first = build_item_preview_package(
-                    model,
+                    source,
                     token=token,
                     output_root=root,
                     stop_event=threading.Event(),
                     cache_mode="balanced",
                 )
                 second = build_item_preview_package(
-                    model,
+                    source,
                     token=token,
                     output_root=root,
                     stop_event=threading.Event(),
                     cache_mode="balanced",
                 )
-            self.assertEqual(build.call_count, 1)
+                self.assertEqual(source_calls, 1, "a durable hit must not decode or prepare the template again")
+                revised = build_item_preview_package(
+                    source,
+                    token=(*token[:-1], 35),
+                    output_root=root,
+                    stop_event=threading.Event(),
+                    cache_mode="balanced",
+                )
+            self.assertEqual(build.call_count, 2)
+            self.assertEqual(source_calls, 2)
             self.assertEqual(first, second)
+            self.assertNotEqual(first, revised, "a changed archive revision must not reuse the old package")
             self.assertTrue(second.is_dir())
 
 

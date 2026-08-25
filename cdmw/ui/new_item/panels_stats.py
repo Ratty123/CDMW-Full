@@ -48,6 +48,7 @@ class StatsPanel(QGroupBox):
         self._controller = controller
         self._grid: Optional[StatGrid] = None
         self._syncing = False
+        self._table_resize_pending = False
         #: the stat keys the Add-a-stat list was last built for, so a rebuild that left the
         #: ladder's stats alone does not refill the whole list
         self._status_choice_keys: Optional[tuple] = None
@@ -241,11 +242,31 @@ class StatsPanel(QGroupBox):
         self._refresh_column_actions()
         self._refresh_selected_cell_note(self.table.currentRow(), self.table.currentColumn())
 
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt virtual
+        super().showEvent(event)
+        if self._table_resize_pending:
+            self._resize_tables()
+
+    def _resize_tables(self) -> None:
+        """Run Qt's layout-heavy content sizing only while this step is visible."""
+
+        grid = self._grid
+        if grid is None:
+            self._table_resize_pending = False
+            return
+        rows = grid.level_count + self._controller.draft.extra_levels
+        self.table.resizeColumnsToContents()
+        compact_table_height(self.table, rows)
+        self.price_table.resizeColumnsToContents()
+        compact_table_height(self.price_table, len(grid.price_items), minimum_rows=1, maximum_rows=6)
+        self._table_resize_pending = False
+
     def _fill_tables(self) -> None:
         grid = self._grid
         draft = self._controller.draft
         self.table.clear()
         if grid is None:
+            self._table_resize_pending = False
             self.table.setRowCount(0)
             self.table.setColumnCount(0)
             self.price_table.setRowCount(0)
@@ -294,10 +315,9 @@ class StatsPanel(QGroupBox):
         self.own_rows.blockSignals(True)
         self.own_rows.setChecked(bool(draft.own_enhancement_rows))
         self.own_rows.blockSignals(False)
-        self.table.resizeColumnsToContents()
-        compact_table_height(self.table, rows)
-        self.price_table.resizeColumnsToContents()
-        compact_table_height(self.price_table, len(grid.price_items), minimum_rows=1, maximum_rows=6)
+        self._table_resize_pending = True
+        if self.isVisible():
+            self._resize_tables()
         if rows and grid.columns and self.table.currentRow() < 0:
             self.table.setCurrentCell(0, 0)
 
