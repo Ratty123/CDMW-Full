@@ -23,7 +23,10 @@ viewport used by Model & Placement, so a selected helmet, armour piece or weapon
 be orbited and zoomed before the workflow inherits it; moving to step 3 reparents that
 live viewport without rebuilding its package or resetting its camera. Snapshot creation
 reuses Archive Browser's published path, basename and extension indexes, and template
-previews follow the existing bounded .NET/Vortice package-cache setting.
+previews follow the existing bounded .NET/Vortice package-cache setting. A durable hit
+is validated before archive decode or model preparation, so returning to a template does
+not repeat either operation. Hidden Combat stats tables keep their data current but defer
+Qt's content sizing until that workflow step is actually opened.
 The Identity panel keeps item keys and model stems automatic until **Manual** is
 chosen; manual mode starts from the same collision-free allocation the planner
 would make. Identifier editors enforce the domain's character and 64-character

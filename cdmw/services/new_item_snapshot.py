@@ -266,8 +266,6 @@ class NewItemSnapshot:
         """
 
         if self._status_ranges is None:
-            from statistics import median
-
             values: Dict[int, List[int]] = {}
             for key, row in self.rows.items():
                 if int(key) in DEFAULT_ITEM_KEY_RANGE or not self.equip_type_name(row):
@@ -275,11 +273,19 @@ class NewItemSnapshot:
                 for level in row.enchant_levels:
                     for stat in level.stats:
                         values.setdefault(int(stat.status_key), []).append(int(stat.value))
-            self._status_ranges = {
-                key: (len(numbers), min(numbers), int(median(numbers)), max(numbers))
-                for key, numbers in values.items()
-                if numbers
-            }
+            ranges: Dict[int, Tuple[int, int, int, int]] = {}
+            for key, numbers in values.items():
+                if not numbers:
+                    continue
+                ordered = sorted(numbers)
+                middle = len(ordered) // 2
+                if len(ordered) % 2:
+                    median_value = ordered[middle]
+                else:
+                    pair_sum = ordered[middle - 1] + ordered[middle]
+                    median_value = pair_sum // 2 if pair_sum >= 0 else -((-pair_sum) // 2)
+                ranges[key] = (len(ordered), ordered[0], median_value, ordered[-1])
+            self._status_ranges = ranges
         return self._status_ranges
 
 
@@ -485,11 +491,9 @@ def build_snapshot(
         if entries_by_normalized_path and entries_by_basename
         else None,
     )
-    # Measured here rather than the first time a stat is offered. The measure itself is
-    # 17 ms over the corpus; the import it needs is 1.5 s, because an import made after
-    # PySide is loaded goes through shiboken's feature hook and that reads the source of
-    # every module it touches. Paid on the first template chosen, that was a window that
-    # stopped answering; paid here it is a fiftieth of the read that is already happening.
+    # Measure on the snapshot worker rather than the first time a stat is offered. Keep
+    # the median implementation local: importing ``statistics`` after PySide starts was
+    # most of this otherwise small cold path on current Python builds.
     snapshot.status_value_ranges()
     log(f"Snapshot ready: {len(rows):,} items, {len(stores):,} stores, {len(item_groups):,} item groups, {len(paloc_entries)} languages.")
     return snapshot

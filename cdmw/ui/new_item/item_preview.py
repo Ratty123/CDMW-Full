@@ -132,6 +132,27 @@ def build_item_preview_package(
     resolved: it goes the Model Library's route and comes out textured), a bare
     `ParsedMesh`, a `PlacementScene`, or a callable `(stop_event) -> one of those`."""
 
+    archive_identity = f"new_item_preview:{token!r}"
+    normalized_cache_mode = str(cache_mode or "off").strip().lower()
+    cacheable_template = (
+        bool(include_material_resources)
+        and isinstance(token, tuple)
+        and bool(token)
+        and token[0] == "template"
+    )
+    if cacheable_template and normalized_cache_mode in {"balanced", "aggressive"}:
+        from cdmw.services.mesh_dotnet_preview_package import (
+            lookup_dotnet_preview_package_from_model_identity,
+        )
+
+        cached_package = lookup_dotnet_preview_package_from_model_identity(
+            cache_root=output_root,
+            archive_identity=archive_identity,
+            cancelled=stop_event.is_set,
+        )
+        if cached_package is not None:
+            return Path(cached_package.package_dir)
+
     item = source(stop_event) if callable(source) else source
     if item is None:
         raise ValueError("there is nothing to show")
@@ -177,7 +198,7 @@ def build_item_preview_package(
         package = build_or_lookup_dotnet_preview_package_from_model(
             prepared_item,
             cache_root=output_root,
-            archive_identity=f"new_item_preview:{token!r}",
+            archive_identity=archive_identity,
             cache_mode=cache_mode,
             max_bytes=cache_max_bytes,
             target_bytes=cache_target_bytes,

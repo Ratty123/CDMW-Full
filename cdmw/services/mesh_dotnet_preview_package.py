@@ -43,6 +43,11 @@ from cdmw.services.native_dotnet_preview_adapter import (
 
 DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA = 1
 DOTNET_PREVIEW_PACKAGE_COMPILER_SCHEMA = 1
+_PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST = {
+    "schema_version": 1,
+    "material_semantics_version": 1,
+    "material_graph_version": 1,
+}
 _CLOTH_PARTICLE = struct.Struct("<3f")
 _CLOTH_PIN = struct.Struct("<f")
 _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
@@ -644,15 +649,10 @@ def build_or_lookup_dotnet_preview_package_from_model(
 ) -> MeshDotNetExperimentPackage:
     """Build a canonical package from the Python archive preview decoder."""
 
-    source_manifest = {
-        "schema_version": 1,
-        "material_semantics_version": 1,
-        "material_graph_version": 1,
-    }
     cache_key = dotnet_preview_package_cache_key(
         "python:" + str(archive_identity or ""),
         sidecar_generation=sidecar_generation,
-        source_manifest=source_manifest,
+        source_manifest=_PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST,
     )
     derived_cache_root = dotnet_preview_package_derived_cache_root(cache_root)
     durable = str(cache_mode or "off").strip().lower() in {"balanced", "aggressive"} and max_bytes > 0
@@ -718,6 +718,30 @@ def build_or_lookup_dotnet_preview_package_from_model(
     )
 
 
+def lookup_dotnet_preview_package_from_model_identity(
+    *,
+    cache_root: Path,
+    archive_identity: str,
+    sidecar_generation: int = 0,
+    cancelled: Callable[[], bool] | None = None,
+) -> MeshDotNetExperimentPackage | None:
+    """Return a valid canonical Python-model package without decoding its source."""
+
+    _check_cancelled(cancelled)
+    cache_key = dotnet_preview_package_cache_key(
+        "python:" + str(archive_identity or ""),
+        sidecar_generation=sidecar_generation,
+        source_manifest=_PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST,
+    )
+    hit = lookup_dotnet_preview_package_cache(
+        dotnet_preview_package_derived_cache_root(cache_root),
+        cache_key,
+        validate_package=validate_dotnet_preview_package,
+    )
+    _check_cancelled(cancelled)
+    return mesh_dotnet_experiment_package_from_path(hit.package_dir) if hit is not None else None
+
+
 def build_dotnet_preview_prewarm_package(cache_root: Path) -> MeshDotNetExperimentPackage:
     """Build or reuse the tiny procedural package used only to start the resident helper."""
 
@@ -764,6 +788,7 @@ __all__ = [
     "dotnet_preview_overlays_from_model",
     "dotnet_preview_overlays_from_preview_core_package",
     "dotnet_preview_package_cache_key",
+    "lookup_dotnet_preview_package_from_model_identity",
     "parsed_mesh_from_model_preview",
     "validate_dotnet_preview_package",
 ]

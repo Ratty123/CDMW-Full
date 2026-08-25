@@ -614,14 +614,15 @@ class PlanTests(_PackageCase):
         equipment carries AttackSpeedRate between 30 and 90 million, so the 1,000 a spin
         box starts at is three orders of magnitude out, and the plan should say so."""
 
-        # measured while the snapshot was built, on the worker: the measure is 17 ms but
-        # the import it needs is 1.5 s under shiboken's feature hook, and paid on the first
-        # template chosen that was a window that stopped answering
+        # Measured while the snapshot is built, on its worker. The implementation stays
+        # self-contained so a cold studio open does not import ``statistics`` through
+        # PySide's feature hook merely to select a median.
         self.assertIsNotNone(
             getattr(self.snapshot, "_status_ranges", None),
             "the shipped stat corpus is measured by the builder, not by the first reader to ask",
         )
-        ranges = self.snapshot.status_value_ranges()
+        with patch.object(self.snapshot, "_status_ranges", None), patch.dict(sys.modules, {"statistics": None}):
+            ranges = self.snapshot.status_value_ranges()
         self.assertIn(DDD, ranges, "the corpus measures what the rows carry")
         entries, low, middle, high = ranges[DDD]
         self.assertGreater(entries, 0)

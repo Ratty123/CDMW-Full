@@ -812,6 +812,32 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_hidden_stats_tables_defer_layout_sizing_until_the_step_opens(self) -> None:
+        from cdmw.ui.new_item import panels_stats
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        tab = self._tab()
+        tab.resize(1280, 720)
+        tab.start_snapshot()
+        tab.show()
+        self.app.processEvents()
+        original = panels_stats.compact_table_height
+        with patch.object(ItemPreviewFrame, "_start_package", lambda *_args, **_kwargs: None), patch.object(
+            panels_stats,
+            "compact_table_height",
+            wraps=original,
+        ) as compact:
+            tab.prefill_template(TEMPLATE)
+            self.assertEqual(compact.call_count, 0, "a template choice must not lay out a hidden stats step")
+            self.assertTrue(tab.stats_panel._table_resize_pending)
+            tab.show_step(3)
+            self.app.processEvents()
+            self.assertEqual(compact.call_count, 2, "both stats tables size once when their step becomes visible")
+            self.assertFalse(tab.stats_panel._table_resize_pending)
+        tab.shutdown()
+        tab.close()
+        tab.deleteLater()
+
     def test_a_typo_in_a_cell_goes_back_without_a_rebuild_and_the_note_compares(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
