@@ -499,6 +499,68 @@ class DialogTests(unittest.TestCase):
             self._settle(lambda: dialog._thread is None)
             self.assertEqual(dialog.iter_shutdown_workers(), ())
 
+    def test_superseded_effect_package_releases_its_model_source_usage_after_teardown(self) -> None:
+        acquired = False
+        released = False
+        started = False
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            class Usage:
+                def release(self) -> None:
+                    nonlocal released
+                    released = True
+
+            def acquire_usage():
+                nonlocal acquired
+                acquired = True
+                return Usage()
+
+            def build(_mesh, _low, _high, *, output_root, cancelled, **_kwargs):
+                nonlocal started
+                started = True
+                while not cancelled():
+                    time.sleep(0.005)
+                package = Path(output_root) / "package_cancelled"
+                package.mkdir(exist_ok=True)
+                return EffectPlacementPreview(
+                    package_dir=package,
+                    box_submesh_index=0,
+                    item_submesh_count=1,
+                    box_min=(-1.0, -1.0, -1.0),
+                    box_max=(1.0, 1.0, 1.0),
+                )
+
+            with patch("cdmw.ui.new_item.effect_placement_dialog.build_effect_placement_package", side_effect=build):
+                workspace = EffectPlacementWorkspace(
+                    item_mesh=_blade(),
+                    box_min=(-1.0, -1.0, -1.0),
+                    box_max=(1.0, 1.0, 1.0),
+                    output_root=root,
+                    host_factory=lambda parent: _AckHost(parent),
+                    compatibility_ui=True,
+                    model_source_usage=acquire_usage,
+                )
+                self.addCleanup(workspace.deleteLater)
+                workspace.show()
+                self._settle(lambda: started)
+                self.assertTrue(acquired)
+                self.assertFalse(released)
+
+                workspace.set_content(
+                    item_mesh=_blade(),
+                    box_min=(-1.0, -1.0, -1.0),
+                    box_max=(1.0, 1.0, 1.0),
+                    effect_label="template",
+                    effect_preview=None,
+                    texture_reader=None,
+                    model_source_usage=None,
+                )
+                self._settle(lambda: released)
+                self.assertTrue(released)
+                workspace.request_shutdown()
+                self._settle(lambda: workspace._thread is None)
+
     def test_cleanup_refuses_every_package_outside_the_owned_output_root(self) -> None:
         import tempfile
 

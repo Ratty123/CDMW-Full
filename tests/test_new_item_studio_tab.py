@@ -257,6 +257,39 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_model_preview_tracks_the_shared_archive_render_settings(self) -> None:
+        from types import SimpleNamespace
+
+        from PySide6.QtCore import QObject, Signal
+
+        from cdmw.models import ModelPreviewRenderSettings
+
+        class SettingsTab(QObject):
+            model_preview_settings_changed = Signal(object)
+
+        settings_tab = SettingsTab()
+        initial = ModelPreviewRenderSettings(d3d11_tone_gamma=1.17, d3d11_ao_strength=0.7)
+        window = SimpleNamespace(
+            archive_cache_root=None,
+            settings_tab=settings_tab,
+            _current_model_preview_render_settings=lambda: initial,
+        )
+        tab = self._tab(window=window)
+        tab._mount_panels()
+
+        self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_tone_gamma, 1.17)
+        self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_ao_strength, 0.7)
+
+        updated = ModelPreviewRenderSettings(d3d11_tone_gamma=0.91, d3d11_ao_strength=0.4)
+        settings_tab.model_preview_settings_changed.emit(updated)
+        self.app.processEvents()
+
+        self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_tone_gamma, 0.91)
+        self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_ao_strength, 0.4)
+        tab.shutdown()
+        tab.close()
+        tab.deleteLater()
+
     def test_new_item_copy_is_equipment_neutral_and_sheathed_wording_is_conditional(self) -> None:
         from cdmw.ui.new_item.ui_kit import DetailsToggle
 

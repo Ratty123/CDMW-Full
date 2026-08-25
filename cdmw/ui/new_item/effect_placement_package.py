@@ -36,6 +36,7 @@ class EffectPlacementPackageMixin:
         effect_preview: Optional[EffectPreview],
         texture_reader: Optional[Callable[[str], Optional[bytes]]],
         character_builder: Optional[Callable[[], object]] = None,
+        model_source_usage: Optional[Callable[[], object]] = None,
         reset_view: bool = False,
     ) -> None:
         self._item_mesh = item_mesh
@@ -52,6 +53,7 @@ class EffectPlacementPackageMixin:
         self._effect_preview = effect_preview
         self._texture_reader = texture_reader
         self._character_builder = character_builder
+        self._model_source_usage = model_source_usage
         self.effect_name_label.setText(str(effect_label or "-"))
         self._refresh_size_label()
         if self.host is not None:
@@ -61,6 +63,10 @@ class EffectPlacementPackageMixin:
         if self._closed:
             return
         self._package_generation += 1
+        acquire_usage = self._model_source_usage
+        source_usage = acquire_usage() if callable(acquire_usage) else None
+        if callable(acquire_usage) and source_usage is None:
+            return
         request = (
             self._package_generation,
             bool(reset_view),
@@ -70,8 +76,10 @@ class EffectPlacementPackageMixin:
             self._effect_preview,
             self._texture_reader,
             self._character_builder,
+            source_usage,
         )
         if self._thread is not None:
+            self._release_request_model_source_usage(self._pending_package)
             self._pending_package = request
             if self._worker is not None:
                 self._worker.stop()
@@ -81,9 +89,13 @@ class EffectPlacementPackageMixin:
         self._launch_package(request)
 
     def _launch_package(self, request: tuple) -> None:
-        generation, reset_view, mesh, box, root, effect_preview, texture_reader, builder = request
+        if self._closed:
+            self._release_request_model_source_usage(request)
+            return
+        generation, reset_view, mesh, box, root, effect_preview, texture_reader, builder, source_usage = request
         self._active_package_generation = int(generation)
         self._pending_package = None
+        self._active_model_source_usage = source_usage
         textured = mesh_names_textures(mesh)
 
         def task(_log, stop_event: threading.Event) -> tuple:
@@ -212,6 +224,8 @@ class EffectPlacementPackageMixin:
             return
         self._thread = None
         self._worker = None
+        source_usage, self._active_model_source_usage = self._active_model_source_usage, None
+        self._release_model_source_usage(source_usage)
         if worker is not None:
             worker.deleteLater()
         if thread is not None:
@@ -219,6 +233,18 @@ class EffectPlacementPackageMixin:
         pending, self._pending_package = self._pending_package, None
         if pending is not None and not self._closed:
             QTimer.singleShot(0, lambda request=pending: self._launch_package(request))
+        else:
+            self._release_request_model_source_usage(pending)
+
+    @staticmethod
+    def _release_model_source_usage(usage: object | None) -> None:
+        release = getattr(usage, "release", None)
+        if callable(release):
+            release()
+
+    def _release_request_model_source_usage(self, request: Optional[tuple]) -> None:
+        if request is not None and len(request) >= 9:
+            self._release_model_source_usage(request[8])
 
     def _host_state(self, state: str, message: str) -> None:
         if self._closed or self.host is None:

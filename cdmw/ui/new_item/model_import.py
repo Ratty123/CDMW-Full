@@ -27,6 +27,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.models import ArchiveEntry
 from cdmw.services.fbx_blender_conversion import FBX_EXTENSION, convert_fbx_to_glb
 from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
@@ -48,6 +49,26 @@ __all__ = [
 
 Vec3 = Tuple[float, float, float]
 Bounds = Tuple[Vec3, Vec3]
+
+
+class _ModelImportUsage:
+    """One worker's claim on an imported source until native teardown."""
+
+    def __init__(self, source: "ModelImportSource") -> None:
+        self._source: Optional[ModelImportSource] = source
+        self._release_lock = threading.Lock()
+
+    def release(self) -> None:
+        with self._release_lock:
+            source, self._source = self._source, None
+        if source is not None:
+            source._release_usage()
+
+    def __enter__(self) -> "_ModelImportUsage":
+        return self
+
+    def __exit__(self, _error_type, _error, _traceback) -> None:
+        self.release()
 
 
 def _vec(values: Sequence[float], fallback: Vec3) -> Vec3:
@@ -414,6 +435,47 @@ class ModelImportSource:
 
     _baked_scene_mesh: object = field(default=None, repr=False)
     _baked_preview_mesh: object = field(default=None, repr=False)
+    _usage_condition: threading.Condition = field(default_factory=threading.Condition, init=False, repr=False, compare=False)
+    _active_usage_count: int = field(default=0, init=False, repr=False, compare=False)
+    _retired: bool = field(default=False, init=False, repr=False, compare=False)
+
+    def acquire_usage(self) -> Optional[_ModelImportUsage]:
+        """Retain source files for one worker, unless this import was already retired."""
+
+        with self._usage_condition:
+            if self._retired:
+                return None
+            self._active_usage_count += 1
+        return _ModelImportUsage(self)
+
+    def usage(self) -> _ModelImportUsage:
+        usage = self.acquire_usage()
+        if usage is None:
+            raise RunCancelled("Operation cancelled.")
+        return usage
+
+    def _release_usage(self) -> None:
+        with self._usage_condition:
+            if self._active_usage_count <= 0:
+                return
+            self._active_usage_count -= 1
+            if self._active_usage_count == 0:
+                self._usage_condition.notify_all()
+
+    def retire(self) -> None:
+        """Reject new users while existing preview/build workers finish."""
+
+        with self._usage_condition:
+            self._retired = True
+            if self._active_usage_count == 0:
+                self._usage_condition.notify_all()
+
+    def wait_until_unused(self) -> None:
+        """Block a cleanup worker, never the UI thread, until every usage is released."""
+
+        with self._usage_condition:
+            while self._active_usage_count:
+                self._usage_condition.wait()
 
     def baked_scene_mesh(self) -> object:
         """The scene import's mesh with the bake applied (what the build rebuilds from)."""
