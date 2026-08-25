@@ -18446,12 +18446,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 56,
+          "line": 79,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 149,
+          "line": 172,
           "sink": "setText"
         }
       ]
@@ -30516,7 +30516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 27,
+          "line": 38,
           "sink": "intro_label"
         }
       ]
@@ -35326,7 +35326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 34,
+          "line": 45,
           "sink": "QLabel"
         }
       ]
@@ -42986,7 +42986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 36,
+          "line": 47,
           "sink": "setPlaceholderText"
         }
       ]
@@ -42998,6 +42998,11 @@
           "path": "cdmw/ui/new_item/panels_identity.py",
           "line": 57,
           "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_template.py",
+          "line": 53,
+          "sink": "setHeaderLabels"
         }
       ]
     },
@@ -43523,6 +43528,11 @@
           "path": "cdmw/ui/archive_browser/model.py",
           "line": 507,
           "sink": "python-return:headerData"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_template.py",
+          "line": 53,
+          "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -44654,6 +44664,11 @@
     {
       "key": "Key",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_template.py",
+          "line": 53,
+          "sink": "setHeaderLabels"
+        },
         {
           "path": "tools/translation_studio/table_model.py",
           "line": 70,
@@ -69756,7 +69771,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 62,
+          "line": 85,
           "sink": "QGroupBox"
         },
         {
@@ -70176,7 +70191,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 65,
+          "line": 88,
           "sink": "QLabel"
         }
       ]
@@ -96156,7 +96171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 54,
+          "line": 77,
           "sink": "QGroupBox"
         }
       ]
@@ -99492,6 +99507,11 @@
         {
           "path": "cdmw/ui/archive_browser/reference_export.py",
           "line": 179,
+          "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_template.py",
+          "line": 53,
           "sink": "setHeaderLabels"
         },
         {
@@ -200883,16 +200903,6 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_rows.py",
           "line": 241,
           "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "{value_0}  ({value_1}, {value_2})",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 100,
-          "sink": "QListWidgetItem"
         }
       ]
     },

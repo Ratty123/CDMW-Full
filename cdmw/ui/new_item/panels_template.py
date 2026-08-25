@@ -5,7 +5,18 @@ from __future__ import annotations
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QGroupBox,
+    QHeaderView,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.ui_kit import intro_label
@@ -37,7 +48,19 @@ class TemplatePanel(QGroupBox):
         self.filter_edit.textChanged.connect(self._refresh_matches)
         row.addWidget(self.filter_edit, 1)
         selection_layout.addLayout(row)
-        self.matches = QListWidget()
+        self.matches = QTreeWidget()
+        self.matches.setColumnCount(4)
+        self.matches.setHeaderLabels(["Internal name:", "Item Name", "Key", "Type"])
+        self.matches.setRootIsDecorated(False)
+        self.matches.setUniformRowHeights(True)
+        self.matches.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.matches.setAllColumnsShowFocus(True)
+        header = self.matches.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.matches.setMinimumHeight(160)
         self.matches.currentItemChanged.connect(self._pick)
         self.matches.itemClicked.connect(self._apply_clicked_pick)
@@ -96,19 +119,19 @@ class TemplatePanel(QGroupBox):
         self._syncing = True
         try:
             self.matches.clear()
-            for key, name, equip in self._controller.template_options(self.filter_edit.text()):
-                item = QListWidgetItem(f"{name}  ({key}, {equip})")
-                item.setData(Qt.UserRole, key)
-                self.matches.addItem(item)
+            for key, internal_name, item_name, equip in self._controller.template_options(self.filter_edit.text()):
+                item = QTreeWidgetItem([internal_name, item_name, str(key), equip])
+                item.setData(0, Qt.UserRole, key)
+                self.matches.addTopLevelItem(item)
                 if key == self._controller.draft.template_key:
                     self.matches.setCurrentItem(item)
         finally:
             self._syncing = False
 
-    def _pick(self, current: Optional[QListWidgetItem], _previous=None) -> None:
+    def _pick(self, current: Optional[QTreeWidgetItem], _previous=None) -> None:
         if self._syncing or current is None:
             return
-        key = current.data(Qt.UserRole)
+        key = current.data(0, Qt.UserRole)
         if isinstance(key, int) and key != self._controller.draft.template_key:
             self._pending_key = key
             self._pick_timer.start()
@@ -120,12 +143,12 @@ class TemplatePanel(QGroupBox):
         if key is not None and key != self._controller.draft.template_key:
             self._controller.set_template(key)
 
-    def _apply_clicked_pick(self, current: QListWidgetItem) -> None:
+    def _apply_clicked_pick(self, current: QTreeWidgetItem, _column: int = 0) -> None:
         """Take an explicitly clicked row now; only row navigation needs settling."""
 
         if self._syncing:
             return
-        key = current.data(Qt.UserRole)
+        key = current.data(0, Qt.UserRole)
         self._pick_timer.stop()
         self._pending_key = key if isinstance(key, int) and key != self._controller.draft.template_key else None
         self._apply_pick()

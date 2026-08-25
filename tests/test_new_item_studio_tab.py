@@ -392,6 +392,8 @@ class TabTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_template_selection_and_preview_are_wide_side_by_side_columns(self) -> None:
+        from PySide6.QtWidgets import QHeaderView
+
         tab = self._tab()
         tab.resize(1600, 900)
         tab.start_snapshot()
@@ -404,6 +406,15 @@ class TabTests(unittest.TestCase):
         self.assertTrue(panel.selection_column.isAncestorOf(panel.matches))
         self.assertTrue(panel.selection_column.isAncestorOf(panel.summary))
         self.assertTrue(panel.preview_group.isAncestorOf(panel.preview_holder))
+        self.assertEqual(panel.matches.columnCount(), 4)
+        self.assertEqual(
+            [panel.matches.headerItem().text(column) for column in range(panel.matches.columnCount())],
+            ["Internal name:", "Item Name", "Key", "Type"],
+        )
+        self.assertEqual(panel.matches.header().sectionResizeMode(0), QHeaderView.ResizeMode.Stretch)
+        self.assertEqual(panel.matches.header().sectionResizeMode(1), QHeaderView.ResizeMode.Stretch)
+        self.assertEqual(panel.matches.header().sectionResizeMode(2), QHeaderView.ResizeMode.ResizeToContents)
+        self.assertEqual(panel.matches.header().sectionResizeMode(3), QHeaderView.ResizeMode.ResizeToContents)
         self.assertLess(selection.right(), preview.left(), "selection stays left of the preview")
         self.assertLessEqual(abs(selection.top() - preview.top()), 1)
         self.assertLessEqual(abs(selection.bottom() - preview.bottom()), 1)
@@ -2472,9 +2483,9 @@ class TabTests(unittest.TestCase):
         panel.filter_edit.clear()
         self.app.processEvents()
         target = next(
-            panel.matches.item(row)
-            for row in range(panel.matches.count())
-            if panel.matches.item(row).data(Qt.UserRole) == OTHER
+            panel.matches.topLevelItem(row)
+            for row in range(panel.matches.topLevelItemCount())
+            if panel.matches.topLevelItem(row).data(0, Qt.UserRole) == OTHER
         )
         panel.matches.scrollToItem(target)
 
@@ -2502,17 +2513,17 @@ class TabTests(unittest.TestCase):
         panel.filter_edit.setText("fang ziane")
         self.app.processEvents()
 
-        self.assertEqual(panel.matches.count(), 1)
+        self.assertEqual(panel.matches.topLevelItemCount(), 1)
         self.assertEqual(
-            panel.matches.item(0).text(),
-            "Ziane_OneHandSword — Wolf's Fang  (1001295, OneHandSword)",
+            [panel.matches.topLevelItem(0).text(column) for column in range(panel.matches.columnCount())],
+            ["Ziane_OneHandSword", "Wolf's Fang", "1001295", "OneHandSword"],
         )
         self.assertEqual(
-            [key for key, _label, _equip in tab.controller.template_options('"wolf\'s fang" OR cigar')],
+            [key for key, _internal, _item_name, _equip in tab.controller.template_options('"wolf\'s fang" OR cigar')],
             [OTHER, TEMPLATE],
         )
         self.assertEqual(
-            [key for key, _label, _equip in tab.controller.template_options("sword -cigar")],
+            [key for key, _internal, _item_name, _equip in tab.controller.template_options("sword -cigar")],
             [TEMPLATE],
         )
         helmet_key = 1000036
@@ -2526,7 +2537,7 @@ class TabTests(unittest.TestCase):
             ),
         }
         self.assertEqual(
-            [key for key, _label, _equip in tab.controller.template_options("helmet red")],
+            [key for key, _internal, _item_name, _equip in tab.controller.template_options("helmet red")],
             [helmet_key],
             "Archive Browser's helmet-to-helm alias and token prefixes are preserved",
         )
@@ -2545,7 +2556,7 @@ class TabTests(unittest.TestCase):
         queued one per row and the window stopped answering."""
 
         from PySide6.QtCore import Qt
-        from PySide6.QtWidgets import QListWidgetItem
+        from PySide6.QtWidgets import QTreeWidgetItem
 
         tab = self._tab(window=None)
         tab.prefill_template(TEMPLATE)
@@ -2557,13 +2568,13 @@ class TabTests(unittest.TestCase):
         panel._syncing = True
         panel.matches.clear()
         for key in (4001, 4002, 4003):
-            item = QListWidgetItem(f"row {key}")
-            item.setData(Qt.UserRole, key)
-            panel.matches.addItem(item)
+            item = QTreeWidgetItem([f"row {key}", "", str(key), "Helm"])
+            item.setData(0, Qt.UserRole, key)
+            panel.matches.addTopLevelItem(item)
         panel._syncing = False
 
-        for row in range(panel.matches.count()):
-            panel.matches.setCurrentRow(row)
+        for row in range(panel.matches.topLevelItemCount()):
+            panel.matches.setCurrentItem(panel.matches.topLevelItem(row))
         self.assertEqual(taken, [], "walking the list takes nothing on the way past")
         self.assertTrue(panel._pick_timer.isActive(), "the row waits for the reader to settle")
 
@@ -2574,7 +2585,7 @@ class TabTests(unittest.TestCase):
 
         # leaving the step is settling on a row too: a pending pick is never dropped
         taken.clear()
-        panel.matches.setCurrentRow(0)
+        panel.matches.setCurrentItem(panel.matches.topLevelItem(0))
         tab._show_step(1)
         self.assertEqual(taken, [4001], "moving on takes the row the reader left on")
         self.assertFalse(panel._pick_timer.isActive())

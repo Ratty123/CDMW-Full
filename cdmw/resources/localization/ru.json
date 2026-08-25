@@ -10084,7 +10084,6 @@
     "{value_0}  (another prefab)": "{value_0} (another prefab)",
     "{value_0}  ({value_1} chart(s))": "{value_0} ({value_1} chart(s))",
     "{value_0}  ({value_1})": "{value_0} ({value_1})",
-    "{value_0}  ({value_1}, {value_2})": "{value_0}  ({value_1}, {value_2})",
     "{value_0}  -  {value_1}": "{value_0} - {value_1}",
     "{value_0}  <-  {value_1}": "{value_0} <- {value_1}",
     "{value_0}  [{value_1}]": "{value_0}  [{value_1}]",

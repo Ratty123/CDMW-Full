@@ -169,15 +169,15 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
     def _cleanup_model_source(self, source: Optional[ModelImportSource]) -> None:
         self._model_cleanup_lane.retire(source)
 
-    def template_options(self, text: str = "", *, limit: int = 60) -> List[Tuple[int, str, str]]:
-        """(key, result label, equip type) for equipment matching Archive Browser-style terms."""
+    def template_options(self, text: str = "", *, limit: int = 60) -> List[Tuple[int, str, str, str]]:
+        """(key, internal name, item name, equip type) for matching equipment."""
 
         if self.snapshot is None:
             return []
         raw_needle = str(text or "").strip().casefold()
         query = parse_archive_search_query(text)
         display_names = self.snapshot.item_display_names()
-        ranked: List[Tuple[int, str, int, str, str]] = []
+        ranked: List[Tuple[int, str, int, str, str, str]] = []
 
         def term_matches(term, name_fields: Tuple[str, str], all_fields: Tuple[str, str, str, str]) -> bool:
             fields = name_fields if term.field == "name" else all_fields if term.field == "any" else ()
@@ -210,15 +210,15 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             ):
                 continue
 
-            label = internal_name
-            if display_name and display_name.casefold() != internal_name.casefold():
-                label = f"{internal_name} — {display_name}"
             exact_values = {str(key), internal_name.casefold(), display_name.casefold()}
             rank = 0 if raw_needle and raw_needle in exact_values else 1
-            ranked.append((rank, internal_name.casefold(), int(key), label, equip))
+            ranked.append((rank, internal_name.casefold(), int(key), internal_name, display_name, equip))
 
         ranked.sort(key=lambda item: (item[0], item[1], item[2]))
-        return [(key, label, equip) for _rank, _name, key, label, equip in ranked[:limit]]
+        return [
+            (key, internal_name, display_name, equip)
+            for _rank, _name, key, internal_name, display_name, equip in ranked[:limit]
+        ]
 
     def template_name(self) -> str:
         """The template's internal name, or "" before one is chosen."""
