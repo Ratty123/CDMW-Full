@@ -496,3 +496,40 @@ def test_a_declared_surface_value_still_wins_over_the_shared_default() -> None:
 
     assert parameters["roughness"] == pytest.approx(0.82)
     assert parameters["metalness"] == pytest.approx(0.4)
+
+
+def test_gltf_metallic_roughness_maps_use_implicit_identity_factors() -> None:
+    """Omitted glTF factors must not suppress their packed texture channels."""
+    from cdmw.services.mesh_dotnet_material_channels import (
+        _dotnet_initial_material_parameters,
+    )
+
+    class _MappedGltfSource:
+        preview_color = ()
+        preview_material_texture_subtype = "metallic_roughness"
+        preview_material_texture_packed_channels = ("roughness", "metallic")
+        preview_material_texture_inputs: tuple[object, ...] = ()
+        preview_native_material_overrides: dict[str, object] = {}
+        preview_material_parameters: tuple[object, ...] = ()
+        preview_source_asset_path = "helmet.gltf"
+
+    parameters = _dotnet_initial_material_parameters(
+        _MappedGltfSource(),
+        {"roughness": "roughness.png", "metallic": "metallic.png"},
+    )
+
+    assert parameters["roughness_scale"] == pytest.approx(1.0)
+    assert parameters["metalness_scale"] == pytest.approx(1.0)
+
+    explicit_source = _MappedGltfSource()
+    explicit_source.preview_material_parameters = (
+        {"parameter_name": "_roughnessFactor", "numeric_value": 0.72},
+        {"parameter_name": "_metallicFactor", "numeric_value": 0.36},
+    )
+    explicit_parameters = _dotnet_initial_material_parameters(
+        explicit_source,
+        {"roughness": "roughness.png", "metallic": "metallic.png"},
+    )
+
+    assert explicit_parameters["roughness_scale"] == pytest.approx(0.72)
+    assert explicit_parameters["metalness_scale"] == pytest.approx(0.36)
