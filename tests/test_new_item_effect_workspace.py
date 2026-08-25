@@ -290,6 +290,21 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertTrue(workspace._reset_view_next)
         self.assertTrue(workspace.selection_timer.isActive())
 
+    def test_a_wearable_effect_defaults_to_the_applied_model_origin(self) -> None:
+        controller = _Controller()
+        helmet = _mesh()
+        helmet._cdmw_effect_item_origin = (0.01, 1.76, -0.05)
+        controller.item_mesh_as_planned = lambda: (helmet, "applied")
+        workspace, _controller, _confirmations = self._workspace(controller)
+
+        workspace.choose_effect("fx_fire_hit")
+        workspace.selection_timer.stop()
+        workspace._rebuild_preview()
+
+        self.assertEqual(workspace.staged_state.offset, (0.01, 1.76, -0.05))
+        self.assertEqual(workspace.placement.offset, (0.01, 1.76, -0.05))
+        self.assertTrue(workspace.has_staged_changes(), "the head-height default is saved on Apply")
+
     def test_show_retries_a_transient_selected_template_preview(self) -> None:
         controller = _Controller()
         calls = 0

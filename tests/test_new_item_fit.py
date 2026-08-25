@@ -132,6 +132,56 @@ class FitTests(unittest.TestCase):
         self.assertEqual(baked.submeshes[0].tangents[0][3], -1.0)
         self.assertAlmostEqual(baked.submeshes[0].normals[0][1], 1.0, places=6)
 
+    def test_bake_uses_the_same_fitted_origin_as_model_and_placement(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.modding.static_mesh_scene_frame import (
+            build_static_transform_frame,
+            matrix_transform_point,
+        )
+        from cdmw.ui.new_item.model_import import ModelPlacement, bake_mesh
+
+        mesh = ParsedMesh(
+            path="helmet.gltf",
+            format="gltf",
+            submeshes=[SubMesh(
+                name="helmet",
+                vertices=[(0.0, 1.5, 0.0), (0.0, 2.0, 0.0), (0.2, 1.75, 0.0)],
+                normals=[(0.0, 1.0, 0.0)] * 3,
+                faces=[(0, 1, 2)],
+            )],
+            bbox_min=(0.0, 1.5, 0.0),
+            bbox_max=(0.2, 2.0, 0.0),
+        )
+        origin = (0.0, 1.75, 0.0)
+        placement = ModelPlacement(
+            offset=(0.0, 0.05, 0.02),
+            rotation=(90.0, 0.0, 0.0),
+        )
+
+        baked = bake_mesh(mesh, placement, origin=origin)
+        frame = build_static_transform_frame(
+            mesh,
+            mesh,
+            placement.build_transform(origin=origin),
+            include_grid_floor=False,
+        )
+
+        # The fitted source origin stays on the head and receives only the manual offset.
+        self.assertEqual(
+            tuple(round(value, 6) for value in placement.matrix(origin=origin)[12:15]),
+            (0.0, 1.8, -1.73),
+        )
+        middle = baked.submeshes[0].vertices[2]
+        self.assertEqual(tuple(round(value, 6) for value in middle), (0.2, 1.8, 0.02))
+        for source, preview in zip(mesh.submeshes[0].vertices, baked.submeshes[0].vertices):
+            built = matrix_transform_point(frame.effective_model_matrix, source)
+            self.assertEqual(
+                tuple(round(value, 6) for value in preview),
+                tuple(round(value, 6) for value in built),
+                "Effects and Model & Placement use the same anchored transform",
+            )
+        self.assertGreater(baked.bbox_min[1], 1.5, "the helmet was not swung around world zero")
+
 
 class UnimportableModelTests(unittest.TestCase):
     """What the studio says when a file holds nothing it can read. Half the models on the

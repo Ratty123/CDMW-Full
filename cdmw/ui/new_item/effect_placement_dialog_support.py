@@ -18,12 +18,24 @@ __all__ = [
     "PARTICLE_TINT",
     "PlacementFrame",
     "describe_effect_preview",
+    "placed_item_origin",
     "remember_backdrop",
     "remember_orbit_inversion",
     "remembered_backdrop",
     "remembered_orbit_inversion",
     "swatch",
 ]
+
+
+def placed_item_origin(mesh: object) -> Vec3:
+    """The applied Model & Placement origin carried by a wearable preview mesh."""
+
+    raw = getattr(mesh, "_cdmw_effect_item_origin", None)
+    try:
+        values = tuple(float(value) for value in raw)
+    except (TypeError, ValueError):
+        values = ()
+    return values if len(values) == 3 else (0.0, 0.0, 0.0)  # type: ignore[return-value]
 
 
 def describe_effect_preview(preview: Optional[EffectPreview]) -> str:

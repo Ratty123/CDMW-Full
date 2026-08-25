@@ -287,7 +287,7 @@ class HeldPoseTests(unittest.TestCase):
         self.assertEqual(dict(held.effect_sockets)[TRAIL_SOCKET], (0.0, 0.02, -1.1))
         self.assertEqual(hold_the_item(self._reference(), None).effect_sockets, ())
 
-    def test_wearable_static_armour_turns_into_placement_studio_s_bind_frame(self) -> None:
+    def test_wearable_armour_stays_in_placement_studio_s_bind_frame(self) -> None:
         from cdmw.services.effect_character_reference import held_character_from_snapshot
 
         reference = self._reference()
@@ -299,12 +299,7 @@ class HeldPoseTests(unittest.TestCase):
 
         self.assertIsNotNone(wearable)
         self.assertIs(wearable.mesh, reference.body)
-        self.assertEqual(wearable.item_rotation, QUARTER_TURN)
-        self.assertEqual(
-            rotate_point((0.0, 0.0, -1.75), wearable.item_rotation),
-            (0.0, 1.75, 0.0),
-            "the static helmet's -Z head height becomes the upright bind frame's +Y head height",
-        )
+        self.assertIsNone(wearable.item_rotation)
         self.assertEqual(
             (wearable.socket, wearable.child_socket, wearable.held_from),
             ("", "", "wearable"),
@@ -327,7 +322,7 @@ class HeldPoseTests(unittest.TestCase):
 
         self.assertIsNotNone(wearable)
         self.assertEqual(said, "")
-        self.assertEqual(wearable.item_rotation, QUARTER_TURN)
+        self.assertIsNone(wearable.item_rotation)
         self.assertEqual(wearable.held_from, "wearable")
         self.assertAlmostEqual(wearable.mesh.bbox_min[1], 0.0, places=6)
         self.assertAlmostEqual(wearable.mesh.bbox_max[1], 1.75, places=6)

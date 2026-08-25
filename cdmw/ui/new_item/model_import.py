@@ -100,12 +100,32 @@ class ModelPlacement:
             scale=_vec(scale, self.scale) if scale is not None else self.scale,
         )
 
-    def matrix(self) -> list:
-        """The 4 x 4 row-vector matrix the viewport composes for this placement."""
+    def matrix(self, *, origin: Optional[Sequence[float]] = None) -> list:
+        """The 4 x 4 row-vector matrix the viewport composes for this placement.
+
+        ``origin`` is the fitted source origin the Model & Placement gizmo rotates and
+        scales about. With it, this is the same anchored manual transform that
+        :meth:`build_transform` gives the final Builder and resident scene frame.
+        """
 
         from cdmw.ui.preview.dotnet_host import _placement_matrix
 
-        return _placement_matrix(self.offset, self.rotation, self.scale)
+        matrix = _placement_matrix(self.offset, self.rotation, self.scale)
+        if origin is None:
+            return matrix
+        anchor = _vec(origin, (0.0, 0.0, 0.0))
+        # Desired anchored placement: ``(point - anchor) @ linear + anchor + offset``.
+        # Translation occupies M41/M42/M43 in the shared row-vector convention.
+        matrix[12] = anchor[0] + self.offset[0] - (
+            anchor[0] * matrix[0] + anchor[1] * matrix[4] + anchor[2] * matrix[8]
+        )
+        matrix[13] = anchor[1] + self.offset[1] - (
+            anchor[0] * matrix[1] + anchor[1] * matrix[5] + anchor[2] * matrix[9]
+        )
+        matrix[14] = anchor[2] + self.offset[2] - (
+            anchor[0] * matrix[2] + anchor[1] * matrix[6] + anchor[2] * matrix[10]
+        )
+        return matrix
 
     def apply(self, point: Sequence[float]) -> Vec3:
         """`point` under the placement (row vector times the matrix)."""
@@ -293,15 +313,21 @@ def flip_v_transforms(mesh: object) -> Tuple[StaticTextureUvTransform, ...]:
     return tuple(StaticTextureUvTransform(source_material_name=key, flip_v=True) for key in keys)
 
 
-def bake_mesh(mesh: object, placement: ModelPlacement) -> object:
+def bake_mesh(
+    mesh: object,
+    placement: ModelPlacement,
+    *,
+    origin: Optional[Sequence[float]] = None,
+) -> object:
     """A copy of `mesh` (a ParsedMesh) with `placement` applied to its vertices, and its
     normals and tangents turned with it (scale leaves directions alone, up to a renormalise).
-    The copy keeps everything else: uvs, faces, bones, the preview texture attributes."""
+    The copy keeps everything else: uvs, faces, bones, the preview texture attributes.
+    ``origin`` selects the same fitted pivot Model & Placement and the final Builder use."""
 
     from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 
     baked = clone_mesh_for_editing(mesh)
-    m = placement.matrix()
+    m = placement.matrix(origin=origin)
 
     position_matrix = (
         m[0], m[4], m[8], m[12],
