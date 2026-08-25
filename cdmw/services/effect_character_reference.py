@@ -6,7 +6,7 @@ effect" but not "where will it be". The game's own answer is on disk: the player
 offset from the weapon bone, and the character's low-detail body -- one 800-vertex mesh
 with a head, hands and feet -- is ordinary `.pac` geometry in that same bind space.
 
-Two frames meet here and the dialog has to serve both:
+Weapon previews have two frames and the dialog has to serve both:
 
 * the **item's** frame, which the effect's offset is measured in, because the effect rides
   on the weapon's prefab and moves with it;
@@ -27,8 +27,13 @@ those: sword_0039's prefab names sword_0001's file). Failing that, the frame mos
 weapons of the same kind use stands in, and failing that the item is hung on the body
 socket alone and the dialog says so.
 
-Everything here is best effort. An install missing any piece gets no character rather than
-an error, and the dialog falls back to the figure it drew before.
+Wearable armour already lives in the matching rig's bind frame. It must stay there rather
+than being recentered onto the weapon hand; a helmet's vertices and transferred skin weights
+are what put it around the head. When the matching archive body is unavailable, the dialog
+uses a bind-space stand-in instead of the weapon-hand stand-in.
+
+Everything here is best effort. An install missing any piece gets a truthful stand-in rather
+than an error.
 """
 
 from __future__ import annotations
@@ -43,6 +48,7 @@ __all__ = [
     "CharacterReference",
     "HeldCharacter",
     "build_character_reference",
+    "character_rig_model",
     "character_reference_from_snapshot",
     "TRAIL_SOCKET",
     "hold_the_item",
@@ -82,7 +88,7 @@ IDENTITY_ROTATION: Tuple[float, ...] = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 
 
 @dataclass(frozen=True, slots=True)
 class CharacterReference:
-    """The character's body as the archives hold it, and where its weapon hand is.
+    """The character's body as the archives hold it, plus its weapon-hand frame.
 
     Both are item-independent, which is what makes this the expensive half worth keeping:
     the body is a mesh read out of the archives, and the hand is a walk of 434 bones.
@@ -99,15 +105,18 @@ class CharacterReference:
 
 @dataclass(frozen=True, slots=True)
 class HeldCharacter:
-    """The scene: the body moved so the item's origin is the origin, and the turn the item
-    takes to be held there."""
+    """The scene body and the optional turn from item space into that body frame.
+
+    Weapons move the body around the held origin and carry a rotation. Wearables keep the
+    matching body's bind frame and use ``None`` because item and scene coordinates agree.
+    """
 
     mesh: ParsedMesh
-    item_rotation: Tuple[float, ...]
+    item_rotation: Optional[Tuple[float, ...]]
     socket: str
     #: the frame on the item that mated with the socket, "" when none was found
     child_socket: str
-    #: where that frame came from: "prefab", "convention", or "" for none at all
+    #: where that frame came from: "prefab", "convention", "wearable", or "" for none
     held_from: str
     sources: Tuple[str, ...]
     #: `(name, point)` for each `FX_...` socket on the item, in the item's own frame, from
@@ -128,6 +137,22 @@ class HeldCharacter:
 
 def _normalize(path: str) -> str:
     return str(path or "").replace("\\", "/").strip("/").lower()
+
+
+def character_rig_model(
+    model_folder: str, *, default: str = _RIG_MODEL
+) -> str:
+    """The player-rig segment in an item model folder, or the established default.
+
+    ``character/model/1_pc/2_phw/armor/13_hel`` and the shorter snapshot form
+    ``1_pc/2_phw/armor/13_hel`` both resolve to ``2_phw``.
+    """
+
+    parts = tuple(part for part in _normalize(model_folder).split("/") if part)
+    for index, part in enumerate(parts[:-1]):
+        if part == "1_pc":
+            return parts[index + 1]
+    return default
 
 
 def rotate_point(point: Sequence[float], rotation: Sequence[float]) -> Tuple[float, float, float]:
@@ -181,7 +206,9 @@ def rotate_mesh(mesh: ParsedMesh, rotation: Sequence[float]) -> ParsedMesh:
     return _replace(mesh, submeshes=submeshes, bbox_min=low, bbox_max=high)
 
 
-def _body_mesh_paths(paths: Iterable[str], sizes: Mapping[str, int]) -> List[str]:
+def _body_mesh_paths(
+    paths: Iterable[str], sizes: Mapping[str, int], *, rig_model: str = _RIG_MODEL
+) -> List[str]:
     """The mesh to draw as the body: the whole figure, or nothing at all.
 
     `sizes` is kept for callers that still pass it; nothing here needs it any more.
@@ -196,7 +223,8 @@ def _body_mesh_paths(paths: Iterable[str], sizes: Mapping[str, int]) -> List[str
     """
 
     del sizes
-    prefix = f"/model/1_pc/{_RIG_MODEL}"
+    model = _normalize(rig_model).rsplit("/", 1)[-1] or _RIG_MODEL
+    prefix = f"/model/1_pc/{model}"
     whole = sorted(
         path for path in paths
         if f"{prefix}{_BODY_LOD}" in path and _BODY_LOD_STEM in path and path.endswith(".pac")
@@ -210,6 +238,7 @@ def build_character_reference(
     *,
     sizes: Optional[Mapping[str, int]] = None,
     socket_name: str = _HAND_SOCKET,
+    rig_model: str = _RIG_MODEL,
     max_vertices: int = 60_000,
 ) -> Optional[CharacterReference]:
     """The player, standing, with `socket_name` at the origin, or None.
@@ -226,13 +255,14 @@ def build_character_reference(
         return None
 
     paths = [_normalize(path) for path in entry_paths]
+    model = _normalize(rig_model).rsplit("/", 1)[-1] or _RIG_MODEL
     rigs = sorted(
         path for path in paths
-        if path.endswith(".pab") and f"/model/1_pc/{_RIG_MODEL}/" in path
+        if path.endswith(".pab") and f"/model/1_pc/{model}/" in path
     )
     sockets = sorted(
         path for path in paths
-        if path.endswith(".pab.sockets.xml") and f"/1_pc/{_RIG_MODEL}/" in path
+        if path.endswith(".pab.sockets.xml") and f"/1_pc/{model}/" in path
     )
     if not rigs or not sockets:
         return None
@@ -258,7 +288,7 @@ def build_character_reference(
     submeshes: List[SubMesh] = []
     sources: List[str] = []
     total = 0
-    for path in _body_mesh_paths(paths, dict(sizes or {})):
+    for path in _body_mesh_paths(paths, dict(sizes or {}), rig_model=model):
         try:
             parsed = parse_mesh(read(path), path.rsplit("/", 1)[-1])
         except Exception:  # noqa: BLE001 - one piece that does not decode is not the end
@@ -470,7 +500,9 @@ def hold_the_item(
     )
 
 
-def character_reference_from_snapshot(snapshot) -> Tuple[Optional[CharacterReference], str]:
+def character_reference_from_snapshot(
+    snapshot, *, model_folder: str = ""
+) -> Tuple[Optional[CharacterReference], str]:
     """The character out of a new-item snapshot, and one line saying what came of it.
 
     The snapshot already holds every archive entry and reads any of them, which is all
@@ -483,6 +515,7 @@ def character_reference_from_snapshot(snapshot) -> Tuple[Optional[CharacterRefer
             snapshot.entries.keys(),
             snapshot.payload,
             sizes={path: entry.orig_size for path, entry in snapshot.entries.items()},
+            rig_model=character_rig_model(model_folder),
         )
     except Exception as exc:  # noqa: BLE001 - the stand-in figure is drawn instead
         return None, f"The character for the placement viewport could not be read: {exc}"
@@ -505,6 +538,25 @@ def held_character_from_snapshot(
     mates by is one prefab and one small XML, read per item.
     """
 
+    normalized_folder = f"/{_normalize(model_folder)}/"
+    if "/armor/" in normalized_folder:
+        if reference is None:
+            from cdmw.services.effect_placement_preview import character_reference_mesh
+
+            mesh = character_reference_mesh(bind_space=True)
+            sources: Tuple[str, ...] = ()
+        else:
+            mesh = reference.body
+            sources = reference.sources
+        wearable = HeldCharacter(
+            mesh=mesh,
+            item_rotation=None,
+            socket="",
+            child_socket="",
+            held_from="wearable",
+            sources=sources,
+        )
+        return wearable, ""
     if reference is None:
         return None, ""
     try:

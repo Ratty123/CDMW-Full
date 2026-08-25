@@ -24,6 +24,7 @@ from cdmw.services.effect_character_reference import (  # noqa: E402
     CHARACTER_SUBMESH_PREFIX,
     _body_mesh_paths,
     build_character_reference,
+    character_rig_model,
     rotate_mesh,
     rotate_point,
     unrotate_point,
@@ -98,6 +99,7 @@ class BodyChoiceTests(unittest.TestCase):
     the fallback until it was rendered."""
 
     LOD = "character/model/1_pc/1_phm/nude/cd_phm_00_lod_0001.pac"
+    PHW_LOD = "character/model/1_pc/2_phw/nude/cd_phw_00_lod_0001.pac"
     UPPER = "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_02_ub_0010_01.pac"
     LOWER = "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_00_0339.pac"
 
@@ -119,6 +121,15 @@ class BodyChoiceTests(unittest.TestCase):
 
     def test_an_install_with_neither_gives_nothing(self) -> None:
         self.assertEqual(_body_mesh_paths(["gamedata/binary__/client/bin/iteminfo.pabgb"], {}), [])
+
+    def test_the_template_rig_selects_its_own_body(self) -> None:
+        chosen = _body_mesh_paths([self.LOD, self.PHW_LOD], {}, rig_model="2_phw")
+        self.assertEqual(chosen, [self.PHW_LOD])
+        self.assertEqual(
+            character_rig_model("character/model/1_pc/2_phw/armor/13_hel"),
+            "2_phw",
+        )
+        self.assertEqual(character_rig_model("1_pc/14_ptm/armor/18_acc"), "14_ptm")
 
 
 class NoCharacterTests(unittest.TestCase):
@@ -275,6 +286,46 @@ class HeldPoseTests(unittest.TestCase):
         )
         self.assertEqual(dict(held.effect_sockets)[TRAIL_SOCKET], (0.0, 0.02, -1.1))
         self.assertEqual(hold_the_item(self._reference(), None).effect_sockets, ())
+
+    def test_wearable_armour_stays_in_the_rig_s_bind_frame(self) -> None:
+        from cdmw.services.effect_character_reference import held_character_from_snapshot
+
+        reference = self._reference()
+        wearable, said = held_character_from_snapshot(
+            object(),
+            reference,
+            model_folder="character/model/1_pc/1_phm/armor/13_hel",
+        )
+
+        self.assertIsNotNone(wearable)
+        self.assertIs(wearable.mesh, reference.body)
+        self.assertIsNone(wearable.item_rotation)
+        self.assertEqual(
+            (wearable.socket, wearable.child_socket, wearable.held_from),
+            ("", "", "wearable"),
+        )
+        self.assertEqual(
+            wearable.mesh.bbox_min,
+            reference.body.bbox_min,
+            "the body was not shifted to its hand",
+        )
+        self.assertEqual(said, "")
+
+    def test_wearable_without_an_archive_body_gets_a_bind_space_stand_in(self) -> None:
+        from cdmw.services.effect_character_reference import held_character_from_snapshot
+
+        wearable, said = held_character_from_snapshot(
+            object(),
+            None,
+            model_folder="character/model/1_pc/2_phw/armor/13_hel",
+        )
+
+        self.assertIsNotNone(wearable)
+        self.assertEqual(said, "")
+        self.assertIsNone(wearable.item_rotation)
+        self.assertEqual(wearable.held_from, "wearable")
+        self.assertAlmostEqual(wearable.mesh.bbox_min[1], 0.0, places=6)
+        self.assertAlmostEqual(wearable.mesh.bbox_max[1], 1.75, places=6)
 
     def test_the_seam_says_which_frame_held_it(self) -> None:
         """The line the studio logs. Three cases and three sentences, because "the item's

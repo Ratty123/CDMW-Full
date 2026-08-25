@@ -2235,6 +2235,72 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_effect_character_uses_the_template_rig_and_keeps_armour_in_bind_space(self) -> None:
+        """The escaped helmet preview bug: armour must not reuse the weapon-hand frame."""
+
+        from types import SimpleNamespace
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.services.effect_character_reference import CharacterReference
+        from cdmw.ui.new_item.controller import NewItemStudioController
+
+        def body(model: str) -> ParsedMesh:
+            vertices = [(0.0, 0.0, 0.0), (0.2, 1.75, 0.0), (-0.2, 1.75, 0.0)]
+            return ParsedMesh(
+                path=f"{model}_body.pac",
+                format="pac",
+                submeshes=[SubMesh(name=model, vertices=vertices, faces=[(0, 1, 2)])],
+                bbox_min=(-0.2, 0.0, 0.0),
+                bbox_max=(0.2, 1.75, 0.0),
+            )
+
+        folders = {
+            7: "character/model/1_pc/2_phw/armor/13_hel",
+            8: "character/model/1_pc/2_phw/armor/20_mask",
+            9: "character/model/1_pc/1_phm/armor/13_hel",
+        }
+
+        class Snapshot:
+            entries = {}
+
+            @staticmethod
+            def family(key):
+                return SimpleNamespace(model_folder=folders[key], parts=())
+
+        requested: list[str] = []
+
+        def reference_for(_snapshot, *, model_folder=""):
+            requested.append(model_folder)
+            model = "2_phw" if "/2_phw/" in model_folder else "1_phm"
+            return CharacterReference(
+                body=body(model),
+                body_matrix=(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                             0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+                socket="RHand_Socket",
+                rig=f"{model}.pab",
+                sources=(f"character/model/1_pc/{model}/nude/{model}_lod_0001.pac",),
+            ), ""
+
+        controller = NewItemStudioController(synchronous=True)
+        controller.snapshot = Snapshot()
+        with patch(
+            "cdmw.services.effect_character_reference.character_reference_from_snapshot",
+            side_effect=reference_for,
+        ):
+            controller.draft.template_key = 7
+            helmet = controller.character_holding_the_item()
+            controller.draft.template_key = 8
+            mask = controller.character_holding_the_item()
+            controller.draft.template_key = 9
+            other_rig = controller.character_holding_the_item()
+
+        self.assertEqual(requested, [folders[7], folders[9]], "one archive body read per rig")
+        self.assertIs(helmet.mesh, mask.mesh, "helmet and mask share the cached PHW body")
+        self.assertIsNone(helmet.item_rotation)
+        self.assertEqual(helmet.held_from, "wearable")
+        self.assertEqual(helmet.mesh.bbox_min[1], 0.0, "armour stays at the body's origin")
+        self.assertNotEqual(other_rig.mesh.path, helmet.mesh.path)
+
     def test_an_imported_model_is_textured_and_listed_before_and_after_apply(self) -> None:
         """The live import owns preview materials and part names throughout the workflow;
         the Builder result owns output, not the source PBR appearance."""

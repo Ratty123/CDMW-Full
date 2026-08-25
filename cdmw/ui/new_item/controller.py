@@ -48,11 +48,6 @@ from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
 from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
-#: "not read yet", which None cannot say: an install with no character must not be
-#: re-read on every dialog.
-_NOT_READ = object()
-
-
 class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
     busy_changed = Signal(bool)
     operation_progress = Signal(str, int, int, str)
@@ -99,9 +94,9 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         #: A mod folder to plan on top of, so a second item joins the first one's tables
         #: instead of replacing them. None plans against the archives.
         self.mod_base_folder: Optional[Path] = None
-        #: The game's own character for the placement viewport, read once (None means the
-        #: archives had no character; _NOT_READ means nobody has asked yet)
-        self._character_reference: object = _NOT_READ
+        #: The game's own character for the placement viewport, read once per player rig.
+        #: A cached None means that rig was absent and the placement service uses a stand-in.
+        self._character_references: Dict[str, object] = {}
         #: (template key, the character holding that template's item), so opening the
         #: placement dialog again does not re-read the prefab
         self._held_character: tuple = ()
@@ -693,36 +688,43 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         )
         return (("template", self.draft.template_key, *entry_revision), build)
 
-    def character_reference(self):
-        """The game's own character for the placement viewport, or None.
+    def character_reference(self, model_folder: str = ""):
+        """The matching rig's own character for the placement viewport, or None.
 
-        Read once and kept: a rig, a socket file and a body out of the archives is about a
-        second, and the dialog is opened again for every effect the reader tries. Call it
-        off the UI thread; the placement dialog does.
+        Read once per player rig and kept: a rig, a socket file and a body out of the
+        archives is about a second, and the dialog is opened again for every effect the
+        reader tries. Call it off the UI thread; the placement dialog does.
         """
 
-        if self._character_reference is not _NOT_READ:
-            return self._character_reference
         if self.snapshot is None:
-            return None  # not remembered: a snapshot arriving later deserves another go
-        from cdmw.services.effect_character_reference import character_reference_from_snapshot
+            return None
+        from cdmw.services.effect_character_reference import (
+            character_reference_from_snapshot,
+            character_rig_model,
+        )
 
-        self._character_reference, said = character_reference_from_snapshot(self.snapshot)
+        rig_model = character_rig_model(model_folder)
+        if rig_model in self._character_references:
+            return self._character_references[rig_model]
+        reference, said = character_reference_from_snapshot(
+            self.snapshot, model_folder=model_folder
+        )
+        self._character_references[rig_model] = reference
         if said:
             self.log_message.emit(said)
-        return self._character_reference
+        return reference
 
     def character_holding_the_item(self):
-        """The character with the current template's item in its hand, or None.
+        """The character wearing or holding the current template's item, or None.
 
-        The body is read once; the frame the item mates by comes from the template's own
-        prefab and is read per template, because weapons share socket files and only the
-        prefab says which one an item uses. Call it off the UI thread.
+        Wearables stay in the matching rig's bind frame. For weapons, the frame the item
+        mates by comes from the template's own prefab and is read per template, because
+        weapons share socket files and only the prefab says which one an item uses. Call it
+        off the UI thread.
         """
 
-        reference = self.character_reference()
         snapshot, template = self.snapshot, self.draft.template_key
-        if reference is None or snapshot is None:
+        if snapshot is None:
             return None
         if self._held_character and self._held_character[0] == template:
             return self._held_character[1]
@@ -737,6 +739,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                 folder = str(family.model_folder or "")
             except Exception as exc:  # noqa: BLE001 - the convention frame stands in
                 self.log_message.emit(f"The template's prefabs could not be read for the placement viewport: {exc}")
+        reference = self.character_reference(folder)
         held, said = held_character_from_snapshot(snapshot, reference, prefab_paths=prefabs, model_folder=folder)
         if said:
             self.log_message.emit(said)
@@ -1201,8 +1204,8 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             if isinstance(result, NewItemSnapshot):
                 self.snapshot = result
                 self.invalidate_plan()
-                # a different install can have a different character
-                self._character_reference = _NOT_READ
+                # a different install can have different bodies and rigs
+                self._character_references.clear()
                 self._held_character = ()
                 self._material_parts = ()
                 self._effect_target_compatibility_cache.clear()
