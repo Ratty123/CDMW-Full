@@ -2,9 +2,10 @@
 
 The dialog needs a body, and a stick figure of the right height answers "how big is this
 effect" but not "where will it be". The game's own answer is on disk: the player rig's
-`.pab` gives every bone its bind transform, the body socket file gives `RHand_Socket` its
-offset from the weapon bone, and the character's low-detail body -- one 800-vertex mesh
-with a head, hands and feet -- is ordinary `.pac` geometry in that same bind space.
+`.pab` gives every bone its bind transform, the body socket file gives every attachment
+point, the character descriptor says which one a held part uses, and the character's
+low-detail body -- one 800-vertex mesh with a head, hands and feet -- is ordinary `.pac`
+geometry in that same bind space.
 
 Weapon previews have two frames and the dialog has to serve both:
 
@@ -18,14 +19,12 @@ is translated by minus the attachment's position and left standing, and the item
 by the attachment's rotation. Item-space numbers reach the scene through
 :func:`rotate_point` and drags come back through :func:`unrotate_point`.
 
-**The attachment is not the body socket alone.** The Placement studio composes it as
+**The attachment is not the body socket alone.** Placement & Animations composes it as
 `inverse(child socket on the item) . body socket world`, and the child socket carries the
-item's orientation: for a one-hand sword it is a quarter turn about y, so a weapon hung on
-`RHand_Socket` by itself is held ninety degrees off. Which child socket applies is named by
-the item's own prefab (`_socketFileName` points at a `.sockets.xml`, and weapons share
-those: sword_0039's prefab names sword_0001's file). Failing that, the frame most of the
-weapons of the same kind use stands in, and failing that the item is hung on the body
-socket alone and the dialog says so.
+item's orientation. The selected template's prefab names its part and socket file; the
+matching character descriptor supplies that part's held body and child sockets. Failing
+that, the prefab's own attachment pair stands in, then the established right-hand/basic
+pair. The frame most weapons of the same kind use remains the last child-frame fallback.
 
 Wearable armour already lives in the matching rig's upright bind frame. It stays there rather
 than being recentered onto the weapon hand; Model & Placement's fitted source origin is the
@@ -38,9 +37,10 @@ than an error.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from cdmw.domain.new_item.placement import BODY_PLACEMENT_FRAME, equipment_placement_frame
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
 __all__ = [
@@ -60,12 +60,11 @@ __all__ = [
 
 CHARACTER_SUBMESH_PREFIX = "effect_character_"
 
-#: The playable rig a weapon is held by, and the socket it is held in.
+#: The fallback playable rig and attachment when the selected template cannot resolve its own.
 _RIG_MODEL = "1_phm"
 _HAND_SOCKET = "RHand_Socket"
-#: The frame on the item that mates with the hand socket. Every shipped weapon socket file
-#: that has one calls it this; the descriptor rows pair it with `RHand_Socket` for every
-#: held part, sword through war hammer.
+#: The fallback item-side frame. Exact descriptor routes also use Long, Short, lantern and
+#: carry-specific child sockets.
 _CHILD_SOCKET = "Basic_ChildSocket"
 #: The socket the game hangs a weapon's trail effect on. Every one of the 48 shipped weapon
 #: socket files carries one, and it sits at the far end of the weapon: 2 to 4 per cent from
@@ -76,9 +75,9 @@ _EFFECT_SOCKET_PREFIX = "fx"
 #: The character's own low-detail body: one mesh, floor to the top of the head, under a
 #: thousand vertices. It is what the game draws when the player is far away, so it is the
 #: whole figure rather than a piece of one.
-#: If that is not there, no character is read at all and the viewport draws its own strut
-#: figure. Armour used to stand in for it, which drew a coat and a floating helm rather
-#: than a body; see `_body_mesh_paths`.
+#: If that is not there, the exact rig sockets remain on the viewport's strut figure.
+#: Armour used to stand in for it, which drew a coat and floating helm rather than a body;
+#: see `_body_mesh_paths`.
 _BODY_LOD = "/nude/"
 _BODY_LOD_STEM = "_lod_"
 
@@ -86,19 +85,21 @@ _BODY_LOD_STEM = "_lod_"
 IDENTITY_ROTATION: Tuple[float, ...] = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
 @dataclass(frozen=True, slots=True)
 class CharacterReference:
-    """The character's body as the archives hold it, plus its weapon-hand frame.
+    """The character's body plus the attachment frames and part routes its rig owns.
 
     Both are item-independent, which is what makes this the expensive half worth keeping:
-    the body is a mesh read out of the archives, and the hand is a walk of 434 bones.
+    the body is a mesh read out of the archives, and the sockets are walks of 434 bones.
     """
 
     #: the body in the rig's own space, standing on the floor
     body: ParsedMesh
-    #: the hand socket's world matrix, row-major, sixteen numbers
+    #: the fallback attachment's world matrix, row-major, sixteen numbers
     body_matrix: Tuple[float, ...]
     socket: str
     rig: str
     sources: Tuple[str, ...]
+    body_matrices: Mapping[str, Tuple[float, ...]] = field(default_factory=dict)
+    parts: Mapping[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -241,13 +242,18 @@ def build_character_reference(
 ) -> Optional[CharacterReference]:
     """The player, standing, with `socket_name` at the origin, or None.
 
-    `entry_paths` is every path in the archives and `read` reads one. `sizes` maps a path
-    to its stored size, and is only consulted when the low-detail body is missing and
-    armour has to stand in for it.
+    `entry_paths` is every path in the archives and `read` reads one. `sizes` remains for
+    compatibility. A rig with no whole low-detail body keeps its exact sockets and routes
+    but uses the bind-space stand-in mesh.
     """
 
     try:
-        from tools.placement_studio.documents import SocketDocument
+        from tools.placement_studio.documents import (
+            DescriptorDocument,
+            SocketDocument,
+            is_descriptor_file,
+        )
+        from tools.placement_studio.resolver import descriptor_model_of
         from tools.placement_studio.skeleton import BoneHierarchy
     except Exception:  # noqa: BLE001 - the studio's reader is optional; no character without it
         return None
@@ -271,15 +277,29 @@ def build_character_reference(
     try:
         hierarchy = BoneHierarchy.from_pab(read(rig), rig)
         document = SocketDocument.load(read(socket_file), socket_file)
-        socket = next((item for item in document.sockets() if item.name == socket_name), None)
-        if socket is None:
+        body_matrices = {}
+        for body_socket in document.sockets():
+            placed = hierarchy.place(body_socket)
+            if placed.anchored:
+                body_matrices[body_socket.name] = tuple(float(v) for v in placed.world_matrix)
+        body_matrix = body_matrices.get(socket_name)
+        if body_matrix is None:
             return None
-        placed = hierarchy.place(socket)
-        if not placed.anchored:
-            return None
-        body_matrix = tuple(float(v) for v in placed.world_matrix)
     except Exception:  # noqa: BLE001 - a rig that does not read leaves the figure in place
         return None
+
+    parts = {}
+    for path in sorted(paths):
+        if (
+            not is_descriptor_file(path)
+            or "/characterdescription/" not in path
+            or descriptor_model_of(path) != model
+        ):
+            continue
+        try:
+            parts.update(DescriptorDocument.load(read(path), path).part_map())
+        except Exception:  # noqa: BLE001 - the prefab's own pair remains available
+            continue
 
     from cdmw.modding.mesh_parser import parse_mesh
 
@@ -313,26 +333,82 @@ def build_character_reference(
         sources.append(path)
         if total > max_vertices:
             break
-    if not submeshes:
-        return None
+    if submeshes:
+        every = [vertex for submesh in submeshes for vertex in submesh.vertices]
+        low = tuple(min(vertex[axis] for vertex in every) for axis in range(3))
+        high = tuple(max(vertex[axis] for vertex in every) for axis in range(3))
+        mesh = ParsedMesh(
+            path=f"{CHARACTER_SUBMESH_PREFIX}reference.pac",
+            format="pac",
+            submeshes=submeshes,
+            bbox_min=low,
+            bbox_max=high,
+            total_vertices=sum(len(item.vertices) for item in submeshes),
+            total_faces=sum(len(item.faces) for item in submeshes),
+            has_uvs=True,
+            has_bones=False,
+        )
+    else:
+        from cdmw.services.effect_placement_preview import character_reference_mesh
 
-    every = [vertex for submesh in submeshes for vertex in submesh.vertices]
-    low = tuple(min(vertex[axis] for vertex in every) for axis in range(3))
-    high = tuple(max(vertex[axis] for vertex in every) for axis in range(3))
-    mesh = ParsedMesh(
-        path=f"{CHARACTER_SUBMESH_PREFIX}reference.pac",
-        format="pac",
-        submeshes=submeshes,
-        bbox_min=low,
-        bbox_max=high,
-        total_vertices=sum(len(item.vertices) for item in submeshes),
-        total_faces=sum(len(item.faces) for item in submeshes),
-        has_uvs=True,
-        has_bones=False,
-    )
+        mesh = character_reference_mesh(bind_space=True)
+        sources.append(rig)
     return CharacterReference(
-        body=mesh, body_matrix=body_matrix, socket=socket_name, rig=rig, sources=tuple(sources)
+        body=mesh, body_matrix=body_matrix, socket=socket_name, rig=rig, sources=tuple(sources),
+        body_matrices=body_matrices, parts=parts,
     )
+
+
+def _preferred_prefab_paths(prefab_paths: Sequence[str]) -> Tuple[str, ...]:
+    """The template's part order, with held parts before sheathed ``_in`` companions."""
+
+    normalized = tuple(_normalize(path) for path in prefab_paths if path)
+    return tuple(sorted(normalized, key=lambda path: "_in" in path))
+
+
+def _item_attachment_route(
+    prefab_paths: Sequence[str],
+    read: Callable[[str], bytes],
+    reference: CharacterReference,
+) -> Tuple[str, str, str]:
+    """The held body socket, child socket and authority for the selected template."""
+
+    try:
+        from cdmw.core.archive_attachment_patches import inspect_prefab_attachment_profile_fields
+    except Exception:  # noqa: BLE001 - the established pair remains available
+        return reference.socket, _CHILD_SOCKET, "fallback"
+
+    for prefab in _preferred_prefab_paths(prefab_paths):
+        try:
+            profile = {
+                item.field_name: item.value
+                for item in inspect_prefab_attachment_profile_fields(read(prefab))
+            }
+        except Exception:  # noqa: BLE001 - another owned part may carry the route
+            continue
+        if not profile:
+            continue
+        part = reference.parts.get(str(profile.get("_partName") or ""))
+        body_socket = str(getattr(part, "out_socket", "") or "")
+        child_socket = str(getattr(part, "out_child_socket", "") or "")
+        if body_socket:
+            return body_socket, child_socket or _CHILD_SOCKET, "descriptor"
+        body_socket = str(profile.get("_attachedSocketName") or "")
+        child_socket = str(profile.get("_pivotSocketName") or "")
+        if body_socket:
+            return body_socket, child_socket or _CHILD_SOCKET, "prefab"
+    return reference.socket, _CHILD_SOCKET, "fallback"
+
+
+def _reference_at_socket(reference: CharacterReference, socket_name: str) -> CharacterReference:
+    """The cached character reference addressed through another known body socket."""
+
+    matrix = reference.body_matrices.get(str(socket_name or ""))
+    if matrix is None or socket_name == reference.socket:
+        return reference
+    from dataclasses import replace
+
+    return replace(reference, body_matrix=matrix, socket=str(socket_name))
 
 
 def item_child_frame(
@@ -380,7 +456,7 @@ def item_child_frame(
 
     # the item's own answer: its prefab names the file. The sheathed prefab describes the
     # item on the character's back, so the held one is preferred.
-    for prefab in sorted((_normalize(p) for p in prefab_paths if p), key=lambda p: ("_in" in p, p)):
+    for prefab in _preferred_prefab_paths(prefab_paths):
         if prefab not in known:
             continue
         try:
@@ -528,6 +604,7 @@ def held_character_from_snapshot(
     *,
     prefab_paths: Sequence[str] = (),
     model_folder: str = "",
+    template_key: Optional[int] = None,
 ) -> Tuple[Optional["HeldCharacter"], str]:
     """`reference` holding this item, and one line saying how it is held.
 
@@ -536,8 +613,13 @@ def held_character_from_snapshot(
     mates by is one prefab and one small XML, read per item.
     """
 
-    normalized_folder = f"/{_normalize(model_folder)}/"
-    if "/armor/" in normalized_folder:
+    equip_type_name = ""
+    if template_key is not None:
+        try:
+            equip_type_name = snapshot.equip_type_name(snapshot.row(int(template_key)))
+        except Exception:  # noqa: BLE001 - old snapshot-shaped callers keep the folder fallback
+            pass
+    if equipment_placement_frame(equip_type_name, model_folder) == BODY_PLACEMENT_FRAME:
         if reference is None:
             from cdmw.services.effect_placement_preview import character_reference_mesh
 
@@ -558,12 +640,18 @@ def held_character_from_snapshot(
     if reference is None:
         return None, ""
     try:
+        body_socket, requested_child_socket, _route_from = _item_attachment_route(
+            prefab_paths, snapshot.payload, reference
+        )
+        routed_reference = _reference_at_socket(reference, body_socket)
+        if routed_reference.socket != body_socket:
+            requested_child_socket = _CHILD_SOCKET
         child, child_socket, held_from, sockets = item_child_frame(
             snapshot.entries.keys(), snapshot.payload,
-            prefab_paths=prefab_paths, model_folder=model_folder,
+            prefab_paths=prefab_paths, model_folder=model_folder, child_socket=requested_child_socket,
         )
         held = hold_the_item(
-            reference, child, child_socket=child_socket, held_from=held_from, effect_sockets=sockets
+            routed_reference, child, child_socket=child_socket, held_from=held_from, effect_sockets=sockets
         )
     except Exception as exc:  # noqa: BLE001 - the stand-in figure is drawn instead
         return None, f"The character for the placement viewport could not be read: {exc}"

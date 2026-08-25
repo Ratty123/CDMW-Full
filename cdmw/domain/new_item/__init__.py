@@ -21,6 +21,12 @@ from cdmw.domain.new_item.rules import (
     validate_against_context,
     validate_spec,
 )
+from cdmw.domain.new_item.placement import (
+    BODY_PLACEMENT_FRAME,
+    HELD_PLACEMENT_FRAME,
+    UNKNOWN_PLACEMENT_FRAME,
+    equipment_placement_frame,
+)
 from cdmw.domain.new_item.spec import (
     BuyPriceEdit,
     IconSource,
@@ -40,8 +46,10 @@ from cdmw.domain.new_item.spec import (
 __all__ = [
     "AllocationError",
     "BuyPriceEdit",
+    "BODY_PLACEMENT_FRAME",
     "DEFAULT_ITEM_KEY_RANGE",
     "IconSource",
+    "HELD_PLACEMENT_FRAME",
     "ItemGroupsChoice",
     "LOCALIZATION_LANGUAGES",
     "MaterialRoute",
@@ -57,9 +65,11 @@ __all__ = [
     "StatEdit",
     "TemplateFacts",
     "TemplateLevelFacts",
+    "UNKNOWN_PLACEMENT_FRAME",
     "ValidationIssue",
     "allocate_item_key",
     "derive_family_stems",
+    "equipment_placement_frame",
     "is_conventional_localization_key",
     "localization_keys",
     "suggest_stem",

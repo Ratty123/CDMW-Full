@@ -33,6 +33,7 @@ $TestsByArea = @{
         "tests/test_new_item_model_cleanup.py",
         "tests/test_new_item_studio_tab.py",
         "tests/test_new_item_glow_preview.py",
+        "tests/test_effect_character_reference.py",
         "tests/test_effect_placement_dialog.py",
         "tests/test_new_item_effect_workspace.py",
         "tests/test_new_item_workflow_header.py"
