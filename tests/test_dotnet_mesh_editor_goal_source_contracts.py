@@ -70,3 +70,13 @@ def test_builder_presentation_fields_are_consumed_by_the_vortice_renderer() -> N
     # crush floor is gone. What has to hold is that the ratio stays non-negative
     # and cannot divide by a black pixel.
     assert "finalColor *= max(contrastedLuma, 0.0f) / max(currentLuma, 1e-5f);" in hlsl_source
+
+
+def test_headless_package_capture_waits_for_material_textures() -> None:
+    dotnet_root = Path(__file__).resolve().parents[1] / "tools" / "dotnet_mesh_editor_experiment"
+    source = (dotnet_root / "PackageCaptureProof.cs").read_text(encoding="utf-8")
+
+    load_index = source.index("textures.LoadAsync(materials).GetAwaiter().GetResult();")
+    viewport_index = source.index("using var viewport = new D3D11MaterialViewport(")
+
+    assert load_index < viewport_index

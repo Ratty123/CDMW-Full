@@ -290,42 +290,91 @@ float3 FresnelSchlick(float cosTheta, float3 reflectanceAtNormal)
         + (1.0f - reflectanceAtNormal) * pow(1.0f - saturate(cosTheta), 5.0f);
 }
 
+float StudioSoftboxLobe(
+    float3 direction,
+    float3 softboxDirection,
+    float sharpness,
+    float roughness)
+{
+    float roughnessSquared = saturate(roughness) * saturate(roughness);
+    float filteredSharpness = lerp(max(sharpness, 1.0f), 1.35f, roughnessSquared);
+    float filteredPeak = lerp(1.0f, 0.22f, roughnessSquared);
+    return pow(
+        saturate(dot(direction, normalize(softboxDirection))),
+        filteredSharpness) * filteredPeak;
+}
+
 float3 PreviewEnvironmentRadiance(float3 reflectedView, float roughness)
 {
     float safeRoughness = saturate(roughness);
+    float roughnessSquared = safeRoughness * safeRoughness;
     float horizonBand = pow(saturate(1.0f - abs(reflectedView.y) * 1.12f), 2.2f);
-    float frontSoftbox = pow(
-        saturate(dot(reflectedView, normalize(float3(-0.24f, 0.28f, -0.93f)))),
-        lerp(28.0f, 5.0f, safeRoughness));
-    float backSoftbox = pow(
-        saturate(dot(reflectedView, normalize(float3(0.42f, 0.22f, 0.88f)))),
-        lerp(24.0f, 4.5f, safeRoughness));
-    float topSoftbox = pow(
-        saturate(dot(reflectedView, normalize(float3(-0.12f, 0.96f, -0.25f)))),
-        lerp(30.0f, 6.0f, safeRoughness));
-    float sideSoftbox = pow(
-        saturate(dot(reflectedView, normalize(float3(0.92f, 0.12f, -0.38f)))),
-        lerp(22.0f, 4.0f, safeRoughness));
-    float oppositeSideSoftbox = pow(
-        saturate(dot(reflectedView, normalize(float3(-0.88f, 0.16f, -0.44f)))),
-        lerp(24.0f, 4.5f, safeRoughness));
+    float frontSoftbox = StudioSoftboxLobe(
+        reflectedView, float3(-0.24f, 0.28f, -0.93f), 34.0f, safeRoughness);
+    float backSoftbox = StudioSoftboxLobe(
+        reflectedView, float3(0.42f, 0.22f, 0.88f), 28.0f, safeRoughness);
+    float topSoftbox = StudioSoftboxLobe(
+        reflectedView, float3(-0.12f, 0.96f, -0.25f), 38.0f, safeRoughness);
+    float sideSoftbox = StudioSoftboxLobe(
+        reflectedView, float3(0.92f, 0.12f, -0.38f), 26.0f, safeRoughness);
+    float oppositeSideSoftbox = StudioSoftboxLobe(
+        reflectedView, float3(-0.88f, 0.16f, -0.44f), 30.0f, safeRoughness);
     float darkBand = pow(
         saturate(1.0f - abs(reflectedView.x * 1.35f + reflectedView.y * 0.45f)),
         3.2f) * saturate(0.95f - reflectedView.z);
-    float3 radiance = float3(0.016f, 0.017f, 0.020f);
-    radiance += horizonBand * float3(0.10f, 0.11f, 0.13f);
-    radiance += frontSoftbox * float3(1.16f, 0.94f, 0.70f);
-    radiance += backSoftbox * float3(0.92f, 0.66f, 0.42f);
-    radiance += topSoftbox * float3(0.46f, 0.62f, 0.92f);
-    radiance += sideSoftbox * float3(0.32f, 0.50f, 0.88f);
-    radiance += oppositeSideSoftbox * float3(0.12f, 0.14f, 0.17f);
-    radiance *= lerp(1.0f, 0.08f, darkBand * lerp(0.94f, 0.45f, safeRoughness));
-    float roughnessBlur = safeRoughness * safeRoughness * 0.58f;
-    radiance = lerp(radiance, float3(0.075f, 0.080f, 0.090f), roughnessBlur);
-    return clamp(
+    // Values deliberately exceed one: this is linear HDR radiance which the
+    // ACES presentation operator compresses after all direct and environment
+    // terms are combined. The warm key and cool fill make curved metal reveal
+    // both its source tint and its changing reflection direction.
+    float3 radiance = float3(0.070f, 0.065f, 0.060f);
+    radiance += horizonBand * float3(0.55f, 0.46f, 0.38f);
+    radiance += frontSoftbox * float3(7.50f, 6.20f, 4.60f);
+    radiance += backSoftbox * float3(3.20f, 2.35f, 1.55f);
+    radiance += topSoftbox * float3(4.60f, 4.30f, 3.80f);
+    radiance += sideSoftbox * float3(3.00f, 2.65f, 2.20f);
+    radiance += oppositeSideSoftbox * float3(0.55f, 0.65f, 0.82f);
+    radiance *= lerp(1.0f, 0.16f, darkBand * lerp(0.96f, 0.38f, safeRoughness));
+    radiance = lerp(
         radiance,
-        float3(0.012f, 0.012f, 0.012f),
-        float3(1.25f, 1.25f, 1.25f));
+        float3(0.32f, 0.28f, 0.24f),
+        roughnessSquared * 0.34f);
+    const float studioHdrExposure = 1.65f;
+    radiance *= studioHdrExposure;
+    return max(radiance, float3(0.010f, 0.010f, 0.012f));
+}
+
+float3 PreviewEnvironmentIrradiance(float3 normal)
+{
+    float3 safeNormal = SafeNormalize(normal, float3(0.0f, 1.0f, 0.0f));
+    float skyAmount = saturate(safeNormal.y * 0.5f + 0.5f);
+    float groundAmount = 1.0f - skyAmount;
+    float frontWrap = pow(saturate(
+        dot(safeNormal, normalize(float3(-0.24f, 0.28f, -0.93f))) * 0.5f + 0.5f), 2.0f);
+    float sideWrap = pow(saturate(
+        dot(safeNormal, normalize(float3(0.92f, 0.12f, -0.38f))) * 0.5f + 0.5f), 2.4f);
+    float3 irradiance = float3(0.055f, 0.060f, 0.072f);
+    irradiance += skyAmount * float3(0.18f, 0.23f, 0.34f);
+    irradiance += groundAmount * float3(0.075f, 0.060f, 0.048f);
+    irradiance += frontWrap * float3(0.38f, 0.31f, 0.23f);
+    irradiance += sideWrap * float3(0.08f, 0.13f, 0.24f);
+    return irradiance;
+}
+
+float3 EnvironmentBrdfApprox(
+    float3 reflectanceAtNormal,
+    float roughness,
+    float ndotv)
+{
+    // Split-sum environment BRDF fit used with the roughness-prefiltered
+    // procedural studio radiance above. It keeps the reflection energy tied to
+    // F0 and view angle instead of multiplying a sampled metal map by an
+    // arbitrary brightness scale.
+    const float4 c0 = float4(-1.0f, -0.0275f, -0.572f, 0.022f);
+    const float4 c1 = float4(1.0f, 0.0425f, 1.04f, -0.04f);
+    float4 fit = saturate(roughness) * c0 + c1;
+    float a004 = min(fit.x * fit.x, exp2(-9.28f * saturate(ndotv))) * fit.x + fit.y;
+    float2 scaleBias = float2(-1.04f, 1.04f) * a004 + fit.zw;
+    return saturate(reflectanceAtNormal * scaleBias.x + scaleBias.y);
 }
 
 float3 SourceStableFresnel(float cosTheta, float3 reflectanceAtNormal)
@@ -691,6 +740,13 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         // map the surface can take a normal share of the environment, and its own
         // roughness decides how much of that reads as a highlight.
         categoryEnvironmentScale = max(categoryEnvironmentScale, 0.45f);
+    }
+    if (hasSourceMetallicMap)
+    {
+        // A measured per-texel metal channel is stronger authority than a
+        // generic category guess. Let the BRDF, roughness and F0 control its
+        // environment share rather than the generic category's 0.08 fallback.
+        categoryEnvironmentScale = max(categoryEnvironmentScale, 1.0f);
     }
     float materialRoughnessHint = saturate(MaterialBasePost.y);
     float materialMetalnessHint = saturate(MaterialBasePost.z);
@@ -1141,6 +1197,8 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         reflect(-viewDirection, normal),
         float3(0.0f, 0.0f, -1.0f));
     float3 environmentRadiance = PreviewEnvironmentRadiance(reflectedView, roughness);
+    float3 environmentIrradiance = PreviewEnvironmentIrradiance(normal);
+    float environmentStrength = max(PresentationToneTuning.w, 0.0f);
     float smoothness = saturate(1.0f - roughness);
     float authorityGlossCue = (explicitMaterialAuthorityHint && !conservativeNonmetal)
         ? saturate(
@@ -1154,12 +1212,20 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             ? lerp(0.06f, 0.30f, smoothness)
             : (glossyNonmetal ? 0.18f : (conservativeNonmetal ? 0.018f : 0.08f)));
     environmentMaterialScale = max(environmentMaterialScale, authorityGlossCue * 0.32f);
-    float3 environmentFresnel = SourceStableFresnel(ndotv, resolvedSurfaceF0);
+    float3 environmentBrdf = EnvironmentBrdfApprox(
+        resolvedSurfaceF0,
+        roughness,
+        ndotv);
+    float environmentSpecularOcclusion = lerp(
+        ambientOcclusion,
+        1.0f,
+        smoothness * 0.55f);
     float3 environmentSpecular = environmentRadiance
-        * environmentFresnel
-        * max(PresentationToneTuning.w, 0.0f)
+        * environmentBrdf
+        * environmentStrength
         * categoryEnvironmentScale
-        * environmentMaterialScale;
+        * environmentMaterialScale
+        * environmentSpecularOcclusion;
     // The diffuse term below is cut wherever the source supplies a metal map,
     // so the reflection that has to replace it must answer to the same
     // condition. Gating this compensation on the *category* instead left a part
@@ -1183,31 +1249,32 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         // from a painted surface, where the diffuse it replaces did not vary at
         // all.
         float metalEnvironmentScale = hasSourceMetallicMap
-            ? 0.85f + metallic * lerp(0.90f, 2.00f, smoothness)
+            ? lerp(0.82f, 1.0f, smoothness)
             : 0.55f + metallic * lerp(0.45f, 1.10f, smoothness);
+        float3 metalEnvironmentBrdf = EnvironmentBrdfApprox(
+            sourceStableF0,
+            roughness,
+            metalCameraShape);
         float3 metalEnvironmentSpecular = environmentRadiance
-            * SourceStableFresnel(metalCameraShape, sourceStableF0)
-            * max(PresentationToneTuning.w, 0.0f)
+            * metalEnvironmentBrdf
+            * environmentStrength
             * categoryEnvironmentScale
-            * metalEnvironmentScale;
+            * metalEnvironmentScale
+            * environmentSpecularOcclusion;
         environmentSpecular = lerp(
             environmentSpecular,
             metalEnvironmentSpecular,
             metalReflectionWeight);
-        // Metal has no diffuse lobe, so away from a highlight its tone comes
-        // entirely from wide-angle reflection.  This environment concentrates
-        // its energy in five narrow softboxes, so that wide component was
-        // missing: the diffuse path was scaled to a third and floored at 0.24,
-        // and nothing replaced it.  Sampling the same environment fully blurred
-        // about the normal recovers the broad term the softboxes leave out,
-        // tinted by F0 so steel stays steel and bronze stays bronze.
-        float3 metalIrradiance = PreviewEnvironmentRadiance(normal, 1.0f)
+        // A small rough-conductor multiple-scattering term returns energy lost
+        // by the single-scattering split-sum fit without restoring the old
+        // view-independent metal wash.
+        float3 metalMultipleScattering = environmentIrradiance
             * sourceStableF0
-            * max(PresentationToneTuning.w, 0.0f)
+            * environmentStrength
             * metallic
-            * lerp(1.35f, 0.85f, smoothness)
+            * (roughness * roughness * 0.18f)
             * ambientOcclusion;
-        environmentSpecular += metalIrradiance;
+        environmentSpecular += metalMultipleScattering;
     }
     if (MaterialDebugMode > 5.5f && MaterialDebugMode < 6.5f)
     {
@@ -1265,6 +1332,19 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         * nonmetalTextureScale
         * diffuseDepth
         * metalDiffuseScale;
+    float3 diffuseEnvironmentBrdf = EnvironmentBrdfApprox(
+        resolvedSurfaceF0,
+        roughness,
+        ndotv);
+    float3 environmentDiffuseEnergy = saturate(1.0f - diffuseEnvironmentBrdf)
+        * (1.0f - saturate(metallic));
+    float environmentDiffuseScale = conservativeNonmetal ? 0.18f : 0.24f;
+    float3 environmentDiffuse = materialReferenceAlbedo
+        * environmentIrradiance
+        * environmentDiffuseEnergy
+        * environmentStrength
+        * ambientOcclusion
+        * environmentDiffuseScale;
     float metalCue = categoryMetal
         ? saturate(metallic * lerp(0.18f, 0.58f, smoothness))
         : 0.0f;
@@ -1290,7 +1370,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             * ambientOcclusion;
     float3 finalColor = PresentationSurfaceTuning.w > 0.5f
         ? baseColor.rgb + emissive
-        : litDiffuse + metallicSourceAnchor + spec + environmentSpecular + emissive;
+        : litDiffuse + environmentDiffuse + metallicSourceAnchor + spec + environmentSpecular + emissive;
     float3 exposedColor = max(
         finalColor * max(PresentationToneTuning.x, 0.05f),
         float3(0.0f, 0.0f, 0.0f));

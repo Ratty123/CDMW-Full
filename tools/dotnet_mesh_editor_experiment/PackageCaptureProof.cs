@@ -53,6 +53,7 @@ internal static class PackageCaptureProof
             var materialsPath = Path.Combine(packageDirectory, "net_materials.json");
             var materials = File.Exists(materialsPath) ? NetMaterialSet.Load(materialsPath) : NetMaterialSet.Empty;
             using var textures = NetTextureSet.Load(materials);
+            textures.LoadAsync(materials).GetAwaiter().GetResult();
             var scene = NetSceneState.Load(Path.Combine(packageDirectory, "dotnet_scene.json"), document.Submeshes.Count);
             // no Text: the form is never shown, and a title on it would be a UI string the
             // catalogs would have to carry for a window nobody can see
