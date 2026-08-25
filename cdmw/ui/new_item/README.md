@@ -18,8 +18,9 @@ own worker. The `panels_*.py` modules edit the draft and ask the
 controller for facts; `tab.py` composes them, and forwards install to the shell.
 The Template panel searches internal IDs, English item names, equipment types and
 item keys with Archive Browser's normalized terms, phrases, alternatives and exclusions.
-Its rows include the English item name when one exists, and the bounded result list is
-drawn from the complete sorted match set. An explicit mouse click commits immediately,
+Its result table separates the internal name, English item name, numeric key and equipment
+type into four labelled columns, and the bounded rows are drawn from the complete sorted
+match set. An explicit mouse click commits immediately,
 while keyboard row navigation keeps its 180 ms latest-row settle so holding an arrow key
 does not rebuild every dependent step along the way. It mounts the same resident item
 viewport used by Model & Placement, so a selected helmet, armour piece or weapon can
