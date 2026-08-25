@@ -165,11 +165,20 @@ def _scene_texture_slot(path: Path) -> str:
         (("normalmap", "normalgl", "normaldx", "normal", "nrm", "bump"), "normal"),
         (("heightmap", "height", "displacement", "disp", "depth"), "height"),
         (("basecolor", "basecolour", "albedo", "diffuse", "diffusemap", "colormap"), "base"),
+        (("metallicroughness", "roughnessmetallic", "occlusionroughnessmetallic", "roughnessmetal", "metalrough"), "material"),
     )
     for tokens, slot in rules:
         if any(token in stem for token in tokens):
             return slot
-    technical = ("metallicroughness", "roughnessmetallic", "occlusionroughnessmetallic", "roughness", "metallic", "metalness", "ambientocclusion", "occlusion", "specular", "glossiness", "gloss", "opacity", "alpha", "orm", "rma", "mra", "arm", "mask")
+    if any(token in stem for token in ("ambientocclusion", "occlusion", "mixedao")) or stem.endswith("ao"):
+        return "ao"
+    if "roughness" in stem or "rough" in stem:
+        return "roughness"
+    if any(token in stem for token in ("metallic", "metalness", "metal")):
+        return "metallic"
+    if "thickness" in stem:
+        return "thickness"
+    technical = ("specular", "glossiness", "gloss", "opacity", "alpha", "orm", "rma", "mra", "arm", "mask")
     return "material" if any(token in stem for token in technical) else "base"
 
 
@@ -194,7 +203,7 @@ def _scene_material_channels(subtype: str) -> Tuple[str, ...]:
 
 def _scene_texture_group_key(path: Path) -> str:
     stem = _compact_scene_texture_name(path.stem)
-    for token in ("metallicroughness", "roughnessmetallic", "occlusionroughnessmetallic", "basecolor", "basecolour", "diffuse", "albedo", "normalmap", "normalgl", "normaldx", "normal", "nrm", "bump", "roughness", "metallic", "metalness", "ambientocclusion", "occlusion", "specular", "glossiness", "gloss", "heightmap", "height", "displacement", "disp", "depth", "emissive", "emission", "glow", "illumination", "illum", "opacity", "alpha", "orm", "rma", "mra", "arm", "mask", "color", "colour", "base"):
+    for token in ("metallicroughness", "roughnessmetallic", "occlusionroughnessmetallic", "basecolor", "basecolour", "diffuse", "albedo", "normalmap", "normalgl", "normaldx", "normal", "nrm", "bump", "roughness", "metallic", "metalness", "ambientocclusion", "occlusion", "mixedao", "ao", "thickness", "specular", "glossiness", "gloss", "heightmap", "height", "displacement", "disp", "depth", "emissive", "emission", "glow", "illumination", "illum", "opacity", "alpha", "orm", "rma", "mra", "arm", "mask", "color", "colour", "base"):
         stem = stem.replace(token, "")
     return stem or _compact_scene_texture_name(path.stem)
 
@@ -206,14 +215,13 @@ def _collect_scene_texture_paths(preview_model: ModelPreviewData, result: SceneI
             candidate = Path(str(getattr(mesh, attr, "") or "").strip())
             if str(candidate) and candidate.is_file():
                 paths.append(candidate.resolve())
-    if not paths:
-        for root in (source_path.parent, source_path.parent / "textures", source_path.parent.parent / "textures"):
-            if not root.is_dir():
-                continue
-            try:
-                paths.extend(candidate.resolve() for candidate in root.iterdir() if candidate.is_file() and candidate.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS)
-            except OSError:
-                continue
+    for root in (source_path.parent, source_path.parent / "textures", source_path.parent.parent / "textures"):
+        if not root.is_dir():
+            continue
+        try:
+            paths.extend(candidate.resolve() for candidate in root.iterdir() if candidate.is_file() and candidate.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS)
+        except OSError:
+            continue
     return list(dict.fromkeys(paths))
 
 
@@ -245,7 +253,7 @@ def _append_scene_material_input(mesh: ModelPreviewMesh, slot: str, path: Path, 
     normalized = str(path).replace("\\", "/").lower()
     if any(str(getattr(item, "slot_kind", "") or "").lower() == slot and (str(getattr(item, "texture_name", "") or "").lower() == path.name.lower() or str(getattr(item, "preview_texture_path", "") or getattr(item, "source_texture_path", "") or "").replace("\\", "/").lower() == normalized) for item in existing):
         return 0
-    parameter = {"base": "_baseColorTexture", "normal": "_normalTexture", "material": "_metallicRoughnessTexture", "ao": "_occlusionTexture", "emissive": "_emissiveIntensityTexture", "height": "_heightTexture"}.get(slot, "")
+    parameter = {"base": "_baseColorTexture", "normal": "_normalTexture", "material": "_metallicRoughnessTexture", "ao": "_occlusionTexture", "roughness": "_roughnessTexture", "metallic": "_metallicTexture", "emissive": "_emissiveIntensityTexture", "height": "_heightTexture"}.get(slot, "")
     parameters = (PreviewMaterialParameterInput(parameter_kind="float", parameter_name="_emissiveIntensity", value="1.000000", numeric_value=1.0),) if slot == "emissive" else ()
     existing.append(PreviewMaterialTextureInput(slot_kind=slot, parameter_name=parameter, source_texture_path=str(path), source_dds_path=str(path) if path.suffix.lower() == ".dds" else "", texture_name=path.name, preview_texture_path=str(path), semantic_type=semantic_type, semantic_subtype=subtype, packed_channels=tuple(str(value) for value in channels if str(value)), material_name=str(getattr(mesh, "material_name", "") or "").strip(), shader_family="SkinnedMeshEmissive_Ver2" if slot == "emissive" else "", confidence="scene", visualized=True, material_parameters=parameters))
     mesh.preview_material_texture_inputs = tuple(existing)
@@ -263,15 +271,21 @@ def _resolve_scene_mesh_textures(mesh: ModelPreviewMesh, source_path: Path, look
     named = _resolve_scene_texture(getattr(mesh, "texture_name", ""), source_path, lookup)
     if named is not None:
         slot = _scene_texture_slot(named)
-        resolved.setdefault(slot if slot in {"base", "normal", "height"} else "material", named)
+        resolved.setdefault(slot if slot in {"base", "normal", "height", "ao", "roughness", "metallic", "emissive"} else "material", named)
     for item in tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ()):
         slot = str(getattr(item, "slot_kind", "") or "").strip().lower()
-        if slot in {"base", "normal", "material", "ao", "emissive", "height"}:
+        if slot in {"base", "normal", "material", "ao", "roughness", "metallic", "emissive", "height"}:
             value = _resolve_scene_texture(str(getattr(item, "preview_texture_path", "") or getattr(item, "source_texture_path", "") or getattr(item, "texture_name", "") or ""), source_path, lookup)
             if value is not None:
                 resolved.setdefault(slot, value)
     group_source = resolved.get("base") or resolved.get("material") or resolved.get("normal") or resolved.get("height")
     siblings = grouped.get(_scene_texture_group_key(group_source), {}) if group_source is not None else {}
+    if single_base is not None and not any(
+        siblings.get(slot) for slot in ("normal", "material", "ao", "roughness", "metallic", "emissive", "height")
+    ):
+        sibling_candidate = grouped.get(_scene_texture_group_key(single_base), {})
+        if sibling_candidate:
+            siblings = sibling_candidate
     material_key = _compact_scene_texture_name(getattr(mesh, "material_name", ""))
     if "base" not in resolved and material_key:
         for group_key, group in grouped.items():
@@ -286,7 +300,7 @@ def _resolve_scene_mesh_textures(mesh: ModelPreviewMesh, source_path: Path, look
             resolved["base"] = siblings["base"]
     if "base" not in resolved and single_base is not None:
         resolved["base"] = single_base
-    for slot in ("normal", "material", "emissive", "height"):
+    for slot in ("normal", "material", "ao", "roughness", "metallic", "emissive", "height"):
         if siblings.get(slot) is not None:
             resolved.setdefault(slot, siblings[slot])
     return resolved
@@ -316,6 +330,10 @@ def _assign_scene_mesh_textures(mesh: ModelPreviewMesh, paths: Mapping[str, Path
         count += _append_scene_material_input(mesh, "material", material, "material", subtype, _scene_material_channels(subtype))
     if paths.get("ao") is not None:
         count += _append_scene_material_input(mesh, "ao", paths["ao"], "ao", "ao", ("ao",))
+    if paths.get("roughness") is not None:
+        count += _append_scene_material_input(mesh, "roughness", paths["roughness"], "roughness", "roughness", ("roughness",))
+    if paths.get("metallic") is not None:
+        count += _append_scene_material_input(mesh, "metallic", paths["metallic"], "metallic", "metallic", ("metallic",))
     if paths.get("emissive") is not None:
         count += _append_scene_material_input(mesh, "emissive", paths["emissive"], "emissive", "emissive")
     height = paths.get("height")
@@ -340,7 +358,16 @@ def attach_scene_preview_textures(preview_model: object, scene_result: SceneImpo
         grouped[_scene_texture_group_key(path)].setdefault(_scene_texture_slot(path), path)
     meshes = [mesh for mesh in preview_model.meshes if isinstance(mesh, ModelPreviewMesh)]
     bases = [path for path in texture_paths if _scene_texture_slot(path) == "base"]
-    single_base = bases[0] if len(meshes) == 1 and len(bases) == 1 else None
+    named_bases = [
+        path
+        for path in bases
+        if any(
+            token in _compact_scene_texture_name(path.stem)
+            for token in ("basecolor", "basecolour", "albedo", "diffuse", "diffusemap", "colormap")
+        )
+    ]
+    base_candidates = named_bases or bases
+    single_base = base_candidates[0] if len(meshes) == 1 and len(base_candidates) == 1 else None
     return sum(_assign_scene_mesh_textures(mesh, _resolve_scene_mesh_textures(mesh, source_path, lookup, grouped, single_base)) for mesh in meshes)
 
 def _restore_rebuilt_mesh_texture_identity(

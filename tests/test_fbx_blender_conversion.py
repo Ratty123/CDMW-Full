@@ -104,6 +104,23 @@ class ConversionTests(unittest.TestCase):
             self.assertIn(flag, command)
         self.assertEqual(command[-2:], [str(self.fbx), str(self.folder / "MagicSword.glb")])
 
+    def test_blender_script_relinks_only_loaded_package_images(self) -> None:
+        scripts: list[str] = []
+
+        def run(command):
+            script_path = Path(command[command.index("--python") + 1])
+            scripts.append(script_path.read_text(encoding="utf-8"))
+            (self.folder / "MagicSword.glb").write_bytes(b"glTF" + bytes(64))
+            return _Finished()
+
+        convert_fbx_to_glb(self.fbx, self.blender, output_dir=self.folder, run=run)
+
+        script = scripts[0]
+        self.assertIn('source_path.parent.parent / "textures"', script)
+        self.assertIn("if image.users and not image.has_data", script)
+        self.assertIn("image.reload()", script)
+        self.assertIn("if i.users and i.has_data", script, "an unloaded FBX image is not reported as embedded")
+
     def test_a_failed_conversion_carries_what_blender_said(self) -> None:
         """"The import failed" is not something a reader can act on."""
 

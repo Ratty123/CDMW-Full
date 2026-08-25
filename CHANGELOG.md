@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+- **New Item Studio now recovers textures and authored UVs from FBX ZIPs with broken creator-local image paths.** Blender conversion relinks an explicitly referenced missing image by exact basename from the extracted package's texture folders and reports only images that the GLB actually loaded. The shared preview fallback now augments that embedded base with clearly named Normal, AO, Roughness and Metallic maps, keeps an authored `TEXCOORD_0` channel when a material exports without textures, and leaves an unrelated Thickness map unassigned instead of mistaking it for base colour.
+
 ## [0.11.0-alpha.7] - 2026-08-24
 
 ### Added

@@ -452,6 +452,56 @@ class SceneMeshAppendTests(unittest.TestCase):
             self.assertEqual(str(normal), preview_mesh.preview_normal_texture_path)
             self.assertEqual(str(material), preview_mesh.preview_material_texture_path)
 
+    def test_attach_scene_preview_textures_recovers_loose_sword_pbr_maps_after_fbx_conversion(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            scene_path = root / "NicoNavarroSword_Low_v2.glb"
+            scene_path.write_bytes(b"glTF")
+            embedded = root / "embedded" / "image_0.png"
+            embedded.parent.mkdir()
+            embedded.write_bytes(b"embedded base")
+            texture_dir = root / "textures"
+            texture_dir.mkdir()
+            names = (
+                "NicoNavarroSword_low_AO.png",
+                "NicoNavarroSword_low_BaseColor.png",
+                "NicoNavarroSword_low_Metallic.png",
+                "NicoNavarroSword_low_Normal.png",
+                "NicoNavarroSword_low_Roughness.png",
+                "NicoNavarroSword_low_Thickness.png",
+            )
+            for name in names:
+                (texture_dir / name).write_bytes(b"loose texture")
+
+            submesh = SubMesh(
+                name="Sword",
+                material="MAT_Lowpoly",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                faces=[(0, 1, 2)],
+            )
+            submesh.preview_texture_path = str(embedded)
+            parsed = _mesh(str(scene_path), [submesh])
+            preview_model = parsed_mesh_to_preview_model(parsed)
+            assigned = attach_scene_preview_textures(
+                preview_model,
+                SceneImportResult(mesh=parsed, discovered_texture_files=(embedded,)),
+                scene_path,
+            )
+
+            self.assertEqual(5, assigned, "base, normal, AO, roughness and metallic are usable")
+            preview_mesh = preview_model.meshes[0]
+            self.assertEqual(str(embedded), preview_mesh.preview_texture_path, "the GLB's embedded base remains authoritative")
+            self.assertEqual("NicoNavarroSword_low_Normal.png", Path(preview_mesh.preview_normal_texture_path).name)
+            support = {
+                str(item.slot_kind): Path(str(item.preview_texture_path)).name
+                for item in preview_mesh.preview_material_texture_inputs
+            }
+            self.assertEqual("NicoNavarroSword_low_AO.png", support["ao"])
+            self.assertEqual("NicoNavarroSword_low_Roughness.png", support["roughness"])
+            self.assertEqual("NicoNavarroSword_low_Metallic.png", support["metallic"])
+            self.assertNotIn("thickness", support, "a thickness map is not a base-colour fallback")
+
 
 if __name__ == "__main__":
     unittest.main()
