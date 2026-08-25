@@ -206,15 +206,20 @@ BODY_HEAD_TOP_Y = 0.70
 BODY_BEHIND_Z = 0.22
 
 
-def character_reference_mesh(*, name: str = EFFECT_BODY_SUBMESH) -> ParsedMesh:
+def character_reference_mesh(
+    *, name: str = EFFECT_BODY_SUBMESH, bind_space: bool = False
+) -> ParsedMesh:
     """A person, at the size the game's characters are, as a cage of thin bars.
 
     An effect's reach in metres means very little on its own: everything looks either
     enormous or invisible next to a one-metre sword floating in the dark. Next to a body it
     reads immediately, and a cage of bars does it without hiding anything behind it.
+    Weapon previews keep the hand at item-space zero. ``bind_space`` instead puts the feet
+    at zero and the head at 1.75 m so body-space wearables remain on the body.
     """
 
-    ground, top = BODY_GROUND_Y, BODY_HEAD_TOP_Y
+    y_shift = -BODY_GROUND_Y if bind_space else 0.0
+    ground, top = BODY_GROUND_Y + y_shift, BODY_HEAD_TOP_Y + y_shift
     hip = ground + 0.90
     shoulder = top - 0.30
     chin = top - 0.20
@@ -235,7 +240,11 @@ def character_reference_mesh(*, name: str = EFFECT_BODY_SUBMESH) -> ParsedMesh:
     bar((-0.15, hip, z), (-0.11, ground, z))                           # left leg
     bar((0.15, hip, z), (0.11, ground, z))                             # right leg
     bar((0.20, shoulder, z), (0.27, shoulder - 0.28, z - 0.02), 0.024)  # upper arm, weapon side
-    bar((0.27, shoulder - 0.28, z - 0.02), (0.04, 0.02, 0.06), 0.022)   # forearm, down to the hand
+    bar(
+        (0.27, shoulder - 0.28, z - 0.02),
+        (0.04, 0.02 + y_shift, 0.06),
+        0.022,
+    )  # forearm to hand
     bar((-0.20, shoulder, z), (-0.24, shoulder - 0.28, z), 0.024)       # other upper arm
     bar((-0.24, shoulder - 0.28, z), (-0.20, hip + 0.02, z), 0.022)     # other forearm
     bar((0.0, shoulder, z), (0.0, chin, z), 0.030)                      # neck
