@@ -201,6 +201,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
             if (mesh.source_local_submesh_index < 0) mesh.source_local_submesh_index = mesh.source_submesh_index;
             mesh.source_submesh_index = static_cast<int>(mesh_index);
         }
+        apply_presentation_geometry_override(job, parsed.meshes, package);
         merge_prefab_component_meshes(job, *index, package, parsed);
     } else if (job.extension == ".pam") {
         parsed = parse_pam_submeshes(data);
@@ -365,6 +366,9 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"python_fallback_allowed\":false,"
         << "\"native_archive_io\":\"" << (raw_read_ok ? "ok" : "failed") << "\","
         << "\"native_mesh_parser\":\"" << json_escape(package.mesh_parse.empty() ? "pending" : package.mesh_parse) << "\","
+        << "\"presentation_geometry_applied\":" << (package.presentation_geometry_applied ? "true" : "false") << ","
+        << "\"presentation_geometry_vertex_count\":" << package.presentation_geometry_vertex_count << ","
+        << "\"presentation_geometry_source\":\"" << json_escape(package.presentation_geometry_source) << "\","
         << "\"native_material_index\":\"" << json_escape(package.material_index.empty() ? "pending" : package.material_index) << "\","
         << "\"native_material_graph_status\":\"" << json_escape(package.material_graph_status) << "\","
         << "\"native_material_graph_cache_hit\":" << (package.material_graph_cache_hit ? "true" : "false") << ","

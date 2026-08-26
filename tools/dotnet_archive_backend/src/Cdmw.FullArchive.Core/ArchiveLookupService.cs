@@ -227,6 +227,7 @@ public sealed class ArchiveLookupService(
             ids,
             cancellationToken);
         incomplete |= AddPreviewCompanionPaths(selected, session.Index, ids, cancellationToken);
+        incomplete |= AddPreviewPabCandidates(selected, dependencyIndex, session.Index, ids, cancellationToken);
 
         var allScanIds = ids
             .Append(selected.EntryId)
@@ -504,6 +505,72 @@ public sealed class ArchiveLookupService(
         foreach (var candidate in candidates)
         {
             incomplete |= AddExactPathMatches(index, candidate, ids, cancellationToken);
+        }
+        return incomplete;
+    }
+
+    private static bool AddPreviewPabCandidates(
+        ArchiveEntryDto selected,
+        ArchiveDependencyIndex dependencyIndex,
+        ArchiveIndex index,
+        HashSet<long> ids,
+        CancellationToken cancellationToken)
+    {
+        var path = NormalizePath(selected.Path);
+        if (selected.Extension != ".pac" || !path.StartsWith("character/model/", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        var basenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Add(string value)
+        {
+            var candidate = value.Trim();
+            if (candidate.Length > 0)
+            {
+                basenames.Add(candidate.EndsWith(".pab", StringComparison.OrdinalIgnoreCase) ? candidate : candidate + ".pab");
+            }
+        }
+
+        var stem = Path.GetFileNameWithoutExtension(path);
+        Add(stem);
+        var tokens = stem.Split('_', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length >= 3 && tokens[0].Equals("cd", StringComparison.OrdinalIgnoreCase))
+        {
+            Add(string.Join('_', tokens.Take(3)));
+            Add(string.Join('_', tokens.Skip(1).Take(2)));
+        }
+        var rigOffset = tokens.Length > 0 && tokens[0].Equals("cd", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        if (tokens.Length > rigOffset + 1 && tokens[rigOffset + 1].Length == 2 && tokens[rigOffset + 1].All(char.IsDigit))
+        {
+            var family = tokens[rigOffset] + "_" + tokens[rigOffset + 1];
+            Add(family);
+            Add("cd_" + family);
+        }
+        foreach (var segment in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = segment.IndexOf('_');
+            if (separator > 0)
+            {
+                var prefix = segment[..separator];
+                var family = segment[(separator + 1)..];
+                if (prefix.All(char.IsDigit) && family.Length is >= 2 and <= 5 && family.All(char.IsLetter))
+                {
+                    Add(family + "_01");
+                }
+            }
+            if (segment.StartsWith("cd_m", StringComparison.OrdinalIgnoreCase))
+            {
+                Add(segment);
+            }
+        }
+        Add("identityskeleton");
+        var incomplete = false;
+        foreach (var basename in basenames)
+        {
+            incomplete |= AddDependencyMatches(
+                dependencyIndex.FindEntryIdsByBasename(index, basename, MaximumPreviewLookupResults, cancellationToken),
+                ids,
+                cancellationToken);
         }
         return incomplete;
     }

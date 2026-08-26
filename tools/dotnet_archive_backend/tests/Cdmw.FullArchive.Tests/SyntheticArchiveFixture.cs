@@ -96,6 +96,21 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
                     + "character/texture/hero_fallback.ddsQ\0"
                     + "character/model/not_a_reference.HS\0")),
             ("character/identityskeleton.pab", Encoding.UTF8.GetBytes("identity skeleton")),
+            (
+                "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pac",
+                Encoding.ASCII.GetBytes("PAC\0damian head\0")),
+            (
+                "character/prefab/1_pc/02_phw/head/head/cd_phw_00_head_00_0111.prefabdata_xml",
+                Encoding.UTF8.GetBytes(
+                    "<HeadPrefabData>"
+                    + "<SkeletonVariationName FileName=\"1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pabc\"/>"
+                    + "<MorphTargetSet FileName=\"1_pc/2_phw/phw_damian.pamt\"/>"
+                    + "</HeadPrefabData>")),
+            (
+                "character/binary/skeletonvariation/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pabc",
+                Encoding.ASCII.GetBytes("PABC synthetic")),
+            ("character/model/1_pc/2_phw/phw_damian.pamt", Encoding.ASCII.GetBytes("PAMT synthetic")),
+            ("character/model/1_pc/2_phw/phw_01.pab", Encoding.ASCII.GetBytes("PAB synthetic")),
             ("character/model/not_a_reference.H", Encoding.UTF8.GetBytes("not a preview dependency")),
             ("unrelated/other.dds", "DDS unrelated"u8.ToArray()),
         };

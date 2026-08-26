@@ -407,6 +407,8 @@ struct EntryJob {
     std::vector<ArchiveEntryRef> archive_dependency_entries;
     bool archive_dependency_entries_complete = false;
     std::vector<std::string> enabled_prefab_component_paths;
+    fs::path presentation_geometry_path;
+    std::string presentation_geometry_source;
     bool use_textures = true;
     bool high_quality_textures = true;
     bool disable_all_support_maps = false;
@@ -729,6 +731,9 @@ struct NativePackage {
     bool pamt_index_cache_hit = false;
     std::string pamt_index_cache_path;
     std::string mesh_parse = "unsupported";
+    bool presentation_geometry_applied = false;
+    int presentation_geometry_vertex_count = 0;
+    std::string presentation_geometry_source;
     std::string material_index = "none";
     std::string material_graph_status = "not_started";
     std::string material_graph_cache_path;
@@ -867,6 +872,8 @@ EntryJob parse_job(const fs::path& job_path) {
     if (prefab_components_truncated) {
         throw std::runtime_error("enabled prefab component paths exceeded the 32-entry safety bound");
     }
+    job.presentation_geometry_path = fs::path(find_string_value(text, "presentation_geometry_path"));
+    job.presentation_geometry_source = find_string_value(text, "presentation_geometry_source");
     job.path = job.entry.path;
     job.extension = job.entry.extension.empty() ? basename_extension(job.path) : job.entry.extension;
     job.paz_file = job.entry.paz_file;

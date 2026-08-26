@@ -23,6 +23,110 @@ static void append_int32(std::vector<char>& out, std::int32_t value) {
     out.insert(out.end(), bytes, bytes + sizeof(std::int32_t));
 }
 
+static float read_presentation_float(const std::vector<char>& data, size_t offset) {
+    const std::uint32_t raw = read_u32(data, offset);
+    float value = 0.0f;
+    std::memcpy(&value, &raw, sizeof(float));
+    if (!std::isfinite(value)) throw std::runtime_error("presentation geometry contains a non-finite value");
+    return value;
+}
+
+static void apply_presentation_geometry_bytes(
+    const std::vector<char>& data,
+    std::vector<NativeSubmesh>& meshes,
+    NativePackage& package
+) {
+    static constexpr std::array<char, 8> magic{{'C', 'D', 'M', 'W', 'P', 'G', '1', '\0'}};
+    if (data.size() < 16 || !std::equal(magic.begin(), magic.end(), data.begin())) {
+        throw std::runtime_error("presentation geometry header is invalid");
+    }
+    const size_t submesh_count = read_u32(data, 8);
+    const size_t expected_total = read_u32(data, 12);
+    if (submesh_count != meshes.size() || submesh_count > 4096) {
+        throw std::runtime_error("presentation geometry submesh count does not match the native PAC parse");
+    }
+    if (expected_total > 10000000u) {
+        throw std::runtime_error("presentation geometry exceeds the 10,000,000-vertex safety bound");
+    }
+    std::vector<bool> seen(meshes.size(), false);
+    size_t offset = 16;
+    size_t actual_total = 0;
+    for (size_t record_index = 0; record_index < submesh_count; ++record_index) {
+        if (offset + 8 > data.size()) throw std::runtime_error("presentation geometry record is truncated");
+        const size_t submesh_index = read_u32(data, offset);
+        const size_t vertex_count = read_u32(data, offset + 4);
+        offset += 8;
+        if (submesh_index >= meshes.size() || seen[submesh_index]) {
+            throw std::runtime_error("presentation geometry submesh identity is invalid or duplicated");
+        }
+        NativeSubmesh& mesh = meshes[submesh_index];
+        if (vertex_count != mesh.positions.size() || vertex_count > (data.size() - offset) / 24u) {
+            throw std::runtime_error("presentation geometry vertex count does not match the native PAC parse");
+        }
+        std::vector<Vec3> positions;
+        std::vector<Vec3> normals;
+        positions.reserve(vertex_count);
+        normals.reserve(vertex_count);
+        for (size_t vertex_index = 0; vertex_index < vertex_count; ++vertex_index) {
+            positions.push_back(Vec3{
+                read_presentation_float(data, offset),
+                read_presentation_float(data, offset + 4),
+                read_presentation_float(data, offset + 8),
+            });
+            normals.push_back(vec_normalize(Vec3{
+                read_presentation_float(data, offset + 12),
+                read_presentation_float(data, offset + 16),
+                read_presentation_float(data, offset + 20),
+            }, Vec3{0.0f, 1.0f, 0.0f}));
+            offset += 24;
+        }
+        mesh.positions = std::move(positions);
+        mesh.normals = std::move(normals);
+        seen[submesh_index] = true;
+        actual_total += vertex_count;
+    }
+    if (offset != data.size() || actual_total != expected_total) {
+        throw std::runtime_error("presentation geometry payload length or total is invalid");
+    }
+    package.presentation_geometry_applied = true;
+    package.presentation_geometry_vertex_count = static_cast<int>(actual_total);
+}
+
+static void apply_presentation_geometry_override(
+    const EntryJob& job,
+    std::vector<NativeSubmesh>& meshes,
+    NativePackage& package
+) {
+    if (job.presentation_geometry_path.empty()) return;
+    apply_presentation_geometry_bytes(read_binary_file(job.presentation_geometry_path), meshes, package);
+    package.presentation_geometry_source = job.presentation_geometry_source;
+    package.notes.push_back(
+        "native character presentation geometry applied"
+        + (job.presentation_geometry_source.empty() ? std::string() : ": " + job.presentation_geometry_source)
+    );
+}
+
+static void run_presentation_geometry_contract_self_test() {
+    std::vector<NativeSubmesh> meshes(1);
+    meshes[0].positions = {Vec3{0.0f, 0.0f, 0.0f}, Vec3{1.0f, 1.0f, 1.0f}};
+    meshes[0].normals = {Vec3{0.0f, 1.0f, 0.0f}, Vec3{0.0f, 1.0f, 0.0f}};
+    std::vector<char> payload{'C', 'D', 'M', 'W', 'P', 'G', '1', '\0'};
+    append_int32(payload, 1);
+    append_int32(payload, 2);
+    append_int32(payload, 0);
+    append_int32(payload, 2);
+    for (float value : {2.0f, 3.0f, 4.0f, 0.0f, 0.0f, 1.0f, 5.0f, 6.0f, 7.0f, 1.0f, 0.0f, 0.0f}) {
+        append_float(payload, value);
+    }
+    NativePackage package;
+    apply_presentation_geometry_bytes(payload, meshes, package);
+    if (!package.presentation_geometry_applied || package.presentation_geometry_vertex_count != 2
+        || std::abs(meshes[0].positions[1].z - 7.0f) > 1.0e-6f
+        || std::abs(meshes[0].normals[0].z - 1.0f) > 1.0e-6f) {
+        throw std::runtime_error("presentation geometry contract self-test failed");
+    }
+}
+
 static void write_geometry_blob(
     const fs::path& geometry_path,
     const fs::path& identity_path,

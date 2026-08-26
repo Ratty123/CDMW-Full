@@ -922,6 +922,27 @@ internal static class FullArchiveTestRunner
                 !File.Exists(Path.Combine(session.GenerationPath, "lookups.bin")),
                 "preview association reconstructed the eager general lookup maps");
 
+            var damian = Enumerable.Range(0, checked((int)handle.EntryCount))
+                .Select(index => session.ReadEntry(index))
+                .Single(static entry => entry.Path == "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pac");
+            var appearanceAssociation = await lookup.FindAssociationCandidatesAsync(
+                new ArchiveAssociationRequest(
+                    handle.SessionId,
+                    damian.EntryId,
+                    128,
+                    ArchiveAssociationPurpose.Preview),
+                CancellationToken.None).ConfigureAwait(false);
+            var appearancePaths = appearanceAssociation.Candidates
+                .Select(static entry => entry.Path)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Require(
+                appearancePaths.Contains("character/prefab/1_pc/02_phw/head/head/cd_phw_00_head_00_0111.prefabdata_xml")
+                && appearancePaths.Contains("character/binary/skeletonvariation/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pabc")
+                && appearancePaths.Contains("character/model/1_pc/2_phw/phw_damian.pamt")
+                && appearancePaths.Contains("character/model/1_pc/2_phw/phw_01.pab")
+                && !appearanceAssociation.Truncated,
+                "character preview association did not include its descriptor, PAB, PABC and PAMT appearance chain");
+
             var preparation = new ArchiveEntryPreparationService(sessions, native);
             var entryIds = association.Candidates
                 .Select(static entry => entry.EntryId)
