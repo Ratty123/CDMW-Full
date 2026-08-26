@@ -105,8 +105,12 @@ def test_initial_english_language_apply_skips_widget_tree_walk() -> None:
             return value
 
     localizer = _Localizer()
+    navigation_refreshes: list[bool] = []
     window = SimpleNamespace(
-        settings_tab=SimpleNamespace(set_language_options=lambda *_args, **_kwargs: None),
+        settings_tab=SimpleNamespace(
+            set_language_options=lambda *_args, **_kwargs: None,
+            _apply_section_nav_style=lambda: navigation_refreshes.append(True),
+        ),
         texture_editor_tab=None,
         ui_localizer=localizer,
         _update_ncnn_preset_hint=lambda: None,
@@ -122,6 +126,7 @@ def test_initial_english_language_apply_skips_widget_tree_walk() -> None:
     LanguageControllerMixin._apply_ui_language(window)  # type: ignore[arg-type]
 
     assert localizer.apply_calls == [window, window]
+    assert navigation_refreshes == [True, True, True]
 
 
 def test_language_export_handler_stays_fast_and_includes_live_widget_strings(tmp_path: Path) -> None:

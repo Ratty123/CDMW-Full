@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Dict, Optional
 
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -140,12 +141,12 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
 
         self.section_nav_list = QListWidget()
         self.section_nav_list.setObjectName("SettingsSectionNav")
-        self.section_nav_list.setFixedWidth(270)
         self.section_nav_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.section_nav_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.section_nav_list.setAlternatingRowColors(False)
-        self.section_nav_list.setSpacing(4)
-        self.section_nav_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
-        settings_workspace_layout.addWidget(self.section_nav_list)
+        self.section_nav_list.setSpacing(1)
+        self.section_nav_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        settings_workspace_layout.addWidget(self.section_nav_list, 0, Qt.AlignTop)
 
         self.section_stack = QStackedWidget()
         settings_workspace_layout.addWidget(self.section_stack, stretch=1)
@@ -154,7 +155,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         def _add_settings_page(key: str, title: str, summary_text: str) -> QVBoxLayout:
             item = QListWidgetItem(title)
             item.setData(Qt.UserRole, key)
-            item.setSizeHint(QSize(0, 40))
+            item.setSizeHint(QSize(0, 28))
             self.section_nav_list.addItem(item)
 
             scroll_area = QScrollArea()
@@ -1105,24 +1106,24 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
 
     def _apply_section_nav_style(self) -> None:
         theme = UI_THEME_SCHEMES.get(self.current_theme_key(), UI_THEME_SCHEMES[DEFAULT_UI_THEME])
-        nav_font_size = max(14, min(18, self.current_ui_font_size() + 1))
+        nav_font_size = self.current_data_font_size()
         self.section_nav_list.setStyleSheet(
             f"""
             QListWidget#SettingsSectionNav {{
                 background: {theme["field"]};
                 border: 1px solid {theme["border_strong"]};
                 border-radius: 8px;
-                padding: 8px;
+                padding: 4px;
                 outline: 0;
-                font-size: {nav_font_size}px;
+                font-size: {nav_font_size}pt;
             }}
             QListWidget#SettingsSectionNav::item {{
                 background: transparent;
                 color: {theme["text"]};
                 border: 1px solid transparent;
                 border-radius: 6px;
-                margin: 2px 0px;
-                padding: 9px 12px;
+                margin: 1px 0px;
+                padding: 5px 8px;
             }}
             QListWidget#SettingsSectionNav::item:hover {{
                 background: {theme["button_hover"]};
@@ -1141,10 +1142,31 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
             }}
             """
         )
+        nav_font = QFont(self.section_nav_list.font())
+        nav_font.setFamily(self.current_ui_font_family())
+        nav_font.setPointSize(nav_font_size)
+        nav_metrics = QFontMetrics(nav_font)
+        row_height = max(28, nav_metrics.height() + 14)
+        widest_label = max(
+            (
+                nav_metrics.horizontalAdvance(self.section_nav_list.item(row).text())
+                for row in range(self.section_nav_list.count())
+                if self.section_nav_list.item(row) is not None
+            ),
+            default=0,
+        )
+        nav_width = max(154, min(220, widest_label + 42))
+        nav_height = (
+            18
+            + (self.section_nav_list.count() * row_height)
+            + (max(0, self.section_nav_list.count() - 1) * self.section_nav_list.spacing())
+        )
+        self.section_nav_list.setFixedWidth(nav_width)
+        self.section_nav_list.setFixedHeight(nav_height)
         for row in range(self.section_nav_list.count()):
             item = self.section_nav_list.item(row)
             if item is not None:
-                item.setSizeHint(QSize(0, max(40, nav_font_size + 24)))
+                item.setSizeHint(QSize(0, row_height))
 
     def add_setup_paths_sections(self, setup_section: QWidget, paths_section: QWidget) -> None:
         """Place app setup and path controls at the top of Settings without duplicating state."""

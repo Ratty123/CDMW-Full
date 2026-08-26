@@ -56,6 +56,13 @@ class LanguageControllerMixin:
             )
             if callable(mark_source_tree_current):
                 mark_source_tree_current(self)
+        refresh_settings_navigation = getattr(
+            self.settings_tab,
+            "_apply_section_nav_style",
+            None,
+        )
+        if callable(refresh_settings_navigation):
+            refresh_settings_navigation()
         self._update_ncnn_preset_hint()
         self._schedule_column_autofit()
 
