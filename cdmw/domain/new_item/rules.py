@@ -345,6 +345,13 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
     for edit in spec.price_edits:
         if edit.item_key not in template.price_items and not context.stat_shape_edits_supported:
             issues.append(_issue("price.not_in_template", "price_edits", f"{template.internal_name} has no price in item {edit.item_key}."))
+    if spec.placement.kind is not PlacementKind.NONE and not template.price_items and not spec.price_edits:
+        issues.append(_issue(
+            "placement.price_missing",
+            "price_edits",
+            "No shop price is set. Add one before placing the item in a shop.",
+            "warning",
+        ))
     if spec.socket_items is not None:
         if not template.has_stat_block:
             issues.append(_issue("sockets.no_stat_block", "socket_items", f"{template.internal_name}'s stat block did not decode, so its socket items cannot be replaced."))

@@ -52,7 +52,11 @@ reported in the existing Checks box.
 
 The default Stats view labels ItemInfo values as raw game data and compares a
 selected cell with the template and shipped range; arbitrary stats, flat values,
-extra levels and separate enhancement rows stay under an experimental fold. One
+extra levels and separate enhancement rows stay under an experimental fold. The
+base-price table also owns draft-added money items: an empty decoded list can create
+its first 1-Copper entry from Stats or Distribution, while a row whose all-empty stat
+block has no safe anchor disables those controls and explains the format boundary.
+StoreInfo placement never carries a second price. One
 draft change on that step is one workflow-state refresh: every edit goes through the panel's
 `_draft_changed` (refill the grid when its shape changed, then `invalidate_plan`),
 the tab refreshes its summary from `plan_invalidated` alone, never from the tables'
@@ -91,7 +95,10 @@ Model & Placement displays. The rebuilt PAC remains output authority but its bor
 material wrappers never replace the import's source materials in the placement viewport.
 The current per-part Glow colour and strength are copied into those same rows when the
 Effects package is built, and returning to the step refreshes changes made in Model & Placement.
-The character reference defaults to the template's player rig. The Effects workspace's
+The character reference defaults to the template's player rig. Effects and Model & Placement
+reuse Placement & Animations' bare-character choice: the playable rig's nude anatomy plus its
+separate face, never the generic distance proxy that previously made Damian look like another
+body and left Kliff on the bar mannequin. The Effects workspace's
 **Character** control can preview **Auto**, Kliff or Damian without changing the template,
 item output or equip compatibility. `EquipTypeInfo`, rather than the model folder's spelling,
 decides the frame. Hand-carried families reuse the selected
@@ -143,6 +150,12 @@ placement into the static replacement's transform for the headless Builder impor
 (`build_placed_import`), whose result is what the plan writes. The fit's baked source
 origin is the shared preview/build anchor, so the gizmo stays on a model whose template
 location is away from world zero and manual rotation/scale happens around that origin.
+**Show the character** adds that template's assembled body to the same resident scene as
+non-editable reference geometry. A wearable keeps the upright bind frame; a held item expresses
+the body in the item's authored frame so the exact relative fit is preserved without changing
+the placement numbers, gizmo axes or Builder transform. Turning the character on or off rebuilds
+through the existing latest-wins preview worker, and the character can never enter the item mesh,
+Apply result, plan or output package.
 The viewport's
 rotation convention (the helper's yaw/pitch/roll) and the pipeline's x-then-y-
 then-z are the same matrix re-expressed, proven in

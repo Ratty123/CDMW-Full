@@ -8,6 +8,7 @@ import tempfile
 import threading
 import time
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -54,6 +55,18 @@ class StateTests(unittest.TestCase):
         self.assertEqual(spec.stat_edits, stats)
         self.assertEqual(scaled_grid_values(grid, 2.0), {(0, 0): 24000, (1, 0): 28000})
         self.assertEqual(flat_grid_values(grid, 5), {(0, 0): 5, (1, 0): 5})
+        added_price_grid = stat_grid_for(
+            row,
+            {DDD: "DDD"},
+            {COPPER: "Copper", 15: "Token", 99: "Other Money"},
+            extra_price_keys=(99,),
+        )
+        self.assertEqual(added_price_grid.price_items[-1], (99, "Other Money", None))
+        added_price_spec = spec_from_draft(
+            NewItemDraft(template_key=TEMPLATE, internal_name="Clone", price_values={99: 1}),
+            added_price_grid,
+        )
+        self.assertEqual([(p.item_key, p.price) for p in added_price_spec.price_edits], [(99, 1)])
         again = with_template(draft, OTHER)
         self.assertEqual((again.template_key, again.grid_values, again.internal_name), (OTHER, {}, "Clone"))
         with self.assertRaisesRegex(ValueError, "template"):
@@ -696,6 +709,132 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_model_preview_character_reuses_the_template_route_without_becoming_editable(self) -> None:
+        """The optional body is assembled in the preview worker, kept in the template's
+        item-space frame, and carried separately from the editable model."""
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.item_preview import PlacementScene, ProgressivePreviewSource
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        item = ParsedMesh(
+            path="item.pac",
+            format="pac",
+            submeshes=[SubMesh(
+                name="item",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )],
+        )
+        body = ParsedMesh(
+            path="kliff.pac",
+            format="pac",
+            submeshes=[SubMesh(
+                name="effect_character_0",
+                material="effect_character_body",
+                vertices=[(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )],
+        )
+        quarter_turn = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0)
+        held_calls = []
+
+        def held(*, stop_event=None):
+            held_calls.append(stop_event)
+            return SimpleNamespace(mesh=body, item_rotation=quarter_turn)
+
+        with patch.object(
+            tab.controller,
+            "_template_geometry_build",
+            return_value=(("geometry",), lambda _stop: item),
+        ), patch.object(
+            tab.controller,
+            "_template_preview_build",
+            return_value=(("template",), lambda _stop: item),
+        ), patch.object(
+            tab.controller,
+            "character_holding_the_item",
+            side_effect=held,
+        ):
+            token, source = tab.controller.item_preview_source(include_character=True)
+            self.assertEqual(token[0], "template-character")
+            self.assertIsInstance(source, ProgressivePreviewSource)
+            scene = source.geometry(threading.Event())
+            material_scene = source.materials(threading.Event())
+
+        self.assertIsInstance(scene, PlacementScene)
+        self.assertIs(scene.model, item)
+        self.assertIsNone(scene.template, "the character alone is the non-editable reference")
+        self.assertEqual(
+            tuple(round(value, 6) for value in scene.character.submeshes[0].vertices[1]),
+            (0.0, 0.0, -1.0),
+            "the body moves into item space while the established placement axes stay authoritative",
+        )
+        self.assertIs(material_scene.character, scene.character)
+        self.assertEqual(len(held_calls), 1, "geometry and material stages share one assembled character")
+        self.assertIsInstance(held_calls[0], threading.Event)
+
+        imported = SimpleNamespace(
+            bake_generation=2,
+            mesh_generation=3,
+            baked_scene_mesh=lambda: item,
+            baked_preview_mesh=lambda: item,
+            baked_bounds=lambda: ((0.0, 0.0, 0.0), (1.0, 1.0, 0.0)),
+            baked_origin=lambda: (0.0, 0.0, 0.0),
+            acquire_usage=lambda: object(),
+        )
+        tab.controller.model_import = imported
+        with patch.object(
+            tab.controller,
+            "_template_geometry_build",
+            return_value=(("geometry",), lambda _stop: item),
+        ), patch.object(
+            tab.controller,
+            "_template_preview_build",
+            return_value=(("template",), lambda _stop: item),
+        ), patch.object(
+            tab.controller,
+            "character_holding_the_item",
+            return_value=SimpleNamespace(mesh=body, item_rotation=None),
+        ):
+            imported_token, imported_source = tab.controller.item_preview_source(
+                include_character=True,
+            )
+            imported_scene = imported_source.geometry(threading.Event())
+
+        self.assertEqual(imported_token[0], "placement")
+        self.assertTrue(imported_token[-1])
+        self.assertIs(imported_scene.template, item)
+        self.assertIs(imported_scene.model, item)
+        self.assertIs(imported_scene.character, body)
+        tab.close()
+        tab.deleteLater()
+
+    def test_model_preview_character_control_is_template_gated_and_routes_the_toggle(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        panel = tab.model_panel
+        self.assertTrue(panel.show_character.isEnabled())
+        tab.controller.set_template(None)
+        self.assertFalse(panel.show_character.isEnabled())
+        tab.prefill_template(TEMPLATE)
+        self.assertTrue(panel.show_character.isEnabled())
+        routed = []
+
+        with patch.object(
+            tab.controller,
+            "item_preview_source",
+            side_effect=lambda *, include_character=False: routed.append(include_character),
+        ), patch.object(panel, "isVisible", return_value=True):
+            panel.show_character.setChecked(True)
+
+        self.assertTrue(panel.show_character.isChecked())
+        self.assertEqual(panel.view_mode.currentData(), "overlay")
+        self.assertEqual(routed, [True])
+        tab.close()
+        tab.deleteLater()
+
     def test_template_materials_use_preview_core_when_the_shared_native_cache_is_available(self) -> None:
         from types import SimpleNamespace
 
@@ -1024,6 +1163,71 @@ class TabTests(unittest.TestCase):
             self.assertEqual((counts["summary"], counts["validate"]), (1, 1))
             self.assertIn("1 added stat(s)", tab.summary.plain_text())
             self.assertNotIn("price field", tab.summary.plain_text(), "the rail read the grid after the column was inserted, not before")
+        tab.close()
+        tab.deleteLater()
+
+    def test_empty_price_list_can_add_one_copper_from_stats_or_distribution(self) -> None:
+        tab = self._tab()
+        tab.start_snapshot()
+        snapshot = tab.controller.snapshot
+        snapshot.rows[TEMPLATE] = replace(snapshot.rows[TEMPLATE], price_list=())
+        snapshot._contexts.clear()
+        tab.prefill_template(TEMPLATE)
+
+        stats = tab.stats_panel
+        self.assertEqual(stats.price_table.rowCount(), 0)
+        self.assertIn("No shop price", stats.price_state.plain_text())
+        self.assertTrue(stats.one_copper_button.isEnabled())
+
+        placement = tab.placement_panel
+        placement.insert.setChecked(True)
+        self.assertIn("No shop price", placement.price_note.plain_text())
+        self.assertTrue(placement.set_copper_price_button.isVisibleTo(placement))
+        placement.set_copper_price_button.click()
+
+        self.assertEqual(stats.price_table.rowCount(), 1)
+        self.assertEqual(stats.price_table.item(0, 0).text(), "Money_Copper")
+        self.assertEqual(stats.price_table.item(0, 1).text(), "1")
+        self.assertEqual([(p.item_key, p.price) for p in tab.controller.current_spec().price_edits], [(COPPER, 1)])
+        self.assertEqual(placement.price_value.text(), "Money_Copper: 1")
+        self.assertFalse(placement.price_note.isVisibleTo(placement))
+
+        stats.reset_button.click()
+        self.assertEqual(stats.price_table.rowCount(), 0)
+        stats.one_copper_button.click()
+        self.assertEqual([(p.item_key, p.price) for p in tab.controller.current_spec().price_edits], [(COPPER, 1)])
+        tab.close()
+        tab.deleteLater()
+
+    def test_template_without_a_decoded_stat_block_explains_price_blocker(self) -> None:
+        tab = self._tab()
+        tab.start_snapshot()
+        snapshot = tab.controller.snapshot
+        snapshot.rows[TEMPLATE] = replace(
+            snapshot.rows[TEMPLATE],
+            socket_items=(),
+            add_socket_materials=(),
+            stat_block_offset=None,
+            enchant_levels=(),
+            enchant_count=None,
+            price_list=(),
+            stat_block_end=None,
+        )
+        snapshot._contexts.clear()
+        tab.prefill_template(TEMPLATE)
+
+        stats = tab.stats_panel
+        self.assertFalse(stats.one_copper_button.isEnabled())
+        self.assertIn("did not decode", stats.price_state.plain_text())
+        placement = tab.placement_panel
+        placement.insert.setChecked(True)
+        self.assertIn("did not decode", placement.price_note.plain_text())
+        self.assertFalse(placement.set_copper_price_button.isVisibleTo(placement))
+        tab.identity_panel.internal_name.setText("Unpriced_Test_Helm")
+        tab.identity_panel.display_name.setText("Unpriced Test Helm")
+        issue_codes = {issue.code for issue in tab.controller.validate()}
+        self.assertIn("template.no_stat_block", issue_codes)
+        self.assertIn("placement.price_missing", issue_codes)
         tab.close()
         tab.deleteLater()
 
@@ -2485,7 +2689,7 @@ class TabTests(unittest.TestCase):
 
         requested: list[str] = []
 
-        def reference_for(_snapshot, *, model_folder=""):
+        def reference_for(_snapshot, *, model_folder="", **_options):
             requested.append(model_folder)
             model = "2_phw" if "/2_phw/" in model_folder else "1_phm"
             return CharacterReference(

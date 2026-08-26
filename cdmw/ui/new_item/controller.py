@@ -18,7 +18,7 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
 from cdmw.core.archive_name_search import _archive_name_search_text_match, parse_archive_search_query
-from cdmw.domain.cancellation import RunCancelled
+from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
@@ -325,7 +325,13 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         if self.snapshot is None or self.draft.template_key is None:
             return None
         row = self.snapshot.row(self.draft.template_key)
-        return stat_grid_for(row, self.snapshot.status_names, self.snapshot.item_names(), self.draft.extra_stat_keys)
+        return stat_grid_for(
+            row,
+            self.snapshot.status_names,
+            self.snapshot.item_names(),
+            extra_status_keys=self.draft.extra_stat_keys,
+            extra_price_keys=tuple(sorted(self.draft.price_values)),
+        )
 
     def status_choices(self) -> Tuple[Tuple[int, str, bool], ...]:
         """Every StatusInfo entry as (key, label, carried by shipped equipment): the ones
@@ -629,13 +635,43 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         except Exception:  # noqa: BLE001
             return None
 
-    def item_preview_source(self):
+    def item_preview_source(self, *, include_character: bool = False):
         """What the Model and icon step's viewport shows, textured the way the Model
         Library and the Builder show it: a `(token, build)` pair, or None when there
         is nothing to show. The builders run off the UI thread and return preview data,
         a placement scene, or a ready native package path when the frame supplies its
         Preview Core context. `token` names the source, so a view already showing it is
-        left alone."""
+        left alone. ``include_character`` adds the selected template's non-editable body
+        in the template's own item frame; it never changes the model or build output."""
+
+        include_character = bool(include_character)
+        character_lock = threading.Lock()
+        character_cache: list = []
+
+        def character_mesh(stop_event):
+            if not include_character:
+                return None
+            with character_lock:
+                if character_cache:
+                    return character_cache[0]
+                held = self.character_holding_the_item(stop_event=stop_event)
+                mesh = getattr(held, "mesh", None)
+                rotation = tuple(getattr(held, "item_rotation", ()) or ())
+                if mesh is not None and len(rotation) == 9:
+                    # Effects keeps the person upright and turns the item into the hand.
+                    # Model & Placement must keep its established item-space axes so the
+                    # placement numbers and gizmo remain build-authoritative; transpose the
+                    # rigid turn onto the body instead. Their relative fit is identical.
+                    inverse = (
+                        rotation[0], rotation[3], rotation[6],
+                        rotation[1], rotation[4], rotation[7],
+                        rotation[2], rotation[5], rotation[8],
+                    )
+                    from cdmw.services.effect_character_reference import rotate_mesh
+
+                    mesh = rotate_mesh(mesh, inverse)
+                character_cache.append(mesh)
+                return mesh
 
         source = self.model_import
         if source is not None:
@@ -656,6 +692,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                     placement=placement,
                     model_bounds=source.baked_bounds(),
                     model_origin=source.baked_origin(),
+                    character=character_mesh(stop_event),
                 )
 
             def build_material_scene(stop_event, **_preview_context):
@@ -668,18 +705,48 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                     placement=placement,
                     model_bounds=source.baked_bounds(),
                     model_origin=source.baked_origin(),
+                    character=character_mesh(stop_event),
                 )
 
             from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
 
             build = ProgressivePreviewSource(build_geometry_scene, build_material_scene, source.acquire_usage)
-            return (("placement", id(source), source.bake_generation, source.mesh_generation, template_token), build)
+            return ((
+                "placement",
+                id(source),
+                source.bake_generation,
+                source.mesh_generation,
+                template_token,
+                include_character,
+            ), build)
         result = self.model_result
         model = getattr(result, "preview_model", None)
         if result is not None and model is not None and getattr(model, "meshes", None):
+            if include_character:
+                from cdmw.ui.new_item.item_preview import PlacementScene
+
+                return (
+                    ("imported-character", id(result), self.draft.template_key),
+                    lambda stop_event: PlacementScene(
+                        template=None,
+                        model=model,
+                        character=character_mesh(stop_event),
+                    ),
+                )
             return (("imported", id(result)), lambda _stop_event: model)
         if result is not None:
             mesh = self.item_mesh_for_preview()
+            if mesh is not None and include_character:
+                from cdmw.ui.new_item.item_preview import PlacementScene
+
+                return (
+                    ("imported-bare-character", id(result), self.draft.template_key),
+                    lambda stop_event: PlacementScene(
+                        template=None,
+                        model=mesh,
+                        character=character_mesh(stop_event),
+                    ),
+                )
             return (("imported-bare", id(result)), lambda _stop_event: mesh) if mesh is not None else None
         template = self._template_preview_build()
         if template is None:
@@ -689,7 +756,30 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             return template
         token, material_build = template
         _geometry_token, geometry_build = geometry
-        from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
+        from cdmw.ui.new_item.item_preview import PlacementScene, ProgressivePreviewSource
+
+        if include_character:
+            def build_geometry_character_scene(stop_event):
+                return PlacementScene(
+                    template=None,
+                    model=geometry_build(stop_event),
+                    character=character_mesh(stop_event),
+                )
+
+            def build_material_character_scene(stop_event, **_preview_context):
+                return PlacementScene(
+                    template=None,
+                    model=material_build(stop_event),
+                    character=character_mesh(stop_event),
+                )
+
+            return (
+                ("template-character", self.draft.template_key, token),
+                ProgressivePreviewSource(
+                    build_geometry_character_scene,
+                    build_material_character_scene,
+                ),
+            )
 
         return (token, ProgressivePreviewSource(geometry_build, material_build))
 
@@ -843,7 +933,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         )
         return (("template", self.draft.template_key, *entry_revision), build)
 
-    def character_reference(self, model_folder: str = "", *, rig_model: str = ""):
+    def character_reference(self, model_folder: str = "", *, rig_model: str = "", stop_event=None):
         """The matching rig's own character for the placement viewport, or None.
 
         Read once per player rig and kept: a rig, a socket file and a body out of the
@@ -852,6 +942,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         the UI thread; the placement dialog does.
         """
 
+        raise_if_cancelled(stop_event, "Operation cancelled.")
         if self.snapshot is None:
             return None
         from cdmw.services.effect_character_reference import (
@@ -866,19 +957,24 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             return self._character_references[selected_rig]
         if requested_rig:
             reference, said = character_reference_from_snapshot(
-                self.snapshot, model_folder=model_folder, rig_model=selected_rig
+                self.snapshot,
+                model_folder=model_folder,
+                rig_model=selected_rig,
+                stop_event=stop_event,
             )
         else:
             # Preserve the established auto/template seam for existing synchronous callers.
             reference, said = character_reference_from_snapshot(
-                self.snapshot, model_folder=model_folder
+                self.snapshot,
+                model_folder=model_folder,
+                stop_event=stop_event,
             )
         self._character_references[selected_rig] = reference
         if said:
             self.log_message.emit(said)
         return reference
 
-    def character_holding_the_item(self, *, rig_model: str = ""):
+    def character_holding_the_item(self, *, rig_model: str = "", stop_event=None):
         """The character wearing or holding the current template's item, or None.
 
         Wearables stay in the matching rig's bind frame. For weapons, the frame the item
@@ -888,6 +984,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         Call it off the UI thread.
         """
 
+        raise_if_cancelled(stop_event, "Operation cancelled.")
         snapshot, template = self.snapshot, self.draft.template_key
         if snapshot is None:
             return None
@@ -906,8 +1003,19 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                 folder = str(family.model_folder or "")
             except Exception as exc:  # noqa: BLE001 - the convention frame stands in
                 self.log_message.emit(f"The template's prefabs could not be read for the placement viewport: {exc}")
-        reference = self.character_reference(folder, rig_model=requested_rig)
-        held, said = held_character_from_snapshot(snapshot, reference, prefab_paths=prefabs, model_folder=folder, template_key=template)
+        reference = self.character_reference(
+            folder,
+            rig_model=requested_rig,
+            stop_event=stop_event,
+        )
+        held, said = held_character_from_snapshot(
+            snapshot,
+            reference,
+            prefab_paths=prefabs,
+            model_folder=folder,
+            template_key=template,
+            stop_event=stop_event,
+        )
         if said:
             self.log_message.emit(said)
         self._held_character = (template, requested_rig, held)

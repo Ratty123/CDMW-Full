@@ -327,6 +327,22 @@ class RebuildTests(unittest.TestCase):
         # every rebuilt value is editable in place afterwards
         self.assertEqual(parse_iteminfo_row(set_stat_value(again, 2, DDD, 5)).stat(2, DDD).value, 5)
 
+    def test_adding_a_price_to_an_empty_decoded_price_list(self) -> None:
+        row = parse_iteminfo_row(
+            build_row(
+                levels=[],
+                prices=(),
+                socket_items=(1002791,),
+                adds=((COPPER, 500, 0),),
+            )
+        )
+        self.assertIsNotNone(row.stat_block_offset, "the socket data safely anchors the empty price block")
+        self.assertEqual(row.price_list, ())
+        again = parse_iteminfo_row(
+            rebuild_stat_block(row, price_list=price_list_with(row.price_list, COPPER, 1))
+        )
+        self.assertEqual([(price.item_key, price.price) for price in again.price_list], [(COPPER, 1)])
+
     def test_removing_stats_prices_and_levels(self) -> None:
         raw = build_row()
         row = parse_iteminfo_row(raw)

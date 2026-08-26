@@ -3,9 +3,8 @@
 The dialog needs a body, and a stick figure of the right height answers "how big is this
 effect" but not "where will it be". The game's own answer is on disk: the player rig's
 `.pab` gives every bone its bind transform, the body socket file gives every attachment
-point, the character descriptor says which one a held part uses, and the character's
-low-detail body -- one 800-vertex mesh with a head, hands and feet -- is ordinary `.pac`
-geometry in that same bind space.
+point, the character descriptor says which one a held part uses, and Placement & Animations'
+bare-character assembly supplies the nude body plus its separate face in that same bind space.
 
 Weapon previews have two frames and the dialog has to serve both:
 
@@ -40,6 +39,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.placement import BODY_PLACEMENT_FRAME, equipment_placement_frame
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
@@ -72,15 +72,6 @@ _CHILD_SOCKET = "Basic_ChildSocket"
 #: Effect sockets are named `FX_...` -- muzzles, chambers and sparks are the others.
 TRAIL_SOCKET = "FX_Trail_00_Socket"
 _EFFECT_SOCKET_PREFIX = "fx"
-#: The character's own low-detail body: one mesh, floor to the top of the head, under a
-#: thousand vertices. It is what the game draws when the player is far away, so it is the
-#: whole figure rather than a piece of one.
-#: If that is not there, the exact rig sockets remain on the viewport's strut figure.
-#: Armour used to stand in for it, which drew a coat and floating helm rather than a body;
-#: see `_body_mesh_paths`.
-_BODY_LOD = "/nude/"
-_BODY_LOD_STEM = "_lod_"
-
 #: The rotation that leaves everything where it is.
 IDENTITY_ROTATION: Tuple[float, ...] = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
 @dataclass(frozen=True, slots=True)
@@ -208,27 +199,41 @@ def rotate_mesh(mesh: ParsedMesh, rotation: Sequence[float]) -> ParsedMesh:
 def _body_mesh_paths(
     paths: Iterable[str], sizes: Mapping[str, int], *, rig_model: str = _RIG_MODEL
 ) -> List[str]:
-    """The mesh to draw as the body: the whole figure, or nothing at all.
+    """Placement & Animations' bare figure: the nude anatomy plus its separate face.
 
     `sizes` is kept for callers that still pass it; nothing here needs it any more.
 
-    This used to fall back to one median armour piece per half, on the reasoning that
-    armour is at least body-shaped. Rendered, it is not: the median upper and lower body
-    of a real install draw a coat with a helm floating where the head should be, legs that
-    stop above their boots, and daylight between the three. A reader looking at that sees
-    a broken preview, not a stand-in -- and there is a stand-in already, a plain strut
-    figure that reads as exactly what it is. So the choice here is the whole figure or
-    none, and none hands the viewport that strut.
+    The old path looked for a single ``*_lod_*`` PAC. Kliff has no matching file in the
+    indexed character set and fell back to the bar mannequin; Damian's match is a generic
+    distance proxy rather than her assembled body. Placement & Animations already owns the
+    correct deterministic choice, including the separate head that gives the nude mesh a
+    face, so construct its index over this snapshot and ask it for the same answer.
     """
 
     del sizes
-    model = _normalize(rig_model).rsplit("/", 1)[-1] or _RIG_MODEL
-    prefix = f"/model/1_pc/{model}"
-    whole = sorted(
-        path for path in paths
-        if f"{prefix}{_BODY_LOD}" in path and _BODY_LOD_STEM in path and path.endswith(".pac")
+    from tools.placement_studio.armour import (
+        FACE_SLOT,
+        NUDE_SLOT,
+        ArmourIndex,
+        ArmourPiece,
+        _FACE,
+        _NUDE,
     )
-    return [whole[0]] if whole else []
+
+    model = _normalize(rig_model).rsplit("/", 1)[-1] or _RIG_MODEL
+    pieces = []
+    for path in sorted({_normalize(path) for path in paths if path}):
+        if "_lod_" in path.rsplit("/", 1)[-1]:
+            continue
+        match = _NUDE.match(path)
+        slot = NUDE_SLOT
+        if match is None:
+            match = _FACE.match(path)
+            slot = FACE_SLOT
+        if match is None or match.group(2) != model:
+            continue
+        pieces.append(ArmourPiece(path=path, slot=slot, model=model))
+    return ArmourIndex(pieces).base_body(model)
 
 
 def build_character_reference(
@@ -239,11 +244,12 @@ def build_character_reference(
     socket_name: str = _HAND_SOCKET,
     rig_model: str = _RIG_MODEL,
     max_vertices: int = 60_000,
+    stop_event=None,
 ) -> Optional[CharacterReference]:
     """The player, standing, with `socket_name` at the origin, or None.
 
     `entry_paths` is every path in the archives and `read` reads one. `sizes` remains for
-    compatibility. A rig with no whole low-detail body keeps its exact sockets and routes
+    compatibility. A rig with no matching nude anatomy keeps its exact sockets and routes
     but uses the bind-space stand-in mesh.
     """
 
@@ -258,6 +264,13 @@ def build_character_reference(
     except Exception:  # noqa: BLE001 - the studio's reader is optional; no character without it
         return None
 
+    def checked_read(path: str) -> bytes:
+        raise_if_cancelled(stop_event, "Operation cancelled.")
+        payload = read(path)
+        raise_if_cancelled(stop_event, "Operation cancelled.")
+        return payload
+
+    raise_if_cancelled(stop_event, "Operation cancelled.")
     paths = [_normalize(path) for path in entry_paths]
     model = _normalize(rig_model).rsplit("/", 1)[-1] or _RIG_MODEL
     rigs = sorted(
@@ -275,8 +288,8 @@ def build_character_reference(
     socket_file = next((path for path in sockets if path.rsplit("/", 1)[-1].startswith(stem)), sockets[0])
 
     try:
-        hierarchy = BoneHierarchy.from_pab(read(rig), rig)
-        document = SocketDocument.load(read(socket_file), socket_file)
+        hierarchy = BoneHierarchy.from_pab(checked_read(rig), rig)
+        document = SocketDocument.load(checked_read(socket_file), socket_file)
         body_matrices = {}
         for body_socket in document.sockets():
             placed = hierarchy.place(body_socket)
@@ -285,6 +298,8 @@ def build_character_reference(
         body_matrix = body_matrices.get(socket_name)
         if body_matrix is None:
             return None
+    except RunCancelled:
+        raise
     except Exception:  # noqa: BLE001 - a rig that does not read leaves the figure in place
         return None
 
@@ -297,7 +312,9 @@ def build_character_reference(
         ):
             continue
         try:
-            parts.update(DescriptorDocument.load(read(path), path).part_map())
+            parts.update(DescriptorDocument.load(checked_read(path), path).part_map())
+        except RunCancelled:
+            raise
         except Exception:  # noqa: BLE001 - the prefab's own pair remains available
             continue
 
@@ -308,7 +325,9 @@ def build_character_reference(
     total = 0
     for path in _body_mesh_paths(paths, dict(sizes or {}), rig_model=model):
         try:
-            parsed = parse_mesh(read(path), path.rsplit("/", 1)[-1])
+            parsed = parse_mesh(checked_read(path), path.rsplit("/", 1)[-1])
+        except RunCancelled:
+            raise
         except Exception:  # noqa: BLE001 - one piece that does not decode is not the end
             continue
         for submesh in tuple(getattr(parsed, "submeshes", ()) or ()):
@@ -591,7 +610,7 @@ def hold_the_item(
 
 
 def character_reference_from_snapshot(
-    snapshot, *, model_folder: str = "", rig_model: str = ""
+    snapshot, *, model_folder: str = "", rig_model: str = "", stop_event=None
 ) -> Tuple[Optional[CharacterReference], str]:
     """The character out of a new-item snapshot, and one line saying what came of it.
 
@@ -612,7 +631,10 @@ def character_reference_from_snapshot(
             snapshot.payload,
             sizes={path: entry.orig_size for path, entry in snapshot.entries.items()},
             rig_model=selected_rig,
+            stop_event=stop_event,
         )
+    except RunCancelled:
+        raise
     except Exception as exc:  # noqa: BLE001 - the stand-in figure is drawn instead
         return None, f"The character for the placement viewport could not be read: {exc}"
     if reference is None:
@@ -627,6 +649,7 @@ def held_character_from_snapshot(
     prefab_paths: Sequence[str] = (),
     model_folder: str = "",
     template_key: Optional[int] = None,
+    stop_event=None,
 ) -> Tuple[Optional["HeldCharacter"], str]:
     """`reference` holding this item, and one line saying how it is held.
 
@@ -634,6 +657,14 @@ def held_character_from_snapshot(
     things: the body is a mesh and a 434-bone walk, read once, while the frame the item
     mates by is one prefab and one small XML, read per item.
     """
+
+    raise_if_cancelled(stop_event, "Operation cancelled.")
+
+    def checked_read(path: str) -> bytes:
+        raise_if_cancelled(stop_event, "Operation cancelled.")
+        payload = snapshot.payload(path)
+        raise_if_cancelled(stop_event, "Operation cancelled.")
+        return payload
 
     equip_type_name = ""
     if template_key is not None:
@@ -663,18 +694,20 @@ def held_character_from_snapshot(
         return None, ""
     try:
         body_socket, requested_child_socket, _route_from = _item_attachment_route(
-            prefab_paths, snapshot.payload, reference
+            prefab_paths, checked_read, reference
         )
         routed_reference = _reference_at_socket(reference, body_socket)
         if routed_reference.socket != body_socket:
             requested_child_socket = _CHILD_SOCKET
         child, child_socket, held_from, sockets = item_child_frame(
-            snapshot.entries.keys(), snapshot.payload,
+            snapshot.entries.keys(), checked_read,
             prefab_paths=prefab_paths, model_folder=model_folder, child_socket=requested_child_socket,
         )
         held = hold_the_item(
             routed_reference, child, child_socket=child_socket, held_from=held_from, effect_sockets=sockets
         )
+    except RunCancelled:
+        raise
     except Exception as exc:  # noqa: BLE001 - the stand-in figure is drawn instead
         return None, f"The character for the placement viewport could not be read: {exc}"
     body = held.body_name

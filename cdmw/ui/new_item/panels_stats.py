@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List, Optional, Tuple
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -30,6 +30,8 @@ _MAX_EXTRA_LEVELS = 8
 _RANGE_SLACK = 10
 #: a column label in a button, shortened so one long status name cannot widen the step
 _BUTTON_LABEL_CHARS = 40
+#: ItemInfo's shipped Money_Copper key; the format reader documents the money-item keys.
+_COPPER_ITEM_KEY = 1
 
 
 class StatsPanel(QGroupBox):
@@ -42,6 +44,8 @@ class StatsPanel(QGroupBox):
     emits one per cell and a listener validating the whole draft per signal turned a
     refill into dozens of validations.
     """
+
+    price_state_changed = Signal()
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("4. Combat stats and prices", parent)
@@ -206,6 +210,18 @@ class StatsPanel(QGroupBox):
         self.price_table.setMaximumWidth(420)
         self.price_table.cellChanged.connect(self._price_changed)
         base_layout.addWidget(self.price_table, 1)
+        price_action = QHBoxLayout()
+        self.price_state = NoteLabel("")
+        self.price_state.setVisible(False)
+        price_action.addWidget(self.price_state, 1)
+        self.set_copper_price_button = QPushButton("Set price to 1 Copper")
+        self.set_copper_price_button.setToolTip(
+            "The item's own price list, per money item; the shop's asking price is this plus the embedded perks' prices, before the level prices above."
+        )
+        self.set_copper_price_button.clicked.connect(self.set_copper_price)
+        self.set_copper_price_button.setVisible(False)
+        price_action.addWidget(self.set_copper_price_button)
+        base_layout.addLayout(price_action)
         stack_form = QFormLayout()
         self.max_stack = QSpinBox()
         self.max_stack.setRange(1, 999_999)
@@ -271,6 +287,7 @@ class StatsPanel(QGroupBox):
             self.table.setColumnCount(0)
             self.price_table.setRowCount(0)
             self.carries.setText("")
+            self._refresh_price_state(None)
             return
         template_stats = [column.label for column in grid.columns if column.kind == STAT_KIND and column.key not in draft.extra_stat_keys]
         added_stats = [column.label for column in grid.columns if column.kind == STAT_KIND and column.key in draft.extra_stat_keys]
@@ -309,6 +326,7 @@ class StatsPanel(QGroupBox):
             self._style_cell(price_item, price, template_price)
             self.price_table.setItem(index, 1, price_item)
         row = self._controller.snapshot.row(draft.template_key) if self._controller.snapshot else None
+        self._refresh_price_state(row)
         self.max_stack.blockSignals(True)
         self.max_stack.setValue(int(draft.max_stack_count if draft.max_stack_count is not None else (row.max_stack_count if row else 1)))
         self.max_stack.blockSignals(False)
@@ -320,6 +338,33 @@ class StatsPanel(QGroupBox):
             self._resize_tables()
         if rows and grid.columns and self.table.currentRow() < 0:
             self.table.setCurrentCell(0, 0)
+
+    def _stat_block_editable(self) -> bool:
+        draft = self._controller.draft
+        snapshot = self._controller.snapshot
+        if snapshot is None or draft.template_key is None:
+            return False
+        return snapshot.row(draft.template_key).stat_block_offset is not None
+
+    def _refresh_price_state(self, row: object | None) -> None:
+        grid = self._grid
+        editable = row is not None and getattr(row, "stat_block_offset", None) is not None
+        self.one_copper_button.setEnabled(editable)
+        self.price_table.setEnabled(editable)
+        self.table.setEnabled(editable)
+        if grid is None or row is None or grid.price_items:
+            self.price_state.setVisible(False)
+            self.set_copper_price_button.setVisible(False)
+            return
+        self.price_state.set_note(
+            "No shop price is set. Add one before placing the item in a shop."
+            if editable
+            else "This template's stat block did not decode; stats and prices cannot be edited.",
+            WARN,
+        )
+        self.price_state.setVisible(True)
+        self.set_copper_price_button.setVisible(editable)
+        self.set_copper_price_button.setEnabled(editable)
 
     def _template_value(self, level: int, column_index: int) -> Optional[int]:
         """The template's value for a cell; an added level reads the top template level."""
@@ -469,24 +514,27 @@ class StatsPanel(QGroupBox):
 
         grid = self._grid
         draft = self._controller.draft
+        editable = self._stat_block_editable()
         stat_column = self._selected_stat_column_index()
-        if grid is not None and stat_column >= 0:
+        if editable and grid is not None and stat_column >= 0:
             self.flat_button.setText(f"Set {elided(grid.columns[stat_column].label, _BUTTON_LABEL_CHARS)} at every level")
             self.flat_button.setEnabled(True)
         else:
             self.flat_button.setText("Set selected stat column")
             self.flat_button.setEnabled(False)
         removable = self._removable_column_index()
-        if grid is not None and removable >= 0:
+        if editable and grid is not None and removable >= 0:
             self.remove_stat_button.setText(f"Remove the {elided(grid.columns[removable].label, _BUTTON_LABEL_CHARS)} column")
             self.remove_stat_button.setEnabled(True)
         else:
             self.remove_stat_button.setText("Remove column")
             self.remove_stat_button.setEnabled(False)
-        has_ladder = grid is not None and bool(grid.level_count)
+        has_ladder = editable and grid is not None and bool(grid.level_count)
         self.scale_button.setEnabled(has_ladder)
         self.add_level_button.setEnabled(has_ladder and draft.extra_levels < _MAX_EXTRA_LEVELS)
         self.remove_level_button.setEnabled(has_ladder and draft.extra_levels > 0)
+        self.add_stat_button.setEnabled(editable and self.new_stat.count() > 0 and grid is not None)
+        self.own_rows.setEnabled(has_ladder)
 
     def _price_changed(self, index: int, column: int) -> None:
         if self._syncing or self._grid is None or column != 1:
@@ -502,6 +550,7 @@ class StatsPanel(QGroupBox):
         draft.price_values[key] = value
         self._restyle_cell(self.price_table, index, 1, value, template)
         self._draft_changed(rebuild=False)
+        self.price_state_changed.emit()
 
     def _refresh_status_choices(self) -> None:
         present = tuple(sorted(column.key for column in (self._grid.columns if self._grid else ()) if column.kind == STAT_KIND))
@@ -615,7 +664,7 @@ class StatsPanel(QGroupBox):
     def _one_copper(self) -> None:
         """Every shop price at every level and every base price becomes 1."""
 
-        if self._grid is None:
+        if self._grid is None or not self._stat_block_editable():
             return
         draft = self._controller.draft
         rows = self._grid.level_count + draft.extra_levels
@@ -625,7 +674,20 @@ class StatsPanel(QGroupBox):
                     draft.grid_values[(level, column_index)] = 1
         for key, _label, _template in self._grid.price_items:
             draft.price_values[key] = 1
+        if not self._grid.price_items:
+            draft.price_values[_COPPER_ITEM_KEY] = 1
         self._draft_changed(rebuild=True)
+        self.price_state_changed.emit()
+
+    def set_copper_price(self) -> bool:
+        """Create or set the item's own Copper price, including from an empty price list."""
+
+        if not self._stat_block_editable():
+            return False
+        self._controller.draft.price_values[_COPPER_ITEM_KEY] = 1
+        self._draft_changed(rebuild=True)
+        self.price_state_changed.emit()
+        return True
 
     def _apply_scale(self) -> None:
         if self._grid is None:
@@ -688,6 +750,7 @@ class StatsPanel(QGroupBox):
 
     def _reset(self) -> None:
         draft = self._controller.draft
+        had_base_price_changes = bool(draft.price_values)
         draft.grid_values.clear()
         draft.price_values.clear()
         draft.extra_levels = 0
@@ -698,6 +761,8 @@ class StatsPanel(QGroupBox):
         self.own_rows.setChecked(False)
         self.own_rows.blockSignals(False)
         self._draft_changed(rebuild=True)
+        if had_base_price_changes:
+            self.price_state_changed.emit()
 
     def summary_text(self) -> tuple[str, bool]:
         """A short, truthful rail summary for this step."""

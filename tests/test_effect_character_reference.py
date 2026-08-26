@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -19,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from cdmw.domain.cancellation import RunCancelled  # noqa: E402
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh  # noqa: E402
 from cdmw.services.effect_character_reference import (  # noqa: E402
     CHARACTER_SUBMESH_PREFIX,
@@ -94,42 +96,59 @@ class RotationTests(unittest.TestCase):
 
 
 class BodyChoiceTests(unittest.TestCase):
-    """Which mesh stands in for the player. The whole low-detail figure has a head, hands
-    and feet in one file of under a thousand vertices. It is that or nothing: armour was
-    the fallback until it was rendered."""
+    """The player body is the same nude-plus-face assembly Placement Studio draws."""
 
     LOD = "character/model/1_pc/1_phm/nude/cd_phm_00_lod_0001.pac"
-    PHW_LOD = "character/model/1_pc/2_phw/nude/cd_phw_00_lod_0001.pac"
+    NUDE = "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac"
+    FACE = "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0001.pac"
+    PHW_NUDE = "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001.pac"
+    PHW_FACE = "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0001.pac"
     UPPER = "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_02_ub_0010_01.pac"
     LOWER = "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_00_0339.pac"
 
-    def test_the_whole_figure_wins_over_armour(self) -> None:
-        chosen = _body_mesh_paths([self.UPPER, self.LOWER, self.LOD], {})
-        self.assertEqual(chosen, [self.LOD])
+    def test_the_nude_body_and_face_win_over_armour_and_the_distance_proxy(self) -> None:
+        chosen = _body_mesh_paths(
+            [self.UPPER, self.LOWER, self.LOD, self.FACE, self.NUDE],
+            {},
+        )
+        self.assertEqual(chosen, [self.NUDE, self.FACE])
 
-    def test_without_it_no_body_at_all_rather_than_armour(self) -> None:
-        """Armour used to stand in for a missing figure, on the reasoning that armour is at
-        least body-shaped. Rendered offscreen against a real install, it is not: the median
-        upper and lower body draw a coat with a helm floating where the head should be,
-        legs that stop above their boots, and daylight between the three. That reads as a
-        broken preview rather than as a stand-in, and there is a stand-in already -- the
-        strut figure the package draws when no character comes -- which reads as one.
-        """
+    def test_without_anatomy_no_body_at_all_rather_than_armour_or_lod(self) -> None:
+        """A generic distance proxy is not Kliff, and armour pieces are not a body."""
 
-        chosen = _body_mesh_paths([self.UPPER, self.LOWER], {self.UPPER: 400_000, self.LOWER: 300_000})
+        chosen = _body_mesh_paths(
+            [self.UPPER, self.LOWER, self.LOD],
+            {self.UPPER: 400_000, self.LOWER: 300_000},
+        )
         self.assertEqual(chosen, [], "no character, so the viewport draws its own figure")
 
     def test_an_install_with_neither_gives_nothing(self) -> None:
         self.assertEqual(_body_mesh_paths(["gamedata/binary__/client/bin/iteminfo.pabgb"], {}), [])
 
     def test_the_template_rig_selects_its_own_body(self) -> None:
-        chosen = _body_mesh_paths([self.LOD, self.PHW_LOD], {}, rig_model="2_phw")
-        self.assertEqual(chosen, [self.PHW_LOD])
+        chosen = _body_mesh_paths(
+            [self.NUDE, self.FACE, self.PHW_NUDE, self.PHW_FACE],
+            {},
+            rig_model="2_phw",
+        )
+        self.assertEqual(chosen, [self.PHW_NUDE, self.PHW_FACE])
         self.assertEqual(
             character_rig_model("character/model/1_pc/2_phw/armor/13_hel"),
             "2_phw",
         )
         self.assertEqual(character_rig_model("1_pc/14_ptm/armor/18_acc"), "14_ptm")
+
+    def test_the_plain_body_wins_over_named_and_damage_variants(self) -> None:
+        chosen = _body_mesh_paths(
+            [
+                "character/model/1_pc/1_phm/nude/cd_phm_00_nude_40_6001.pac",
+                "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001_damian.pac",
+                self.NUDE,
+                self.FACE,
+            ],
+            {},
+        )
+        self.assertEqual(chosen, [self.NUDE, self.FACE])
 
 
 class EquipmentPlacementFrameTests(unittest.TestCase):
@@ -188,6 +207,20 @@ class NoCharacterTests(unittest.TestCase):
             raise AssertionError("nothing should be read when there is no rig to read")
 
         self.assertIsNone(build_character_reference(["gamedata/binary__/client/bin/iteminfo.pabgb"], read))
+
+    def test_a_cancelled_character_build_stops_before_archive_reads(self) -> None:
+        stopped = threading.Event()
+        stopped.set()
+
+        def no_read(_path: str) -> bytes:
+            raise AssertionError("a cancelled character build must not read an archive")
+
+        with self.assertRaisesRegex(RunCancelled, "Operation cancelled"):
+            build_character_reference(
+                ["character/model/1_pc/1_phm/phm_01.pab"],
+                no_read,
+                stop_event=stopped,
+            )
 
 
 SOCKETS_XML = """<SocketBoneData>
