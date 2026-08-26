@@ -8060,7 +8060,6 @@
     "The resident viewport rejected the preview package.": "Резидентное окно просмотра отклонило пакет предпросмотра.",
     "The selected DDS does not currently have a concrete role to accept yet.": "Выбранный DDS в настоящее время еще не имеет конкретной роли, которую можно принять.",
     "The selected archive entry did not produce a renderable 3D model preview.": "Выбранная запись архива не создала предварительный просмотр рендерируемой 3D-модели.",
-    "The selected archive row changed before preview dependencies could be resolved.": "Выбранная строка архива изменилась до того, как зависимости предварительного просмотра могли быть разрешены.",
     "The selected catalogue rows have no resolvable archive links.": "Выбранные строки каталога не имеют разрешимых архивных связей.",
     "The selected extraction target already contains files or folders.": "Выбранная цель извлечения уже содержит файлы или папки.",
     "The selected model preview is no longer active.": "Предварительный просмотр выбранной модели больше не активен.",

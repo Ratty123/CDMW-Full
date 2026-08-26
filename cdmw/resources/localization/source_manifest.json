@@ -8436,7 +8436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 177,
+          "line": 181,
           "sink": "append_archive_log"
         }
       ]
@@ -9016,7 +9016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 871,
+          "line": 870,
           "sink": "append_archive_log"
         }
       ]
@@ -9056,12 +9056,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 842,
+          "line": 841,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 843,
+          "line": 842,
           "sink": "append_archive_log"
         }
       ]
@@ -9201,22 +9201,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 678,
+          "line": 677,
           "sink": "_set_archive_list_status"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 680,
+          "line": 679,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 681,
+          "line": 680,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 682,
+          "line": 681,
           "sink": "append_archive_log"
         }
       ]
@@ -9991,7 +9991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 782,
+          "line": 874,
           "sink": "_write_crash_report"
         }
       ]
@@ -10036,7 +10036,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 490,
+          "line": 582,
           "sink": "_handle_archive_remote_preview_dependencies_failed"
         }
       ]
@@ -10056,7 +10056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 824,
+          "line": 916,
           "sink": "_write_crash_report"
         }
       ]
@@ -10081,12 +10081,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 572,
+          "line": 664,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 792,
+          "line": 884,
           "sink": "set_status_message"
         }
       ]
@@ -10471,7 +10471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 814,
+          "line": 813,
           "sink": "append_archive_log"
         }
       ]
@@ -10481,7 +10481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 613,
+          "line": 612,
           "sink": "append_archive_log"
         }
       ]
@@ -15611,7 +15611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 673,
+          "line": 672,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -15651,7 +15651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 673,
+          "line": 672,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -15696,7 +15696,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 831,
+          "line": 830,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -15776,7 +15776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 837,
+          "line": 836,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -15876,7 +15876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 448,
+          "line": 540,
           "sink": "set_status_message"
         }
       ]
@@ -16066,7 +16066,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 601,
+          "line": 600,
           "sink": "setText"
         },
         {
@@ -16206,7 +16206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 602,
+          "line": 601,
           "sink": "setToolTip"
         }
       ]
@@ -34136,7 +34136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 777,
+          "line": 869,
           "sink": "set_status_message"
         }
       ]
@@ -35101,7 +35101,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 561,
+          "line": 560,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -37196,7 +37196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 833,
+          "line": 925,
           "sink": "set_status_message"
         }
       ]
@@ -40661,7 +40661,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 602,
+          "line": 601,
           "sink": "setToolTip"
         }
       ]
@@ -68926,7 +68926,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 561,
+          "line": 560,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -68971,7 +68971,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 567,
+          "line": 566,
           "sink": "_set_archive_warmup_overlay"
         },
         {
@@ -70396,7 +70396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 571,
+          "line": 663,
           "sink": "_clear_archive_preview"
         }
       ]
@@ -70496,12 +70496,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 791,
+          "line": 883,
           "sink": "_clear_archive_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 838,
+          "line": 930,
           "sink": "_clear_archive_preview"
         },
         {
@@ -70601,7 +70601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 345,
+          "line": 437,
           "sink": "set_status_message"
         }
       ]
@@ -72296,7 +72296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 775,
+          "line": 867,
           "sink": "set_status_message"
         }
       ]
@@ -73291,7 +73291,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 680,
+          "line": 679,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -73881,7 +73881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 439,
+          "line": 531,
           "sink": "_set_archive_preview_health_message"
         }
       ]
@@ -73931,7 +73931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 438,
+          "line": 530,
           "sink": "setText"
         }
       ]
@@ -75501,7 +75501,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 601,
+          "line": 600,
           "sink": "setText"
         },
         {
@@ -78306,7 +78306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 328,
+          "line": 353,
           "sink": "set_status_message"
         }
       ]
@@ -84557,6 +84557,11 @@
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
           "line": 421,
+          "sink": "_clear_archive_preview"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/workers.py",
+          "line": 380,
           "sink": "_clear_archive_preview"
         },
         {
@@ -96166,7 +96171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 484,
+          "line": 576,
           "sink": "_handle_archive_remote_preview_dependencies_failed"
         }
       ]
@@ -97317,16 +97322,6 @@
       ]
     },
     {
-      "key": "The selected archive row changed before preview dependencies could be resolved.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 389,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
       "key": "The selected catalogue rows have no resolvable archive links.",
       "origins": [
         {
@@ -97506,7 +97501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 567,
+          "line": 566,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -103906,7 +103901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 808,
+          "line": 807,
           "sink": "append_archive_log"
         }
       ]
@@ -104001,7 +103996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 700,
+          "line": 699,
           "sink": "append_archive_log"
         }
       ]
@@ -104021,7 +104016,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 655,
+          "line": 654,
           "sink": "append_archive_log"
         },
         {
@@ -114391,12 +114386,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 673,
+          "line": 672,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 831,
+          "line": 830,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -199366,7 +199361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 837,
+          "line": 836,
           "sink": "_set_archive_cache_health"
         },
         {

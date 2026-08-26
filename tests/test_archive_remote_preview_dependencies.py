@@ -358,6 +358,92 @@ def test_v2_preview_flush_waits_for_remote_dependencies_without_starting_worker(
     assert harness.detail == "Resolving bounded archive preview dependencies..."
 
 
+def test_v2_preview_flush_reissues_the_row_current_after_selection_settles() -> None:
+    from cdmw.ui.archive_browser import workers as workers_module
+
+    replacement = _entry("character/current.pac", 900)
+
+    class _RemappedSelectionBridge(_PreviewBridge):
+        def __init__(self) -> None:
+            super().__init__(None)
+            self.current_entries = [None, replacement]
+
+        def current_compatibility_entry(self) -> ArchiveEntry | None:
+            return self.current_entries.pop(0) if len(self.current_entries) > 1 else replacement
+
+        def request_preview_dependencies(self, request_id: int, entry: ArchiveEntry) -> bool:
+            self.requested.append((request_id, entry))
+            return False
+
+    class _RemappedSelectionHarness(_PreviewHarness):
+        def __init__(self) -> None:
+            super().__init__(None)
+            self.archive_remote_bridge = _RemappedSelectionBridge()
+            self._shutting_down = False
+            self.reissued: list[ArchiveEntry] = []
+            self.scheduled_delays: list[int] = []
+
+        def _render_archive_preview(self, entry: ArchiveEntry, **_kwargs: object) -> None:
+            self.reissued.append(entry)
+
+        def _single_shot(self, delay_ms: int, callback: object) -> None:
+            self.scheduled_delays.append(int(delay_ms))
+            callback()
+
+    harness = _RemappedSelectionHarness()
+    original_timer = workers_module.QTimer
+    workers_module.QTimer = SimpleNamespace(singleShot=harness._single_shot)
+    try:
+        harness._flush_scheduled_archive_preview_request()
+    finally:
+        workers_module.QTimer = original_timer
+
+    assert harness.started is None
+    assert harness.scheduled_delays == [workers_module.ARCHIVE_PREVIEW_SELECTION_RETRY_MS]
+    assert harness.reissued == [replacement]
+
+
+def test_v2_preview_selection_settle_retry_is_bounded() -> None:
+    from cdmw.ui.archive_browser import workers as workers_module
+
+    class _UnavailableSelectionBridge(_PreviewBridge):
+        def current_compatibility_entry(self) -> None:
+            return None
+
+        def request_preview_dependencies(self, _request_id: int, _entry: ArchiveEntry) -> bool:
+            raise AssertionError("unavailable selection reached the archive backend")
+
+    class _UnavailableSelectionHarness(_PreviewHarness):
+        def __init__(self) -> None:
+            super().__init__(None)
+            self.archive_remote_bridge = _UnavailableSelectionBridge(None)
+            self._shutting_down = False
+            self.scheduled_delays: list[int] = []
+            self.cleared: list[str] = []
+
+        def _clear_archive_preview(self, message: str) -> None:
+            self.cleared.append(message)
+            self.scheduled_archive_preview_request = None
+
+        def _single_shot(self, delay_ms: int, callback: object) -> None:
+            self.scheduled_delays.append(int(delay_ms))
+            callback()
+
+    harness = _UnavailableSelectionHarness()
+    original_timer = workers_module.QTimer
+    workers_module.QTimer = SimpleNamespace(singleShot=harness._single_shot)
+    try:
+        harness._flush_scheduled_archive_preview_request()
+    finally:
+        workers_module.QTimer = original_timer
+
+    step = workers_module.ARCHIVE_PREVIEW_SELECTION_RETRY_MS
+    limit = workers_module.ARCHIVE_PREVIEW_SELECTION_RETRY_LIMIT
+    assert harness.scheduled_delays == [step * attempt for attempt in range(1, limit + 1)]
+    assert harness.cleared == ["Select an archive file to preview it here."]
+    assert harness.scheduled_archive_preview_request is None
+
+
 def test_preview_flush_drops_an_in_flight_preview_core_prewarm() -> None:
     snapshot = ArchivePreviewDependencySet.from_dtos(
         _dto(7, "character/sword.pac"),

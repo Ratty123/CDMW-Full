@@ -8060,7 +8060,6 @@
     "The resident viewport rejected the preview package.": "Yerleşik görünüm önizleme paketini reddetti.",
     "The selected DDS does not currently have a concrete role to accept yet.": "Seçili DDS'nin şu anda kabul edilecek somut bir rolü yok.",
     "The selected archive entry did not produce a renderable 3D model preview.": "Seçilen arşiv girişi, oluşturulabilir bir 3D model önizlemesi oluşturmadı.",
-    "The selected archive row changed before preview dependencies could be resolved.": "Seçilen arşiv satırı, önizleme bağımlılıkları çözülemeden değiştirildi.",
     "The selected catalogue rows have no resolvable archive links.": "Seçilen katalog satırlarında çözümlenebilir arşiv bağlantısı yok.",
     "The selected extraction target already contains files or folders.": "Seçilen çıkarma hedefi zaten dosya veya klasör içeriyor.",
     "The selected model preview is no longer active.": "Seçili model önizlemesi artık yok etkin.",

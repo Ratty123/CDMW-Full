@@ -357,6 +357,31 @@ def test_remote_current_entry_reuses_worker_prepared_dependency_snapshot() -> No
     assert current.prepared_path == Path("C:/cache/hero.pac")
 
 
+def test_stale_preview_dependency_request_does_not_publish_a_terminal_failure() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    first = _remote(7, "character/model/first.pac")
+    current = _remote(8, "character/model/current.pac")
+    bridge.model.publish_query(
+        ArchiveQueryHandle("session-a", "query-a", 1, 2),
+        view_mode=ArchiveViewMode.FLAT,
+        prime=False,
+    )
+    assert bridge.model.accept_page(
+        ArchivePage("session-a", "query-a", 1, 2, 0, (first, current))
+    )
+    window.archive_tree.setCurrentIndex(bridge.model.index(1, 0))
+    stale_entry = ArchiveCatalogueService.compatibility_entry(first)
+    failures: list[tuple[int, str]] = []
+    bridge.previewDependenciesFailed.connect(
+        lambda request_id, message: failures.append((request_id, message))
+    )
+
+    assert not bridge.request_preview_dependencies(41, stale_entry)
+    assert failures == []
+
+
 def test_catalogue_publication_does_not_select_or_preview_the_first_row() -> None:
     _app()
     window = _RemoteExportWindow()

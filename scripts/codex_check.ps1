@@ -73,6 +73,8 @@ $TestsByArea = @{
         "tests/test_release_inspired_improvements.py",
         "tests/test_scene_import_policy.py",
         "tests/test_archive_preview_request_coalescing.py",
+        "tests/test_archive_remote_window_bridge.py",
+        "tests/test_archive_remote_preview_dependencies.py",
         "tests/test_archive_d3d11_process_lifecycle.py",
         "tests/test_archive_extract_progress.py",
         "tests/test_archive_progress_bar_writes_on_change.py",

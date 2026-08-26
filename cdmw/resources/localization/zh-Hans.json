@@ -8060,7 +8060,6 @@
     "The resident viewport rejected the preview package.": "常驻视口拒绝了预览包。",
     "The selected DDS does not currently have a concrete role to accept yet.": "所选 DDS 目前尚无具体角色可供接受。",
     "The selected archive entry did not produce a renderable 3D model preview.": "所选存档条目未生成可渲染的 3D 模型预览。",
-    "The selected archive row changed before preview dependencies could be resolved.": "在解决预览依赖关系之前，选定的存档行已更改。",
     "The selected catalogue rows have no resolvable archive links.": "选定的目录行没有可解析的存档链接。",
     "The selected extraction target already contains files or folders.": "所选提取目标已包含文件或文件夹。",
     "The selected model preview is no longer active.": "选定的模型预览不再处于活动状态。",
