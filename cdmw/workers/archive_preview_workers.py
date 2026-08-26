@@ -350,12 +350,17 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         diagnostics["native_preview_package_cache_mode"] = str(hit.metadata.get("cache_mode", "") or "")
         diagnostics["native_decode_package_path"] = str(hit.package_dir)
         diagnostics["dotnet_preview_package_path"] = str(dotnet_hit.package_dir)
+        appearance_notes = tuple(
+            str(note) for note in tuple(diagnostics.get("character_appearance_notes", ()) or ()) if str(note).strip()
+        )
         detail_lines = [
             "Loaded a validated durable .NET/Vortice preview package.",
             ".NET/Vortice package source: canonical derived cache",
             f"Package: {dotnet_hit.package_dir}",
             "Warm selection reused resident-ready package artifacts without rebuilding the archive decode.",
         ]
+        if appearance_notes:
+            detail_lines.append("Character Appearance: " + "; ".join(appearance_notes[:4]))
         result = ArchivePreviewResult(
             status="ok",
             title=self.entry.basename,

@@ -30,11 +30,7 @@ from cdmw.rendering.native_preview_package_cache import (
 
 NATIVE_PREVIEW_CORE_BINARY_NAME = "cdmw-preview-core.exe" if os.name == "nt" else "cdmw-preview-core"
 NATIVE_PREVIEW_CORE_BACKEND_ID = "cdmw_preview_core_0.1"
-# Recycling the service costs the next preview a full cross-package re-warm
-# (about three seconds against real archives), so the job budget is a leak
-# guard rather than the primary memory bound: the service's resident caches
-# are byte-bounded natively and the decoded-cache/private-bytes recycle
-# thresholds below still recycle a genuinely heavy process.
+# Recycling costs a full re-warm, so these are leak guards; native byte bounds remain primary.
 NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS = 128
 NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES = 192 * 1024 * 1024
 NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES = 512 * 1024 * 1024
@@ -819,6 +815,8 @@ def build_native_preview_core_job(
     dependency_entries_complete: bool = False,
     enabled_prefab_component_paths: Sequence[str] = (),
     package_root: Optional[Path] = None,
+    presentation_geometry_path: Optional[Path] = None,
+    presentation_geometry_source: str = "",
     renderer_backend: str = "d3d11",
     schema_version: int = 8,
 ) -> Dict[str, Any]:
@@ -846,6 +844,8 @@ def build_native_preview_core_job(
         ],
         "archive_dependency_entries_complete": bool(dependency_entries_complete),
         "enabled_prefab_component_paths": list(enabled_prefab_component_paths),
+        "presentation_geometry_path": str(presentation_geometry_path or ""),
+        "presentation_geometry_source": str(presentation_geometry_source or "").strip(),
         "render_settings": render_settings_to_native_preview_core_dict(render_settings),
         "capabilities": {
             "direct_dds": True,
@@ -877,12 +877,11 @@ def run_native_preview_core_preview_job(
     diagnostic_log: Optional[Path] = None,
     dds_cache_max_bytes: int = NATIVE_PREVIEW_CORE_DDS_CACHE_MAX_BYTES,
     dds_cache_target_bytes: int = NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES,
+    presentation_geometry_payload: bytes = b"",
+    presentation_geometry_source: str = "",
 ) -> NativePreviewCoreAttempt:
     raise_if_cancelled(stop_event, "Native preview-core job cancelled.")
-    dependency_entries = _validated_native_preview_dependency_entries(
-        dependency_entries,
-        complete=dependency_entries_complete,
-    )
+    dependency_entries = _validated_native_preview_dependency_entries(dependency_entries, complete=dependency_entries_complete)
     enabled_prefab_component_paths = _validated_enabled_prefab_component_paths(
         enabled_prefab_component_paths
     )
@@ -896,6 +895,9 @@ def run_native_preview_core_preview_job(
     output_root = Path(output_root) if (external_output_root := output_root is not None) else job_root / "package"
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
+    presentation_geometry_path = job_root / "presentation_geometry.bin" if presentation_geometry_payload else None
+    if presentation_geometry_path is not None:
+        presentation_geometry_path.write_bytes(presentation_geometry_payload)
     job = build_native_preview_core_job(
         entry,
         cache_root=cache_root,
@@ -906,6 +908,8 @@ def run_native_preview_core_preview_job(
         dependency_entries_complete=dependency_entries_complete,
         enabled_prefab_component_paths=enabled_prefab_component_paths,
         package_root=package_root,
+        presentation_geometry_path=presentation_geometry_path,
+        presentation_geometry_source=presentation_geometry_source,
     )
     job_path.write_text(json.dumps(job, separators=(",", ":")), encoding="utf-8")
     started = time.perf_counter()
@@ -913,7 +917,6 @@ def run_native_preview_core_preview_job(
     def mark_job_dispatched() -> None:
         nonlocal job_dispatched_to_service
         job_dispatched_to_service = True
-
     try:
         service_pid = 0
         if use_service:
@@ -996,10 +999,7 @@ def run_native_preview_core_preview_job(
     )
     if current_dds_paths:
         mark_native_preview_package_path_recent(Path(package_path))
-    # One post-job prune keeps the cache-size invariant; a second scan before
-    # the job only repeated the same directory walk and stat pass per preview.
-    # The current manifest remains live after this function returns, so its DDS
-    # files cannot participate in the same prune that follows their extraction.
+    # The current manifest remains live, so its DDS files are protected from this post-job prune.
     with native_preview_package_live_paths_guard() as live_package_paths:
         protected_dds_paths = tuple(current_dds_paths) + tuple(
             dds_path

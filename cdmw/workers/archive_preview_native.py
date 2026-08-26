@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
+import struct
 import tempfile
 import time
 from collections import defaultdict
@@ -49,6 +51,8 @@ NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS = {".pac", ".pam", ".pamlod"}
 # budget costs the warm caches as well as the request.
 NATIVE_PREVIEW_CORE_GEOMETRY_TIMEOUT_S = 8.0
 NATIVE_PREVIEW_CORE_TEXTURE_TIMEOUT_S = 45.0
+_NATIVE_PRESENTATION_GEOMETRY_MAGIC = b"CDMWPG1\0"
+_NATIVE_PRESENTATION_GEOMETRY_VERTEX_LIMIT = 10_000_000
 
 
 def native_preview_core_timeout_seconds(render_settings: object) -> float:
@@ -59,6 +63,44 @@ def native_preview_core_timeout_seconds(render_settings: object) -> float:
         if bool(getattr(render_settings, "use_textures_by_default", False))
         else NATIVE_PREVIEW_CORE_GEOMETRY_TIMEOUT_S
     )
+
+
+def _native_presentation_geometry_payload(mesh: object, stop_event: object) -> bytes:
+    """Serialize one immutable primary-model position/normal override."""
+
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    vertex_total = sum(len(tuple(getattr(submesh, "vertices", ()) or ())) for submesh in submeshes)
+    if not submeshes or vertex_total <= 0:
+        raise ValueError("Character presentation geometry is empty")
+    if vertex_total > _NATIVE_PRESENTATION_GEOMETRY_VERTEX_LIMIT:
+        raise ValueError("Character presentation geometry exceeds the 10,000,000-vertex safety bound")
+    payload = bytearray(
+        struct.pack(
+            "<8sII",
+            _NATIVE_PRESENTATION_GEOMETRY_MAGIC,
+            len(submeshes),
+            vertex_total,
+        )
+    )
+    for submesh_index, submesh in enumerate(submeshes):
+        if bool(getattr(stop_event, "is_set", lambda: False)()):
+            raise RunCancelled("Native character presentation preparation cancelled.")
+        vertices = tuple(getattr(submesh, "vertices", ()) or ())
+        normals = tuple(getattr(submesh, "normals", ()) or ())
+        if len(normals) != len(vertices):
+            raise ValueError(
+                f"Character presentation submesh {submesh_index} has {len(vertices):,} vertices "
+                f"but {len(normals):,} normals"
+            )
+        payload.extend(struct.pack("<II", submesh_index, len(vertices)))
+        for vertex_index, (position, normal) in enumerate(zip(vertices, normals)):
+            if vertex_index % 4096 == 0 and bool(getattr(stop_event, "is_set", lambda: False)()):
+                raise RunCancelled("Native character presentation preparation cancelled.")
+            values = tuple(float(value) for value in (*position[:3], *normal[:3]))
+            if len(values) != 6 or not all(math.isfinite(value) for value in values):
+                raise ValueError(f"Character presentation submesh {submesh_index} contains invalid geometry")
+            payload.extend(struct.pack("<ffffff", *values))
+    return bytes(payload)
 
 
 def _preserve_native_preview_core_staging_package(
@@ -118,6 +160,94 @@ class ArchivePreviewNativeMixin:
                 self.completed.emit(self.request_id, payload)
             return True
         return False
+
+    def _prepare_native_preview_presentation_geometry(self) -> tuple[bytes, str, Tuple[str, ...]]:
+        entry = self.entry
+        if entry is None or str(getattr(entry, "extension", "") or "").casefold() != ".pac":
+            return b"", "", ()
+        context_entries = tuple(getattr(self, "native_preview_dependency_entries", ()) or ())
+
+        try:
+            from cdmw.core.archive_extraction import read_archive_entry_data
+            from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance_for_preview
+            from cdmw.core.skeleton_resolver import resolve_skeleton_descriptor_for_model
+            from cdmw.modding.mesh_parser import parse_mesh
+
+            def read_payload(candidate: ArchiveEntry) -> bytes:
+                return read_archive_entry_data(candidate, stop_event=self.stop_event)[0]
+
+            resolution = resolve_skeleton_descriptor_for_model(
+                entry,
+                context_entries,
+                archive_entries_by_normalized_path=self.texture_entries_by_normalized_path,
+                archive_entries_by_basename=self.texture_entries_by_basename,
+                read_entry_data=read_payload,
+            )
+            if resolution.skeleton_variation_entry is None:
+                return b"", "", ()
+            pac_data = read_payload(entry)
+            parsed_mesh = parse_mesh(pac_data, entry.path)
+            presentation_mesh, notes = apply_archive_mesh_appearance_for_preview(
+                entry,
+                parsed_mesh,
+                pac_data,
+                self.texture_entries_by_normalized_path,
+                self.texture_entries_by_basename,
+                context_entries,
+                self.stop_event,
+            )
+            source = str(getattr(presentation_mesh, "_cdmw_skeleton_variation_source", "") or "").strip()
+            if presentation_mesh is parsed_mesh or not source:
+                return b"", "", tuple(notes)
+            return (
+                _native_presentation_geometry_payload(presentation_mesh, self.stop_event),
+                source,
+                tuple(notes),
+            )
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            return b"", "", (f"Character appearance deformation was not applied for {entry.path}: {exc}",)
+
+    def _run_native_preview_core_with_presentation(
+        self,
+        *,
+        output_root: Optional[Path],
+        dds_cache_max_bytes: int,
+        dds_cache_target_bytes: int,
+    ) -> NativePreviewCoreAttempt:
+        payload, source, appearance_notes = self._prepare_native_preview_presentation_geometry()
+        attempt = run_native_preview_core_preview_job(
+            self.entry,
+            cache_root=self.native_preview_core_cache_root,
+            render_settings=self.render_settings,
+            companion_entry=self.companion_entry,
+            dependency_entries=getattr(self, "native_preview_dependency_entries", ()),
+            dependency_entries_complete=bool(
+                getattr(self, "native_preview_dependency_entries_complete", False)
+            ),
+            enabled_prefab_component_paths=getattr(self, "enabled_prefab_component_paths", ()),
+            package_root=self.native_preview_core_package_root,
+            output_root=output_root,
+            timeout_seconds=native_preview_core_timeout_seconds(self.render_settings),
+            stop_event=self.stop_event,
+            dds_cache_max_bytes=dds_cache_max_bytes,
+            dds_cache_target_bytes=dds_cache_target_bytes,
+            presentation_geometry_payload=payload,
+            presentation_geometry_source=source,
+        )
+        diagnostics = dict(attempt.diagnostics)
+        if appearance_notes:
+            diagnostics["character_appearance_notes"] = list(appearance_notes)
+        if payload and attempt.succeeded and not bool(diagnostics.get("presentation_geometry_applied", False)):
+            return dataclasses.replace(
+                attempt,
+                status="error",
+                package_path="",
+                fallback_reason="Native Preview Core did not apply the required PABC presentation geometry.",
+                diagnostics=diagnostics,
+            )
+        return dataclasses.replace(attempt, diagnostics=diagnostics)
 
     def _try_native_preview_core(self) -> Optional[NativePreviewCoreAttempt]:
         if not self.native_preview_core_enabled or self.entry is None:
@@ -184,24 +314,8 @@ class ArchivePreviewNativeMixin:
                 except OSError:
                     staging_entry_dir = None
                     output_root = None
-            native_attempt = run_native_preview_core_preview_job(
-                self.entry,
-                cache_root=native_cache_root,
-                render_settings=self.render_settings,
-                companion_entry=self.companion_entry,
-                dependency_entries=getattr(self, "native_preview_dependency_entries", ()),
-                dependency_entries_complete=bool(
-                    getattr(self, "native_preview_dependency_entries_complete", False)
-                ),
-                enabled_prefab_component_paths=getattr(
-                    self,
-                    "enabled_prefab_component_paths",
-                    (),
-                ),
-                package_root=self.native_preview_core_package_root,
+            native_attempt = self._run_native_preview_core_with_presentation(
                 output_root=output_root,
-                timeout_seconds=native_preview_core_timeout_seconds(self.render_settings),
-                stop_event=self.stop_event,
                 dds_cache_max_bytes=dds_cache_max_bytes,
                 dds_cache_target_bytes=dds_cache_target_bytes,
             )
@@ -556,6 +670,9 @@ class ArchivePreviewNativeMixin:
         diagnostics = dict(native_attempt.diagnostics)
         diagnostics["dotnet_preview_package_path"] = str(dotnet_package.package_dir)
         notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
+        appearance_notes = tuple(
+            str(note) for note in tuple(diagnostics.get("character_appearance_notes", ()) or ()) if str(note).strip()
+        )
         base_quality_notes = tuple(
             str(note)
             for note in tuple(diagnostics.get("base_quality_notes", ()) or ())
@@ -589,6 +706,8 @@ class ArchivePreviewNativeMixin:
             diagnostic_lines.extend(shader_fidelity_lines)
         if notes:
             diagnostic_lines.append("Native Material Notes: " + "; ".join(notes[:8]))
+        if appearance_notes:
+            diagnostic_lines.append("Character Appearance: " + "; ".join(appearance_notes[:4]))
         if base_quality_notes:
             diagnostic_lines.append("Native Base Quality Notes: " + "; ".join(base_quality_notes[:8]))
         if selected_texture_examples:
