@@ -591,21 +591,27 @@ def hold_the_item(
 
 
 def character_reference_from_snapshot(
-    snapshot, *, model_folder: str = ""
+    snapshot, *, model_folder: str = "", rig_model: str = ""
 ) -> Tuple[Optional[CharacterReference], str]:
     """The character out of a new-item snapshot, and one line saying what came of it.
 
     The snapshot already holds every archive entry and reads any of them, which is all
     :func:`build_character_reference` wants; this is the seam that keeps the studio's
-    controller out of the archives.
+    controller out of the archives. ``rig_model`` is an explicit preview-only override;
+    otherwise the selected template's model folder remains authoritative.
     """
 
     try:
+        selected_rig = (
+            _normalize(rig_model).rsplit("/", 1)[-1]
+            if rig_model
+            else character_rig_model(model_folder)
+        )
         reference = build_character_reference(
             snapshot.entries.keys(),
             snapshot.payload,
             sizes={path: entry.orig_size for path, entry in snapshot.entries.items()},
-            rig_model=character_rig_model(model_folder),
+            rig_model=selected_rig,
         )
     except Exception as exc:  # noqa: BLE001 - the stand-in figure is drawn instead
         return None, f"The character for the placement viewport could not be read: {exc}"

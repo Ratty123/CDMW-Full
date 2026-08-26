@@ -343,6 +343,91 @@ class EffectWorkspaceTests(unittest.TestCase):
         self._settle(lambda: bool(workspace.placement.content_calls))
         self.assertIs(workspace.placement.content_calls[-1]["item_mesh"], updated)
 
+    def test_character_fit_selector_rebuilds_only_the_preview_for_the_requested_rig(self) -> None:
+        controller = _Controller()
+        requested: list[str] = []
+
+        def character_holding_the_item(*, rig_model: str = ""):
+            requested.append(rig_model)
+            return None
+
+        controller.character_holding_the_item = character_holding_the_item  # type: ignore[method-assign]
+        workspace, _controller, _confirmations = self._workspace(controller)
+        self._settle(lambda: workspace.placement is not None)
+        workspace.selection_timer.stop()
+        workspace.placement.content_calls.clear()
+        original_draft = EffectWorkspaceState.from_draft(controller.draft)
+
+        self.assertEqual(
+            [
+                workspace.character_fit_choice.itemText(index)
+                for index in range(workspace.character_fit_choice.count())
+            ],
+            ["Auto", "Kliff", "Damian"],
+        )
+        workspace.character_fit_choice.setCurrentIndex(workspace.character_fit_choice.findData(2))
+        self.assertTrue(workspace.selection_timer.isActive())
+        workspace.selection_timer.stop()
+        workspace._rebuild_preview()
+
+        selected = workspace.placement.content_calls[-1]
+        selected["character_builder"]()
+        self.assertEqual(requested, ["2_phw"])
+        self.assertFalse(selected["reset_view"], "switching the reference body preserves the camera")
+        self.assertEqual(EffectWorkspaceState.from_draft(controller.draft), original_draft)
+
+        workspace.character_fit_choice.setCurrentIndex(workspace.character_fit_choice.findData(0))
+        workspace.selection_timer.stop()
+        workspace._rebuild_preview()
+        workspace.placement.content_calls[-1]["character_builder"]()
+        self.assertEqual(requested, ["2_phw", ""], "Auto keeps the template-owned callback")
+
+        self.assertTrue(workspace.character_fit_choice.toolTip())
+        controller.draft.template_key = None
+        controller.template_changed.emit(None)
+        self.assertFalse(
+            workspace.character_fit_choice.isEnabled(),
+            "there is no body-fit choice without a template",
+        )
+
+    def test_controller_caches_auto_and_explicit_character_fit_separately(self) -> None:
+        from unittest.mock import patch
+
+        controller = NewItemStudioController(synchronous=True)
+        self.addCleanup(controller.deleteLater)
+
+        class Snapshot:
+            @staticmethod
+            def family(_key):
+                return SimpleNamespace(
+                    model_folder="character/model/1_pc/1_phm/weapon/1_onehandweapon",
+                    parts=(),
+                )
+
+        controller.snapshot = Snapshot()
+        controller.draft.template_key = 7
+        reference_requests: list[str] = []
+        held_requests: list[str] = []
+
+        def character_reference(_folder: str = "", *, rig_model: str = ""):
+            reference_requests.append(rig_model)
+            return f"reference:{rig_model or 'auto'}"
+
+        def hold(_snapshot, reference, **_kwargs):
+            held_requests.append(reference)
+            return object(), ""
+
+        controller.character_reference = character_reference  # type: ignore[method-assign]
+        with patch("cdmw.services.effect_character_reference.held_character_from_snapshot", side_effect=hold):
+            automatic = controller.character_holding_the_item()
+            self.assertIs(controller.character_holding_the_item(), automatic)
+            damian = controller.character_holding_the_item(rig_model="2_phw")
+            self.assertIs(controller.character_holding_the_item(rig_model="2_phw"), damian)
+
+        self.assertIsNot(automatic, damian)
+        self.assertEqual(reference_requests, ["", "2_phw"])
+        self.assertEqual(held_requests, ["reference:auto", "reference:2_phw"])
+
     def test_reselecting_the_committed_effect_restores_its_values(self) -> None:
         controller = _Controller()
         committed = EffectWorkspaceState(
