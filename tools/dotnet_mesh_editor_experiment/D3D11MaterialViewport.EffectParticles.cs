@@ -600,13 +600,17 @@ internal sealed partial class D3D11MaterialViewport
                 : _effectParticlePremultipliedBlendState ?? _transparentBlendState ?? _overlayBlendState);
             _context.Draw((uint)range.Count, (uint)range.Start);
         }
-        _context.PSSetShaderResource(11u, null!);
+        RestoreEffectParticlePipelineState(softEnabled, softSlot);
+    }
+
+    private void RestoreEffectParticlePipelineState(bool softEnabled, uint softSlot)
+    {
+        _context!.PSSetShaderResource(11u, null!);
         if (softEnabled)
         {
             _context.PSSetShaderResource(softSlot, null!);
             _context.OMSetRenderTargets(_renderTargetView!, _depthStencilView);
         }
-        // back to the solid pass's state for whatever draws next
         _context.RSSetState(_rasterizerState);
         _context.OMSetBlendState(_blendState);
         _context.OMSetDepthStencilState(

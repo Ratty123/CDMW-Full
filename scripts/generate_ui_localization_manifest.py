@@ -207,6 +207,8 @@ _PYTHON_SINKS = {
     "insertHtml",
     "insertPlainText",
     "log",
+    "_log_progress",
+    "_resolve_package_output_path",
     "on_log",
     "progress",
     "question",

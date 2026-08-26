@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 import math
 import sys
-import time
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QEvent, QObject, QRunnable, QThreadPool, Qt, Signal
-from PySide6.QtGui import QImage, QResizeEvent
+from PySide6.QtCore import QEvent, QObject, QThreadPool, Qt, Signal
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -33,79 +32,19 @@ from cdmw.services.mesh_dotnet_experiment import (
     MeshDotNetExperimentPackage,
     resolve_mesh_dotnet_experiment_editor,
 )
-from cdmw.services.mesh_dotnet_preview_package import build_dotnet_preview_prewarm_package
-from cdmw.services.mesh_dotnet_runtime_status import mesh_dotnet_provenance_file_sha256
 from cdmw.ui.preview.dotnet_session import DotNetPreviewSessionController
+from cdmw.ui.preview.dotnet_host_prewarm import DotNetPreviewPrewarmTask as _DotNetPreviewPrewarmTask
+from cdmw.ui.preview.dotnet_host_lifecycle import DotNetPreviewHostLifecycleMixin
+from cdmw.ui.preview.dotnet_host_render_tuning import render_tuning_payloads
 from cdmw.ui.preview.dotnet_host_protocol import DotNetPreviewHostProtocolMixin
+from cdmw.ui.preview.dotnet_host_placement import (
+    apply_placement_to_editable_role as _apply_placement_to_editable_role,
+    placement_matrix as _placement_matrix,
+)
 from cdmw.ui.preview.dotnet_host_values import _indices, _triple
 from cdmw.ui.preview.profile import DotNetPreviewProfile
 
-class _DotNetPreviewPrewarmSignals(QObject):
-    completed = Signal(object)
-
-
-class _DotNetPreviewPrewarmTask(QRunnable):
-    def __init__(self, cache_root: Path, executable: Path | None = None) -> None:
-        super().__init__()
-        self.cache_root = Path(cache_root)
-        self.executable = Path(executable) if executable else None
-        self.signals = _DotNetPreviewPrewarmSignals()
-
-    def _seed_provenance_hashes(self) -> None:
-        """Warm the provenance digest cache while already off the UI thread.
-
-        Launching the helper verifies its SHA-256 on the UI thread; for the
-        packaged single-file executable that is a >150 MB read. Hashing here
-        makes the launch-time check a cache hit.
-        """
-
-        executable = self.executable
-        if executable is None or not executable.is_file():
-            return
-        try:
-            mesh_dotnet_provenance_file_sha256(executable)
-            shader_path = executable.parent / "D3D11MaterialShaders.hlsl"
-            if shader_path.is_file():
-                mesh_dotnet_provenance_file_sha256(shader_path)
-        except OSError:
-            pass
-
-    def run(self) -> None:
-        """Never let anything escape: this is a Python override of a C++ virtual.
-
-        The task runs on the *global* thread pool and nothing waits for it, so it
-        can outlive the host that started it. `self.signals` is then a deleted
-        QObject and the emit raises "Internal C++ object already deleted" --
-        which was outside the guard below, so it escaped `run()`. PySide6 reports
-        that as `Error calling Python override of QRunnable::run()` and the
-        process dies, in whatever unrelated test happens to be running by then.
-        A prewarm is best-effort by definition; nothing here is worth a crash.
-        """
-
-        started_at = time.perf_counter()
-        try:
-            self._seed_provenance_hashes()
-            package = build_dotnet_preview_prewarm_package(self.cache_root)
-            result = {
-                "package": package,
-                "package_ms": (time.perf_counter() - started_at) * 1000.0,
-                "error": "",
-            }
-        except Exception as exc:  # noqa: BLE001 - see the docstring
-            result = {
-                "package": None,
-                "package_ms": (time.perf_counter() - started_at) * 1000.0,
-                "error": str(exc),
-            }
-        try:
-            self.signals.completed.emit(result)
-        except RuntimeError:
-            # The host went away while this was queued. Its result is now
-            # nobody's news, and there is no one left to tell.
-            return
-
-
-class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
+class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostProtocolMixin, QFrame):
     """Native-window host plus compatibility-facing .NET presentation API."""
 
     view_state_changed = Signal(float, bool)
@@ -529,73 +468,13 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         )
 
     def set_render_tuning(self, settings: object) -> bool:
-        # Resolved here rather than on the wire: the helper tests pan before
-        # orbit, so a colliding pair would leave orbit silently dead instead of
-        # reporting a conflict.
-        camera_orbit_modifier, camera_pan_modifier = resolve_camera_bindings(
-            getattr(settings, "camera_orbit_modifier", None),
-            getattr(settings, "camera_pan_modifier", None),
+        quality, cloth = render_tuning_payloads(
+            settings,
+            self._overlay_state.get("cloth", {}),
         )
-        quality = {
-            "max_anisotropy": int(getattr(settings, "max_anisotropy", 16) or 16),
-            "d3d11_mip_lod_bias": float(getattr(settings, "d3d11_mip_lod_bias", -2.0)),
-            "d3d11_background_color": str(getattr(settings, "d3d11_background_color", "") or ""),
-            "d3d11_grid_color": str(getattr(settings, "d3d11_grid_color", "") or ""),
-            "d3d11_wire_color": str(getattr(settings, "d3d11_wire_color", "") or ""),
-            "d3d11_vertex_color": str(getattr(settings, "d3d11_vertex_color", "") or ""),
-            "d3d11_grid_spacing_scale": float(getattr(settings, "d3d11_grid_spacing_scale", 1.0) or 1.0),
-            "d3d11_grid_line_count": int(getattr(settings, "d3d11_grid_line_count", 10) or 10),
-            "dotnet_view_mode": str(getattr(settings, "d3d11_view_mode", "lit") or "lit"),
-            "d3d11_cull_back_faces": bool(getattr(settings, "d3d11_cull_back_faces", False)),
-            "d3d11_light_azimuth_degrees": float(getattr(settings, "d3d11_light_azimuth_degrees", -10.0)),
-            "d3d11_light_elevation_degrees": float(getattr(settings, "d3d11_light_elevation_degrees", 0.0)),
-            "d3d11_normal_y_mode": str(getattr(settings, "d3d11_normal_y_mode", "asset") or "asset"),
-            "d3d11_ao_strength": float(getattr(settings, "d3d11_ao_strength", 0.45)),
-            "d3d11_roughness_bias": float(getattr(settings, "d3d11_roughness_bias", -0.04)),
-            "d3d11_metalness_scale": float(getattr(settings, "d3d11_metalness_scale", 1.45)),
-            "d3d11_environment_strength": float(getattr(settings, "d3d11_environment_strength", 0.62)),
-            "d3d11_emissive_gain": float(getattr(settings, "d3d11_emissive_gain", 2.2)),
-            "d3d11_tone_exposure": float(getattr(settings, "d3d11_tone_exposure", 1.0)),
-            "d3d11_tone_contrast": float(getattr(settings, "d3d11_tone_contrast", 1.08)),
-            "d3d11_tone_gamma": float(getattr(settings, "d3d11_tone_gamma", 0.92)),
-            "d3d11_texture_address_mode": str(getattr(settings, "d3d11_texture_address_mode", "wrap") or "wrap"),
-            "ambient_strength": float(getattr(settings, "ambient_strength", 0.84) or 0.84),
-            "diffuse_wrap_bias": float(getattr(settings, "diffuse_wrap_bias", 0.58) or 0.58),
-            "diffuse_light_scale": float(getattr(settings, "diffuse_light_scale", 0.62) or 0.62),
-            "specular_base": float(getattr(settings, "specular_base", 0.055) or 0.055),
-            "specular_max": float(getattr(settings, "specular_max", 0.52) or 0.52),
-            "shininess_max": float(getattr(settings, "shininess_max", 152.0) or 152.0),
-            "orbit_sensitivity": float(getattr(settings, "orbit_sensitivity", 0.22) or 0.22),
-            "pan_sensitivity": float(getattr(settings, "pan_sensitivity", 0.60) or 0.60),
-            "invert_orbit_x": bool(getattr(settings, "invert_orbit_x", False)),
-            "invert_orbit_y": bool(getattr(settings, "invert_orbit_y", False)),
-            "invert_pan_x": bool(getattr(settings, "invert_pan_x", False)),
-            "invert_pan_y": bool(getattr(settings, "invert_pan_y", False)),
-            "camera_orbit_modifier": camera_orbit_modifier,
-            "camera_pan_modifier": camera_pan_modifier,
-            "camera_middle_drag": normalize_camera_drag(
-                getattr(settings, "camera_middle_drag", None), DEFAULT_MIDDLE_DRAG
-            ),
-            "camera_right_drag": normalize_camera_drag(
-                getattr(settings, "camera_right_drag", None), DEFAULT_RIGHT_DRAG
-            ),
-        }
         display = dict(self._presentation_state.get("display", {}))
         display["quality"] = quality
         self._presentation_state["display"] = display
-        cloth = dict(self._overlay_state.get("cloth", {}))
-        cloth.update(
-            {
-                "enabled": bool(getattr(settings, "enable_tool_pbd_cloth_preview", False)),
-                "paused": bool(getattr(settings, "pause_tool_pbd_cloth_preview", False)),
-                "wind_strength": float(getattr(settings, "tool_pbd_cloth_wind_strength", 0.0) or 0.0),
-                "wind_direction_degrees": float(
-                    getattr(settings, "tool_pbd_cloth_wind_direction_degrees", 35.0) or 35.0
-                ),
-                "show_pins": bool(getattr(settings, "show_tool_pbd_cloth_pins", False)),
-                "show_colliders": bool(getattr(settings, "show_tool_pbd_cloth_colliders", False)),
-            }
-        )
         self._overlay_state["cloth"] = cloth
         presentation_ok = self._remember_presentation_state({"display": {"quality": quality}})
         overlay_ok = self.controller.remember_state("overlay", "overlay_state_update", self._overlay_state)
@@ -1109,157 +988,4 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         self.view_state_changed.emit(self._zoom_factor, self._fit_to_view)
         self.view_state_payload_changed.emit(self.view_state_snapshot())
 
-    def hold_package_lease(self, package_dir: Path) -> bool:
-        return self.controller.hold_package_lease(package_dir)
-
-    def release_package_lease(self, package_dir: Path) -> None:
-        self.controller.release_package_lease(package_dir)
-
-    def retain_package_lease(self, package_dir: Path) -> None:
-        self.controller.retain_package_lease(package_dir)
-
-    def release_package_leases(self) -> None:
-        self.controller.release_package_leases()
-
-    # Compatibility-only storage names while callers migrate to the generic lease API.
-    hold_native_preview_package_cache_lease = hold_package_lease
-    release_native_preview_package_cache_lease = release_package_lease
-    retain_native_preview_package_cache_lease = retain_package_lease
-    release_native_preview_package_cache_leases = release_package_leases
-
-    def last_mesh_edit_send_metrics(self) -> dict[str, object]:
-        return {
-            "profile": self._profile.value,
-            "process_generation": self.controller.process_generation,
-            "package_generation": self.controller.package_generation,
-            "applied_package_generation": self.controller.applied_package_generation,
-        }
-
-    def showEvent(self, event: object) -> None:  # type: ignore[override]
-        super().showEvent(event)  # type: ignore[arg-type]
-        self.controller.set_visible(True)
-
-    def hideEvent(self, event: object) -> None:  # type: ignore[override]
-        self.controller.set_visible(False)
-        super().hideEvent(event)  # type: ignore[arg-type]
-
-    def closeEvent(self, event: object) -> None:  # type: ignore[override]
-        if self._terminate_on_close:
-            self.controller.shutdown()
-        else:
-            self.controller.deactivate()
-        super().closeEvent(event)  # type: ignore[arg-type]
-
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        super().resizeEvent(event)
-        self._status_panel.setGeometry(self.rect())
-        self._resident_banner.setGeometry(8, 8, max(0, self.width() - 16), 58)
-        self._sync_embedded_child_geometry()
-
 __all__ = ["DotNetPreviewHostFrame"]
-
-
-def _placement_matrix(translation, rotation_degrees, scale_xyz) -> list:
-    """S * Rx * Ry * Rz * T in the helper's row-vector convention (translation in the
-    last row): scale, then the rotations about x, y and z in that order, then the
-    offset. That is the helper's own manual placement composition for an authoritative
-    scene (`ManualLinearMatrix`, what a gizmo drag rebuilds live) and the static
-    replacement pipeline's `_rotate_xyz`, so a placement drawn here is the one a build
-    applies."""
-
-    import math
-
-    sx, sy, sz = (float(v) for v in scale_xyz)
-    ax, ay, az = (math.radians(float(v)) for v in rotation_degrees[:3])
-    cx, sx_ = math.cos(ax), math.sin(ax)
-    cy, sy_ = math.cos(ay), math.sin(ay)
-    cz, sz_ = math.cos(az), math.sin(az)
-    rx = ((1.0, 0.0, 0.0), (0.0, cx, sx_), (0.0, -sx_, cx))
-    ry = ((cy, 0.0, -sy_), (0.0, 1.0, 0.0), (sy_, 0.0, cy))
-    rz = ((cz, sz_, 0.0), (-sz_, cz, 0.0), (0.0, 0.0, 1.0))
-
-    def mul(a, b):
-        return tuple(tuple(sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)) for i in range(3))
-
-    r = mul(mul(rx, ry), rz)
-    rows = [
-        [sx * r[0][0], sx * r[0][1], sx * r[0][2], 0.0],
-        [sy * r[1][0], sy * r[1][1], sy * r[1][2], 0.0],
-        [sz * r[2][0], sz * r[2][1], sz * r[2][2], 0.0],
-        [float(translation[0]), float(translation[1]), float(translation[2]), 1.0],
-    ]
-    return [value for row in rows for value in row]
-
-
-def _apply_placement_to_editable_role(scene_state: dict, placement: Mapping[str, Sequence[float]]) -> None:
-    """Write the placement into `roles.editable.model_matrix` (and its world bounds from
-    the local bounds remembered on the first call, or given through
-    `_editable_local_bounds`), and move `placement_pivot` with it (the gizmo sits there:
-    the source anchor under the placement, the model's origin when the scene's automatic
-    alignment names no anchor), when the scene state has that role."""
-
-    roles = scene_state.get("roles")
-    editable = roles.get("editable") if isinstance(roles, dict) else None
-    if not isinstance(editable, dict):
-        return
-    translation = _triple(tuple(placement["translation"]), (0.0, 0.0, 0.0))
-    manual_matrix = _placement_matrix((0.0, 0.0, 0.0), placement["rotation_degrees"], placement["scale"])
-    alignment = scene_state.get("automatic_alignment")
-    anchor = _triple(tuple(alignment.get("source_anchor", ()) or ()), (0.0, 0.0, 0.0)) if isinstance(alignment, Mapping) else (0.0, 0.0, 0.0)
-    automatic_values = alignment.get("model_matrix") if isinstance(alignment, Mapping) else None
-    try:
-        automatic = [float(value) for value in automatic_values] if isinstance(automatic_values, Sequence) else []
-    except (TypeError, ValueError):
-        automatic = []
-    if len(automatic) == 16:
-        # Row-vector scene composition is automatic alignment followed by the manual
-        # scale/X/Y/Z suffix. Keep the automatic source anchor at its acknowledged pivot
-        # while that suffix changes, exactly as NetSceneState does during a live drag.
-        matrix = [0.0] * 16
-        for row in range(3):
-            for column in range(3):
-                matrix[row * 4 + column] = sum(
-                    automatic[row * 4 + index] * manual_matrix[index * 4 + column]
-                    for index in range(3)
-                )
-        matrix[15] = 1.0
-        automatic_pivot = (
-            anchor[0] * automatic[0] + anchor[1] * automatic[4] + anchor[2] * automatic[8] + automatic[12],
-            anchor[0] * automatic[1] + anchor[1] * automatic[5] + anchor[2] * automatic[9] + automatic[13],
-            anchor[0] * automatic[2] + anchor[1] * automatic[6] + anchor[2] * automatic[10] + automatic[14],
-        )
-        pivot = tuple(automatic_pivot[index] + translation[index] for index in range(3))
-        matrix[12] = pivot[0] - (anchor[0] * matrix[0] + anchor[1] * matrix[4] + anchor[2] * matrix[8])
-        matrix[13] = pivot[1] - (anchor[0] * matrix[1] + anchor[1] * matrix[5] + anchor[2] * matrix[9])
-        matrix[14] = pivot[2] - (anchor[0] * matrix[2] + anchor[1] * matrix[6] + anchor[2] * matrix[10])
-    else:
-        matrix = _placement_matrix(translation, placement["rotation_degrees"], placement["scale"])
-        pivot = (
-            anchor[0] * matrix[0] + anchor[1] * matrix[4] + anchor[2] * matrix[8] + matrix[12],
-            anchor[0] * matrix[1] + anchor[1] * matrix[5] + anchor[2] * matrix[9] + matrix[13],
-            anchor[0] * matrix[2] + anchor[1] * matrix[6] + anchor[2] * matrix[10] + matrix[14],
-        )
-    scene_state["placement_pivot"] = list(pivot)
-    local = scene_state.get("_editable_local_bounds")
-    if local is None:
-        bounds = editable.get("world_bounds")
-        current = editable.get("model_matrix")
-        identity = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-        if isinstance(bounds, dict) and (not isinstance(current, list) or [round(float(v), 6) for v in current] == identity):
-            local = {"min": list(bounds.get("min", (0.0, 0.0, 0.0))), "max": list(bounds.get("max", (0.0, 0.0, 0.0)))}
-            scene_state["_editable_local_bounds"] = local
-    editable["model_matrix"] = matrix
-    if isinstance(local, dict):
-        lo, hi = local["min"], local["max"]
-        corners = [(x, y, z) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
-        moved = []
-        for x, y, z in corners:
-            moved.append((
-                x * matrix[0] + y * matrix[4] + z * matrix[8] + matrix[12],
-                x * matrix[1] + y * matrix[5] + z * matrix[9] + matrix[13],
-                x * matrix[2] + y * matrix[6] + z * matrix[10] + matrix[14],
-            ))
-        editable["world_bounds"] = {
-            "min": [min(c[i] for c in moved) for i in range(3)],
-            "max": [max(c[i] for c in moved) for i in range(3)],
-        }

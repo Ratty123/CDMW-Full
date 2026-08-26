@@ -72,6 +72,7 @@ MESH_WORKFLOW_EXPORTS.update(
 MESH_WORKFLOW_EXPORTS.update(
     {
         "ParsedMesh": ("cdmw.modding.mesh_parser", "ParsedMesh"),
+        "parse_pac": ("cdmw.modding.mesh_parser", "parse_pac"),
         "parse_mesh": ("cdmw.modding.mesh_parser", "parse_mesh"),
         "SCENE_IMPORT_EXTENSIONS": ("cdmw.modding.scene_importer", "SCENE_IMPORT_EXTENSIONS"),
         "SCENE_TEXTURE_SOURCE_EXTENSIONS": ("cdmw.modding.scene_importer", "SCENE_TEXTURE_SOURCE_EXTENSIONS"),
@@ -107,6 +108,7 @@ MESH_WORKFLOW_EXPORTS.update(
         "write_complete_swap_calibrated_material_profile": ("cdmw.modding.material_replacer", "write_complete_swap_calibrated_material_profile"),
         "assert_mesh_topology_unchanged": ("cdmw.modding.mesh_deformer", "assert_mesh_topology_unchanged"),
         "clone_mesh_for_editing": ("cdmw.modding.mesh_deformer", "clone_mesh_for_editing"),
+        "refresh_mesh_totals": ("cdmw.modding.mesh_totals", "refresh_mesh_totals"),
         "grow_vertex_selection": ("cdmw.modding.mesh_deformer", "grow_vertex_selection"),
         "invert_vertex_selection": ("cdmw.modding.mesh_deformer", "invert_vertex_selection"),
         "mesh_topology_signature": ("cdmw.modding.mesh_deformer", "mesh_topology_signature"),

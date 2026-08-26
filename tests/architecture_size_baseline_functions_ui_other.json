@@ -12,14 +12,14 @@
     "cdmw/ui/research/tab.py::ResearchTab.__init__": 214,
     "cdmw/ui/research/tab_builders.py::build_archive_tab": 481,
     "cdmw/ui/safe_upscale_wizard.py::SafeUpscaleWizard._build_ui": 221,
-    "cdmw/ui/settings_tab.py::SettingsTab.__init__": 1005,
+    "cdmw/ui/settings_tab.py::SettingsTab.__init__": 1006,
     "cdmw/ui/settings_tab.py::SettingsTab._read_model_preview_render_settings": 151,
-    "cdmw/ui/shell/about_documentation_de.py::AboutDocumentationGermanMixin._build_about_document_for_german": 518,
-    "cdmw/ui/shell/about_documentation_en.py::AboutDocumentationEnglishMixin._build_about_sections": 639,
-    "cdmw/ui/shell/about_documentation_es.py::AboutDocumentationSpanishMixin._build_about_document_for_spanish": 519,
+    "cdmw/ui/shell/about_documentation_de.py::AboutDocumentationGermanMixin._build_about_document_for_german": 511,
+    "cdmw/ui/shell/about_documentation_en.py::AboutDocumentationEnglishMixin._build_about_sections": 614,
+    "cdmw/ui/shell/about_documentation_es.py::AboutDocumentationSpanishMixin._build_about_document_for_spanish": 512,
     "cdmw/ui/shell/app_window.py::run_gui": 482,
-    "cdmw/ui/shell/signal_wiring.py::ShellSignalWiringMixin._connect_shell_signals": 190,
-    "cdmw/ui/shell/window_runtime_state.py::ShellWindowRuntimeStateMixin._initialize_archive_runtime_state": 263,
+    "cdmw/ui/shell/signal_wiring.py::ShellSignalWiringMixin._connect_shell_signals": 181,
+    "cdmw/ui/shell/window_runtime_state.py::ShellWindowRuntimeStateMixin._initialize_archive_runtime_state": 268,
     "cdmw/ui/startup_splash_host.py::run_startup_splash_host": 464,
     "cdmw/ui/text_search/tab.py::TextSearchTab.__init__": 332,
     "cdmw/ui/texture_editor_tab.py::TextureEditorTab.__init__": 1305,
@@ -30,6 +30,6 @@
     "cdmw/ui/texture_workflow/editor_refresh_ui.py::TextureEditorRefreshUiMixin._refresh_ui": 228,
     "cdmw/ui/texture_workflow/editor_ui_shell.py::TextureEditorUiShellMixin._connect_signals": 208,
     "cdmw/ui/texture_workflow/setup_panel.py::TextureWorkflowSetupPanelMixin.open_ncnn_model_catalog": 239,
-    "cdmw/ui/themes.py::build_app_stylesheet": 588
+    "cdmw/ui/themes.py::build_app_stylesheet": 632
   }
 }

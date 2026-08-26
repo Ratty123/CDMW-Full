@@ -27,7 +27,7 @@ from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel, intro_label, tone_color
 # optional group picker inside that page; its own list remains scrollable when there
 # are more groups than the compact viewport can show.
 _COMPACT_PAGE_HEIGHT = 650
-_COMPACT_GROUP_LIST_HEIGHT = 140
+_COMPACT_GROUP_LIST_HEIGHT = 120
 
 
 class PlacementPanel(QGroupBox):

@@ -36,6 +36,8 @@ def test_archive_workflow_service_is_cached_lazy_and_preserves_owner_identity() 
         "build_prefab_attachment_profile_patch",
         "build_character_swap_plan",
         "ArchiveNameSearchIndex",
+        "parse_archive_search_query",
+        "archive_name_search_text_match",
         "apply_prefab_edit_json",
     ):
         module_name, attribute_name = exports[name]

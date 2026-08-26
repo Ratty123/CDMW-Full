@@ -79,10 +79,17 @@ class CompactActivityDrawer(QFrame):
         self.clear_button.clicked.connect(self._clear_current_view)
         self.copy_button.clicked.connect(self._copy_current_view)
         self.tabs.currentChanged.connect(self._update_action_state)
-        history.changed.connect(lambda _event: self._refresh_timer.start())
+        history.changed.connect(self._schedule_activity_refresh)
         history.cleared.connect(self._refresh_activity_text)
         self._refresh_activity_text()
         self._update_action_state()
+
+    def _schedule_activity_refresh(self, _event: object) -> None:
+        if self.isVisible():
+            self._refresh_timer.stop()
+            self._refresh_activity_text()
+            return
+        self._refresh_timer.start()
 
     def _refresh_activity_text(self) -> None:
         self.activity_view.setPlainText(self._history.formatted_text())

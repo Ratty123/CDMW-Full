@@ -8,7 +8,6 @@ import shutil
 import json
 import os
 import tempfile
-import hashlib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass, replace
 from pathlib import Path
@@ -43,6 +42,10 @@ from cdmw.workers.mesh_editor_aux_workers import (
     MeshExportValidationWorker,
     MeshFileSessionLoadWorker,
     MeshTextureSourceResolveWorker,
+)
+from cdmw.workers.mesh_editor_export_support import (
+    artifact_row as _artifact_row,
+    texture_artifact_name as _texture_artifact_name,
 )
 from cdmw.workers.mesh_export_readback import readback_editable_package_metadata
 from cdmw.workers.mesh_dotnet_material_update_worker import MeshDotNetMaterialUpdateWorker
@@ -88,26 +91,6 @@ def _wait_for_texture_updates(
             raise RuntimeError("resident texture updates did not become idle before export")
         if waiter(min(0.05, remaining)):
             return
-
-
-def _artifact_row(path: Path, root: Path, role: str, **extra: object) -> dict[str, object]:
-    with path.open("rb") as handle:
-        digest = hashlib.file_digest(handle, "sha256").hexdigest()
-    return {
-        "role": str(role),
-        "path": path.relative_to(root).as_posix(),
-        "size": int(path.stat().st_size),
-        "sha256": digest,
-        **extra,
-    }
-
-
-def _texture_artifact_name(resource: MeshExportTextureSnapshot) -> str:
-    digest = hashlib.sha256(
-        f"{resource.resource_id}\0{resource.channel}".encode("utf-8", errors="replace")
-    ).hexdigest()[:16]
-    semantic = "".join(ch if ch.isalnum() else "_" for ch in resource.channel).strip("_") or "base"
-    return f"{semantic}_{digest}.dds"
 
 
 def _encode_bgra_snapshot_dds(

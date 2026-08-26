@@ -191,22 +191,7 @@ internal sealed partial class D3D11MaterialViewport
                 bitmap.UnlockBits(bitmapData);
             }
 
-            var fullPath = Path.GetFullPath(outputPath);
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException("Capture output has no parent directory."));
-            var temporaryPath = fullPath + $".{Guid.NewGuid():N}.tmp";
-            try
-            {
-                bitmap.Save(temporaryPath, ImageFormat.Png);
-                File.Move(temporaryPath, fullPath, overwrite: true);
-            }
-            finally
-            {
-                if (File.Exists(temporaryPath))
-                {
-                    File.Delete(temporaryPath);
-                }
-            }
-            sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fullPath))).ToLowerInvariant();
+            sha256 = SaveCaptureBitmap(bitmap, outputPath);
             renderedCamera = new D3D11RenderedCameraEvidence(
                 "editable",
                 cameraForCapture.Yaw * 180.0 / Math.PI,
@@ -246,6 +231,28 @@ internal sealed partial class D3D11MaterialViewport
             }
             _offscreenCaptureSurfaceBytesEstimate = 0;
         }
+    }
+
+    private static string SaveCaptureBitmap(Bitmap bitmap, string outputPath)
+    {
+        var fullPath = Path.GetFullPath(outputPath);
+        Directory.CreateDirectory(
+            Path.GetDirectoryName(fullPath)
+            ?? throw new InvalidOperationException("Capture output has no parent directory."));
+        var temporaryPath = fullPath + $".{Guid.NewGuid():N}.tmp";
+        try
+        {
+            bitmap.Save(temporaryPath, ImageFormat.Png);
+            File.Move(temporaryPath, fullPath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+        return Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fullPath))).ToLowerInvariant();
     }
 
     /// <summary>

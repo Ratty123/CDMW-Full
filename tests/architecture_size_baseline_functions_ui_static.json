@@ -1,14 +1,14 @@
 {
   "functions": {
     "cdmw/ui/archive_browser/static_replacement_dialog_custom_icon_callbacks.py::create_alignment_custom_icon_callbacks": 192,
-    "cdmw/ui/archive_browser/static_replacement_dialog_manual_profile_callbacks.py::create_manual_material_profile_runtime_callbacks": 421,
+    "cdmw/ui/archive_browser/static_replacement_dialog_manual_profile_callbacks.py::create_manual_material_profile_runtime_callbacks": 419,
     "cdmw/ui/archive_browser/static_replacement_dialog_material_authority_callbacks.py::_queue_material_resource_update": 287,
     "cdmw/ui/archive_browser/static_replacement_dialog_material_authority_callbacks.py::_queue_material_resource_update.completed": 232,
     "cdmw/ui/archive_browser/static_replacement_dialog_material_authority_callbacks.py::create_material_authority_adjustment_callbacks": 656,
     "cdmw/ui/archive_browser/static_replacement_dialog_mesh_diagnostics_callbacks.py::create_alignment_mesh_diagnostics_callbacks": 321,
     "cdmw/ui/archive_browser/static_replacement_dialog_mesh_diagnostics_callbacks.py::create_alignment_mesh_diagnostics_callbacks._refresh_mesh_editor_diagnostics": 198,
     "cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py::create_alignment_preview_shell_section": 823,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt.py::prompt_archive_static_replacement_options": 342,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt.py::prompt_archive_static_replacement_options": 333,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py::finish_static_replacement_prompt_open": 183,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py::create_static_replacement_prompt_setup": 477,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py::create_static_replacement_prompt_shell": 351,

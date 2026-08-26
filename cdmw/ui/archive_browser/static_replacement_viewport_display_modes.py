@@ -26,7 +26,7 @@ MESH_PREVIEW_DISPLAY_MODE_OPTIONS: tuple[tuple[str, str], ...] = (
 MESH_PREVIEW_COMPACT_DISPLAY_MODE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Solid", "textured"),
     ("Faces", "untextured_faces"),
-    ("Faces+W", "untextured_wire"),
+    ("Face+W", "untextured_wire"),
     ("Wire", "wire"),
     ("Verts", "vertices"),
     ("Wire+V", "wire_vertices"),

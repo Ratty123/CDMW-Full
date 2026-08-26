@@ -112,40 +112,7 @@ internal static class PackageCaptureProof
             }
             // frame the whole scene the way a freshly opened viewport does: the camera the
             // capture builds is the one on screen, so it has to be pointed first
-            var bounds = document.Bounds();
-            var focus = ValueFor(args, "--capture-focus");
-            if (string.Equals(focus, "framing", StringComparison.OrdinalIgnoreCase))
-            {
-                // what the dialog opens on: the framing bounds the package declares
-                bounds = (
-                    new Vec3(scene.FramingBoundsMinimum.X, scene.FramingBoundsMinimum.Y, scene.FramingBoundsMinimum.Z),
-                    new Vec3(scene.FramingBoundsMaximum.X, scene.FramingBoundsMaximum.Y, scene.FramingBoundsMaximum.Z));
-            }
-            else if (string.Equals(focus, "reference", StringComparison.OrdinalIgnoreCase)
-                && scene.ReferenceSubmeshCount > 0)
-            {
-                // what the dialog frames on: the item, not the effect's reach around it
-                var minimum = new Vec3(float.MaxValue, float.MaxValue, float.MaxValue);
-                var maximum = new Vec3(float.MinValue, float.MinValue, float.MinValue);
-                for (var index = scene.EditableSubmeshCount; index < document.Submeshes.Count; index++)
-                {
-                    foreach (var vertex in document.Submeshes[index].Vertices)
-                    {
-                        minimum = new Vec3(
-                            Math.Min(minimum.X, vertex.X),
-                            Math.Min(minimum.Y, vertex.Y),
-                            Math.Min(minimum.Z, vertex.Z));
-                        maximum = new Vec3(
-                            Math.Max(maximum.X, vertex.X),
-                            Math.Max(maximum.Y, vertex.Y),
-                            Math.Max(maximum.Z, vertex.Z));
-                    }
-                }
-                if (minimum.X <= maximum.X)
-                {
-                    bounds = (minimum, maximum);
-                }
-            }
+            var bounds = CaptureBounds(document, scene, ValueFor(args, "--capture-focus"));
             var center = new Vec3(
                 (bounds.Min.X + bounds.Max.X) * 0.5f,
                 (bounds.Min.Y + bounds.Max.Y) * 0.5f,
@@ -209,6 +176,48 @@ internal static class PackageCaptureProof
             Console.Error.WriteLine(exception.ToString());
             return 5;
         }
+    }
+
+    private static (Vec3 Min, Vec3 Max) CaptureBounds(
+        ObjDocument document,
+        NetSceneState scene,
+        string focus)
+    {
+        var bounds = document.Bounds();
+        if (string.Equals(focus, "framing", StringComparison.OrdinalIgnoreCase))
+        {
+            return (
+                new Vec3(
+                    scene.FramingBoundsMinimum.X,
+                    scene.FramingBoundsMinimum.Y,
+                    scene.FramingBoundsMinimum.Z),
+                new Vec3(
+                    scene.FramingBoundsMaximum.X,
+                    scene.FramingBoundsMaximum.Y,
+                    scene.FramingBoundsMaximum.Z));
+        }
+        if (!string.Equals(focus, "reference", StringComparison.OrdinalIgnoreCase)
+            || scene.ReferenceSubmeshCount <= 0)
+        {
+            return bounds;
+        }
+        var minimum = new Vec3(float.MaxValue, float.MaxValue, float.MaxValue);
+        var maximum = new Vec3(float.MinValue, float.MinValue, float.MinValue);
+        for (var index = scene.EditableSubmeshCount; index < document.Submeshes.Count; index++)
+        {
+            foreach (var vertex in document.Submeshes[index].Vertices)
+            {
+                minimum = new Vec3(
+                    Math.Min(minimum.X, vertex.X),
+                    Math.Min(minimum.Y, vertex.Y),
+                    Math.Min(minimum.Z, vertex.Z));
+                maximum = new Vec3(
+                    Math.Max(maximum.X, vertex.X),
+                    Math.Max(maximum.Y, vertex.Y),
+                    Math.Max(maximum.Z, vertex.Z));
+            }
+        }
+        return minimum.X <= maximum.X ? (minimum, maximum) : bounds;
     }
 
     private static bool HasFlag(string[] args, string name)

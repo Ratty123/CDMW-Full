@@ -5,8 +5,10 @@ its own identity, model, icon, stats, shop placement and item groups, then write
 it as a loose mod or install it.
 
 `state.py` is the editable draft and the pure helpers (stat grid, spec from
-draft). `controller.py` holds the draft, the read-only archive snapshot and the
-last plan. Every plan is pinned to a draft revision: changing any plan input
+draft). `controller.py` keeps the public controller, signals, draft and snapshot
+state; `controller_preview_mixin.py`, `controller_model_mixin.py` and
+`controller_task_mixin.py` own preview, model-authoring and worker-lifecycle
+behavior without changing that public class. Every plan is pinned to a draft revision: changing any plan input
 invalidates it, and a worker result from an older revision is discarded. The
 controller runs the snapshot, plan, export, install and model import through
 `cdmw/workers/new_item_workers.py` on one owned task lane. The effect metadata
@@ -126,9 +128,12 @@ and the same cancellable worker reads the template geometry and retains its boun
 centroid for later re-fit. Weapon-family paths use the grip/heavy-end fit; armour,
 accessories and other families keep a centred axis fit instead of being interpreted as
 weapons.
-`item_preview.py` publishes fitted geometry first, then upgrades a copied package with
-canonical materials without restarting the renderer, re-exporting geometry or resetting
-the camera. FBX conversion relinks an explicitly referenced missing image by exact basename
+`item_preview.py` owns the resident frame and publishes fitted geometry first;
+`item_preview_materials.py` owns placement-scene composition and the copied-package
+canonical-material upgrade, without restarting the renderer, re-exporting geometry or resetting
+the camera. `panels_model.py` builds the three-column surface while
+`panels_model_preview_mixin.py` owns its preview, placement, import and icon interactions.
+FBX conversion relinks an explicitly referenced missing image by exact basename
 from the extracted package's nearby texture folders; the shared preview then supplements an
 embedded base with clearly named Normal, AO, Roughness and Metallic maps without treating a
 Thickness map as colour. A textureless exported material still keeps its authored

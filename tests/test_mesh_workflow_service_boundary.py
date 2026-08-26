@@ -37,9 +37,11 @@ def test_mesh_workflow_service_preserves_owner_identity_and_is_lazy() -> None:
     from cdmw.services import mesh_workflow_service
 
     assert "cdmw.modding.mesh_native_core" not in sys.modules
-    from cdmw.modding import mesh_native_core, mesh_parser, scene_importer, static_mesh_replacer
+    from cdmw.modding import mesh_native_core, mesh_parser, mesh_totals, scene_importer, static_mesh_replacer
 
     assert mesh_workflow_service.ParsedMesh is mesh_parser.ParsedMesh
+    assert mesh_workflow_service.parse_pac is mesh_parser.parse_pac
+    assert mesh_workflow_service.refresh_mesh_totals is mesh_totals.refresh_mesh_totals
     assert mesh_workflow_service.SceneImportResult is scene_importer.SceneImportResult
     assert mesh_workflow_service.StaticSubmeshMapping is static_mesh_replacer.StaticSubmeshMapping
     assert mesh_workflow_service.native_mesh_core_available is mesh_native_core.native_mesh_core_available

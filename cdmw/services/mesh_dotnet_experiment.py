@@ -11,12 +11,11 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from uuid import uuid4
 from dataclasses import dataclass, asdict, replace
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from cdmw.core.atomic_file import atomic_copy_file, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.mesh.operations import (
-    mesh_edit_operations_from_dicts,
     mesh_edit_operations_to_dicts,
     validate_mesh_edit_operations,
 )
@@ -58,6 +57,13 @@ from cdmw.services.mesh_dotnet_runtime_status import (
     mesh_dotnet_material_parity_warnings,
     mesh_dotnet_renderer_blockers,
     write_mesh_dotnet_experiment_evaluation,
+)
+from cdmw.services.mesh_dotnet_experiment_output import (
+    dotnet_edit_operations_path as _dotnet_edit_operations_path,
+    ensure_output_sidecar as _ensure_output_sidecar,
+    load_dotnet_edit_operations as _load_dotnet_edit_operations,
+    obj_candidates_in_dir as _obj_candidates_in_dir,
+    resolve_package_output_path as _resolve_package_output_path,
 )
 
 
@@ -488,6 +494,65 @@ def _refuse_topology_changed_editable_package(mesh: ParsedMesh) -> None:
     )
 
 
+def _prepare_dotnet_scene_assets(
+    mesh: ParsedMesh,
+    reference_mesh: ParsedMesh | None,
+    package_dir: Path,
+    mesh_path: Path,
+    sidecar_payload: Mapping[str, object],
+    *,
+    include_material_resources: bool,
+) -> tuple:
+    editable_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
+    reference_count = (
+        len(tuple(getattr(reference_mesh, "submeshes", ()) or ()))
+        if reference_mesh is not None
+        else 0
+    )
+    scene_mesh = _build_dotnet_scene_mesh(mesh, reference_mesh)
+    scene_mesh_path = package_dir / "scene.obj"
+    scene_sidecar_path = package_dir / "scene.obj.meta.json"
+    if reference_mesh is None:
+        scene_mtl_path = package_dir / "scene.mtl"
+        mesh_obj_text = mesh_path.read_text(encoding="utf-8")
+        atomic_write_text(
+            scene_mesh_path,
+            mesh_obj_text.replace("mtllib mesh.mtl", "mtllib scene.mtl", 1),
+        )
+        atomic_copy_file(package_dir / "mesh.mtl", scene_mtl_path)
+        scene_sidecar_payload = dict(sidecar_payload)
+        scene_sidecar_payload["export_path"] = scene_mesh_path.name
+        scene_sidecar_payload["companion_filename"] = scene_mtl_path.name
+        atomic_write_text(scene_sidecar_path, json.dumps(scene_sidecar_payload, indent=2))
+    else:
+        scene_exported_paths = _export_dotnet_obj_paths(scene_mesh, package_dir, "scene")
+        if scene_mesh_path not in scene_exported_paths or not scene_mesh_path.is_file():
+            raise RuntimeError("Mesh .NET experiment package did not create scene.obj.")
+        if scene_sidecar_path not in scene_exported_paths or not scene_sidecar_path.is_file():
+            raise RuntimeError("Mesh .NET experiment package did not create scene.obj.meta.json.")
+        scene_sidecar_payload = json.loads(scene_sidecar_path.read_text(encoding="utf-8"))
+    if not isinstance(scene_sidecar_payload, dict):
+        raise RuntimeError("Mesh .NET experiment scene sidecar is not a JSON object.")
+    slot_indices = _scene_material_slot_indices(scene_sidecar_payload)
+    for scene_submesh_index, source in enumerate(tuple(getattr(scene_mesh, "submeshes", ()) or ())):
+        if scene_submesh_index < len(slot_indices) and slot_indices[scene_submesh_index] >= 0:
+            setattr(source, "preview_dotnet_scene_material_slot_index", slot_indices[scene_submesh_index])
+    material_signature = (
+        mesh_dotnet_material_input_signature(scene_mesh)
+        if include_material_resources
+        else "geometry_only"
+    )
+    return (
+        editable_count,
+        reference_count,
+        scene_mesh,
+        scene_mesh_path,
+        scene_sidecar_payload,
+        slot_indices,
+        material_signature,
+    )
+
+
 def build_mesh_dotnet_experiment_package(
     mesh: ParsedMesh,
     *,
@@ -506,14 +571,6 @@ def build_mesh_dotnet_experiment_package(
     include_material_resources: bool = True,
 ) -> MeshDotNetExperimentPackage:
     _refuse_topology_changed_editable_package(mesh)
-    # Geometry-first packages deliberately carry no texture resources. Hashing every
-    # source texture here delayed the first visible model by seconds while producing a
-    # signature that cannot be consumed until the material upgrade arrives.
-    material_signature = (
-        mesh_dotnet_material_input_signature(mesh)
-        if include_material_resources
-        else "geometry_only"
-    )
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_mesh_dotnet_experiment"
     package_dir = (
         Path(output_package_dir)
@@ -540,50 +597,21 @@ def build_mesh_dotnet_experiment_package(
     atomic_write_text(original_asset_hash_path, original_asset_hash)
     net_materials_path = package_dir / "net_materials.json"
 
-    editable_submesh_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
-    reference_submesh_count = len(tuple(getattr(reference_mesh, "submeshes", ()) or ())) if reference_mesh is not None else 0
-    scene_mesh = _build_dotnet_scene_mesh(mesh, reference_mesh)
-    scene_mesh_path = package_dir / "scene.obj"
-    scene_sidecar_path = package_dir / "scene.obj.meta.json"
-    if reference_mesh is None:
-        mesh_mtl_path = package_dir / "mesh.mtl"
-        scene_mtl_path = package_dir / "scene.mtl"
-        mesh_obj_text = mesh_path.read_text(encoding="utf-8")
-        atomic_write_text(
-            scene_mesh_path,
-            mesh_obj_text.replace("mtllib mesh.mtl", "mtllib scene.mtl", 1),
-        )
-        atomic_copy_file(mesh_mtl_path, scene_mtl_path)
-        scene_sidecar_payload = dict(sidecar_payload)
-        scene_sidecar_payload["export_path"] = scene_mesh_path.name
-        scene_sidecar_payload["companion_filename"] = scene_mtl_path.name
-        atomic_write_text(scene_sidecar_path, json.dumps(scene_sidecar_payload, indent=2))
-    else:
-        scene_exported_paths = _export_dotnet_obj_paths(scene_mesh, package_dir, "scene")
-        if scene_mesh_path not in scene_exported_paths or not scene_mesh_path.is_file():
-            raise RuntimeError("Mesh .NET experiment package did not create scene.obj.")
-        if scene_sidecar_path not in scene_exported_paths or not scene_sidecar_path.is_file():
-            raise RuntimeError("Mesh .NET experiment package did not create scene.obj.meta.json.")
-        scene_sidecar_payload = json.loads(scene_sidecar_path.read_text(encoding="utf-8"))
-    if not isinstance(scene_sidecar_payload, dict):
-        raise RuntimeError("Mesh .NET experiment scene sidecar is not a JSON object.")
-    scene_material_slot_indices = _scene_material_slot_indices(scene_sidecar_payload)
-    for scene_submesh_index, source in enumerate(
-        tuple(getattr(scene_mesh, "submeshes", ()) or ())
-    ):
-        if (
-            scene_submesh_index < len(scene_material_slot_indices)
-            and scene_material_slot_indices[scene_submesh_index] >= 0
-        ):
-            setattr(
-                source,
-                "preview_dotnet_scene_material_slot_index",
-                scene_material_slot_indices[scene_submesh_index],
-            )
-    material_signature = (
-        mesh_dotnet_material_input_signature(scene_mesh)
-        if include_material_resources
-        else "geometry_only"
+    (
+        editable_submesh_count,
+        reference_submesh_count,
+        scene_mesh,
+        scene_mesh_path,
+        scene_sidecar_payload,
+        scene_material_slot_indices,
+        material_signature,
+    ) = _prepare_dotnet_scene_assets(
+        mesh,
+        reference_mesh,
+        package_dir,
+        mesh_path,
+        sidecar_payload,
+        include_material_resources=include_material_resources,
     )
     try:
         _write_dotnet_material_manifest(
@@ -893,101 +921,6 @@ def import_mesh_dotnet_experiment_output(
     setattr(mesh, "_cdmw_edit_operations", mesh_edit_operations_to_dicts(operations))
     setattr(mesh, "_cdmw_dotnet_authority_contract", "dotnet_viewport_python_cpp_validation")
     return mesh
-
-
-def _resolve_package_output_path(
-    package: MeshDotNetExperimentPackage,
-    value: Path | str,
-    *,
-    label: str,
-) -> Path:
-    raw_value = str(value or "").strip()
-    if not raw_value or "\x00" in raw_value:
-        raise ValueError(f"Mesh .NET {label} path is invalid.")
-    normalized_value = raw_value.replace("\\", "/")
-    if ".." in PurePosixPath(normalized_value).parts:
-        raise ValueError(f"Mesh .NET {label} path contains traversal.")
-
-    try:
-        package_root = package.package_dir.resolve(strict=True)
-        output_root = package.output_dir.resolve(strict=True)
-        output_root.relative_to(package_root)
-    except OSError as exc:
-        raise ValueError("Mesh .NET package output directory is unavailable.") from exc
-    except ValueError as exc:
-        raise ValueError("Mesh .NET package output directory escapes its package root.") from exc
-    if not output_root.is_dir():
-        raise ValueError("Mesh .NET package output directory is unavailable.")
-
-    raw_path = Path(normalized_value).expanduser()
-    candidate = raw_path if raw_path.is_absolute() else output_root / raw_path
-    try:
-        resolved = candidate.resolve(strict=False)
-        resolved.relative_to(output_root)
-    except (OSError, ValueError) as exc:
-        raise ValueError(f"Mesh .NET {label} path escapes the package output directory.") from exc
-
-    input_paths = (package.mesh_path, package.scene_mesh_path)
-    for input_path in input_paths:
-        if input_path is None:
-            continue
-        try:
-            input_resolved = Path(input_path).resolve(strict=False)
-        except OSError:
-            input_resolved = Path(input_path)
-        physical_alias = False
-        try:
-            physical_alias = (
-                resolved.is_file()
-                and input_resolved.is_file()
-                and os.path.samefile(resolved, input_resolved)
-            )
-        except OSError:
-            pass
-        if resolved == input_resolved or physical_alias:
-            raise ValueError(f"Mesh .NET {label} path aliases an input OBJ.")
-    return resolved
-
-
-def _obj_candidates_in_dir(directory: Path) -> tuple[Path, ...]:
-    return (
-        directory / "mesh.obj",
-        directory / "edited_mesh.obj",
-        directory / "edited.obj",
-    )
-
-
-def _ensure_output_sidecar(package: MeshDotNetExperimentPackage, obj_path: Path) -> None:
-    contained_obj_path = _resolve_package_output_path(package, obj_path, label="edited OBJ")
-    sidecar_path = _resolve_package_output_path(
-        package,
-        Path(f"{contained_obj_path}.meta.json"),
-        label="edited OBJ sidecar",
-    )
-    if sidecar_path.is_file():
-        return
-    sidecar_path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_copy_file(package.obj_sidecar_path, sidecar_path)
-
-
-def _dotnet_edit_operations_path(
-    package: MeshDotNetExperimentPackage,
-    status_payload: Mapping[str, object] | None,
-) -> Path:
-    raw_value = str((status_payload or {}).get("edit_operations", "") or "").strip()
-    value = raw_value if raw_value else package.edit_operations_path
-    return _resolve_package_output_path(package, value, label="edit_operations")
-
-
-def _load_dotnet_edit_operations(path: Path) -> tuple[object, ...]:
-    payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    if isinstance(payload, dict):
-        payload = payload.get("operations", ())
-    if not isinstance(payload, list):
-        raise ValueError("Mesh .NET edit operations must be a JSON list.")
-    return mesh_edit_operations_from_dicts(payload)
-
-
 
 
 __all__ = [

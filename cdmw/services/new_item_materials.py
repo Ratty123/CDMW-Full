@@ -380,6 +380,80 @@ def glow_preview_mesh(mesh: object, glow: object = None) -> object:
     return result
 
 
+def _finish_plain_pbr_route(
+    *,
+    files: ModelFiles,
+    xml_key: str,
+    text: str,
+    bom: bool,
+    replacements: Mapping[str, PlainMaterial],
+    new_files: Mapping[str, bytes],
+    lines: list[str],
+    warnings: list[str],
+    encoded: list[str],
+) -> PlainPbrRoute:
+    if not replacements:
+        raise NewItemPlanError("the import owns no material wrapper with a base colour texture; nothing to route")
+    try:
+        result = rewrite_materials(text, replacements)
+    except PacXmlMaterialError as exc:
+        raise NewItemPlanError(f"plain-PBR route: {exc}") from exc
+    new_text = (_BOM if bom else "") + result.text
+    referenced = {
+        path.replace("\\", "/").casefold()
+        for wrapper in find_material_wrappers(result.text)
+        for path in wrapper.textures.values()
+    }
+    side: Dict[str, bytes] = {xml_key: new_text.encode("utf-8")}
+    dropped = []
+    for key, data in files.side_files.items():
+        if key == xml_key:
+            continue
+        if key.lower().endswith(".dds") and key.replace("\\", "/").casefold() not in referenced:
+            dropped.append(key)
+            continue
+        side[key] = data
+    side.update(new_files)
+    if dropped:
+        lines.append(f"{len(dropped)} Builder texture(s) no wrapper names any more dropped")
+    return PlainPbrRoute(
+        files=ModelFiles(
+            pac_data=files.pac_data,
+            side_files=side,
+            material_route=MaterialRoute.PLAIN_PBR.value,
+            notes=tuple(lines),
+            warnings=tuple(warnings),
+        ),
+        rewritten=tuple(result.rewritten),
+        lines=tuple(lines),
+        warnings=tuple(warnings),
+        encoded=tuple(encoded),
+    )
+
+
+def _plain_pbr_inputs(
+    files: ModelFiles,
+    sources: Mapping[str, SourceMaterialTextures],
+) -> tuple:
+    xml_keys = [key for key in files.side_files if key.lower().endswith(".pac_xml")]
+    if len(xml_keys) != 1:
+        raise NewItemPlanError(f"the import carries {len(xml_keys)} .pac_xml sidecar(s), not one")
+    xml_key = xml_keys[0]
+    text = files.side_files[xml_key].decode("utf-8", errors="replace")
+    bom = text.startswith(_BOM)
+    if bom:
+        text = text[len(_BOM):]
+    by_lower = {key.replace("\\", "/").casefold(): key for key in files.side_files}
+    wrappers = find_material_wrappers(text)
+    source_by_base: Dict[str, SourceMaterialTextures] = {}
+    for wrapper in wrappers:
+        source = sources.get(wrapper.submesh_name.casefold())
+        base = wrapper.textures.get("_baseColorTexture") or wrapper.textures.get("_overlayColorTexture")
+        if source is not None and base:
+            source_by_base.setdefault(base.replace("\\", "/").casefold(), source)
+    return xml_key, text, bom, by_lower, wrappers, source_by_base
+
+
 def route_plain_pbr(
     files: ModelFiles,
     *,
@@ -391,46 +465,13 @@ def route_plain_pbr(
     glow: object = None,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> PlainPbrRoute:
-    """Rewrite the wrappers the import owns to the plain shaders; see the module doc.
-
-    A wrapper is the import's when one of its textures is among `files.side_files`.
-    Its base colour is the Builder's (`_baseColorTexture`, else `_overlayColorTexture`),
-    its normal the Builder's `_normalTexture`; its `_sp` is encoded from
-    `sources[submesh].material` when given, else the Builder's `_detailMaskTexture`
-    mask.
-
-    Glow is not inherited. Its emissive is encoded from `sources[submesh].emissive` when
-    the model brought one; else, for a submesh whose own name or whose source material's
-    name is in `glow.parts`, a solid map in
-    `glow`'s colour and strength; else nothing, and the wrapper goes back to the plain
-    shader. The template's own emissive rides on a mask cut for the template's mesh, and
-    what the importer generates in its place is flat, so inheriting it lights the whole
-    model. Wrappers that share a base texture share a source. Side files no wrapper names
-    any more are dropped.
-    """
+    """Rewrite import-owned wrappers to the plain shaders described by this module."""
 
     sources = dict(sources or {})
     glow_parts = {str(name).casefold() for name in tuple(getattr(glow, "parts", ()) or ())}
     glow_color = str(getattr(glow, "hex_color", lambda: "#FFFFFFFF")() or "#FFFFFFFF")
     glow_intensity = float(getattr(glow, "intensity", 1.0) or 1.0)
-    xml_keys = [key for key in files.side_files if key.lower().endswith(".pac_xml")]
-    if len(xml_keys) != 1:
-        raise NewItemPlanError(f"the import carries {len(xml_keys)} .pac_xml sidecar(s), not one")
-    xml_key = xml_keys[0]
-    raw = files.side_files[xml_key]
-    text = raw.decode("utf-8", errors="replace")
-    bom = text.startswith(_BOM)
-    if bom:
-        text = text[len(_BOM):]
-    by_lower = {key.replace("\\", "/").casefold(): key for key in files.side_files}
-    wrappers = find_material_wrappers(text)
-    # a cloned section draws with its donor's textures; give it the donor's source too
-    source_by_base: Dict[str, SourceMaterialTextures] = {}
-    for wrapper in wrappers:
-        source = sources.get(wrapper.submesh_name.casefold())
-        base = wrapper.textures.get("_baseColorTexture") or wrapper.textures.get("_overlayColorTexture")
-        if source is not None and base:
-            source_by_base.setdefault(base.replace("\\", "/").casefold(), source)
+    xml_key, text, bom, by_lower, wrappers, source_by_base = _plain_pbr_inputs(files, sources)
     replacements: Dict[str, PlainMaterial] = {}
     new_files: Dict[str, bytes] = {}
     emissive_done: Dict[str, Tuple[str, str]] = {}
@@ -550,35 +591,16 @@ def route_plain_pbr(
         if emissive:
             parts.append(f"emissive {color} x{intensity:g}")
         lines.append(f"{wrapper.submesh_name}: {replacements[wrapper.submesh_name].shader}, " + ", ".join(parts))
-    if not replacements:
-        raise NewItemPlanError("the import owns no material wrapper with a base colour texture; nothing to route")
-    try:
-        result = rewrite_materials(text, replacements)
-    except PacXmlMaterialError as exc:
-        raise NewItemPlanError(f"plain-PBR route: {exc}") from exc
-    new_text = (_BOM if bom else "") + result.text
-    referenced = {path.replace("\\", "/").casefold() for w in find_material_wrappers(result.text) for path in w.textures.values()}
-    side: Dict[str, bytes] = {xml_key: new_text.encode("utf-8")}
-    dropped = []
-    for key, data in files.side_files.items():
-        if key == xml_key:
-            continue
-        if key.lower().endswith(".dds") and key.replace("\\", "/").casefold() not in referenced:
-            dropped.append(key)
-            continue
-        side[key] = data
-    side.update(new_files)
-    if dropped:
-        lines.append(f"{len(dropped)} Builder texture(s) no wrapper names any more dropped")
-    return PlainPbrRoute(
-        files=ModelFiles(
-            pac_data=files.pac_data, side_files=side, material_route=MaterialRoute.PLAIN_PBR.value,
-            notes=tuple(lines), warnings=tuple(warnings),
-        ),
-        rewritten=tuple(result.rewritten),
-        lines=tuple(lines),
-        warnings=tuple(warnings),
-        encoded=tuple(encoded),
+    return _finish_plain_pbr_route(
+        files=files,
+        xml_key=xml_key,
+        text=text,
+        bom=bom,
+        replacements=replacements,
+        new_files=new_files,
+        lines=lines,
+        warnings=warnings,
+        encoded=encoded,
     )
 
 

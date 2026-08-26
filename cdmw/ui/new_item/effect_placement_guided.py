@@ -59,9 +59,9 @@ class EffectPlacementGuidedMixin:
         self.preview_splitter = splitter
         splitter.addWidget(self._guided_viewport_panel(splitter))
         splitter.addWidget(self._guided_inspector_panel(splitter))
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        splitter.setSizes([600, 390])
+        splitter.setStretchFactor(0, 13)
+        splitter.setStretchFactor(1, 7)
+        splitter.setSizes([650, 340])
         root.addWidget(splitter, 1)
         self._hide_compatibility_controls()
 

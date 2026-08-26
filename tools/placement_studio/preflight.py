@@ -235,47 +235,12 @@ def _union(values: Iterable[Iterable[str]]) -> set:
     return out
 
 
-def run_preflight(
+def _check_operation_integrity(
     session: EditSession,
-    operation_ids: Sequence[str],
-    *,
-    units: Optional[Mapping[str, EquipmentUnit]] = None,
-    shared_socket_users: Optional[Mapping[str, Sequence[str]]] = None,
-    replacements: Sequence["carry.AnimationReplacement"] = (),
-) -> PackagePreflight:
-    """Check a selected set of operations against everything they declared.
-
-    `units` maps equipment-unit id to the resolved unit, so the family and linked-row checks
-    can be made against the item the user actually selected. `shared_socket_users` maps a
-    child socket to every descriptor row that references it in vanilla, which is what decides
-    whether an in-place edit is local or not.
-    """
-
-    wanted = list(dict.fromkeys(operation_ids))
-    units = dict(units or {})
-    shared_socket_users = {k: tuple(v) for k, v in (shared_socket_users or {}).items()}
-
-    all_operations = session.operations()
-    by_id = {op.operation_id: op for op in all_operations}
-    selected = [by_id[oid] for oid in wanted if oid in by_id]
-    missing = [oid for oid in wanted if oid not in by_id]
-
-    errors: List[Finding] = []
-    warnings: List[Finding] = []
-
-    for oid in missing:
-        errors.append(
-            Finding(
-                "unknown_operation",
-                f"Operation {oid} is not in the session history, so it cannot be packaged",
-                oid,
-            )
-        )
-
-    isolated = session.isolated_session(wanted)
-    plan = isolated.to_plan("package")
-    changed = changed_items(plan)
-
+    selected: Sequence[EditOperation],
+    wanted: Sequence[str],
+    errors: List[Finding],
+) -> None:
     # F2: the selected operations must not carry another operation's commands. Structurally
     # impossible through `isolated_session`; asserted because that is a claim about code.
     for operation in selected:
@@ -296,6 +261,10 @@ def run_preflight(
                     {"other": conflict.right})
         )
 
+def _check_operation_allowlists(
+    selected: Sequence[EditOperation],
+    errors: List[Finding],
+) -> None:
     # F2, per operation. The union below covers a deliberate multi-operation selection; this
     # covers the case the union cannot see — an operation that changed something its *own*
     # allowlist does not name, which is what a widened scope or a stale replay looks like.
@@ -357,6 +326,12 @@ def run_preflight(
                         )
                     )
 
+def _check_changed_allowlists(
+    changed: ChangedItems,
+    selected: Sequence[EditOperation],
+    units: Mapping[str, EquipmentUnit],
+    errors: List[Finding],
+) -> None:
     allowed_parts = _union(op.scope.allowed_descriptor_parts for op in selected)
     allowed_descriptor_files = _union(op.scope.allowed_descriptor_files for op in selected)
     allowed_socket_files = _union(op.scope.allowed_socket_files for op in selected)
@@ -442,6 +417,14 @@ def run_preflight(
                 )
             )
 
+def _check_operation_safety(
+    selected: Sequence[EditOperation],
+    units: Mapping[str, EquipmentUnit],
+    changed: ChangedItems,
+    shared_socket_users: Mapping[str, Sequence[str]],
+    errors: List[Finding],
+    warnings: List[Finding],
+) -> None:
     changed_parts = set(changed.all_parts())
     created = set(changed.all_created())
 
@@ -556,6 +539,11 @@ def run_preflight(
                 )
             )
 
+def _check_defined_routes(
+    isolated: EditSession,
+    selected: Sequence[EditOperation],
+    errors: List[Finding],
+) -> None:
     # F2: a route that references an undefined socket.
     defined = set(isolated.defined_sockets())
     for operation in selected:
@@ -572,8 +560,11 @@ def run_preflight(
                     )
                 )
 
-    # F3: scope and donor confirmations, from the replacement rows the dialog settled.
-    replacements = list(replacements)
+def _add_replacement_warnings(
+    changed: ChangedItems,
+    replacements: Sequence["carry.AnimationReplacement"],
+    warnings: List[Finding],
+) -> None:
     if replacements:
         for message in carry.risk_warnings(replacements):
             warnings.append(Finding("donor_risk", message))
@@ -585,13 +576,64 @@ def run_preflight(
             )
         )
 
+def run_preflight(
+    session: EditSession,
+    operation_ids: Sequence[str],
+    *,
+    units: Optional[Mapping[str, EquipmentUnit]] = None,
+    shared_socket_users: Optional[Mapping[str, Sequence[str]]] = None,
+    replacements: Sequence["carry.AnimationReplacement"] = (),
+) -> PackagePreflight:
+    """Check a selected set of operations against everything they declared.
+
+    `units` maps equipment-unit id to the resolved unit, so the family and linked-row checks
+    can be made against the item the user actually selected. `shared_socket_users` maps a
+    child socket to every descriptor row that references it in vanilla, which is what decides
+    whether an in-place edit is local or not.
+    """
+    wanted = list(dict.fromkeys(operation_ids))
+    units = dict(units or {})
+    shared_socket_users = {k: tuple(v) for k, v in (shared_socket_users or {}).items()}
+
+    all_operations = session.operations()
+    by_id = {op.operation_id: op for op in all_operations}
+    selected = [by_id[oid] for oid in wanted if oid in by_id]
+    missing = [oid for oid in wanted if oid not in by_id]
+
+    errors: List[Finding] = []
+    warnings: List[Finding] = []
+
+    for oid in missing:
+        errors.append(
+            Finding(
+                "unknown_operation",
+                f"Operation {oid} is not in the session history, so it cannot be packaged",
+                oid,
+            )
+        )
+
+    isolated = session.isolated_session(wanted)
+    plan = isolated.to_plan("package")
+    changed = changed_items(plan)
+
+    _check_operation_integrity(session, selected, wanted, errors)
+    _check_operation_allowlists(selected, errors)
+    _check_changed_allowlists(changed, selected, units, errors)
+    _check_operation_safety(
+        selected, units, changed, shared_socket_users, errors, warnings
+    )
+    _check_defined_routes(isolated, selected, errors)
+
+    replacement_rows = list(replacements)
+    _add_replacement_warnings(changed, replacement_rows, warnings)
+
     summary = _summarize(
         session,
         selected,
         wanted,
         changed,
         units=units,
-        replacements=replacements,
+        replacements=replacement_rows,
         shared_socket_users=shared_socket_users,
         payload_paths=tuple(sorted(isolated.preview())),
     )
