@@ -30,8 +30,8 @@ from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.models import ArchiveEntry
 from cdmw.services.fbx_blender_conversion import FBX_EXTENSION, convert_fbx_to_glb
-from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
-from cdmw.modding.static_mesh_types import StaticMeshReplacementOptions, StaticReplacementTransform, StaticTextureUvTransform
+from cdmw.services.preview_workflow_service import scene_import_normalizes_texture_v
+from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions, StaticReplacementTransform, StaticTextureUvTransform
 
 __all__ = [
     "ModelImportSource",
@@ -324,7 +324,7 @@ def bake_mesh(
     The copy keeps everything else: uvs, faces, bones, the preview texture attributes.
     ``origin`` selects the same fitted pivot Model & Placement and the final Builder use."""
 
-    from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+    from cdmw.services.mesh_workflow_service import clone_mesh_for_editing
 
     baked = clone_mesh_for_editing(mesh)
     m = placement.matrix(origin=origin)
@@ -738,7 +738,7 @@ def _fbx_converted_to_glb(
     itself, and Blender needs them there to carry them into the GLB.
     """
 
-    from cdmw.core.model_catalogue import safe_extract_zip
+    from cdmw.services.model_library_service import safe_extract_model_archive
     from cdmw.domain.cancellation import raise_if_cancelled
 
     inside = _fbx_inside(chosen)
@@ -746,7 +746,7 @@ def _fbx_converted_to_glb(
         source = chosen
     elif inside:
         root.mkdir(parents=True, exist_ok=True)
-        safe_extract_zip(chosen, root, stop_event=stop_event)
+        safe_extract_model_archive(chosen, root, stop_event=stop_event)
         source = root / inside
         if not source.is_file():
             source = next((path for path in sorted(root.rglob("*")) if path.suffix.casefold() == FBX_EXTENSION), source)
@@ -770,7 +770,7 @@ def load_model_import_source(
 
     from cdmw.services.mesh_workflow_service import import_scene_mesh_with_report
     from cdmw.services.preview_workflow_service import attach_scene_preview_textures, parsed_mesh_to_preview_model
-    from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
+    from cdmw.services.preview_workflow_service import scene_import_normalizes_texture_v
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.domain.library.models import IMPORTABLE_MODEL_EXTENSIONS
     from cdmw.services.mesh_dotnet_material_state import set_dotnet_preview_texture_flip_vertical
@@ -842,7 +842,7 @@ def build_placed_import(
     from dataclasses import replace as dc_replace
 
     from cdmw.services.preview_workflow_service import build_mesh_import_preview
-    from cdmw.modding.full_import_model_replacement import apply_full_import_model_replacement_preset
+    from cdmw.services.mesh_workflow_service import apply_full_import_model_replacement_preset
 
     options = dc_replace(
         apply_full_import_model_replacement_preset(),

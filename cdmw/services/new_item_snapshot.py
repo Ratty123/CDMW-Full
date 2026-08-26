@@ -348,6 +348,29 @@ def _parse_names_by_key(pair: TablePair) -> Mapping[int, str]:
     return names
 
 
+def _entries_by_path(
+    entries: Iterable[ArchiveEntry],
+    published: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+) -> Dict[str, ArchiveEntry]:
+    if published:
+        # Archive Browser already paid to normalize and group the complete listing.
+        # Retain the first mounted answer, matching the original setdefault behavior.
+        return {
+            str(path): candidates[0]
+            for path, candidates in published.items()
+            if candidates
+        }
+    indexed: Dict[str, ArchiveEntry] = {}
+    for entry in entries:
+        indexed.setdefault(str(entry.path).replace("\\", "/").strip("/").lower(), entry)
+    return indexed
+
+
+def _log_progress(callback: Optional[Callable[[str], None]], message: str) -> None:
+    if callback is not None:
+        callback(message)
+
+
 def build_snapshot(
     entries: Iterable[ArchiveEntry],
     *,
@@ -361,28 +384,12 @@ def build_snapshot(
     """Read and parse every table a new item touches. Seconds of work; run it off the UI thread."""
 
     read = read_entry or _default_reader
-    by_path: Dict[str, ArchiveEntry] = {}
-    if entries_by_normalized_path:
-        # Archive Browser already paid to normalize and group the complete listing.
-        # Reusing that published index avoids normalizing every path again when the
-        # studio opens; retain the first mounted answer, matching the old setdefault.
-        by_path = {
-            str(path): candidates[0]
-            for path, candidates in entries_by_normalized_path.items()
-            if candidates
-        }
-    else:
-        for entry in entries:
-            by_path.setdefault(str(entry.path).replace("\\", "/").strip("/").lower(), entry)
+    by_path = _entries_by_path(entries, entries_by_normalized_path)
     if not by_path:
         raise NewItemSnapshotError("no archive entries were given")
 
-    def log(message: str) -> None:
-        if on_log is not None:
-            on_log(message)
-
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
-    log("Reading ItemInfo...")
+    _log_progress(on_log, "Reading ItemInfo...")
     iteminfo = _table_pair(by_path, read, "iteminfo")
     table = parse_pabgh_table(iteminfo.header, payload=iteminfo.payload)
     spans = table.row_spans(len(iteminfo.payload))
@@ -396,7 +403,7 @@ def build_snapshot(
     keys_by_name = {row.string_key: key for key, row in rows.items()}
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
-    log("Reading StringInfo and the part-prefab table...")
+    _log_progress(on_log, "Reading StringInfo and the part-prefab table...")
     stringinfo = _table_pair(by_path, read, "stringinfo")
     texts = stringinfo_index(parse_stringinfo(stringinfo.payload, stringinfo.header, name="stringinfo"))
     pappt_entry = by_path.get(PAPPT_PATH)
@@ -405,7 +412,7 @@ def build_snapshot(
     pappt = parse_pappt(bytes(read(pappt_entry)), name=PAPPT_PATH)
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
-    log("Reading StoreInfo, ItemGroupInfo, StatusInfo and EquipTypeInfo...")
+    _log_progress(on_log, "Reading StoreInfo, ItemGroupInfo, StatusInfo and EquipTypeInfo...")
     storeinfo = _table_pair(by_path, read, "storeinfo")
     try:
         stores = parse_store_table(storeinfo.payload, storeinfo.header)
@@ -424,7 +431,7 @@ def build_snapshot(
         multichange_rows = {row.key: row for row in parse_multichange_table(multichange.payload, multichange.header)}
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
-    log("Reading the English localisation table...")
+    _log_progress(on_log, "Reading the English localisation table...")
     paloc_entries: Dict[str, ArchiveEntry] = {}
     paloc_candidates = (
         entries_by_extension.get(".paloc", ())
@@ -473,11 +480,11 @@ def build_snapshot(
     pathc: Optional[PathcTable] = None
     pathc_path = Path(iteminfo.payload_entry.pamt_path).parent.parent / PATHC_RELATIVE_PATH
     if pathc_path.is_file():
-        log("Reading the texture registry (meta/0.pathc)...")
+        _log_progress(on_log, "Reading the texture registry (meta/0.pathc)...")
         try:
             pathc = parse_pathc(pathc_path.read_bytes())
         except PathcError as exc:
-            log(f"The texture registry did not decode; new icons will not be registered: {exc}")
+            _log_progress(on_log, f"The texture registry did not decode; new icons will not be registered: {exc}")
     snapshot = NewItemSnapshot(
         entries=by_path,
         read_entry=read,
@@ -510,7 +517,7 @@ def build_snapshot(
     # the median implementation local: importing ``statistics`` after PySide starts was
     # most of this otherwise small cold path on current Python builds.
     snapshot.status_value_ranges()
-    log(f"Snapshot ready: {len(rows):,} items, {len(stores):,} stores, {len(item_groups):,} item groups, {len(paloc_entries)} languages.")
+    _log_progress(on_log, f"Snapshot ready: {len(rows):,} items, {len(stores):,} stores, {len(item_groups):,} item groups, {len(paloc_entries)} languages.")
     return snapshot
 
 

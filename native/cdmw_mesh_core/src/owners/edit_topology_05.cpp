@@ -378,6 +378,59 @@ SubmeshMeshEditResult run_bridge_edit_for_submesh(const JsonValue& item) {
     return result;
 }
 
+void smooth_subdivide_vertices(
+    SubmeshMeshEditResult& result,
+    const JsonValue& edit,
+    const std::set<int>& changed,
+    bool refine
+) {
+    if (!refine || changed.empty()) {
+        return;
+    }
+    const double strength = std::max(
+        0.0,
+        std::min(1.0, number_or(edit.get("smooth_strength"), number_or(edit.get("strength"), 0.5)))
+    );
+    const int iterations = std::max(
+        1,
+        std::min(12, int_or(edit.get("smooth_iterations"), int_or(edit.get("iterations"), 2)))
+    );
+    std::vector<Vec3> relax = result.vertices;
+    const std::vector<std::set<int>> adjacency = build_vertex_adjacency(result.vertices.size(), result.faces);
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        std::vector<Vec3> next = relax;
+        for (const int index : changed) {
+            if (index < 0 || static_cast<std::size_t>(index) >= adjacency.size()) {
+                continue;
+            }
+            const std::set<int>& neighbors = adjacency[static_cast<std::size_t>(index)];
+            if (neighbors.empty()) {
+                continue;
+            }
+            Vec3 sum{0.0, 0.0, 0.0};
+            int count = 0;
+            for (const int neighbor : neighbors) {
+                if (neighbor < 0 || static_cast<std::size_t>(neighbor) >= relax.size()) {
+                    continue;
+                }
+                sum = add_vec3(sum, relax[static_cast<std::size_t>(neighbor)]);
+                ++count;
+            }
+            if (count <= 0) {
+                continue;
+            }
+            const Vec3 avg = scale_vec3(sum, 1.0 / static_cast<double>(count));
+            const Vec3 vertex = relax[static_cast<std::size_t>(index)];
+            next[static_cast<std::size_t>(index)] = add_vec3(
+                vertex,
+                scale_vec3(sub_vec3(avg, vertex), strength)
+            );
+        }
+        relax = std::move(next);
+    }
+    result.vertices = std::move(relax);
+}
+
 SubmeshMeshEditResult run_subdivide_edit_for_submesh(const JsonValue& item, const JsonValue& edit, bool refine) {
     SubmeshMeshEditResult result;
     result.action = refine ? "refine_smooth" : "subdivide";
@@ -516,41 +569,7 @@ SubmeshMeshEditResult run_subdivide_edit_for_submesh(const JsonValue& item, cons
         result.added_faces += static_cast<int>(children.size()) - 1;
     }
 
-    if (refine && !changed.empty()) {
-        const double strength = std::max(0.0, std::min(1.0, number_or(edit.get("smooth_strength"), number_or(edit.get("strength"), 0.5))));
-        const int iterations = std::max(1, std::min(12, int_or(edit.get("smooth_iterations"), int_or(edit.get("iterations"), 2))));
-        std::vector<Vec3> relax = result.vertices;
-        const std::vector<std::set<int>> adjacency = build_vertex_adjacency(result.vertices.size(), result.faces);
-        for (int iteration = 0; iteration < iterations; ++iteration) {
-            std::vector<Vec3> next = relax;
-            for (const int index : changed) {
-                if (index < 0 || static_cast<std::size_t>(index) >= adjacency.size()) {
-                    continue;
-                }
-                const std::set<int>& neighbors = adjacency[static_cast<std::size_t>(index)];
-                if (neighbors.empty()) {
-                    continue;
-                }
-                Vec3 sum{0.0, 0.0, 0.0};
-                int count = 0;
-                for (const int neighbor : neighbors) {
-                    if (neighbor < 0 || static_cast<std::size_t>(neighbor) >= relax.size()) {
-                        continue;
-                    }
-                    sum = add_vec3(sum, relax[static_cast<std::size_t>(neighbor)]);
-                    ++count;
-                }
-                if (count <= 0) {
-                    continue;
-                }
-                const Vec3 avg = scale_vec3(sum, 1.0 / static_cast<double>(count));
-                const Vec3 vertex = relax[static_cast<std::size_t>(index)];
-                next[static_cast<std::size_t>(index)] = add_vec3(vertex, scale_vec3(sub_vec3(avg, vertex), strength));
-            }
-            relax = std::move(next);
-        }
-        result.vertices = std::move(relax);
-    }
+    smooth_subdivide_vertices(result, edit, changed, refine);
 
     result.changed_vertices.assign(changed.begin(), changed.end());
     result.topology_changed = true;

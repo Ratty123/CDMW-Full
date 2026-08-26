@@ -70,7 +70,11 @@ _add("cdmw.core.archive_sidecar_cache", "_extract_archive_sidecar_texture_lookup
 _add("cdmw.core.archive_audio", "build_archive_audio_patch_payload", "export_archive_audio_as_wav")
 _add("cdmw.core.prefab_json", "apply_prefab_edit_json", "dumps_prefab_edit_json")
 _add("cdmw.core.weapon_swap_templates", "weapon_swap_template_socket_rows")
-_add("cdmw.core.archive_name_search", "ArchiveNameSearchIndex")
+_add("cdmw.core.archive_name_search", "ArchiveNameSearchIndex", "parse_archive_search_query")
+ARCHIVE_WORKFLOW_EXPORTS["archive_name_search_text_match"] = (
+    "cdmw.core.archive_name_search",
+    "_archive_name_search_text_match",
+)
 _add("cdmw.core.archive_compact_index", "ArchiveRowIndex")
 _add(
     "cdmw.core.archive_filtering",

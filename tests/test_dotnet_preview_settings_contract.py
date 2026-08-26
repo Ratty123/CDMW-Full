@@ -266,13 +266,15 @@ def test_every_material_aware_preview_route_uses_the_shared_hdr_renderer() -> No
         assert "DotNetPreviewProfile." in source, route
 
     host = (ROOT / "cdmw/ui/preview/dotnet_host.py").read_text(encoding="utf-8")
+    tuning = (ROOT / "cdmw/ui/preview/dotnet_host_render_tuning.py").read_text(encoding="utf-8")
+    assert "render_tuning_payloads" in host
     for setting in (
         "d3d11_environment_strength",
         "d3d11_tone_exposure",
         "d3d11_tone_contrast",
         "d3d11_tone_gamma",
     ):
-        assert f'"{setting}"' in host
+        assert f'"{setting}"' in tuning
 
     shader = _source("D3D11MaterialShaders.hlsl")
     assert "StudioSoftboxLobe" in shader

@@ -296,31 +296,9 @@ class GuidedEffectsWorkspace(QWidget):
         confirm_unreviewed=None,
     ) -> None:
         super().__init__(parent)
-        self._controller = controller
-        self._placement_factory = placement_factory
-        self._host_factory = host_factory
-        self._confirm_unreviewed = confirm_unreviewed or self._default_unreviewed_confirmation
-        self._committed = EffectWorkspaceState.from_draft(controller.draft)
-        self._staged = self._committed
-        self._syncing = False
-        self._reset_view_next = True
-        self._preview_retry_remaining = 1
-        self._origin_defaulted_stem: Optional[str] = None
-        self._placement_root = Path(tempfile.mkdtemp(prefix="cdmw_effect_workspace_"))
-        self._label_by_stem = _unique_effect_labels(tuple(controller.effect_stems("", limit=None)))
+        self._initialize_state(controller, placement_factory, host_factory, confirm_unreviewed)
 
-        self.selection_timer = QTimer(self)
-        self.selection_timer.setSingleShot(True)
-        self.selection_timer.setInterval(150)
-        self.selection_timer.timeout.connect(self._rebuild_preview)
-        self.look_timer = QTimer(self)
-        self.look_timer.setSingleShot(True)
-        self.look_timer.setInterval(250)
-        self.look_timer.timeout.connect(self._rebuild_preview)
-        self._initial_preview_timer = QTimer(self)
-        self._initial_preview_timer.setSingleShot(True)
-        self._initial_preview_timer.setInterval(0)
-        self._initial_preview_timer.timeout.connect(self._rebuild_preview)
+        self._configure_preview_timers()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -437,26 +415,7 @@ class GuidedEffectsWorkspace(QWidget):
         self.placement_holder.setMinimumWidth(820)
         self.placement_layout = QVBoxLayout(self.placement_holder)
         self.placement_layout.setContentsMargins(0, 0, 0, 0)
-        self.character_fit_row = QWidget()
-        self.character_fit_row.setObjectName("effect_character_fit_row")
-        character_fit_layout = QHBoxLayout(self.character_fit_row)
-        character_fit_layout.setContentsMargins(8, 6, 8, 0)
-        character_fit_layout.setSpacing(6)
-        character_fit_layout.addStretch(1)
-        character_fit_layout.addWidget(QLabel("Character"))
-        self.character_fit_choice = QComboBox()
-        self.character_fit_choice.setObjectName("effect_character_fit_choice")
-        self.character_fit_choice.setAccessibleName("Character")
-        self.character_fit_choice.addItem("Auto", 0)
-        self.character_fit_choice.addItem("Kliff", 1)
-        self.character_fit_choice.addItem("Damian", 2)
-        self.character_fit_choice.setToolTip(
-            "The game's own character provides a size reference for the item and effect."
-        )
-        self.character_fit_choice.setEnabled(controller.draft.template_key is not None)
-        self.character_fit_choice.currentIndexChanged.connect(self._character_fit_changed)
-        character_fit_layout.addWidget(self.character_fit_choice)
-        self.placement_layout.addWidget(self.character_fit_row)
+        self._build_character_fit_row()
         self.placeholder = QLabel("Choose a template to prepare the resident placement viewport.")
         self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.placeholder.setWordWrap(True)
@@ -474,6 +433,60 @@ class GuidedEffectsWorkspace(QWidget):
         self.caution.setContentsMargins(14, 8, 14, 8)
         layout.addWidget(self.caution)
 
+        self._wire_controller()
+
+    def _initialize_state(self, controller, placement_factory, host_factory, confirm_unreviewed) -> None:
+        self._controller = controller
+        self._placement_factory = placement_factory
+        self._host_factory = host_factory
+        self._confirm_unreviewed = confirm_unreviewed or self._default_unreviewed_confirmation
+        self._committed = EffectWorkspaceState.from_draft(controller.draft)
+        self._staged = self._committed
+        self._syncing = False
+        self._reset_view_next = True
+        self._preview_retry_remaining = 1
+        self._origin_defaulted_stem: Optional[str] = None
+        self._placement_root = Path(tempfile.mkdtemp(prefix="cdmw_effect_workspace_"))
+        self._label_by_stem = _unique_effect_labels(tuple(controller.effect_stems("", limit=None)))
+
+    def _configure_preview_timers(self) -> None:
+        self.selection_timer = QTimer(self)
+        self.selection_timer.setSingleShot(True)
+        self.selection_timer.setInterval(150)
+        self.selection_timer.timeout.connect(self._rebuild_preview)
+        self.look_timer = QTimer(self)
+        self.look_timer.setSingleShot(True)
+        self.look_timer.setInterval(250)
+        self.look_timer.timeout.connect(self._rebuild_preview)
+        self._initial_preview_timer = QTimer(self)
+        self._initial_preview_timer.setSingleShot(True)
+        self._initial_preview_timer.setInterval(0)
+        self._initial_preview_timer.timeout.connect(self._rebuild_preview)
+
+    def _build_character_fit_row(self) -> None:
+        self.character_fit_row = QWidget()
+        self.character_fit_row.setObjectName("effect_character_fit_row")
+        character_fit_layout = QHBoxLayout(self.character_fit_row)
+        character_fit_layout.setContentsMargins(8, 6, 8, 0)
+        character_fit_layout.setSpacing(6)
+        character_fit_layout.addStretch(1)
+        character_fit_layout.addWidget(QLabel("Character"))
+        self.character_fit_choice = QComboBox()
+        self.character_fit_choice.setObjectName("effect_character_fit_choice")
+        self.character_fit_choice.setAccessibleName("Character")
+        self.character_fit_choice.addItem("Auto", 0)
+        self.character_fit_choice.addItem("Kliff", 1)
+        self.character_fit_choice.addItem("Damian", 2)
+        self.character_fit_choice.setToolTip(
+            "The game's own character provides a size reference for the item and effect."
+        )
+        self.character_fit_choice.setEnabled(self._controller.draft.template_key is not None)
+        self.character_fit_choice.currentIndexChanged.connect(self._character_fit_changed)
+        character_fit_layout.addWidget(self.character_fit_choice)
+        self.placement_layout.addWidget(self.character_fit_row)
+
+    def _wire_controller(self) -> None:
+        controller = self._controller
         controller.effect_catalogue_progress.connect(self._catalogue_progress)
         controller.effect_catalogue_ready.connect(self._catalogue_ready)
         controller.effect_catalogue_failed.connect(self._catalogue_failed)

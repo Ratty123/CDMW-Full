@@ -781,6 +781,16 @@ def _numpy_module():
     return numpy
 
 
+def _numpy_rgba_channels(np, view: memoryview, stride: int, width: int, height: int):
+    raw = np.frombuffer(view, dtype=np.uint8, count=stride * height)
+    rows = raw.reshape(height, stride)[:, : width * 4]
+    return rows.reshape(height, width, 4).astype(np.float32) / 255.0
+
+
+def _numpy_unit_bytes(np, values):
+    return np.clip(np.rint(np.clip(values, 0.0, 1.0) * 255.0), 0, 255).astype(np.uint8)
+
+
 def _vectorised_material_maps(
     *,
     mode: str,
@@ -819,12 +829,7 @@ def _vectorised_material_maps(
     if np is None:
         return None
 
-    def channels(view: memoryview, stride: int):
-        raw = np.frombuffer(view, dtype=np.uint8, count=stride * height)
-        rows = raw.reshape(height, stride)[:, : width * 4]
-        return rows.reshape(height, width, 4).astype(np.float32) / 255.0
-
-    source = channels(source_view, source_stride)
+    source = _numpy_rgba_channels(np, source_view, source_stride, width, height)
     r, g, b, a = source[..., 0], source[..., 1], source[..., 2], source[..., 3]
     peak = np.maximum(np.maximum(r, g), np.maximum(b, a))
     minimum = np.minimum(np.minimum(r, g), np.minimum(b, a))
@@ -908,7 +913,7 @@ def _vectorised_material_maps(
         roughness = np.where(limited, np.maximum(np.clip(roughness, 0.0, 1.0), roughness_floor), roughness)
 
     if mask_view is not None:
-        mask = channels(mask_view, mask_stride)
+        mask = _numpy_rgba_channels(np, mask_view, mask_stride, width, height)
         coverage = np.clip(
             mask[..., _LAYER_CHANNEL_INDEX.get(mask_channel, 0)] * effective_layer_weight,
             0.0,
@@ -922,14 +927,11 @@ def _vectorised_material_maps(
     metal_peak = float((metalness * coverage).max())
     spec_peak = float((specular * coverage).max())
 
-    def to_bytes(values):
-        return np.clip(np.rint(np.clip(values, 0.0, 1.0) * 255.0), 0, 255).astype(np.uint8)
-
-    coverage_bytes = to_bytes(coverage)
+    coverage_bytes = _numpy_unit_bytes(np, coverage)
     for emit_slot, view, stride, values in zip(emit, views, strides, (ao, roughness, metalness, specular)):
         if not emit_slot or view is None:
             continue
-        grey = to_bytes(values)
+        grey = _numpy_unit_bytes(np, values)
         packed = np.stack((grey, grey, grey, coverage_bytes), axis=-1)
         span = width * 4
         for y in range(height):

@@ -45,90 +45,90 @@
       "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
       "shipped_engine_formats": {
         "extensions": 77,
-        "decode_percent": 43.9,
-        "write_percent": 27.9,
+        "decode_percent": 46.2,
+        "write_percent": 29.9,
         "decode": {
-          "full": 20,
+          "full": 23,
           "none": 22,
-          "partial": 11,
-          "surface": 24
+          "partial": 10,
+          "surface": 22
         },
         "write": {
-          "constrained": 7,
+          "constrained": 10,
           "full": 18,
-          "none": 52
+          "none": 49
         }
       },
       "engine_formats": {
         "extensions": 89,
-        "decode_percent": 43.8,
-        "write_percent": 29.2,
+        "decode_percent": 45.8,
+        "write_percent": 30.9,
         "decode": {
-          "full": 24,
+          "full": 27,
           "none": 27,
-          "partial": 12,
-          "surface": 26
+          "partial": 11,
+          "surface": 24
         },
         "write": {
-          "constrained": 8,
+          "constrained": 11,
           "full": 22,
-          "none": 59
+          "none": 56
         }
       },
       "proprietary_formats": {
         "extensions": 82,
-        "decode_percent": 44.6,
-        "write_percent": 29.9,
+        "decode_percent": 46.8,
+        "write_percent": 31.7,
         "decode": {
-          "full": 24,
+          "full": 27,
           "none": 25,
-          "partial": 9,
-          "surface": 24
+          "partial": 8,
+          "surface": 22
         },
         "write": {
-          "constrained": 5,
+          "constrained": 8,
           "full": 22,
-          "none": 55
+          "none": 52
         }
       },
       "all_formats": {
         "extensions": 141,
-        "decode_percent": 55.5,
-        "write_percent": 34.0,
+        "decode_percent": 56.7,
+        "write_percent": 35.1,
         "decode": {
-          "full": 59,
+          "full": 62,
           "none": 30,
-          "partial": 12,
-          "surface": 40
+          "partial": 11,
+          "surface": 38
         },
         "write": {
-          "constrained": 8,
+          "constrained": 11,
           "full": 44,
-          "none": 89
+          "none": 86
         }
       }
     },
     "coverage_by_file_count": {
       "files": 1383187,
-      "decode_percent": 65.9,
-      "write_percent": 53.8
+      "decode_percent": 66.2,
+      "write_percent": 54.0
     },
     "unlisted_in_manifest": [],
     "by_origin": {
       "proprietary": {
         "extensions": 82,
-        "decode_percent": 44.6,
-        "write_percent": 29.9,
+        "decode_percent": 46.8,
+        "write_percent": 31.7,
         "decode": {
-          "full": 24,
+          "full": 27,
           "none": 25,
-          "partial": 9,
-          "surface": 24
+          "partial": 8,
+          "surface": 22
         },
         "write": {
-          "constrained": 5,
+          "constrained": 8,
           "full": 22,
-          "none": 55
+          "none": 52
         }
       },
       "third_party": {
@@ -173,18 +173,18 @@
     "by_group": {
       "animation_scene": {
         "extensions": 15,
-        "decode_percent": 42.0,
-        "write_percent": 23.3,
+        "decode_percent": 51.3,
+        "write_percent": 30.0,
         "decode": {
-          "full": 3,
+          "full": 5,
           "none": 2,
           "partial": 1,
-          "surface": 9
+          "surface": 7
         },
         "write": {
-          "constrained": 1,
+          "constrained": 3,
           "full": 3,
-          "none": 11
+          "none": 9
         }
       },
       "audio_video": {
@@ -204,18 +204,18 @@
       },
       "material_metadata": {
         "extensions": 62,
-        "decode_percent": 48.7,
-        "write_percent": 35.5,
+        "decode_percent": 49.4,
+        "write_percent": 36.3,
         "decode": {
-          "full": 23,
+          "full": 24,
           "none": 20,
-          "partial": 5,
+          "partial": 4,
           "surface": 14
         },
         "write": {
-          "constrained": 4,
+          "constrained": 5,
           "full": 20,
-          "none": 38
+          "none": 37
         }
       },
       "model_mesh_physics": {

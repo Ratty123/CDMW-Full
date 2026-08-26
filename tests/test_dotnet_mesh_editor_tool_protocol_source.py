@@ -13,7 +13,11 @@ def _source(name: str) -> str:
         "ExperimentForm.Controls.cs": ("ExperimentForm.Controls.cs", "ExperimentForm.FlatButton.cs"),
         "D3D11MaterialViewport.cs": ("D3D11MaterialViewport*.cs",),
         "D3D11MaterialViewport.Overlay.cs": ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlayInteraction.cs", "D3D11MaterialViewport.OverlaySelection.cs"),
-        "MeshViewport.SelectionPicking.cs": ("MeshViewport.SelectionPicking.cs", "MeshViewport.SelectionPaint.cs"),
+        "MeshViewport.SelectionPicking.cs": (
+            "MeshViewport.SelectionPicking.cs",
+            "MeshViewport.SelectionPaint.cs",
+            "MeshViewport.SelectionPaintHits.cs",
+        ),
     }.get(name, (name,))
     paths: list[Path] = []
     for pattern in patterns:

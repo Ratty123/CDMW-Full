@@ -127,6 +127,22 @@ NativeUvEdgeKey native_uv_edge_key(int left, int right, const std::vector<Vec2>&
     return std::make_tuple(vertex_edge, left_uv, right_uv);
 }
 
+std::set<int> uv_selected_faces(const JsonValue& item) {
+    std::set<int> selected;
+    for (const int face_index : int_vector_from_binary_or_json(
+        item,
+        "selected_faces_binary",
+        "selected_faces",
+        "selected_face_start",
+        "selected_face_count"
+    )) {
+        if (face_index >= 0) {
+            selected.insert(face_index);
+        }
+    }
+    return selected;
+}
+
 std::vector<UvIslandSummaryResult> run_uv_summary(const JsonValue& root) {
     const JsonValue* submeshes = root.get("submeshes");
     if (submeshes == nullptr || submeshes->type != JsonValue::Type::Array) {
@@ -149,18 +165,7 @@ std::vector<UvIslandSummaryResult> run_uv_summary(const JsonValue& root) {
         }
         const std::vector<int> source_faces = mesh_source_face_indices_from_item(item, faces.size());
         const std::set<int> selected_vertices = selected_vertices_from_binary_or_json(item, vertex_count);
-        std::set<int> selected_faces;
-        for (const int face_index : int_vector_from_binary_or_json(
-            item,
-            "selected_faces_binary",
-            "selected_faces",
-            "selected_face_start",
-            "selected_face_count"
-        )) {
-            if (face_index >= 0) {
-                selected_faces.insert(face_index);
-            }
-        }
+        const std::set<int> selected_faces = uv_selected_faces(item);
         // Selected-face matching happens in compact offset space. A resident
         // submesh translates raw caller offsets through its captured
         // input_face_offsets; a payload item's freshly derived source faces are

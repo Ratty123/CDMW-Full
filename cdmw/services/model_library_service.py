@@ -16,6 +16,15 @@ def _backend() -> object:
     return model_catalogue
 
 
+def safe_extract_model_archive(
+    source: Path,
+    destination: Path,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> None:
+    _backend().safe_extract_zip(source, destination, stop_event=stop_event)
+
+
 @dataclass(slots=True)
 class ModelLibraryService:
     settings: object | None = None
@@ -107,4 +116,4 @@ class ModelLibraryService:
         return _backend().zip_importable_member_refs(source, stop_event=stop_event)
 
 
-__all__ = ["ModelLibraryService"]
+__all__ = ["ModelLibraryService", "safe_extract_model_archive"]

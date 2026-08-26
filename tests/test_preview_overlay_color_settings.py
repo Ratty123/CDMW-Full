@@ -103,13 +103,15 @@ def test_both_persistence_paths_round_trip_the_fields() -> None:
 
 def test_presentation_payload_carries_the_colors_to_the_viewport() -> None:
     host = _repo_source("cdmw/ui/preview/dotnet_host.py")
+    tuning = _repo_source("cdmw/ui/preview/dotnet_host_render_tuning.py")
     transport = _repo_source(
         "cdmw/ui/archive_browser/static_replacement_dotnet_presentation.py"
     )
     change_detection = _repo_source("cdmw/ui/archive_browser/preview_settings_state.py")
 
     for field in OVERLAY_COLOR_FIELDS:
-        assert f'"{field}": str(getattr(settings, "{field}"' in host, (
+        assert "render_tuning_payloads" in host
+        assert f'"{field}": str(getattr(settings, "{field}"' in tuning, (
             f"{field} never reaches the presentation quality payload"
         )
         assert f'"{field}"' in transport, f"{field} is not forwarded by the Builder"
