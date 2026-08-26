@@ -336,8 +336,9 @@ class TabTests(unittest.TestCase):
         settings_tab = SettingsTab()
         initial = ModelPreviewRenderSettings(d3d11_tone_gamma=1.17, d3d11_ao_strength=0.7)
         initial_performance = ArchivePerformanceSettings(native_preview_cache_mode="aggressive")
+        archive_cache_root = self.root / "archive-cache"
         window = SimpleNamespace(
-            archive_cache_root=None,
+            archive_cache_root=archive_cache_root,
             settings_tab=settings_tab,
             _current_model_preview_render_settings=lambda: initial,
             _current_archive_performance_settings=lambda: initial_performance,
@@ -348,6 +349,10 @@ class TabTests(unittest.TestCase):
         self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_tone_gamma, 1.17)
         self.assertAlmostEqual(tab.model_panel.preview._render_settings.d3d11_ao_strength, 0.7)
         self.assertEqual(tab.model_panel.preview._cache_mode, "aggressive")
+        self.assertEqual(
+            tab.model_panel.preview._native_preview_core_cache_root,
+            archive_cache_root / "preview" / "native",
+        )
 
         updated = ModelPreviewRenderSettings(d3d11_tone_gamma=0.91, d3d11_ao_strength=0.4)
         settings_tab.model_preview_settings_changed.emit(updated)
@@ -688,6 +693,123 @@ class TabTests(unittest.TestCase):
         token, build = tab.controller.item_preview_source()
         self.assertEqual(token, ("imported", id(imported)))
         self.assertIs(build(threading.Event()), imported.preview_model)
+        tab.close()
+        tab.deleteLater()
+
+    def test_template_materials_use_preview_core_when_the_shared_native_cache_is_available(self) -> None:
+        from types import SimpleNamespace
+
+        from cdmw.models import ModelPreviewRenderSettings
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        token, source = tab.controller.item_preview_source()
+        entry = tab.controller.template_entries()[0]
+        output = self.root / "new-item-native-output"
+        native_cache = self.root / "shared-native-cache"
+        native_package = output / "native-package"
+        settings = ModelPreviewRenderSettings(d3d11_tone_gamma=1.17)
+        attempt = SimpleNamespace(succeeded=True, package_path=str(native_package))
+        package = SimpleNamespace(package_dir=native_package)
+
+        with patch(
+            "cdmw.services.preview_rendering_service.run_native_preview_core_preview_job",
+            return_value=attempt,
+        ) as run_native, patch(
+            "cdmw.services.mesh_dotnet_preview_package.build_or_lookup_dotnet_preview_package",
+            return_value=package,
+        ) as adapt_package, patch(
+            "cdmw.core.archive_preview_result_builder.build_archive_preview_result",
+        ) as python_decode:
+            result = source.materials(
+                threading.Event(),
+                output_root=output,
+                native_preview_core_cache_root=native_cache,
+                render_settings=settings,
+                cache_mode="balanced",
+            )
+
+        self.assertEqual(result, native_package)
+        native_kwargs = run_native.call_args.kwargs
+        self.assertEqual(run_native.call_args.args[0].path, token[2])
+        self.assertEqual(native_kwargs["cache_root"], native_cache)
+        self.assertTrue(native_kwargs["render_settings"].use_textures_by_default)
+        self.assertAlmostEqual(native_kwargs["render_settings"].d3d11_tone_gamma, 1.17)
+        self.assertIn(entry, native_kwargs["dependency_entries"])
+        self.assertFalse(native_kwargs["dependency_entries_complete"])
+        self.assertEqual(native_kwargs["package_root"], Path(entry.pamt_path).parent.parent)
+        self.assertEqual(Path(native_kwargs["output_root"]).parent, output)
+        adapt_package.assert_called_once()
+        python_decode.assert_not_called()
+        tab.close()
+        tab.deleteLater()
+
+    def test_template_materials_keep_the_python_fallback_when_preview_core_fails(self) -> None:
+        from types import SimpleNamespace
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        _token, source = tab.controller.item_preview_source()
+        decoded_model = SimpleNamespace(meshes=[object()])
+        decoded = SimpleNamespace(preferred_view="model", preview_model=decoded_model)
+        output = self.root / "new-item-native-fallback"
+
+        def fail_native(_entry, **kwargs):
+            native_output = Path(kwargs["output_root"])
+            native_output.mkdir(parents=True)
+            (native_output / "partial.bin").write_bytes(b"partial")
+            return SimpleNamespace(succeeded=False, package_path="")
+
+        with patch(
+            "cdmw.services.preview_rendering_service.run_native_preview_core_preview_job",
+            side_effect=fail_native,
+        ), patch(
+            "cdmw.core.archive_preview_result_builder.build_archive_preview_result",
+            return_value=decoded,
+        ) as python_decode:
+            result = source.materials(
+                threading.Event(),
+                output_root=output,
+                native_preview_core_cache_root=self.root / "shared-native-cache",
+                cache_mode="balanced",
+            )
+
+        self.assertIs(result, decoded_model)
+        python_decode.assert_called_once()
+        self.assertEqual(tuple(output.glob("package_*_native")), ())
+        tab.close()
+        tab.deleteLater()
+
+    def test_template_materials_cancel_preview_core_without_running_the_python_fallback(self) -> None:
+        from cdmw.domain.cancellation import RunCancelled
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        _token, source = tab.controller.item_preview_source()
+        output = self.root / "new-item-native-cancel"
+
+        def cancel_native(_entry, **kwargs):
+            native_output = Path(kwargs["output_root"])
+            native_output.mkdir(parents=True)
+            (native_output / "partial.bin").write_bytes(b"partial")
+            raise RunCancelled("cancelled in test")
+
+        with patch(
+            "cdmw.services.preview_rendering_service.run_native_preview_core_preview_job",
+            side_effect=cancel_native,
+        ), patch(
+            "cdmw.core.archive_preview_result_builder.build_archive_preview_result",
+        ) as python_decode:
+            with self.assertRaisesRegex(RunCancelled, "cancelled in test"):
+                source.materials(
+                    threading.Event(),
+                    output_root=output,
+                    native_preview_core_cache_root=self.root / "shared-native-cache",
+                    cache_mode="balanced",
+                )
+
+        python_decode.assert_not_called()
+        self.assertEqual(tuple(output.glob("package_*_native")), ())
         tab.close()
         tab.deleteLater()
 

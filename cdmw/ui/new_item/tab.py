@@ -32,6 +32,7 @@ from cdmw.models import (
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
+from cdmw.services.cache_layout import runtime_cache_layout
 from cdmw.services.new_item_service import NewItemService
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.panels_identity import IdentityPanel
@@ -295,7 +296,16 @@ class NewItemStudioTab(QWidget):
         controller = self.controller
         self.template_panel = TemplatePanel(controller)
         self.identity_panel = IdentityPanel(controller)
-        self.model_panel = ModelPanel(controller)
+        archive_cache_root = getattr(self._window, "archive_cache_root", None)
+        native_preview_core_cache_root = (
+            runtime_cache_layout(archive_cache_root).native_preview_root
+            if archive_cache_root is not None
+            else None
+        )
+        self.model_panel = ModelPanel(
+            controller,
+            native_preview_core_cache_root=native_preview_core_cache_root,
+        )
         self.model_panel.preview.set_render_settings(self._preview_render_settings)
         self.model_panel.preview.set_cache_mode(self._preview_cache_mode)
         self.template_panel.mount_preview(self.model_panel.preview)

@@ -632,11 +632,10 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
     def item_preview_source(self):
         """What the Model and icon step's viewport shows, textured the way the Model
         Library and the Builder show it: a `(token, build)` pair, or None when there
-        is nothing to show. `build(stop_event)` runs off the UI thread and returns a
-        `ModelPreviewData` (the imported model's own preview, textures and all; else
-        the template's mesh decoded from the archives with its textures resolved) or,
-        when the decode will not go, the bare `ParsedMesh` of `item_mesh_for_preview`.
-        `token` names the source, so a view already showing it is left alone."""
+        is nothing to show. The builders run off the UI thread and return preview data,
+        a placement scene, or a ready native package path when the frame supplies its
+        Preview Core context. `token` names the source, so a view already showing it is
+        left alone."""
 
         source = self.model_import
         if source is not None:
@@ -659,7 +658,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                     model_origin=source.baked_origin(),
                 )
 
-            def build_material_scene(stop_event):
+            def build_material_scene(stop_event, **_preview_context):
                 from cdmw.ui.new_item.item_preview import PlacementScene
 
                 model = source.baked_preview_mesh()
@@ -728,8 +727,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         return (("template-geometry", self.draft.template_key, *entry_revision), build)
 
     def _template_preview_build(self):
-        """`(token, build)` for the template's own mesh: the archive decode with its
-        textures, else the bare parse; None without a template."""
+        """`(token, build)` for the template's textured package or Python fallback."""
 
         snapshot = self.snapshot
         if snapshot is None or self.draft.template_key is None:
@@ -747,7 +745,72 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         cache_key = (id(snapshot), entry.path)
         cache = self._template_models
 
-        def build(stop_event):
+        def build(
+            stop_event,
+            *,
+            output_root=None,
+            native_preview_core_cache_root=None,
+            render_settings=None,
+            cache_mode="off",
+        ):
+            if output_root is not None and native_preview_core_cache_root is not None:
+                import shutil
+                import time
+
+                from cdmw.models import clamp_model_preview_render_settings
+                from cdmw.services.mesh_dotnet_preview_package import (
+                    build_or_lookup_dotnet_preview_package,
+                )
+                from cdmw.services.preview_rendering_service import (
+                    dotnet_preview_package_cache_budget,
+                    run_native_preview_core_preview_job,
+                )
+                from cdmw.workers.archive_preview_native import (
+                    native_preview_core_timeout_seconds,
+                )
+
+                preview_root = Path(output_root)
+                preview_root.mkdir(parents=True, exist_ok=True)
+                native_package = preview_root / f"package_{time.time_ns()}_native"
+                native_render_settings = replace(
+                    clamp_model_preview_render_settings(render_settings),
+                    use_textures_by_default=True,
+                )
+                try:
+                    native_attempt = run_native_preview_core_preview_job(
+                        entry,
+                        cache_root=Path(native_preview_core_cache_root),
+                        render_settings=native_render_settings,
+                        dependency_entries=tuple(entries),
+                        dependency_entries_complete=False,
+                        package_root=Path(entry.pamt_path).parent.parent,
+                        output_root=native_package,
+                        timeout_seconds=native_preview_core_timeout_seconds(native_render_settings),
+                        stop_event=stop_event,
+                    )
+                    if native_attempt.succeeded:
+                        cache_max_bytes, cache_target_bytes = dotnet_preview_package_cache_budget(cache_mode)
+                        package = build_or_lookup_dotnet_preview_package(
+                            native_attempt.package_path,
+                            cache_root=preview_root,
+                            archive_identity=(
+                                f"new_item_native:{entry.path}:{entry.pamt_path}:"
+                                f"{entry.paz_file}:{entry.offset}:{entry.comp_size}"
+                            ),
+                            cache_mode=cache_mode,
+                            max_bytes=cache_max_bytes,
+                            target_bytes=cache_target_bytes,
+                            cancelled=stop_event.is_set,
+                            metadata={"surface": "new_item_studio", "source_path": entry.path},
+                        )
+                        return Path(package.package_dir)
+                except RunCancelled:
+                    shutil.rmtree(native_package, ignore_errors=True)
+                    raise
+                except Exception:  # noqa: BLE001 - the established Python preview remains the fallback
+                    pass
+                shutil.rmtree(native_package, ignore_errors=True)
+
             from cdmw.services.archive_preview_service import build_archive_preview_result
 
             cached = cache.get(cache_key)

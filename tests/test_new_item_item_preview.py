@@ -809,6 +809,54 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertIs(frame.host, host, "the resident host is reused for both stages")
         frame.shutdown()
 
+    def test_progressive_template_accepts_a_native_package_without_python_recompile(self) -> None:
+        from PySide6.QtCore import QEventLoop
+
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame, ProgressivePreviewSource
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_native_template_"))
+        native_cache = output / "native-cache"
+        native_package = output / "package_native"
+        native_package.mkdir(parents=True)
+        frame = ItemPreviewFrame(
+            output_root=output,
+            native_preview_core_cache_root=native_cache,
+            host_factory=self._fake_host_class(),
+        )
+        frame._ensure_host()
+        built = []
+        material_context = {}
+
+        def build_package(source, *, include_material_resources, output_root, **_kwargs):
+            self.assertFalse(include_material_resources, "the ready native package must bypass Python recompilation")
+            built.append(source)
+            package = Path(output_root) / "geometry"
+            package.mkdir(parents=True, exist_ok=True)
+            return package
+
+        def build_materials(_stop, **kwargs):
+            material_context.update(kwargs)
+            return native_package
+
+        geometry_source = object()
+        source = ProgressivePreviewSource(
+            geometry=lambda _stop: geometry_source,
+            materials=build_materials,
+        )
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", build_package):
+            frame.show(source, token=("template", 17))
+            deadline = time.monotonic() + 2.0
+            while len([call for call in frame.host.calls if call[0] == "load_package"]) < 2 and time.monotonic() < deadline:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+
+        loads = [call for call in frame.host.calls if call[0] == "load_package"]
+        self.assertEqual(built, [geometry_source])
+        self.assertEqual([call[1][0] for call in loads], [output / "geometry", native_package])
+        self.assertEqual(material_context["output_root"], output)
+        self.assertEqual(material_context["native_preview_core_cache_root"], native_cache)
+        self.assertEqual(material_context["render_settings"], frame._render_settings)
+        frame.shutdown()
+
     def test_progressive_template_uses_a_durable_material_cache_hit_before_geometry(self) -> None:
         from PySide6.QtCore import QEventLoop
 
