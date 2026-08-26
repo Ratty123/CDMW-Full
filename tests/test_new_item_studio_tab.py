@@ -628,11 +628,13 @@ class TabTests(unittest.TestCase):
         from types import SimpleNamespace
 
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
 
         tab = self._tab()
         self.assertIsNone(tab.controller.item_preview_source(), "no template, nothing to show")
         tab.prefill_template(TEMPLATE)
         token, build = tab.controller.item_preview_source()
+        self.assertIsInstance(build, ProgressivePreviewSource)
         self.assertEqual(token[0], "template")
         self.assertEqual(token[1], TEMPLATE)
         by_path, by_basename = tab.controller.snapshot.archive_index_maps()
@@ -664,6 +666,9 @@ class TabTests(unittest.TestCase):
         blade = ParsedMesh(path="blade", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
         with patch("cdmw.core.archive_preview_result_builder.build_archive_preview_result", lambda entry, **kwargs: SimpleNamespace(preferred_view="details", preview_model=None)),              patch.object(type(tab.controller), "item_mesh_for_preview", lambda self_: blade):
             self.assertIs(build(threading.Event()), blade, "no model from the decode: the bare mesh")
+        with patch("cdmw.modding.mesh_parser.parse_pac", return_value=blade):
+            geometry = build.geometry(threading.Event())
+        self.assertIs(geometry, blade, "the first stage is the template's bare geometry")
         # an import: its own preview model, already decoded by the Builder
         imported = SimpleNamespace(rebuilt_data=b"x", preview_model=SimpleNamespace(meshes=[object()]))
         tab.controller.set_imported_model(None, imported)
