@@ -9,6 +9,9 @@ from cdmw.core import archive
 from cdmw.core.archive_mesh_appearance import (
     apply_archive_mesh_appearance,
     apply_archive_mesh_appearance_to_preview_model,
+    apply_loose_character_appearance,
+    resolve_loose_character_appearance_sources,
+    write_character_appearance_bundle_manifest,
 )
 from cdmw.core.common import RunCancelled
 from cdmw.models import (
@@ -421,6 +424,385 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertIs(appearance_mesh, result)
         self.assertIn("1/1 records", notes[0])
         broad_resolver.assert_not_called()
+
+    def test_pac_fbx_appearance_recovers_pamt_targets_without_a_pabc(self) -> None:
+        model_entry = _entry("character/model/2_mon/wolf/wolf.pac", ".pac")
+        pamt_entry = _entry("character/model/2_mon/wolf/wolf.pamt", ".pamt")
+        pab_entry = _entry("character/model/2_mon/wolf/wolf.pab", ".pab")
+        source_mesh = SimpleNamespace(format="pac")
+        appearance_mesh = SimpleNamespace(format="pac")
+        skeleton = SimpleNamespace(bones=(SimpleNamespace(),))
+        morphs = SimpleNamespace(target_count=3)
+
+        with (
+            patch("cdmw.core.archive_mesh_appearance._related_appearance_entries", return_value=(pamt_entry,)),
+            patch("cdmw.core.archive_mesh_appearance.read_archive_entry_data", return_value=(b"PAR data", False, "")),
+            patch("cdmw.core.archive_mesh_appearance.parse_pab", return_value=skeleton),
+            patch("cdmw.core.archive_mesh_appearance.parse_pamt_morph_target_set", return_value=morphs),
+            patch("cdmw.core.archive_mesh_appearance.resolve_pac_bone_palette", return_value=(0,)),
+            patch("cdmw.core.archive_mesh_appearance.apply_skeleton_variation_to_mesh", return_value=appearance_mesh) as apply_appearance,
+        ):
+            result, notes = apply_archive_mesh_appearance(
+                model_entry,
+                source_mesh,
+                b"PAC data",
+                archive_entries_by_normalized_path={},
+                archive_entries_by_basename={"wolf.pab": (pab_entry,)},
+                include_morph_targets=True,
+            )
+
+        self.assertIs(appearance_mesh, result)
+        self.assertIn("2 appearance shape target", notes[0])
+        self.assertIsNone(apply_appearance.call_args.args[3])
+        self.assertIs(morphs, apply_appearance.call_args.kwargs["morph_target_set"])
+
+    def test_pac_appearance_prefers_the_descriptor_named_pamt_over_nearby_candidates(self) -> None:
+        stem = "cd_phw_00_head_00_0111"
+        model_entry = _entry(f"character/model/1_pc/2_phw/head/head/{stem}.pac", ".pac")
+        descriptor_entry = _entry(f"character/prefab/1_pc/2_phw/head/head/{stem}.prefabdata_xml", ".prefabdata_xml")
+        pab_entry = _entry("character/model/1_pc/2_phw/phw_01.pab", ".pab")
+        pabc_entry = _entry(f"character/binary/skeletonvariation/1_pc/2_phw/head/head/{stem}.pabc", ".pabc")
+        wrong_pamt = _entry("character/model/1_pc/2_phw/phw_01.pamt", ".pamt")
+        exact_pamt = _entry("character/model/1_pc/2_phw/phw_damian.pamt", ".pamt")
+        entries = (model_entry, descriptor_entry, pab_entry, pabc_entry, wrong_pamt, exact_pamt)
+        path_index = {entry.path.casefold(): (entry,) for entry in entries}
+        basename_index = {entry.basename.casefold(): (entry,) for entry in entries}
+        descriptor_xml = (
+            "<HeadPrefabData>"
+            '<SkeletonName FileName="1_pc/2_phw/phw_01.pab"/>'
+            f'<SkeletonVariationName FileName="1_pc/2_phw/head/head/{stem}.pabc"/>'
+            '<MorphTargetSet FileName="1_pc/2_phw/phw_damian.pamt"/>'
+            "</HeadPrefabData>"
+        ).encode()
+        payloads = {
+            descriptor_entry.path: descriptor_xml,
+            pab_entry.path: b"PAB exact",
+            pabc_entry.path: b"PABC exact",
+            wrong_pamt.path: b"PAMT wrong",
+            exact_pamt.path: b"PAMT exact",
+        }
+        source_mesh = SimpleNamespace(format="pac")
+        appearance_mesh = SimpleNamespace(format="pac")
+        skeleton = SimpleNamespace(bones=(SimpleNamespace(),))
+        variation = SimpleNamespace(path=pabc_entry.path, matched_record_count=1, record_count=1)
+        morphs = SimpleNamespace(path=exact_pamt.path, target_count=2)
+
+        with (
+            patch(
+                "cdmw.core.archive_mesh_appearance.read_archive_entry_data",
+                side_effect=lambda entry, **_kwargs: (payloads[entry.path], False, ""),
+            ),
+            patch("cdmw.core.archive_mesh_appearance.parse_pab", return_value=skeleton),
+            patch("cdmw.core.archive_mesh_appearance.parse_pabc_skeleton_variation", return_value=variation),
+            patch("cdmw.core.archive_mesh_appearance.parse_pamt_morph_target_set", return_value=morphs) as parse_morphs,
+            patch("cdmw.core.archive_mesh_appearance.resolve_pac_bone_palette", return_value=(0,)),
+            patch("cdmw.core.archive_mesh_appearance.apply_skeleton_variation_to_mesh", return_value=appearance_mesh),
+        ):
+            result, _notes = apply_archive_mesh_appearance(
+                model_entry,
+                source_mesh,
+                b"PAC data",
+                archive_entries_by_normalized_path=path_index,
+                archive_entries_by_basename=basename_index,
+                include_morph_targets=True,
+            )
+
+        self.assertIs(appearance_mesh, result)
+        self.assertEqual(b"PAMT exact", parse_morphs.call_args.args[0])
+
+    def test_loose_character_package_resolves_exact_descriptor_companions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            model = root / "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pac"
+            descriptor = root / "character/prefab/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.prefabdata_xml"
+            skeleton = root / "character/model/1_pc/2_phw/phw_01.pab"
+            variation = root / "character/binary/skeletonvariation/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pabc"
+            morphs = root / "character/model/1_pc/2_phw/phw_damian.pamt"
+            unrelated = root / "character/model/1_pc/1_phm/phm_01.pamt"
+            for path in (model, skeleton, variation, morphs, unrelated):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"PAR ")
+            descriptor.parent.mkdir(parents=True, exist_ok=True)
+            descriptor.write_text(
+                "<HeadPrefabData>"
+                '<SkeletonName FileName="1_pc/2_phw/phw_01.pab"/>'
+                '<SkeletonVariationName FileName="1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pabc"/>'
+                '<MorphTargetSet FileName="1_pc/2_phw/phw_damian.pamt"/>'
+                "</HeadPrefabData>",
+                encoding="utf-8",
+            )
+            manifest_path = write_character_appearance_bundle_manifest(
+                root,
+                primary_model_path="character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pac",
+                selected_appearance_path="character/appearance/damian.app_xml",
+                entries=(
+                    _entry("character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pac", ".pac"),
+                    _entry("character/prefab/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.prefabdata_xml", ".prefabdata_xml"),
+                    _entry("character/model/1_pc/2_phw/phw_01.pab", ".pab"),
+                    _entry("character/binary/skeletonvariation/1_pc/2_phw/head/head/cd_phw_00_head_00_0111.pabc", ".pabc"),
+                    _entry("character/model/1_pc/2_phw/phw_damian.pamt", ".pamt"),
+                ),
+            )
+
+            sources = resolve_loose_character_appearance_sources(model)
+
+            self.assertIsNotNone(sources)
+            assert sources is not None
+            self.assertEqual(root, sources.package_root)
+            self.assertEqual(descriptor, sources.descriptor_path)
+            self.assertEqual(skeleton, sources.skeleton_path)
+            self.assertEqual(variation, sources.skeleton_variation_path)
+            self.assertEqual(morphs, sources.morph_target_path)
+            self.assertEqual(manifest_path, sources.manifest_path)
+            self.assertEqual(5, len(sources.expected_hashes))
+
+    def test_loose_character_package_combines_body_descriptor_with_sibling_head_morphs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            family = Path(
+                "character/model/2_mon/cd_m0002_00_fourfeet/"
+                "cd_m0002_00_buffalo/cd_m0002_00_buffalo"
+            )
+            prefab_family = Path(str(family).replace("character\\model", "character\\prefab"))
+            model = root / family / "cd_m0002_00_buffalo_00_0001.pac"
+            body_descriptor = root / prefab_family / "cd_m0002_00_buffalo_00_0001.prefabdata_xml"
+            head_descriptor = root / prefab_family / "cd_m0002_00_buffalo_head_0001.prefabdata_xml"
+            skeleton = root / family / "cd_m0002_00_buffalo.pab"
+            morphs = root / family / "cd_m0002_00_buffalo.pamt"
+            for path in (model, skeleton, morphs):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"PAR ")
+            body_descriptor.parent.mkdir(parents=True, exist_ok=True)
+            body_descriptor.write_text(
+                '<NudePrefabData><SkeletonName FileName="2_mon/cd_m0002_00_fourfeet/'
+                'cd_m0002_00_buffalo/cd_m0002_00_buffalo/cd_m0002_00_buffalo.pab"/>'
+                '</NudePrefabData>',
+                encoding="utf-8",
+            )
+            head_descriptor.write_text(
+                '<HeadPrefabData><MorphTargetSet FileName="2_mon/cd_m0002_00_fourfeet/'
+                'cd_m0002_00_buffalo/cd_m0002_00_buffalo/cd_m0002_00_buffalo.pamt"/>'
+                '</HeadPrefabData>',
+                encoding="utf-8",
+            )
+
+            sources = resolve_loose_character_appearance_sources(model)
+
+            self.assertIsNotNone(sources)
+            assert sources is not None
+            self.assertEqual(body_descriptor, sources.descriptor_path)
+            self.assertEqual(head_descriptor, sources.morph_descriptor_path)
+            self.assertEqual(skeleton, sources.skeleton_path)
+            self.assertEqual(morphs, sources.morph_target_path)
+
+    def test_loose_character_package_resolves_cross_folder_same_family_morphs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            body_family = Path(
+                "character/model/2_mon/cd_m0002_00_fourfeet/"
+                "cd_m0002_00_dog/cd_m0002_00_cat"
+            )
+            body_prefab = Path(str(body_family).replace("character\\model", "character\\prefab"))
+            model = root / body_family / "cd_m0002_00_hatch_00_0001.pac"
+            body_descriptor = root / body_prefab / "cd_m0002_00_hatch_00_0001.prefabdata_xml"
+            wrong_head = root / body_prefab / "cd_m0002_00_catbaby_head_0001.prefabdata_xml"
+            hatch_head = root / (
+                "character/prefab/2_mon/cd_m0002_00_fourfeet/"
+                "cd_m0002_00_hatch/cd_m0002_00_hatch_head_00_0001.prefabdata_xml"
+            )
+            skeleton = root / "character/model/2_mon/cd_m0002_00_fourfeet/cd_m0011_00_dog.pab"
+            wrong_morphs = root / body_family / "cd_m0002_00_cat.pamt"
+            hatch_morphs = root / (
+                "character/model/2_mon/cd_m0002_00_fourfeet/"
+                "cd_m0002_00_hatch/cd_m0002_00_hatch.pamt"
+            )
+            for path in (model, skeleton, wrong_morphs, hatch_morphs):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"PAR ")
+            body_descriptor.parent.mkdir(parents=True, exist_ok=True)
+            body_descriptor.write_text(
+                '<NudePrefabData><SkeletonName FileName="2_mon/cd_m0002_00_fourfeet/'
+                'cd_m0011_00_dog.pab"/></NudePrefabData>',
+                encoding="utf-8",
+            )
+            wrong_head.write_text(
+                '<HeadPrefabData><MorphTargetSet FileName="2_mon/cd_m0002_00_fourfeet/'
+                'cd_m0002_00_dog/cd_m0002_00_cat/cd_m0002_00_cat.pamt"/></HeadPrefabData>',
+                encoding="utf-8",
+            )
+            hatch_head.parent.mkdir(parents=True, exist_ok=True)
+            hatch_head.write_text(
+                '<HeadPrefabData><MorphTargetSet FileName="2_mon/cd_m0002_00_fourfeet/'
+                'cd_m0002_00_hatch/cd_m0002_00_hatch.pamt"/></HeadPrefabData>',
+                encoding="utf-8",
+            )
+
+            sources = resolve_loose_character_appearance_sources(model)
+
+            self.assertIsNotNone(sources)
+            assert sources is not None
+            self.assertEqual(body_descriptor, sources.descriptor_path)
+            self.assertEqual(hatch_head, sources.morph_descriptor_path)
+            self.assertEqual(hatch_morphs, sources.morph_target_path)
+
+    def test_loose_character_package_uses_selected_app_sibling_for_shared_skeleton(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            model = root / "character/model/1_pc/5_pom/head/head/cd_pom_00_head_0001_oongka.pac"
+            head_descriptor = root / (
+                "character/prefab/1_pc/05_pom/head/head/"
+                "cd_pom_00_head_00_0001_oongka.prefabdata_xml"
+            )
+            nude_descriptor = root / (
+                "character/prefab/1_pc/05_pom/nude/"
+                "cd_pom_00_nude_00_0001_oongka.prefabdata_xml"
+            )
+            app = root / "character/appearance/1_pc/1_phm/cd_phm_oongka/cd_phm_oongka_00000.app_xml"
+            skeleton = root / "character/model/1_pc/1_phm/phm_01.pab"
+            variation = root / (
+                "character/binary/skeletonvariation/1_pc/5_pom/head/head/"
+                "cd_pom_oongka_head_0001.pabc"
+            )
+            morphs = root / "character/model/1_pc/5_pom/pom_oongka.pamt"
+            for path in (model, skeleton, variation, morphs):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"PAR ")
+            head_descriptor.parent.mkdir(parents=True, exist_ok=True)
+            head_descriptor.write_text(
+                '<HeadPrefabData><SkeletonVariationName FileName="1_pc/5_pom/head/head/'
+                'cd_pom_oongka_head_0001.pabc"/><MorphTargetSet FileName="1_pc/5_pom/'
+                'pom_oongka.pamt"/></HeadPrefabData>',
+                encoding="utf-8",
+            )
+            nude_descriptor.parent.mkdir(parents=True, exist_ok=True)
+            nude_descriptor.write_text(
+                '<NudePrefabData><SkeletonName FileName="1_pc/1_phm/phm_01.pab"/></NudePrefabData>',
+                encoding="utf-8",
+            )
+            app.parent.mkdir(parents=True, exist_ok=True)
+            app.write_text(
+                '<Appearance><Nude><Prefab Name="cd_pom_00_nude_00_0001_oongka"/></Nude>'
+                '<Head><Prefab Name="cd_pom_00_head_00_0001_oongka"/></Head></Appearance>',
+                encoding="utf-8",
+            )
+
+            sources = resolve_loose_character_appearance_sources(model)
+
+            self.assertIsNotNone(sources)
+            assert sources is not None
+            self.assertEqual(head_descriptor, sources.descriptor_path)
+            self.assertEqual(nude_descriptor, sources.skeleton_descriptor_path)
+            self.assertEqual(head_descriptor, sources.morph_descriptor_path)
+            self.assertEqual(skeleton, sources.skeleton_path)
+            self.assertEqual(variation, sources.skeleton_variation_path)
+            self.assertEqual(morphs, sources.morph_target_path)
+
+    def test_loose_character_package_finds_a_differently_named_descriptor_by_model_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            model = root / "character/model/2_mon/wolf/body_visual.pac"
+            descriptor = root / "character/prefab/2_mon/wolf/creature_profile.prefabdata_xml"
+            skeleton = root / "character/model/2_mon/wolf/wolf.pab"
+            variation = root / "character/binary/skeletonvariation/2_mon/wolf/wolf_pose.pabc"
+            for path in (model, skeleton, variation):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"PAR ")
+            descriptor.parent.mkdir(parents=True, exist_ok=True)
+            descriptor.write_text(
+                "<CreaturePrefabData>"
+                '<SkinnedMesh FileName="character/model/2_mon/wolf/body_visual.pac"/>'
+                '<SkeletonName FileName="2_mon/wolf/wolf.pab"/>'
+                '<SkeletonVariationName FileName="2_mon/wolf/wolf_pose.pabc"/>'
+                "</CreaturePrefabData>",
+                encoding="utf-8",
+            )
+
+            sources = resolve_loose_character_appearance_sources(model)
+
+            self.assertIsNotNone(sources)
+            assert sources is not None
+            self.assertEqual(descriptor, sources.descriptor_path)
+            self.assertEqual(skeleton, sources.skeleton_path)
+            self.assertEqual(variation, sources.skeleton_variation_path)
+
+    def test_loose_character_manifest_rejects_a_changed_companion(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            model = root / "character/model/head.pac"
+            descriptor = root / "character/prefab/head.prefabdata_xml"
+            skeleton_path = root / "character/model/head.pab"
+            variation = root / "character/binary/skeletonvariation/head.pabc"
+            for path, payload in (
+                (model, b"PAC data"),
+                (skeleton_path, b"PAB data"),
+                (variation, b"PABC data"),
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(payload)
+            descriptor.parent.mkdir(parents=True, exist_ok=True)
+            descriptor.write_text(
+                "<HeadPrefabData>"
+                '<SkeletonName FileName="head.pab"/>'
+                '<SkeletonVariationName FileName="head.pabc"/>'
+                "</HeadPrefabData>",
+                encoding="utf-8",
+            )
+            write_character_appearance_bundle_manifest(
+                root,
+                primary_model_path="character/model/head.pac",
+                selected_appearance_path="",
+                entries=(
+                    _entry("character/model/head.pac", ".pac"),
+                    _entry("character/prefab/head.prefabdata_xml", ".prefabdata_xml"),
+                    _entry("character/model/head.pab", ".pab"),
+                    _entry("character/binary/skeletonvariation/head.pabc", ".pabc"),
+                ),
+            )
+            variation.write_bytes(b"changed after export")
+            parsed_mesh = SimpleNamespace(format="pac")
+            parsed_skeleton = SimpleNamespace(bones=(SimpleNamespace(),))
+
+            with (
+                patch("cdmw.core.archive_mesh_appearance.parse_pab", return_value=parsed_skeleton),
+                patch("cdmw.core.archive_mesh_appearance.resolve_pac_bone_palette", return_value=(0,)),
+            ):
+                with self.assertRaisesRegex(ValueError, "bundle hash mismatch"):
+                    apply_loose_character_appearance(model, parsed_mesh, b"PAC data")
+
+    def test_loose_character_appearance_uses_a_presentation_clone_only(self) -> None:
+        source_mesh = SimpleNamespace(format="pac")
+        presentation_mesh = SimpleNamespace(format="pac")
+        sources = SimpleNamespace(
+            package_root=Path("."),
+            model_virtual_path="face.pac",
+            skeleton_path=Path("rig.pab"),
+            skeleton_variation_path=Path("shape.pabc"),
+            morph_target_path=Path("expressions.pamt"),
+            expected_hashes=(),
+        )
+        skeleton = SimpleNamespace(bones=(SimpleNamespace(),))
+        variation = SimpleNamespace(path="shape.pabc", matched_record_count=1, record_count=1)
+        morphs = SimpleNamespace(path="expressions.pamt", target_count=4)
+        with (
+            patch("cdmw.core.archive_mesh_appearance.resolve_loose_character_appearance_sources", return_value=sources),
+            patch("cdmw.core.archive_mesh_appearance._read_loose_appearance_payload", return_value=b"PAR "),
+            patch("cdmw.core.archive_mesh_appearance.parse_pab", return_value=skeleton),
+            patch("cdmw.core.archive_mesh_appearance.parse_pabc_skeleton_variation", return_value=variation),
+            patch("cdmw.core.archive_mesh_appearance.parse_pamt_morph_target_set", return_value=morphs),
+            patch("cdmw.core.archive_mesh_appearance.resolve_pac_bone_palette", return_value=(0,)),
+            patch("cdmw.core.archive_mesh_appearance.apply_skeleton_variation_to_mesh", return_value=presentation_mesh),
+        ):
+            result, notes = apply_loose_character_appearance(
+                Path("face.pac"),
+                source_mesh,
+                b"PAC data",
+                include_morph_targets=True,
+            )
+
+        self.assertIs(presentation_mesh, result)
+        self.assertIsNot(source_mesh, result)
+        self.assertIn("shape.pabc", notes[0])
+        self.assertIn("3 appearance shape target", notes[1])
 
     def test_archive_preview_cache_key_has_quality_tier_source_guard(self) -> None:
         source = (

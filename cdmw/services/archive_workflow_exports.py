@@ -16,6 +16,7 @@ _add(
     "export_archive_payloads_to_mod_ready_loose",
 )
 _add("cdmw.core.archive_mesh_export", "export_archive_mesh")
+_add("cdmw.core.archive_mesh_appearance", "write_character_appearance_bundle_manifest")
 _add(
     "cdmw.core.archive_attachment_patches",
     "build_attachment_body_location_choices",

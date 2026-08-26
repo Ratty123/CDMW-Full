@@ -440,12 +440,17 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         body = source[start:end]
 
         self.assertIn("archive_entries = tuple(self.archive_entries)", body)
-        self.assertIn("def task(on_log: Callable[[str], None]) -> object:", body)
+        self.assertIn("def task(on_log: Callable[[str], None], stop_event: object) -> object:", body)
         self.assertIn("return build_character_dependency_plan(", body)
         self.assertIn("self._run_utility_task(", body)
         self.assertIn("show_archive_progress=True", body)
+        self.assertIn("task_accepts_cancel=True", body)
         self.assertIn("QTimer.singleShot(", body)
         self.assertIn("def _handle_character_dependency_package_plan", body)
+        self.assertIn("def _run_character_dependency_package_export(", body)
+        for expected in ("extract_archive_entries(", "export_archive_mesh(", "write_character_appearance_bundle_manifest(",
+            'output_root / "cdmw_blender"', "build_preview_context=False"):
+            self.assertIn(expected, body)
         self.assertNotIn("plan = build_character_dependency_plan(entry, self.archive_entries)", body)
 
     def test_modify_original_workspace_uses_safe_roundtrip_clone_path(self) -> None:

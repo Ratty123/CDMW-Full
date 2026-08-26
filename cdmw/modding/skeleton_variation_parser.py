@@ -77,11 +77,15 @@ class SkeletonVariationRecord:
 @dataclass(frozen=True, slots=True)
 class SkeletonVariation:
     path: str = ""
+    format_version: int = 0
     record_count: int = 0
     records: tuple[SkeletonVariationRecord, ...] = ()
     record_offset: int = PABC_RECORD_OFFSET
     record_stride: int = PABC_RECORD_STRIDE
     tail_size: int = 0
+    trailer_tag: int = 0
+    secondary_table_tag: int = 0
+    duplicate_record_table: bool = False
     parser_mode: str = "pabc_hash_bound_matrix_blocks"
     confidence: str = ""
 
@@ -97,12 +101,30 @@ def parse_pabc_skeleton_variation(data: bytes, filename: str = "", *, skeleton: 
         raise ValueError(f"Not a valid PABC/PAR file: {data[:4]!r}")
     record_count = struct.unpack_from("<I", data, 0x10)[0]
     if record_count <= 0:
-        return SkeletonVariation(path=filename, record_count=0, confidence="empty")
+        return SkeletonVariation(path=filename, format_version=data[4], record_count=0, confidence="empty")
     table_end = PABC_RECORD_OFFSET + record_count * PABC_RECORD_STRIDE
     if table_end > len(data):
         raise ValueError(
             f"PABC record table exceeds file size: count={record_count} stride={PABC_RECORD_STRIDE} size={len(data)}"
         )
+
+    tail = data[table_end:]
+    trailer_tag = 0
+    secondary_table_tag = 0
+    duplicate_record_table = False
+    if len(tail) == 4:
+        trailer_tag = struct.unpack_from("<I", tail, 0)[0]
+    elif len(tail) == 8 + record_count * PABC_RECORD_STRIDE:
+        secondary_table_tag, secondary_count = struct.unpack_from("<II", tail, 0)
+        if secondary_count != record_count:
+            raise ValueError(
+                f"PABC duplicate table count differs from the primary table: {secondary_count} != {record_count}"
+            )
+        if tail[8:] != data[PABC_RECORD_OFFSET:table_end]:
+            raise ValueError("PABC duplicate table does not match the primary record table")
+        duplicate_record_table = True
+    else:
+        raise ValueError(f"PABC trailing layout is not recognized: {len(tail)} byte(s)")
 
     bone_lookup = _bone_hash_lookup(skeleton)
     records: list[SkeletonVariationRecord] = []
@@ -132,11 +154,17 @@ def parse_pabc_skeleton_variation(data: bytes, filename: str = "", *, skeleton: 
         confidence = "all_records_match_pab_bone_hashes"
     elif bone_lookup and matched > 0:
         confidence = "partial_records_match_pab_bone_hashes"
+    if duplicate_record_table:
+        confidence += "_exact_duplicate"
     return SkeletonVariation(
         path=filename,
+        format_version=data[4],
         record_count=record_count,
         records=tuple(records),
-        tail_size=max(0, len(data) - table_end),
+        tail_size=len(tail),
+        trailer_tag=trailer_tag,
+        secondary_table_tag=secondary_table_tag,
+        duplicate_record_table=duplicate_record_table,
         confidence=confidence,
     )
 
@@ -182,7 +210,7 @@ def parse_pamt_morph_target_set(data: bytes, filename: str = "") -> PamtMorphTar
         offset += 1
         if name_length <= 0 or offset + name_length + 2 > len(data):
             raise ValueError(f"PAMT target {target_index} name is truncated")
-        name = data[offset : offset + name_length].decode("ascii", "strict")
+        name = data[offset : offset + name_length].decode("utf-8", "strict")
         offset += name_length
         normalized_name = name.casefold()
         if normalized_name in seen_names:
@@ -235,11 +263,11 @@ def apply_skeleton_variation_to_mesh(
     mesh: ParsedMesh,
     skeleton: object,
     bone_palette: Sequence[int],
-    variation: SkeletonVariation,
+    variation: SkeletonVariation | None,
     *,
     morph_target_set: PamtMorphTargetSet | None = None,
 ) -> ParsedMesh:
-    """Return a presentation clone in the PABC neutral pose with PAMT targets.
+    """Return a presentation clone in the optional PABC neutral pose with PAMT targets.
 
     Source positions, raw records, topology provenance, and archive bytes remain
     untouched. PAC vertices use the proven row-vector skinning convention:
@@ -257,12 +285,13 @@ def apply_skeleton_variation_to_mesh(
         raise ValueError("PAC bone palette references a missing skeleton bone")
 
     neutral_globals = [_bone_bind_matrix(bone) for bone in raw_bones]
-    for record in variation.records:
-        if record.bone_index < 0:
-            continue
-        if record.bone_index >= len(neutral_globals):
-            raise ValueError(f"PABC record references missing bone index {record.bone_index}")
-        neutral_globals[record.bone_index] = _matrix4(record.matrix_blocks[0])
+    if variation is not None:
+        for record in variation.records:
+            if record.bone_index < 0:
+                continue
+            if record.bone_index >= len(neutral_globals):
+                raise ValueError(f"PABC record references missing bone index {record.bone_index}")
+            neutral_globals[record.bone_index] = _matrix4(record.matrix_blocks[0])
     skin_matrices = _skin_matrices(raw_bones, neutral_globals)
 
     clone = copy.copy(mesh)
@@ -277,7 +306,8 @@ def apply_skeleton_variation_to_mesh(
             for name, target_skin_matrices in morph_globals
         }
         clone.submeshes.append(submesh)
-    setattr(clone, "_cdmw_skeleton_variation_source", variation.path)
+    if variation is not None:
+        setattr(clone, "_cdmw_skeleton_variation_source", variation.path)
     if morph_target_set is not None:
         setattr(clone, "_cdmw_morph_target_set_source", morph_target_set.path)
     return clone
@@ -292,7 +322,7 @@ def _read_pamt_named_bone(data: bytes, offset: int, index: int) -> tuple[int, st
     offset += 1
     if name_length <= 0 or offset + name_length + 2 > len(data):
         raise ValueError(f"PAMT bone {index} name is truncated")
-    name = data[offset : offset + name_length].decode("ascii", "strict")
+    name = data[offset : offset + name_length].decode("utf-8", "strict")
     offset += name_length
     parent_index = struct.unpack_from("<h", data, offset)[0]
     return name_hash, name, parent_index, offset + 2

@@ -10463,6 +10463,13 @@
     "{value_2}:": "{value_2}:",
     "×2 on -70 70": "×2 於 -70 70",
     "▸  Morph & Refit": "▸ 變形與改裝",
-    "▾  Morph & Refit": "▾ 變形與改裝"
+    "▾  Morph & Refit": "▾ 變形與改裝",
+    "A reusable character package must preserve exact virtual paths. Run the export again and choose Overwrite Existing or Clear Root.": "可重複使用的角色套件必須保留精確的虛擬路徑。請重新執行匯出，並選擇「覆寫現有檔案」或「清除根目錄」。",
+    "Character dependency Blender FBX: {value_0}": "角色相依項目 Blender FBX：{value_0}",
+    "Character dependency export finished with {value_0} failed file(s).": "角色相依項目匯出完成，{value_0} 個檔案失敗。",
+    "Character dependency manifest: {value_0}": "角色相依項目資訊清單：{value_0}",
+    "Character dependency package export cancelled.": "角色相依項目套件匯出已取消。",
+    "Exported {value_0} character dependency file(s) and a self-contained Blender FBX to {value_1}.": "已將 {value_0} 個角色相依項目檔案和一個自包含的 Blender FBX 匯出至 {value_1}。",
+    "Exported {value_0} character dependency file(s), but the reusable bundle is incomplete: {value_1}": "已匯出 {value_0} 個角色相依項目檔案，但可重複使用的套件不完整：{value_1}"
   }
 }

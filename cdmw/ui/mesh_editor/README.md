@@ -445,9 +445,14 @@ preview clips only when a keyframe table is exactly owned by an attached PAB
 bone hash at `table_offset - 8`; their playback timing is labeled by
 source/confidence and the default `30.0` FPS path is unproven. Model-linked PABC
 skeleton variations are parsed as bone-hash records and applied only to cloned
-Archive Browser/appearance preview geometry and visual FBX export. A linked
-morph-target PAMT supplies named global/local skeleton poses; FBX converts its
-non-base targets into Blender shape keys while the source/edit mesh stays exact.
+Archive Browser, Model Library, loose-package presentation geometry and visual
+FBX export. Resolution keeps the model's exact prefabdata authoritative while
+following a separately owned PAB or head PAMT only when character identity,
+component, current/legacy namespace and skin binding agree. A linked PAMT
+supplies named global/local skeleton poses; FBX converts every non-base target
+into a Blender shape key and keeps UTF-8 target names while the source/edit mesh
+stays exact. Unsupported descriptor-only or incomplete test bindings fall back
+without guessing a weighted bone.
 PASEQC lane references can be threaded into parsed PAA clips as preview-only
 sequence segment metadata with per-field confidence; blend
 and runtime sequence semantics remain unknown. The Skeleton inspector shows the
@@ -520,7 +525,11 @@ through standalone sessions and the Skeleton panel `Transfer W` action. Direct
 local PAC/PAM/PAMLOD file sessions also load and attach a sibling or
 supplemental `.pab` skeleton when one is available.
 `cdmw/core/archive_mesh_appearance.py` owns the read-only PAC/PAB/PABC/PAMT
-relationship resolution used by presentation preview and visual FBX export.
+relationship resolution used by presentation preview and visual FBX export;
+`cdmw/core/character_appearance_bundle.py` owns the atomic hashed bundle
+manifest. **Character Dependency Package** preserves the selected app and exact
+virtual dependency tree, writes a ready-to-import FBX under `cdmw_blender`, and
+lets a reopened loose PAC reproduce the same presentation after hash validation.
 Texture resolution is read-only. Mesh Editor reuses an already-resolved Archive
 Browser material context when one exists. A geometry-only handoff starts a
 request-correlated material-context worker over the same archive preview resolver;

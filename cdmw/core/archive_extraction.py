@@ -534,8 +534,11 @@ def _read_archive_entry_data_from_handle(
 def extract_archive_entry(
     entry: ArchiveEntry,
     output_root: Path,
+    *,
+    stop_event: Optional[threading.Event] = None,
 ) -> Tuple[Path, bool, str]:
-    data, decompressed, note = read_archive_entry_data(entry)
+    data, decompressed, note = read_archive_entry_data(entry, stop_event=stop_event)
+    raise_if_cancelled(stop_event)
     out_path = output_root
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(data)
@@ -606,7 +609,11 @@ def extract_archive_entries(
             else:
                 resolved_path = target_path
             used_targets.add(str(resolved_path).lower())
-            out_path, was_decompressed, note = extract_archive_entry(entry, resolved_path)
+            out_path, was_decompressed, note = extract_archive_entry(
+                entry,
+                resolved_path,
+                stop_event=stop_event,
+            )
             extracted += 1
             if was_decompressed:
                 decompressed += 1

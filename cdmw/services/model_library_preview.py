@@ -205,8 +205,15 @@ def prepare_model_library_inline_preview(
         )
     raise_if_cancelled(stop_event)
     progress(f"Reading model file: {resolved_import_path}")
-    scene_result = import_scene_mesh_with_report(resolved_import_path, include_external_audit=False)
+    scene_result = import_scene_mesh_with_report(
+        resolved_import_path,
+        include_external_audit=False,
+        stop_event=stop_event,
+    )
     raise_if_cancelled(stop_event)
+    presentation_mesh = getattr(scene_result.mesh, "_cdmw_presentation_mesh", None)
+    if presentation_mesh is not None:
+        scene_result.mesh = presentation_mesh
     original_vertices = int(scene_result.mesh.total_vertices)
     original_faces = int(scene_result.mesh.total_faces)
     submeshes = tuple(getattr(scene_result.mesh, "submeshes", ()) or ())

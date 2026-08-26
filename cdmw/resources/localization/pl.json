@@ -10466,6 +10466,13 @@
     "{value_2}:": "{value_2}:",
     "×2 on -70 70": "×2 na -70 70",
     "▸  Morph & Refit": "▸ Przekształcanie i odnawianie",
-    "▾  Morph & Refit": "▾ Morfowanie i odnawianie"
+    "▾  Morph & Refit": "▾ Morfowanie i odnawianie",
+    "A reusable character package must preserve exact virtual paths. Run the export again and choose Overwrite Existing or Clear Root.": "Pakiet postaci wielokrotnego użytku musi zachowywać dokładne ścieżki wirtualne. Uruchom eksport ponownie i wybierz Zastąp istniejące lub Wyczyść katalog główny.",
+    "Character dependency Blender FBX: {value_0}": "FBX Blendera zależności postaci: {value_0}",
+    "Character dependency export finished with {value_0} failed file(s).": "Eksport zależności postaci zakończył się z {value_0} nieudanymi plikami.",
+    "Character dependency manifest: {value_0}": "Manifest zależności postaci: {value_0}",
+    "Character dependency package export cancelled.": "Eksport pakietu zależności postaci został anulowany.",
+    "Exported {value_0} character dependency file(s) and a self-contained Blender FBX to {value_1}.": "Wyeksportowano {value_0} plików zależności postaci i samodzielny plik FBX Blendera do {value_1}.",
+    "Exported {value_0} character dependency file(s), but the reusable bundle is incomplete: {value_1}": "Wyeksportowano {value_0} plików zależności postaci, ale pakiet wielokrotnego użytku jest niekompletny: {value_1}"
   }
 }

@@ -217,9 +217,10 @@ class ReleaseInspiredImprovementTests(unittest.TestCase):
         descriptor = _entry("character/prefab/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.prefabdata_xml")
         skeleton = _entry("character/model/1_pc/2_phw/phw_01.pab")
         pabc = _entry("character/binary/skeletonvariation/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pabc")
+        pamt = _entry("character/model/1_pc/2_phw/phw_01.pamt")
         papr = _entry("character/model/1_pc/2_phw/phw_01.papr")
         socket = _entry("character/descriptors/socketbonedata/phw_01.pab.sockets.xml")
-        entries = (model, identity, descriptor, skeleton, pabc, papr, socket)
+        entries = (model, identity, descriptor, skeleton, pabc, pamt, papr, socket)
         path_index = {entry.path.lower(): (entry,) for entry in entries}
         basename_index: dict[str, tuple[ArchiveEntry, ...]] = {}
         for entry in entries:
@@ -231,6 +232,7 @@ class ReleaseInspiredImprovementTests(unittest.TestCase):
                     '<PrefabData>'
                     '<SkeletonName FileName="1_pc/2_phw/phw_01.pab" />'
                     '<SkeletonVariationName FileName="1_PC/10_PGW/Nude/CD_PGW_00_Nude_00_0001.pabc" />'
+                    '<MorphTargetSet FileName="1_pc/2_phw/phw_01.pamt" />'
                     '<AnimationConstraintName FileName="1_pc/2_phw/phw_01.papr" />'
                     '<SocketFileName FileName="phw_01.pab.sockets.xml" />'
                     '</PrefabData>'
@@ -250,9 +252,427 @@ class ReleaseInspiredImprovementTests(unittest.TestCase):
         self.assertEqual("descriptor", report.confidence)
         self.assertEqual(descriptor.path, report.descriptor_path)
         self.assertEqual(pabc.path, report.skeleton_variation_path)
+        self.assertEqual(descriptor.path, report.morph_descriptor_path)
+        self.assertEqual(pamt.path, report.morph_target_path)
         self.assertEqual(papr.path, report.animation_constraint_path)
         self.assertEqual(socket.path, report.socket_path)
         self.assertNotEqual(identity.path, report.selected_path)
+
+    def test_skeleton_resolver_combines_body_skeleton_with_sibling_head_morph_descriptor(self) -> None:
+        family = "2_mon/cd_m0002_00_fourfeet/cd_m0002_00_buffalo/cd_m0002_00_buffalo"
+        model = _entry(f"character/model/{family}/cd_m0002_00_buffalo_00_0001.pac")
+        body_descriptor = _entry(
+            f"character/prefab/{family}/cd_m0002_00_buffalo_00_0001.prefabdata_xml"
+        )
+        head_descriptor = _entry(
+            f"character/prefab/{family}/cd_m0002_00_buffalo_head_0001.prefabdata_xml"
+        )
+        skeleton = _entry(f"character/model/{family}/cd_m0002_00_buffalo.pab")
+        morphs = _entry(f"character/model/{family}/cd_m0002_00_buffalo.pamt")
+        entries = (model, body_descriptor, head_descriptor, skeleton, morphs)
+        path_index = {entry.path.lower(): (entry,) for entry in entries}
+        basename_index = {entry.basename.lower(): (entry,) for entry in entries}
+
+        def read_payload(entry: ArchiveEntry) -> bytes:
+            if entry is body_descriptor:
+                return (
+                    '<NudePrefabData><SkeletonName FileName="'
+                    f'{family}/cd_m0002_00_buffalo.pab"/></NudePrefabData>'
+                ).encode("utf-8")
+            if entry is head_descriptor:
+                return (
+                    '<HeadPrefabData><MorphTargetSet FileName="'
+                    f'{family}/cd_m0002_00_buffalo.pamt"/></HeadPrefabData>'
+                ).encode("utf-8")
+            return _pab_payload()
+
+        selected, report = resolve_skeleton_for_model(
+            model,
+            entries,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            read_entry_data=read_payload,
+        )
+
+        self.assertIs(skeleton, selected)
+        self.assertEqual(body_descriptor.path, report.descriptor_path)
+        self.assertEqual(head_descriptor.path, report.morph_descriptor_path)
+        self.assertEqual(morphs.path, report.morph_target_path)
+        self.assertIn("sibling prefabdata descriptor", report.reason)
+
+    def test_skeleton_resolver_uses_cross_folder_morphs_from_the_same_named_family(self) -> None:
+        body_family = "2_mon/cd_m0002_00_fourfeet/cd_m0002_00_dog/cd_m0002_00_cat"
+        model = _entry(f"character/model/{body_family}/cd_m0002_00_hatch_00_0001.pac")
+        body_descriptor = _entry(
+            f"character/prefab/{body_family}/cd_m0002_00_hatch_00_0001.prefabdata_xml"
+        )
+        wrong_head_descriptor = _entry(
+            f"character/prefab/{body_family}/cd_m0002_00_catbaby_head_0001.prefabdata_xml"
+        )
+        hatch_head_descriptor = _entry(
+            "character/prefab/2_mon/cd_m0002_00_fourfeet/cd_m0002_00_hatch/"
+            "cd_m0002_00_hatch_head_00_0001.prefabdata_xml"
+        )
+        skeleton = _entry("character/model/2_mon/cd_m0002_00_fourfeet/cd_m0011_00_dog.pab")
+        wrong_morphs = _entry(f"character/model/{body_family}/cd_m0002_00_cat.pamt")
+        hatch_morphs = _entry(
+            "character/model/2_mon/cd_m0002_00_fourfeet/cd_m0002_00_hatch/cd_m0002_00_hatch.pamt"
+        )
+        entries = (
+            model,
+            body_descriptor,
+            wrong_head_descriptor,
+            hatch_head_descriptor,
+            skeleton,
+            wrong_morphs,
+            hatch_morphs,
+        )
+        path_index = {entry.path.lower(): (entry,) for entry in entries}
+        basename_index = {entry.basename.lower(): (entry,) for entry in entries}
+        payloads = {
+            body_descriptor.path: (
+                '<NudePrefabData><SkeletonName FileName="2_mon/cd_m0002_00_fourfeet/'
+                'cd_m0011_00_dog.pab"/></NudePrefabData>'
+            ),
+            wrong_head_descriptor.path: (
+                f'<HeadPrefabData><MorphTargetSet FileName="{body_family}/cd_m0002_00_cat.pamt"/>'
+                '</HeadPrefabData>'
+            ),
+            hatch_head_descriptor.path: (
+                '<HeadPrefabData><MorphTargetSet FileName="2_mon/cd_m0002_00_fourfeet/'
+                'cd_m0002_00_hatch/cd_m0002_00_hatch.pamt"/></HeadPrefabData>'
+            ),
+        }
+
+        _selected, report = resolve_skeleton_for_model(
+            model,
+            entries,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            read_entry_data=lambda entry: payloads.get(entry.path, "").encode("utf-8"),
+        )
+
+        self.assertEqual(body_descriptor.path, report.descriptor_path)
+        self.assertEqual(hatch_head_descriptor.path, report.morph_descriptor_path)
+        self.assertEqual(hatch_morphs.path, report.morph_target_path)
+
+    def test_skeleton_resolver_does_not_apply_family_head_morphs_to_a_tail_part(self) -> None:
+        family = "2_mon/cd_m0002_00_fourfeet/cd_m0002_00_hatch"
+        model = _entry(f"character/model/{family}/cd_m0002_00_hatch_tail_00_0001.pac")
+        tail_descriptor = _entry(
+            f"character/prefab/{family}/cd_m0002_00_hatch_tail_00_0001.prefabdata_xml"
+        )
+        head_descriptor = _entry(
+            f"character/prefab/{family}/cd_m0002_00_hatch_head_00_0001.prefabdata_xml"
+        )
+        skeleton = _entry(f"character/model/{family}/cd_m0002_00_hatch.pab")
+        morphs = _entry(f"character/model/{family}/cd_m0002_00_hatch.pamt")
+        entries = (model, tail_descriptor, head_descriptor, skeleton, morphs)
+        path_index = {entry.path.lower(): (entry,) for entry in entries}
+        basename_index = {entry.basename.lower(): (entry,) for entry in entries}
+        payloads = {
+            tail_descriptor.path: (
+                f'<TailPrefabData><SkeletonName FileName="{family}/cd_m0002_00_hatch.pab"/>'
+                '</TailPrefabData>'
+            ),
+            head_descriptor.path: (
+                f'<HeadPrefabData><MorphTargetSet FileName="{family}/cd_m0002_00_hatch.pamt"/>'
+                '</HeadPrefabData>'
+            ),
+        }
+
+        _selected, report = resolve_skeleton_for_model(
+            model,
+            entries,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            read_entry_data=lambda entry: payloads.get(entry.path, "").encode("utf-8"),
+        )
+
+        self.assertEqual(tail_descriptor.path, report.descriptor_path)
+        self.assertEqual("", report.morph_descriptor_path)
+        self.assertEqual("", report.morph_target_path)
+
+    def test_skeleton_resolver_does_not_treat_a_head_descriptor_as_a_tail_owner(self) -> None:
+        family = "2_mon/cd_m0002_00_fourfeet/cd_m0002_00_hatch"
+        model = _entry(f"character/model/{family}/cd_m0002_00_hatch_tail_00_0001.pac")
+        tail_descriptor = _entry(
+            f"character/prefab/{family}/cd_m0002_00_hatch_tail_00_0001.prefabdata_xml"
+        )
+        head_descriptor = _entry(
+            f"character/prefab/{family}/cd_m0002_00_hatch_head_00_0001.prefabdata_xml"
+        )
+        wrong_family_descriptor = _entry(
+            f"character/prefab/{family}/cd_m0002_00_cat_00_0001.prefabdata_xml"
+        )
+        wrong_family_skeleton = _entry(f"character/model/{family}/cd_m0011_00_dog.pab")
+        wrong_family_morphs = _entry(f"character/model/{family}/cd_m0002_00_cat.pamt")
+        morphs = _entry(f"character/model/{family}/cd_m0002_00_hatch.pamt")
+        entries = (
+            model,
+            tail_descriptor,
+            head_descriptor,
+            wrong_family_descriptor,
+            wrong_family_skeleton,
+            wrong_family_morphs,
+            morphs,
+        )
+        path_index = {entry.path.lower(): (entry,) for entry in entries}
+        basename_index = {entry.basename.lower(): (entry,) for entry in entries}
+        payloads = {
+            tail_descriptor.path: "<TailPrefabData />",
+            head_descriptor.path: (
+                f'<HeadPrefabData><MorphTargetSet FileName="{family}/cd_m0002_00_hatch.pamt"/>'
+                '</HeadPrefabData>'
+            ),
+            wrong_family_descriptor.path: (
+                f'<NudePrefabData><SkeletonName FileName="{family}/cd_m0011_00_dog.pab"/>'
+                f'<MorphTargetSet FileName="{family}/cd_m0002_00_cat.pamt"/></NudePrefabData>'
+            ),
+        }
+
+        _selected, report = resolve_skeleton_for_model(
+            model,
+            entries,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            read_entry_data=lambda entry: payloads.get(entry.path, "").encode("utf-8"),
+        )
+
+        self.assertEqual("", report.descriptor_path)
+        self.assertEqual("", report.morph_target_path)
+
+    def test_skeleton_resolver_combines_named_head_with_sibling_nude_skeleton(self) -> None:
+        model = _entry("character/model/1_pc/5_pom/head/head/cd_pom_00_head_0001_oongka.pac")
+        head_descriptor = _entry(
+            "character/prefab/1_pc/05_pom/head/head/"
+            "cd_pom_00_head_00_0001_oongka.prefabdata_xml"
+        )
+        nude_descriptor = _entry(
+            "character/prefab/1_pc/05_pom/nude/"
+            "cd_pom_00_nude_00_0001_oongka.prefabdata_xml"
+        )
+        oldarm_descriptor = _entry(
+            "character/prefab/1_pc/05_pom/nude/"
+            "cd_pom_00_nude_00_0004_oldarm_oongka.prefabdata_xml"
+        )
+        aging_descriptor = _entry(
+            "character/prefab/1_pc/05_pom/nude/"
+            "cd_pom_00_nude_00_0001_oongka_aging.prefabdata_xml"
+        )
+        skeleton = _entry("character/model/1_pc/1_phm/phm_01.pab")
+        variation = _entry(
+            "character/binary/skeletonvariation/1_pc/5_pom/head/head/"
+            "cd_pom_oongka_head_0001.pabc"
+        )
+        morphs = _entry("character/model/1_pc/5_pom/pom_oongka.pamt")
+        entries = (
+            model,
+            head_descriptor,
+            nude_descriptor,
+            oldarm_descriptor,
+            aging_descriptor,
+            skeleton,
+            variation,
+            morphs,
+        )
+        path_index = {entry.path.lower(): (entry,) for entry in entries}
+        basename_index = {entry.basename.lower(): (entry,) for entry in entries}
+        payloads = {
+            head_descriptor.path: (
+                '<HeadPrefabData><SkeletonVariationName FileName="1_pc/5_pom/head/head/'
+                'cd_pom_oongka_head_0001.pabc"/><MorphTargetSet FileName="1_pc/5_pom/'
+                'pom_oongka.pamt"/></HeadPrefabData>'
+            ),
+            nude_descriptor.path: (
+                '<NudePrefabData><SkeletonName FileName="1_pc/1_phm/phm_01.pab"/>'
+                '</NudePrefabData>'
+            ),
+            oldarm_descriptor.path: (
+                '<NudePrefabData><SkeletonName FileName="1_pc/1_phm/phm_01.pab"/>'
+                '</NudePrefabData>'
+            ),
+            aging_descriptor.path: (
+                '<NudePrefabData><SkeletonName FileName="1_pc/1_phm/phm_01.pab"/>'
+                '</NudePrefabData>'
+            ),
+        }
+
+        selected, report = resolve_skeleton_for_model(
+            model,
+            entries,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            read_entry_data=lambda entry: payloads.get(entry.path, "").encode("utf-8"),
+        )
+
+        self.assertIs(skeleton, selected)
+        self.assertEqual(head_descriptor.path, report.descriptor_path)
+        self.assertEqual(nude_descriptor.path, report.skeleton_descriptor_path)
+        self.assertEqual(variation.path, report.skeleton_variation_path)
+        self.assertEqual(head_descriptor.path, report.morph_descriptor_path)
+        self.assertEqual(morphs.path, report.morph_target_path)
+
+    def test_skeleton_resolver_does_not_borrow_named_morphs_for_a_generic_head(self) -> None:
+        model = _entry("character/model/1_pc/5_pom/head/head/cd_pom_00_head_0001.pac")
+        generic_descriptor = _entry(
+            "character/prefab/1_pc/05_pom/head/head/cd_pom_00_head_00_0001.prefabdata_xml"
+        )
+        named_descriptor = _entry(
+            "character/prefab/1_pc/05_pom/head/head/"
+            "cd_pom_00_head_00_0001_oongka.prefabdata_xml"
+        )
+        generic_variation = _entry(
+            "character/binary/skeletonvariation/1_pc/5_pom/head/head/cd_pom_00_head_0001.pabc"
+        )
+        named_morphs = _entry("character/model/1_pc/5_pom/pom_oongka.pamt")
+        entries = (model, generic_descriptor, named_descriptor, generic_variation, named_morphs)
+        path_index = {entry.path.lower(): (entry,) for entry in entries}
+        basename_index = {entry.basename.lower(): (entry,) for entry in entries}
+        payloads = {
+            generic_descriptor.path: (
+                '<HeadPrefabData><SkeletonVariationName FileName="1_pc/5_pom/head/head/'
+                'cd_pom_00_head_0001.pabc"/></HeadPrefabData>'
+            ),
+            named_descriptor.path: (
+                '<HeadPrefabData><SkeletonVariationName FileName="1_pc/5_pom/head/head/'
+                'cd_pom_00_head_0001.pabc"/><MorphTargetSet FileName="1_pc/5_pom/'
+                'pom_oongka.pamt"/>'
+                '</HeadPrefabData>'
+            ),
+        }
+
+        _selected, report = resolve_skeleton_for_model(
+            model,
+            entries,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            read_entry_data=lambda entry: payloads.get(entry.path, "").encode("utf-8"),
+        )
+
+        self.assertEqual(generic_descriptor.path, report.descriptor_path)
+        self.assertEqual("", report.morph_descriptor_path)
+        self.assertEqual("", report.morph_target_path)
+
+    def test_skeleton_resolver_prefers_same_virtual_family_folder_over_duplicate_current_stem(self) -> None:
+        legacy_family = "2_mon/m0002_00_fourfeet/m0002_00_dog/m0002_00_cat"
+        current_family = "2_mon/cd_m0002_00_fourfeet/cd_m0002_00_dog/cd_m0002_00_cat"
+        model = _entry(f"character/model/{legacy_family}/cd_m0002_00_cat_00_0001.pac")
+        current_model = _entry(f"character/model/{current_family}/cd_m0002_00_cat_00_0001.pac")
+        legacy_body = _entry(
+            f"character/prefab/{legacy_family}/cd_m0002_00_cat_00_0001_test.prefabdata_xml"
+        )
+        legacy_head = _entry(
+            f"character/prefab/{legacy_family}/cd_m0002_00_cat_head_00_0001_test.prefabdata_xml"
+        )
+        current_body = _entry(
+            f"character/prefab/{current_family}/cd_m0002_00_cat_00_0001.prefabdata_xml"
+        )
+        legacy_skeleton = _entry(f"character/model/{legacy_family}/m0011_00_dog.pab")
+        current_skeleton = _entry(f"character/model/{current_family}/cd_m0011_00_dog.pab")
+        legacy_morphs = _entry(f"character/model/{legacy_family}/cd_m0002_00_cat.pamt")
+        entries = (
+            model,
+            current_model,
+            legacy_body,
+            legacy_head,
+            current_body,
+            legacy_skeleton,
+            current_skeleton,
+            legacy_morphs,
+        )
+        path_index = {entry.path.lower(): (entry,) for entry in entries}
+        basename_index = {entry.basename.lower(): (entry,) for entry in entries}
+        payloads = {
+            legacy_body.path: (
+                f'<NudePrefabData><SkeletonName FileName="{legacy_family}/m0011_00_dog.pab"/>'
+                '</NudePrefabData>'
+            ),
+            legacy_head.path: (
+                f'<HeadPrefabData><MorphTargetSet FileName="{legacy_family}/cd_m0002_00_cat.pamt"/>'
+                '</HeadPrefabData>'
+            ),
+            current_body.path: (
+                f'<NudePrefabData><SkeletonName FileName="{current_family}/cd_m0011_00_dog.pab"/>'
+                '</NudePrefabData>'
+            ),
+        }
+
+        _selected, report = resolve_skeleton_for_model(
+            model,
+            entries,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            read_entry_data=lambda entry: payloads.get(entry.path, "").encode("utf-8"),
+        )
+
+        self.assertEqual(legacy_body.path, report.descriptor_path)
+        self.assertEqual(legacy_head.path, report.morph_descriptor_path)
+        self.assertEqual(legacy_morphs.path, report.morph_target_path)
+
+        _current_selected, current_report = resolve_skeleton_for_model(
+            current_model,
+            entries,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            read_entry_data=lambda entry: payloads.get(entry.path, "").encode("utf-8"),
+        )
+        self.assertEqual(current_body.path, current_report.descriptor_path)
+        self.assertEqual("", current_report.morph_target_path)
+
+    def test_skeleton_resolver_keeps_prefixless_legacy_family_components_together(self) -> None:
+        family = "2_mon/m0001_00_twofeet/m0001_00_bear"
+        model = _entry(f"character/model/{family}/m0001_00_bear_0001.pac")
+        nude_descriptor = _entry(
+            f"character/prefab/{family}/m0001_00_bear_nude_0001.prefabdata_xml"
+        )
+        head_descriptor = _entry(
+            f"character/prefab/{family}/m0001_00_bear_head_0001.prefabdata_xml"
+        )
+        decoy_descriptor = _entry(
+            f"character/prefab/{family}/m0001_00_baby_bear_nude_0001.prefabdata_xml"
+        )
+        skeleton = _entry(f"character/model/{family}/m0001_00_bear.pab")
+        decoy_skeleton = _entry(f"character/model/{family}/m0001_00_baby_bear.pab")
+        morphs = _entry(f"character/model/{family}/cd_m0001_00_bear_0001.pamt")
+        entries = (
+            model,
+            nude_descriptor,
+            head_descriptor,
+            decoy_descriptor,
+            skeleton,
+            decoy_skeleton,
+            morphs,
+        )
+        path_index = {entry.path.lower(): (entry,) for entry in entries}
+        basename_index = {entry.basename.lower(): (entry,) for entry in entries}
+        payloads = {
+            nude_descriptor.path: (
+                f'<NudePrefabData><SkeletonName FileName="{family}/m0001_00_bear.pab"/>'
+                '</NudePrefabData>'
+            ),
+            head_descriptor.path: (
+                f'<HeadPrefabData><MorphTargetSet FileName="{family}/cd_m0001_00_bear_0001.pamt"/>'
+                '</HeadPrefabData>'
+            ),
+            decoy_descriptor.path: (
+                f'<NudePrefabData><SkeletonName FileName="{family}/m0001_00_baby_bear.pab"/>'
+                '</NudePrefabData>'
+            ),
+        }
+
+        selected, report = resolve_skeleton_for_model(
+            model,
+            entries,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            read_entry_data=lambda entry: payloads.get(entry.path, "").encode("utf-8"),
+        )
+
+        self.assertIs(skeleton, selected)
+        self.assertEqual(nude_descriptor.path, report.descriptor_path)
+        self.assertEqual(head_descriptor.path, report.morph_descriptor_path)
+        self.assertEqual(morphs.path, report.morph_target_path)
 
     def test_skeleton_resolver_refuses_ambiguous_heuristic_candidates(self) -> None:
         model = _entry("character/model/body_a.pac", data=b"no palette")
@@ -293,6 +713,36 @@ class ReleaseInspiredImprovementTests(unittest.TestCase):
         self.assertFalse(plan.blocking_errors)
         self.assertIn("character/model/body_a.pac", [entry.path for entry in plan.entries])
         self.assertIn("character/appearance/hero.app_xml", [entry.path for entry in plan.entries])
+
+    def test_character_dependency_plan_bundles_character_specific_pabc_and_pamt(self) -> None:
+        stem = "cd_phw_00_head_00_0111"
+        tempdir, entries = _entries_with_payloads(
+            [
+                ("character/appearance/damian.app_xml", f'<Appearance><Head><Prefab Name="{stem}" /></Head></Appearance>'),
+                (
+                    f"character/prefab/1_pc/2_phw/head/head/{stem}.prefabdata_xml",
+                    "<HeadPrefabData>"
+                    '<SkeletonName FileName="1_pc/2_phw/phw_01.pab" />'
+                    f'<SkeletonVariationName FileName="1_pc/2_phw/head/head/{stem}.pabc" />'
+                    '<MorphTargetSet FileName="1_pc/2_phw/phw_damian.pamt" />'
+                    "</HeadPrefabData>",
+                ),
+                (f"character/model/1_pc/2_phw/head/head/{stem}.pac", b"PAC"),
+                ("character/model/1_pc/2_phw/phw_01.pab", b"PAB"),
+                (f"character/binary/skeletonvariation/1_pc/2_phw/head/head/{stem}.pabc", b"PABC"),
+                ("character/model/1_pc/2_phw/phw_damian.pamt", b"PAMT"),
+            ]
+        )
+        self.addCleanup(tempdir.cleanup)
+        model = next(entry for entry in entries if entry.extension == ".pac")
+
+        plan = build_character_dependency_plan(model, entries)
+
+        bundled_paths = {entry.path for entry in plan.entries}
+        self.assertFalse(plan.blocking_errors)
+        self.assertIn("character/model/1_pc/2_phw/phw_01.pab", bundled_paths)
+        self.assertIn(f"character/binary/skeletonvariation/1_pc/2_phw/head/head/{stem}.pabc", bundled_paths)
+        self.assertIn("character/model/1_pc/2_phw/phw_damian.pamt", bundled_paths)
 
     def test_structured_string_and_pabgh_safe_editors_validate_round_trips(self) -> None:
         payload = struct.pack("<I", 12) + b"old_path.paa\x00" + b"tail"

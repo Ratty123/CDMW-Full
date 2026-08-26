@@ -10465,6 +10465,13 @@
     "{value_2}:": "{value_2}:",
     "×2 on -70 70": "×2 em -70 70",
     "▸  Morph & Refit": "▸ Morfar e reajustar",
-    "▾  Morph & Refit": "▾ Morfar e reajustar"
+    "▾  Morph & Refit": "▾ Morfar e reajustar",
+    "A reusable character package must preserve exact virtual paths. Run the export again and choose Overwrite Existing or Clear Root.": "Um pacote de personagem reutilizável deve preservar os caminhos virtuais exatos. Execute a exportação novamente e escolha Sobrescrever existentes ou Limpar raiz.",
+    "Character dependency Blender FBX: {value_0}": "FBX do Blender das dependências do personagem: {value_0}",
+    "Character dependency export finished with {value_0} failed file(s).": "A exportação das dependências do personagem terminou com {value_0} arquivo(s) com falha.",
+    "Character dependency manifest: {value_0}": "Manifesto das dependências do personagem: {value_0}",
+    "Character dependency package export cancelled.": "A exportação do pacote de dependências do personagem foi cancelada.",
+    "Exported {value_0} character dependency file(s) and a self-contained Blender FBX to {value_1}.": "Foram exportados {value_0} arquivo(s) de dependências do personagem e um FBX autossuficiente do Blender para {value_1}.",
+    "Exported {value_0} character dependency file(s), but the reusable bundle is incomplete: {value_1}": "Foram exportados {value_0} arquivo(s) de dependências do personagem, mas o pacote reutilizável está incompleto: {value_1}"
   }
 }
