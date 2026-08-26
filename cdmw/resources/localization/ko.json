@@ -8060,7 +8060,6 @@
     "The resident viewport rejected the preview package.": "상주 뷰포트가 미리보기 패키지를 거부했습니다.",
     "The selected DDS does not currently have a concrete role to accept yet.": "선택한 DDS에는 현재 아직 수락할 구체적인 역할이 없습니다.",
     "The selected archive entry did not produce a renderable 3D model preview.": "선택한 아카이브 항목이 렌더링 가능한 3D 모델 미리보기를 생성하지 않았습니다.",
-    "The selected archive row changed before preview dependencies could be resolved.": "미리보기 종속성이 해결되기 전에 선택한 아카이브 행이 변경되었습니다.",
     "The selected catalogue rows have no resolvable archive links.": "선택한 카탈로그 행에는 확인할 수 있는 보관 링크가 없습니다.",
     "The selected extraction target already contains files or folders.": "선택한 추출 대상에 이미 파일이나 폴더가 포함되어 있습니다.",
     "The selected model preview is no longer active.": "선택한 모델 미리보기가 더 이상 활성 상태가 아닙니다.",

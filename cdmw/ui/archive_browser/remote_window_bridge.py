@@ -376,8 +376,11 @@ class ArchiveRemoteWindowBridge(QObject):
         return _legacy_identity(entry)
 
     def current_compatibility_entry(self) -> ArchiveEntry | None:
-        entry = self._controller.compatibility_entry_for_index(self._window.archive_tree.currentIndex())
+        index = self._window.archive_tree.currentIndex()
+        entry = self._controller.compatibility_entry_for_index(index)
         if entry is None:
+            if self._display_v2 and index.isValid():
+                self._model.request_visible_rows(index.row(), index.row())
             return None
         dependencies = self.prepared_dependencies_for(entry)
         return dependencies.selected_entry if dependencies is not None else entry
@@ -386,10 +389,6 @@ class ArchiveRemoteWindowBridge(QObject):
         provider = self._preview_dependencies
         dto = self._model.entry_for_index(self._window.archive_tree.currentIndex())
         if provider is None or dto is None or _legacy_identity_key(entry) != _dto_identity_key(dto):
-            self.previewDependenciesFailed.emit(
-                int(ui_request_id),
-                "The selected archive row changed before preview dependencies could be resolved.",
-            )
             return False
         return provider.request(dto, ui_request_id=int(ui_request_id))
 

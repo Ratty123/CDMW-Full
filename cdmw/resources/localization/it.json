@@ -8060,7 +8060,6 @@
     "The resident viewport rejected the preview package.": "La vista residente ha rifiutato il pacchetto di anteprima.",
     "The selected DDS does not currently have a concrete role to accept yet.": "Il DDS selezionato non ha ancora un ruolo concreto da accettare.",
     "The selected archive entry did not produce a renderable 3D model preview.": "La voce di archivio selezionata non ha prodotto un'anteprima del modello 3D renderizzabile.",
-    "The selected archive row changed before preview dependencies could be resolved.": "La riga di archivio selezionata è stata modificata prima che le dipendenze dell'anteprima potessero essere risolte.",
     "The selected catalogue rows have no resolvable archive links.": "Le righe del catalogo selezionato non hanno collegamenti di archivio risolvibili.",
     "The selected extraction target already contains files or folders.": "La destinazione di estrazione selezionata contiene già file o cartelle.",
     "The selected model preview is no longer active.": "L'anteprima del modello selezionato non è più attiva.",

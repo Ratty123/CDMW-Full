@@ -178,6 +178,11 @@ class ShellWindowRuntimeStateMixin:
         # Counts the re-resolves spent waiting for a worker secondary index that
         # was still building when the preview's dependencies were answered.
         self._archive_preview_secondary_index_retries = 0
+        # A remote query can replace the selected row's QModelIndex during the
+        # short preview dwell. Keep that transient remap latest-wins instead of
+        # publishing it as a dependency failure that needs a manual Refresh.
+        self._archive_preview_selection_retry_request_id = 0
+        self._archive_preview_selection_retry_attempts = 0
         # One-shot warm-up that pays a package's PAMT index build off the UI
         # thread, before the first preview click has to.
         self.archive_preview_core_prewarm_done = False

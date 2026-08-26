@@ -21,6 +21,8 @@ from cdmw.workers.archive_preview_workers import ArchivePreviewWorker, _ArchiveP
 # waits that long and the backoff covers a slow disk without polling.
 ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_MS = 2500
 ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_LIMIT = 3
+ARCHIVE_PREVIEW_SELECTION_RETRY_MS = 60
+ARCHIVE_PREVIEW_SELECTION_RETRY_LIMIT = 4
 
 
 def _archive_preview_debounce_ms(entry: Optional[ArchiveEntry]) -> int:
@@ -154,6 +156,8 @@ class ArchivePreviewWorkerMixin:
             force=force,
         ):
             return
+        self._archive_preview_selection_retry_request_id = 0
+        self._archive_preview_selection_retry_attempts = 0
         remote_bridge = getattr(self, "archive_remote_bridge", None)
         if remote_bridge is not None and remote_bridge.displays_v2:
             remote_bridge.cancel_preview_dependencies(clear_snapshot=True)
@@ -302,6 +306,103 @@ class ArchivePreviewWorkerMixin:
         self.archive_preview_track_index = selected
         self._render_archive_preview(entry, force=True)
 
+    def _resolve_scheduled_remote_preview_dependencies(
+        self,
+        request_id: int,
+        entry: ArchiveEntry | None,
+    ) -> tuple[ArchivePreviewDependencySet | None, bool]:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is None or not remote_bridge.displays_v2 or entry is None:
+            return None, False
+
+        current_provider = getattr(remote_bridge, "current_compatibility_entry", None)
+        if callable(current_provider):
+            current_entry = current_provider()
+            if current_entry is None:
+                self._schedule_archive_preview_selection_retry(request_id, entry)
+                return None, True
+            if getattr(current_entry, "identity", None) != getattr(entry, "identity", None):
+                self._archive_preview_selection_retry_request_id = 0
+                self._archive_preview_selection_retry_attempts = 0
+                self.scheduled_archive_preview_request = None
+                _record_archive_worker_lifecycle(
+                    self,
+                    "archive_preview_dependency_selection_superseded",
+                    request_id=int(request_id),
+                    scheduled_path=str(getattr(entry, "path", "") or ""),
+                    current_path=str(getattr(current_entry, "path", "") or ""),
+                )
+                self._render_archive_preview(current_entry)
+                return None, True
+
+        self._archive_preview_selection_retry_request_id = 0
+        self._archive_preview_selection_retry_attempts = 0
+        remote_dependencies = remote_bridge.preview_dependencies_for(request_id, entry)
+        if remote_dependencies is not None:
+            return remote_dependencies, False
+        if remote_bridge.preview_dependencies_pending_for(request_id):
+            return None, True
+        if not remote_bridge.request_preview_dependencies(request_id, entry):
+            self._schedule_archive_preview_selection_retry(request_id, entry)
+            return None, True
+        detail = "Resolving bounded archive preview dependencies..."
+        self._set_archive_preview_base_detail_text(
+            detail,
+            include_current_model_debug=False,
+        )
+        self.set_status_message(detail)
+        return None, True
+
+    def _schedule_archive_preview_selection_retry(
+        self,
+        request_id: int,
+        entry: ArchiveEntry,
+    ) -> None:
+        previous_request_id = int(
+            getattr(self, "_archive_preview_selection_retry_request_id", 0) or 0
+        )
+        attempt = (
+            int(getattr(self, "_archive_preview_selection_retry_attempts", 0) or 0) + 1
+            if previous_request_id == int(request_id)
+            else 1
+        )
+        if attempt > ARCHIVE_PREVIEW_SELECTION_RETRY_LIMIT:
+            self._archive_preview_selection_retry_request_id = 0
+            self._archive_preview_selection_retry_attempts = 0
+            self.scheduled_archive_preview_request = None
+            _record_archive_worker_lifecycle(
+                self,
+                "archive_preview_dependency_selection_unavailable",
+                request_id=int(request_id),
+                path=str(getattr(entry, "path", "") or ""),
+                attempts=attempt - 1,
+            )
+            self._clear_archive_preview("Select an archive file to preview it here.")
+            return
+        self._archive_preview_selection_retry_request_id = int(request_id)
+        self._archive_preview_selection_retry_attempts = attempt
+        _record_archive_worker_lifecycle(
+            self,
+            "archive_preview_dependency_selection_retry",
+            request_id=int(request_id),
+            path=str(getattr(entry, "path", "") or ""),
+            attempt=attempt,
+        )
+        QTimer.singleShot(
+            ARCHIVE_PREVIEW_SELECTION_RETRY_MS * attempt,
+            lambda current_request_id=int(request_id): self._retry_scheduled_archive_preview_selection(
+                current_request_id
+            ),
+        )
+
+    def _retry_scheduled_archive_preview_selection(self, request_id: int) -> None:
+        if self._shutting_down or int(request_id) != int(self.archive_preview_request_id):
+            return
+        scheduled = self.scheduled_archive_preview_request
+        if scheduled is None or int(scheduled[0]) != int(request_id):
+            return
+        self._flush_scheduled_archive_preview_request()
+
     def _flush_scheduled_archive_preview_request(self) -> None:
         if self.scheduled_archive_preview_request is None:
             return
@@ -312,21 +413,12 @@ class ArchivePreviewWorkerMixin:
         if callable(cancel_prewarm):
             cancel_prewarm()
         request_id, entry, include_loose_preview_assets, force = self.scheduled_archive_preview_request
-        remote_dependencies: ArchivePreviewDependencySet | None = None
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
-        if remote_bridge is not None and remote_bridge.displays_v2 and entry is not None:
-            remote_dependencies = remote_bridge.preview_dependencies_for(request_id, entry)
-            if remote_dependencies is None:
-                if not remote_bridge.preview_dependencies_pending_for(request_id):
-                    started = remote_bridge.request_preview_dependencies(request_id, entry)
-                    if started:
-                        detail = "Resolving bounded archive preview dependencies..."
-                        self._set_archive_preview_base_detail_text(
-                            detail,
-                            include_current_model_debug=False,
-                        )
-                        self.set_status_message(detail)
-                return
+        remote_dependencies, waiting_for_remote_dependencies = (
+            self._resolve_scheduled_remote_preview_dependencies(request_id, entry)
+        )
+        if waiting_for_remote_dependencies:
+            return
+        if remote_dependencies is not None:
             entry = remote_dependencies.selected_entry
         # The path lookup takes seconds to build over a full archive, and only
         # the Asset Family metadata needs it — geometry decodes and renders

@@ -8067,7 +8067,6 @@
     "The resident viewport rejected the preview package.": "The resident viewport rejected the preview package.",
     "The selected DDS does not currently have a concrete role to accept yet.": "The selected DDS does not currently have a concrete role to accept yet.",
     "The selected archive entry did not produce a renderable 3D model preview.": "The selected archive entry did not produce a renderable 3D model preview.",
-    "The selected archive row changed before preview dependencies could be resolved.": "The selected archive row changed before preview dependencies could be resolved.",
     "The selected catalogue rows have no resolvable archive links.": "The selected catalogue rows have no resolvable archive links.",
     "The selected extraction target already contains files or folders.": "The selected extraction target already contains files or folders.",
     "The selected model preview is no longer active.": "The selected model preview is no longer active.",
