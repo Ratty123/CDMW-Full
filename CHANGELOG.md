@@ -12,7 +12,7 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Changed
-- **New Item Studio template search now uses Archive Browser-style normalized terms across the full equipment catalogue.** A query can combine words from the internal ID, English item name, equipment type and numeric item key, with the same phrase, `OR` and exclusion behavior used by Archive Browser. Results separate the internal name, English item name, numeric key and equipment type into four labelled columns, and the 60-row display bound is applied after all matches are sorted instead of slicing an arbitrary corpus-order segment first.
+- **New Item Studio template search now uses Archive Browser-style normalized terms across the full equipment catalogue.** A query can combine words from the internal ID, English item name, equipment type and numeric item key, with the same phrase, `OR` and exclusion behavior used by Archive Browser. Results separate the internal name, English item name, numeric key and equipment type into four labelled columns; each edge is resizable, headings sort the complete result set (with numeric key order), and scrolling near the bottom appends 60-row pages until every match is visible.
 - **New Item Studio gives template selection and its preview separate side-by-side columns.** Search, results and the chosen-template facts stay together on the left, while the same resident orbitable preview receives the wider right column and the full working height before moving unchanged into **Model & Placement**.
 
 ### Fixed

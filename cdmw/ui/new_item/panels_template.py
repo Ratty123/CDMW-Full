@@ -25,6 +25,7 @@ from cdmw.ui.new_item.ui_kit import intro_label
 #: that arrow-keying through the list passes rows without rebuilding five steps at each
 #: one. An explicit mouse click commits immediately through ``_apply_clicked_pick``.
 _SETTLE_MS = 180
+_MATCH_PAGE_SIZE = 60
 
 
 class TemplatePanel(QGroupBox):
@@ -34,6 +35,10 @@ class TemplatePanel(QGroupBox):
         super().__init__("1. Template", parent)
         self._controller = controller
         self._syncing = False
+        self._match_options: list[tuple[int, str, str, str]] = []
+        self._sort_column = -1
+        self._sort_order = Qt.SortOrder.AscendingOrder
+        self._column_widths_initialized = False
         layout = QVBoxLayout(self)
         layout.addWidget(intro_label("Every new item is a copy of a shipped one: the template sets its slot, type, sockets, animations and any optional sheathed variant; everything after changes the copy. Equipment only."))
         self.workspace_layout = QHBoxLayout()
@@ -55,15 +60,20 @@ class TemplatePanel(QGroupBox):
         self.matches.setUniformRowHeights(True)
         self.matches.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.matches.setAllColumnsShowFocus(True)
+        self.matches.setProperty("cdmw_disable_auto_column_fill", True)
         header = self.matches.header()
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        for column in range(self.matches.columnCount()):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        header.setSectionsClickable(True)
+        header.setSortIndicatorShown(False)
+        header.setSortIndicatorClearable(False)
+        header.setToolTip("Click a column heading to sort; click it again to reverse the order.")
+        header.sectionClicked.connect(self._sort_matches_by_column)
         self.matches.setMinimumHeight(160)
         self.matches.currentItemChanged.connect(self._pick)
         self.matches.itemClicked.connect(self._apply_clicked_pick)
+        self.matches.verticalScrollBar().valueChanged.connect(self._load_more_matches)
         # Choosing a template rebuilds five steps, which is ~100 ms of work that has to
         # happen; arrow-keying down the list asked for it once per row it passed through.
         # The list still moves at once (Qt owns that); navigation waits for the reader to
@@ -119,14 +129,92 @@ class TemplatePanel(QGroupBox):
         self._syncing = True
         try:
             self.matches.clear()
-            for key, internal_name, item_name, equip in self._controller.template_options(self.filter_edit.text()):
-                item = QTreeWidgetItem([internal_name, item_name, str(key), equip])
-                item.setData(0, Qt.UserRole, key)
-                self.matches.addTopLevelItem(item)
-                if key == self._controller.draft.template_key:
-                    self.matches.setCurrentItem(item)
+            self._match_options = self._controller.template_options(self.filter_edit.text(), limit=None)
+            self._sort_match_options()
+            self._append_match_rows(preferred_key=self._controller.draft.template_key)
         finally:
             self._syncing = False
+
+    def _append_match_rows(self, count: int = _MATCH_PAGE_SIZE, *, preferred_key: Optional[int] = None) -> None:
+        start = self.matches.topLevelItemCount()
+        end = min(start + count, len(self._match_options))
+        for key, internal_name, item_name, equip in self._match_options[start:end]:
+            item = QTreeWidgetItem([internal_name, item_name, str(key), equip])
+            item.setData(0, Qt.UserRole, key)
+            self.matches.addTopLevelItem(item)
+            if key == preferred_key:
+                self.matches.setCurrentItem(item)
+
+    def _load_more_matches(self, value: int) -> None:
+        if self._syncing or self.matches.topLevelItemCount() >= len(self._match_options):
+            return
+        scroll_bar = self.matches.verticalScrollBar()
+        threshold = scroll_bar.maximum() - max(1, scroll_bar.pageStep() // 3)
+        if int(value) < threshold:
+            return
+        self._syncing = True
+        try:
+            self._append_match_rows()
+        finally:
+            self._syncing = False
+
+    def _sort_match_options(self) -> None:
+        column = self._sort_column
+        if column < 0:
+            return
+
+        def sort_key(option: tuple[int, str, str, str]):
+            key, internal_name, item_name, equip = option
+            values = (internal_name.casefold(), item_name.casefold(), int(key), equip.casefold())
+            return values[column], internal_name.casefold(), int(key)
+
+        self._match_options.sort(
+            key=sort_key,
+            reverse=self._sort_order == Qt.SortOrder.DescendingOrder,
+        )
+
+    def _sort_matches_by_column(self, column: int) -> None:
+        if self._syncing or not 0 <= int(column) < self.matches.columnCount():
+            return
+        column = int(column)
+        if column == self._sort_column:
+            self._sort_order = (
+                Qt.SortOrder.DescendingOrder
+                if self._sort_order == Qt.SortOrder.AscendingOrder
+                else Qt.SortOrder.AscendingOrder
+            )
+        else:
+            self._sort_column = column
+            self._sort_order = Qt.SortOrder.AscendingOrder
+
+        current = self.matches.currentItem()
+        current_key = current.data(0, Qt.UserRole) if current is not None else None
+        visible_count = max(_MATCH_PAGE_SIZE, self.matches.topLevelItemCount())
+        self._syncing = True
+        try:
+            self.matches.header().setSortIndicator(self._sort_column, self._sort_order)
+            self.matches.header().setSortIndicatorShown(True)
+            self._sort_match_options()
+            self.matches.clear()
+            self._append_match_rows(visible_count, preferred_key=current_key if isinstance(current_key, int) else None)
+        finally:
+            self._syncing = False
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt virtual method
+        super().resizeEvent(event)
+        if self._column_widths_initialized or not hasattr(self, "matches"):
+            return
+        available = self.matches.viewport().width()
+        if available < 320:
+            return
+        key_width = max(80, round(available * 0.11))
+        type_width = max(110, round(available * 0.17))
+        name_width = max(200, available - key_width - type_width)
+        internal_width = round(name_width * 0.56)
+        widths = (internal_width, name_width - internal_width, key_width, type_width)
+        for column, width in enumerate(widths):
+            self.matches.header().resizeSection(column, width)
+        self._column_widths_initialized = True
 
     def _pick(self, current: Optional[QTreeWidgetItem], _previous=None) -> None:
         if self._syncing or current is None:

@@ -449,10 +449,14 @@ class TabTests(unittest.TestCase):
             [panel.matches.headerItem().text(column) for column in range(panel.matches.columnCount())],
             ["Internal name:", "Item Name", "Key", "Type"],
         )
-        self.assertEqual(panel.matches.header().sectionResizeMode(0), QHeaderView.ResizeMode.Stretch)
-        self.assertEqual(panel.matches.header().sectionResizeMode(1), QHeaderView.ResizeMode.Stretch)
-        self.assertEqual(panel.matches.header().sectionResizeMode(2), QHeaderView.ResizeMode.ResizeToContents)
-        self.assertEqual(panel.matches.header().sectionResizeMode(3), QHeaderView.ResizeMode.ResizeToContents)
+        for column in range(panel.matches.columnCount()):
+            self.assertEqual(panel.matches.header().sectionResizeMode(column), QHeaderView.ResizeMode.Interactive)
+        self.assertTrue(panel.matches.property("cdmw_disable_auto_column_fill"))
+        original_width = panel.matches.columnWidth(0)
+        panel.matches.header().resizeSection(0, original_width + 37)
+        self.assertEqual(panel.matches.columnWidth(0), original_width + 37, "the reader can resize any result column")
+        panel._refresh_matches()
+        self.assertEqual(panel.matches.columnWidth(0), original_width + 37, "refresh keeps the reader's column width")
         self.assertLess(selection.right(), preview.left(), "selection stays left of the preview")
         self.assertLessEqual(abs(selection.top() - preview.top()), 1)
         self.assertLessEqual(abs(selection.bottom() - preview.bottom()), 1)
@@ -2584,6 +2588,45 @@ class TabTests(unittest.TestCase):
             OTHER,
             "the display limit is applied after the complete match set is sorted",
         )
+        tab.close()
+        tab.deleteLater()
+
+    def test_template_results_load_more_on_scroll_and_sort_the_complete_match_set(self) -> None:
+        from PySide6.QtCore import Qt
+
+        tab = self._tab(window=None)
+        tab.resize(1280, 720)
+        tab.show()
+        tab.prefill_template(TEMPLATE)
+        panel = tab.template_panel
+        options = [
+            (10_000 + index, f"Internal_{124 - index:03}", f"Item {index:03}", "Helm")
+            for index in range(125)
+        ]
+
+        def template_options(_text="", *, limit=60):
+            return options if limit is None else options[:limit]
+
+        tab.controller.template_options = template_options  # type: ignore[method-assign]
+
+        panel.filter_edit.clear()
+        panel._refresh_matches()
+        self.app.processEvents()
+        self.assertEqual(panel.matches.topLevelItemCount(), 60)
+
+        scroll_bar = panel.matches.verticalScrollBar()
+        scroll_bar.setValue(scroll_bar.maximum())
+        self.app.processEvents()
+        self.assertEqual(panel.matches.topLevelItemCount(), 120)
+        scroll_bar.setValue(scroll_bar.maximum())
+        self.app.processEvents()
+        self.assertEqual(panel.matches.topLevelItemCount(), 125)
+
+        panel.matches.header().sectionClicked.emit(2)
+        self.assertEqual(panel.matches.topLevelItem(0).data(0, Qt.UserRole), 10_000)
+        panel.matches.header().sectionClicked.emit(2)
+        self.assertEqual(panel.matches.topLevelItem(0).data(0, Qt.UserRole), 10_124)
+        self.assertEqual(panel.matches.topLevelItemCount(), 125, "sorting retains every loaded row")
         tab.close()
         tab.deleteLater()
 
