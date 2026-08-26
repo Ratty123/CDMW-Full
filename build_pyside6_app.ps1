@@ -37,6 +37,41 @@ $vgmstreamBuildCommit = "21bfb6f0a513271f2e18a51322128756bb59f365"
 $vgmstreamArchiveSha256 = "110f9087e60057c4af6cff84e26c214159c224792421affdddd3aaa2091f2641"
 $vgmstreamDownloadUrl = "https://github.com/bnnm/vgmstream-builds/raw/$vgmstreamBuildCommit/bin/vgmstream-$vgmstreamVersion-test-u.zip"
 
+function Test-HostInjectedCodexPopplerPathEntry {
+    param(
+        [AllowEmptyString()]
+        [string]$PathEntry
+    )
+
+    if (-not $PathEntry) {
+        return $false
+    }
+    $normalizedEntry = $PathEntry.Trim().Trim([char]'"').TrimEnd([char[]]@('\', '/'))
+    return $normalizedEntry -match '(?i)[\\/]codex-runtimes[\\/](?:[^\\/]+[\\/])*dependencies[\\/]native[\\/]poppler[\\/]Library[\\/]bin$'
+}
+
+function Get-PackagingPathIsolation {
+    param(
+        [AllowEmptyString()]
+        [string]$PathValue
+    )
+
+    $separator = [string][IO.Path]::PathSeparator
+    $keptEntries = [Collections.Generic.List[string]]::new()
+    $removedEntries = [Collections.Generic.List[string]]::new()
+    foreach ($entry in ($PathValue -split [regex]::Escape($separator))) {
+        if (Test-HostInjectedCodexPopplerPathEntry -PathEntry $entry) {
+            $removedEntries.Add($entry)
+        } else {
+            $keptEntries.Add($entry)
+        }
+    }
+    return [pscustomobject]@{
+        FilteredPath = $keptEntries -join $separator
+        RemovedEntries = [string[]]$removedEntries.ToArray()
+    }
+}
+
 function Get-PathHoldingProcesses {
     param(
         [Parameter(Mandatory = $true)]
@@ -1105,6 +1140,19 @@ if ($BuildProfile -ne "fast") {
 }
 Remove-PathWithRetries -LiteralPath $pyInstallerDistDir -Recurse
 
+$packagingPathBeforeIsolation = [string][Environment]::GetEnvironmentVariable("PATH", "Process")
+$packagingPathIsolation = Get-PackagingPathIsolation -PathValue $packagingPathBeforeIsolation
+$removedPackagingPathEntries = @($packagingPathIsolation.RemovedEntries)
+if ($removedPackagingPathEntries.Count -gt 0) {
+    Write-Host "Temporarily removing host-injected Codex Poppler runtime from the packaging environment:"
+    foreach ($removedPathEntry in $removedPackagingPathEntries) {
+        Write-Host "  $removedPathEntry"
+    }
+}
+[Environment]::SetEnvironmentVariable("PATH", $packagingPathIsolation.FilteredPath, "Process")
+# Keep the same isolation through packaged verification so a host runtime
+# cannot hide a missing dependency. The finally block restores the caller.
+try {
 Write-BuildProgress -Percent 28 -Stage "Starting PyInstaller"
 Write-Host "Building $appName in $Mode/$BuildProfile mode..."
 Invoke-PyInstallerBuild -PythonExe $pythonExe -Arguments $pyInstallerArgs -BuildMode $Mode -Profile $BuildProfile
@@ -1197,4 +1245,7 @@ if ($Mode -eq "onefile") {
     Write-Host "Output file: $finalOutputPath"
 } else {
     Write-Host "Output folder: $finalOutputPath"
+}
+} finally {
+    [Environment]::SetEnvironmentVariable("PATH", $packagingPathBeforeIsolation, "Process")
 }
