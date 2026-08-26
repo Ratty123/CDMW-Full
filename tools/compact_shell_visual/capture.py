@@ -1,0 +1,216 @@
+"""Compact Workspace geometry reporting and native-window capture."""
+
+from __future__ import annotations
+
+import ctypes
+from pathlib import Path
+import sys
+
+from PySide6.QtCore import QRect, Qt
+from PySide6.QtGui import QImage
+from PySide6.QtWidgets import QApplication, QSplitter, QWidget
+
+from tools.compact_shell_visual.contracts import REFERENCE_FILENAMES
+
+
+def _rect_payload(rect: QRect) -> dict[str, int]:
+    return {
+        "x": int(rect.x()),
+        "y": int(rect.y()),
+        "width": int(rect.width()),
+        "height": int(rect.height()),
+    }
+
+
+def _splitter_payload(widget: QWidget) -> list[dict[str, object]]:
+    payload: list[dict[str, object]] = []
+    for index, splitter in enumerate(widget.findChildren(QSplitter)):
+        payload.append(
+            {
+                "id": splitter.objectName() or f"splitter-{index + 1}",
+                "orientation": "horizontal"
+                if splitter.orientation() == Qt.Orientation.Horizontal
+                else "vertical",
+                "geometry": _rect_payload(splitter.geometry()),
+                "handle_width": int(splitter.handleWidth()),
+                "sizes": [int(value) for value in splitter.sizes()],
+                "visible": bool(splitter.isVisibleTo(widget)),
+            }
+        )
+    return payload
+
+
+def geometry_payload(window: QWidget, key: str, widget: QWidget) -> dict[str, object]:
+    return {
+        "key": key,
+        "reference_filename": REFERENCE_FILENAMES[key],
+        "widget_class": type(widget).__name__,
+        "window_geometry": _rect_payload(window.geometry()),
+        "window_frame_geometry": _rect_payload(window.frameGeometry()),
+        "tool_geometry": _rect_payload(widget.geometry()),
+        "tool_minimum": {
+            "width": int(widget.minimumWidth()),
+            "height": int(widget.minimumHeight()),
+        },
+        "splitters": _splitter_payload(widget),
+    }
+
+
+class _RECT(ctypes.Structure):
+    _fields_ = [
+        ("left", ctypes.c_long),
+        ("top", ctypes.c_long),
+        ("right", ctypes.c_long),
+        ("bottom", ctypes.c_long),
+    ]
+
+
+class _BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [
+        ("biSize", ctypes.c_uint32),
+        ("biWidth", ctypes.c_long),
+        ("biHeight", ctypes.c_long),
+        ("biPlanes", ctypes.c_uint16),
+        ("biBitCount", ctypes.c_uint16),
+        ("biCompression", ctypes.c_uint32),
+        ("biSizeImage", ctypes.c_uint32),
+        ("biXPelsPerMeter", ctypes.c_long),
+        ("biYPelsPerMeter", ctypes.c_long),
+        ("biClrUsed", ctypes.c_uint32),
+        ("biClrImportant", ctypes.c_uint32),
+    ]
+
+
+class _RGBQUAD(ctypes.Structure):
+    _fields_ = [
+        ("rgbBlue", ctypes.c_ubyte),
+        ("rgbGreen", ctypes.c_ubyte),
+        ("rgbRed", ctypes.c_ubyte),
+        ("rgbReserved", ctypes.c_ubyte),
+    ]
+
+
+class _BITMAPINFO(ctypes.Structure):
+    _fields_ = [("bmiHeader", _BITMAPINFOHEADER), ("bmiColors", _RGBQUAD * 1)]
+
+
+def _capture_print_window(window: QWidget) -> QImage | None:
+    """Capture the native frame and D3D-aware child surfaces when Windows permits it."""
+
+    app = QApplication.instance()
+    if sys.platform != "win32" or app is None or app.platformName().casefold() != "windows":
+        return None
+
+    user32 = ctypes.windll.user32
+    gdi32 = ctypes.windll.gdi32
+    user32.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(_RECT)]
+    user32.GetWindowRect.restype = ctypes.c_int
+    user32.GetWindowDC.argtypes = [ctypes.c_void_p]
+    user32.GetWindowDC.restype = ctypes.c_void_p
+    user32.PrintWindow.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint]
+    user32.PrintWindow.restype = ctypes.c_int
+    user32.ReleaseDC.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    user32.ReleaseDC.restype = ctypes.c_int
+    gdi32.CreateCompatibleDC.argtypes = [ctypes.c_void_p]
+    gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
+    gdi32.CreateCompatibleBitmap.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+    gdi32.CreateCompatibleBitmap.restype = ctypes.c_void_p
+    gdi32.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    gdi32.SelectObject.restype = ctypes.c_void_p
+    gdi32.GetDIBits.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_uint,
+        ctypes.c_uint,
+        ctypes.c_void_p,
+        ctypes.POINTER(_BITMAPINFO),
+        ctypes.c_uint,
+    ]
+    gdi32.GetDIBits.restype = ctypes.c_int
+    gdi32.DeleteObject.argtypes = [ctypes.c_void_p]
+    gdi32.DeleteObject.restype = ctypes.c_int
+    gdi32.DeleteDC.argtypes = [ctypes.c_void_p]
+    gdi32.DeleteDC.restype = ctypes.c_int
+    hwnd = int(window.winId())
+    rect = _RECT()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return None
+    width = int(rect.right - rect.left)
+    height = int(rect.bottom - rect.top)
+    if width <= 0 or height <= 0:
+        return None
+
+    window_dc = user32.GetWindowDC(hwnd)
+    if not window_dc:
+        return None
+    memory_dc = gdi32.CreateCompatibleDC(window_dc)
+    bitmap = gdi32.CreateCompatibleBitmap(window_dc, width, height) if memory_dc else 0
+    previous = gdi32.SelectObject(memory_dc, bitmap) if bitmap else 0
+    try:
+        # PW_RENDERFULLCONTENT asks DWM-backed and D3D child windows to render.
+        if not bitmap or not user32.PrintWindow(hwnd, memory_dc, 0x00000002):
+            return None
+        info = _BITMAPINFO()
+        info.bmiHeader.biSize = ctypes.sizeof(_BITMAPINFOHEADER)
+        info.bmiHeader.biWidth = width
+        info.bmiHeader.biHeight = -height
+        info.bmiHeader.biPlanes = 1
+        info.bmiHeader.biBitCount = 32
+        info.bmiHeader.biCompression = 0
+        buffer = (ctypes.c_ubyte * (width * height * 4))()
+        rows = gdi32.GetDIBits(
+            memory_dc,
+            bitmap,
+            0,
+            height,
+            ctypes.byref(buffer),
+            ctypes.byref(info),
+            0,
+        )
+        if rows != height:
+            return None
+        return QImage(
+            bytes(buffer),
+            width,
+            height,
+            width * 4,
+            QImage.Format.Format_ARGB32,
+        ).copy()
+    finally:
+        if previous:
+            gdi32.SelectObject(memory_dc, previous)
+        if bitmap:
+            gdi32.DeleteObject(bitmap)
+        if memory_dc:
+            gdi32.DeleteDC(memory_dc)
+        user32.ReleaseDC(hwnd, window_dc)
+
+
+def capture_window(
+    window: QWidget,
+    output_path: Path,
+    *,
+    expected_size: tuple[int, int],
+) -> tuple[str, tuple[int, int]]:
+    """Save a native capture or an explicitly reported QWidget fallback."""
+
+    image = _capture_print_window(window)
+    method = "windows_printwindow"
+    if image is None or image.isNull():
+        image = window.grab().toImage()
+        method = "qwidget_grab_fallback_no_native_titlebar"
+    elif (image.width(), image.height()) != expected_size:
+        # PrintWindow returns physical pixels on a scaled desktop. References
+        # and geometry contracts use 100% DPI logical pixels, so normalize the
+        # final artifact while retaining the native title bar/D3D capture.
+        image = image.scaled(
+            expected_size[0],
+            expected_size[1],
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        method = "windows_printwindow_scaled_to_100dpi"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if image.isNull() or not image.save(str(output_path), "PNG"):
+        raise RuntimeError(f"Could not save compact capture: {output_path}")
+    return method, (int(image.width()), int(image.height()))

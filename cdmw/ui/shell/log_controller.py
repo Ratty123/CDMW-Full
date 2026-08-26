@@ -29,11 +29,27 @@ class LogControllerMixin:
             return True
         return False
 
-    def append_log(self, message: str) -> None:
+    def append_log(
+        self,
+        message: str,
+        *,
+        tool_key: str | None = None,
+        source: str = "tool_log",
+        severity: str = "info",
+    ) -> None:
         timestamp = time.strftime("%H:%M:%S")
         self.log_view.appendPlainText(f"[{timestamp}] {message}")
         scrollbar = self.log_view.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
+        from cdmw.ui.shell.compact.workspace import append_compact_activity
+
+        append_compact_activity(
+            self,
+            message,
+            tool_key=str(tool_key or "texture_workflow"),
+            source=source,
+            severity=severity,
+        )
 
     def _show_verbose_archive_logs(self) -> bool:
         return self._read_bool("preferences/show_verbose_archive_logs", False)
@@ -53,23 +69,68 @@ class LogControllerMixin:
         )
         return any(marker in lowered for marker in verbose_markers)
 
-    def append_archive_log(self, message: str, *, verbose: bool = False) -> None:
+    def append_archive_log(
+        self,
+        message: str,
+        *,
+        verbose: bool = False,
+        tool_key: str | None = None,
+        source: str = "archive_log",
+        severity: str = "info",
+    ) -> None:
         if (verbose or self._archive_log_message_is_verbose(message)) and not self._show_verbose_archive_logs():
             return
         timestamp = time.strftime("%H:%M:%S")
         self.archive_log_view.appendPlainText(f"[{timestamp}] {message}")
         scrollbar = self.archive_log_view.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
+        from cdmw.ui.shell.compact.workspace import append_compact_activity
+
+        append_compact_activity(
+            self,
+            message,
+            tool_key=str(tool_key or "archive_browser"),
+            source=source,
+            severity=severity,
+        )
 
     def _append_verbose_archive_log(self, message: str) -> None:
         self.append_archive_log(message, verbose=True)
 
-    def set_status_message(self, message: str, *, error: bool = False) -> None:
+    def set_status_message(
+        self,
+        message: str,
+        *,
+        error: bool = False,
+        tool_key: str | None = None,
+        source: str = "status",
+        severity: str | None = None,
+        snapshot: object | None = None,
+    ) -> None:
         self.error_message_value.setText(message)
         self.error_message_value.setProperty("error", error)
         self.error_message_value.style().unpolish(self.error_message_value)
         self.error_message_value.style().polish(self.error_message_value)
         self._refresh_dashboard()
+        from cdmw.ui.shell.compact.workspace import append_compact_activity
+
+        resolved_tool_key = str(tool_key or "")
+        if not resolved_tool_key and getattr(self, "compact_workspace", None) is not None:
+            current_widget = self._current_navigation_widget()
+            resolved_tool_key = self._tool_key_for_widget(current_widget)
+        append_compact_activity(
+            self,
+            message,
+            tool_key=resolved_tool_key,
+            source=source,
+            severity=str(severity or ("error" if error else "info")),
+        )
+        compact_workspace = getattr(self, "compact_workspace", None)
+        if compact_workspace is not None and snapshot is not None:
+            from cdmw.ui.shell.compact.activity import CompactStatusSnapshot
+
+            if isinstance(snapshot, CompactStatusSnapshot):
+                compact_workspace.set_status_snapshot(snapshot)
 
     def set_busy(self, busy: bool, build_mode: bool = False) -> None:
         self.export_profile_action.setEnabled(not busy)
@@ -168,6 +229,9 @@ class LogControllerMixin:
         self.archive_preview_zoom_in_button.setEnabled(zoomable_preview_enabled)
         self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
         self._update_archive_filter_button_state()
+        compact_workspace = getattr(self, "compact_workspace", None)
+        if compact_workspace is not None:
+            compact_workspace.refresh_tool_enabled_states()
 
     def reset_progress(self, total: int = 0) -> None:
         self.phase_value.setText("Idle")

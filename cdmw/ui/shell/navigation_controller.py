@@ -96,10 +96,18 @@ class NavigationControllerMixin:
                 return
         self._activate_tool_key("archive_browser")
 
-    def _register_detachable_tool(self, key: str, widget: QWidget, title: str) -> None:
+    def _register_detachable_tool(
+        self,
+        key: str,
+        widget: QWidget,
+        title: str,
+        *,
+        detachable: bool = True,
+    ) -> None:
         if key in self._tool_widgets_by_key:
             return
-        self._detachable_tool_order.append(key)
+        if detachable:
+            self._detachable_tool_order.append(key)
         self._tool_widgets_by_key[key] = widget
         self._tool_titles_by_key[key] = title
         tab_widget = self._find_tool_tab_widget(widget)
@@ -119,6 +127,10 @@ class NavigationControllerMixin:
     def _build_window_tool_menu_actions(self) -> None:
         for key in self._detachable_tool_order:
             title = self._tool_titles_by_key[key]
+            if getattr(self, "is_compact_shell", False):
+                from cdmw.ui.shell.compact.registry import compact_tool_label
+
+                title = compact_tool_label(key, title)
             action = self.window_menu.addAction(as_label(f"Show {title}"))
             action.triggered.connect(lambda _checked=False, tool_key=key: self._activate_tool_key(tool_key))
             self._tool_window_actions[key] = action
@@ -129,6 +141,10 @@ class NavigationControllerMixin:
         if existing is not None:
             return existing
         title = self._tool_titles_by_key.get(key, "Tool")
+        if getattr(self, "is_compact_shell", False):
+            from cdmw.ui.shell.compact.registry import compact_tool_label
+
+            title = compact_tool_label(key, title)
         placeholder = QWidget()
         layout = QVBoxLayout(placeholder)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -217,11 +233,19 @@ class NavigationControllerMixin:
         )
 
     def _detach_tool_key(self, key: str) -> None:
-        if not key or key in self._detached_tool_windows:
+        if (
+            not key
+            or key not in self._detachable_tool_order
+            or key in self._detached_tool_windows
+        ):
             self._update_window_menu_state()
             return
         widget = self._tool_widgets_by_key.get(key)
         title = self._tool_titles_by_key.get(key, "")
+        if getattr(self, "is_compact_shell", False):
+            from cdmw.ui.shell.compact.registry import compact_tool_label
+
+            title = compact_tool_label(key, title)
         if widget is None or not title:
             return
         tab_widget = self._tool_tab_widgets_by_key.get(key, self.main_tabs)
@@ -383,6 +407,9 @@ class NavigationControllerMixin:
             self.model_library_tab.handle_activated()
         elif widget is getattr(self, "item_icons_tab", None):
             self.item_icons_tab.schedule_targets_refresh(update_preview=False)
+        from cdmw.ui.shell.compact.workspace import sync_compact_workspace_selection
+
+        sync_compact_workspace_selection(self, self._tool_key_for_widget(widget))
 
     def show_settings(self, _checked: bool = False) -> None:
         self._activate_tool_widget(self.settings_tab)
@@ -393,7 +420,11 @@ class NavigationControllerMixin:
         current_navigation_widget = self._current_navigation_widget()
         current_key = self._tool_key_for_widget(current_navigation_widget)
         current_widget = self._tool_widgets_by_key.get(current_key)
-        current_is_docked_tool = bool(current_key and current_widget is current_navigation_widget)
+        current_is_docked_tool = bool(
+            current_key
+            and current_key in self._detachable_tool_order
+            and current_widget is current_navigation_widget
+        )
         self.detach_current_tab_action.setEnabled(current_is_docked_tool)
         self.attach_current_tool_action.setEnabled(bool(current_key and current_key in self._detached_tool_windows))
         self.attach_all_tools_action.setEnabled(bool(self._detached_tool_windows))

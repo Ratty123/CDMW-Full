@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Callable
 
-from cdmw.constants import APP_TITLE, DEFAULT_UI_THEME
+from cdmw.constants import APP_TITLE
 from cdmw.models import clamp_archive_performance_settings, clamp_model_preview_render_settings
 from cdmw.services.cache_layout import migrate_runtime_cache_layout
 from cdmw.services.settings_service import create_settings
@@ -15,6 +15,13 @@ from cdmw.ui.localization import UiLocalizer
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_DEFAULT
 from cdmw.ui.shell.app_context import AppContext
 from cdmw.ui.shell.app_state import AppState
+from cdmw.ui.shell.compact.config import (
+    COMPACT_SHELL_VARIANT,
+    active_shell_theme_key,
+    read_classic_theme_key,
+    read_compact_shell_theme_key,
+    read_shell_variant,
+)
 from cdmw.ui.shell.tab_registry import TabRegistry
 
 
@@ -134,7 +141,11 @@ class ShellWindowBootstrapStateMixin:
         self._responsive_resize_last_elapsed_ms = 0
         self._responsive_control_widgets = ()
 
-        self.current_theme_key = str(self.settings.value("appearance/theme", DEFAULT_UI_THEME))
+        self.shell_variant = read_shell_variant(self.settings)
+        self.is_compact_shell = self.shell_variant == COMPACT_SHELL_VARIANT
+        self.classic_theme_key = read_classic_theme_key(self.settings)
+        self.compact_shell_theme_key = read_compact_shell_theme_key(self.settings)
+        self.current_theme_key = active_shell_theme_key(self.settings, self.shell_variant)
         self.app_state.current_theme_key = self.current_theme_key
         self.archive_model_renderer_backend = ARCHIVE_MODEL_RENDERER_DEFAULT
         self.show_quick_start_on_launch = (

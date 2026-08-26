@@ -66,6 +66,21 @@ class ShellToolTabsMixin:
             apply_expensive_metrics=False,
             adjust_window_geometry=False,
         )
+        tool_key = next(
+            (
+                key
+                for key, container in getattr(self, "_tool_widgets_by_key", {}).items()
+                if created_tool_widget(container) is widget
+            ),
+            "",
+        )
+        if getattr(self, "is_compact_shell", False) and tool_key:
+            from cdmw.ui.shell.compact.presentations import apply_compact_presentation
+
+            apply_compact_presentation(self, tool_key, widget)
+            workspace = getattr(self, "compact_workspace", None)
+            if workspace is not None:
+                workspace.notify_tool_widget_ready(tool_key)
 
     def _create_mesh_editor_tab(self) -> QWidget:
         from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
@@ -112,7 +127,9 @@ class ShellToolTabsMixin:
             get_archive_material_preview_model=_archive_material_preview_model,
         )
         tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+            lambda message, is_error: self.set_status_message(
+                message, error=is_error, tool_key="mesh_editor"
+            )
         )
         runtime_recorder = getattr(self, "_record_runtime_event", None)
         if callable(runtime_recorder):
@@ -141,7 +158,9 @@ class ShellToolTabsMixin:
             model_library_service=self.app_context.services.require_model_library(),
         )
         tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+            lambda message, is_error: self.set_status_message(
+                message, error=is_error, tool_key="model_library"
+            )
         )
         tab.use_in_new_item_studio_requested.connect(self._use_model_in_new_item_studio)
         tab.preview_mesh_requested.connect(self._preview_model_library_mesh)
@@ -158,7 +177,9 @@ class ShellToolTabsMixin:
             archive_catalogue_service=getattr(self, "archive_catalogue_service", None),
         )
         tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+            lambda message, is_error: self.set_status_message(
+                message, error=is_error, tool_key="text_search"
+            )
         )
         remote_bridge = getattr(self, "archive_remote_bridge", None)
         if remote_bridge is not None and remote_bridge.displays_v2 and remote_bridge.current_session is not None:
@@ -217,8 +238,11 @@ class ShellToolTabsMixin:
             get_archive_browser_tree_state=self._research_archive_browser_tree_state,
             archive_catalogue_service=getattr(self, "archive_catalogue_service", None),
         )
+        tab.set_theme(self.current_theme_key)
         tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+            lambda message, is_error: self.set_status_message(
+                message, error=is_error, tool_key="research"
+            )
         )
         tab.focus_archive_browser_requested.connect(lambda: self._activate_tool_widget(self.archive_browser_tab))
         tab.extract_related_set_requested.connect(self.extract_related_archive_set_from_paths)
@@ -240,7 +264,9 @@ class ShellToolTabsMixin:
             archive_catalogue_service=getattr(self, "archive_catalogue_service", None),
         )
         tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+            lambda message, is_error: self.set_status_message(
+                message, error=is_error, tool_key="replace_assistant"
+            )
         )
         tab.open_in_texture_editor_requested.connect(self._open_source_in_texture_editor)
         remote_bridge = getattr(self, "archive_remote_bridge", None)
@@ -261,7 +287,9 @@ class ShellToolTabsMixin:
             base_dir=self.settings_file_path.parent,
         )
         tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+            lambda message, is_error: self.set_status_message(
+                message, error=is_error, tool_key="recolor_variants"
+            )
         )
         tab.open_recolor_target_in_editor_requested.connect(self._open_recolor_variant_target_in_texture_editor)
         return tab
@@ -284,7 +312,9 @@ class ShellToolTabsMixin:
         tab.set_ui_translator(self.ui_localizer.translate)
         tab.sync_ui_font_from_application()
         tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+            lambda message, is_error: self.set_status_message(
+                message, error=is_error, tool_key="texture_editor"
+            )
         )
         tab.browse_archive_requested.connect(self._show_archive_browser_from_texture_editor)
         tab.open_in_compare_requested.connect(self._show_compare_from_texture_editor)
@@ -306,7 +336,9 @@ class ShellToolTabsMixin:
             item_icon_service=self.app_context.services.require_item_icons(),
         )
         tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+            lambda message, is_error: self.set_status_message(
+                message, error=is_error, tool_key="item_icons"
+            )
         )
         tab.open_in_texture_editor_requested.connect(self._open_source_in_texture_editor)
         tab.open_target_in_archive_requested.connect(
@@ -381,7 +413,9 @@ class ShellToolTabsMixin:
         tab.controller.persist_issued_identities()
         tab.setObjectName("new_item_studio")
         tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+            lambda message, is_error: self.set_status_message(
+                message, error=is_error, tool_key="new_item_studio"
+            )
         )
         return tab
 
@@ -412,7 +446,7 @@ class ShellToolTabsMixin:
         pump_startup_splash("Preparing settings...")
         self.settings_tab = SettingsTab(
             settings=self.settings,
-            theme_key=self.current_theme_key,
+            theme_key=getattr(self, "classic_theme_key", self.current_theme_key),
             asset_authoring_service=lambda: self.app_context.services.asset_authoring,
         )
         self.settings_tab.set_language_options(
@@ -519,7 +553,32 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("mod_package_retrofit", self.mod_package_retrofit_tab, "Retrofit/Repackage")
         self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animation Studio")
         self._register_detachable_tool("settings", self.settings_tab, "Settings")
+        self._register_detachable_tool(
+            "format_explorer",
+            self.format_explorer_tab,
+            "Format Explorer",
+            detachable=False,
+        )
+        self._register_detachable_tool(
+            "translation_studio",
+            self.translation_studio_tab,
+            "Translations",
+            detachable=False,
+        )
         self._build_window_tool_menu_actions()
+        if getattr(self, "is_compact_shell", False):
+            from cdmw.ui.shell.compact.presentations import apply_compact_presentation
+            from cdmw.ui.shell.compact.registry import compact_tool_spec
+            from cdmw.ui.shell.compact.workspace import sync_compact_workspace_selection
+
+            for tool_key, container in self._tool_widgets_by_key.items():
+                widget = created_tool_widget(container)
+                if widget is None or compact_tool_spec(tool_key) is None:
+                    continue
+                apply_compact_presentation(self, tool_key, widget)
+                if self.compact_workspace is not None:
+                    self.compact_workspace.notify_tool_widget_ready(tool_key)
+            sync_compact_workspace_selection(self)
 
 
 __all__ = ["ShellToolTabsMixin"]

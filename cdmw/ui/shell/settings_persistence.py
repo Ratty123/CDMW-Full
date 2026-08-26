@@ -101,7 +101,12 @@ class SettingsPersistenceMixin:
     def _save_settings(self) -> None:
         if not self._settings_ready:
             return
-        self.settings.setValue("appearance/theme", self.current_theme_key)
+        from cdmw.ui.shell.compact.config import active_shell_theme_setting
+
+        self.settings.setValue(
+            active_shell_theme_setting(getattr(self, "shell_variant", "legacy")),
+            self.current_theme_key,
+        )
         self.settings.setValue("appearance/language", self.ui_localizer.language_code)
         self.settings.setValue("paths/original_dds_root", self.original_dds_edit.text())
         self.settings.setValue("paths/png_root", self.png_root_edit.text())
@@ -254,10 +259,22 @@ class SettingsPersistenceMixin:
         self._save_settings()
 
     def _load_settings(self) -> None:
+        from cdmw.ui.shell.compact.config import (
+            active_shell_theme_key,
+            read_classic_theme_key,
+            read_compact_shell_theme_key,
+        )
+
         defaults = default_config()
-        self.current_theme_key = str(self.settings.value("appearance/theme", self.current_theme_key or DEFAULT_UI_THEME))
+        self.classic_theme_key = read_classic_theme_key(self.settings)
+        self.compact_shell_theme_key = read_compact_shell_theme_key(self.settings)
+        self.current_theme_key = active_shell_theme_key(
+            self.settings,
+            getattr(self, "shell_variant", "legacy"),
+        )
         if self.current_theme_key not in UI_THEME_SCHEMES:
             self.current_theme_key = DEFAULT_UI_THEME
+        self.app_state.current_theme_key = self.current_theme_key
         self.original_dds_edit.setText(
             self.settings.value("paths/original_dds_root", defaults.original_dds_root)
         )

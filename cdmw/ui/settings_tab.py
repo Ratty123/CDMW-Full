@@ -77,6 +77,7 @@ from cdmw.domain.camera_bindings import (
 )
 from cdmw.domain.localization import canonical_language_code
 from cdmw.ui.localization import BUILTIN_LANGUAGES
+from cdmw.ui.shell.compact.settings import CompactWorkspaceSettingsMixin
 from cdmw.ui.settings_helper_discovery import (
     SettingsHelperDiscoveryMixin,
     asset_authoring_helper_status_text as _asset_authoring_helper_status_text,
@@ -87,7 +88,7 @@ if TYPE_CHECKING:
     from cdmw.services.asset_authoring_service import AssetAuthoringService
 
 
-class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
+class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, QWidget):
     theme_changed = Signal(str)
     appearance_change_started = Signal(object)
     appearance_changed = Signal(object)
@@ -628,6 +629,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         )
         right_performance_column.addWidget(preview_cache_group)
         self.archive_performance_page_layout.addWidget(performance_grid_widget)
+        self._build_compact_workspace_settings_ui()
 
         layout_group = QGroupBox("Layout")
         layout_layout = QVBoxLayout(layout_group)
@@ -636,7 +638,6 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.remember_splitters_checkbox = QCheckBox("Remember pane sizes and splitters")
         layout_layout.addWidget(self.remember_splitters_checkbox)
         self.layout_page_layout.addWidget(layout_group)
-
         preview_group = QGroupBox("3D Preview / Graphics")
         preview_layout = QFormLayout(preview_group)
         preview_layout.setContentsMargins(12, 14, 12, 12)
@@ -1051,6 +1052,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
             page_layout.addStretch(1)
 
         self.theme_combo.currentIndexChanged.connect(self._handle_appearance_changed)
+        self._connect_compact_workspace_settings()
         self.language_combo.currentIndexChanged.connect(self._handle_language_changed)
         self.export_language_button.clicked.connect(self.export_language_requested.emit)
         self.import_language_button.clicked.connect(self.import_language_requested.emit)
@@ -1336,9 +1338,9 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
             return float(value)
         except (TypeError, ValueError):
             return float(default)
-
     def _load_settings(self, theme_key: str) -> None:
         self.sync_appearance_controls(theme_key)
+        self._load_compact_workspace_settings()
         self.set_language_selection(str(self.settings.value("appearance/language", "en") or "en"))
         self.auto_load_archive_checkbox.setChecked(
             self._read_bool("preferences/auto_load_archive_on_startup", False)
@@ -1456,6 +1458,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.settings.setValue("appearance/log_text_style", self.current_log_text_style())
         self.settings.setValue("appearance/log_color_scheme", self.current_log_color_scheme())
         self.settings.setValue("appearance/preview_color_scheme", self.current_preview_color_scheme())
+        self._save_compact_workspace_settings()
         self.settings.setValue("preferences/auto_load_archive_on_startup", self.auto_load_archive_checkbox.isChecked())
         self.settings.setValue(
             "preferences/prefer_archive_cache_on_startup",
@@ -1595,7 +1598,6 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         previous = self._last_applied_appearance_state or {}
         self.appearance_change_started.emit(self._appearance_change_payload(previous, current))
         self._appearance_apply_timer.start()
-
     def _handle_language_changed(self) -> None:
         if not self._settings_ready:
             return
@@ -1761,7 +1763,6 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.theme_combo.blockSignals(True)
         self.theme_combo.setCurrentIndex(max(0, index))
         self.theme_combo.blockSignals(False)
-
     def sync_appearance_controls(self, theme_key: str) -> None:
         resolved_theme_key = theme_key if theme_key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
         ui_font_family = str(self.settings.value("appearance/ui_font_family", DEFAULT_UI_FONT_FAMILY) or DEFAULT_UI_FONT_FAMILY)
@@ -2190,7 +2191,6 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
     def current_theme_key(self) -> str:
         data = self.theme_combo.currentData()
         return str(data) if data is not None else DEFAULT_UI_THEME
-
     def current_language_code(self) -> str:
         data = self.language_combo.currentData()
         return str(data) if data is not None else "en"

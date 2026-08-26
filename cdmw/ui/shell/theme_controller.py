@@ -29,6 +29,7 @@ from cdmw.constants import (
     UI_TEXT_COLOR_SCHEME_OPTIONS,
 )
 from cdmw.domain.localization import language_for_code
+from cdmw.ui.shell.compact import workspace as compact
 from cdmw.ui.shell.responsiveness_controller import (
     responsive_control_scale_for_resolution as _responsive_control_scale_for_resolution,
 )
@@ -385,16 +386,7 @@ class ThemeControllerMixin:
     def _handle_theme_changed(self, theme_key: Optional[str] = None) -> None:
         resolved_theme_key = theme_key if theme_key in UI_THEME_SCHEMES else self.current_theme_key
         self._pending_theme_key = resolved_theme_key
-        self._pending_appearance_change = {
-            "theme_key": resolved_theme_key,
-            "changed": ("theme",),
-            "requires_theme_apply": True,
-            "requires_ui_fonts": True,
-            "requires_data_fonts": False,
-            "requires_text_colors": False,
-            "title": f"Applying {UI_THEME_SCHEMES.get(resolved_theme_key, UI_THEME_SCHEMES[DEFAULT_UI_THEME]).get('label', 'Theme')} theme",
-            "detail": "Updating app colors and preview panes...",
-        }
+        self._pending_appearance_change = compact.theme_change_payload(self, resolved_theme_key)
         if hasattr(self, "theme_change_overlay"):
             self.theme_change_overlay.show_theme_change(resolved_theme_key)
         self._theme_change_apply_timer.start()
@@ -412,9 +404,11 @@ class ThemeControllerMixin:
                 changed = tuple(changed)  # type: ignore[arg-type]
             except Exception:
                 changed = ()
+        theme_key, changed = compact.normalize_appearance_payload(
+            self, data, theme_key, changed
+        )
         data["theme_key"] = theme_key
         data["changed"] = changed
-        data["requires_theme_apply"] = bool(data.get("requires_theme_apply", False))
         data["requires_ui_fonts"] = bool(data.get("requires_ui_fonts", False))
         data["requires_data_fonts"] = bool(data.get("requires_data_fonts", False))
         data["requires_text_colors"] = bool(data.get("requires_text_colors", False))
@@ -557,7 +551,7 @@ class ThemeControllerMixin:
                     lambda research_tab=research_tab: research_tab.set_theme(self.current_theme_key),
                 )
             self._queue_appearance_apply_step("Updating mesh editor theme", self._sync_mesh_editor_theme)
-            self._queue_appearance_apply_step("Syncing settings controls", lambda: self.settings_tab.sync_appearance_controls(self.current_theme_key))
+            self._queue_appearance_apply_step("Syncing settings controls", lambda: compact.sync_settings_appearance_controls(self))
             self._queue_appearance_apply_step("Updating responsive controls", self._apply_responsive_control_minimums)
             self._queue_appearance_apply_step("Scheduling column sizing", self._schedule_column_autofit)
             self._queue_appearance_apply_step("Saving theme setting", self._save_current_theme_setting)
@@ -568,7 +562,7 @@ class ThemeControllerMixin:
             self._queue_data_font_apply_steps(schedule_column_autofit=True)
         if data["requires_text_colors"]:
             self._queue_text_highlight_apply_steps()
-        self._queue_appearance_apply_step("Syncing settings controls", lambda: self.settings_tab.sync_appearance_controls(self.current_theme_key))
+        self._queue_appearance_apply_step("Syncing settings controls", lambda: compact.sync_settings_appearance_controls(self))
 
     def _run_next_appearance_apply_step(self) -> None:
         app = self._appearance_apply_app or QApplication.instance()
@@ -607,6 +601,7 @@ class ThemeControllerMixin:
             screen_width=screen_width,
             screen_height=screen_height,
         )
+        compact.theme_applied(self)
         self._apply_theme_window_icon(self.current_theme_key)
 
     def _queue_ui_font_apply_steps(self, app: QApplication, *, schedule_column_autofit: bool, queue_responsive_minimums: bool = True) -> None:
@@ -680,7 +675,7 @@ class ThemeControllerMixin:
     def _save_current_theme_setting(self) -> None:
         if not getattr(self, "_settings_ready", False):
             return
-        self.settings.setValue("appearance/theme", self.current_theme_key)
+        compact.save_theme_setting(self)
         QTimer.singleShot(650, self.settings.sync)
 
     def _apply_theme_window_icon(self, theme_key: str) -> None:
