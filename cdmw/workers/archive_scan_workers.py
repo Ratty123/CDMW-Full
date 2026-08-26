@@ -328,13 +328,19 @@ class ArchiveScanWorker(QObject):
             self.log_message.emit(f"Game update check skipped: could not hash {executable_path}: {exc}")
             return
 
-        records[executable_key] = {
+        checked_at = time.time()
+        updated_record = dict(previous_record)
+        updated_record.update({
             "path": str(executable_path),
             "sha256": current_hash,
             "size": current_size,
             "mtime_ns": current_mtime_ns,
-            "checked_at": time.time(),
-        }
+            "checked_at": checked_at,
+        })
+        if previous_hash and previous_hash != current_hash:
+            updated_record["previous_sha256"] = previous_hash
+            updated_record["update_detected_at"] = checked_at
+        records[executable_key] = updated_record
         self.updated_game_executable_fingerprints = records
 
         if not previous_hash:

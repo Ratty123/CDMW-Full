@@ -48,6 +48,8 @@ from cdmw.ui.new_item.workflow_header import WorkflowHeader, WorkflowStepState
 #: the left rail: the step list and the item so far, and how many characters one of its lines holds
 RAIL_WIDTH = 300
 RAIL_CHARS = 40
+_GAME_COMPATIBILITY_FEATURE = "new_item_archive_snapshot"
+_PAPPT_LAYOUT_ERROR_PREFIX = "unsupported part-prefab table layout"
 
 
 def _window_package_root(window: object) -> str:
@@ -162,6 +164,27 @@ class NewItemStudioTab(QWidget):
         if model_panel is not None:
             model_panel.preview.set_cache_mode(self._preview_cache_mode)
 
+    def _game_package_root(self) -> Optional[Path]:
+        root_text = str(self._get_package_root() or "").strip()
+        return Path(root_text) if root_text else None
+
+    def _record_snapshot_game_compatibility(self) -> None:
+        recorder = getattr(self._window, "_record_game_feature_compatibility", None)
+        package_root = self._game_package_root()
+        if callable(recorder) and package_root is not None:
+            recorder(package_root, _GAME_COMPATIBILITY_FEATURE)
+
+    def _snapshot_game_update_note(self, message: str) -> str:
+        if not str(message or "").casefold().startswith(_PAPPT_LAYOUT_ERROR_PREFIX):
+            return ""
+        evidence_provider = getattr(self._window, "_game_update_feature_error_evidence", None)
+        package_root = self._game_package_root()
+        if not callable(evidence_provider) or package_root is None:
+            return ""
+        if not evidence_provider(package_root, _GAME_COMPATIBILITY_FEATURE):
+            return ""
+        return self.tr("Game update detected via CrimsonDesert.exe hash.")
+
     def _bootstrap_busy_changed(self, busy: object) -> None:
         """The bootstrap's own progress bar, while the archives are being read.
 
@@ -224,6 +247,9 @@ class NewItemStudioTab(QWidget):
                 self._progress.setVisible(False)
 
     def _snapshot_failed(self, message: str) -> None:
+        update_note = self._snapshot_game_update_note(message)
+        if update_note:
+            message = f"{message}\n\n{update_note}"
         if self._panels_built:
             self.output_panel.append_log(f"The archives could not be read for a new item.\n\n{message}")
             self.status_message_requested.emit(message, True)
@@ -234,6 +260,7 @@ class NewItemStudioTab(QWidget):
         self._status.setText(f"The archives could not be read for a new item.\n\n{message}")
 
     def _snapshot_ready(self) -> None:
+        self._record_snapshot_game_compatibility()
         if self._panels_built:
             self.template_panel._refresh_matches()
             self.stats_panel.rebuild()

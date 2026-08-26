@@ -401,6 +401,87 @@ class StartupPromptMixin:
         )
         self.settings.sync()
 
+    def _current_game_executable_fingerprint(
+        self,
+        package_root: Path,
+    ) -> Optional[tuple[Dict[str, Dict[str, object]], str, Dict[str, object]]]:
+        """Return a persisted fingerprint only while it still matches the executable on disk."""
+
+        executable_path = resolve_crimson_desert_executable(Path(package_root))
+        if executable_path is None:
+            return None
+        try:
+            stat_result = executable_path.stat()
+        except OSError:
+            return None
+        executable_key = str(executable_path).strip().lower()
+        records = self._load_game_executable_fingerprints()
+        record = dict(records.get(executable_key, {}))
+        current_hash = str(record.get("sha256", "") or "").strip()
+        try:
+            recorded_size = int(record.get("size", -1) or -1)
+            recorded_mtime_ns = int(record.get("mtime_ns", -1) or -1)
+        except (TypeError, ValueError):
+            return None
+        current_mtime_ns = int(getattr(stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000)))
+        if not current_hash or recorded_size != int(stat_result.st_size) or recorded_mtime_ns != current_mtime_ns:
+            return None
+        return records, executable_key, record
+
+    def _record_game_feature_compatibility(self, package_root: Path, feature_key: str) -> bool:
+        """Remember that one feature successfully consumed the currently fingerprinted game build."""
+
+        feature = str(feature_key or "").strip()
+        current = self._current_game_executable_fingerprint(Path(package_root))
+        if not feature or current is None:
+            return False
+        records, executable_key, record = current
+        current_hash = str(record.get("sha256", "") or "").strip()
+        raw_features = record.get("compatible_features", {})
+        features = {
+            str(key): str(value)
+            for key, value in (raw_features.items() if isinstance(raw_features, Mapping) else ())
+            if str(key) and str(value)
+        }
+        if features.get(feature) == current_hash:
+            return True
+        features[feature] = current_hash
+        record["compatible_features"] = features
+        records[executable_key] = record
+        self._save_game_executable_fingerprints(records)
+        return True
+
+    def _game_update_feature_error_evidence(
+        self,
+        package_root: Path,
+        feature_key: str,
+    ) -> bool:
+        """Confirm a direct old-good to detected-new executable transition for one feature."""
+
+        feature = str(feature_key or "").strip()
+        current = self._current_game_executable_fingerprint(Path(package_root))
+        if not feature or current is None:
+            return False
+        _records, _executable_key, record = current
+        current_hash = str(record.get("sha256", "") or "").strip()
+        previous_hash = str(record.get("previous_sha256", "") or "").strip()
+        try:
+            update_detected_at = float(record.get("update_detected_at", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return False
+        raw_features = record.get("compatible_features", {})
+        compatible_hash = (
+            str(raw_features.get(feature, "") or "").strip()
+            if isinstance(raw_features, Mapping)
+            else ""
+        )
+        return bool(
+            previous_hash
+            and previous_hash != current_hash
+            and update_detected_at > 0.0
+            and compatible_hash == previous_hash
+        )
+
     def _check_game_update_and_invalidate_archive_cache(self, package_root: Path) -> bool:
         executable_path = resolve_crimson_desert_executable(package_root)
         if executable_path is None:
@@ -434,13 +515,19 @@ class StartupPromptMixin:
             self.append_archive_log(f"Game update check skipped: could not hash {executable_path}: {exc}")
             return False
 
-        records[executable_key] = {
+        checked_at = time.time()
+        updated_record = dict(previous_record)
+        updated_record.update({
             "path": str(executable_path),
             "sha256": current_hash,
             "size": current_size,
             "mtime_ns": current_mtime_ns,
-            "checked_at": time.time(),
-        }
+            "checked_at": checked_at,
+        })
+        if previous_hash and previous_hash != current_hash:
+            updated_record["previous_sha256"] = previous_hash
+            updated_record["update_detected_at"] = checked_at
+        records[executable_key] = updated_record
         self._save_game_executable_fingerprints(records)
 
         if not previous_hash:

@@ -1182,7 +1182,8 @@ class VanillaNewItemTests(unittest.TestCase):
         snapshot = service.build_snapshot(entries)
         elapsed = time.perf_counter() - started
         self.assertGreater(len(snapshot.rows), 6000)
-        self.assertEqual(len(snapshot.languages), 14)
+        self.assertEqual(len(snapshot.languages), 15)
+        self.assertIn("ara", snapshot.languages, "game 2.00.00 adds Arabic localization")
         self.assertLess(elapsed, 120.0, f"snapshot took {elapsed:.1f}s")
         ziane = snapshot.keys_by_name["Ziane_OneHandSword"]
         context = build_context(snapshot, ziane)
