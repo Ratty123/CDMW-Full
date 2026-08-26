@@ -7,8 +7,10 @@ under `character/bin__/prefab/` the stem lives in, which sockets descriptor it
 uses and which character part slot(s) it fills. A stem that is not in here does
 not resolve, which is why adding a weapon means adding a record here.
 
-Layout, verified to parse the shipped file to its last byte (15,524 part records
-and 2,618 head records on the 2026-08 build) and to rebuild it byte for byte:
+Layout, verified to parse the shipped file to its last byte and to rebuild it
+byte for byte. The original 2026-08 layout carried no per-record prefix. Game
+2.00.00 added one opaque ``01`` byte before every part record's ``extra`` string
+(15,556 part records and 2,628 head records in that build):
 
     u8[8]   reserved, zero
     u32     part record count
@@ -16,6 +18,7 @@ and 2,618 head records on the 2026-08 build) and to rebuild it byte for byte:
         str stem                e.g. cd_phm_01_sword_0109_r
         str folder              e.g. 1_pc/01_phm/weapon/01_onehandweapon
         str sockets descriptor  e.g. character/descriptors/socketbonedata/.../x.sockets.xml
+        [u8  opaque tag prefix] absent in the original layout; 01 in 2.00.00
         str extra               usually empty; a shrink/variant tag such as "Empty"
         u8  flag                0 or 1
         u8  part count
@@ -43,6 +46,10 @@ PAPPT_PREFAB_ROOT = "character/bin__/prefab"
 
 class PapptFormatError(ValueError):
     """Raised when a buffer is not a part-prefab table."""
+
+
+class PapptLayoutError(PapptFormatError):
+    """Raised when a table matches neither supported record layout."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +93,8 @@ class PartPrefabTable:
     head_records: Tuple[HeadPrefabRecord, ...] = ()
     #: The eight leading bytes; zero in the shipped file and kept so a rebuild cannot invent them.
     reserved: bytes = b"\x00" * 8
+    #: Opaque byte before every part record's tag. Empty originally; ``01`` in game 2.00.00.
+    tag_prefix: bytes = b""
 
     def __len__(self) -> int:
         return len(self.records)
@@ -126,9 +135,7 @@ def _write_str(text: str, *, what: str) -> bytes:
     return bytes([len(raw)]) + raw
 
 
-def parse_pappt(data: bytes, *, name: str = "") -> PartPrefabTable:
-    """Parse a part-prefab table. Both sections must walk exactly to the end."""
-
+def _parse_pappt_layout(data: bytes, *, name: str, tag_prefix: bytes) -> PartPrefabTable:
     where = f" ({name})" if name else ""
     if len(data) < 12:
         raise PapptFormatError(f"buffer is too short to hold the header{where}")
@@ -140,6 +147,14 @@ def parse_pappt(data: bytes, *, name: str = "") -> PartPrefabTable:
         stem, pos = _read_str(data, pos, where=where, what=f"record {index} stem")
         folder, pos = _read_str(data, pos, where=where, what=f"record {index} folder")
         sockets, pos = _read_str(data, pos, where=where, what=f"record {index} sockets path")
+        if tag_prefix:
+            end = pos + len(tag_prefix)
+            if end > len(data) or data[pos:end] != tag_prefix:
+                actual = data[pos:end].hex(" ") if pos < len(data) else "end of table"
+                raise PapptFormatError(
+                    f"record {index} tag prefix at 0x{pos:X} is {actual}, expected {tag_prefix.hex(' ')}{where}"
+                )
+            pos = end
         extra, pos = _read_str(data, pos, where=where, what=f"record {index} tag")
         if pos + 2 > len(data):
             raise PapptFormatError(f"record {index} flags at 0x{pos:X} run past the table{where}")
@@ -166,7 +181,29 @@ def parse_pappt(data: bytes, *, name: str = "") -> PartPrefabTable:
         heads.append(HeadPrefabRecord(stem=stem, folder=folder))
     if pos != len(data):
         raise PapptFormatError(f"the walk ends at 0x{pos:X} but the table is {len(data):,} bytes{where}")
-    return PartPrefabTable(records=tuple(records), head_records=tuple(heads), reserved=reserved)
+    return PartPrefabTable(
+        records=tuple(records),
+        head_records=tuple(heads),
+        reserved=reserved,
+        tag_prefix=tag_prefix,
+    )
+
+
+def parse_pappt(data: bytes, *, name: str = "") -> PartPrefabTable:
+    """Parse either known part-prefab layout; both sections must close exactly."""
+
+    failures: list[PapptFormatError] = []
+    for tag_prefix in (b"", b"\x01"):
+        try:
+            return _parse_pappt_layout(data, name=name, tag_prefix=tag_prefix)
+        except PapptFormatError as exc:
+            failures.append(exc)
+    legacy, game_200 = failures
+    where = f" ({name})" if name else ""
+    raise PapptLayoutError(
+        f"unsupported part-prefab table layout{where}; "
+        f"original layout: {legacy}; game 2.00.00 layout: {game_200}"
+    ) from legacy
 
 
 def encode_pappt(table: PartPrefabTable) -> bytes:
@@ -174,12 +211,17 @@ def encode_pappt(table: PartPrefabTable) -> bytes:
 
     if len(table.reserved) != 8:
         raise PapptFormatError("the reserved header is eight bytes")
+    if table.tag_prefix not in (b"", b"\x01"):
+        raise PapptFormatError(
+            f"the per-record tag prefix {table.tag_prefix.hex(' ')} is not a supported part-prefab layout"
+        )
     out = bytearray(table.reserved)
     out += struct.pack("<I", len(table.records))
     for index, record in enumerate(table.records):
         out += _write_str(record.stem, what=f"record {index} stem")
         out += _write_str(record.folder, what=f"record {index} folder")
         out += _write_str(record.sockets_path, what=f"record {index} sockets path")
+        out += table.tag_prefix
         out += _write_str(record.extra, what=f"record {index} tag")
         for value, what in ((record.flag, "flag"), (len(record.parts), "part count")):
             if not 0 <= int(value) <= 0xFF:
@@ -255,6 +297,7 @@ __all__ = [
     "PAPPT_PREFAB_ROOT",
     "HeadPrefabRecord",
     "PapptFormatError",
+    "PapptLayoutError",
     "PartPrefabPart",
     "PartPrefabRecord",
     "PartPrefabTable",

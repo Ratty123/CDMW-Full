@@ -8,6 +8,7 @@ import pytest
 from cdmw.core.pappt_format import (
     HeadPrefabRecord,
     PapptFormatError,
+    PapptLayoutError,
     PartPrefabPart,
     PartPrefabRecord,
     PartPrefabTable,
@@ -38,16 +39,16 @@ def _sword(stem: str, part: str) -> PartPrefabRecord:
     )
 
 
-def _synthetic_bytes() -> bytes:
-    """Hand-built bytes in the shipped shape: two sword records, one two-part hand record, one head."""
+def _synthetic_bytes(*, tag_prefix: bytes = b"") -> bytes:
+    """Hand-built bytes in either shipped shape: two swords, one hand and one head."""
 
     out = bytearray(b"\x00" * 8)
     out += struct.pack("<I", 3)
-    out += _s("cd_phm_01_sword_0109_l") + _s("1_pc/01_phm/weapon/01_onehandweapon") + _s(SOCKETS) + _s("")
+    out += _s("cd_phm_01_sword_0109_l") + _s("1_pc/01_phm/weapon/01_onehandweapon") + _s(SOCKETS) + tag_prefix + _s("")
     out += bytes([1, 1]) + _s("CD_MainWeapon_Sword_L") + bytes([1])
-    out += _s("cd_phm_01_sword_0109_r") + _s("1_pc/01_phm/weapon/01_onehandweapon") + _s(SOCKETS) + _s("")
+    out += _s("cd_phm_01_sword_0109_r") + _s("1_pc/01_phm/weapon/01_onehandweapon") + _s(SOCKETS) + tag_prefix + _s("")
     out += bytes([1, 1]) + _s("CD_MainWeapon_Sword_R") + bytes([1])
-    out += _s("cd_phm_00_hand_0078_02") + _s("1_pc/01_phm/armor/11_hand") + _s("x.sockets.xml") + _s("Empty")
+    out += _s("cd_phm_00_hand_0078_02") + _s("1_pc/01_phm/armor/11_hand") + _s("x.sockets.xml") + tag_prefix + _s("Empty")
     out += bytes([0, 2]) + _s("CD_Hand") + bytes([1]) + _s("CD_Hand_Acc") + bytes([0])
     out += struct.pack("<I", 1)
     out += _s("cd_phm_00_head_00_0001") + _s("1_pc/01_phm/head/head")
@@ -75,6 +76,22 @@ class PapptParseEncodeTests(unittest.TestCase):
         self.assertIsNone(table.find("nope"))
         self.assertEqual(set(table.index()), {"cd_phm_01_sword_0109_l", "cd_phm_01_sword_0109_r", "cd_phm_00_hand_0078_02"})
 
+    def test_game_200_record_prefix_round_trips_and_is_kept_for_inserted_records(self) -> None:
+        data = _synthetic_bytes(tag_prefix=b"\x01")
+        table = parse_pappt(data, name="game 2.00.00 synthetic")
+        self.assertEqual(table.tag_prefix, b"\x01")
+        self.assertEqual(encode_pappt(table), data)
+
+        template = table.find("cd_phm_01_sword_0109_r")
+        assert template is not None
+        extended = insert_part_prefabs(
+            table,
+            (template.cloned("cd_phm_01_sword_9109_r"),),
+            after_stem=template.stem,
+        )
+        rebuilt = encode_pappt(extended)
+        self.assertEqual(parse_pappt(rebuilt), extended)
+
     def test_an_empty_table_round_trips(self) -> None:
         empty = PartPrefabTable(records=(), head_records=())
         self.assertEqual(parse_pappt(encode_pappt(empty)), empty)
@@ -95,6 +112,8 @@ class PapptParseEncodeTests(unittest.TestCase):
             parse_pappt(bytes(not_terminated))
         with self.assertRaises(PapptFormatError):
             parse_pappt(b"\x00" * 8)
+        with self.assertRaisesRegex(PapptLayoutError, "unsupported part-prefab table layout"):
+            parse_pappt(b"not a table")
         self.assertFalse(rebuild_is_exact(b"not a table"))
 
     def test_encode_refuses_what_the_format_cannot_hold(self) -> None:
@@ -106,6 +125,8 @@ class PapptParseEncodeTests(unittest.TestCase):
             encode_pappt(PartPrefabTable(records=(wide_flag,)))
         with self.assertRaisesRegex(PapptFormatError, "eight bytes"):
             encode_pappt(PartPrefabTable(records=(), reserved=b"\x00"))
+        with self.assertRaisesRegex(PapptFormatError, "tag prefix"):
+            encode_pappt(PartPrefabTable(records=(), tag_prefix=b"\x02"))
 
 
 class PapptInsertTests(unittest.TestCase):

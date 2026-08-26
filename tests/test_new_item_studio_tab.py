@@ -9,6 +9,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -254,6 +255,43 @@ class TabTests(unittest.TestCase):
                 )
         tab.request_shutdown()
         tab.shutdown()
+        tab.close()
+        tab.deleteLater()
+
+    def test_success_records_the_current_game_build_as_new_item_compatible(self) -> None:
+        recorded: list[tuple[object, ...]] = []
+        window = SimpleNamespace(
+            _record_game_feature_compatibility=lambda *args: recorded.append(args),
+        )
+        tab = self._tab(window=window, get_package_root=lambda: str(self.root))
+
+        tab.start_snapshot()
+
+        self.assertEqual(recorded, [(self.root, "new_item_archive_snapshot")])
+        tab.close()
+        tab.deleteLater()
+
+    def test_only_layout_failures_receive_a_proven_game_update_note(self) -> None:
+        requested: list[tuple[object, ...]] = []
+
+        def evidence(*args: object) -> bool:
+            requested.append(args)
+            return True
+
+        window = SimpleNamespace(_game_update_feature_error_evidence=evidence)
+        tab = self._tab(window=window, get_package_root=lambda: str(self.root))
+
+        tab._snapshot_failed("unsupported part-prefab table layout (partprefabtable.pappt)")
+        self.assertIn("Game update detected via CrimsonDesert.exe hash.", tab._status.text())
+        self.assertEqual(
+            requested,
+            [(self.root, "new_item_archive_snapshot")],
+        )
+
+        requested.clear()
+        tab._snapshot_failed("permission denied while reading the archive")
+        self.assertNotIn("Game update detected via CrimsonDesert.exe hash.", tab._status.text())
+        self.assertEqual(requested, [])
         tab.close()
         tab.deleteLater()
 

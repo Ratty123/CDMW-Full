@@ -31,7 +31,12 @@ its package or resetting its camera. Snapshot creation
 reuses Archive Browser's published path, basename and extension indexes, and template
 previews follow the existing bounded .NET/Vortice package-cache setting. A durable hit
 is validated before archive decode or model preparation, so returning to a template does
-not repeat either operation. Hidden Combat stats tables keep their data current but defer
+not repeat either operation. The part-prefab reader preserves both the original record
+layout and game 2.00.00's opaque per-record tag-prefix byte exactly. After a successful
+snapshot, the shell records the current `CrimsonDesert.exe` hash as compatible with New
+Item Studio; a later unsupported-layout error mentions a possible game update only when
+the executable detector proves a direct transition from that last-known-good hash.
+Hidden Combat stats tables keep their data current but defer
 Qt's content sizing until that workflow step is actually opened.
 The Identity panel keeps item keys and model stems automatic until **Manual** is
 chosen; manual mode starts from the same collision-free allocation the planner

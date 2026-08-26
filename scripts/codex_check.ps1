@@ -68,6 +68,7 @@ $TestsByArea = @{
         "tests/test_archive_browser_virtual_model.py",
         "tests/test_archive_browser_filters.py",
         "tests/test_archive_caches.py",
+        "tests/test_archive_game_update_evidence.py",
         "tests/test_progressive_archive_preview.py",
         "tests/test_release_inspired_improvements.py",
         "tests/test_scene_import_policy.py",
