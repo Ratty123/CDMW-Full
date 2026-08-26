@@ -169,7 +169,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
     def _cleanup_model_source(self, source: Optional[ModelImportSource]) -> None:
         self._model_cleanup_lane.retire(source)
 
-    def template_options(self, text: str = "", *, limit: int = 60) -> List[Tuple[int, str, str, str]]:
+    def template_options(self, text: str = "", *, limit: Optional[int] = 60) -> List[Tuple[int, str, str, str]]:
         """(key, internal name, item name, equip type) for matching equipment."""
 
         if self.snapshot is None:
@@ -215,9 +215,10 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             ranked.append((rank, internal_name.casefold(), int(key), internal_name, display_name, equip))
 
         ranked.sort(key=lambda item: (item[0], item[1], item[2]))
+        visible = ranked if limit is None else ranked[:limit]
         return [
             (key, internal_name, display_name, equip)
-            for _rank, _name, key, internal_name, display_name, equip in ranked[:limit]
+            for _rank, _name, key, internal_name, display_name, equip in visible
         ]
 
     def template_name(self) -> str:
