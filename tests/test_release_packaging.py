@@ -144,6 +144,51 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert source.index(builder_startup_smoke) < source.index("Publishing build output")
 
 
+@pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
+def test_release_builder_isolates_host_injected_codex_poppler_path() -> None:
+    source = BUILDER.read_text(encoding="utf-8")
+
+    isolation_start = (
+        '$packagingPathBeforeIsolation = [string][Environment]::GetEnvironmentVariable("PATH", "Process")'
+    )
+    filtered_path = (
+        '[Environment]::SetEnvironmentVariable("PATH", $packagingPathIsolation.FilteredPath, "Process")'
+    )
+    restored_path = (
+        '[Environment]::SetEnvironmentVariable("PATH", $packagingPathBeforeIsolation, "Process")'
+    )
+    assert "function Test-HostInjectedCodexPopplerPathEntry" in source
+    assert "function Get-PackagingPathIsolation" in source
+    assert source.index(isolation_start) < source.index(filtered_path)
+    assert source.index(filtered_path) < source.index('Stage "Starting PyInstaller"')
+    assert source.index('Stage "Verifying packaged startup"') < source.rindex(restored_path)
+    assert f"}} finally {{\n    {restored_path}" in source
+
+    command = f"""
+. '{str(BUILDER).replace("'", "''")}' -DescribeOnly | Out-Null
+$separator = [string][IO.Path]::PathSeparator
+$codexPoppler = 'C:\\Users\\builder\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin'
+$ordinaryPoppler = 'C:\\Tools\\poppler\\Library\\bin'
+$unrelatedCodexRuntime = 'C:\\Users\\builder\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd'
+$inputPath = @('C:\\Windows\\System32', $codexPoppler, $ordinaryPoppler, $unrelatedCodexRuntime) -join $separator
+$isolation = Get-PackagingPathIsolation -PathValue $inputPath
+$expectedPath = @('C:\\Windows\\System32', $ordinaryPoppler, $unrelatedCodexRuntime) -join $separator
+if ($isolation.FilteredPath -cne $expectedPath) {{ exit 20 }}
+if (@($isolation.RemovedEntries).Count -ne 1) {{ exit 21 }}
+if ($isolation.RemovedEntries[0] -cne $codexPoppler) {{ exit 22 }}
+exit 0
+"""
+    result = subprocess.run(
+        [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+
+
 def test_onedir_publish_removes_runtime_artifacts_created_by_startup_smoke() -> None:
     source = BUILDER.read_text(encoding="utf-8")
 
