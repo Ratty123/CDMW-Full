@@ -616,7 +616,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
         from PySide6.QtCore import QEventLoop
 
         from cdmw.domain.cancellation import RunCancelled
-        from cdmw.ui.new_item.item_preview import ItemPreviewFrame, ProgressivePreviewSource
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame, PlacementScene, ProgressivePreviewSource
         from cdmw.ui.new_item.model_import import ModelPlacement
 
         temporary = tempfile.TemporaryDirectory(prefix="cdmw_item_preview_usage_")
@@ -627,7 +627,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.addCleanup(frame.deleteLater)
         acquired = threading.Event()
         released = threading.Event()
-        build_started = threading.Event()
+        material_started = threading.Event()
 
         class Usage:
             def release(self) -> None:
@@ -637,33 +637,42 @@ class ItemPreviewFrameTests(unittest.TestCase):
             acquired.set()
             return Usage()
 
-        def build_scene(stop_event: threading.Event):
-            build_started.set()
-            while not stop_event.wait(0.005):
-                pass
-            raise RunCancelled("superseded")
+        def build_scene(_stop_event: threading.Event):
+            return PlacementScene(template=object(), model=object())
+
+        def build_package(_item, *, token, include_material_resources, output_root, stop_event, **_kwargs):
+            if token == "import" and include_material_resources:
+                material_started.set()
+                while not stop_event.wait(0.005):
+                    pass
+                raise RunCancelled("superseded")
+            package = Path(output_root) / f"package_{token}_{'full' if include_material_resources else 'geometry'}"
+            package.mkdir(parents=True, exist_ok=True)
+            return package
 
         source = ProgressivePreviewSource(
             geometry=build_scene,
             materials=build_scene,
             acquire_usage=acquire_usage,
         )
-        frame.show_placement(source, token="import", placement=ModelPlacement())
-        deadline = time.monotonic() + 2.0
-        while not build_started.is_set() and time.monotonic() < deadline:
-            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
-        self.assertTrue(acquired.is_set())
-        self.assertFalse(released.is_set())
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", build_package):
+            frame.show_placement(source, token="import", placement=ModelPlacement())
+            deadline = time.monotonic() + 2.0
+            while not material_started.is_set() and time.monotonic() < deadline:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+            self.assertTrue(acquired.is_set())
+            self.assertTrue(material_started.is_set(), "the nested material stage is running")
+            self.assertFalse(released.is_set())
 
-        frame.show(object(), token="template")
-        while not released.is_set() and time.monotonic() < deadline:
-            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
-        self.assertTrue(released.is_set(), "the retired source is released only after the native thread stops")
+            frame.show(object(), token="template")
+            while not released.is_set() and time.monotonic() < deadline:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+            self.assertTrue(released.is_set(), "the retired source is released only after both build threads stop")
 
-        frame.request_shutdown()
-        while frame.iter_shutdown_workers() and time.monotonic() < deadline:
-            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
-        self.assertEqual(frame.iter_shutdown_workers(), ())
+            frame.request_shutdown()
+            while frame.iter_shutdown_workers() and time.monotonic() < deadline:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+            self.assertEqual(frame.iter_shutdown_workers(), ())
 
     def test_a_hidden_frame_builds_the_package_and_loads_it_when_shown(self) -> None:
         """The package builds ahead of the step (shown or not); the viewport starts, and the
@@ -742,35 +751,94 @@ class ItemPreviewFrameTests(unittest.TestCase):
             package.mkdir(parents=True, exist_ok=True)
             return package
 
-        def upgrade_package(geometry_package, _source, *, output_root, **_kwargs):
-            self.assertEqual(Path(geometry_package), Path(output_root) / "geometry")
-            built.append("materials")
-            package = Path(output_root) / "materials"
-            package.mkdir(parents=True, exist_ok=True)
-            return package
-
         source = ProgressivePreviewSource(
             geometry=lambda _stop: PlacementScene(template=object(), model=object()),
             materials=lambda _stop: PlacementScene(template=object(), model=object()),
         )
-        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", build_package), patch(
-            "cdmw.ui.new_item.item_preview.upgrade_item_preview_package_materials",
-            upgrade_package,
-        ):
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", build_package):
             frame.show_placement(source, token="progressive", placement=ModelPlacement())
             deadline = time.monotonic() + 2.0
             while len([call for call in frame.host.calls if call[0] == "load_package"]) < 2 and time.monotonic() < deadline:
                 self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
 
         loads = [call for call in frame.host.calls if call[0] == "load_package"]
-        self.assertEqual(built, ["geometry", "materials"])
+        self.assertCountEqual(built, ["geometry", "full"])
+        self.assertEqual([call[1][0] for call in loads], [output / "geometry", output / "full"])
         self.assertEqual([call[2]["reset_view"] for call in loads], [True, False])
         self.assertIs(frame.host, host, "the resident host is reused for both stages")
         frame.host.controller.state_changed.emit("ready", "")
         self.app.processEvents()
         self.assertFalse((output / "geometry").exists(), "the old package retires only after ready")
-        self.assertTrue((output / "materials").exists())
+        self.assertTrue((output / "full").exists())
         frame.shutdown()
+
+    def test_progressive_template_loads_geometry_then_materials_without_camera_reset(self) -> None:
+        from PySide6.QtCore import QEventLoop
+
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame, ProgressivePreviewSource
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_progressive_template_"))
+        frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
+        frame._ensure_host()
+        host = frame.host
+        built = []
+
+        def build_package(source, *, include_material_resources, output_root, **_kwargs):
+            stage = "materials" if include_material_resources else "geometry"
+            built.append((stage, source))
+            package = Path(output_root) / stage
+            package.mkdir(parents=True, exist_ok=True)
+            return package
+
+        geometry_source = object()
+        material_source = object()
+        source = ProgressivePreviewSource(
+            geometry=lambda _stop: geometry_source,
+            materials=lambda _stop: material_source,
+        )
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", build_package):
+            frame.show(source, token=("template", 17))
+            deadline = time.monotonic() + 2.0
+            while len([call for call in frame.host.calls if call[0] == "load_package"]) < 2 and time.monotonic() < deadline:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+
+        loads = [call for call in frame.host.calls if call[0] == "load_package"]
+        self.assertCountEqual(built, [("geometry", geometry_source), ("materials", material_source)])
+        self.assertEqual([call[1][0] for call in loads], [output / "geometry", output / "materials"])
+        self.assertEqual([call[2]["reset_view"] for call in loads], [True, False])
+        self.assertIs(frame.host, host, "the resident host is reused for both stages")
+        frame.shutdown()
+
+    def test_progressive_template_uses_a_durable_material_cache_hit_before_geometry(self) -> None:
+        from PySide6.QtCore import QEventLoop
+
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame, ProgressivePreviewSource
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_progressive_cache_"))
+        cached = output / "derived" / "package"
+        cached.mkdir(parents=True)
+        frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
+        frame.set_cache_mode("balanced")
+        frame._ensure_host()
+        built = []
+        source = ProgressivePreviewSource(
+            geometry=lambda _stop: built.append("geometry"),
+            materials=lambda _stop: built.append("materials"),
+        )
+        with patch(
+            "cdmw.services.mesh_dotnet_preview_package.lookup_dotnet_preview_package_from_model_identity",
+            return_value=SimpleNamespace(package_dir=cached),
+        ):
+            frame.show(source, token=("template", 17))
+            deadline = time.monotonic() + 2.0
+            while (frame._thread is not None or not frame.host.calls) and time.monotonic() < deadline:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+
+        loads = [call for call in frame.host.calls if call[0] == "load_package"]
+        self.assertEqual(built, [], "a valid full-material cache hit bypasses both builders")
+        self.assertEqual([call[1][0] for call in loads], [cached])
+        self.assertEqual(frame._loaded_stage, "materials")
+        frame.request_shutdown()
 
     def test_material_upgrade_reuses_the_geometry_package_files(self) -> None:
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh

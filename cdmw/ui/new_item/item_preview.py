@@ -71,7 +71,7 @@ class PlacementScene:
 
 @dataclass(frozen=True, slots=True)
 class ProgressivePreviewSource:
-    """Geometry-first and canonical-material builders for one placement identity."""
+    """Geometry-first and canonical-material builders for one preview identity."""
 
     geometry: Callable[[threading.Event], Any]
     materials: Callable[[threading.Event], Any]
@@ -382,7 +382,7 @@ class ItemPreviewFrame(QWidget):
         self._deferred_package: Optional[tuple[Path, Hashable, bool, str]] = None
         #: (token, is_placement, stage) of the build in flight
         self._building: Optional[tuple[Hashable, bool, str]] = None
-        #: Full-material upgrade queued behind a geometry-first placement package.
+        #: Full-material stage queued behind a geometry-first preview package.
         self._upgrade_request: Optional[tuple[Hashable, Any, bool, Path]] = None
         self._loaded_stage = ""
         self._reset_view_on_ready = True
@@ -661,7 +661,9 @@ class ItemPreviewFrame(QWidget):
         # QObject, so Qt runs it on the worker's thread, and the viewport's process would
         # then be created off the UI thread and never deliver its protocol.
         is_placement = bool(self._pending_is_placement)
-        full_stage = stage == "materials" or not is_placement
+        candidate_source = resolved_source if resolved_source is not None else source
+        progressive = isinstance(candidate_source, ProgressivePreviewSource)
+        full_stage = stage == "materials" or not progressive
         self._building = (token, is_placement, "materials" if full_stage else "geometry")
         if not full_stage:
             self.is_ready = False
@@ -670,10 +672,93 @@ class ItemPreviewFrame(QWidget):
         else:
             self.status_changed.emit("Loading model textures…")
 
-        def task(_log, stop_event: threading.Event) -> _PreviewBuildProduct:
+        def task(_log, progress, stop_event: threading.Event) -> _PreviewBuildProduct:
             if callable(acquire_usage) and source_usage is None:
                 raise RunCancelled("Operation cancelled.")
-            candidate = resolved_source if resolved_source is not None else source
+            candidate = candidate_source
+            if (
+                not full_stage
+                and progressive
+                and isinstance(token, tuple)
+                and bool(token)
+                and token[0] == "template"
+                and cache_mode in {"balanced", "aggressive"}
+            ):
+                from cdmw.services.mesh_dotnet_preview_package import (
+                    lookup_dotnet_preview_package_from_model_identity,
+                )
+
+                cached_package = lookup_dotnet_preview_package_from_model_identity(
+                    cache_root=root,
+                    archive_identity=f"new_item_preview:{token!r}",
+                    cancelled=stop_event.is_set,
+                )
+                if cached_package is not None:
+                    return _PreviewBuildProduct(Path(cached_package.package_dir), candidate, "materials")
+            if progressive and not full_stage:
+                try:
+                    geometry_item = candidate.geometry(stop_event)
+                except RunCancelled:
+                    raise
+                except Exception:
+                    material_item = candidate.materials(stop_event)
+                    package_dir = build_item_preview_package(
+                        material_item,
+                        token=token,
+                        output_root=root,
+                        stop_event=stop_event,
+                        include_material_resources=True,
+                        render_settings=render_settings,
+                        cache_mode=cache_mode,
+                    )
+                    return _PreviewBuildProduct(package_dir, candidate, "materials")
+
+                material_packages: list[Path] = []
+                material_errors: list[BaseException] = []
+
+                def build_material_package() -> None:
+                    try:
+                        material_item = candidate.materials(stop_event)
+                        material_packages.append(
+                            build_item_preview_package(
+                                material_item,
+                                token=token,
+                                output_root=root,
+                                stop_event=stop_event,
+                                include_material_resources=True,
+                                render_settings=render_settings,
+                                cache_mode=cache_mode,
+                            )
+                        )
+                    except BaseException as exc:  # noqa: BLE001 - delivered by the owning worker
+                        material_errors.append(exc)
+
+                material_thread = threading.Thread(
+                    target=build_material_package,
+                    name="cdmw-new-item-preview-materials",
+                )
+                material_thread.start()
+                try:
+                    geometry_package = build_item_preview_package(
+                        geometry_item,
+                        token=token,
+                        output_root=root,
+                        stop_event=stop_event,
+                        include_material_resources=False,
+                        render_settings=render_settings,
+                        cache_mode=cache_mode,
+                    )
+                except Exception:  # noqa: BLE001 - the full package can still land
+                    pass
+                else:
+                    progress(1, 2, str(geometry_package))
+                material_thread.join()
+                if material_packages:
+                    return _PreviewBuildProduct(material_packages[0], candidate, "materials")
+                material_error = material_errors[0]
+                if isinstance(material_error, Exception):
+                    raise material_error
+                raise RuntimeError(str(material_error)) from material_error
             if isinstance(candidate, ProgressivePreviewSource):
                 builder = candidate.materials if full_stage else candidate.geometry
                 item = builder(stop_event)
@@ -701,7 +786,7 @@ class ItemPreviewFrame(QWidget):
                 )
             return _PreviewBuildProduct(package_dir, upgrade_source, "materials" if full_stage else "geometry")
 
-        worker = UtilityWorker(task, task_accepts_cancel=True)
+        worker = UtilityWorker(task, task_accepts_progress=True, task_accepts_cancel=True)
         thread = QThread(self)
         worker.moveToThread(thread)
         self._thread, self._worker = thread, worker
@@ -712,12 +797,32 @@ class ItemPreviewFrame(QWidget):
         # ready), and a timer started there would never fire, because the worker's
         # event loop is quitting -- which is how a newer source could be left waiting
         # for a build that never started.
+        worker.progress_changed.connect(self._progressive_package_ready)
         worker.completed.connect(self._package_ready)
         worker.error.connect(self._package_failed)
         worker.finished.connect(self._worker_finished, Qt.DirectConnection)
         thread.finished.connect(self._build_finished, Qt.QueuedConnection)
         thread.started.connect(worker.run)
         thread.start()
+
+    def _progressive_package_ready(self, current: int, total: int, package_path: str) -> None:
+        """Load the immutable geometry package while the same worker finishes materials."""
+
+        if int(current) != 1 or int(total) != 2 or not str(package_path or "").strip():
+            return
+        building = self._building
+        self._package_ready(Path(package_path), stage="geometry")
+        if (
+            building is not None
+            and not self._closed
+            and self._pending is not None
+            and self._pending[0] == building[0]
+            and self._building is not None
+            and self._building[0] == building[0]
+        ):
+            self._upgrade_request = None
+            self._building = (building[0], building[1], "materials")
+            self.status_changed.emit("Loading model textures…")
 
     def _package_failed(self, message: object) -> None:
         if self._closed or self._superseded:
@@ -796,6 +901,8 @@ class ItemPreviewFrame(QWidget):
             else:
                 token, is_placement, building_stage = self._building
                 stage = stage or building_stage
+        if self._building is not None and token == self._building[0]:
+            self._building = (self._building[0], self._building[1], stage)
         if not isinstance(result, Path):
             return
         if self._closed:

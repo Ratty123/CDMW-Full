@@ -682,7 +682,17 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         if result is not None:
             mesh = self.item_mesh_for_preview()
             return (("imported-bare", id(result)), lambda _stop_event: mesh) if mesh is not None else None
-        return self._template_preview_build()
+        template = self._template_preview_build()
+        if template is None:
+            return None
+        geometry = self._template_geometry_build()
+        if geometry is None:
+            return template
+        token, material_build = template
+        _geometry_token, geometry_build = geometry
+        from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
+
+        return (token, ProgressivePreviewSource(geometry_build, material_build))
 
     def _template_geometry_build(self):
         """A fast bare template mesh builder for the first progressive viewport stage."""
