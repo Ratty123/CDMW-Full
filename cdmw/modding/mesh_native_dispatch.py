@@ -76,7 +76,10 @@ def _run_native_mesh_core_service_job(
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
     try:
-        job_path.write_text(json.dumps(dict(payload), separators=(",", ":"), allow_nan=False), encoding="utf-8")
+        job_path.write_text(
+            json.dumps(dict(payload), separators=(",", ":"), allow_nan=False, ensure_ascii=False),
+            encoding="utf-8",
+        )
         service_kwargs: dict[str, object] = {"timeout_seconds": max(0.5, float(timeout_seconds))}
         if stop_event is not None:
             service_kwargs["stop_event"] = stop_event
@@ -202,7 +205,10 @@ def _run_native_mesh_core_job(
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
     try:
-        job_path.write_text(json.dumps(dict(payload), separators=(",", ":"), allow_nan=False), encoding="utf-8")
+        job_path.write_text(
+            json.dumps(dict(payload), separators=(",", ":"), allow_nan=False, ensure_ascii=False),
+            encoding="utf-8",
+        )
         returncode = 0
         use_service = _native_mesh_core_service_enabled(stop_event=stop_event)
         if use_service:

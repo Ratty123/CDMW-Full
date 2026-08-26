@@ -216,6 +216,25 @@ def import_scene_mesh(path: str | Path, *, selected_member: str = "") -> ParsedM
     return import_scene_mesh_with_report(path, selected_member=selected_member).mesh
 
 
+def _attach_loose_character_presentation(
+    source_path: Path,
+    mesh: ParsedMesh,
+    source_data: bytes,
+    diagnostics: list[str],
+    stop_event: Optional[threading.Event],
+) -> None:
+    if source_path.suffix.casefold() != ".pac":
+        return
+    from cdmw.core.archive_mesh_appearance import apply_loose_character_appearance_for_preview
+
+    presentation_mesh, appearance_notes = apply_loose_character_appearance_for_preview(
+        source_path, mesh, source_data, stop_event=stop_event
+    )
+    if presentation_mesh is not mesh:
+        setattr(mesh, "_cdmw_presentation_mesh", presentation_mesh)
+    diagnostics.extend(appearance_notes)
+
+
 def import_scene_mesh_with_report(
     path: str | Path,
     *,
@@ -317,7 +336,8 @@ def import_scene_mesh_with_report(
         raise_if_cancelled(stop_event, "Scene import cancelled.")
         return ensure_external_scene_uvs(result, source_path, stop_event=stop_event)
     if suffix in LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS:
-        mesh = parse_mesh(source_path.read_bytes(), source_path.as_posix())
+        source_data = source_path.read_bytes()
+        mesh = parse_mesh(source_data, source_path.as_posix())
         raise_if_cancelled(stop_event, "Scene import cancelled.")
         if not mesh.submeshes or mesh.total_faces <= 0:
             raise ValueError(f"{source_path.suffix.upper().lstrip('.')} source did not contain recoverable mesh geometry: {source_path}")
@@ -337,6 +357,7 @@ def import_scene_mesh_with_report(
         diagnostics = [
             f"Parsed local {source_path.suffix.upper().lstrip('.')} mesh source for Mesh Replacement.",
         ]
+        _attach_loose_character_presentation(source_path, mesh, source_data, diagnostics, stop_event)
         if mesh.has_bones:
             diagnostics.append(
                 "Source bone weights were detected; Mesh Replacement uses the selected target's donor skeleton/layout."

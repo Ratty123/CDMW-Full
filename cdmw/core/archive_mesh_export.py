@@ -201,10 +201,14 @@ def _rewrite_export_mtl_map_kd(
     return changed
 
 
-def _parse_archive_mesh(entry: ArchiveEntry) -> ParsedMesh:
+def _parse_archive_mesh(
+    entry: ArchiveEntry,
+    *,
+    stop_event: object = None,
+) -> ParsedMesh:
     from cdmw.core.archive_extraction import read_archive_entry_data
 
-    data, _decompressed, _note = read_archive_entry_data(entry)
+    data, _decompressed, _note = read_archive_entry_data(entry, stop_event=stop_event)
     mesh = parse_mesh(data, entry.path)
     setattr(mesh, "_cdmw_original_data", bytes(data))
     return mesh
@@ -245,16 +249,17 @@ def _find_matching_skeleton_entry(
     *,
     archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    stop_event: object = None,
 ) -> tuple[Optional[ArchiveEntry], str, Tuple[str, ...], SkeletonResolveReport]:
     from cdmw.core.archive_extraction import read_archive_entry_data
 
     try:
-        pac_data, _decompressed, _note = read_archive_entry_data(entry)
+        pac_data, _decompressed, _note = read_archive_entry_data(entry, stop_event=stop_event)
     except Exception:
         pac_data = b""
 
     def _read_candidate(candidate: ArchiveEntry) -> bytes:
-        payload, _decompressed, _note = read_archive_entry_data(candidate)
+        payload, _decompressed, _note = read_archive_entry_data(candidate, stop_event=stop_event)
         return payload
 
     skeleton_entry, report = resolve_skeleton_for_model(
@@ -287,6 +292,7 @@ def _appearance_fbx_mesh(
     bone_palette: Sequence[int] | None,
     path_index: Optional[Mapping[str, Sequence[ArchiveEntry]]],
     basename_index: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+    stop_event: object = None,
 ) -> tuple[ParsedMesh, Tuple[str, ...]]:
     if entry.extension != ".pac" or not bone_palette:
         return parsed_mesh, ()
@@ -301,7 +307,27 @@ def _appearance_fbx_mesh(
         include_morph_targets=True,
         skeleton=skeleton,
         bone_palette=bone_palette,
+        stop_event=stop_event,
     )
+
+
+def _append_skeleton_resolution_summary(
+    summary_lines: List[str],
+    report: SkeletonResolveReport,
+) -> None:
+    summary_lines.append(
+        f"Skeleton confidence: {report.confidence}"
+        + (f" ({report.reason})" if report.reason else "")
+    )
+    for label, value in (
+        ("Skeleton descriptor", report.descriptor_path),
+        ("Skeleton resolver PAB descriptor", report.skeleton_descriptor_path),
+        ("Skeleton resolver context variation", report.skeleton_variation_path),
+        ("Skeleton resolver morph descriptor", report.morph_descriptor_path),
+        ("Skeleton resolver morph targets", report.morph_target_path),
+    ):
+        if value:
+            summary_lines.append(f"{label}: {value}")
 
 
 def export_archive_mesh(
@@ -317,7 +343,7 @@ def export_archive_mesh(
     model_texture_references: Optional[Sequence[ArchiveModelTextureReference]] = None,
     asset_family_graph: object = None,
     build_preview_context: bool = True,
-    on_log: Optional[Callable[[str], None]] = None,
+    on_log: Optional[Callable[[str], None]] = None, stop_event: object = None,
 ) -> MeshExportResult:
     export_kind = export_format.strip().lower()
     if export_kind not in {"obj", "fbx"}:
@@ -325,7 +351,7 @@ def export_archive_mesh(
     if entry.extension not in ARCHIVE_MESH_EXTENSIONS:
         raise ValueError(f"{entry.path} is not a supported mesh entry.")
 
-    parsed_mesh = _parse_archive_mesh(entry)
+    parsed_mesh = _parse_archive_mesh(entry, stop_event=stop_event)
     if not parsed_mesh.submeshes and not parsed_mesh.lod_levels:
         raise ValueError("No geometry could be recovered from the selected mesh.")
 
@@ -344,9 +370,8 @@ def export_archive_mesh(
     )
     if should_resolve_skeleton:
         skeleton_entry, skeleton_resolution_warning, _attempted_paths, skeleton_resolve_report = _find_matching_skeleton_entry(
-            entry,
-            archive_entries_by_normalized_path=archive_entries_by_normalized_path,
-            archive_entries_by_basename=archive_entries_by_basename,
+            entry, archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+            archive_entries_by_basename=archive_entries_by_basename, stop_event=stop_event,
         )
     if export_kind == "obj":
         output_paths.extend(Path(path) for path in export_obj(parsed_mesh, str(output_dir), basename))
@@ -356,7 +381,7 @@ def export_archive_mesh(
                 from cdmw.core.archive_extraction import read_archive_entry_data
 
                 try:
-                    skeleton_data, _decompressed, _note = read_archive_entry_data(skeleton_entry)
+                    skeleton_data, _decompressed, _note = read_archive_entry_data(skeleton_entry, stop_event=stop_event)
                     skeleton = parse_pab(skeleton_data, skeleton_entry.path)
                     if not skeleton.bones:
                         skeleton_resolution_warning = (
@@ -402,7 +427,15 @@ def export_archive_mesh(
                         f"{entry.path}: no bone palette resolved against {skeleton_entry.path if skeleton_entry else 'the skeleton'}; "
                         "exporting the armature without skin binding.",
                     )
-            export_mesh, appearance_notes = _appearance_fbx_mesh(entry, parsed_mesh, skeleton, bone_palette, archive_entries_by_normalized_path, archive_entries_by_basename)
+            export_mesh, appearance_notes = _appearance_fbx_mesh(
+                entry,
+                parsed_mesh,
+                skeleton,
+                bone_palette,
+                archive_entries_by_normalized_path,
+                archive_entries_by_basename,
+                stop_event,
+            )
             output_paths.append(Path(export_fbx_with_skeleton(export_mesh, skeleton, str(output_dir), basename, bone_palette=bone_palette)))
         else:
             output_paths.append(Path(export_fbx(parsed_mesh, str(output_dir), basename)))
@@ -565,14 +598,7 @@ def export_archive_mesh(
         summary_lines.append(f"Skeleton: {skeleton_entry.path}")
         summary_lines.append(f"Skeleton bones: {len(skeleton.bones):,}")
         if skeleton_resolve_report is not None:
-            summary_lines.append(
-                f"Skeleton confidence: {skeleton_resolve_report.confidence}"
-                + (f" ({skeleton_resolve_report.reason})" if skeleton_resolve_report.reason else "")
-            )
-            if skeleton_resolve_report.descriptor_path:
-                summary_lines.append(f"Skeleton descriptor: {skeleton_resolve_report.descriptor_path}")
-            if skeleton_resolve_report.skeleton_variation_path:
-                summary_lines.append(f"Skeleton resolver context variation: {skeleton_resolve_report.skeleton_variation_path}")
+            _append_skeleton_resolution_summary(summary_lines, skeleton_resolve_report)
     elif export_kind == "fbx" and entry.extension == ".pac":
         summary_lines.append("Skeleton: mesh-only export")
         if skeleton_resolution_warning:

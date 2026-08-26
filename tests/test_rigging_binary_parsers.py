@@ -24,12 +24,12 @@ class RiggingBinaryParserTests(unittest.TestCase):
     def _transform(*, position: tuple[float, float, float]) -> tuple[float, ...]:
         return (1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, *position)
 
-    def _pamt_payload(self) -> bytes:
+    def _pamt_payload(self, expression_name: bytes = b"jawOpen") -> bytes:
         root_hash = 0x11111111
         bone_name = b"Root"
         targets = (
             (0xAAAA0001, b"base", 0, self._transform(position=(0.0, 0.0, 0.0))),
-            (0xAAAA0002, b"jawOpen", 10, self._transform(position=(0.0, 2.0, 0.0))),
+            (0xAAAA0002, expression_name, 10, self._transform(position=(0.0, 2.0, 0.0))),
         )
         data = bytearray(b"PAR " + bytes(12))
         data.extend(struct.pack("<H", 1))
@@ -71,6 +71,26 @@ class RiggingBinaryParserTests(unittest.TestCase):
         self.assertEqual(3, len(variation.records[0].matrix_blocks))
         self.assertEqual(16, len(variation.records[0].matrix_blocks[0]))
 
+    def test_pabc_parser_recognizes_the_exact_duplicate_table_variant(self) -> None:
+        data = bytearray(PABC_RECORD_OFFSET + PABC_RECORD_STRIDE)
+        data[0:4] = b"PAR "
+        data[4] = 0x35
+        struct.pack_into("<I", data, 0x10, 1)
+        struct.pack_into("<I48f", data, PABC_RECORD_OFFSET, 0x11111111, *([1.0] * 48))
+        primary_table = bytes(data[PABC_RECORD_OFFSET:])
+        data.extend(struct.pack("<II", 0xAABBCCDD, 1))
+        data.extend(primary_table)
+
+        variation = parse_pabc_skeleton_variation(bytes(data), "duplicate.pabc")
+
+        self.assertTrue(variation.duplicate_record_table)
+        self.assertEqual(0xAABBCCDD, variation.secondary_table_tag)
+        self.assertEqual("bone_hash_table_stride_196_exact_duplicate", variation.confidence)
+
+        data[-1] ^= 0x01
+        with self.assertRaisesRegex(ValueError, "duplicate table does not match"):
+            parse_pabc_skeleton_variation(bytes(data), "tampered.pabc")
+
     def test_pamt_parser_recovers_named_facial_targets_and_bone_transforms(self) -> None:
         morphs = parse_pamt_morph_target_set(self._pamt_payload(), "face.pamt")
 
@@ -80,6 +100,16 @@ class RiggingBinaryParserTests(unittest.TestCase):
         self.assertEqual(10, morphs.targets[1].marker)
         self.assertEqual((0.0, 2.0, 0.0), morphs.targets[1].bone_transforms[0].global_transform.position)
         self.assertEqual("pamt_skeleton_morph_targets_v1", morphs.parser_mode)
+
+    def test_pamt_parser_preserves_utf8_target_names(self) -> None:
+        target_name = "기본얼굴_비대칭"
+
+        morphs = parse_pamt_morph_target_set(
+            self._pamt_payload(target_name.encode("utf-8")),
+            "localized.pamt",
+        )
+
+        self.assertEqual(target_name, morphs.targets[1].name)
 
     def test_encrypted_in_archive_pamt_validates_as_a_compressed_par_payload(self) -> None:
         if lz4_block is None:
@@ -110,7 +140,7 @@ class RiggingBinaryParserTests(unittest.TestCase):
         neutral_global = list(identity)
         neutral_global[12] = 1.0
         local_values = self._transform(position=(1.0, 0.0, 0.0)) + (1.0,) * 6
-        pabc = bytearray(PABC_RECORD_OFFSET + PABC_RECORD_STRIDE + 2)
+        pabc = bytearray(PABC_RECORD_OFFSET + PABC_RECORD_STRIDE + 4)
         pabc[0:4] = b"PAR "
         struct.pack_into("<I", pabc, 0x10, 1)
         struct.pack_into(
@@ -162,6 +192,49 @@ class RiggingBinaryParserTests(unittest.TestCase):
         self.assertEqual([(1.0, 0.0, 0.0)], deformed.submeshes[0].vertices)
         self.assertEqual([(1.0, 2.0, 0.0)], deformed.submeshes[0].morph_targets["jawOpen"])
         self.assertEqual([(0.0, 0.0, 1.0)], deformed.submeshes[0].normals)
+
+    def test_pamt_targets_can_be_applied_without_a_pabc_neutral_variation(self) -> None:
+        identity = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+        skeleton = Skeleton(
+            bones=[
+                Bone(
+                    index=0,
+                    name="Root",
+                    name_hash=0x11111111,
+                    parent_index=-1,
+                    bind_matrix=identity,
+                    inv_bind_matrix=identity,
+                )
+            ],
+            bone_count=1,
+        )
+        source = ParsedMesh(
+            path="creature.pac",
+            format="pac",
+            submeshes=[
+                SubMesh(
+                    name="Creature",
+                    vertices=[(0.0, 0.0, 0.0)],
+                    normals=[(0.0, 0.0, 1.0)],
+                    bone_indices=[(0,)],
+                    bone_weights=[(1.0,)],
+                    vertex_count=1,
+                )
+            ],
+            total_vertices=1,
+            has_bones=True,
+        )
+
+        deformed = apply_skeleton_variation_to_mesh(
+            source,
+            skeleton,
+            (0,),
+            None,
+            morph_target_set=parse_pamt_morph_target_set(self._pamt_payload(), "creature.pamt"),
+        )
+
+        self.assertEqual([(0.0, 0.0, 0.0)], deformed.submeshes[0].vertices)
+        self.assertEqual([(0.0, 2.0, 0.0)], deformed.submeshes[0].morph_targets["jawOpen"])
 
     def test_paa_parser_builds_clip_only_from_exact_hash_owned_tables(self) -> None:
         skeleton = Skeleton(

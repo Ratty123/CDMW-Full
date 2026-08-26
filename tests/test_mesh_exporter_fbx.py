@@ -337,7 +337,8 @@ class FbxSkinExportTests(unittest.TestCase):
     def test_native_export_writes_blender_shape_key_nodes(self) -> None:
         mesh = _skinned_export_mesh()
         mesh.submeshes[0].morph_targets = {
-            "jawOpen": [(0.0, 0.0, 0.0), (1.0, -0.25, 0.0), (0.0, 0.75, 0.0)]
+            "jawOpen": [(0.0, 0.0, 0.0), (1.0, -0.25, 0.0), (0.0, 0.75, 0.0)],
+            "기본얼굴_비대칭": [(0.0, 0.0, 0.0), (1.0, -0.1, 0.0), (0.0, 0.9, 0.0)],
         }
         with tempfile.TemporaryDirectory() as temp_dir:
             fbx_path = Path(
@@ -351,7 +352,13 @@ class FbxSkinExportTests(unittest.TestCase):
             )
             payload = fbx_path.read_bytes()
 
-        for node in (b"BlendShape", b"BlendShapeChannel", b"FullWeights", b"jawOpen"):
+        for node in (
+            b"BlendShape",
+            b"BlendShapeChannel",
+            b"FullWeights",
+            b"jawOpen",
+            "기본얼굴_비대칭".encode("utf-8"),
+        ):
             self.assertIn(node, payload, f"{node!r} missing from the facial FBX")
 
     def test_unresolved_palette_exports_an_armature_without_binding(self) -> None:

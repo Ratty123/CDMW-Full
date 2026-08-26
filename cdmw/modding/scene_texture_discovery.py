@@ -42,6 +42,8 @@ SCENE_SIDECAR_SOURCE_EXTENSIONS = {
 }
 SCENE_COMPANION_SOURCE_EXTENSIONS = {
     ".pab",
+    ".pabc",
+    ".pamt",
     ".prefab",
     ".meshinfo",
     ".material",

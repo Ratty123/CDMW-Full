@@ -371,6 +371,9 @@ class ModelLibraryShellBridgeMixin:
                 stop_event=stop_event,
             )
             raise_if_cancelled(stop_event, "Model Library preview cancelled.")
+            presentation_mesh = getattr(scene_result.mesh, "_cdmw_presentation_mesh", None)
+            if presentation_mesh is not None:
+                scene_result.mesh = presentation_mesh
             preview_model = parsed_mesh_to_preview_model(scene_result.mesh)
             texture_count = self._attach_model_library_preview_textures(
                 preview_model,

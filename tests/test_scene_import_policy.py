@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QApplication
 from cdmw.core.model_catalogue import resolve_importable_model_path
 from cdmw.domain.library.scene_selection import ModelArchiveSelectionRequired
 from cdmw.modding.scene_importer import import_scene_mesh_with_report
+from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.models import ArchiveEntry
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.model_library.tab import ModelLibraryTab
@@ -130,6 +131,41 @@ def test_compressed_gltf_keeps_exact_uncompressed_remedy_without_helper_dependen
 
         with pytest.raises(ValueError, match="Export an uncompressed GLB/glTF before importing"):
             import_scene_mesh_with_report(path)
+
+
+def test_local_pac_keeps_raw_import_authority_and_attaches_bundle_presentation() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        source_path = Path(temp_dir) / "character/model/head.pac"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_bytes(b"PAC source")
+        source_mesh = ParsedMesh(
+            path=source_path.as_posix(),
+            format="pac",
+            submeshes=[
+                SubMesh(
+                    name="raw",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+            total_vertices=3,
+            total_faces=1,
+        )
+        presentation_mesh = ParsedMesh(path=source_path.as_posix(), format="pac")
+
+        with (
+            mock.patch("cdmw.modding.scene_importer.parse_mesh", return_value=source_mesh),
+            mock.patch("cdmw.modding.scene_importer.discover_local_mesh_supplemental_files", return_value=()),
+            mock.patch(
+                "cdmw.core.archive_mesh_appearance.apply_loose_character_appearance_for_preview",
+                return_value=(presentation_mesh, ("Applied bundled head appearance.",)),
+            ),
+        ):
+            result = import_scene_mesh_with_report(source_path, include_external_audit=False)
+
+        assert result.mesh is source_mesh
+        assert getattr(result.mesh, "_cdmw_presentation_mesh") is presentation_mesh
+        assert "Applied bundled head appearance." in result.diagnostics
 
 
 def test_model_library_picker_reissues_worker_request_with_selected_member() -> None:

@@ -10466,6 +10466,13 @@
     "{value_2}:": "{value_2}:",
     "×2 on -70 70": "×2 на -70 70",
     "▸  Morph & Refit": "▸ Морфинг и ремонт",
-    "▾  Morph & Refit": "▾ Морфинг и ремонт"
+    "▾  Morph & Refit": "▾ Морфинг и ремонт",
+    "A reusable character package must preserve exact virtual paths. Run the export again and choose Overwrite Existing or Clear Root.": "Повторно используемый пакет персонажа должен сохранять точные виртуальные пути. Запустите экспорт снова и выберите «Перезаписать существующие» или «Очистить корень».",
+    "Character dependency Blender FBX: {value_0}": "Blender FBX зависимостей персонажа: {value_0}",
+    "Character dependency export finished with {value_0} failed file(s).": "Экспорт зависимостей персонажа завершён: не удалось экспортировать файлов — {value_0}.",
+    "Character dependency manifest: {value_0}": "Манифест зависимостей персонажа: {value_0}",
+    "Character dependency package export cancelled.": "Экспорт пакета зависимостей персонажа отменён.",
+    "Exported {value_0} character dependency file(s) and a self-contained Blender FBX to {value_1}.": "Экспортировано файлов зависимостей персонажа: {value_0}, а также автономный Blender FBX в {value_1}.",
+    "Exported {value_0} character dependency file(s), but the reusable bundle is incomplete: {value_1}": "Экспортировано файлов зависимостей персонажа: {value_0}, но повторно используемый пакет неполон: {value_1}"
   }
 }

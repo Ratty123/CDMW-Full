@@ -540,6 +540,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         def task(
             on_log: Callable[[str], None],
             on_progress: Callable[[int, int, str], None],
+            stop_event: object,
         ) -> Dict[str, object]:
             if clear_root:
                 output_root.mkdir(parents=True, exist_ok=True)
@@ -553,6 +554,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
                 collision_mode=collision_mode,
                 on_log=on_log,
                 on_progress=on_progress,
+                stop_event=stop_event,
             )
             return {
                 "output_root": str(output_root),
@@ -622,6 +624,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
             on_complete=on_complete,
             show_archive_progress=True,
             task_accepts_progress=True,
+            task_accepts_cancel=True,
         )
 
     def extract_selected_archive_entries(self) -> None:

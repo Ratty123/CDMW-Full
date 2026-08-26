@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
 from cdmw.core.archive import extract_archive_entries
+from cdmw.core.common import RunCancelled
 from cdmw.models import ArchiveEntry
 
 
@@ -72,6 +74,27 @@ class ArchiveExtractProgressTests(unittest.TestCase):
         self.assertIn("on_progress=on_progress", source)
         self.assertIn("show_archive_progress=True", source)
         self.assertIn("task_accepts_progress=True", source)
+        self.assertIn("task_accepts_cancel=True", source)
+
+    def test_extract_archive_entries_cancels_before_publishing_a_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pamt_path = root / "0.pamt"
+            paz_path = root / "0.paz"
+            pamt_path.write_bytes(b"pamt")
+            paz_path.write_bytes(b"payload")
+            stop_event = threading.Event()
+            stop_event.set()
+            output_root = root / "out"
+
+            with self.assertRaises(RunCancelled):
+                extract_archive_entries(
+                    [_entry("object/cancelled.bin", pamt_path, paz_path, 0, b"payload")],
+                    output_root,
+                    stop_event=stop_event,
+                )
+
+            self.assertFalse((output_root / "object/cancelled.bin").exists())
 
 
 if __name__ == "__main__":

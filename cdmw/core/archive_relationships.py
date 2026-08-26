@@ -14,6 +14,7 @@ from cdmw.core.archive_binary_preview import (
     try_decode_text_like_archive_data,
 )
 from cdmw.core.archive_extraction import read_archive_entry_data
+from cdmw.core.common import raise_if_cancelled
 from cdmw.core.archive_model_references import _find_archive_model_sidecar_entries
 from cdmw.core.archive_sidecar_cache import _extract_archive_sidecar_texture_lookup_paths
 from cdmw.core.archive_modding_constants import ARCHIVE_MESH_EXTENSIONS
@@ -1248,13 +1249,16 @@ def build_character_dependency_plan(
     archive_entries: Sequence[ArchiveEntry],
     *,
     selected_appearance_path: str = "",
+    stop_event: object = None,
 ) -> CharacterDependencyPlan:
+    raise_if_cancelled(stop_event)
     body_path = body_entry.path.replace("\\", "/")
     app_entries = tuple(entry for entry in archive_entries if str(entry.extension or "").lower() == ".app_xml")
     matched_apps: List[ArchiveEntry] = []
     plans_by_app: Dict[str, ArchiveRelationshipPlan] = {}
     warnings: List[str] = []
     for app_entry in app_entries:
+        raise_if_cancelled(stop_event)
         try:
             plan = build_archive_relationship_plan(app_entry, archive_entries, mode="character_dependency_scan")
         except Exception as exc:
@@ -1263,14 +1267,12 @@ def build_character_dependency_plan(
         plans_by_app[_normalized_archive_path(app_entry.path)] = plan
         if _relationship_plan_references_body(plan, body_entry):
             matched_apps.append(app_entry)
-
     if not matched_apps:
         return CharacterDependencyPlan(
             body_path=body_path,
             warnings=tuple(dict.fromkeys(warnings)),
             blocking_errors=(f"No matching appearance descriptor was found for body/model {body_path}.",),
         )
-
     selected_key = _normalized_archive_path(selected_appearance_path)
     selected_app = next(
         (entry for entry in matched_apps if _normalized_archive_path(entry.path) == selected_key),
@@ -1279,7 +1281,6 @@ def build_character_dependency_plan(
     selected_plan = plans_by_app.get(_normalized_archive_path(selected_app.path))
     if selected_plan is None:
         selected_plan = build_archive_relationship_plan(selected_app, archive_entries, mode="character_dependency")
-
     edges: List[ArchiveRelationEdge] = [
         ArchiveRelationEdge(
             source_path=body_path,
@@ -1294,8 +1295,8 @@ def build_character_dependency_plan(
     ]
     edges.extend(selected_plan.edges)
     edges.extend(resolve_material_texture_graph(body_entry, archive_entries).edges)
-
     for candidate in archive_entries:
+        raise_if_cancelled(stop_event)
         if str(candidate.extension or "").lower() not in _ANIMATION_EXTENSIONS:
             continue
         if _strict_animation_token_match(body_entry, candidate):
@@ -1311,10 +1312,10 @@ def build_character_dependency_plan(
                     include_policy=ARCHIVE_REL_INCLUDE_RECOMMENDED,
                 )
             )
-
     entries: List[ArchiveEntry] = [body_entry, selected_app]
     seen_entries: set[str] = {_entry_key(body_entry), _entry_key(selected_app)}
     for edge in _dedupe_edges(edges):
+        raise_if_cancelled(stop_event)
         if edge.related_entry is None:
             continue
         key = _entry_key(edge.related_entry)
@@ -1322,7 +1323,6 @@ def build_character_dependency_plan(
             continue
         seen_entries.add(key)
         entries.append(edge.related_entry)
-
     return CharacterDependencyPlan(
         body_path=body_path,
         selected_appearance_path=selected_app.path.replace("\\", "/"),
