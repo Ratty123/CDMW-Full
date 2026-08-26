@@ -17147,6 +17147,16 @@
       ]
     },
     {
+      "key": "Character Appearance: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/workers/archive_preview_workers.py",
+          "line": 364,
+          "sink": "ArchivePreviewResult"
+        }
+      ]
+    },
+    {
       "key": "Character Object",
       "origins": [
         {
@@ -17303,6 +17313,46 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
           "line": 127,
           "sink": "add_step"
+        }
+      ]
+    },
+    {
+      "key": "Character presentation geometry exceeds the 10,000,000-vertex safety bound",
+      "origins": [
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 76,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Character presentation geometry is empty",
+      "origins": [
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 74,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Character presentation submesh {value_0} contains invalid geometry",
+      "origins": [
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 101,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Character presentation submesh {value_0} has {value_1} vertices but {value_2} normals",
+      "origins": [
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 91,
+          "sink": "ValueError"
         }
       ]
     },
@@ -37131,7 +37181,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 425,
+          "line": 430,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -46496,7 +46546,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 359,
+          "line": 364,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -48741,7 +48791,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 402,
+          "line": 407,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -48761,7 +48811,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 402,
+          "line": 407,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -55036,7 +55086,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 605,
+          "line": 724,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -55176,13 +55226,28 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 605,
+          "line": 724,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 643,
+          "line": 762,
           "sink": "ArchivePreviewResult"
+        }
+      ]
+    },
+    {
+      "key": "Native character presentation preparation cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 87,
+          "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 98,
+          "sink": "RunCancelled"
         }
       ]
     },
@@ -55211,7 +55276,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 643,
+          "line": 762,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -55271,7 +55336,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 353,
+          "line": 467,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -55336,12 +55401,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 605,
+          "line": 724,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 643,
+          "line": 762,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -55471,7 +55536,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 155,
+          "line": 285,
           "sink": "RunCancelled"
         }
       ]
@@ -64861,7 +64926,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 359,
+          "line": 364,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -69961,7 +70026,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 605,
+          "line": 724,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -70001,7 +70066,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 643,
+          "line": 762,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -70011,7 +70076,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 357,
+          "line": 471,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -70021,7 +70086,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 349,
+          "line": 463,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -80656,7 +80721,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 402,
+          "line": 407,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -96691,7 +96756,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 643,
+          "line": 762,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -103751,7 +103816,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 359,
+          "line": 364,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -111151,7 +111216,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 643,
+          "line": 762,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -112031,7 +112096,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 643,
+          "line": 762,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -114906,7 +114971,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 425,
+          "line": 430,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -117321,12 +117386,12 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 605,
+          "line": 724,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 359,
+          "line": 364,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -118726,17 +118791,17 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 605,
+          "line": 724,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 359,
+          "line": 364,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 425,
+          "line": 430,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -120416,7 +120481,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 425,
+          "line": 430,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -121801,7 +121866,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 402,
+          "line": 407,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -204211,7 +204276,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 425,
+          "line": 430,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -204316,7 +204381,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 359,
+          "line": 364,
           "sink": "ArchivePreviewResult"
         }
       ]
