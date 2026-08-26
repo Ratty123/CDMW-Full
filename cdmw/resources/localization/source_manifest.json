@@ -18561,12 +18561,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 89,
+          "line": 96,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 260,
+          "line": 305,
           "sink": "setText"
         }
       ]
@@ -19966,7 +19966,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 71,
+          "line": 72,
           "sink": "setToolTip"
         }
       ]
@@ -30651,7 +30651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 43,
+          "line": 44,
           "sink": "intro_label"
         }
       ]
@@ -35486,7 +35486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 50,
+          "line": 51,
           "sink": "QLabel"
         }
       ]
@@ -43151,7 +43151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 52,
+          "line": 53,
           "sink": "setPlaceholderText"
         }
       ]
@@ -43166,7 +43166,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 58,
+          "line": 59,
           "sink": "setHeaderLabels"
         }
       ]
@@ -43696,7 +43696,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 58,
+          "line": 59,
           "sink": "setHeaderLabels"
         },
         {
@@ -44831,7 +44831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 58,
+          "line": 59,
           "sink": "setHeaderLabels"
         },
         {
@@ -69966,7 +69966,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 95,
+          "line": 102,
           "sink": "QGroupBox"
         },
         {
@@ -70386,7 +70386,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 98,
+          "line": 105,
           "sink": "QLabel"
         }
       ]
@@ -96371,7 +96371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 87,
+          "line": 94,
           "sink": "QGroupBox"
         }
       ]
@@ -99706,7 +99706,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 58,
+          "line": 59,
           "sink": "setHeaderLabels"
         },
         {

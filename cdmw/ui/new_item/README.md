@@ -21,7 +21,8 @@ item keys with Archive Browser's normalized terms, phrases, alternatives and exc
 Its result table separates the internal name, English item name, numeric key and equipment
 type into four labelled columns. Column edges are session-resizable, clicking a heading
 sorts the complete match set (including numeric key order), and scrolling near the bottom
-adds the next 60 rows until every match is visible. An explicit mouse click commits immediately,
+adds the next 60 rows until every match is visible. Startup and later panel growth distribute
+all available width across the columns instead of leaving an empty strip. An explicit mouse click commits immediately,
 while keyboard row navigation keeps its 180 ms latest-row settle so holding an arrow key
 does not rebuild every dependent step along the way. It mounts the same resident item
 viewport used by Model & Placement, so a selected helmet, armour piece or weapon can

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGroupBox,
@@ -39,6 +39,7 @@ class TemplatePanel(QGroupBox):
         self._sort_column = -1
         self._sort_order = Qt.SortOrder.AscendingOrder
         self._column_widths_initialized = False
+        self._resizing_match_columns = False
         layout = QVBoxLayout(self)
         layout.addWidget(intro_label("Every new item is a copy of a shipped one: the template sets its slot, type, sockets, animations and any optional sheathed variant; everything after changes the copy. Equipment only."))
         self.workspace_layout = QHBoxLayout()
@@ -70,10 +71,16 @@ class TemplatePanel(QGroupBox):
         header.setSortIndicatorClearable(False)
         header.setToolTip("Click a column heading to sort; click it again to reverse the order.")
         header.sectionClicked.connect(self._sort_matches_by_column)
+        header.sectionResized.connect(self._match_column_resized)
         self.matches.setMinimumHeight(160)
         self.matches.currentItemChanged.connect(self._pick)
         self.matches.itemClicked.connect(self._apply_clicked_pick)
         self.matches.verticalScrollBar().valueChanged.connect(self._load_more_matches)
+        self._column_fit_timer = QTimer(self)
+        self._column_fit_timer.setSingleShot(True)
+        self._column_fit_timer.timeout.connect(self._fit_match_columns_to_viewport)
+        self._matches_viewport = self.matches.viewport()
+        self._matches_viewport.installEventFilter(self)
         # Choosing a template rebuilds five steps, which is ~100 ms of work that has to
         # happen; arrow-keying down the list asked for it once per row it passed through.
         # The list still moves at once (Qt owns that); navigation waits for the reader to
@@ -200,21 +207,59 @@ class TemplatePanel(QGroupBox):
         finally:
             self._syncing = False
 
-    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt virtual method
-        super().resizeEvent(event)
-        if self._column_widths_initialized or not hasattr(self, "matches"):
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 - Qt virtual method
+        if (
+            hasattr(self, "_matches_viewport")
+            and watched is self._matches_viewport
+            and event.type() == QEvent.Type.Resize
+        ):
+            self._column_fit_timer.start(0)
+        return super().eventFilter(watched, event)
+
+    def _match_column_resized(self, column: int, _old_size: int, _new_size: int) -> None:
+        if self._column_widths_initialized and not self._resizing_match_columns:
+            self._fit_match_columns_to_viewport(changed_column=int(column))
+
+    def _fit_match_columns_to_viewport(self, *, changed_column: int = -1) -> None:
+        if self._resizing_match_columns:
             return
-        available = self.matches.viewport().width()
+        available = self._matches_viewport.width()
         if available < 320:
             return
-        key_width = max(80, round(available * 0.11))
-        type_width = max(110, round(available * 0.17))
-        name_width = max(200, available - key_width - type_width)
-        internal_width = round(name_width * 0.56)
-        widths = (internal_width, name_width - internal_width, key_width, type_width)
-        for column, width in enumerate(widths):
-            self.matches.header().resizeSection(column, width)
-        self._column_widths_initialized = True
+        header = self.matches.header()
+        self._resizing_match_columns = True
+        try:
+            if not self._column_widths_initialized:
+                key_width = max(80, round(available * 0.11))
+                type_width = max(110, round(available * 0.17))
+                name_width = max(200, available - key_width - type_width)
+                internal_width = round(name_width * 0.56)
+                widths = (internal_width, name_width - internal_width, key_width, type_width)
+                for column, width in enumerate(widths):
+                    header.resizeSection(column, width)
+                self._column_widths_initialized = True
+                return
+
+            widths = [header.sectionSize(column) for column in range(self.matches.columnCount())]
+            gap = available - sum(widths)
+            if 0 <= changed_column < self.matches.columnCount():
+                if gap > 2:
+                    target = 0 if changed_column == self.matches.columnCount() - 1 else self.matches.columnCount() - 1
+                    header.resizeSection(target, widths[target] + gap)
+                return
+            if abs(gap) <= 2:
+                return
+            remaining = available
+            total = max(1, sum(widths))
+            for column, width in enumerate(widths):
+                fitted = remaining if column == len(widths) - 1 else max(
+                    header.minimumSectionSize(),
+                    round(available * width / total),
+                )
+                header.resizeSection(column, fitted)
+                remaining -= fitted
+        finally:
+            self._resizing_match_columns = False
 
     def _pick(self, current: Optional[QTreeWidgetItem], _previous=None) -> None:
         if self._syncing or current is None:
