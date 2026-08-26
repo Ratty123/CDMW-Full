@@ -452,11 +452,24 @@ class TabTests(unittest.TestCase):
         for column in range(panel.matches.columnCount()):
             self.assertEqual(panel.matches.header().sectionResizeMode(column), QHeaderView.ResizeMode.Interactive)
         self.assertTrue(panel.matches.property("cdmw_disable_auto_column_fill"))
+
+        def trailing_space() -> int:
+            return panel.matches.viewport().width() - sum(
+                panel.matches.columnWidth(column) for column in range(panel.matches.columnCount())
+            )
+
+        self.assertLessEqual(abs(trailing_space()), 2, "startup fits the complete result viewport")
         original_width = panel.matches.columnWidth(0)
-        panel.matches.header().resizeSection(0, original_width + 37)
-        self.assertEqual(panel.matches.columnWidth(0), original_width + 37, "the reader can resize any result column")
+        resized_width = original_width - 37
+        panel.matches.header().resizeSection(0, resized_width)
+        self.assertEqual(panel.matches.columnWidth(0), resized_width, "the reader can resize any result column")
+        self.assertLessEqual(abs(trailing_space()), 2, "resizing transfers unused width instead of leaving a blank strip")
         panel._refresh_matches()
-        self.assertEqual(panel.matches.columnWidth(0), original_width + 37, "refresh keeps the reader's column width")
+        self.assertEqual(panel.matches.columnWidth(0), resized_width, "refresh keeps the reader's column width")
+        tab.resize(1900, 900)
+        self.app.processEvents()
+        self.app.processEvents()
+        self.assertLessEqual(abs(trailing_space()), 2, "later panel growth also fits the result viewport")
         self.assertLess(selection.right(), preview.left(), "selection stays left of the preview")
         self.assertLessEqual(abs(selection.top() - preview.top()), 1)
         self.assertLessEqual(abs(selection.bottom() - preview.bottom()), 1)
