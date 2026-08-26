@@ -265,6 +265,54 @@ class ShellThemeControllerTests(unittest.TestCase):
                 app.setFont(previous_font, class_name)
             app.setStyleSheet(previous_style_sheet)
 
+    def test_compact_layout_keeps_each_configured_font_size_distinct(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        previous_font = QFont(app.font())
+        previous_style_sheet = app.styleSheet()
+        parent = QWidget()
+        label = QLabel("Label")
+        list_widget = QListWidget()
+        layout = QVBoxLayout(parent)
+        layout.addWidget(label)
+        layout.addWidget(list_widget)
+        settings = _Settings(
+            {
+                "appearance/ui_font_family": previous_font.family(),
+                "appearance/ui_font_size": 10,
+                "appearance/data_font_size": 10,
+                "appearance/ui_density": "compact",
+            }
+        )
+        try:
+            parent.show()
+            apply_app_fonts(app, settings, screen_width=1366, screen_height=1080)
+            app.processEvents()
+            configured_ten = (label.font().pointSize(), list_widget.font().pointSize())
+
+            settings._values["appearance/ui_font_size"] = 8
+            settings._values["appearance/data_font_size"] = 8
+            apply_app_fonts(app, settings, screen_width=1366, screen_height=1080)
+            app.processEvents()
+            configured_eight = (label.font().pointSize(), list_widget.font().pointSize())
+
+            self.assertEqual((10, 10), configured_ten)
+            self.assertEqual((8, 8), configured_eight)
+        finally:
+            parent.deleteLater()
+            app.setFont(previous_font)
+            for class_name in (
+                "QWidget",
+                "QListView",
+                "QListWidget",
+                "QTreeView",
+                "QTreeWidget",
+                "QTableView",
+                "QTableWidget",
+                "QHeaderView",
+            ):
+                app.setFont(previous_font, class_name)
+            app.setStyleSheet(previous_style_sheet)
+
     def test_apply_window_ui_fonts_updates_startup_widget_tree(self) -> None:
         app = QApplication.instance() or QApplication([])
         previous_font = QFont(app.font())

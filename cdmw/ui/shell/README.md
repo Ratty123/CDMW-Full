@@ -18,5 +18,11 @@ work belongs in `cdmw/workers/`. `MainWindow` has only `QMainWindow` as a base;
 shell/archive/texture/mesh behavior is supplied by owned controllers and the
 compatibility provider registry.
 
+Settings font sizes are exact user preferences; responsive screen scaling may
+compact spacing and control metrics, but it does not rewrite the chosen UI or
+list font size. The seven-page Settings navigation is a top-aligned,
+content-sized rail whose width follows its translated labels instead of taking
+a fixed sidebar width and full-window height.
+
 Related tests: `tests/test_shell_*.py`, architecture guards, and shell entries
 under `tests/`.

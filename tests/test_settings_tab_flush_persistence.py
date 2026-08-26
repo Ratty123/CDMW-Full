@@ -77,6 +77,33 @@ class SettingsTabFlushPersistenceTests(unittest.TestCase):
         self.assertIn("archive/model_high_quality", keys)
         self.assertNotIn("archive/model_high_quality_textures", keys)
 
+    def test_settings_navigation_compacts_to_its_labels_and_selected_list_font(self) -> None:
+        self.tab.ui_font_size_spin.setValue(8)
+        self.tab.data_font_size_spin.setValue(8)
+        self.tab.flush_settings_save()
+        self.tab.resize(1100, 760)
+        self.tab.show()
+        _APP.processEvents()
+
+        nav = self.tab.section_nav_list
+        row_heights = tuple(nav.item(row).sizeHint().height() for row in range(nav.count()))
+        last_item_rect = nav.visualItemRect(nav.item(nav.count() - 1))
+        english_width = nav.width()
+        self.assertIn("font-size: 8pt;", nav.styleSheet())
+        self.assertGreaterEqual(nav.minimumWidth(), 154)
+        self.assertLessEqual(nav.maximumWidth(), 220)
+        self.assertEqual(nav.minimumWidth(), nav.maximumWidth())
+        self.assertLess(max(row_heights), 40)
+        self.assertEqual(nav.minimumHeight(), nav.maximumHeight())
+        self.assertLess(nav.maximumHeight(), 260)
+        self.assertLess(last_item_rect.bottom(), nav.viewport().height())
+
+        nav.item(3).setText("Translated performance navigation")
+        self.tab._apply_section_nav_style()
+        _APP.processEvents()
+        self.assertGreater(nav.width(), english_width)
+        self.assertLessEqual(nav.width(), 220)
+
 
 if __name__ == "__main__":
     unittest.main()

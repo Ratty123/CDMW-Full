@@ -175,8 +175,11 @@ def _resolved_app_fonts(
     effective_screen_width = int(screen_width or fallback_width)
     effective_screen_height = int(screen_height or fallback_height)
     screen_scale = _responsive_control_scale_for_resolution(effective_screen_width, effective_screen_height)
-    base_font_size = max(UI_FONT_SIZE_MIN, min(UI_FONT_SIZE_MAX, int(round(configured_base_font_size * screen_scale))))
-    data_font_size = max(UI_FONT_SIZE_MIN, min(UI_FONT_SIZE_MAX, int(round(configured_data_font_size * screen_scale))))
+    # Font-size preferences are user authority. Responsive scaling owns control
+    # padding and layout density; applying it to fonts collapsed distinct choices
+    # (10 and 8 both became 8 on a 1366-wide layout).
+    base_font_size = configured_base_font_size
+    data_font_size = configured_data_font_size
     density_key = str(settings.value("appearance/ui_density", DEFAULT_UI_DENSITY) or DEFAULT_UI_DENSITY)
     effective_density_key = "compact" if screen_scale < 0.94 else density_key
     app_font = QFont(app.font())
