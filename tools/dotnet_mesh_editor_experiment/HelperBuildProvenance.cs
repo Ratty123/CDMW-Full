@@ -100,7 +100,8 @@ internal static class HelperBuildProvenance
     {
         var processPath = Environment.ProcessPath ?? string.Empty;
         var assembly = Assembly.GetExecutingAssembly();
-        var assemblyPath = assembly.Location;
+        var assemblyCandidatePath = Path.Combine(AppContext.BaseDirectory, $"{assembly.GetName().Name}.dll");
+        var assemblyPath = File.Exists(assemblyCandidatePath) ? assemblyCandidatePath : string.Empty;
         var manifestPath = CandidateManifestPaths(processPath, assemblyPath)
             .FirstOrDefault(File.Exists) ?? string.Empty;
         var manifest = ReadManifest(manifestPath);

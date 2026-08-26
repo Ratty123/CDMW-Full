@@ -593,14 +593,14 @@ internal sealed partial class D3D11MaterialViewport
             constants.MarkerSettings.Z = texture is not null ? 1.0f : 0.0f;
             constants.MarkerSettings.W = range.Beam ? 1.0f : 0.0f;
             _context.UpdateSubresource(in constants, _overlayCameraBuffer);
-            _context.PSSetShaderResource(11u, texture);
+            _context.PSSetShaderResource(11u, texture!);
             // the shader premultiplies, so alpha emitters take (One, InvSrcAlpha)
             _context.OMSetBlendState(range.Additive
                 ? _effectParticleAdditiveBlendState ?? _transparentBlendState ?? _overlayBlendState
                 : _effectParticlePremultipliedBlendState ?? _transparentBlendState ?? _overlayBlendState);
             _context.Draw((uint)range.Count, (uint)range.Start);
         }
-        _context.PSSetShaderResource(11u, null);
+        _context.PSSetShaderResource(11u, null!);
         if (softEnabled)
         {
             _context.PSSetShaderResource(softSlot, null!);

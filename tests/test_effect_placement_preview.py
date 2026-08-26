@@ -328,6 +328,8 @@ class ViewerParticleLayerContractTests(unittest.TestCase):
         self.assertIn("AppendBeamVertices", reader)
         self.assertIn("LoadEffectParticlePreview", renderer)
         self.assertIn("DrawEffectParticles", renderer)
+        self.assertIn("PSSetShaderResource(11u, texture!);", renderer)
+        self.assertIn("PSSetShaderResource(11u, null!);", renderer)
         self.assertIn("VSParticle", shaders)
         self.assertIn("PSParticle", shaders)
         self.assertIn('"effect_particle_preview_v1"', provenance)

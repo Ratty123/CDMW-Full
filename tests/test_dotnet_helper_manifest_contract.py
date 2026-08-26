@@ -116,3 +116,11 @@ def test_build_script_does_not_restate_the_capability_list() -> None:
         "adds one, and the drift only surfaces at the end of a full release build. "
         f"Let {CONTRACT_FUNCTION} read them from {PROVENANCE_SOURCE.name} instead."
     )
+
+
+def test_helper_provenance_resolves_its_dll_without_assembly_location() -> None:
+    source = PROVENANCE_SOURCE.read_text(encoding="utf-8")
+
+    assert "assembly.Location" not in source
+    assert 'Path.Combine(AppContext.BaseDirectory, $"{assembly.GetName().Name}.dll")' in source
+    assert "File.Exists(assemblyCandidatePath) ? assemblyCandidatePath : string.Empty" in source
