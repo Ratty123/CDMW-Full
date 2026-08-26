@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import tempfile
 from dataclasses import dataclass, replace
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
@@ -12,6 +13,7 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSize, Qt, QTimer, 
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
+    QComboBox,
     QFrame,
     QGridLayout,
     QHeaderView,
@@ -60,6 +62,8 @@ CATEGORY_GLYPHS = {
     "Sparks": "✦",
     "Other": "◇",
 }
+
+_CHARACTER_RIGS = ("", "1_phm", "2_phw")
 
 
 def effect_category(stem: str, authoring_name: str = "") -> str:
@@ -433,6 +437,26 @@ class GuidedEffectsWorkspace(QWidget):
         self.placement_holder.setMinimumWidth(820)
         self.placement_layout = QVBoxLayout(self.placement_holder)
         self.placement_layout.setContentsMargins(0, 0, 0, 0)
+        self.character_fit_row = QWidget()
+        self.character_fit_row.setObjectName("effect_character_fit_row")
+        character_fit_layout = QHBoxLayout(self.character_fit_row)
+        character_fit_layout.setContentsMargins(8, 6, 8, 0)
+        character_fit_layout.setSpacing(6)
+        character_fit_layout.addStretch(1)
+        character_fit_layout.addWidget(QLabel("Character"))
+        self.character_fit_choice = QComboBox()
+        self.character_fit_choice.setObjectName("effect_character_fit_choice")
+        self.character_fit_choice.setAccessibleName("Character")
+        self.character_fit_choice.addItem("Auto", 0)
+        self.character_fit_choice.addItem("Kliff", 1)
+        self.character_fit_choice.addItem("Damian", 2)
+        self.character_fit_choice.setToolTip(
+            "The game's own character provides a size reference for the item and effect."
+        )
+        self.character_fit_choice.setEnabled(controller.draft.template_key is not None)
+        self.character_fit_choice.currentIndexChanged.connect(self._character_fit_changed)
+        character_fit_layout.addWidget(self.character_fit_choice)
+        self.placement_layout.addWidget(self.character_fit_row)
         self.placeholder = QLabel("Choose a template to prepare the resident placement viewport.")
         self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.placeholder.setWordWrap(True)
@@ -734,12 +758,23 @@ class GuidedEffectsWorkspace(QWidget):
     def _source_changed(self, *_args) -> None:
         self._committed = EffectWorkspaceState.from_draft(self._controller.draft)
         self._staged = self._committed
+        self.character_fit_choice.setEnabled(self._controller.draft.template_key is not None)
         self._origin_defaulted_stem = None
         self._reset_view_next = True
         self._preview_retry_remaining = 1
         self._refresh_library()
         self._refresh_compatibility()
         self._publish_dirty()
+        self.selection_timer.start()
+
+    def _selected_character_rig(self) -> str:
+        index = int(self.character_fit_choice.currentData() or 0)
+        return _CHARACTER_RIGS[index] if 0 <= index < len(_CHARACTER_RIGS) else ""
+
+    def _character_fit_changed(self, _index: int) -> None:
+        # The choice changes only the reference body. Keep the reader's camera and stage
+        # one immutable rig ID into the existing cancellable latest-wins package lane.
+        self._reset_view_next = False
         self.selection_timer.start()
 
     def _rebuild_preview(self) -> None:
@@ -779,6 +814,14 @@ class GuidedEffectsWorkspace(QWidget):
         model_source_usage = getattr(model_source, "acquire_usage", None)
         box_min, box_max = self._controller.effect_box(stem)
         preview_builder, texture_reader = self._controller.effect_preview_for_placement(stem, self._staged)
+        character_rig = self._selected_character_rig()
+        if character_rig:
+            character_builder = partial(
+                self._controller.character_holding_the_item,
+                rig_model=character_rig,
+            )
+        else:
+            character_builder = self._controller.character_holding_the_item
         if self.placement is None:
             kwargs = dict(
                 item_mesh=mesh,
@@ -797,7 +840,7 @@ class GuidedEffectsWorkspace(QWidget):
                 output_root=self._placement_root,
                 effect_preview=preview_builder,
                 texture_reader=texture_reader,
-                character_builder=self._controller.character_holding_the_item,
+                character_builder=character_builder,
                 model_source_usage=model_source_usage if callable(model_source_usage) else None,
             )
             if self._host_factory is not None:
@@ -816,7 +859,7 @@ class GuidedEffectsWorkspace(QWidget):
                 effect_label=stem,
                 effect_preview=preview_builder,
                 texture_reader=texture_reader,
-                character_builder=self._controller.character_holding_the_item,
+                character_builder=character_builder,
                 model_source_usage=model_source_usage if callable(model_source_usage) else None,
                 reset_view=self._reset_view_next,
             )

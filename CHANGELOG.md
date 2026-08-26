@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+- **New Item Studio's Perks & Effects preview can fit an item against either playable body.** The new **Character** control defaults to **Auto**, which keeps the template's rig, and can switch the preview to Kliff or Damian without changing the template, item output or equip compatibility. Each choice rebuilds through the existing cancellable latest-wins preview lane, preserves the camera, and uses that rig's archived low-detail body plus the item's existing bind/socket placement route; animated clipping and final in-game fit remain explicit validation steps.
+
 ### Changed
 - **New Item Studio template search now uses Archive Browser-style normalized terms across the full equipment catalogue.** A query can combine words from the internal ID, English item name, equipment type and numeric item key, with the same phrase, `OR` and exclusion behavior used by Archive Browser. Results separate the internal name, English item name, numeric key and equipment type into four labelled columns; each edge is resizable, headings sort the complete result set (with numeric key order), and scrolling near the bottom appends 60-row pages until every match is visible.
 - **New Item Studio gives template selection and its preview separate side-by-side columns.** Search, results and the chosen-template facts stay together on the left, while the same resident orbitable preview receives the wider right column and the full working height before moving unchanged into **Model & Placement**.

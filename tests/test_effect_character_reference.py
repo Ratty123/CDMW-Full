@@ -563,6 +563,27 @@ class SnapshotSeamTests(unittest.TestCase):
         self.assertIsNone(reference)
         self.assertIn("the archives moved", said)
 
+    def test_an_explicit_preview_rig_overrides_the_template_folder(self) -> None:
+        from unittest.mock import patch
+
+        from cdmw.services.effect_character_reference import character_reference_from_snapshot
+
+        expected = object()
+        snapshot = self._Snapshot([])
+        with patch(
+            "cdmw.services.effect_character_reference.build_character_reference",
+            return_value=expected,
+        ) as build:
+            reference, said = character_reference_from_snapshot(
+                snapshot,
+                model_folder="character/model/1_pc/1_phm/armor/13_hel",
+                rig_model="2_phw",
+            )
+
+        self.assertIs(reference, expected)
+        self.assertEqual(said, "")
+        self.assertEqual(build.call_args.kwargs["rig_model"], "2_phw")
+
 
 class PackageFrameTests(unittest.TestCase):
     """What the viewport is handed when a character came: the body in the scene, the item

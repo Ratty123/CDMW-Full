@@ -98,8 +98,8 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         #: The game's own character for the placement viewport, read once per player rig.
         #: A cached None means that rig was absent and the placement service uses a stand-in.
         self._character_references: Dict[str, object] = {}
-        #: (template key, the character holding that template's item), so opening the
-        #: placement dialog again does not re-read the prefab
+        #: (template key, explicit preview rig or "", held character), so opening the
+        #: placement workspace again does not re-read the prefab
         self._held_character: tuple = ()
         #: (template key, its material part names), read once per template
         self._material_parts: tuple = ()
@@ -770,12 +770,13 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         )
         return (("template", self.draft.template_key, *entry_revision), build)
 
-    def character_reference(self, model_folder: str = ""):
+    def character_reference(self, model_folder: str = "", *, rig_model: str = ""):
         """The matching rig's own character for the placement viewport, or None.
 
         Read once per player rig and kept: a rig, a socket file and a body out of the
         archives is about a second, and the dialog is opened again for every effect the
-        reader tries. Call it off the UI thread; the placement dialog does.
+        reader tries. ``rig_model`` overrides the template only for preview. Call it off
+        the UI thread; the placement dialog does.
         """
 
         if self.snapshot is None:
@@ -785,31 +786,42 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             character_rig_model,
         )
 
-        rig_model = character_rig_model(model_folder)
-        if rig_model in self._character_references:
-            return self._character_references[rig_model]
-        reference, said = character_reference_from_snapshot(
-            self.snapshot, model_folder=model_folder
-        )
-        self._character_references[rig_model] = reference
+        requested_rig = str(rig_model or "").replace("\\", "/").strip("/").lower()
+        requested_rig = requested_rig.rsplit("/", 1)[-1] if requested_rig else ""
+        selected_rig = requested_rig or character_rig_model(model_folder)
+        if selected_rig in self._character_references:
+            return self._character_references[selected_rig]
+        if requested_rig:
+            reference, said = character_reference_from_snapshot(
+                self.snapshot, model_folder=model_folder, rig_model=selected_rig
+            )
+        else:
+            # Preserve the established auto/template seam for existing synchronous callers.
+            reference, said = character_reference_from_snapshot(
+                self.snapshot, model_folder=model_folder
+            )
+        self._character_references[selected_rig] = reference
         if said:
             self.log_message.emit(said)
         return reference
 
-    def character_holding_the_item(self):
+    def character_holding_the_item(self, *, rig_model: str = ""):
         """The character wearing or holding the current template's item, or None.
 
         Wearables stay in the matching rig's bind frame. For weapons, the frame the item
         mates by comes from the template's own prefab and is read per template, because
-        weapons share socket files and only the prefab says which one an item uses. Call it
-        off the UI thread.
+        weapons share socket files and only the prefab says which one an item uses.
+        ``rig_model`` selects a preview-only body without changing the item or template.
+        Call it off the UI thread.
         """
 
         snapshot, template = self.snapshot, self.draft.template_key
         if snapshot is None:
             return None
-        if self._held_character and self._held_character[0] == template:
-            return self._held_character[1]
+        requested_rig = str(rig_model or "").replace("\\", "/").strip("/").lower()
+        requested_rig = requested_rig.rsplit("/", 1)[-1] if requested_rig else ""
+        if self._held_character and self._held_character[:2] == (template, requested_rig):
+            return self._held_character[2]
         from cdmw.services.effect_character_reference import held_character_from_snapshot
 
         prefabs: tuple = ()
@@ -821,11 +833,11 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
                 folder = str(family.model_folder or "")
             except Exception as exc:  # noqa: BLE001 - the convention frame stands in
                 self.log_message.emit(f"The template's prefabs could not be read for the placement viewport: {exc}")
-        reference = self.character_reference(folder)
+        reference = self.character_reference(folder, rig_model=requested_rig)
         held, said = held_character_from_snapshot(snapshot, reference, prefab_paths=prefabs, model_folder=folder, template_key=template)
         if said:
             self.log_message.emit(said)
-        self._held_character = (template, held)
+        self._held_character = (template, requested_rig, held)
         return held
 
     def material_parts(self) -> Tuple[Tuple[str, str], ...]:

@@ -86,8 +86,10 @@ Model & Placement displays. The rebuilt PAC remains output authority but its bor
 material wrappers never replace the import's source materials in the placement viewport.
 The current per-part Glow colour and strength are copied into those same rows when the
 Effects package is built, and returning to the step refreshes changes made in Model & Placement.
-The character reference follows the template's player rig. `EquipTypeInfo`, rather than
-the model folder's spelling, decides the frame. Hand-carried families reuse the selected
+The character reference defaults to the template's player rig. The Effects workspace's
+**Character** control can preview **Auto**, Kliff or Damian without changing the template,
+item output or equip compatibility. `EquipTypeInfo`, rather than the model folder's spelling,
+decides the frame. Hand-carried families reuse the selected
 prefab's primary part and Placement & Animations' held body/child socket route; body-,
 creature- and vehicle-mounted equipment stays in its upright authored bind frame. A folder
 and the established right-hand/basic pair are only fallbacks when template metadata is
