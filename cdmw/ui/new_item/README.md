@@ -30,13 +30,14 @@ be orbited and zoomed before the workflow inherits it. Search, results and selec
 facts stay in a left column while the preview receives the wider right column and the
 full working height; moving to step 3 reparents that live viewport without rebuilding
 its package or resetting its camera. Snapshot creation
-reuses Archive Browser's published path, basename and extension indexes, and template
-previews follow the existing bounded .NET/Vortice package-cache setting. A durable hit
-is validated before archive decode or model preparation, so returning to a template does
-not repeat either operation. On a cold miss, the bare-geometry and canonical-material
-packages prepare in parallel; geometry reaches the resident viewport first, then textures
-replace it without restarting the host or resetting the camera. The part-prefab reader
-preserves both the original record
+reuses Archive Browser's published path, basename and extension indexes. A valid durable
+material-package hit is accepted before either preview builder. On a cold miss, bare
+geometry and Archive Browser's native schema-8 Preview Core package prepare in parallel;
+the native package reuses the shared DDS cache and bypasses New Item's former Python
+OBJ/material recompilation. Geometry reaches the resident viewport first, then textures
+replace it without restarting the host or resetting the camera. If Preview Core is
+unavailable, the established Python preview remains the compatibility fallback. The
+part-prefab reader preserves both the original record
 layout and game 2.00.00's opaque per-record tag-prefix byte exactly. After a successful
 snapshot, the shell records the current `CrimsonDesert.exe` hash as compatible with New
 Item Studio; a later unsupported-layout error mentions a possible game update only when

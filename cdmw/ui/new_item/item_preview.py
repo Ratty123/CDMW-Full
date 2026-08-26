@@ -345,9 +345,21 @@ class ItemPreviewFrame(QWidget):
     #: the gizmo moved the model: the placement now (a ModelPlacement), and whether the drag ended
     placement_changed = Signal(object, bool)
 
-    def __init__(self, parent: Optional[QWidget] = None, *, output_root: Optional[Path] = None, host_factory: Optional[Callable[[QWidget], object]] = None) -> None:
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        *,
+        output_root: Optional[Path] = None,
+        native_preview_core_cache_root: Optional[Path] = None,
+        host_factory: Optional[Callable[[QWidget], object]] = None,
+    ) -> None:
         super().__init__(parent)
         self._output_root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_new_item_preview"
+        self._native_preview_core_cache_root = (
+            Path(native_preview_core_cache_root)
+            if native_preview_core_cache_root is not None
+            else None
+        )
         self._host_factory = host_factory or default_host_factory
         self.host = None
         self._host_error = ""
@@ -656,6 +668,7 @@ class ItemPreviewFrame(QWidget):
         source_usage = acquire_usage() if callable(acquire_usage) else None
         render_settings = clamp_model_preview_render_settings(self._render_settings)
         cache_mode = self._cache_mode
+        native_preview_core_cache_root = self._native_preview_core_cache_root
         # What this build is for, read back by `_package_ready`. It is kept here rather
         # than captured in a lambda on `completed`: a lambda is not a bound method of this
         # QObject, so Qt runs it on the worker's thread, and the viewport's process would
@@ -676,6 +689,31 @@ class ItemPreviewFrame(QWidget):
             if callable(acquire_usage) and source_usage is None:
                 raise RunCancelled("Operation cancelled.")
             candidate = candidate_source
+
+            def build_material_item() -> Any:
+                if native_preview_core_cache_root is None:
+                    return candidate.materials(stop_event)
+                return candidate.materials(
+                    stop_event,
+                    output_root=root,
+                    native_preview_core_cache_root=native_preview_core_cache_root,
+                    render_settings=render_settings,
+                    cache_mode=cache_mode,
+                )
+
+            def material_package(item: Any) -> Path:
+                if isinstance(item, Path):
+                    return item
+                return build_item_preview_package(
+                    item,
+                    token=token,
+                    output_root=root,
+                    stop_event=stop_event,
+                    include_material_resources=True,
+                    render_settings=render_settings,
+                    cache_mode=cache_mode,
+                )
+
             if (
                 not full_stage
                 and progressive
@@ -701,16 +739,7 @@ class ItemPreviewFrame(QWidget):
                 except RunCancelled:
                     raise
                 except Exception:
-                    material_item = candidate.materials(stop_event)
-                    package_dir = build_item_preview_package(
-                        material_item,
-                        token=token,
-                        output_root=root,
-                        stop_event=stop_event,
-                        include_material_resources=True,
-                        render_settings=render_settings,
-                        cache_mode=cache_mode,
-                    )
+                    package_dir = material_package(build_material_item())
                     return _PreviewBuildProduct(package_dir, candidate, "materials")
 
                 material_packages: list[Path] = []
@@ -718,18 +747,7 @@ class ItemPreviewFrame(QWidget):
 
                 def build_material_package() -> None:
                     try:
-                        material_item = candidate.materials(stop_event)
-                        material_packages.append(
-                            build_item_preview_package(
-                                material_item,
-                                token=token,
-                                output_root=root,
-                                stop_event=stop_event,
-                                include_material_resources=True,
-                                render_settings=render_settings,
-                                cache_mode=cache_mode,
-                            )
-                        )
+                        material_packages.append(material_package(build_material_item()))
                     except BaseException as exc:  # noqa: BLE001 - delivered by the owning worker
                         material_errors.append(exc)
 
@@ -760,8 +778,7 @@ class ItemPreviewFrame(QWidget):
                     raise material_error
                 raise RuntimeError(str(material_error)) from material_error
             if isinstance(candidate, ProgressivePreviewSource):
-                builder = candidate.materials if full_stage else candidate.geometry
-                item = builder(stop_event)
+                item = build_material_item() if full_stage else candidate.geometry(stop_event)
                 upgrade_source = candidate
             else:
                 item = candidate(stop_event) if callable(candidate) else candidate

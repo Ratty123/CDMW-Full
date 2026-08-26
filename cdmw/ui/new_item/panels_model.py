@@ -111,7 +111,13 @@ class ModelPanel(QGroupBox):
     part_editor_open_requested = Signal()
     part_editor_apply_requested = Signal()
 
-    def __init__(self, controller: NewItemStudioController, parent=None) -> None:
+    def __init__(
+        self,
+        controller: NewItemStudioController,
+        parent=None,
+        *,
+        native_preview_core_cache_root: Path | None = None,
+    ) -> None:
         super().__init__("3. Model and placement", parent)
         self._controller = controller
         outer = QVBoxLayout(self)
@@ -148,7 +154,10 @@ class ModelPanel(QGroupBox):
         placement_column_layout.setContentsMargins(0, 0, 0, 0)
         placement_column_layout.setSpacing(6)
 
-        self.preview = ItemPreviewFrame(self)
+        self.preview = ItemPreviewFrame(
+            self,
+            native_preview_core_cache_root=native_preview_core_cache_root,
+        )
         self._syncing_numbers = False
         self._show_preview_timer = QTimer(self)
         self._show_preview_timer.setSingleShot(True)
