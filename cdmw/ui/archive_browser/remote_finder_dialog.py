@@ -268,8 +268,12 @@ class RemoteArchiveFinderDialog(QDialog):
             "Show direct links plus indexed companions such as textures, material sidecars, HKX, meshinfo, and rig data."
         )
         self._clone_button = QPushButton("Clone as new item...")
+        new_item_tool_name = (
+            "Create New Item" if bool(getattr(self._window, "is_compact_shell", False)) else "New Item Studio"
+        )
         self._clone_button.setToolTip(
-            "Open New Item Studio with this item as the template: a brand-new item with its own name, stats, model and shop slot."
+            f"Open {new_item_tool_name} with this item as the template: a brand-new item with its own name, "
+            "stats, model and shop slot."
         )
         detail_actions = QHBoxLayout()
         detail_actions.addWidget(self._exact_button)

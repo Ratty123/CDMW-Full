@@ -26,6 +26,9 @@ $TestsByArea = @{
         # guessable from an area name, so it belongs in the cheapest gate.
         "tests/test_window_feature_controller.py",
         "tests/test_localization_catalog_contracts.py",
+        "tests/test_compact_shell.py",
+        "tests/test_compact_shell_presentations.py",
+        "tests/test_compact_shell_visual_harness.py",
         # New Item Studio: headless construction, and a plan driven through its panels.
         "tests/test_combo_popup_limiter.py",
         "tests/test_new_item_item_preview.py",
@@ -62,6 +65,8 @@ $TestsByArea = @{
         "tests/test_localization_translations.py",
         "tests/test_localization_catalog_contracts.py",
         "tests/test_localization_translation_quality.py",
+        "tests/test_compact_shell.py",
+        "tests/test_compact_shell_presentations.py",
         "tests/test_persistent_tree_headers.py"
     )
     archive = @(

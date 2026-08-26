@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import QMainWindow
 from PySide6.QtWidgets import QTabWidget, QWidget
 
@@ -45,6 +45,18 @@ class DetachedToolWindow(QMainWindow):
             return
         event.ignore()
         self.owner._attach_detached_tool(self.tool_key, select_after=False)  # type: ignore[attr-defined]
+
+    def event(self, event) -> bool:  # type: ignore[override]
+        if event.type() == QEvent.WindowActivate and getattr(
+            self.owner, "is_compact_shell", False
+        ):
+            from cdmw.ui.shell.compact.workspace import sync_compact_workspace_selection
+
+            sync_compact_workspace_selection(self.owner, self.tool_key)
+            schedule_save = getattr(self.owner, "schedule_settings_save", None)
+            if callable(schedule_save):
+                schedule_save()
+        return super().event(event)
 
 
 __all__ = ["DetachedToolWindow", "TabRegistry", "TabSpec"]

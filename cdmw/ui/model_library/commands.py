@@ -45,6 +45,9 @@ def download_mirror_model_candidate(
 class ModelLibraryCommandsMixin:
     """Handle selection commands, downloads, deletion, and result context menus."""
 
+    def _new_item_tool_name(self) -> str:
+        return "Create New Item" if bool(self.property("compactPresentation")) else "New Item Studio"
+
     def show_selected_model_files(self) -> None:
         payloads = [payload for payload in self._batch_action_payloads() if payload.get("kind") == "mirror"]
         if not payloads:
@@ -283,7 +286,7 @@ class ModelLibraryCommandsMixin:
 
     def _continue_downloaded_model_action(self, payload: dict[str, object], *, import_after: bool) -> None:
         def resolved(import_path: Path) -> None:
-            action = "New Item Studio" if import_after else "preview"
+            action = self._new_item_tool_name() if import_after else "preview"
             self._set_status(f"Downloaded and extracted model; opening {action} from {import_path}.")
             signal = self.use_in_new_item_studio_requested if import_after else self.preview_mesh_requested
             signal.emit(str(import_path), dict(payload))
@@ -386,12 +389,14 @@ class ModelLibraryCommandsMixin:
             self._set_status("Select a model first.", error=True)
             return
         def resolved(import_path: Path) -> None:
-            self._set_status(f"Opening New Item Studio from local model file: {import_path}")
+            self._set_status(f"Opening {self._new_item_tool_name()} from local model file: {import_path}")
             self.use_in_new_item_studio_requested.emit(str(import_path), dict(payload))
 
         def missing() -> None:
             if payload.get("kind") == "mirror":
-                self._set_status("Downloading and extracting model before opening New Item Studio...")
+                self._set_status(
+                    f"Downloading and extracting model before opening {self._new_item_tool_name()}..."
+                )
                 self.download_selected_model(import_after=True)
                 return
             path = Path(str(payload.get("path", "") or ""))
@@ -485,7 +490,7 @@ class ModelLibraryCommandsMixin:
                     preview_after=False,
                 )
             )
-            download_import_action = menu.addAction("Download + New Item Studio")
+            download_import_action = menu.addAction(f"Download + {self._new_item_tool_name()}")
             download_import_action.setEnabled(mirror_url_ready)
             download_import_action.triggered.connect(
                 lambda _checked=False, row_payload=payload: self._download_mirror_payloads(
@@ -513,7 +518,7 @@ class ModelLibraryCommandsMixin:
             preview_action = menu.addAction("Preview In Archive Browser")
             preview_action.setEnabled(self._payload_can_import(payload))
             preview_action.triggered.connect(self.preview_selected_model)
-            import_action = menu.addAction("Use in New Item Studio")
+            import_action = menu.addAction(f"Use in {self._new_item_tool_name()}")
             import_action.setEnabled(self._payload_can_import(payload))
             import_action.triggered.connect(self.use_selected_model_in_new_item_studio)
             location_action = menu.addAction("Open Folder")
