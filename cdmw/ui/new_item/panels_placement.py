@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QPushButton,
     QRadioButton,
     QVBoxLayout,
 )
@@ -30,6 +31,8 @@ _COMPACT_GROUP_LIST_HEIGHT = 140
 
 
 class PlacementPanel(QGroupBox):
+    set_copper_price_requested = Signal()
+
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("6. Shop and item groups", parent)
         self._controller = controller
@@ -59,6 +62,9 @@ class PlacementPanel(QGroupBox):
         self.old_item.currentIndexChanged.connect(self._old_item_changed)
         self.old_item_label = QLabel("Entry to replace:")
         form.addRow(self.old_item_label, self.old_item)
+        self.price_label = QLabel("Price")
+        self.price_value = QLabel("")
+        form.addRow(self.price_label, self.price_value)
         shop_layout.addLayout(form)
         # a checkbox's text does not wrap; the rest of each sentence is in the tooltip
         self.keep_requirement = QCheckBox("Keep the shop line's unlock requirement")
@@ -72,6 +78,13 @@ class PlacementPanel(QGroupBox):
         shop_layout.addWidget(self.unlimited_stock)
         self.requirement_note = NoteLabel("")
         shop_layout.addWidget(self.requirement_note)
+        self.price_note = NoteLabel("")
+        self.price_note.setVisible(False)
+        shop_layout.addWidget(self.price_note)
+        self.set_copper_price_button = QPushButton("Set price to 1 Copper")
+        self.set_copper_price_button.clicked.connect(lambda: self.set_copper_price_requested.emit())
+        self.set_copper_price_button.setVisible(False)
+        shop_layout.addWidget(self.set_copper_price_button)
         layout.addWidget(shop)
 
         groups = QGroupBox("Item groups")
@@ -163,6 +176,7 @@ class PlacementPanel(QGroupBox):
         self.unlimited_stock.setVisible(enabled)
         self._controller.invalidate_plan()
         self._refresh_requirement_note()
+        self.refresh_price_state()
 
     def _store_changed(self, name: str) -> None:
         self._controller.draft.store_name = str(name or "").strip()
@@ -205,6 +219,45 @@ class PlacementPanel(QGroupBox):
         else:
             self.requirement_note.set_note(f"This line normally needs the knowledge of {requirement}; the new item will sell freely instead.", OK)
 
+    def refresh_price_state(self) -> None:
+        """Show the ItemInfo price that the selected shop line will consume."""
+
+        selling = self._controller.draft.placement_kind is not PlacementKind.NONE
+        self.price_label.setVisible(selling)
+        self.price_value.setVisible(selling)
+        if not selling:
+            self.price_value.setText("")
+            self.price_note.setVisible(False)
+            self.set_copper_price_button.setVisible(False)
+            return
+
+        draft = self._controller.draft
+        grid = self._controller.stat_grid()
+        prices = []
+        if grid is not None:
+            for key, label, template in grid.price_items:
+                value = draft.price_values.get(key, template)
+                if value is not None:
+                    prices.append(f"{label}: {int(value):,}")
+        self.price_value.setText(", ".join(prices))
+        if prices:
+            self.price_note.setVisible(False)
+            self.set_copper_price_button.setVisible(False)
+            return
+
+        snapshot = self._controller.snapshot
+        row = snapshot.row(draft.template_key) if snapshot is not None and draft.template_key is not None else None
+        editable = row is not None and row.stat_block_offset is not None
+        self.price_note.set_note(
+            "No shop price is set. Add one before placing the item in a shop."
+            if editable
+            else "This template's stat block did not decode; stats and prices cannot be edited.",
+            WARN,
+        )
+        self.price_note.setVisible(True)
+        self.set_copper_price_button.setVisible(editable)
+        self.set_copper_price_button.setEnabled(editable)
+
     # ------------------------------------------------------------------ groups
 
     def _template_changed(self, _key: object) -> None:
@@ -215,6 +268,7 @@ class PlacementPanel(QGroupBox):
         else:
             self.template_groups.setText("The clone joins every group the template is in.")
         self._refresh_groups()
+        self.refresh_price_state()
 
     def _explicit_changed(self, checked: bool) -> None:
         self._controller.draft.item_groups = ItemGroupsChoice.EXPLICIT if checked else ItemGroupsChoice.TEMPLATE

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
 from PySide6.QtCore import QThread, Qt, QTimer
 
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.services.effect_placement_preview import (
     EffectPlacementPreview,
     mesh_names_textures,
@@ -39,7 +40,7 @@ class EffectPlacementPackageMixin:
         effect_label: str,
         effect_preview: Optional[EffectPreview | Callable[[Callable[[], bool]], Optional[EffectPreview]]],
         texture_reader: Optional[Callable[[str], Optional[bytes]]],
-        character_builder: Optional[Callable[[], object]] = None,
+        character_builder: Optional[Callable[..., object]] = None,
         model_source_usage: Optional[Callable[[], object]] = None,
         reset_view: bool = False,
     ) -> None:
@@ -120,7 +121,9 @@ class EffectPlacementPackageMixin:
                 resolved_box = (resolved_effect_preview.box_min, resolved_effect_preview.box_max)
             if builder is not None and not stop_event.is_set():
                 try:
-                    reference = builder()
+                    reference = builder(stop_event=stop_event)
+                except RunCancelled:
+                    raise
                 except Exception:  # noqa: BLE001 - a missing character must not remove numeric placement
                     reference = None
                 if reference is not None:

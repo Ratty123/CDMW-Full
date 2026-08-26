@@ -433,6 +433,17 @@ class ModelPanel(QGroupBox):
         preview_layout = QVBoxLayout(preview)
         self.preview_layout = preview_layout
         preview.setToolTip("Your model over the template. Orbit, zoom, move it with the gizmo, and capture the icon from this view.")
+        preview_options = QHBoxLayout()
+        self.show_character = QCheckBox("Show the character")
+        self.show_character.setObjectName("new_item_show_character")
+        self.show_character.setToolTip(
+            "The game's own character provides a size reference for the item and effect."
+        )
+        self.show_character.setEnabled(controller.draft.template_key is not None)
+        self.show_character.toggled.connect(self._character_preview_changed)
+        preview_options.addWidget(self.show_character)
+        preview_options.addStretch(1)
+        preview_layout.addLayout(preview_options)
         self.operation_banner = QWidget(self.placement_column)
         operation_layout = QVBoxLayout(self.operation_banner)
         operation_layout.setContentsMargins(0, 0, 0, 0)
@@ -525,6 +536,9 @@ class ModelPanel(QGroupBox):
         controller.busy_changed.connect(self._busy_changed)
         controller.operation_progress.connect(self._operation_progress)
         controller.template_changed.connect(lambda _key: self._show_model(controller.model_result))
+        controller.template_changed.connect(
+            lambda key: self.show_character.setEnabled(key is not None)
+        )
         controller.template_changed.connect(lambda _key: self.refresh_preview())
         # the parts a glow is chosen by are the template's, so the list follows it
         controller.template_changed.connect(lambda _key: self.refresh_glow_parts())
@@ -794,6 +808,17 @@ class ModelPanel(QGroupBox):
 
     # ------------------------------------------------------------------ preview
 
+    def _character_preview_changed(self, checked: bool) -> None:
+        """Rebuild only the preview reference; item placement and output stay untouched."""
+
+        if checked:
+            overlay_index = self.view_mode.findData("overlay")
+            if overlay_index >= 0:
+                self.view_mode.setCurrentIndex(overlay_index)
+            self.preview.set_view_mode("overlay")
+        self._preview_mesh_token = None
+        self.refresh_preview()
+
     def showEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         super().showEvent(event)
         self._show_preview_timer.start()
@@ -809,7 +834,10 @@ class ModelPanel(QGroupBox):
         if not (self.isVisible() or (window is not None and window.isVisible())):
             # nothing on screen at all (tests, a tab never shown): no background work
             return
-        source = self._controller.item_preview_source()
+        show_character = self.show_character.isChecked()
+        source = self._controller.item_preview_source(
+            include_character=show_character,
+        )
         if source is None:
             self.preview.show(None)
             self.capture_inline_button.setEnabled(False)
@@ -817,12 +845,20 @@ class ModelPanel(QGroupBox):
             return
         token, build = source
         imported = self._controller.model_import
-        if imported is not None:
+        if imported is not None or show_character:
             # the placement scene: the same token only takes the new placement
             if token != self._preview_mesh_token:
                 self.capture_inline_button.setEnabled(False)
             self._preview_mesh_token = token
-            self.preview.show_placement(build, token=token, placement=self._controller.model_placement, model_bounds=imported.baked_bounds())
+            placement = self._controller.model_placement if imported is not None else ModelPlacement()
+            model_bounds = imported.baked_bounds() if imported is not None else None
+            self.preview.show_placement(
+                build,
+                token=token,
+                placement=placement,
+                model_bounds=model_bounds,
+                gizmo_enabled=imported is not None,
+            )
             self._refresh_placement_enabled()
             return
         if token == self._preview_mesh_token and self.preview.is_ready:

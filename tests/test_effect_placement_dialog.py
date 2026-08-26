@@ -482,7 +482,16 @@ class DialogTests(unittest.TestCase):
         )
         folder = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.addCleanup(folder.cleanup)
-        dialog = self._dialog(output_root=Path(folder.name), character_builder=lambda: character)
+        character_calls = []
+
+        def build_character(*, stop_event):
+            character_calls.append(stop_event)
+            return character
+
+        dialog = self._dialog(
+            output_root=Path(folder.name),
+            character_builder=build_character,
+        )
         # the worker writes into that folder, so it has to be done with it before the
         # folder goes: cleanups run last-registered-first, so this one runs first
         self.addCleanup(lambda: self._settle(lambda: dialog._thread is None))
@@ -495,9 +504,30 @@ class DialogTests(unittest.TestCase):
         self.assertEqual(dialog._preview.item_rotation, quarter, "the rotation went in and came back")
         self.assertEqual(dialog._frame.rotation, quarter, "and the dialog carries its numbers across it")
         self.assertEqual(dialog._preview.body_submesh_count, 1)
+        self.assertEqual(len(character_calls), 1)
+        self.assertFalse(character_calls[0].is_set(), "the worker's cooperative stop event reached the archive builder")
         self.assertIn("game's character", dialog.legend_rows["body"].text())
         self.assertIn("size reference", dialog.show_character.toolTip())
         dialog._closed = True
+
+    def test_character_cancellation_stops_before_package_publication(self) -> None:
+        from cdmw.domain.cancellation import RunCancelled
+
+        def cancelled_character(*, stop_event):
+            self.assertIsInstance(stop_event, threading.Event)
+            raise RunCancelled("Operation cancelled.")
+
+        dialog = self._dialog(character_builder=cancelled_character)
+        self.addCleanup(dialog.request_shutdown)
+        dialog._preview = None
+        with patch(
+            "cdmw.ui.new_item.effect_placement_dialog.build_effect_placement_package"
+        ) as build_package:
+            dialog._start_package()
+            self._settle(lambda: dialog._thread is None)
+
+        build_package.assert_not_called()
+        self.assertIsNone(dialog._preview)
 
     def test_closing_during_package_build_never_waits_on_the_ui_thread(self) -> None:
         output = Path(tempfile.mkdtemp(prefix="cdmw_effect_shutdown_"))

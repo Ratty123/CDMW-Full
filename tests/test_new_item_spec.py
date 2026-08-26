@@ -186,6 +186,22 @@ class ValidateAgainstContextTests(unittest.TestCase):
         insert = _spec(placement=Placement(PlacementKind.INSERT, "Store_Camp_Equipment", price=100))
         self.assertIn("placement.insert_unsupported", _codes(validate_against_context(insert, _context())))
         self.assertFalse(has_errors(validate_against_context(insert, _context(store_insert_supported=True))))
+        unpriced = _spec(
+            price_edits=(),
+            placement=Placement(PlacementKind.INSERT, "Store_Camp_Equipment"),
+        )
+        unpriced_context = _context(
+            template=_template(price_items=()),
+            store_insert_supported=True,
+        )
+        missing_price = validate_against_context(unpriced, unpriced_context)
+        self.assertIn("placement.price_missing", _codes(missing_price))
+        self.assertFalse(has_errors(missing_price), "an empty own price is visible but remains a warning")
+        priced = _spec(
+            price_edits=(PriceEdit(1, 1),),
+            placement=Placement(PlacementKind.INSERT, "Store_Camp_Equipment"),
+        )
+        self.assertNotIn("placement.price_missing", _codes(validate_against_context(priced, unpriced_context)))
         self.assertIn("item_groups.unknown", _codes(validate_against_context(_spec(item_groups=ItemGroupsChoice.EXPLICIT, explicit_item_groups=(99,)), _context())))
 
     def test_generated_icon_on_template_model_is_only_information(self) -> None:

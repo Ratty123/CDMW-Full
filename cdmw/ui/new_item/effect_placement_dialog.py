@@ -117,7 +117,7 @@ class EffectPlacementWorkspace(
         texture_reader: Optional[Callable[[str], Optional[bytes]]] = None,
         # builds the game's own character, on the worker thread: reading a rig and a body
         # out of the archives is a second the dialog should not spend frozen
-        character_builder: Optional[Callable[[], object]] = None,
+        character_builder: Optional[Callable[..., object]] = None,
         model_source_usage: Optional[Callable[[], object]] = None,
         color: Optional[Vec3] = None,
         intensity: float = 1.0,

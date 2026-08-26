@@ -97,7 +97,7 @@ class _Controller(QObject):
     def effect_preview_for_placement(self, _stem, _state=None):
         return None, None
 
-    def character_holding_the_item(self):
+    def character_holding_the_item(self, *, stop_event=None):
         return None
 
     def commit_effect_workspace(self, state):
@@ -347,7 +347,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         controller = _Controller()
         requested: list[str] = []
 
-        def character_holding_the_item(*, rig_model: str = ""):
+        def character_holding_the_item(*, rig_model: str = "", stop_event=None):
             requested.append(rig_model)
             return None
 
@@ -409,7 +409,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         reference_requests: list[str] = []
         held_requests: list[str] = []
 
-        def character_reference(_folder: str = "", *, rig_model: str = ""):
+        def character_reference(_folder: str = "", *, rig_model: str = "", stop_event=None):
             reference_requests.append(rig_model)
             return f"reference:{rig_model or 'auto'}"
 

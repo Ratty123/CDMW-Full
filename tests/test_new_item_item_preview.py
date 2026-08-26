@@ -119,6 +119,16 @@ class ItemPreviewPackageTests(unittest.TestCase):
 
         model = SimpleNamespace(meshes=[object()])
         mesh = ParsedMesh(path="b", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
+        character = ParsedMesh(
+            path="character",
+            format="pac",
+            submeshes=[SubMesh(
+                name="effect_character_0",
+                material="effect_character_body",
+                vertices=[(0, 0, 0), (0, 1, 0), (1, 0, 0)],
+                faces=[(0, 1, 2)],
+            )],
+        )
         with patch("cdmw.services.mesh_dotnet_preview_package.build_or_lookup_dotnet_preview_package_from_model", fake_from_model),              patch("cdmw.services.mesh_dotnet_experiment.build_mesh_dotnet_experiment_package", fake_from_mesh):
             out = item_preview.build_item_preview_package(lambda _stop: model, token=("t", 1), output_root=root, stop_event=threading.Event())
             self.assertEqual(out, root / "cdmw_dotnet_preview_x" / "package")
@@ -139,10 +149,15 @@ class ItemPreviewPackageTests(unittest.TestCase):
                 model=mesh,
                 placement=ModelPlacement(offset=(0.0, 0.0, -0.3), rotation=(90.0, 0.0, 0.0), scale=(2.0, 2.0, 2.0)),
                 model_origin=(0.0, 1.7, 0.0),
+                character=character,
             )
             item_preview.build_item_preview_package(scene, token=4, output_root=root, stop_event=threading.Event())
             _mesh, kwargs = seen["mesh_calls"][-1]
-            self.assertIs(kwargs["reference_mesh"], mesh)
+            reference = kwargs["reference_mesh"]
+            self.assertIsNot(reference, mesh)
+            self.assertEqual(len(reference.submeshes), 2, "template and character share the non-editable role")
+            self.assertEqual(reference.submeshes[1].material, "effect_character_body")
+            self.assertEqual(len(_mesh.submeshes), 1, "only the item remains editable")
             self.assertEqual(kwargs["comparison_mode"], "overlay")
             transform = kwargs["scene_transform"]
             self.assertEqual(transform.alignment_mode, "manual")

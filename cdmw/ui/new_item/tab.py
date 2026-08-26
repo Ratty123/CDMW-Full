@@ -312,6 +312,8 @@ class NewItemStudioTab(QWidget):
         self.stats_panel = StatsPanel(controller)
         self.perks_panel = PerksPanel(controller)
         self.placement_panel = PlacementPanel(controller)
+        self.placement_panel.set_copper_price_requested.connect(self.stats_panel.set_copper_price)
+        self.stats_panel.price_state_changed.connect(self.placement_panel.refresh_price_state)
         self.output_panel = OutputPanel(controller)
         controller.install_finished.connect(lambda _result: QTimer.singleShot(0, self._reread_after_install))
         controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())

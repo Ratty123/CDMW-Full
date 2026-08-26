@@ -56,8 +56,9 @@ GIZMO_TOOLS = ("move", "rotate", "scale")
 class PlacementScene:
     """Two roles for the viewport: `template` (the reference, drawn as the Mesh Editor
     draws the original) and `model` (the editable role the gizmo moves), each a
-    `ModelPreviewData` or a `ParsedMesh`; `placement` is where the model sits when the
-    package is written (baked into the scene frame, so the helper's placement numbers,
+    `ModelPreviewData` or a `ParsedMesh`; `character` is optional non-editable context
+    assembled from the selected template's rig and attachment route; `placement` is where
+    the model sits when the package is written (baked into the scene frame, so the helper's placement numbers,
     its gizmo pivot and the model matrix start out consistent); `model_bounds` the
     model's bounds in its own space, for the host's placement fallback; `model_origin`
     is the source origin after the first fit was baked into those vertices."""
@@ -67,6 +68,7 @@ class PlacementScene:
     placement: ModelPlacement = field(default_factory=ModelPlacement)
     model_bounds: Any = None
     model_origin: Any = None
+    character: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +98,37 @@ def _as_parsed_mesh(item: Any) -> ParsedMesh:
 
         return parsed_mesh_from_model_preview(item)
     return item
+
+
+def _placement_reference_mesh(template: Any, character: Any) -> Optional[ParsedMesh]:
+    """One immutable reference role containing the template and optional character.
+
+    The resident helper has editable and reference roles. Both template and character are
+    reference-only, so merging their preview clones keeps the item as the sole editable and
+    output-authoritative geometry without widening the renderer protocol.
+    """
+
+    meshes = [mesh for mesh in (template, character) if mesh is not None]
+    if not meshes:
+        return None
+    if len(meshes) == 1:
+        return meshes[0]
+    from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+    from cdmw.modding.mesh_totals import refresh_mesh_totals
+
+    merged = clone_mesh_for_editing(meshes[0])
+    for mesh in meshes[1:]:
+        merged.submeshes.extend(clone_mesh_for_editing(mesh).submeshes)
+    vertices = [
+        vertex
+        for submesh in tuple(merged.submeshes or ())
+        for vertex in tuple(submesh.vertices or ())
+    ]
+    if vertices:
+        merged.bbox_min = tuple(min(float(vertex[axis]) for vertex in vertices) for axis in range(3))
+        merged.bbox_max = tuple(max(float(vertex[axis]) for vertex in vertices) for axis in range(3))
+    refresh_mesh_totals(merged)
+    return merged
 
 
 def _prepare_preview_model(
@@ -177,13 +210,30 @@ def build_item_preview_package(
             if include_material_resources and item.template is not None
             else item.template
         )
+        character = (
+            _prepare_preview_model(
+                item.character,
+                render_settings=render_settings,
+                stop_event=stop_event,
+            )
+            if item.character is not None
+            else None
+        )
+        reference_mesh = _placement_reference_mesh(
+            _as_parsed_mesh(reference) if reference is not None else None,
+            _as_parsed_mesh(character) if character is not None else None,
+        )
         package = build_mesh_dotnet_experiment_package(
             _as_parsed_mesh(model), output_root=output_root,
-            reference_mesh=_as_parsed_mesh(reference) if reference is not None else None,
+            reference_mesh=reference_mesh,
             comparison_mode="overlay", interaction_mode="placement", cancelled=stop_event.is_set,
             scene_transform=item.placement.build_transform(origin=item.model_origin),
             include_material_resources=bool(include_material_resources),
         )
+        if item.character is not None:
+            from cdmw.services.effect_placement_preview import _tint_anchor_material
+
+            _tint_anchor_material(Path(package.package_dir) / "net_materials.json")
     elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
         from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package_from_model
         from cdmw.services.preview_rendering_service import dotnet_preview_package_cache_budget
@@ -266,6 +316,18 @@ def upgrade_item_preview_package_materials(
         if item.template is not None
         else None
     )
+    character = (
+        _as_parsed_mesh(
+            _prepare_preview_model(
+                item.character,
+                render_settings=render_settings,
+                stop_event=stop_event,
+            )
+        )
+        if item.character is not None
+        else None
+    )
+    reference = _placement_reference_mesh(reference, character)
     target = root / f"package_{time.time_ns()}_materials"
     try:
         # The resident helper may be writing status/capture files under output while
@@ -294,6 +356,10 @@ def upgrade_item_preview_package_materials(
             include_resources=True,
             cancelled=stop_event.is_set,
         )
+        if item.character is not None:
+            from cdmw.services.effect_placement_preview import _tint_anchor_material
+
+            _tint_anchor_material(materials_path)
         if stop_event.is_set():
             raise RunCancelled("Item preview material upgrade cancelled.")
         package = mesh_dotnet_experiment_package_from_path(target)

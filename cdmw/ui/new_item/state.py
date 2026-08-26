@@ -49,7 +49,7 @@ class StatGrid:
     columns: Tuple[StatColumn, ...]
     #: level -> column index -> value (None where the template has no entry)
     template_values: Tuple[Tuple[Optional[int], ...], ...]
-    price_items: Tuple[Tuple[int, str, int], ...]  # (item key, label, template price)
+    price_items: Tuple[Tuple[int, str, Optional[int]], ...]  # (item key, label, template price)
 
     @property
     def level_count(self) -> int:
@@ -106,11 +106,15 @@ def stat_grid_for(
     status_names: Mapping[int, str],
     item_names: Mapping[int, str],
     extra_status_keys: Sequence[int] = (),
+    extra_price_keys: Sequence[int] = (),
 ) -> StatGrid:
     """Columns in first-seen order across the ladder; a value where the level has one.
     `extra_status_keys` are stats the reader added that the template's ladder lacks:
     they follow the template's stat columns (before the prices) with no template value,
     so every value typed into them is an addition the plan writes.
+
+    `extra_price_keys` are draft-added money items the template's own price list lacks;
+    their template value is None so restoring the step removes them again.
 
     `row` is a parsed ItemInfo row (the service's snapshot hands one over); only its
     `enchant_levels` and `price_list` are read, so the UI layer needs no core import.
@@ -141,8 +145,17 @@ def stat_grid_for(
         values.append(tuple(
             (stats.get(column.key) if column.kind == STAT_KIND else prices.get(column.key)) for column in columns
         ))
-    price_items = tuple((price.item_key, item_names.get(price.item_key, str(price.item_key)), price.price) for price in row.price_list)
-    return StatGrid(columns=tuple(columns), template_values=tuple(values), price_items=price_items)
+    price_items: List[Tuple[int, str, Optional[int]]] = [
+        (price.item_key, item_names.get(price.item_key, str(price.item_key)), price.price)
+        for price in row.price_list
+    ]
+    seen_base_prices = {item_key for item_key, _label, _template in price_items}
+    for key in extra_price_keys:
+        key = int(key)
+        if key not in seen_base_prices:
+            price_items.append((key, item_names.get(key, str(key)), None))
+            seen_base_prices.add(key)
+    return StatGrid(columns=tuple(columns), template_values=tuple(values), price_items=tuple(price_items))
 
 
 @dataclass(slots=True)
