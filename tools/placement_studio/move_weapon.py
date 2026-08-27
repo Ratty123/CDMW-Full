@@ -174,7 +174,7 @@ class MoveWeaponDialog(QDialog):
         self._reviewed = False
         #: Set while controls are being rebuilt, so a programmatic change is not read as a
         #: user decision that would rebuild them again.
-        self._syncing = False
+        self._syncing = True
 
         self._pages = QTabWidget()
         self._pages.addTab(self._build_equipment_page(parts), "1. Equipment")
@@ -198,7 +198,7 @@ class MoveWeaponDialog(QDialog):
         layout.addWidget(self._banner())
         layout.addWidget(self._pages, 1)
         layout.addWidget(self._buttons)
-
+        self._syncing = False
         self._point_destination_at_current()
         self._reload_clips()
         self._refresh()

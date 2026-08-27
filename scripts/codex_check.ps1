@@ -121,7 +121,11 @@ $TestsByArea = @{
         "tests/test_new_item_effect_targets.py",
         "tests/test_new_item_effect_proof.py",
         "tests/test_effect_placement_preview.py",
-        "tests/test_effect_edit.py"
+        "tests/test_effect_edit.py",
+        # Placement & Animations: the Move a weapon dialog must construct without
+        # firing programmatic scope changes into controls that do not exist yet.
+        "tests/test_placement_studio_move_dialog.py",
+        "tests/test_placement_studio_move_apply.py"
     )
     texture = @(
         "tests/test_texture_backend_retirement.py",
