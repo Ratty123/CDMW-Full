@@ -73,10 +73,18 @@ class ShellThemeControllerTests(unittest.TestCase):
         stylesheet = build_app_stylesheet("crimson_desert")
 
         self.assertIn('QWidget[compactPresentation="true"] QGroupBox {', stylesheet)
-        self.assertIn('QWidget[compactPresentation="true"] QFrame#FlatSectionBody {', stylesheet)
+        self.assertIn('QWidget[compactPresentation="true"] QFrame#FlatSectionBody,', stylesheet)
         self.assertIn('QWidget[compactPresentation="true"] QGroupBox[compactStructural="true"] {', stylesheet)
+        self.assertIn('QWidget[compactPresentation="true"] QWidget[compactFlatSurface="true"]', stylesheet)
+        self.assertIn('QWidget[compactPresentation="true"] QToolButton#SectionToggle {', stylesheet)
+        self.assertIn('QWidget[compactPresentation="true"] QToolButton#EditorToolButton {', stylesheet)
         self.assertIn('QWidget[compactPresentation="true"] QPushButton {', stylesheet)
         self.assertIn('QWidget[compactPresentation="true"] QListWidget#SettingsSectionNav {', stylesheet)
+        compact_group_style = stylesheet.split(
+            'QWidget[compactPresentation="true"] QGroupBox {', 1
+        )[1].split("}", 1)[0]
+        self.assertIn("border: none;", compact_group_style)
+        self.assertNotIn("border-top:", compact_group_style)
         self.assertNotIn("font-size:", stylesheet)
 
     def test_settings_navigation_inherits_the_active_compact_theme(self) -> None:

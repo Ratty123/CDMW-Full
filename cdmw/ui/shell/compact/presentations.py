@@ -32,7 +32,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.ui.shell.compact.config import COMPACT_SHELL_VARIANT, read_shell_variant
+from cdmw.ui.shell.compact.config import (
+    COMPACT_SHELL_VARIANT,
+    DEFAULT_COMPACT_SHELL_THEME,
+    active_shell_theme_key,
+    read_shell_variant,
+)
+from cdmw.ui.themes import _compact_tool_shape_override_stylesheet, get_theme
 
 
 @dataclass(frozen=True, slots=True)
@@ -394,10 +400,122 @@ def _hide_redundant_text(widget: QWidget, spec: CompactPresentationSpec) -> None
 
 
 _REDUNDANT_SECTION_TITLES = frozenset({"Actions", "Controls", "Files", "Preview"})
+_COMPACT_FLAT_SURFACE_TYPES = frozenset({"CollapsibleSection", "FlatSectionPanel"})
+_COMPACT_FLAT_SURFACE_OBJECT_NAMES = frozenset(
+    {
+        "DdsFlowPanel",
+        "DdsFlowRow",
+        "EditorActionPane",
+        "EditorCanvasPane",
+        "EditorInspectorSidebar",
+        "EditorLeftSidebar",
+        "EditorSectionBody",
+        "EditorToolButton",
+        "EmptyStatePanel",
+        "FlatSectionBody",
+        "FlatSectionPanel",
+        "GuidancePanel",
+        "GuidanceRow",
+        "SectionBody",
+        "SectionToggle",
+        "WorkflowProfilePanel",
+    }
+)
+_COMPACT_STYLE_BEGIN = "/* CDMW_COMPACT_FLAT_STYLE_BEGIN */"
+_COMPACT_STYLE_END = "/* CDMW_COMPACT_FLAT_STYLE_END */"
+
+
+def _is_compact_flat_surface(candidate: QWidget) -> bool:
+    if (
+        candidate.objectName() == "GuidanceRow"
+        and str(candidate.property("guidanceRole") or "") in {"warning", "override"}
+    ):
+        return False
+    if isinstance(candidate, QGroupBox):
+        return True
+    if type(candidate).__name__ in _COMPACT_FLAT_SURFACE_TYPES:
+        return True
+    if candidate.objectName() in _COMPACT_FLAT_SURFACE_OBJECT_NAMES:
+        return True
+    return type(candidate) is QFrame and candidate.frameShape() not in {
+        QFrame.Shape.HLine,
+        QFrame.Shape.VLine,
+    }
+
+
+def _compact_flat_surfaces(widget: QWidget) -> tuple[QWidget, ...]:
+    return tuple(
+        candidate
+        for candidate in (widget, *widget.findChildren(QWidget))
+        if _is_compact_flat_surface(candidate)
+    )
+
+
+def compact_surface_contract(widget: QWidget) -> dict[str, object]:
+    """Report whether every constructed decorative surface follows Compact's flat contract."""
+
+    surfaces = _compact_flat_surfaces(widget)
+    offenders: list[str] = []
+    for index, surface in enumerate(surfaces):
+        if bool(surface.property("compactFlatSurface")):
+            continue
+        offenders.append(surface.objectName() or f"{type(surface).__name__}-{index + 1}")
+    return {
+        "compact_surface_count": len(surfaces),
+        "flat_compact_surface_count": len(surfaces) - len(offenders),
+        "unflattened_compact_surface_count": len(offenders),
+        "unflattened_compact_surfaces": offenders,
+        "flat_style_contract": str(widget.property("compactStyleContract") or ""),
+    }
+
+
+def _install_compact_tool_stylesheet(window: object, widget: QWidget) -> None:
+    settings = getattr(window, "settings", None)
+    if settings is not None and callable(getattr(settings, "value", None)):
+        theme_key = active_shell_theme_key(settings, COMPACT_SHELL_VARIANT)
+    else:
+        theme_key = str(getattr(window, "current_theme_key", "") or DEFAULT_COMPACT_SHELL_THEME)
+    overlay = _compact_tool_shape_override_stylesheet(get_theme(theme_key)).strip()
+    current = str(widget.styleSheet() or "")
+    start = current.find(_COMPACT_STYLE_BEGIN)
+    had_overlay = start >= 0
+    if start >= 0:
+        end = current.find(_COMPACT_STYLE_END, start + len(_COMPACT_STYLE_BEGIN))
+        if end >= 0:
+            current = current[:start] + current[end + len(_COMPACT_STYLE_END) :]
+        else:
+            current = current[:start]
+    base = current.strip()
+    widget.setProperty("compactStyleContract", "flat_square_v1")
+    if not base and not had_overlay:
+        return
+    styled = "\n".join(
+        part
+        for part in (
+            base,
+            _COMPACT_STYLE_BEGIN,
+            overlay,
+            _COMPACT_STYLE_END,
+        )
+        if part
+    )
+    if styled != widget.styleSheet():
+        widget.setStyleSheet(styled)
 
 
 def _flatten_compact_sections(widget: QWidget) -> None:
     """Keep semantic headings while removing nested decorative panel chrome."""
+
+    for surface in _compact_flat_surfaces(widget):
+        newly_flattened = not bool(surface.property("compactFlatSurface"))
+        if newly_flattened:
+            surface.setProperty("compactFlatSurface", True)
+        if type(surface) is QFrame and surface.frameShape() != QFrame.Shape.NoFrame:
+            surface.setFrameShape(QFrame.Shape.NoFrame)
+        if newly_flattened:
+            surface.style().unpolish(surface)
+            surface.style().polish(surface)
+            surface.update()
 
     for panel in widget.findChildren(QWidget):
         if type(panel).__name__ != "FlatSectionPanel":
@@ -704,6 +822,7 @@ class _CompactPresentationResizeFilter(QObject):
             return
         self._refreshing = True
         try:
+            _flatten_compact_sections(widget)
             _apply_splitter_rules(widget, self.spec)
         finally:
             self._refreshing = False
@@ -745,6 +864,7 @@ def apply_compact_presentation(window: object, key: str, widget: QWidget) -> boo
     _apply_compact_tool_labels(tool_key, widget)
     _apply_tool_specific_presentation(window, tool_key, widget)
     _flatten_compact_sections(widget)
+    _install_compact_tool_stylesheet(window, widget)
     _apply_splitter_rules(widget, spec)
 
     resize_filter = getattr(widget, "_cdmw_compact_presentation_filter", None)
@@ -763,4 +883,5 @@ __all__ = [
     "CompactPresentationSpec",
     "CompactSplitterRule",
     "apply_compact_presentation",
+    "compact_surface_contract",
 ]

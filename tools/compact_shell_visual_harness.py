@@ -32,6 +32,7 @@ from tools.compact_shell_visual.capture import (
     capture_window,
     clipped_button_error,
     geometry_payload,
+    unflattened_surface_error,
 )
 from tools.compact_shell_visual.cli import build_argument_parser, main
 from tools.compact_shell_visual.contracts import (
@@ -126,6 +127,7 @@ __all__ = [
     "parse_size",
     "relative_capture_path",
     "run_harness",
+    "unflattened_surface_error",
 ]
 
 

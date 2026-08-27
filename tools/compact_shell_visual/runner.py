@@ -14,7 +14,12 @@ from cdmw.services.service_container import ServiceContainer
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.main_window import MainWindow
 from cdmw.ui.shell.app_context import AppContext
-from tools.compact_shell_visual.capture import capture_window, clipped_button_error, geometry_payload
+from tools.compact_shell_visual.capture import (
+    capture_window,
+    clipped_button_error,
+    geometry_payload,
+    unflattened_surface_error,
+)
 from tools.compact_shell_visual.contracts import (
     REFERENCE_FILENAMES,
     build_capture_plan,
@@ -215,7 +220,14 @@ def run_harness(arguments: argparse.Namespace) -> dict[str, object]:
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     capture_rows = report["captures"]
     clipping_error = clipped_button_error(capture_rows if isinstance(capture_rows, list) else ())
-    failures = tuple(message for message in (minimum_size_error, clipping_error) if message)
+    flat_surface_error = unflattened_surface_error(
+        capture_rows if isinstance(capture_rows, list) else ()
+    )
+    failures = tuple(
+        message
+        for message in (minimum_size_error, clipping_error, flat_surface_error)
+        if message
+    )
     if failures:
         raise RuntimeError(" ".join(failures))
     return report

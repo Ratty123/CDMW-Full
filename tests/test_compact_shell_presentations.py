@@ -14,6 +14,7 @@ from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -30,6 +31,7 @@ from cdmw.services.settings_service import create_settings
 from cdmw.ui.shell.compact.presentations import (
     COMPACT_PRESENTATION_SPECS,
     apply_compact_presentation,
+    compact_surface_contract,
 )
 from cdmw.ui.widgets import FlatSectionPanel
 
@@ -133,6 +135,54 @@ class CompactShellPresentationTests(unittest.TestCase):
         self.assertEqual("text_search", widget.property("compactToolKey"))
         self.assertEqual(3, len(splitter.sizes()))
         self.assertGreater(splitter.sizes()[2], splitter.sizes()[0])
+        widget.close()
+
+    def test_compact_flat_contract_overrides_tool_cards_and_preserves_real_separators(self) -> None:
+        widget = QWidget()
+        widget.setStyleSheet(
+            "QGroupBox { border: 1px solid red; border-radius: 10px; }"
+            "QFrame#EditorActionPane { border: 1px solid red; border-radius: 12px; }"
+        )
+        layout = QVBoxLayout(widget)
+        semantic_group = QGroupBox("Semantic section")
+        semantic_group.setLayout(QVBoxLayout())
+        semantic_group.layout().addWidget(QLabel("Content"))
+        action_pane = QFrame()
+        action_pane.setObjectName("EditorActionPane")
+        action_pane.setFrameShape(QFrame.Shape.StyledPanel)
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        nested_panel = FlatSectionPanel("Nested section")
+        for child in (semantic_group, action_pane, separator, nested_panel):
+            layout.addWidget(child)
+
+        window = self._window("compact_rail")
+        widget.resize(640, 480)
+        widget.show()
+        self.assertTrue(apply_compact_presentation(window, "text_search", widget))
+        self.assertTrue(apply_compact_presentation(window, "text_search", widget))
+        late_section = QGroupBox("Late-built tab content")
+        late_section.setLayout(QVBoxLayout())
+        layout.addWidget(late_section)
+        widget.resize(641, 480)
+        _app().processEvents()
+
+        contract = compact_surface_contract(widget)
+        self.assertGreaterEqual(contract["compact_surface_count"], 5)
+        self.assertEqual(0, contract["unflattened_compact_surface_count"])
+        self.assertEqual([], contract["unflattened_compact_surfaces"])
+        self.assertEqual("flat_square_v1", contract["flat_style_contract"])
+        self.assertTrue(bool(semantic_group.property("compactFlatSurface")))
+        self.assertTrue(bool(late_section.property("compactFlatSurface")))
+        self.assertEqual("Semantic section", semantic_group.title())
+        self.assertEqual(QFrame.Shape.NoFrame, action_pane.frameShape())
+        self.assertEqual(QFrame.Shape.HLine, separator.frameShape())
+        self.assertFalse(bool(separator.property("compactFlatSurface")))
+        self.assertEqual(1, widget.styleSheet().count("CDMW_COMPACT_FLAT_STYLE_BEGIN"))
+        self.assertGreater(
+            widget.styleSheet().rfind("border-radius: 0px"),
+            widget.styleSheet().find("border-radius: 12px"),
+        )
         widget.close()
 
     def test_archive_compact_strip_replaces_empty_controls_column_with_menus(self) -> None:
@@ -385,6 +435,9 @@ class CompactShellPresentationTests(unittest.TestCase):
         self.assertGreater(sizes[1], sizes[2])
         self.assertEqual(1, tab.main_splitter.handleWidth())
         self.assertTrue(tab.canvas_panel.isVisibleTo(tab))
+        contract = compact_surface_contract(tab)
+        self.assertGreater(contract["compact_surface_count"], 10)
+        self.assertEqual(0, contract["unflattened_compact_surface_count"])
         tab.close()
         tab.deleteLater()
 
