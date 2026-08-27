@@ -4554,6 +4554,89 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    def test_mesh_editor_tab_starts_a_new_direct_package_in_a_released_warm_helper(self) -> None:
+        """Close leaves the helper warm, so the next direct mesh must refill it.
+
+        A direct session release clears the resident package synchronously but
+        deliberately keeps the process. Treating that idle process as an active
+        editor returned before the package worker started, leaving the second
+        mesh on the empty ``Select a model`` surface indefinitely.
+        """
+
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDirectWarmReopen"))
+        first_builder = _EmbeddedMeshBuilder(session_id="direct-session-a")
+        second_builder = _EmbeddedMeshBuilder(session_id="direct-session-b")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            executable = root / "cdmw-mesh-dotnet-editor.exe"
+            executable.write_bytes(b"helper")
+            first_package = _dotnet_test_package(root / "first")
+            process = _FakeProcess(tab)
+            process._state = process.Running
+            tab.standalone_controller = first_builder.controller
+            tab.standalone_dotnet_target_embedded = False
+            tab.standalone_dotnet_target_controller = first_builder.controller
+            tab.standalone_dotnet_experiment_package = first_package
+            resident = _install_shared_dotnet_test_process(
+                tab,
+                process,
+                capabilities=("authoring_session_handoff_v1",),
+                session_id="direct-session-a",
+            )
+            starts: list[tuple[object, bool, Path]] = []
+            statuses: list[str] = []
+            tab.status_message_requested.connect(
+                lambda text, _error: statuses.append(str(text))
+            )
+            with patch.object(
+                tab,
+                "_dotnet_editor_executable_path",
+                return_value=executable,
+            ), patch.object(
+                tab,
+                "_start_standalone_dotnet_package_worker",
+                side_effect=lambda controller, *, embedded, executable: starts.append(
+                    (controller, bool(embedded), Path(executable))
+                ),
+            ):
+                tab._start_dotnet_editor_requested(
+                    second_builder.controller,
+                    embedded=False,
+                )
+                self.assertEqual([], starts)
+                self.assertIn(
+                    "Mesh .NET editor experiment is already running.",
+                    statuses,
+                )
+
+                statuses.clear()
+                tab.close_standalone_session()
+                self.assertTrue(resident.is_running)
+                self.assertEqual("", resident.applied_package_path)
+                self.assertIsNone(tab.standalone_dotnet_target_controller)
+
+                tab._start_dotnet_editor_requested(
+                    second_builder.controller,
+                    embedded=False,
+                )
+
+            self.assertEqual(1, len(starts))
+            self.assertIs(second_builder.controller, starts[0][0])
+            self.assertFalse(starts[0][1])
+            self.assertEqual(executable, starts[0][2])
+            self.assertNotIn(
+                "Mesh .NET editor experiment is already running.",
+                statuses,
+            )
+
+        second_builder.controller.close_active_session()
+        first_builder.deleteLater()
+        second_builder.deleteLater()
+        tab.deleteLater()
+        app.processEvents()
+
     def _retired_test_mesh_editor_tab_reactivation_repackages_changed_material_inputs(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetMaterialRefresh"))

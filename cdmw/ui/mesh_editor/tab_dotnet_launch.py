@@ -284,14 +284,28 @@ class MeshEditorDotNetLaunchMixin:
             self._set_dotnet_status("Mesh .NET editor package is already preparing.")
             return
         if self._standalone_dotnet_editor_process_running() and not resident_scene_released:
-            # Releasing the resident scene above is a decision to rebuild, not a
-            # reason to stop: `_stop_standalone_dotnet_editor_process` clears the
-            # controller's package but deliberately leaves the warm process alive,
-            # so the package worker's `load_package` swaps the new scene into it.
-            # Without this the release would strand the request here and the
-            # editor would never open.
-            self._set_dotnet_status("Mesh .NET editor experiment is already running.")
-            return
+            shared_controller = self._active_shared_dotnet_controller()
+            desired_package = str(
+                getattr(shared_controller, "desired_package_path", "") or ""
+            )
+            applied_package = str(
+                getattr(shared_controller, "applied_package_path", "") or ""
+            )
+            serves_user_scene = bool(
+                desired_package
+                or (
+                    applied_package
+                    and not bool(
+                        getattr(shared_controller, "serving_prewarm_placeholder", False)
+                    )
+                )
+            )
+            if serves_user_scene:
+                self._set_dotnet_status("Mesh .NET editor experiment is already running.")
+                return
+            # Close clears the resident package and session claim synchronously,
+            # but deliberately keeps the helper warm. An idle or prewarmed helper
+            # is therefore the destination for this package, not a competing editor.
         self._start_standalone_dotnet_package_worker(
             controller,
             embedded=embedded,
