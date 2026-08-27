@@ -112,7 +112,7 @@ def test_v2_mutation_request_without_envelope_is_rejected() -> None:
     _APP.processEvents()
 
 
-def test_v2_texture_region_ack_with_envelope_remains_observable() -> None:
+def test_retired_texture_region_ack_with_envelope_remains_observable() -> None:
     tab, builder = _embedded_tab("MeshEditorTextureRegionCorrelation")
     tab.standalone_dotnet_process_generation = 5
     assert tab._handle_dotnet_protocol_event(
@@ -129,7 +129,7 @@ def test_v2_texture_region_ack_with_envelope_remains_observable() -> None:
         "generation": 1,
     }
 
-    assert tab._handle_dotnet_protocol_event(acknowledgement)
+    assert not tab._handle_dotnet_protocol_event(acknowledgement)
     assert acknowledgement in tab.standalone_dotnet_protocol_events
     tab.deleteLater()
     _APP.processEvents()

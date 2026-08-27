@@ -182,7 +182,7 @@ def run_native_mesh_editor_qt_responsiveness() -> dict[str, object]:
     command = MeshEditCommand(
         "subdivide",
         selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
-        params={"max_faces_per_submesh": face_count + 3, "recompute_normals": True},
+        params={"max_faces_per_submesh": face_count + 4, "recompute_normals": True},
         mode="edit",
         label="Subdivide",
     )

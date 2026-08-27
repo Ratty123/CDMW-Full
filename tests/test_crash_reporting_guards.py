@@ -816,6 +816,7 @@ class CrashReportingGuardTests(unittest.TestCase):
 
     def test_settings_page_uses_left_navigation(self) -> None:
         settings_source = (ROOT / "cdmw" / "ui" / "settings_tab.py").read_text(encoding="utf-8")
+        theme_source = (ROOT / "cdmw" / "ui" / "themes.py").read_text(encoding="utf-8")
         main_source = MAIN_WINDOW.read_text(encoding="utf-8")
         navigation_source = NAVIGATION_CONTROLLER.read_text(encoding="utf-8")
         startup_source = STARTUP_CONTROLLER.read_text(encoding="utf-8")
@@ -835,8 +836,8 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.section_nav_list.setFixedWidth(nav_width)", settings_source)
         self.assertIn("self.section_nav_list.setFixedHeight(nav_height)", settings_source)
         self.assertIn("def _apply_section_nav_style(self) -> None:", settings_source)
-        self.assertIn("QListWidget#SettingsSectionNav::item:hover", settings_source)
-        self.assertIn("QListWidget#SettingsSectionNav::item:selected", settings_source)
+        self.assertIn("QListWidget#SettingsSectionNav::item:hover", theme_source)
+        self.assertIn("QListWidget#SettingsSectionNav::item:selected", theme_source)
         self.assertIn("self.section_stack = QStackedWidget()", settings_source)
         for title in (
             '"Setup"',

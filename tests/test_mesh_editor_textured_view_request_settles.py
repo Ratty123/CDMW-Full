@@ -836,15 +836,3 @@ def test_a_settled_material_state_still_resolves_the_original_pane_textures() ->
     tab.deleteLater()
     builder.deleteLater()
     app.processEvents()
-
-
-
-from tests.mesh_editor_textured_view_import_tests import (
-    _material_updates,
-    _wait_for_material_updates,
-    _acknowledge_material_update,
-    _bind_own_textures_to_working_mesh,
-    test_an_external_import_publishes_its_own_materials_at_its_commit_boundary,
-    test_an_imported_publish_behind_a_running_compile_is_flushed_after_it,
-    test_pending_texture_fallback_keeps_grid_and_requested_mode_authority,
-)

@@ -35,8 +35,11 @@ def _assert_edge_face_topology(test: unittest.TestCase, edge_face_topology: dict
     test.assertEqual(2, edge_face_topology["internal_dissolve"]["face_count"])
     test.assertEqual([[0, 1, 3], [0, 3, 2]], edge_face_topology["internal_dissolve"]["faces"])
     test.assertEqual(7, edge_face_topology["subdivide"]["vertex_count"])
-    test.assertEqual(5, edge_face_topology["subdivide"]["face_count"])
-    test.assertEqual([1, 3, 2], edge_face_topology["subdivide"]["faces"][-1])
+    test.assertEqual(6, edge_face_topology["subdivide"]["face_count"])
+    test.assertEqual(
+        [[0, 4, 6], [4, 1, 5], [6, 5, 2], [4, 5, 6], [2, 5, 3], [5, 1, 3]],
+        edge_face_topology["subdivide"]["faces"],
+    )
     test.assertEqual(5, edge_face_topology["loop_cut_two_edges"]["vertex_count"])
     test.assertEqual(3, edge_face_topology["loop_cut_two_edges"]["face_count"])
     test.assertEqual([[3, 1, 4], [0, 3, 4], [0, 4, 2]], edge_face_topology["loop_cut_two_edges"]["faces"])
@@ -145,8 +148,8 @@ def _assert_coverage_and_palette(test: unittest.TestCase, result: dict[str, obje
         "uv_snap_pixels",
     ):
         test.assertGreater(commands[action]["vertex_update_group_count"], 0)
-    test.assertGreater(commands["material_assign"]["material_override_group_count"], 0)
-    test.assertGreater(commands["material_copy"]["material_override_group_count"], 0)
+    test.assertGreater(commands["duplicate"]["material_override_group_count"], 0)
+    test.assertGreater(commands["paste"]["material_override_group_count"], 0)
 
 
 class MeshHarnessServiceScenarioTests(unittest.TestCase):
