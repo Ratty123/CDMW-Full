@@ -45,6 +45,8 @@ def test_full_qa_uses_canonical_bounded_temp_owned_gates() -> None:
     assert '$smoke.gates.native_windows_remained_hidden -ne $true' in package_source
     assert "[string]$PytestBaseTemp" in codex_source
     assert '"--basetemp=$PytestBaseTemp"' in codex_source
+    assert "[int]$Shard" not in codex_source
+    assert not (ROOT / "scripts" / "shard_tests.py").exists()
     assert '"cdmw", "tests", "tools"' in source
     assert "Skipping missing test" not in codex_source
     assert "Configured tests are missing for area" in codex_source

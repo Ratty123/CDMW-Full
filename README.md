@@ -163,8 +163,8 @@ verified 30 of 30 across the corpus, which is what makes a same-length retarget
 provably safe rather than folklore.
 
 Open it from the **Placement & Animations** tab, or standalone with
-`python scripts/placement_studio.py`. 163 unit tests cover it and none need a
-game install.
+`python scripts/placement_studio.py`. Its focused tests use repository fixtures
+and do not need a game install.
 
 ---
 
@@ -410,8 +410,8 @@ python -m venv .venv
 .\.venv\Scripts\python.exe scripts\verify_release_dependencies.py
 ```
 
-Run the tests (578 test modules covering behaviour, protocol contracts, and
-source guards):
+Run the canonical nonvisual suite covering behaviour, protocol contracts, and
+source guards in one process:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest

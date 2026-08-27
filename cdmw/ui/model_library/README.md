@@ -33,9 +33,11 @@ request IDs and adds already-prepared rows in batches.
 
 Compact Workspace rearranges these same widgets without creating a second
 Model Library implementation. Its controls lane is bounded to 256-300 px and
-does not horizontally scroll at the supported compact sizes; results keep the
-remaining width, while details sit beside the resident preview. Classic
-Workspace retains the original arrangement.
+does not horizontally scroll at the supported compact sizes, even after another
+tool changes the process-wide UI font; the compact content ignores its former
+wide minimum-size hint and wraps into the bounded viewport. Results keep the
+remaining width, while details sit beside the resident preview. Classic Workspace
+retains the original arrangement.
 
 Confirmed local deletion also uses the tracked task lane. The worker revalidates
 the approved root and downloaded-folder ownership marker, plans recursively

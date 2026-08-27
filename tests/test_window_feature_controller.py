@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import QEvent, QEventLoop, QObject, QThread, QTimer, Signal, Slot
+from PySide6.QtCore import QEvent, QObject, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -116,7 +116,7 @@ def test_composed_controller_keeps_explicit_qt_virtual_bridge() -> None:
             self.virtual_events.append("change")
 
     class Window(QMainWindow):
-        def __init__(self, loop: QEventLoop) -> None:
+        def __init__(self, loop: QApplication) -> None:
             super().__init__()
             self.loop = loop
             self.virtual_events: list[str] = []
@@ -138,16 +138,15 @@ def test_composed_controller_keeps_explicit_qt_virtual_bridge() -> None:
         bridged_members=("changeEvent", "closeEvent", "resizeEvent"),
     )
     app = QApplication.instance() or QApplication([])
-    loop = QEventLoop()
-    window = Window(loop)
+    window = Window(app)
     window.resize(320, 200)
     window.show()
     app.processEvents()
     QApplication.sendEvent(window, QEvent(QEvent.Type.LanguageChange))
     QTimer.singleShot(0, window.close)
-    QTimer.singleShot(2000, loop.quit)
+    QTimer.singleShot(2000, app.quit)
 
-    loop.exec()
+    app.exec()
 
     assert {"change", "close", "resize"}.issubset(window.virtual_events)
     assert Window.__dict__["closeEvent"].__name__ == "closeEvent"
@@ -263,7 +262,7 @@ def test_lazy_provider_worker_callback_runs_on_owning_qt_thread(monkeypatch: pyt
     )
 
     class Window(QObject):
-        def __init__(self, loop: QEventLoop) -> None:
+        def __init__(self, loop: QApplication) -> None:
             super().__init__()
             self.loop = loop
             self.completed_thread: QThread | None = None
@@ -271,18 +270,17 @@ def test_lazy_provider_worker_callback_runs_on_owning_qt_thread(monkeypatch: pyt
 
     install_window_feature_controller(Window, controller_attribute="_controller", providers=(provider,))
     app = QApplication.instance() or QApplication([])
-    loop = QEventLoop()
-    window = Window(loop)
+    window = Window(app)
     thread = QThread()
     worker = Worker()
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
     worker.completed.connect(window.handle_completed)
     worker.finished.connect(thread.quit)
-    QTimer.singleShot(2000, loop.quit)
+    QTimer.singleShot(2000, app.quit)
 
     thread.start()
-    loop.exec()
+    app.exec()
     thread.quit()
     assert thread.wait(2000)
 
