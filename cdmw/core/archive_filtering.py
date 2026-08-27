@@ -1028,8 +1028,6 @@ def filter_archive_entries(
     text = filter_text.strip().lower()
     search_query = parse_archive_search_query(filter_text)
     include_patterns = _split_archive_filter_patterns(text)
-    wildcard_pattern = include_patterns[0] if include_patterns else ""
-    wildcard_filter = len(include_patterns) == 1 and any(char in include_patterns[0] for char in "*?[]")
     simple_alias_match_keys = _archive_item_alias_match_keys_for_query(item_search_aliases, search_query)
     exclude_patterns = list(_split_archive_filter_patterns(exclude_filter_text))
     if exclude_common_technical_suffixes:

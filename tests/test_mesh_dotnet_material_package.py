@@ -131,7 +131,7 @@ def test_material_image_reader_falls_back_to_valid_file_bytes(
 
     class NullImageReader:
         def __init__(self, _source_path: str) -> None:
-            pass
+            self.device = lambda: None
 
         def setAutoTransform(self, _enabled: bool) -> None:
             pass
@@ -163,7 +163,7 @@ def test_material_image_reader_retries_transient_byte_decode_failure(
 
     class NullImageReader:
         def __init__(self, _source_path: str) -> None:
-            pass
+            self.device = lambda: None
 
         def setAutoTransform(self, _enabled: bool) -> None:
             pass

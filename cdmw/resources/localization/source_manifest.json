@@ -10747,6 +10747,16 @@
       ]
     },
     {
+      "key": "Asset",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/responsiveness_controller.py",
+          "line": 160,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Asset Authoring",
       "origins": [
         {
@@ -10838,6 +10848,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 46,
           "sink": "python-return:_build_about_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/responsiveness_controller.py",
+          "line": 160,
+          "sink": "setText"
         }
       ]
     },
@@ -70603,6 +70618,16 @@
           "path": "cdmw/ui/model_preview_settings_dialog.py",
           "line": 155,
           "sink": "setWindowTitle"
+        },
+        {
+          "path": "cdmw/ui/shell/responsiveness_controller.py",
+          "line": 160,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/shell/responsiveness_controller.py",
+          "line": 160,
+          "sink": "setText"
         }
       ]
     },

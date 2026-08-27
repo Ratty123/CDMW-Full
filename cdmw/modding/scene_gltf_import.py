@@ -864,12 +864,12 @@ def _apply_gltf_preview_material_metadata(
     *,
     material_colors: Mapping[int, tuple[float, float, float]],
     material_texture_slots: Mapping[int, Mapping[str, SceneMaterialTextureSlot]],
-    material_flags: Mapping[int, Mapping[str, object]] = {},
-    material_preview_parameters: Mapping[int, tuple[PreviewMaterialParameterInput, ...]] = {},
+    material_flags: Optional[Mapping[int, Mapping[str, object]]] = None,
+    material_preview_parameters: Optional[Mapping[int, tuple[PreviewMaterialParameterInput, ...]]] = None,
 ) -> None:
     if material_index < 0:
         return
-    flags = material_flags.get(material_index, {})
+    flags = (material_flags if material_flags is not None else {}).get(material_index, {})
     alpha_mode = str(flags.get("alpha_mode", "") or "").strip()
     if alpha_mode:
         submesh.preview_alpha_mode = alpha_mode
@@ -879,7 +879,7 @@ def _apply_gltf_preview_material_metadata(
     if color is not None:
         submesh.preview_color = tuple(float(component) for component in color[:3])
     slots = material_texture_slots.get(material_index, {})
-    preview_parameters = tuple(material_preview_parameters.get(material_index, ()) or ())
+    preview_parameters = tuple((material_preview_parameters if material_preview_parameters is not None else {}).get(material_index, ()) or ())
     if preview_parameters:
         submesh.preview_material_parameters = preview_parameters
     _apply_scene_material_slots_to_submesh(

@@ -7,7 +7,7 @@ import math
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping, Sequence
+from typing import Callable, Mapping, Optional, Sequence
 
 from .scene_geometry_utils import _float_list, _safe_int
 
@@ -427,8 +427,9 @@ def transform_gltf_uv(
 
 def build_gltf_uv_bake_report(
     plans: Sequence[GltfMaterialUvPlan],
-    general_reports: Mapping[int, Mapping[str, object]] = {},
+    general_reports: Optional[Mapping[int, Mapping[str, object]]] = None,
 ) -> dict[str, object]:
+    general_reports = general_reports if general_reports is not None else {}
     material_rows: list[dict[str, object]] = []
     for plan in sorted(plans, key=lambda item: item.material_index):
         if not plan.slots:
