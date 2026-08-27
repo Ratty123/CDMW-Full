@@ -225,6 +225,53 @@ def _compact_workspace_stylesheet(theme: Dict[str, str]) -> str:
         border-radius: 2px;
         padding: 2px 4px;
     }}
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveSelectButton,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveActionsButton,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveMoreFiltersButton {{
+        background: {theme["button"]};
+        color: {theme["text"]};
+        border: 1px solid {theme["button_border"]};
+        border-radius: 2px;
+        padding: 3px 8px;
+        min-height: 20px;
+    }}
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveActionsButton,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveMoreFiltersButton {{
+        padding-right: 18px;
+    }}
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveSelectButton:hover:enabled,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveActionsButton:hover:enabled,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveMoreFiltersButton:hover:enabled {{
+        background: {theme["button_hover"]};
+        border-color: {theme["accent"]};
+    }}
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveSelectButton:pressed:enabled,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveActionsButton:pressed:enabled,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveMoreFiltersButton:pressed:enabled,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveActionsButton:open:enabled,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveMoreFiltersButton:open:enabled {{
+        background: {theme["accent_soft"]};
+        color: {theme["text_strong"]};
+        border-color: {theme["accent"]};
+    }}
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveSelectButton:focus,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveActionsButton:focus,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveMoreFiltersButton:focus {{
+        outline: none;
+        border-color: {theme["accent"]};
+    }}
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveSelectButton:disabled,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveActionsButton:disabled,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveMoreFiltersButton:disabled {{
+        color: {theme["button_disabled_text"]};
+        background: {theme["button_disabled"]};
+        border-color: {theme["border"]};
+    }}
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveActionsButton::menu-indicator,
+    QWidget[compactPresentation="true"] QToolButton#CompactArchiveMoreFiltersButton::menu-indicator {{
+        subcontrol-position: right center;
+        right: 5px;
+    }}
     QWidget[compactPresentation="true"] QLineEdit,
     QWidget[compactPresentation="true"] QPlainTextEdit,
     QWidget[compactPresentation="true"] QTextBrowser,
