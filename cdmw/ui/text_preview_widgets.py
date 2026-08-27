@@ -605,7 +605,7 @@ class CodePreviewEditor(QPlainTextEdit):
         self._search_current_match_color.setAlpha(150)
         self.syntax_highlighter.set_theme(theme_key)
         self.setStyleSheet(
-            f"QPlainTextEdit {{ background: {theme['preview_bg']}; color: {theme['text']}; border: 1px solid {theme['border_strong']}; border-radius: 4px; selection-background-color: {theme['accent']}; selection-color: #ffffff; }}"
+            f"QPlainTextEdit {{ background: {theme['preview_bg']}; color: {theme['text']}; border: 1px solid {theme['border_strong']}; border-radius: 4px; selection-background-color: {theme['accent']}; selection-color: {theme['accent_text']}; }}"
         )
         self.viewport().update()
         self.line_number_area.update()

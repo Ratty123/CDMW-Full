@@ -239,7 +239,7 @@ class TextSearchPreviewMixin:
 
         active_find_format = QTextCharFormat()
         active_find_format.setBackground(QColor(theme["accent"]))
-        active_find_format.setForeground(QColor("#ffffff"))
+        active_find_format.setForeground(QColor(theme["accent_text"]))
         active_find_format.setFontWeight(QFont.Bold)
 
         for start, end in self.preview_search_spans:

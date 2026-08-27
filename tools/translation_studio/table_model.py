@@ -22,8 +22,8 @@ from .catalogue import TranslationCatalogue
 KEY, CATEGORY, TEXT, REFERENCE = range(4)
 _HEADERS = ("Key", "Group", "Text", "Reference")
 
-#: Rows carrying an unsaved edit, so a pass is visible at a glance.
-_EDITED_BACKGROUND = QColor(58, 74, 42)
+#: Rows carrying an unsaved edit, composited over the active theme's table base.
+_EDITED_BACKGROUND = QColor(63, 143, 69, 72)
 
 
 class TranslationTableModel(QAbstractTableModel):

@@ -92,8 +92,8 @@ class TextureEditorUiShellMixin:
         self.document_tab_bar.setStyleSheet(
             f"""
             QTabBar::tab {{
-                background-color: rgba(255, 255, 255, 0.018);
-                border: 1px solid rgba(128, 146, 179, 0.10);
+                background-color: palette(button);
+                border: 1px solid palette(mid);
                 border-bottom: none;
                 padding: {pad_y}px {pad_x}px;
                 min-width: {min_width}px;
@@ -101,12 +101,17 @@ class TextureEditorUiShellMixin:
                 margin-right: 2px;
                 border-top-left-radius: 6px;
                 border-top-right-radius: 6px;
-                color: #C9D6EA;
+                color: palette(button-text);
+            }}
+            QTabBar::tab:hover:!selected {{
+                background-color: palette(highlight);
+                border-color: palette(highlight);
+                color: palette(highlighted-text);
             }}
             QTabBar::tab:selected {{
-                background-color: rgba(255, 255, 255, 0.05);
-                border-color: rgba(116, 193, 255, 0.22);
-                color: #F2F6FF;
+                background-color: palette(base);
+                border-color: palette(highlight);
+                color: palette(text);
             }}
             """
         )
