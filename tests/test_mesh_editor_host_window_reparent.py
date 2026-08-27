@@ -18,7 +18,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, QSize
-from PySide6.QtGui import QResizeEvent
+from PySide6.QtGui import QResizeEvent, QShowEvent
 from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.preview.dotnet_host import DotNetPreviewHostFrame
@@ -37,6 +37,7 @@ class _RecordingController:
 
     def __init__(self) -> None:
         self.reembedded: list[int] = []
+        self.visibility: list[bool] = []
         self.ui_localizer: object | None = None
         # Every signal the host frame connects at construction.
         self.state_changed = _InertSignal()
@@ -49,12 +50,15 @@ class _RecordingController:
         self.ui_localizer = localizer
 
     def set_visible(self, visible: bool) -> None:
-        del visible
+        self.visibility.append(bool(visible))
 
     def retry_now(self) -> None:
         pass
 
     def shutdown(self) -> None:
+        pass
+
+    def deactivate(self) -> None:
         pass
 
     def reembed(self, parent_hwnd: int) -> bool:
@@ -124,6 +128,26 @@ def test_a_resize_moves_the_helper_window_in_the_same_frame() -> None:
         assert calls, (
             "a resize did not move the helper's window; it is left to the "
             "helper's own poll, which waits for the size to stop changing"
+        )
+    finally:
+        frame.deleteLater()
+
+
+def test_show_after_a_hidden_resize_resyncs_the_helper_window() -> None:
+    frame, controller = _host_frame()
+    try:
+        frame.resize(800, 600)
+        calls: list[bool] = []
+        frame._sync_embedded_child_geometry = (  # type: ignore[method-assign]
+            lambda *, force_frame_refresh=False: calls.append(bool(force_frame_refresh))
+        )
+
+        frame.showEvent(QShowEvent())
+
+        assert controller.visibility and controller.visibility[-1] is True
+        assert calls == [True], (
+            "a host resized while hidden did not move its native child when shown, "
+            "leaving the old width as a blank band or cropped controls"
         )
     finally:
         frame.deleteLater()

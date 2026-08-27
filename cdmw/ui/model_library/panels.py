@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGridLayout,
     QGroupBox,
-    QHeaderView,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
@@ -35,26 +35,26 @@ from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 
 
 def build_controls_panel(tab: object) -> QWidget:
-    panel = QWidget()
+    panel = tab._model_library_controls_content = QWidget()
     panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-    layout = QVBoxLayout(panel)
+    layout = tab._model_library_controls_layout = QVBoxLayout(panel)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(8)
 
     tab._updating_results_query = False
     local_group = QGroupBox("Local Folders")
     tab.local_group = local_group
-    local_layout = QVBoxLayout(local_group)
+    local_layout = tab._model_library_local_layout = QVBoxLayout(local_group)
     local_layout.setContentsMargins(8, 8, 8, 8)
     local_layout.setSpacing(6)
-    path_row = QHBoxLayout()
+    path_row = tab._model_library_local_path_row = QHBoxLayout()
     tab.local_path_edit = QLineEdit()
     tab.local_path_edit.setPlaceholderText("Folder containing local models")
     tab.browse_local_button = QPushButton("Browse")
     path_row.addWidget(tab.local_path_edit, stretch=1)
     path_row.addWidget(tab.browse_local_button)
     local_layout.addLayout(path_row)
-    local_buttons = QGridLayout()
+    local_buttons = tab._model_library_local_buttons = QGridLayout()
     tab.add_local_root_button = QPushButton("Add Folder")
     tab.remove_local_root_button = QPushButton("Remove")
     tab.scan_local_button = QPushButton("Show Local Models")
@@ -77,17 +77,17 @@ def build_controls_panel(tab: object) -> QWidget:
 
     mirror_group = QGroupBox("Mirror Index Source")
     tab.mirror_group = mirror_group
-    mirror_layout = QVBoxLayout(mirror_group)
+    mirror_layout = tab._model_library_mirror_layout = QVBoxLayout(mirror_group)
     mirror_layout.setContentsMargins(8, 8, 8, 8)
     mirror_layout.setSpacing(6)
-    mirror_form = QFormLayout()
+    mirror_form = tab._model_library_mirror_form = QFormLayout()
     mirror_form.setContentsMargins(0, 0, 0, 0)
     mirror_form.setHorizontalSpacing(8)
     mirror_form.setVerticalSpacing(6)
     tab.mirror_url_edit = QLineEdit()
     tab.mirror_url_edit.setPlaceholderText(DEFAULT_MODEL_MIRROR_URL)
     mirror_form.addRow("Mirror URL", tab.mirror_url_edit)
-    catalogue_dir_row = QHBoxLayout()
+    catalogue_dir_row = tab._model_library_catalogue_dir_row = QHBoxLayout()
     tab.catalogue_dir_edit = QLineEdit()
     tab.catalogue_dir_edit.setPlaceholderText("Local catalogue folder")
     tab.browse_catalogue_dir_button = QPushButton("Browse")
@@ -105,7 +105,7 @@ def build_controls_panel(tab: object) -> QWidget:
     tab.result_limit_spin.setValue(int(tab.settings.value("model_library/result_limit", 100) or 100))
     tab.result_limit_spin.setKeyboardTracking(False)
     mirror_form.addRow("Results", tab.result_limit_spin)
-    preferred_files_layout = QGridLayout()
+    preferred_files_layout = tab._model_library_preferred_files_layout = QGridLayout()
     preferred_files_layout.setContentsMargins(0, 0, 0, 0)
     preferred_files_layout.setHorizontalSpacing(8)
     preferred_files_layout.setVerticalSpacing(4)
@@ -127,7 +127,7 @@ def build_controls_panel(tab: object) -> QWidget:
         preferred_files_layout.addWidget(checkbox, option_index // 2, option_index % 2)
     mirror_form.addRow("Preferred files", preferred_files_layout)
     mirror_layout.addLayout(mirror_form)
-    build_buttons = QGridLayout()
+    build_buttons = tab._model_library_build_buttons = QGridLayout()
     tab.build_index_button = QPushButton("Build Search Index")
     tab.cancel_task_button = QPushButton("Cancel")
     tab.cancel_task_button.setEnabled(False)
@@ -148,7 +148,7 @@ def build_controls_panel(tab: object) -> QWidget:
     tab.search_edit = QLineEdit()
     tab.search_edit.setPlaceholderText("Search by name, tag, creator, or UID")
     tab.search_edit.setText(str(tab.settings.value("model_library/search_query", "sword") or "sword"))
-    filter_form = QFormLayout()
+    filter_form = tab._model_library_filter_form = QFormLayout()
     filter_form.setContentsMargins(0, 0, 0, 0)
     filter_form.setHorizontalSpacing(8)
     filter_form.setVerticalSpacing(6)
@@ -171,7 +171,7 @@ def build_controls_panel(tab: object) -> QWidget:
     tab.hide_downloaded_checkbox = QCheckBox("Hide downloaded")
     tab.hide_downloaded_checkbox.setChecked(bool(tab.settings.value("model_library/hide_downloaded", False, type=bool)))
     mirror_layout.addWidget(tab.hide_downloaded_checkbox)
-    search_buttons = QGridLayout()
+    search_buttons = tab._model_library_search_buttons = QGridLayout()
     tab.search_mirror_button = QPushButton("Search Mirror")
     tab.show_indexed_button = QPushButton("Popular")
     search_buttons.addWidget(tab.search_mirror_button, 0, 0)
@@ -183,8 +183,8 @@ def build_controls_panel(tab: object) -> QWidget:
     mirror_layout.addWidget(tab.catalogue_status_label)
     layout.addWidget(mirror_group)
 
-    actions_group = QGroupBox("Actions")
-    actions_layout = QGridLayout(actions_group)
+    actions_group = tab.actions_group = QGroupBox("Actions")
+    actions_layout = tab._model_library_actions_layout = QGridLayout(actions_group)
     actions_layout.setContentsMargins(8, 8, 8, 8)
     actions_layout.setSpacing(6)
     tab.preview_button = QPushButton("Preview")
@@ -214,7 +214,7 @@ def build_controls_panel(tab: object) -> QWidget:
     actions_layout.addWidget(tab.auto_preview_checkbox, 3, 0, 1, 2)
     layout.addWidget(actions_group)
 
-    selection_group = QGroupBox("Selection")
+    selection_group = tab.selection_group = QGroupBox("Selection")
     selection_group.setObjectName("ModelLibrarySelectionGroup")
     selection_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     selection_layout = QVBoxLayout(selection_group)
@@ -267,13 +267,161 @@ def build_controls_panel(tab: object) -> QWidget:
     tab.delete_local_button.triggered.connect(tab.delete_selected_local_models)
     tab.delete_no_texture_downloads_button.triggered.connect(tab.delete_no_texture_downloads)
 
-    scroll = QScrollArea()
+    scroll = tab._model_library_controls_scroll = QScrollArea()
     scroll.setObjectName("ModelLibraryControlsScroll")
     scroll.setWidgetResizable(True)
     scroll.setFrameShape(QScrollArea.Shape.NoFrame)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     scroll.setWidget(panel)
     return scroll
+
+
+def _compact_model_library_controls(tab: object) -> None:
+    tab._model_library_controls_layout.setSpacing(4)
+    tab._model_library_controls_layout.addStretch(1)
+    tab._model_library_controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    for form in (tab._model_library_mirror_form, tab._model_library_filter_form):
+        form.setRowWrapPolicy(form.RowWrapPolicy.WrapAllRows)
+        form.setHorizontalSpacing(4)
+        form.setVerticalSpacing(3)
+
+    preferred_labels = {"gltf": "glTF ZIP", "glb": "GLB", "source": "Source ZIP", "extra": "Extra ZIP"}
+    for row, (format_key, checkbox) in enumerate(tab.preferred_format_checks.items()):
+        original = checkbox.text()
+        checkbox.setText(preferred_labels[format_key])
+        checkbox.setToolTip(original)
+        tab._model_library_preferred_files_layout.addWidget(checkbox, row, 0)
+
+    compact_button_labels = (
+        (tab.scan_local_button, "Show Models"), (tab.build_index_button, "Build Index"),
+        (tab.use_in_new_item_studio_button, "Create Item"), (tab.download_button, "Download"),
+        (tab.more_actions_button, "More"), (tab.mirror_results_view_button, "Mirror"),
+        (tab.local_results_view_button, "Local"), (tab.refresh_results_view_button, "Reload"),
+        (tab.apply_results_query_button, "Find"), (tab.select_all_button, "All"),
+        (tab.select_none_button, "None"),
+    )
+    for button, label in compact_button_labels:
+        original = button.text()
+        button.setText(label)
+        if not button.toolTip():
+            button.setToolTip(original)
+
+    tab.index_current_search_checkbox.setToolTip(
+        tab.index_current_search_checkbox.toolTip() or tab.index_current_search_checkbox.text()
+    )
+    tab.index_current_search_checkbox.setText("Current only")
+    tab.auto_preview_checkbox.setToolTip(
+        tab.auto_preview_checkbox.toolTip() or tab.auto_preview_checkbox.text()
+    )
+    tab.auto_preview_checkbox.setText("Auto-preview")
+
+
+def _compact_model_library_button_grids(tab: object) -> None:
+    tab._model_library_local_path_row.removeWidget(tab.browse_local_button)
+    local_buttons = (
+        tab.browse_local_button, tab.add_local_root_button, tab.remove_local_root_button,
+        tab.scan_local_button, tab.open_local_root_button,
+    )
+    for row, button in enumerate(local_buttons):
+        tab._model_library_local_buttons.addWidget(button, row, 0)
+
+    actions = (
+        tab.preview_button, tab.use_in_new_item_studio_button, tab.download_button,
+        tab.generate_icon_button, tab.more_actions_button, tab.auto_preview_checkbox,
+    )
+    for row, control in enumerate(actions):
+        tab._model_library_actions_layout.addWidget(control, row, 0)
+
+    tab._model_library_catalogue_dir_row.removeWidget(tab.browse_catalogue_dir_button)
+    build_buttons = (tab.browse_catalogue_dir_button, tab.build_index_button, tab.cancel_task_button)
+    for row, button in enumerate(build_buttons):
+        tab._model_library_build_buttons.addWidget(button, row, 0)
+    tab._model_library_search_buttons.addWidget(tab.search_mirror_button, 0, 0)
+    tab._model_library_search_buttons.addWidget(tab.show_indexed_button, 1, 0)
+
+
+def _compact_model_library_sections(tab: object) -> None:
+    tab.roots_tree.setMaximumHeight(84)
+    tab.details_text.setMinimumHeight(96)
+    for label in (tab.task_status_label, tab.catalogue_status_label):
+        label.setMinimumWidth(0)
+        label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+    for checkbox in (tab.index_current_search_checkbox, tab.auto_preview_checkbox):
+        checkbox.setMinimumWidth(0)
+        checkbox.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+
+    tab.selection_group.setTitle("Details")
+    tab.actions_group.setTitle("")
+    tab.preview_group.setTitle("")
+    groups = (
+        tab.local_group, tab.mirror_group, tab.actions_group, tab.selection_group, tab.preview_group,
+    )
+    for group in groups:
+        group.setProperty("compactFlatSection", True)
+        group.setFlat(True)
+        group_layout = group.layout()
+        if group_layout is not None:
+            group_layout.setContentsMargins(4, 4, 4, 4)
+            group_layout.setSpacing(4)
+    for group in (tab.local_group, tab.mirror_group, tab.actions_group):
+        group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+    tab.actions_group.setProperty("compactUntitledSection", True)
+    tab.preview_group.setProperty("compactUntitledSection", True)
+
+    tab._model_library_controls_layout.removeWidget(tab.selection_group)
+    tab._model_library_preview_layout.addWidget(tab.selection_group)
+    tab._model_library_preview_layout.setStretch(0, 1)
+    tab._model_library_preview_layout.setStretch(1, 0)
+
+
+def apply_compact_model_library_presentation(tab: object) -> None:
+    """Apply the Compact-only Model Library arrangement once."""
+
+    if bool(tab.property("modelLibraryCompactPanelsApplied")):
+        return
+    tab.setProperty("modelLibraryCompactPanelsApplied", True)
+    root_layout = tab.layout()
+    if root_layout is not None:
+        root_layout.setContentsMargins(6, 6, 6, 6)
+        root_layout.setSpacing(6)
+    _compact_model_library_controls(tab)
+    _compact_model_library_button_grids(tab)
+    _compact_model_library_sections(tab)
+    tab.setStyleSheet(
+        tab.styleSheet()
+        + "\nQGroupBox[compactFlatSection=\"true\"] {"
+        " border: 0; border-radius: 0; margin-top: 14px; padding-top: 2px;"
+        " background: transparent; }"
+        " QGroupBox[compactFlatSection=\"true\"]::title { left: 0; padding: 0 2px; }"
+        " QGroupBox[compactUntitledSection=\"true\"] { margin-top: 0; padding-top: 0; }"
+    )
+
+
+def retune_compact_model_library_geometry(tab: object) -> None:
+    """Restore the Compact lane bounds after the generic splitter adapter runs."""
+
+    if not bool(tab.property("modelLibraryCompactPanelsApplied")):
+        return
+    splitter = tab._model_library_splitter
+    span = splitter.width()
+    if span < 640:
+        return
+    controls_width = min(300, max(256, round(span * 0.18)))
+    if tab._model_library_controls_panel.minimumWidth() != 256:
+        tab._model_library_controls_panel.setMinimumWidth(256)
+    if tab._model_library_controls_panel.maximumWidth() != 300:
+        tab._model_library_controls_panel.setMaximumWidth(300)
+    target = [controls_width, max(1, span - controls_width - splitter.handleWidth())]
+    if any(abs(left - right) > 2 for left, right in zip(splitter.sizes(), target)):
+        splitter.setSizes(target)
+
+    content = tab._model_library_content_splitter
+    content_span = content.width()
+    if content_span >= 520:
+        first = round((content_span - content.handleWidth()) * 0.52)
+        target = [first, max(1, content_span - content.handleWidth() - first)]
+        if any(abs(left - right) > 2 for left, right in zip(content.sizes(), target)):
+            content.setSizes(target)
 
 
 def build_results_panel(tab: object) -> QWidget:
@@ -444,10 +592,10 @@ def build_results_panel(tab: object) -> QWidget:
 
 def build_preview_panel(tab: object) -> QWidget:
     panel = QWidget()
-    layout = QVBoxLayout(panel)
+    layout = tab._model_library_preview_layout = QVBoxLayout(panel)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(6)
-    preview_group = QGroupBox("Model Preview")
+    preview_group = tab.preview_group = QGroupBox("Model Preview")
     preview_layout = QVBoxLayout(preview_group)
     preview_layout.setContentsMargins(8, 8, 8, 8)
     preview_layout.setSpacing(6)
@@ -511,4 +659,10 @@ def build_preview_panel(tab: object) -> QWidget:
     return panel
 
 
-__all__ = ["build_controls_panel", "build_preview_panel", "build_results_panel"]
+__all__ = [
+    "apply_compact_model_library_presentation",
+    "build_controls_panel",
+    "build_preview_panel",
+    "build_results_panel",
+    "retune_compact_model_library_geometry",
+]

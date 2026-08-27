@@ -225,13 +225,15 @@ def apply_app_theme(
     )
     _install_app_fonts(app, app_font, data_font)
     app.setPalette(build_app_palette(resolved_theme))
-    app.setStyleSheet(
-        build_app_stylesheet(
-            resolved_theme,
-            density_key=effective_density_key,
-            layout_scale=screen_scale,
-        )
+    stylesheet = build_app_stylesheet(
+        resolved_theme,
+        density_key=effective_density_key,
+        layout_scale=screen_scale,
     )
+    if app.styleSheet() != stylesheet:
+        if app.styleSheet():
+            app.setStyleSheet("")
+        app.setStyleSheet(stylesheet)
     return resolved_theme
 
 def build_monospace_font(settings: QSettings) -> QFont:
@@ -490,6 +492,7 @@ class ThemeControllerMixin:
         app.processEvents()
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self._prepare_appearance_apply_steps(payload, app)
+        self._appearance_apply_step_timer.setInterval(0)
         self._appearance_apply_step_timer.start()
 
     def _finish_appearance_apply_steps(self, *, delay_ms: int = 140) -> None:

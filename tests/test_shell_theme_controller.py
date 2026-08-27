@@ -1,20 +1,31 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import unittest
+from collections import deque
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QIcon, QImage
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPalette
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QListWidget, QPushButton, QToolButton, QVBoxLayout, QWidget
 
 from cdmw.ui.settings_tab import SettingsTab
 from cdmw.ui.app_icon import resolve_app_icon_path
-from cdmw.ui.shell.theme_controller import ThemeChangeBusyOverlay, ThemeControllerMixin, apply_app_fonts, apply_window_ui_fonts
-from cdmw.ui.themes import UI_THEME_SCHEMES, build_app_stylesheet
+from cdmw.services.settings_service import create_settings
+from cdmw.ui.shell.compact.config import COMPACT_SHELL_VARIANT, SHELL_VARIANT_SETTING
+from cdmw.ui.shell.theme_controller import (
+    ThemeChangeBusyOverlay,
+    ThemeControllerMixin,
+    apply_app_fonts,
+    apply_app_theme,
+    apply_window_ui_fonts,
+)
+from cdmw.ui.themes import UI_THEME_SCHEMES, build_app_palette, build_app_stylesheet
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +57,125 @@ class _Settings:
 
 
 class ShellThemeControllerTests(unittest.TestCase):
+    def test_compact_styles_are_scoped_and_keep_structural_wrappers_flat(self) -> None:
+        stylesheet = build_app_stylesheet("crimson_desert")
+
+        self.assertIn('QWidget[compactPresentation="true"] QGroupBox {', stylesheet)
+        self.assertIn('QWidget[compactPresentation="true"] QFrame#FlatSectionBody {', stylesheet)
+        self.assertIn('QWidget[compactPresentation="true"] QGroupBox[compactStructural="true"] {', stylesheet)
+        self.assertIn('QWidget[compactPresentation="true"] QPushButton {', stylesheet)
+        self.assertIn('QWidget[compactPresentation="true"] QListWidget#SettingsSectionNav {', stylesheet)
+        self.assertNotIn("font-size:", stylesheet)
+
+    def test_settings_navigation_inherits_the_active_compact_theme(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        previous_palette = QPalette(app.palette())
+        previous_style_sheet = app.styleSheet()
+        with tempfile.TemporaryDirectory(prefix="cdmw-settings-theme-") as temp_dir:
+            settings = create_settings(settings_file_path=Path(temp_dir) / "settings.cfg")
+            settings.setValue(SHELL_VARIANT_SETTING, COMPACT_SHELL_VARIANT)
+            settings.setValue("appearance/theme", "graphite")
+            app.setPalette(build_app_palette("crimson_desert"))
+            app.setStyleSheet(build_app_stylesheet("crimson_desert"))
+            tab = SettingsTab(settings=settings, theme_key="graphite")
+            try:
+                tab.resize(900, 700)
+                tab.show()
+                app.processEvents()
+
+                self.assertTrue(bool(tab.property("compactPresentation")))
+                self.assertEqual("graphite", tab.current_theme_key())
+                self.assertEqual("", tab.section_nav_list.styleSheet())
+                self.assertEqual(
+                    UI_THEME_SCHEMES["crimson_desert"]["surface_alt"],
+                    tab.section_nav_list.palette().color(QPalette.Base).name(),
+                )
+            finally:
+                tab.deleteLater()
+                app.processEvents()
+                app.setStyleSheet(previous_style_sheet)
+                app.setPalette(previous_palette)
+
+    def test_appearance_steps_yield_without_a_per_step_idle_delay(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        callbacks: list[str] = []
+
+        class _Window(QWidget, ThemeControllerMixin):
+            def __init__(self) -> None:
+                super().__init__()
+                self.current_theme_key = "crimson_desert"
+                self.settings = _Settings({})
+                self._pending_theme_key = None
+                self._pending_appearance_change = {
+                    "theme_key": "graphite",
+                    "changed": ("theme",),
+                    "requires_theme_apply": True,
+                }
+                self._appearance_apply_steps = deque()
+                self._appearance_apply_app = None
+                self._theme_change_in_progress = False
+                self._theme_change_apply_timer = QTimer(self)
+                self._appearance_apply_step_timer = QTimer(self)
+                self._appearance_apply_step_timer.setSingleShot(True)
+                self._appearance_apply_step_timer.setInterval(35)
+                self._appearance_apply_step_timer.timeout.connect(self._run_next_appearance_apply_step)
+
+            def _prepare_appearance_apply_steps(self, _payload: object, target_app: QApplication) -> None:
+                self._appearance_apply_app = target_app
+                self._appearance_apply_steps.extend(
+                    (
+                        ("one", lambda: callbacks.append("one")),
+                        ("two", lambda: callbacks.append("two")),
+                    )
+                )
+
+        window = _Window()
+        try:
+            window._apply_pending_theme_change()
+            self.assertEqual(0, window._appearance_apply_step_timer.interval())
+            deadline = 100
+            while window._theme_change_in_progress and deadline > 0:
+                QTest.qWait(1)
+                deadline -= 1
+            self.assertEqual(["one", "two"], callbacks)
+            self.assertFalse(window._theme_change_in_progress)
+        finally:
+            if window._theme_change_in_progress:
+                window._finish_appearance_apply_steps(delay_ms=0)
+            window.deleteLater()
+            app.processEvents()
+
+    def test_theme_replacement_clears_the_old_qss_without_an_unstyled_event_turn(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        previous_font = QFont(app.font())
+        previous_palette = QPalette(app.palette())
+        previous_style_sheet = app.styleSheet()
+        settings = _Settings({})
+        initial_stylesheet = build_app_stylesheet("graphite")
+        app.setStyleSheet(initial_stylesheet)
+        calls: list[str] = []
+        original_set_stylesheet = QApplication.setStyleSheet
+
+        def record_set_stylesheet(target: QApplication, stylesheet: str) -> None:
+            calls.append(stylesheet)
+            original_set_stylesheet(target, stylesheet)
+
+        try:
+            with patch.object(QApplication, "setStyleSheet", record_set_stylesheet):
+                apply_app_theme(app, settings, "crimson_desert", screen_width=1360, screen_height=840)
+                first_apply_calls = tuple(calls)
+                applied_stylesheet = app.styleSheet()
+                calls.clear()
+                apply_app_theme(app, settings, "crimson_desert", screen_width=1360, screen_height=840)
+
+            self.assertEqual("", first_apply_calls[0])
+            self.assertEqual(applied_stylesheet, first_apply_calls[1])
+            self.assertEqual((), tuple(calls))
+        finally:
+            app.setStyleSheet(previous_style_sheet)
+            app.setPalette(previous_palette)
+            app.setFont(previous_font)
+
     def test_added_themes_keep_text_selections_and_controls_visible(self) -> None:
         expected_roles = set(UI_THEME_SCHEMES["graphite"])
         for key, label in ADDED_THEMES.items():

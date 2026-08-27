@@ -145,9 +145,135 @@ def build_app_palette(theme_key: str) -> QPalette:
     return palette
 
 
-def build_app_stylesheet(
-    theme_key: str, *,
-    base_font_size: int = DEFAULT_UI_FONT_SIZE,
+def _settings_navigation_stylesheet(theme: Dict[str, str]) -> str:
+    return f"""
+    QListWidget#SettingsSectionNav {{
+        background: {theme["field"]};
+        border: 1px solid {theme["border_strong"]};
+        border-radius: 8px;
+        padding: 4px;
+        outline: 0;
+    }}
+    QListWidget#SettingsSectionNav::item {{
+        background: transparent;
+        color: {theme["text"]};
+        border: 1px solid transparent;
+        border-radius: 6px;
+        margin: 1px 0px;
+        padding: 5px 8px;
+    }}
+    QListWidget#SettingsSectionNav::item:hover {{
+        background: {theme["button_hover"]};
+        border-color: {theme["button_border"]};
+        color: {theme["text_strong"]};
+    }}
+    QListWidget#SettingsSectionNav::item:selected {{
+        background: {theme["accent_soft"]};
+        border: 1px solid {theme["accent"]};
+        color: {theme["text_strong"]};
+        font-weight: 600;
+    }}
+    QListWidget#SettingsSectionNav::item:selected:!active {{
+        background: {theme["accent_soft"]};
+        color: {theme["text_strong"]};
+    }}
+    """
+
+
+def _compact_workspace_stylesheet(theme: Dict[str, str]) -> str:
+    return f"""
+    QWidget[compactPresentation="true"] QWidget#FlatSectionPanel,
+    QWidget[compactPresentation="true"] QWidget#FlatSectionHeader {{
+        background: transparent;
+        border: none;
+        border-radius: 0px;
+    }}
+    QWidget[compactPresentation="true"] QFrame#FlatSectionBody {{
+        background: transparent;
+        border: none;
+        border-radius: 0px;
+    }}
+    QWidget[compactPresentation="true"] QGroupBox {{
+        background: transparent;
+        border: none;
+        border-top: 1px solid {theme["border"]};
+        border-radius: 0px;
+        margin-top: 11px;
+        padding-top: 5px;
+    }}
+    QWidget[compactPresentation="true"] QGroupBox::title {{
+        left: 6px;
+        top: 0px;
+        margin: 0px;
+        padding: 0px 4px;
+    }}
+    QWidget[compactPresentation="true"] QWidget[compactStructural="true"],
+    QWidget[compactPresentation="true"] QFrame[compactStructural="true"],
+    QWidget[compactPresentation="true"] QGroupBox[compactStructural="true"] {{
+        background: transparent;
+        border: none;
+        border-radius: 0px;
+        margin-top: 0px;
+        padding-top: 0px;
+    }}
+    QWidget[compactPresentation="true"] QPushButton {{
+        border-radius: 2px;
+        padding: 3px 4px;
+        min-height: 16px;
+    }}
+    QWidget[compactPresentation="true"] QToolButton {{
+        border-radius: 2px;
+        padding: 2px 4px;
+    }}
+    QWidget[compactPresentation="true"] QLineEdit,
+    QWidget[compactPresentation="true"] QPlainTextEdit,
+    QWidget[compactPresentation="true"] QTextBrowser,
+    QWidget[compactPresentation="true"] QComboBox,
+    QWidget[compactPresentation="true"] QSpinBox,
+    QWidget[compactPresentation="true"] QDoubleSpinBox {{
+        border-radius: 2px;
+        padding: 3px 6px;
+    }}
+    QWidget[compactPresentation="true"] QListWidget,
+    QWidget[compactPresentation="true"] QTreeWidget,
+    QWidget[compactPresentation="true"] QTableView,
+    QWidget[compactPresentation="true"] QTableWidget {{
+        border-radius: 2px;
+        padding: 1px;
+    }}
+    QWidget[compactPresentation="true"] QCheckBox {{
+        spacing: 6px;
+    }}
+    QWidget[compactPresentation="true"] QCheckBox::indicator,
+    QWidget[compactPresentation="true"] QProgressBar,
+    QWidget[compactPresentation="true"] QProgressBar::chunk {{
+        border-radius: 2px;
+    }}
+    QWidget[compactPresentation="true"] QTabWidget::pane {{
+        border-radius: 0px;
+    }}
+    QWidget[compactPresentation="true"] QTabBar::tab {{
+        border-top-left-radius: 2px;
+        border-top-right-radius: 2px;
+        padding: 4px 8px 5px 8px;
+        min-height: 16px;
+    }}
+    QWidget[compactPresentation="true"] QListWidget#SettingsSectionNav {{
+        background: {theme["surface_alt"]};
+        border: none;
+        border-right: 1px solid {theme["border"]};
+        border-radius: 0px;
+        padding: 4px 3px;
+    }}
+    QWidget[compactPresentation="true"] QListWidget#SettingsSectionNav::item {{
+        border-radius: 2px;
+        margin: 0px;
+        padding: 4px 7px;
+    }}
+    """
+
+
+def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FONT_SIZE,
     data_font_size: int = DEFAULT_UI_DATA_FONT_SIZE,
     density_key: str = DEFAULT_UI_DENSITY,
     layout_scale: float = 1.0,
@@ -496,6 +622,7 @@ def build_app_stylesheet(
         border-radius: 4px;
         padding: 2px;
     }}
+    {_settings_navigation_stylesheet(theme)}
     QScrollArea {{
         border: none;
         background: transparent;
@@ -770,6 +897,7 @@ def build_app_stylesheet(
         width: 0px;
         height: 0px;
     }}
+    {_compact_workspace_stylesheet(theme)}
     QToolTip {{
         background: {theme["surface_alt"]};
         color: {theme["text_strong"]};

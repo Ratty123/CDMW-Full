@@ -218,7 +218,9 @@ class ModelLibraryResultsViewMixin:
                 self._set_results_query_text(str(self.settings.value("model_library/local_search_query", "") or ""))
             else:
                 self.results_search_label.setText("Search mirror")
-                self.apply_results_query_button.setText("Search")
+                self.apply_results_query_button.setText(
+                    self._model_library_button_label("Search", "Find")
+                )
                 self.search_edit.setPlaceholderText("Search mirror by name, tag, creator, or UID")
                 self.results_filter_field_combo.setEnabled(False)
                 self._set_results_filter_field("all")

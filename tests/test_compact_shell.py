@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QScrollArea,
+    QSplitter,
     QStackedWidget,
     QTabWidget,
     QTreeWidget,
@@ -49,6 +51,7 @@ from cdmw.ui.shell.compact.config import (
     read_compact_shell_theme_key,
     read_shell_variant,
 )
+from cdmw.ui.shell.compact.presentations import apply_compact_presentation
 from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
 from cdmw.ui.shell.compact.snapshots import compact_status_snapshot_for
 from cdmw.ui.shell.compact.workspace import (
@@ -63,6 +66,13 @@ from cdmw.ui.themes import UI_THEME_SCHEMES
 
 def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
+
+
+def _button_text_fits(button) -> bool:
+    visible_text = button.text().replace("&&", "\0").replace("&", "").replace("\0", "&")
+    text_width = button.fontMetrics().horizontalAdvance(visible_text)
+    icon_width = button.iconSize().width() + 6 if not button.icon().isNull() else 0
+    return text_width + icon_width + 12 <= button.width()
 
 
 class _CompactOwner(QMainWindow):
@@ -125,8 +135,8 @@ def test_compact_registry_has_the_stable_fifteen_tool_contract() -> None:
         ("Assets", "Item Icons"),
         ("Assets", "Create New Item"),
         ("Authoring", "Mesh Editor"),
-        ("Authoring", "Placement & Animation"),
-        ("Textures", "Upscale & Process Textures"),
+        ("Authoring", "Placement & Animations"),
+        ("Textures", "Upscale Textures"),
         ("Textures", "Replace Textures"),
         ("Textures", "Recolor Variants"),
         ("Textures", "Texture Editor"),
@@ -136,6 +146,59 @@ def test_compact_registry_has_the_stable_fifteen_tool_contract() -> None:
         ("Utilities", "Asset Research"),
         ("Utilities", "Search File Text"),
     ]
+
+
+def test_compact_model_library_uses_a_scroll_safe_control_lane_and_adjacent_details(
+    tmp_path: Path,
+) -> None:
+    app = _app()
+    from cdmw.ui.model_library import ModelLibraryTab
+
+    settings = create_settings(settings_file_path=tmp_path / "model-library-settings.cfg")
+    tab = ModelLibraryTab(settings=settings, base_dir=tmp_path)
+    try:
+        controls = tab.findChild(QScrollArea, "ModelLibraryControlsScroll")
+        assert controls is not None
+        assert controls.minimumWidth() >= 430
+        assert tab.selection_group.parentWidget() is controls.widget()
+
+        assert apply_compact_presentation(
+            SimpleNamespace(is_compact_shell=True), "model_library", tab
+        )
+        for width, height in ((1432, 881), (1120, 780), (880, 660)):
+            tab.resize(width, height)
+            tab.show()
+            app.processEvents()
+            assert apply_compact_presentation(
+                SimpleNamespace(is_compact_shell=True), "model_library", tab
+            )
+            app.processEvents()
+            app.processEvents()
+
+            assert controls.horizontalScrollBar().maximum() == 0
+            assert 256 <= tab._model_library_splitter.sizes()[0] <= 300
+            assert tab.selection_group.parentWidget() is tab._model_library_preview_panel
+            tab._update_selection_state()
+            assert tab.download_button.text() == "Download"
+            tab._set_active_results_view("mirror", persist=False)
+            assert tab.apply_results_query_button.text() == "Find"
+            visible_buttons = [
+                button
+                for button in tab.findChildren(QPushButton)
+                if button.text().strip() and button.isVisibleTo(tab)
+            ]
+            assert visible_buttons
+            assert all(_button_text_fits(button) for button in visible_buttons)
+
+        splitters = tab.findChildren(QSplitter)
+        assert [splitter.objectName() for splitter in splitters] == [
+            "ModelLibraryWorkspaceSplitter",
+            "ModelLibraryContentSplitter",
+        ]
+    finally:
+        tab.close()
+        tab.deleteLater()
+        app.processEvents()
 
 
 def test_compact_theme_payload_applies_only_the_independent_compact_theme() -> None:
@@ -362,7 +425,7 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     owner.show()
     app.processEvents()
 
-    assert workspace.rail.width() == 236
+    assert workspace.rail.width() == 224
     assert set(workspace.rail.tool_buttons) == {spec.key for spec in COMPACT_TOOL_SPECS}
     row = workspace.rail.tool_buttons["archive_browser"]
     QTest.mouseClick(row, Qt.LeftButton)
@@ -413,6 +476,23 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     assert workspace.status_strip.cache_label is owner.archive_cache_status_chip
     assert workspace.status_strip.progress_bar.size().width() == 76
     assert workspace.status_strip.progress_bar.size().height() == 10
+    assert workspace.status_strip.height() == 42
+    assert workspace.rail.support_button.isFlat()
+    footer = workspace.rail.settings_button.parentWidget()
+    assert footer is not None
+    assert footer.height() <= 131
+    shell_buttons = [
+        *workspace.rail.tool_buttons.values(),
+        workspace.rail.settings_button,
+        workspace.rail.help_button,
+        workspace.rail.support_button,
+        workspace.rail.overflow_button,
+        workspace.status_strip.activity_button,
+    ]
+    for width, height in ((1672, 941), (1360, 840), (1120, 720)):
+        owner.resize(width, height)
+        app.processEvents()
+        assert all(_button_text_fits(button) for button in shell_buttons)
     assert workspace.drawer.isHidden()
     QTest.mouseClick(workspace.status_strip.activity_button, Qt.LeftButton)
     app.processEvents()

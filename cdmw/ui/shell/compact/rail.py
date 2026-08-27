@@ -22,6 +22,7 @@ from cdmw.ui.shell.compact.registry import (
     COMPACT_TOOL_SPECS,
     compact_specs_for_category,
 )
+from cdmw.ui.shell.lazy_tool_tab import as_label
 
 
 def _read_bool(settings: object, key: str, default: bool) -> bool:
@@ -46,7 +47,7 @@ class CompactCategoryHeader(QToolButton):
         self.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setFixedHeight(34)
+        self.setFixedHeight(29)
         self.setAccessibleName(f"{title} tools")
         self._refresh_icon()
         self.toggled.connect(lambda _checked: self._refresh_icon())
@@ -67,7 +68,7 @@ class CompactWorkspaceRail(QFrame):
     def __init__(self, owner: object, settings: object, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("CompactWorkspaceRail")
-        self.setFixedWidth(236)
+        self.setFixedWidth(224)
         self._owner = owner
         self._settings = settings
         self._tool_buttons: dict[str, QToolButton] = {}
@@ -88,7 +89,7 @@ class CompactWorkspaceRail(QFrame):
         content = QWidget()
         content.setObjectName("CompactToolRailContent")
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 6, 0, 4)
+        content_layout.setContentsMargins(0, 4, 0, 2)
         content_layout.setSpacing(0)
         for category in COMPACT_CATEGORY_ORDER:
             self._add_category(content_layout, category)
@@ -115,20 +116,20 @@ class CompactWorkspaceRail(QFrame):
         body = QWidget()
         body.setObjectName(f"CompactCategory{category}")
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(8, 3, 8, 6)
+        body_layout.setContentsMargins(6, 2, 6, 4)
         body_layout.setSpacing(1)
         for spec in compact_specs_for_category(category):
             button = QToolButton()
             button.setObjectName(f"CompactTool_{spec.key}")
             button.setProperty("compactToolRow", True)
-            button.setText(spec.label)
+            button.setText(as_label(spec.label))
             button.setToolTip(spec.label)
             button.setAccessibleName(spec.label)
             button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
             button.setCheckable(True)
             button.setFocusPolicy(Qt.StrongFocus)
             button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            button.setFixedHeight(38)
+            button.setFixedHeight(32)
             button.clicked.connect(
                 lambda _checked=False, tool_key=spec.key: self.tool_requested.emit(tool_key)
             )
@@ -151,11 +152,11 @@ class CompactWorkspaceRail(QFrame):
             sync()
 
     def _footer(self, owner: object) -> QWidget:
-        footer = QFrame()
+        footer = QWidget()
         footer.setObjectName("CompactRailFooter")
         layout = QVBoxLayout(footer)
-        layout.setContentsMargins(8, 7, 8, 9)
-        layout.setSpacing(2)
+        layout.setContentsMargins(6, 3, 6, 4)
+        layout.setSpacing(0)
 
         self.settings_button = QToolButton()
         self.settings_button.setObjectName("CompactSettingsButton")
@@ -164,6 +165,7 @@ class CompactWorkspaceRail(QFrame):
         self.settings_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.settings_button.setFocusPolicy(Qt.StrongFocus)
         self.settings_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.settings_button.setFixedHeight(31)
         layout.addWidget(self.settings_button)
 
         self.help_button = QToolButton()
@@ -175,14 +177,18 @@ class CompactWorkspaceRail(QFrame):
         self.help_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.help_button.setFocusPolicy(Qt.StrongFocus)
         self.help_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.help_button.setFixedHeight(31)
         layout.addWidget(self.help_button)
 
         self.support_button = owner.support_corner_button
         self.support_button.setObjectName("CompactSupportButton")
+        self.support_button.setProperty("compactFooterRow", True)
         self.support_button.setText("Support Me")
+        self.support_button.setFlat(True)
         self.support_button.setMinimumWidth(0)
         self.support_button.setMaximumWidth(16777215)
         self.support_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.support_button.setFixedHeight(31)
         layout.addWidget(self.support_button)
 
         self.overflow_button = QToolButton()
@@ -194,6 +200,7 @@ class CompactWorkspaceRail(QFrame):
         self.overflow_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.overflow_button.setFocusPolicy(Qt.StrongFocus)
         self.overflow_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.overflow_button.setFixedHeight(31)
         overflow_menu = QMenu(self.overflow_button)
         overflow_menu.addAction(owner.profile_menu.menuAction())
         overflow_menu.addAction(owner.window_menu.menuAction())
@@ -230,13 +237,13 @@ class CompactWorkspaceRail(QFrame):
             "QToolButton[compactCategoryHeader=\"true\"]:hover { background: %s; }"
             "QToolButton[compactCategoryHeader=\"true\"]:pressed { background: %s; }"
             "QToolButton[compactCategoryHeader=\"true\"]:focus { outline: none; border: 1px solid %s; border-left: 2px solid %s; }"
-            "QToolButton[compactToolRow=\"true\"], QToolButton[compactFooterRow=\"true\"] { text-align: left; padding: 5px 9px; border: 1px solid transparent; border-left: 2px solid transparent; background: transparent; }"
-            "QToolButton[compactToolRow=\"true\"]:hover, QToolButton[compactFooterRow=\"true\"]:hover { background: %s; }"
-            "QToolButton[compactToolRow=\"true\"]:pressed, QToolButton[compactFooterRow=\"true\"]:pressed { background: %s; }"
+            "QToolButton[compactToolRow=\"true\"], QToolButton[compactFooterRow=\"true\"], QPushButton[compactFooterRow=\"true\"] { text-align: left; padding: 3px 7px; border: 1px solid transparent; border-left: 2px solid transparent; border-radius: 0; background: transparent; }"
+            "QToolButton[compactToolRow=\"true\"]:hover, QToolButton[compactFooterRow=\"true\"]:hover, QPushButton[compactFooterRow=\"true\"]:hover { background: %s; }"
+            "QToolButton[compactToolRow=\"true\"]:pressed, QToolButton[compactFooterRow=\"true\"]:pressed, QPushButton[compactFooterRow=\"true\"]:pressed { background: %s; }"
             "QToolButton[compactToolRow=\"true\"]:checked { border-left: 2px solid %s; background: %s; }"
-            "QToolButton[compactToolRow=\"true\"]:focus, QToolButton[compactFooterRow=\"true\"]:focus { border: 1px solid %s; border-left: 2px solid %s; }"
-            "QToolButton[compactToolRow=\"true\"]:disabled, QToolButton[compactFooterRow=\"true\"]:disabled { color: %s; }"
-            "QFrame#CompactRailFooter { border-top: 1px solid %s; }"
+            "QToolButton[compactToolRow=\"true\"]:focus, QToolButton[compactFooterRow=\"true\"]:focus, QPushButton[compactFooterRow=\"true\"]:focus { border: 1px solid %s; border-left: 2px solid %s; }"
+            "QToolButton[compactToolRow=\"true\"]:disabled, QToolButton[compactFooterRow=\"true\"]:disabled, QPushButton[compactFooterRow=\"true\"]:disabled { color: %s; }"
+            "QWidget#CompactRailFooter { border: 0; background: transparent; }"
             % (
                 _rgba(text, 45),
                 _rgba(highlight, 190),
@@ -252,7 +259,6 @@ class CompactWorkspaceRail(QFrame):
                 _rgba(highlight, 180),
                 _rgba(highlight, 220),
                 disabled.name(),
-                _rgba(text, 45),
             )
         )
         for spec in COMPACT_TOOL_SPECS:

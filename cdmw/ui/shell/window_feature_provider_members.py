@@ -121,7 +121,7 @@ PROVIDER_SOURCE_HASHES = {
     'cdmw/ui/shell/startup_restore.py': '2b019a08a8d94b1cd605d1c19d4f4dba5305c5df0db9a9476e39b80c5fa1b6a2',
     'cdmw/ui/shell/support_dialog.py': '4c5b8d27ae4f45423a25481ea195fbe390cba57cc731c9ac2e910454ec773011',
     'cdmw/ui/shell/texture_workspace_layout.py': '286dc5a23d749a2cf2a5987818f6839b17382fbf6ed8333b74df561f6000d46b',
-    'cdmw/ui/shell/theme_controller.py': '87f1047b7fe490db3a9cce19bf55ff242114280b238f17350a6f7781fe9264d5',
+    'cdmw/ui/shell/theme_controller.py': '87737040f1d4427de93cecdd150ced9b9532b3ba4844998f730462bb47494949',
     'cdmw/ui/shell/tool_tabs.py': 'b388b2d1644d90e643315155aee5c63c1e7e5306e0d745774641f09410489c5f',
     'cdmw/ui/shell/utility_controller.py': 'e4362c7393a1c59c02165a6c7a6362f44fa653d3e3c184077366fecb63ee60ea',
     'cdmw/ui/shell/window_bootstrap_state.py': '07dc21ecfe107502ac984cc5886a07b71733524e9727f3d17ff3a68c032997ad',

@@ -80,3 +80,19 @@ def _resize_frame(window: QWidget, target: tuple[int, int]) -> None:
     window.resize(width, height)
     window.show()
     _process_events(5)
+
+
+def _settle_resident_host_resize(widget: QWidget, *, delay_seconds: float = 0.24) -> None:
+    hosts = tuple(
+        child
+        for child in widget.findChildren(QWidget)
+        if "DotNetVorticeHost" in child.objectName()
+        and int(getattr(child, "_embedded_child_hwnd", 0) or 0) > 0
+    )
+    if not hosts:
+        return
+    deadline = time.monotonic() + max(0.0, delay_seconds)
+    while time.monotonic() < deadline:
+        _process_events()
+        time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+    _process_events()

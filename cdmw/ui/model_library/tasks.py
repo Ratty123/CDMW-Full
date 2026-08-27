@@ -145,11 +145,17 @@ class ModelLibraryTaskMixin:
             if current_active_status.startswith("Working: "):
                 self.active_task_label.setText(f"Status: {current_active_status[len('Working: '):]}")
         self.cancel_task_button.setEnabled(False)
-        self.build_index_button.setText("Build Search Index")
-        self.scan_local_button.setText("Show Local Models")
+        self.build_index_button.setText(
+            self._model_library_button_label("Build Search Index", "Build Index")
+        )
+        self.scan_local_button.setText(
+            self._model_library_button_label("Show Local Models", "Show Models")
+        )
         self.search_mirror_button.setText("Search Mirror")
         self.show_indexed_button.setText("Popular")
-        self.download_button.setText("Download Checked")
+        self.download_button.setText(
+            self._model_library_button_label("Download Checked", "Download")
+        )
         if hasattr(self, "active_task_progress"):
             self.active_task_progress.setVisible(False)
         self.build_index_button.setEnabled(True)
