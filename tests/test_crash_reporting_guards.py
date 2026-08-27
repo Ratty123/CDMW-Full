@@ -828,7 +828,6 @@ class CrashReportingGuardTests(unittest.TestCase):
             + "\n"
             + (ROOT / "cdmw" / "ui" / "archive_browser" / "filter_workers.py").read_text(encoding="utf-8")
         )
-
         self.assertIn("self.section_nav_list = QListWidget()", settings_source)
         self.assertIn('self.section_nav_list.setObjectName("SettingsSectionNav")', settings_source)
         self.assertIn("settings_workspace_layout.addWidget(self.section_nav_list, 0, Qt.AlignTop)", settings_source)
