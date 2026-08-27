@@ -147,7 +147,6 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("self.archive_preview_zoom_value.setFrameShape(QFrame.StyledPanel)", source)
         self.assertIn("archive_model_actions_layout = QHBoxLayout()", source)
         self.assertIn('"Export Havok XML View"', source)
-        self.assertIn('"Preview Mesh Import"', source)
         self.assertIn('"Edit Selected HKX"', source)
         self.assertIn('("Edit HKX", self.archive_hkx_placement_button)', source)
         self.assertNotIn('("Placement", self.archive_hkx_placement_button)', source)

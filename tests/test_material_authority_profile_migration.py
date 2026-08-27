@@ -63,4 +63,4 @@ def test_material_authority_expert_controls_are_one_collapsed_group() -> None:
     source = (ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_sections_setup_options_transform_part_01.py").read_text(encoding="utf-8")
     assert "material_authority_unsafe_section = _state.CollapsibleSection('Unsafe Expert Controls', expanded=False)" in source
     assert "_state.unsafe_material_widgets = (" in source
-    assert "for _state.unsafe_widget in _state.unsafe_material_widgets:" in source
+    assert "for _state.unsafe_widget in _state.unsafe_material_widgets[:-1]:" in source

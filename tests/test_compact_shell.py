@@ -60,7 +60,11 @@ from cdmw.ui.shell.compact.workspace import (
     sync_compact_workspace_selection,
 )
 from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
-from cdmw.ui.shell.theme_controller import ThemeControllerMixin
+from cdmw.ui.shell.theme_controller import (
+    _DATA_FONT_CLASS_NAMES,
+    _UI_FONT_CLASS_NAMES,
+    ThemeControllerMixin,
+)
 from cdmw.ui.themes import UI_THEME_SCHEMES
 
 
@@ -556,6 +560,13 @@ def test_settings_layout_controls_are_exposed_and_persist_independently(tmp_path
 
 def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Path) -> None:
     app = _app()
+    original_font = app.font()
+    original_class_fonts = {
+        class_name: app.font(class_name)
+        for class_name in (*_UI_FONT_CLASS_NAMES, *_DATA_FONT_CLASS_NAMES)
+    }
+    original_palette = app.palette()
+    original_stylesheet = app.styleSheet()
     settings = create_settings(settings_file_path=tmp_path / "compact-main-window.cfg")
     settings.setValue(SHELL_VARIANT_SETTING, COMPACT_SHELL_VARIANT)
     settings.setValue(COMPACT_SHELL_THEME_SETTING, "crimson_desert")
@@ -624,4 +635,9 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
     finally:
         window._finalize_close()
         window.deleteLater()
+        app.setPalette(original_palette)
+        app.setStyleSheet(original_stylesheet)
+        app.setFont(original_font)
+        for class_name, class_font in original_class_fonts.items():
+            app.setFont(class_font, class_name)
         app.processEvents()

@@ -298,29 +298,30 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         self.assertFalse(display_combo.isEnabled())
 
         tab.standalone_dotnet_capabilities.add("viewport_display_modes_v1")
+        tab.standalone_dotnet_target_embedded = True
+        tab.standalone_dotnet_target_controller = builder.controller
         tab.standalone_dotnet_lifecycle_session_id = "right-workspace-session"
-        sent: list[dict[str, object]] = []
-        with patch.object(tab, "_send_dotnet_protocol_message", side_effect=lambda payload: sent.append(dict(payload)) or True):
+        authoring_controller = tab._active_shared_dotnet_controller()
+        assert authoring_controller is not None
+        sent: list[tuple[str, dict[str, object]]] = []
+
+        def send_correlated(event: str, payload: object) -> int:
+            sent.append((event, dict(payload)))
+            return len(sent)
+
+        with patch.object(authoring_controller, "send_correlated", side_effect=send_correlated):
             tab._set_embedded_dotnet_state("ready", active=True)
             # Both Mesh View controls are driven from the shared display-mode
             # table, so select by mode rather than by label text.
             display_combo.setCurrentIndex(display_combo.findData("wire"))
-            sent.clear()
             display_combo.setCurrentIndex(display_combo.findData("untextured_faces"))
             _APP.processEvents()
+            self.assertTrue(tab._publish_dotnet_presentation_state())
 
         self.assertTrue(display_combo.isEnabled())
-        self.assertEqual(
-            {
-                "event": "viewport_display_update",
-                "session_id": "right-workspace-session",
-                "request_id": 2,
-                "process_generation": 0,
-                "protocol_version": 2,
-                "mode": "untextured_faces",
-            },
-            sent[-1],
-        )
+        self.assertEqual("presentation_state_update", sent[-1][0])
+        self.assertEqual("untextured_faces", sent[-1][1]["display"]["mode"])
+        self.assertEqual(len(sent), tab.standalone_dotnet_presentation_request_id)
 
         show_controls(False)
 

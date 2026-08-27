@@ -114,7 +114,7 @@ class MeshResidentEditorNativeRegressionTests(unittest.TestCase):
             builder.deleteLater()
 
     def test_mesh_editor_blank_part_tree_click_clears_selection(self) -> None:
-        workspace = MeshEditorWorkspace()
+        workspace = MeshEditorWorkspace(embedded_controls_only=True)
         workspace.resize(900, 700)
         workspace.show()
         _APP.processEvents()

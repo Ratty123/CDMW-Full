@@ -12,37 +12,20 @@ import json
 import os
 import time
 from types import SimpleNamespace
-from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication
-
-from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_material_input_signature
-from cdmw.services.mesh_dotnet_material_compiler import (
-    snapshot_mesh_dotnet_material_inputs,
-)
 from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state import (
     ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED,
-    ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT,
     ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
-    ORIGINAL_REFERENCE_TEXTURE_REQUEST_UNAVAILABLE,
-    original_reference_texture_preview_initial_state,
-    original_reference_texture_preview_load_start_state,
 )
 from cdmw.ui.mesh_editor import MeshEditorTab
-from cdmw.ui.mesh_editor.tab_state import PENDING_TEXTURED_VIEW_MAX_EXTENSIONS
-from tests.mesh_builder_driver import open_mesh_builder
-from tests.test_mesh_editor_action_bar import (
-    _EmbeddedMeshBuilder,
-    _FakeProcess,
-    _build_two_part_synthetic_mesh,
-    _install_shared_dotnet_test_process,
+from tests.test_mesh_editor_action_bar import _FakeProcess
+from tests.test_mesh_editor_textured_view_request_settles import (
+    _display_modes,
+    _mounted_tab,
 )
 
-
-from tests.test_mesh_editor_textured_view_request_settles import _display_modes, _mounted_tab
 
 def _material_updates(process: _FakeProcess) -> list[dict[str, object]]:
     return [
