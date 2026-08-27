@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -11,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtCore import QSettings, Qt  # noqa: E402
 from PySide6.QtGui import QColor, QPalette  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -21,6 +22,8 @@ from cdmw.ui.new_item.workflow_header import (  # noqa: E402
     WorkflowStepState,
     WorkflowHeader,
 )
+from cdmw.ui.theme_schemes import UI_THEME_SCHEMES  # noqa: E402
+from cdmw.ui.shell.theme_controller import apply_app_theme  # noqa: E402
 
 
 class WorkflowHeaderTests(unittest.TestCase):
@@ -192,6 +195,30 @@ class WorkflowHeaderTests(unittest.TestCase):
         self.app.processEvents()
         self.assertEqual(self.header._active_color.name(), "#ff00ff")
         self.assertEqual(self.header._active_text_color.name(), "#001122")
+
+    def test_application_theme_route_refreshes_semantic_warning_colors(self) -> None:
+        original_key = self.app.property("_cdmw_theme_key")
+        original_palette = QPalette(self.app.palette())
+        original_stylesheet = self.app.styleSheet()
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                settings = QSettings(f"{temp_dir}/settings.ini", QSettings.Format.IniFormat)
+                for theme_key in ("graphite", "crimson_desert"):
+                    apply_app_theme(self.app, settings, theme_key)
+                    self.app.processEvents()
+                    self.assertEqual(
+                        self.header._warning_background.name(),
+                        UI_THEME_SCHEMES[theme_key]["warning_bg"],
+                    )
+                    self.assertEqual(
+                        self.header._warning_text.name(),
+                        UI_THEME_SCHEMES[theme_key]["warning_text"],
+                    )
+        finally:
+            self.app.setProperty("_cdmw_theme_key", original_key)
+            self.app.setPalette(original_palette)
+            self.app.setStyleSheet(original_stylesheet)
+            self.app.processEvents()
 
 
 if __name__ == "__main__":

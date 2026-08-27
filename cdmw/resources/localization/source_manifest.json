@@ -221,7 +221,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 690,
+          "line": 689,
           "sink": "python-return:_follow_child_socket"
         }
       ]
@@ -881,7 +881,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1090,
+          "line": 1088,
           "sink": "showMessage"
         }
       ]
@@ -891,7 +891,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 807,
+          "line": 806,
           "sink": "python-return:_warn_if_angle_is_wrong"
         }
       ]
@@ -901,7 +901,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 689,
+          "line": 688,
           "sink": "python-return:_follow_child_socket"
         }
       ]
@@ -911,7 +911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 679,
+          "line": 678,
           "sink": "python-return:_follow_child_socket"
         }
       ]
@@ -921,7 +921,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 741,
+          "line": 740,
           "sink": "python-return:_orientation_diagnostic"
         }
       ]
@@ -1001,12 +1001,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 763,
+          "line": 758,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 796,
+          "line": 791,
           "sink": "_set_dotnet_status"
         },
         {
@@ -1371,7 +1371,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1075,
+          "line": 1074,
           "sink": "setText"
         }
       ]
@@ -1381,7 +1381,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 544,
+          "line": 542,
           "sink": "addItem"
         }
       ]
@@ -1441,7 +1441,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1152,
+          "line": 1150,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -1561,7 +1561,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 850,
+          "line": 849,
           "sink": "python-return:_borrow_child_socket"
         }
       ]
@@ -4301,7 +4301,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 692,
+          "line": 693,
           "sink": "setText"
         },
         {
@@ -4986,7 +4986,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 230,
+          "line": 229,
           "sink": "setToolTip"
         }
       ]
@@ -5931,7 +5931,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 216,
+          "line": 215,
           "sink": "setToolTip"
         }
       ]
@@ -6651,7 +6651,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 206,
+          "line": 204,
           "sink": "setToolTip"
         }
       ]
@@ -8186,7 +8186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 531,
+          "line": 516,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -10711,7 +10711,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 333,
+          "line": 331,
           "sink": "addTab"
         }
       ]
@@ -12376,7 +12376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 643,
+          "line": 638,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -13266,7 +13266,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 199,
+          "line": 197,
           "sink": "QCheckBox"
         },
         {
@@ -13311,7 +13311,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 336,
+          "line": 334,
           "sink": "setTabToolTip"
         }
       ]
@@ -14346,7 +14346,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1211,
+          "line": 1210,
           "sink": "getExistingDirectory"
         }
       ]
@@ -15066,7 +15066,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1290,
+          "line": 1289,
           "sink": "showMessage"
         }
       ]
@@ -15371,12 +15371,12 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ProgramEntry.cs",
-          "line": 145,
+          "line": 166,
           "sink": "csharp:MessageBox.Show("
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ProgramEntry.cs",
-          "line": 204,
+          "line": 224,
           "sink": "csharp:MessageBox.Show("
         }
       ]
@@ -17641,7 +17641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 259,
+          "line": 257,
           "sink": "QLabel"
         }
       ]
@@ -17661,7 +17661,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 241,
+          "line": 239,
           "sink": "QPushButton"
         }
       ]
@@ -20101,7 +20101,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 425,
+          "line": 424,
           "sink": "showMessage"
         }
       ]
@@ -20161,7 +20161,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 331,
+          "line": 329,
           "sink": "addTab"
         }
       ]
@@ -21901,7 +21901,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1264,
+          "line": 1263,
           "sink": "setWindowTitle"
         }
       ]
@@ -23331,7 +23331,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 538,
+          "line": 537,
           "sink": "warning"
         }
       ]
@@ -24181,7 +24181,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 547,
+          "line": 546,
           "sink": "showMessage"
         }
       ]
@@ -24191,7 +24191,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 355,
+          "line": 354,
           "sink": "showMessage"
         }
       ]
@@ -24201,7 +24201,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 337,
+          "line": 336,
           "sink": "showMessage"
         }
       ]
@@ -26851,7 +26851,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 307,
+          "line": 305,
           "sink": "setHeaderLabels"
         }
       ]
@@ -28531,7 +28531,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 215,
+          "line": 213,
           "sink": "setToolTip"
         }
       ]
@@ -28541,7 +28541,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 200,
+          "line": 198,
           "sink": "setToolTip"
         }
       ]
@@ -28571,7 +28571,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 334,
+          "line": 332,
           "sink": "setTabToolTip"
         }
       ]
@@ -28591,7 +28591,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 335,
+          "line": 333,
           "sink": "addTab"
         }
       ]
@@ -30826,7 +30826,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1127,
+          "line": 1126,
           "sink": "warning"
         }
       ]
@@ -30856,7 +30856,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1141,
+          "line": 1140,
           "sink": "QRadioButton"
         }
       ]
@@ -30896,7 +30896,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1147,
+          "line": 1146,
           "sink": "setToolTip"
         }
       ]
@@ -32596,7 +32596,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1335,
+          "line": 1334,
           "sink": "getExistingDirectory"
         }
       ]
@@ -32876,7 +32876,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1339,
+          "line": 1338,
           "sink": "information"
         }
       ]
@@ -33471,7 +33471,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 244,
+          "line": 243,
           "sink": "QPushButton"
         }
       ]
@@ -34806,7 +34806,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 218,
+          "line": 216,
           "sink": "setToolTip"
         }
       ]
@@ -35601,7 +35601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 332,
+          "line": 330,
           "sink": "setTabToolTip"
         }
       ]
@@ -39246,7 +39246,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 268,
+          "line": 266,
           "sink": "QLabel"
         }
       ]
@@ -39616,7 +39616,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 349,
+          "line": 347,
           "sink": "addTab"
         }
       ]
@@ -41841,7 +41841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 741,
+          "line": 736,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -43141,7 +43141,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 329,
+          "line": 327,
           "sink": "addTab"
         }
       ]
@@ -45266,7 +45266,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 202,
+          "line": 200,
           "sink": "QCheckBox"
         }
       ]
@@ -49921,7 +49921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 826,
+          "line": 821,
           "sink": "emit"
         }
       ]
@@ -50001,7 +50001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 304,
+          "line": 299,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50011,7 +50011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 275,
+          "line": 270,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50021,12 +50021,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 669,
+          "line": 664,
           "sink": "_set_embedded_dotnet_preview_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 670,
+          "line": 665,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50036,7 +50036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 648,
+          "line": 643,
           "sink": "emit"
         }
       ]
@@ -50101,7 +50101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 801,
+          "line": 796,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50111,7 +50111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 719,
+          "line": 714,
           "sink": "emit"
         }
       ]
@@ -50121,7 +50121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 755,
+          "line": 750,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50131,7 +50131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 716,
+          "line": 711,
           "sink": "emit"
         }
       ]
@@ -50141,12 +50141,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 763,
+          "line": 758,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 796,
+          "line": 791,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50156,12 +50156,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 763,
+          "line": 758,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 796,
+          "line": 791,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50171,12 +50171,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 175,
+          "line": 170,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 284,
+          "line": 279,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50186,7 +50186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 626,
+          "line": 621,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -51356,7 +51356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 653,
+          "line": 648,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -51366,7 +51366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 622,
+          "line": 617,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -52391,7 +52391,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 214,
+          "line": 212,
           "sink": "QCheckBox"
         }
       ]
@@ -53041,7 +53041,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1215,
+          "line": 1214,
           "sink": "getText"
         }
       ]
@@ -54266,7 +54266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 723,
+          "line": 724,
           "sink": "setText"
         }
       ]
@@ -55166,7 +55166,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 203,
+          "line": 201,
           "sink": "setToolTip"
         }
       ]
@@ -56916,7 +56916,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 404,
+          "line": 403,
           "sink": "showMessage"
         }
       ]
@@ -57206,7 +57206,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 474,
+          "line": 473,
           "sink": "python-return:_retarget_length_target"
         }
       ]
@@ -57226,7 +57226,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 621,
+          "line": 620,
           "sink": "showMessage"
         }
       ]
@@ -57536,12 +57536,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 292,
+          "line": 291,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 921,
+          "line": 920,
           "sink": "showMessage"
         }
       ]
@@ -59221,7 +59221,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 487,
+          "line": 486,
           "sink": "showMessage"
         }
       ]
@@ -60441,7 +60441,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1127,
+          "line": 1126,
           "sink": "warning"
         }
       ]
@@ -60481,7 +60481,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1250,
+          "line": 1249,
           "sink": "setText"
         }
       ]
@@ -63221,7 +63221,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1162,
+          "line": 1161,
           "sink": "QLabel"
         }
       ]
@@ -65121,7 +65121,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1247,
+          "line": 1246,
           "sink": "setWindowTitle"
         }
       ]
@@ -65131,7 +65131,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1259,
+          "line": 1258,
           "sink": "showMessage"
         }
       ]
@@ -65141,7 +65141,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1271,
+          "line": 1270,
           "sink": "showMessage"
         }
       ]
@@ -65151,7 +65151,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1185,
+          "line": 1184,
           "sink": "question"
         }
       ]
@@ -65181,7 +65181,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1215,
+          "line": 1214,
           "sink": "getText"
         }
       ]
@@ -65341,7 +65341,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1285,
+          "line": 1284,
           "sink": "setWindowTitle"
         }
       ]
@@ -65361,7 +65361,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 247,
+          "line": 246,
           "sink": "QPushButton"
         }
       ]
@@ -65371,7 +65371,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1240,
+          "line": 1239,
           "sink": "warning"
         }
       ]
@@ -65806,7 +65806,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 265,
+          "line": 263,
           "sink": "QLabel"
         }
       ]
@@ -66976,7 +66976,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 347,
+          "line": 345,
           "sink": "addTab"
         }
       ]
@@ -66986,7 +66986,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1041,
+          "line": 1040,
           "sink": "setTabText"
         }
       ]
@@ -67316,7 +67316,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1090,
+          "line": 1088,
           "sink": "showMessage"
         }
       ]
@@ -67446,7 +67446,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 406,
+          "line": 405,
           "sink": "showMessage"
         }
       ]
@@ -67601,7 +67601,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 122,
+          "line": 120,
           "sink": "setWindowTitle"
         }
       ]
@@ -67731,7 +67731,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1215,
+          "line": 1214,
           "sink": "getText"
         }
       ]
@@ -68661,7 +68661,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 342,
+          "line": 340,
           "sink": "setTabToolTip"
         }
       ]
@@ -69361,12 +69361,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 437,
+          "line": 432,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 438,
+          "line": 433,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -75496,7 +75496,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 241,
+          "line": 240,
           "sink": "QPushButton"
         }
       ]
@@ -78176,7 +78176,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 402,
+          "line": 400,
           "sink": "QAction"
         }
       ]
@@ -78286,7 +78286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 818,
+          "line": 813,
           "sink": "emit"
         },
         {
@@ -79106,7 +79106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 242,
+          "line": 237,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -79856,7 +79856,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 341,
+          "line": 339,
           "sink": "addTab"
         }
       ]
@@ -80211,7 +80211,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 228,
+          "line": 227,
           "sink": "QPushButton"
         }
       ]
@@ -80461,7 +80461,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 594,
+          "line": 593,
           "sink": "python-return:_route_hint"
         }
       ]
@@ -80491,7 +80491,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 642,
+          "line": 641,
           "sink": "showMessage"
         }
       ]
@@ -81526,7 +81526,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Output.cs",
-          "line": 79,
+          "line": 81,
           "sink": "csharp:.Text="
         }
       ]
@@ -81696,7 +81696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 566,
+          "line": 551,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -82371,17 +82371,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 565,
+          "line": 550,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 630,
+          "line": 615,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 770,
+          "line": 755,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -83841,7 +83841,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 560,
+          "line": 559,
           "sink": "showMessage"
         }
       ]
@@ -84266,7 +84266,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 617,
+          "line": 616,
           "sink": "showMessage"
         }
       ]
@@ -84276,7 +84276,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 568,
+          "line": 567,
           "sink": "showMessage"
         }
       ]
@@ -84726,7 +84726,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 901,
+          "line": 900,
           "sink": "showMessage"
         }
       ]
@@ -85621,7 +85621,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 759,
+          "line": 758,
           "sink": "showMessage"
         }
       ]
@@ -85981,7 +85981,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1140,
+          "line": 1139,
           "sink": "QRadioButton"
         }
       ]
@@ -86156,7 +86156,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 881,
+          "line": 880,
           "sink": "showMessage"
         }
       ]
@@ -88086,7 +88086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 725,
+          "line": 726,
           "sink": "setToolTip"
         }
       ]
@@ -88371,7 +88371,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 278,
+          "line": 276,
           "sink": "QLabel"
         }
       ]
@@ -89951,7 +89951,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 307,
+          "line": 305,
           "sink": "setHeaderLabels"
         }
       ]
@@ -90446,7 +90446,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 217,
+          "line": 215,
           "sink": "QCheckBox"
         }
       ]
@@ -91826,7 +91826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 643,
+          "line": 638,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -93536,7 +93536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 242,
+          "line": 237,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -93546,12 +93546,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 563,
+          "line": 548,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 574,
+          "line": 559,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -97226,7 +97226,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1139,
+          "line": 1138,
           "sink": "QRadioButton"
         }
       ]
@@ -97426,7 +97426,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1144,
+          "line": 1143,
           "sink": "setToolTip"
         }
       ]
@@ -97696,7 +97696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 438,
+          "line": 433,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -98631,7 +98631,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1185,
+          "line": 1184,
           "sink": "question"
         }
       ]
@@ -100031,7 +100031,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 229,
+          "line": 228,
           "sink": "setAccessibleName"
         }
       ]
@@ -100071,7 +100071,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 779,
+          "line": 778,
           "sink": "showMessage"
         }
       ]
@@ -100686,7 +100686,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 238,
+          "line": 237,
           "sink": "QPushButton"
         }
       ]
@@ -101311,7 +101311,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 205,
+          "line": 203,
           "sink": "QCheckBox"
         }
       ]
@@ -101381,7 +101381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 617,
+          "line": 602,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101416,7 +101416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 549,
+          "line": 534,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101426,7 +101426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 548,
+          "line": 533,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101436,7 +101436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 544,
+          "line": 529,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101446,7 +101446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 547,
+          "line": 532,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101456,7 +101456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 543,
+          "line": 528,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101481,7 +101481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 546,
+          "line": 531,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101491,7 +101491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 624,
+          "line": 609,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101501,7 +101501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 562,
+          "line": 547,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101511,7 +101511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 545,
+          "line": 530,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101521,7 +101521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 831,
+          "line": 816,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101531,7 +101531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 558,
+          "line": 543,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101541,12 +101541,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 564,
+          "line": 549,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 628,
+          "line": 613,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101556,7 +101556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 552,
+          "line": 537,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101576,7 +101576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 620,
+          "line": 605,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101596,27 +101596,27 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 742,
+          "line": 727,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 751,
+          "line": 736,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 765,
+          "line": 750,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 805,
+          "line": 790,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 821,
+          "line": 806,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -102541,7 +102541,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 343,
+          "line": 342,
           "sink": "question"
         }
       ]
@@ -104976,7 +104976,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 262,
+          "line": 260,
           "sink": "QLabel"
         }
       ]
@@ -105166,7 +105166,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 330,
+          "line": 328,
           "sink": "setTabToolTip"
         }
       ]
@@ -105301,7 +105301,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 350,
+          "line": 348,
           "sink": "setTabToolTip"
         }
       ]
@@ -105351,7 +105351,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1136,
+          "line": 1135,
           "sink": "setWindowTitle"
         }
       ]
@@ -106621,7 +106621,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 248,
+          "line": 247,
           "sink": "setToolTip"
         }
       ]
@@ -106711,7 +106711,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 245,
+          "line": 244,
           "sink": "setToolTip"
         }
       ]
@@ -106731,7 +106731,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1269,
+          "line": 1268,
           "sink": "setText"
         }
       ]
@@ -107321,7 +107321,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1339,
+          "line": 1338,
           "sink": "information"
         }
       ]
@@ -109326,7 +109326,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1065,
+          "line": 1063,
           "sink": "setText"
         }
       ]
@@ -110261,7 +110261,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1127,
+          "line": 1125,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -114971,12 +114971,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 228,
+          "line": 226,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1127,
+          "line": 1125,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -115211,7 +115211,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 228,
+          "line": 226,
           "sink": "addItem"
         }
       ]
@@ -121001,7 +121001,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 229,
+          "line": 227,
           "sink": "addItem"
         }
       ]
@@ -198011,7 +198011,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 239,
+          "line": 237,
           "sink": "QLabel"
         }
       ]
@@ -198021,7 +198021,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1065,
+          "line": 1063,
           "sink": "setText"
         }
       ]
@@ -198666,12 +198666,12 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 229,
+          "line": 227,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1127,
+          "line": 1125,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -201556,7 +201556,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 483,
+          "line": 481,
           "sink": "addItem"
         }
       ]
@@ -201981,7 +201981,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 587,
+          "line": 586,
           "sink": "showMessage"
         }
       ]
@@ -202651,7 +202651,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 765,
+          "line": 764,
           "sink": "showMessage"
         }
       ]
@@ -202676,12 +202676,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 578,
+          "line": 577,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 628,
+          "line": 627,
           "sink": "showMessage"
         }
       ]
@@ -202941,7 +202941,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1137,
+          "line": 1135,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -203271,7 +203271,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1166,
+          "line": 1165,
           "sink": "QLabel"
         }
       ]
@@ -203541,7 +203541,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 343,
+          "line": 342,
           "sink": "question"
         }
       ]
@@ -203791,7 +203791,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 377,
+          "line": 376,
           "sink": "showMessage"
         }
       ]
@@ -204161,7 +204161,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1152,
+          "line": 1150,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -204301,7 +204301,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1108,
+          "line": 1106,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -206001,7 +206001,7 @@
         },
         {
           "path": "tools/placement_studio/window.py",
-          "line": 1065,
+          "line": 1063,
           "sink": "setText"
         },
         {

@@ -153,10 +153,18 @@ class _DialogPresentationMixin:
         self.assertEqual(inspector_scroll.horizontalScrollBar().maximum(), 0)
         self.assertIs(character_control.parentWidget(), workspace.inspector_widget)
         self.assertEqual(workspace.show_character.text(), "Character")
-        self.assertEqual(
-            character_control.mapTo(workspace.inspector_widget, character_control.rect().center()).y(),
-            workspace.show_character.mapTo(workspace.inspector_widget, workspace.show_character.rect().center()).y(),
-            "Character uses the existing show-character line instead of another vertical band",
+        character_center_y = character_control.mapTo(
+            workspace.inspector_widget,
+            character_control.rect().center(),
+        ).y()
+        visibility_center_y = workspace.show_character.mapTo(
+            workspace.inspector_widget,
+            workspace.show_character.rect().center(),
+        ).y()
+        self.assertLessEqual(
+            abs(character_center_y - visibility_center_y),
+            1,
+            "Character uses the existing show-character line despite odd-height control rounding",
         )
         inspector_width = inspector_scroll.viewport().width()
         apply_bottom = workspace.apply_button.mapTo(

@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Callable, Dict, Optional
-
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QFont, QFontDatabase, QFontMetrics
 from PySide6.QtWidgets import QApplication, QAbstractItemView, QHeaderView, QWidget
@@ -58,7 +57,6 @@ _REGISTERED_CJK_FONT_PATHS: set[str] = set()
 # what lets a test measure widths without inheriting another test's fonts.
 _REGISTERED_CJK_FONT_IDS: list[int] = []
 
-
 def _register_windows_cjk_fonts(language_code: str) -> None:
     if os.name != "nt":
         return
@@ -73,14 +71,12 @@ def _register_windows_cjk_fonts(language_code: str) -> None:
             _REGISTERED_CJK_FONT_PATHS.add(path_key)
             _REGISTERED_CJK_FONT_IDS.append(font_id)
 
-
 def _unregister_cjk_fonts() -> None:
     """Withdraws every font `_register_windows_cjk_fonts` added to this process."""
 
     while _REGISTERED_CJK_FONT_IDS:
         QFontDatabase.removeApplicationFont(_REGISTERED_CJK_FONT_IDS.pop())
     _REGISTERED_CJK_FONT_PATHS.clear()
-
 
 def _same_font(left: QFont, right: QFont) -> bool:
     return QFont(left).toString() == QFont(right).toString()
@@ -97,7 +93,6 @@ _DATA_FONT_CLASS_NAMES = (
     "QHeaderView",
 )
 
-
 def _install_app_fonts(app: QApplication, app_font: QFont, data_font: QFont) -> None:
     if not _same_font(app.font(), app_font):
         app.setFont(app_font)
@@ -105,7 +100,6 @@ def _install_app_fonts(app: QApplication, app_font: QFont, data_font: QFont) -> 
         app.setFont(app_font, class_name)
     for class_name in _DATA_FONT_CLASS_NAMES:
         app.setFont(data_font, class_name)
-
 
 def _apply_ui_fonts_to_widget_tree(root: QWidget, ui_font: QFont) -> None:
     for widget in (root, *root.findChildren(QWidget)):
@@ -120,7 +114,6 @@ def _apply_ui_fonts_to_widget_tree(root: QWidget, ui_font: QFont) -> None:
             widget.setFont(ui_font)
         widget.setProperty("_cdmw_global_font_managed", True)
 
-
 def _apply_data_fonts_to_widget_tree(root: QWidget, data_font: QFont) -> None:
     for widget in root.findChildren(QAbstractItemView):
         if not _same_font(widget.font(), data_font):
@@ -129,11 +122,9 @@ def _apply_data_fonts_to_widget_tree(root: QWidget, data_font: QFont) -> None:
         if not _same_font(header.font(), data_font):
             header.setFont(data_font)
 
-
 def _mark_custom_font(widget: object) -> None:
     if isinstance(widget, QWidget):
         widget.setProperty("_cdmw_global_font_managed", False)
-
 
 def _resolved_app_fonts(
     app: QApplication,
@@ -176,9 +167,7 @@ def _resolved_app_fonts(
     effective_screen_width = int(screen_width or fallback_width)
     effective_screen_height = int(screen_height or fallback_height)
     screen_scale = _responsive_control_scale_for_resolution(effective_screen_width, effective_screen_height)
-    # Font-size preferences are user authority. Responsive scaling owns control
-    # padding and layout density; applying it to fonts collapsed distinct choices
-    # (10 and 8 both became 8 on a 1366-wide layout).
+    # Responsive density must not collapse distinct user-selected font sizes.
     base_font_size = configured_base_font_size
     data_font_size = configured_data_font_size
     density_key = str(settings.value("appearance/ui_density", DEFAULT_UI_DENSITY) or DEFAULT_UI_DENSITY)
@@ -189,7 +178,6 @@ def _resolved_app_fonts(
     data_font = QFont(app_font)
     data_font.setPointSize(data_font_size)
     return app_font, data_font, effective_density_key, screen_scale
-
 
 def apply_app_fonts(
     app: QApplication,
@@ -206,7 +194,6 @@ def apply_app_fonts(
     )
     _install_app_fonts(app, app_font, data_font)
     return app_font, data_font
-
 
 def apply_app_theme(
     app: QApplication,
@@ -346,7 +333,6 @@ def apply_window_data_fonts(window: "MainWindow") -> None:
         text_search_tab.log_highlighter.set_bold_enabled(bold_enabled)
     apply_window_text_highlight_style(window)
 
-
 def apply_window_ui_fonts(
     window: "MainWindow",
     app: QApplication | None = None,
@@ -386,7 +372,6 @@ def apply_window_ui_fonts(
     if callable(mesh_sync):
         mesh_sync(ui_font, data_font)
     return ui_font, data_font
-
 
 class ThemeControllerMixin:
     """Deferred shell theme and appearance application for MainWindow."""
@@ -844,7 +829,6 @@ class ThemeControllerMixin:
             editor.set_highlight_style(style)
         if hasattr(editor, "set_color_scheme"):
             editor.set_color_scheme(color_scheme)
-
 
 class ThemeController:
     def __init__(self, context: object | None = None) -> None:

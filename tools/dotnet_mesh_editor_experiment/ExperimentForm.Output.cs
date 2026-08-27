@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
@@ -147,10 +149,55 @@ internal sealed partial class ExperimentForm
                 ["crash_behavior"] = eventName == "error" ? "error" : "no crash reported"
             }
         };
-        File.WriteAllText(
-            options.StatusPath,
-            JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }),
-            Utf8NoBom);
+        var statusPath = Path.GetFullPath(options.StatusPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(statusPath) ?? Environment.CurrentDirectory);
+        var stagingPath = $"{statusPath}.{Guid.NewGuid():N}.tmp";
+        var backupPath = $"{statusPath}.{Guid.NewGuid():N}.bak";
+        var statusKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(statusPath.ToUpperInvariant())));
+        using var statusMutex = new Mutex(false, $@"Local\CDMW.MeshEditorExperiment.Status.{statusKey}");
+        var ownsStatusMutex = false;
+        try
+        {
+            File.WriteAllText(
+                stagingPath,
+                JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }),
+                Utf8NoBom);
+            try
+            {
+                ownsStatusMutex = statusMutex.WaitOne(TimeSpan.FromSeconds(1));
+            }
+            catch (AbandonedMutexException)
+            {
+                ownsStatusMutex = true;
+            }
+            if (!ownsStatusMutex)
+            {
+                throw new IOException($"Timed out waiting to publish Mesh Editor status '{statusPath}'.");
+            }
+            if (File.Exists(statusPath))
+            {
+                File.Replace(stagingPath, statusPath, backupPath);
+            }
+            else
+            {
+                File.Move(stagingPath, statusPath);
+            }
+        }
+        finally
+        {
+            if (ownsStatusMutex)
+            {
+                statusMutex.ReleaseMutex();
+            }
+            if (File.Exists(stagingPath))
+            {
+                File.Delete(stagingPath);
+            }
+            if (File.Exists(backupPath))
+            {
+                File.Delete(backupPath);
+            }
+        }
     }
 
     public static int[] ApplyHeadlessSmokeEdit(ObjDocument document)

@@ -18,6 +18,10 @@ bridges off the UI thread; the normal edit math path is native-first through
 `native/cdmw_mesh_core`.
 `new_item_workers.py` shapes the New Item Studio's snapshot, plan, export and
 install as `(log, stop_event)` tasks for the utility runner; the service does
-the work and the tab only sees results.
+the work and the tab only sees results. Effect catalogue and resident package
+preparation use separate cancellable latest-wins lanes. Imported model roots are
+leased by readers and retired through `new_item_cleanup_worker.py` only after
+those leases finish, so replacement, discard, failure, and shutdown never block
+the UI thread on recursive cleanup.
 
 Related tests: `tests/test_workers.py` and worker entries under `tests/`.

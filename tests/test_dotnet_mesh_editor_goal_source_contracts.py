@@ -27,7 +27,8 @@ def test_dotnet_material_channels_and_embedded_panel_source_contracts() -> None:
     assert "if (!options.Embedded)" not in source
     assert "DotNetMeshEditorLeftToolScroll" in source
     assert "DotNetMeshEditorRightToolScroll" in source
-    assert 'SetWindowTheme(control.Handle, "DarkMode_Explorer", null)' in source
+    assert "ApplyNativeControlTheme(control)" in source
+    assert 'ThemeUsesDarkControls() ? "DarkMode_Explorer" : "Explorer"' in source
     assert source.index("_ = _textureSet.LoadAsync(_materials);") < source.index("_viewport = new MeshViewport")
     assert 'AddSection(stack, "Clipboard"' not in source
 

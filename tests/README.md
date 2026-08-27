@@ -8,3 +8,8 @@ intentional wiring guards for large PySide UI surfaces where previous regression
 were caused by missing buttons, callbacks, or fallback paths. They are brittle by
 nature, but they protect user-facing workflows until those surfaces have smaller
 behavior-level harnesses.
+
+`tests/fixtures/` contains the bounded, documented inputs that are part of the
+regression contract, including trimmed golden byte fixtures. Full game archives,
+extracted corpora, screenshots, captures, benchmark output, restore points, and
+machine-local paths remain ignored and must never be added as test evidence.

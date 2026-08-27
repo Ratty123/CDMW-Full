@@ -212,8 +212,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
     def _alignment_dialog_font_stylesheet() -> str:
         font_sizes = _alignment_dialog_font_sizes(context)
         theme = get_theme(str(getattr(self, "current_theme_key", "") or ""))
-        ui_font_size = int(font_sizes["ui"])
-        data_font_size = int(font_sizes["data"])
+        ui_font_size, data_font_size = int(font_sizes["ui"]), int(font_sizes["data"])
         hint_font_size = int(font_sizes["hint"])
         button_min_height = max(14, ui_font_size + 6)
         field_min_height = max(15, data_font_size + 7)
@@ -338,7 +337,6 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
 
     _sync_alignment_dialog_font()
     setattr(dialog, "sync_ui_font", _sync_alignment_dialog_font)
-
     return SimpleNamespace(
         alignment_dialog_key_hash=alignment_dialog_key_hash,
         alignment_d3d11_view_state_reset_generation=alignment_d3d11_view_state_reset_generation,
