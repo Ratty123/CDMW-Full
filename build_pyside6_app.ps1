@@ -11,6 +11,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
 
 $appName = "CrimsonDesertModWorkbench"
 $legacyAppNames = @("DDSRebuildApp")

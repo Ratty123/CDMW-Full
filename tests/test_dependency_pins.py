@@ -20,6 +20,7 @@ def test_directxtex_fetches_are_pinned_to_the_same_commit() -> None:
 def test_vgmstream_packaging_uses_immutable_version_commit_and_sha256() -> None:
     source = Path("build_pyside6_app.ps1").read_text(encoding="utf-8")
 
+    assert "Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop" in source
     assert '$vgmstreamVersion = "r1980"' in source
     assert f'$vgmstreamBuildCommit = "{VGMSTREAM_BUILD_COMMIT}"' in source
     assert f'$vgmstreamArchiveSha256 = "{VGMSTREAM_SHA256}"' in source
