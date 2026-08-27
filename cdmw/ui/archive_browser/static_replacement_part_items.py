@@ -52,7 +52,9 @@ def source_tree_item(
     item.setToolTip(2, f"{label}\nName: {source_name or '-'}\nMaterial: {source_material or '-'}")
     item.setToolTip(4, "Original draw/material slot(s) currently receiving this replacement part.")
     item.setToolTip(5, copied_texture_tooltip if copied_texture_count else "Replacement source status.")
-    item.setForeground(5, QBrush(QColor(status_color if copied_texture_count else "#86efac")))
+    status_tint = QColor(status_color if copied_texture_count else "#86efac")
+    status_tint.setAlpha(72)
+    item.setBackground(5, QBrush(status_tint))
     item.setCheckState(0, Qt.Checked if enabled else Qt.Unchecked)
     return item
 
@@ -109,22 +111,24 @@ def mapping_target_item(
     for tooltip_column in range(7):
         item.setToolTip(tooltip_column, target_details)
     item.setToolTip(5, target_texture_details)
-    item.setForeground(4, QBrush(QColor(outliner_state_color)))
+    outliner_tint = QColor(outliner_state_color)
+    outliner_tint.setAlpha(72)
+    item.setBackground(4, QBrush(outliner_tint))
     item.setToolTip(4, confidence_label_text)
     if removed:
-        item.setForeground(5, QBrush(QColor("#fb923c")))
+        item.setBackground(5, QBrush(QColor("#48fb923c")))
         item.setToolTip(
             5,
             "Removed target: original DDS/material sidecar parameters can be pruned during patched sidecar output.",
         )
     if physics_status == "Review":
-        item.setForeground(6, QBrush(QColor("#f2cc60")))
+        item.setBackground(6, QBrush(QColor("#48f2cc60")))
         item.setToolTip(
             6,
             "This target name suggests physics, collision, cloth, or shape data. Review related companion files before build.",
         )
     if not selected_ok:
-        item.setForeground(3, QBrush(QColor("#fca5a5")))
+        item.setBackground(3, QBrush(QColor("#48fca5a5")))
     return item
 
 
@@ -157,15 +161,17 @@ def parts_outliner_target_item(
     item.setData(0, Qt.UserRole + 1, int(target_index))
     item.setData(0, Qt.UserRole + 2, tuple(source_indices))
     item.setFlags(item.flags() | Qt.ItemFlag.ItemIsDropEnabled)
-    item.setForeground(0, QBrush(QColor("#79c0ff")))
-    item.setForeground(1, QBrush(QColor("#8b949e")))
-    item.setForeground(4, QBrush(QColor(state_color)))
+    item.setBackground(0, QBrush(QColor("#4879c0ff")))
+    item.setBackground(1, QBrush(QColor("#488b949e")))
+    state_tint = QColor(state_color)
+    state_tint.setAlpha(72)
+    item.setBackground(4, QBrush(state_tint))
     item.setToolTip(0, "Target = original game draw/material slot.")
     item.setToolTip(1, "Original target slot. Source child rows below this target feed replacement geometry into it.")
     item.setToolTip(2, "Target role inferred from original name/material.")
     item.setToolTip(3, texture_tooltip)
     if physics_text == "Review":
-        item.setForeground(5, QBrush(QColor("#f2cc60")))
+        item.setBackground(5, QBrush(QColor("#48f2cc60")))
         item.setToolTip(5, physics_tooltip)
     return item
 
@@ -191,9 +197,11 @@ def parts_outliner_source_item(
     item.setData(0, Qt.UserRole + 1, int(target_index))
     item.setData(0, Qt.UserRole + 2, (int(source_index),))
     item.setFlags(item.flags() | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled)
-    item.setForeground(0, QBrush(QColor("#f2cc60" if unassigned else "#7ee787")))
-    item.setForeground(1, QBrush(QColor("#d29922" if unassigned else "#c9d1d9")))
-    item.setForeground(4, QBrush(QColor(state_color)))
+    item.setBackground(0, QBrush(QColor("#48f2cc60" if unassigned else "#487ee787")))
+    item.setBackground(1, QBrush(QColor("#48d29922" if unassigned else "#48c9d1d9")))
+    state_tint = QColor(state_color)
+    state_tint.setAlpha(72)
+    item.setBackground(4, QBrush(state_tint))
     item.setToolTip(
         0,
         "Unassigned replacement source. Select it to inspect/transform; assign a Target to export it."
@@ -210,9 +218,9 @@ def parts_outliner_source_item(
     item.setToolTip(3, copied_texture_tooltip or "DDS = visible texture contract for this replacement source.")
     item.setToolTip(5, physics_tooltip)
     if physics_text == "Review":
-        item.setForeground(5, QBrush(QColor("#f2cc60")))
+        item.setBackground(5, QBrush(QColor("#48f2cc60")))
     elif physics_text == "Preserved":
-        item.setForeground(5, QBrush(QColor("#7ee787")))
+        item.setBackground(5, QBrush(QColor("#487ee787")))
     return item
 
 
@@ -221,8 +229,8 @@ def parts_outliner_unassigned_group_item(count: int) -> QTreeWidgetItem:
     item.setData(0, Qt.UserRole, "unassigned_group")
     item.setData(0, Qt.UserRole + 1, -1)
     item.setFlags(item.flags() | Qt.ItemFlag.ItemIsDropEnabled)
-    item.setForeground(0, QBrush(QColor("#f2cc60")))
-    item.setForeground(4, QBrush(QColor("#d29922")))
+    item.setBackground(0, QBrush(QColor("#48f2cc60")))
+    item.setBackground(4, QBrush(QColor("#48d29922")))
     item.setToolTip(0, "Preview-only/unassigned replacement sources. These do not export until assigned to a target.")
     return item
 

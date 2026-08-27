@@ -31,9 +31,9 @@ def alignment_preview_build_failed_status(message: object) -> str:
 
 def alignment_setup_intro_html() -> str:
     return (
-        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #2f81f7; background:#10233a;'>"
-        "<span style='color:#79c0ff; font-weight:700;'>Setup</span>"
-        "<span style='color:#c9d1d9;'> Alignment behavior, safety options, and export values.</span>"
+        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #2f81f7; '>"
+        "<span style=' font-weight:700;'>Setup</span>"
+        "<span style=''> Alignment behavior, safety options, and export values.</span>"
         "</div>"
     )
 
@@ -99,8 +99,8 @@ def alignment_import_diagnostic_rows(
 def alignment_import_diagnostics_html(rows: Sequence[tuple[str, str]]) -> str:
     import_html_rows = "".join(
         "<tr>"
-        f"<td style='color:#8b949e; padding:2px 14px 2px 0; white-space:nowrap;'>{escape(label_text)}</td>"
-        f"<td style='color:#f0f6fc; padding:2px 0; word-break:break-all;'>{escape(value_text)}</td>"
+        f"<td style=' padding:2px 14px 2px 0; white-space:nowrap;'>{escape(label_text)}</td>"
+        f"<td style=' padding:2px 0; word-break:break-all;'>{escape(value_text)}</td>"
         "</tr>"
         for label_text, value_text in tuple(rows or ())
     )

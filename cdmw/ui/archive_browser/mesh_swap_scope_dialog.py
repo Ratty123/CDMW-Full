@@ -206,7 +206,7 @@ class ArchiveMeshSwapScopeDialogMixin:
                 "cloth/PBD and physics bindings. Source sidecar, textures, and physics are preselected."
             )
             contract_warning.setWordWrap(True)
-            contract_warning.setStyleSheet("color: #fdd663;")
+            contract_warning.setObjectName("WarningText")
             layout.addWidget(contract_warning)
 
         complete_swap_checkbox = QCheckBox("Complete In-Game Swap (source mesh/material/textures/physics)")
@@ -260,7 +260,7 @@ class ArchiveMeshSwapScopeDialogMixin:
             retarget_source_family_checkbox.setToolTip("Available for weapon/item model swaps.")
         complete_swap_warning = QLabel(SWAP_SCOPE_COMPLETE_WARNING_TEXT)
         complete_swap_warning.setWordWrap(True)
-        complete_swap_warning.setStyleSheet("color: #fdd663;")
+        complete_swap_warning.setObjectName("WarningText")
         complete_swap_warning.setVisible(bool(complete_swap_checkbox.isChecked()))
         layout.addWidget(complete_swap_checkbox)
         layout.addWidget(complete_swap_warning)
@@ -397,9 +397,9 @@ class ArchiveMeshSwapScopeDialogMixin:
                 default_checked = False
             item.setCheckState(0, Qt.Checked if default_checked else Qt.Unchecked)
             if related_entry.extension in {".pab", ".pabc", ".pabv", ".hkx", ".hkt"}:
-                item.setForeground(1, QBrush(QColor("#facc15")))
+                item.setBackground(1, QBrush(QColor("#48facc15")))
             if self._archive_entry_is_appearance_descriptor(related_entry):
-                item.setForeground(1, QBrush(QColor("#79c0ff")))
+                item.setBackground(1, QBrush(QColor("#4879c0ff")))
             companion_tree.addTopLevelItem(item)
 
         for edge in unresolved_relationship_edges[:48]:
@@ -413,7 +413,7 @@ class ArchiveMeshSwapScopeDialogMixin:
                 ]
             )
             item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
-            item.setForeground(1, QBrush(QColor("#facc15")))
+            item.setBackground(1, QBrush(QColor("#48facc15")))
             companion_tree.addTopLevelItem(item)
 
         if companion_tree.topLevelItemCount() == 0:

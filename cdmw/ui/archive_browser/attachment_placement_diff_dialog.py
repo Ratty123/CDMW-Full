@@ -1639,83 +1639,83 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                 else "stowed / on body"
             )
             notes = [
-                f"<span style='color:#fbbf24;font-weight:700;'>target class</span> {escape(class_text)}",
-                f"<span style='color:#fbbf24;font-weight:700;'>state</span> {escape(placement_state_text)}",
+                f"<span style='font-weight:700;'>target class</span> {escape(class_text)}",
+                f"<span style='font-weight:700;'>state</span> {escape(placement_state_text)}",
             ]
             if _visual_selected_swap_type() == "full_behavior":
                 if isinstance(behavior_patch, AttachmentItemInfoBehaviorPatchResult) and behavior_patch.changed:
                     notes.append(
-                        f"<span style='color:#6ee7b7;font-weight:700;'>ItemInfo behavior</span> "
+                        f"<span style='font-weight:700;'>ItemInfo behavior</span> "
                         f"{escape(behavior_patch.old_equip_type_name)} -&gt; {escape(behavior_patch.new_equip_type_name)}; "
                         f"<code>{escape(behavior_entry.path if isinstance(behavior_entry, ArchiveEntry) else 'iteminfo.pabgb')}</code>"
                     )
                     for proof_line in tuple(behavior_patch.proof_lines[:3]):
-                        notes.append(f"<span style='color:#93c5fd;font-weight:700;'>behavior proof</span> {escape(proof_line)}")
+                        notes.append(f"<span style='font-weight:700;'>behavior proof</span> {escape(proof_line)}")
                 elif isinstance(behavior_patch, AttachmentItemInfoBehaviorPatchResult) and behavior_patch.blocking_reason:
                     notes.append(
-                        f"<span style='color:#f59e0b;font-weight:700;'>ItemInfo behavior blocked</span> "
+                        f"<span style='font-weight:700;'>ItemInfo behavior blocked</span> "
                         f"{escape(behavior_patch.blocking_reason)}"
                     )
                 notes.append(
-                    "<span style='color:#93c5fd;font-weight:700;'>WeaponBehaviorSwapAnalysis</span> "
+                    "<span style='font-weight:700;'>WeaponBehaviorSwapAnalysis</span> "
                     "per-target full behavior needs proven prefab/actionchart authority; unsafe prefab resize is blocked by default. "
                     "Class-wide actionchart tool is under Advanced: Class-Wide Tools."
                 )
             else:
-                notes.append("<span style='color:#93c5fd;font-weight:700;'>ItemInfo behavior</span> unchanged (placement only)")
+                notes.append("<span style='font-weight:700;'>ItemInfo behavior</span> unchanged (placement only)")
             target_prefab_entry, prefab_patch, prefab_note = _visual_target_prefab_patch()
             target_pac_xml_entry, pac_xml_patch, pac_xml_note = _visual_target_pac_xml_patch()
             if isinstance(target_pac_xml_entry, ArchiveEntry) and isinstance(pac_xml_patch, AttachmentStackEquipTypePatchResult):
                 if pac_xml_patch.changed:
                     notes.append(
-                        f"<span style='color:#6ee7b7;font-weight:700;'>target slot metadata</span> "
+                        f"<span style='font-weight:700;'>target slot metadata</span> "
                         f"<code>{escape(target_pac_xml_entry.path)}</code>; {escape(pac_xml_note)}"
                     )
                 elif pac_xml_patch.old_equip_type:
                     notes.append(
-                        f"<span style='color:#93c5fd;font-weight:700;'>target slot metadata</span> "
+                        f"<span style='font-weight:700;'>target slot metadata</span> "
                         f"<code>{escape(target_pac_xml_entry.path)}</code>; already {escape(pac_xml_patch.old_equip_type)}"
                     )
             elif _desired_prefab_attach_pair()[0] and pac_xml_note:
-                notes.append(f"<span style='color:#f59e0b;font-weight:700;'>target slot metadata unavailable</span> {escape(pac_xml_note)}")
+                notes.append(f"<span style='font-weight:700;'>target slot metadata unavailable</span> {escape(pac_xml_note)}")
             if isinstance(target_prefab_entry, ArchiveEntry) and isinstance(prefab_patch, PrefabAttachmentProfilePatchResult):
                 notes.append(
-                    f"<span style='color:#6ee7b7;font-weight:700;'>target-only patch</span> "
+                    f"<span style='font-weight:700;'>target-only patch</span> "
                     f"<code>{escape(target_prefab_entry.path)}</code>; {escape(prefab_note)}"
                 )
             elif _desired_prefab_attach_pair()[0] and prefab_note:
-                notes.append(f"<span style='color:#f59e0b;font-weight:700;'>target-only patch unavailable</span> {escape(prefab_note)}")
+                notes.append(f"<span style='font-weight:700;'>target-only patch unavailable</span> {escape(prefab_note)}")
             if patch_part_in_out_checkbox.isChecked():
                 notes.append(
-                    "<span style='color:#f59e0b;font-weight:700;'>class-wide descriptor fallback</span> "
+                    "<span style='font-weight:700;'>class-wide descriptor fallback</span> "
                     "enabled; every weapon in the selected class can move"
                 )
             else:
                 notes.append(
-                    "<span style='color:#93c5fd;font-weight:700;'>class-wide descriptor fallback</span> "
+                    "<span style='font-weight:700;'>class-wide descriptor fallback</span> "
                     "off; normal build targets only this weapon prefab/metadata"
                 )
             if isinstance(part_in_out_entry, ArchiveEntry):
-                notes.append(f"<span style='color:#6ee7b7;font-weight:700;'>PartInOut XML</span> <code>{escape(part_in_out_entry.path)}</code>")
+                notes.append(f"<span style='font-weight:700;'>PartInOut XML</span> <code>{escape(part_in_out_entry.path)}</code>")
             else:
-                notes.append("<span style='color:#f59e0b;font-weight:700;'>PartInOut XML missing</span> descriptor patch unavailable")
+                notes.append("<span style='font-weight:700;'>PartInOut XML missing</span> descriptor patch unavailable")
                 patch_part_in_out_checkbox.setChecked(False)
                 patch_part_in_out_checkbox.setEnabled(False)
             if isinstance(character_socket_entry, ArchiveEntry):
-                notes.append(f"<span style='color:#6ee7b7;font-weight:700;'>character socket XML</span> <code>{escape(character_socket_entry.path)}</code>")
+                notes.append(f"<span style='font-weight:700;'>character socket XML</span> <code>{escape(character_socket_entry.path)}</code>")
             else:
-                notes.append("<span style='color:#f59e0b;font-weight:700;'>character socket XML missing</span> socket profile patch unavailable")
+                notes.append("<span style='font-weight:700;'>character socket XML missing</span> socket profile patch unavailable")
                 patch_socket_checkbox.setChecked(False)
                 patch_socket_checkbox.setEnabled(False)
             if imported_profile_state.get("part_in_out_path"):
-                notes.append(f"<span style='color:#34d399;font-weight:700;'>imported PartInOut profile</span> <code>{escape(str(imported_profile_state.get('part_in_out_path') or ''))}</code>")
+                notes.append(f"<span style='font-weight:700;'>imported PartInOut profile</span> <code>{escape(str(imported_profile_state.get('part_in_out_path') or ''))}</code>")
             elif isinstance(donor_entry, ArchiveEntry) and donor_inferred_weapon_class and not _visual_selected_attach_socket():
                 notes.append(
-                    f"<span style='color:#6ee7b7;font-weight:700;'>source placement</span> "
+                    f"<span style='font-weight:700;'>source placement</span> "
                     f"{escape(donor_entry.basename)} class {escape(donor_inferred_weapon_class)}; donor files are not copied"
                 )
             if imported_profile_state.get("socket_path"):
-                notes.append(f"<span style='color:#34d399;font-weight:700;'>imported socket profile</span> <code>{escape(str(imported_profile_state.get('socket_path') or ''))}</code>")
+                notes.append(f"<span style='font-weight:700;'>imported socket profile</span> <code>{escape(str(imported_profile_state.get('socket_path') or ''))}</code>")
                 use_profile_transforms_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
                 patch_socket_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
             elif not patch_socket_checkbox.isChecked():
@@ -1727,11 +1727,11 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                 choice = _visual_selected_attach_choice()
                 label = choice.label if isinstance(choice, AttachmentBodyLocationChoice) else attach_socket
                 notes.append(
-                    f"<span style='color:#fbbf24;font-weight:700;'>attach point</span> "
+                    f"<span style='font-weight:700;'>attach point</span> "
                     f"{escape(label)}: {escape(attach_socket)} -&gt; {escape(_child_socket_for_attach_point(attach_socket) or 'unchanged child socket')}"
                 )
                 if isinstance(choice, AttachmentBodyLocationChoice) and choice.note:
-                    notes.append(f"<span style='color:#93c5fd;font-weight:700;'>body row</span> {escape(choice.note)}")
+                    notes.append(f"<span style='font-weight:700;'>body row</span> {escape(choice.note)}")
             visual_status.setText("<br>".join(notes))
 
         def _import_visual_profile_xml() -> None:

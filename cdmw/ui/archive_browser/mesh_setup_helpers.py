@@ -113,7 +113,7 @@ class ArchiveMeshSetupHelperMixin:
         if original_mesh is None or replacement_mesh is None:
             missing = "original archive mesh" if original_mesh is None else "replacement scene mesh"
             return (
-                "<span style='color:#fdd663;'>Placement values are unavailable because the async import "
+                "<span style=''>Placement values are unavailable because the async import "
                 f"preflight did not provide the {escape(missing)} for {escape(entry.path)}.</span>",
                 {},
             )
@@ -176,10 +176,10 @@ class ArchiveMeshSetupHelperMixin:
             )
             html = f"""
             <style>
-              .muted {{ color: #9aa0a6; }}
-              .value {{ color: #8ab4f8; font-weight: 600; }}
-              .warn {{ color: #fdd663; font-weight: 600; }}
-              .ok {{ color: #81c995; font-weight: 600; }}
+              .muted {{  }}
+              .value {{  font-weight: 600; }}
+              .warn {{  font-weight: 600; }}
+              .ok {{  font-weight: 600; }}
               table {{ border-collapse: collapse; }}
               td {{ padding: 2px 10px 2px 0; vertical-align: top; }}
             </style>
@@ -206,7 +206,7 @@ class ArchiveMeshSetupHelperMixin:
                 "replacement_axis": replacement_axis,
             }
         except Exception as exc:
-            return f"<span style='color:#fdd663;'>Placement values could not be read automatically: {escape(str(exc))}</span>", {}
+            return f"<span style=''>Placement values could not be read automatically: {escape(str(exc))}</span>", {}
 
     def _add_replacement_asset_profile_summary(
         self,
@@ -214,11 +214,11 @@ class ArchiveMeshSetupHelperMixin:
         profile: ReplacementAssetProfile,
         ) -> None:
         theme = get_theme(self.current_theme_key)
-        support_colors = {
-            "Supported": "#86efac",
-            "Experimental": "#facc15",
-            "Preview only": "#93c5fd",
-            "Blocked": "#fca5a5",
+        support_roles = {
+            "Supported": "ready",
+            "Experimental": "warn",
+            "Preview only": "info",
+            "Blocked": "block",
         }
         group = QGroupBox("Asset Compatibility")
         group_layout = QVBoxLayout(group)
@@ -226,12 +226,12 @@ class ArchiveMeshSetupHelperMixin:
         group_layout.setSpacing(3)
         facts = {str(label): str(value) for label, value in profile.facts}
 
-        def _section_label(title: str, body_html: str, *, accent: str = "#8b949e") -> QLabel:
+        def _section_label(title: str, body_html: str, *, accent: str = theme["border_strong"]) -> QLabel:
             label = QLabel(
                 "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid "
-                f"{accent}; background:#24292f;'>"
+                f"{accent}; '>"
                 "<div style='margin-bottom:1px;'>"
-                f"<span style='color:{accent}; font-weight:700;'>{escape(title)}</span>"
+                f"<span style='font-weight:700;'>{escape(title)}</span>"
                 "</div>"
                 "<div>"
                 f"{body_html}"
@@ -248,20 +248,15 @@ class ArchiveMeshSetupHelperMixin:
         chip_row = QHBoxLayout()
         chip_row.setSpacing(4)
 
-        def _chip(label_text: str, value_text: str, color: str = "") -> QLabel:
+        def _chip(
+            label_text: str,
+            value_text: str,
+            role: str = "",
+        ) -> QLabel:
             chip = QLabel(f"{label_text}: {value_text}")
+            chip.setObjectName("MetricChip")
+            chip.setProperty("chipRole", role)
             chip.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            chip.setStyleSheet(
-                "QLabel {"
-                f"background: {theme['surface_alt']};"
-                f"border: 1px solid {theme['border']};"
-                "border-radius: 3px;"
-                "padding: 1px 4px;"
-                f"color: {color or theme['text']};"
-                "font-size: 0.8em;"
-                "font-weight: 600;"
-                "}"
-            )
             return chip
 
         for label_text in ("Support", "Format", "Category", "Family"):
@@ -271,7 +266,7 @@ class ArchiveMeshSetupHelperMixin:
                     _chip(
                         label_text,
                         value_text,
-                        support_colors.get(value_text, "") if label_text == "Support" else "",
+                        support_roles.get(value_text, "") if label_text == "Support" else "",
                     )
                 )
         chip_row.addStretch(1)
@@ -301,7 +296,7 @@ class ArchiveMeshSetupHelperMixin:
             value.setMinimumWidth(0)
             value.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             value.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            value.setStyleSheet(f"color: {theme['text_strong']};")
+            value.setObjectName("CompactPathValue")
             row = metric_index // 2
             column = (metric_index % 2) * 2
             metrics_grid.addWidget(label, row, column)
@@ -313,29 +308,31 @@ class ArchiveMeshSetupHelperMixin:
         related_by_role: Dict[str, List[str]] = {}
         for related in profile.related_files:
             related_by_role.setdefault(related.role, []).append(PurePosixPath(related.path).name)
-        related_summary = "<span style='color:#8b949e;'>None found</span>"
+        related_summary = "<span style=''>None found</span>"
         if related_by_role:
             related_summary = (
                 "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
                 + "".join(
                     "<tr>"
-                    f"<td style='color:#79c0ff; font-weight:700; padding:1px 10px 1px 0; white-space:nowrap;'>{escape(role)}</td>"
-                    f"<td style='color:#f0f6fc; padding:1px 0; word-break:break-all;'>{escape(', '.join(names[:4]))}"
-                    f"<span style='color:#8b949e;'>{' ...' if len(names) > 4 else ''}</span></td>"
+                    f"<td style=' font-weight:700; padding:1px 10px 1px 0; white-space:nowrap;'>{escape(role)}</td>"
+                    f"<td style=' padding:1px 0; word-break:break-all;'>{escape(', '.join(names[:4]))}"
+                    f"<span style=''>{' ...' if len(names) > 4 else ''}</span></td>"
                     "</tr>"
                     for role, names in related_by_role.items()
                 )
                 + "</table>"
             )
-        group_layout.addWidget(_section_label("Related files", related_summary, accent="#79c0ff"))
+        group_layout.addWidget(_section_label("Related files", related_summary, accent=theme["accent"]))
 
         if getattr(profile, "required_companions", ()):
             companion_names = [PurePosixPath(path).name for path in profile.required_companions[:8]]
             companions_body = (
-                f"<span style='color:#f0f6fc;'>{escape(', '.join(companion_names))}</span>"
-                f"<span style='color:#8b949e;'>{' ...' if len(profile.required_companions) > len(companion_names) else ''}</span>"
+                f"<span style=''>{escape(', '.join(companion_names))}</span>"
+                f"<span style=''>{' ...' if len(profile.required_companions) > len(companion_names) else ''}</span>"
             )
-            companions_label = _section_label("Required companions", companions_body, accent="#f2cc60")
+            companions_label = _section_label(
+                "Required companions", companions_body, accent=theme["warning_border"]
+            )
             companions_label.setToolTip("\n".join(profile.required_companions[:80]))
             group_layout.addWidget(companions_label)
 
@@ -348,13 +345,13 @@ class ArchiveMeshSetupHelperMixin:
                 if index + 1 < len(texture_pairs):
                     second_label, second_value = texture_pairs[index + 1]
                     second_html = (
-                        f"<td style='color:#8b949e; padding:1px 10px 1px 18px; white-space:nowrap;'>{escape(str(second_label))}</td>"
-                        f"<td style='color:#f0f6fc; font-weight:600; padding:1px 0; white-space:nowrap;'>{escape(str(second_value))}</td>"
+                        f"<td style=' padding:1px 10px 1px 18px; white-space:nowrap;'>{escape(str(second_label))}</td>"
+                        f"<td style=' font-weight:600; padding:1px 0; white-space:nowrap;'>{escape(str(second_value))}</td>"
                     )
                 texture_rows.append(
                     "<tr>"
-                    f"<td style='color:#8b949e; padding:1px 10px 1px 0; white-space:nowrap;'>{escape(str(first_label))}</td>"
-                    f"<td style='color:#f0f6fc; font-weight:600; padding:1px 0; white-space:nowrap;'>{escape(str(first_value))}</td>"
+                    f"<td style=' padding:1px 10px 1px 0; white-space:nowrap;'>{escape(str(first_label))}</td>"
+                    f"<td style=' font-weight:600; padding:1px 0; white-space:nowrap;'>{escape(str(first_value))}</td>"
                     f"{second_html}"
                     "</tr>"
                 )
@@ -363,7 +360,7 @@ class ArchiveMeshSetupHelperMixin:
                 + "".join(texture_rows)
                 + "</table>"
             )
-            group_layout.addWidget(_section_label("Texture slots", texture_summary, accent="#d2a8ff"))
+            group_layout.addWidget(_section_label("Texture slots", texture_summary, accent=theme["accent"]))
 
         messages = list(profile.errors) + list(profile.warnings)
         if messages:
@@ -375,7 +372,7 @@ class ArchiveMeshSetupHelperMixin:
                 _section_label(
                     "Warnings" if not profile.errors else "Blocking issues",
                     message_body,
-                    accent="#fca5a5" if profile.errors else "#facc15",
+                    accent=theme["error"] if profile.errors else theme["warning_border"],
                 )
             )
         compact_bits = []
@@ -392,12 +389,13 @@ class ArchiveMeshSetupHelperMixin:
         helmet_visibility_body = ""
         if str(getattr(profile, "category_hint", "") or "").strip().lower() == "helmet":
             helmet_visibility_body = (
-                "<span style='color:#f0f6fc;'>Mesh/material only; head or hair visibility follows the original helmet rules.</span>"
+                "<span style=''>Mesh/material only; head or hair visibility follows the original helmet rules.</span>"
             )
         compact_label = QLabel(
-            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #d29922; background:#2b2416;'>"
-            "<span style='color:#f2cc60; font-weight:700;'>Compatibility</span>"
-            f"<span style='color:#c9d1d9;'> {' | '.join(escape(bit) for bit in compact_bits)}</span>"
+            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid "
+            f"{theme['warning_border']};'>"
+            "<span style=' font-weight:700;'>Compatibility</span>"
+            f"<span style=''> {' | '.join(escape(bit) for bit in compact_bits)}</span>"
             "</div>"
         )
         compact_label.setWordWrap(True)
@@ -405,7 +403,9 @@ class ArchiveMeshSetupHelperMixin:
         compact_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         parent_layout.addWidget(compact_label)
         if helmet_visibility_body:
-            helmet_label = _section_label("Helmet visibility", helmet_visibility_body, accent="#f2cc60")
+            helmet_label = _section_label(
+                "Helmet visibility", helmet_visibility_body, accent=theme["warning_border"]
+            )
             helmet_label.setToolTip(
                 "It does not change whether the game hides the character head or hair. "
                 "If a head or hair disappears, choose an original helmet with matching visibility rules, "

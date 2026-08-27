@@ -64,3 +64,21 @@ def test_host_sends_the_active_theme_once_per_resident_process() -> None:
     finally:
         host.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_new_preview_host_inherits_the_application_theme_when_the_caller_omits_one() -> None:
+    previous_theme_key = _APP.property("_cdmw_theme_key")
+    _APP.setProperty("_cdmw_theme_key", "light")
+    controller = _ThemeController()
+    host = DotNetPreviewHostFrame(controller=controller)
+    try:
+        assert host._theme_key == "light"
+        assert "#f4f6f8" in host._status_panel.styleSheet()
+        assert "#eef2f6" in host._resident_banner.styleSheet()
+        theme_messages = [item for item in controller.writes if item.get("event") == "ui_theme_state"]
+        assert len(theme_messages) == 1
+        assert theme_messages[0]["theme_key"] == "light"
+    finally:
+        host.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        _APP.setProperty("_cdmw_theme_key", previous_theme_key)

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -23,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import BUY_PRICE_KIND, STAT_KIND, StatGrid, scaled_grid_values
-from cdmw.ui.new_item.ui_kit import EDIT, WARN, NoteLabel, compact_table_height, elided, intro_label, note, tone_color
+from cdmw.ui.new_item.ui_kit import EDIT, WARN, NoteLabel, compact_table_height, elided, intro_label, note
 
 _MAX_EXTRA_LEVELS = 8
 #: how far outside the shipped range a value may sit before the note turns amber
@@ -378,8 +377,7 @@ class StatsPanel(QGroupBox):
 
     @staticmethod
     def _style_cell(item: QTableWidgetItem, value: Optional[int], template: Optional[int]) -> None:
-        """Blue text on a blue wash where the cell differs from the template, and a
-        tooltip with the template's value; the default look where it agrees."""
+        """Bold text where the cell differs from the template, with its prior value on hover."""
 
         changed = value is not None and value != template
         if template is None:
@@ -389,15 +387,11 @@ class StatsPanel(QGroupBox):
         else:
             item.setToolTip("")
         if changed:
-            tint = QColor(tone_color(EDIT))
-            item.setForeground(QBrush(tint))
-            tint.setAlpha(36)
-            item.setBackground(QBrush(tint))
+            changed_font = item.font()
+            changed_font.setBold(True)
+            item.setFont(changed_font)
         else:
-            # clear the roles rather than store a null brush: the delegate paints any
-            # brush it is handed, and a null one is black text on the dark theme
-            item.setData(Qt.ForegroundRole, None)
-            item.setData(Qt.BackgroundRole, None)
+            item.setData(Qt.FontRole, None)
 
     def _restyle_cell(self, table: QTableWidget, row: int, column: int, value: Optional[int], template: Optional[int]) -> None:
         """Restyle one cell in place; a rebuild for one edit re-laid the whole step."""

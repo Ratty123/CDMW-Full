@@ -225,7 +225,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
         context_values,
         format_number=self._format_static_alignment_number,
     )
-    for fact_row, (fact_label, fact_value, fact_color) in enumerate(compact_facts):
+    for fact_row, (fact_label, fact_value, _fact_color) in enumerate(compact_facts):
         label_widget = QLabel(fact_label)
         label_widget.setObjectName("HintLabel")
         value_widget = QLabel(fact_value)
@@ -233,13 +233,10 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
         value_widget.setMinimumWidth(0)
         value_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         value_widget.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        value_widget.setStyleSheet(
-            "QLabel {"
-            f"color: {fact_color};"
-            "font-weight: 600;"
-            "padding: 1px 0;"
-            "}"
-        )
+        value_widget.setObjectName("CompactPathValue")
+        value_font = value_widget.font()
+        value_font.setBold(True)
+        value_widget.setFont(value_font)
         context_layout.addWidget(label_widget, fact_row, 0)
         context_layout.addWidget(value_widget, fact_row, 1)
     context_group.setToolTip(context_html)

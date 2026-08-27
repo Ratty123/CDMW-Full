@@ -199,11 +199,11 @@ def _dialog_step_0058(_state):
                 )
                 item.setData(0, _state.Qt.UserRole, candidate)
                 if strength == "strong":
-                    item.setForeground(0, _state.QBrush(_state.QColor("#86efac")))
+                    item.setBackground(0, _state.QBrush(_state.QColor("#4886efac")))
                 elif strength == "inferred":
-                    item.setForeground(0, _state.QBrush(_state.QColor("#fbbf24")))
+                    item.setBackground(0, _state.QBrush(_state.QColor("#48fbbf24")))
                 else:
-                    item.setForeground(0, _state.QBrush(_state.QColor("#fca5a5")))
+                    item.setBackground(0, _state.QBrush(_state.QColor("#48fca5a5")))
                 picker_tree.addTopLevelItem(item)
             if picker_tree.topLevelItemCount() > 0:
                 picker_tree.setCurrentItem(picker_tree.topLevelItem(0))

@@ -674,11 +674,11 @@ class StartupArchivePathDialog(StartupPathTaskControllerMixin, QDialog):
 
     def _set_status(self, text: str, *, error: bool = False) -> None:
         self.status_label.setText(str(text or ""))
-        self.status_label.setProperty("error", bool(error))
-        if error:
-            self.status_label.setStyleSheet("color: #ffb4a8;")
-        else:
-            self.status_label.setStyleSheet("")
+        if bool(self.status_label.property("error")) != bool(error):
+            self.status_label.setProperty("error", bool(error))
+            self.status_label.style().unpolish(self.status_label)
+            self.status_label.style().polish(self.status_label)
+            self.status_label.update()
 
     def _set_busy(self, busy: bool) -> None:
         self._autodetect_busy = bool(busy)

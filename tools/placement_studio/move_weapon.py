@@ -47,7 +47,6 @@ from PySide6.QtWidgets import (
 
 from . import carry
 from .move_operation import MovePlan, MoveRequest
-from .palette import _BORROWED
 
 #: The four pages, in order.
 PAGE_EQUIPMENT = 0
@@ -224,16 +223,14 @@ class MoveWeaponDialog(QDialog):
         self._banner_label.setWordWrap(True)
         count = len(self._earlier_operations)
         if count:
+            self._banner_label.setObjectName("WarningBadge")
             self._banner_label.setText(
                 f"This session contains {count} earlier operation(s). They are not part of "
                 f"this move and will not be packaged unless you select them."
             )
-            self._banner_label.setStyleSheet(
-                "QLabel { padding: 6px; border: 1px solid #a07020; background: #3a3020; }"
-            )
         else:
+            self._banner_label.setObjectName("HintLabel")
             self._banner_label.setText("This is the first operation in this session.")
-            self._banner_label.setStyleSheet("QLabel { padding: 6px; }")
         return self._banner_label
 
     def _build_equipment_page(self, parts: Sequence[Tuple[str, str]]) -> QWidget:
@@ -260,8 +257,9 @@ class MoveWeaponDialog(QDialog):
         self._unit_label.setWordWrap(True)
         form.addRow("Resolved as:", self._unit_label)
         self._unit_problem = QLabel()
+        self._unit_problem.setObjectName("HintLabel")
+        self._unit_problem.setProperty("healthState", "unhealthy")
         self._unit_problem.setWordWrap(True)
-        self._unit_problem.setStyleSheet("QLabel { color: #d07070; }")
         form.addRow("", self._unit_problem)
         layout.addLayout(form)
 
@@ -283,8 +281,8 @@ class MoveWeaponDialog(QDialog):
         self._link_exception.toggled.connect(self._on_link_exception_toggled)
         layout.addWidget(self._link_exception)
         self._link_warning = QLabel()
+        self._link_warning.setObjectName("WarningText")
         self._link_warning.setWordWrap(True)
-        self._link_warning.setStyleSheet("QLabel { color: #d0a070; }")
         layout.addWidget(self._link_warning)
         layout.addStretch(1)
         return page
@@ -424,8 +422,8 @@ class MoveWeaponDialog(QDialog):
         layout.addWidget(self._clip_list, 1)
 
         self._risk_label = QLabel()
+        self._risk_label.setObjectName("WarningText")
         self._risk_label.setWordWrap(True)
-        self._risk_label.setStyleSheet("QLabel { color: #d0a070; }")
         layout.addWidget(self._risk_label)
 
         buttons = QHBoxLayout()
@@ -463,8 +461,9 @@ class MoveWeaponDialog(QDialog):
         layout.addWidget(self._review_view, 1)
 
         self._blocker_label = QLabel()
+        self._blocker_label.setObjectName("HintLabel")
+        self._blocker_label.setProperty("healthState", "unhealthy")
         self._blocker_label.setWordWrap(True)
-        self._blocker_label.setStyleSheet("QLabel { color: #d07070; }")
         layout.addWidget(self._blocker_label)
 
         shortcuts = QHBoxLayout()
@@ -724,7 +723,9 @@ class MoveWeaponDialog(QDialog):
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                 item.setCheckState(0, Qt.Checked)
                 if borrowed:
-                    item.setForeground(0, _BORROWED)
+                    borrowed_font = item.font(0)
+                    borrowed_font.setItalic(True)
+                    item.setFont(0, borrowed_font)
                 risk_note = "\n".join(
                     f"{note}" for note in dict.fromkeys(n for row in risky for n in row.risks)
                 )
@@ -949,7 +950,9 @@ class MoveWeaponDialog(QDialog):
             ):
                 cell = QTableWidgetItem(value or "-")
                 if column == 2 and row.already_changed:
-                    cell.setForeground(_BORROWED)
+                    borrowed_font = cell.font()
+                    borrowed_font.setItalic(True)
+                    cell.setFont(borrowed_font)
                     cell.setToolTip(
                         "An earlier operation in this session already changed this. It is not "
                         "the game's default."

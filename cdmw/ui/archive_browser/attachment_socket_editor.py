@@ -510,11 +510,11 @@ class ArchiveAttachmentSocketEditorMixin:
                 item.setData(0, Qt.UserRole, other_socket)
                 item.setData(1, Qt.UserRole, current_index)
                 if status == "Same":
-                    item.setForeground(7, QBrush(QColor("#86efac")))
+                    item.setBackground(7, QBrush(QColor("#4886efac")))
                 elif status.startswith("Different"):
-                    item.setForeground(7, QBrush(QColor("#fde68a")))
+                    item.setBackground(7, QBrush(QColor("#48fde68a")))
                 else:
-                    item.setForeground(7, QBrush(QColor("#67e8f9")))
+                    item.setBackground(7, QBrush(QColor("#4867e8f9")))
                 for column in range(compare_tree.columnCount()):
                     item.setToolTip(column, item.text(column))
                 compare_tree.addTopLevelItem(item)

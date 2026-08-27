@@ -121,54 +121,6 @@ class ArchiveMeshImportExportMixin:
         dialog.setObjectName("MeshImportSetupDialog")
         dialog.setWindowTitle(title)
         dialog.setMinimumSize(760, 460)
-        dialog.setStyleSheet(
-            """
-            QDialog#MeshImportSetupDialog QLabel#HintLabel {
-                color: #a7b0bd;
-            }
-            QDialog#MeshImportSetupDialog QLabel#WarningLabel {
-                color: #facc15;
-            }
-            QDialog#MeshImportSetupDialog QLabel#CompactPathValue {
-                color: #dbeafe;
-            }
-            QDialog#MeshImportSetupDialog QLabel#MetricChip {
-                border-radius: 4px;
-                padding: 3px 8px;
-                font-weight: 600;
-            }
-            QDialog#MeshImportSetupDialog QLabel#MetricChip[chipRole="format"] {
-                background: #164e63;
-                color: #a5f3fc;
-            }
-            QDialog#MeshImportSetupDialog QLabel#MetricChip[chipRole="ready"] {
-                background: #14532d;
-                color: #bbf7d0;
-            }
-            QDialog#MeshImportSetupDialog QLabel#MetricChip[chipRole="warn"] {
-                background: #713f12;
-                color: #fde68a;
-            }
-            QDialog#MeshImportSetupDialog QLabel#MetricChip[chipRole="info"] {
-                background: #1e3a8a;
-                color: #bfdbfe;
-            }
-            QDialog#MeshImportSetupDialog QGroupBox {
-                margin-top: 10px;
-                padding: 8px;
-            }
-            QDialog#MeshImportSetupDialog QGroupBox::title {
-                left: 10px;
-                padding: 0 4px;
-                color: #e5e7eb;
-                font-weight: 700;
-            }
-            QDialog#MeshImportSetupDialog QTreeWidget,
-            QDialog#MeshImportSetupDialog QListWidget {
-                alternate-background-color: #24272d;
-            }
-            """
-        )
         root_layout = QVBoxLayout(dialog)
         root_layout.setContentsMargins(12, 10, 12, 10)
         root_layout.setSpacing(8)
@@ -390,9 +342,12 @@ class ArchiveMeshImportExportMixin:
                 line_label.setWordWrap(True)
                 line_label.setObjectName("HintLabel")
                 if "supported" in line_text.lower():
-                    line_label.setStyleSheet("color: #86efac;")
+                    line_label.setProperty("healthState", "healthy")
                 elif "warning" in line_text.lower() or "error" in line_text.lower():
-                    line_label.setStyleSheet("color: #facc15;")
+                    line_label.setProperty(
+                        "healthState",
+                        "unhealthy" if "error" in line_text.lower() else "stale",
+                    )
                 diagnostics_layout.addWidget(line_label)
             summary_layout.addWidget(diagnostics_group)
 
@@ -435,10 +390,10 @@ class ArchiveMeshImportExportMixin:
                 item = QTreeWidgetItem(["Info", line_text])
             lower_line = line_text.lower()
             if "large" in lower_line or "slow" in lower_line or "warning" in lower_line:
-                item.setForeground(0, QBrush(QColor("#facc15")))
-                item.setForeground(1, QBrush(QColor("#facc15")))
+                item.setBackground(0, QBrush(QColor("#48facc15")))
+                item.setBackground(1, QBrush(QColor("#48facc15")))
             elif "target" in lower_line or "source" in lower_line:
-                item.setForeground(1, QBrush(QColor("#bfdbfe")))
+                item.setBackground(1, QBrush(QColor("#48bfdbfe")))
             preflight_tree.addTopLevelItem(item)
         preflight_layout.addWidget(preflight_tree)
         payload_layout.addWidget(preflight_group)

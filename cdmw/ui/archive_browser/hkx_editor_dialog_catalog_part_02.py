@@ -57,7 +57,7 @@ def _dialog_step_0121(_state):
             )
             field_item.setToolTip(6, "Use Show Selected Editor to jump to the editor that owns this value.")
             if field_element.get("importable") == "true":
-                field_item.setForeground(7, _state.QBrush(_state.QColor("#9fd0ff")))
+                field_item.setBackground(7, _state.QBrush(_state.QColor("#489fd0ff")))
             field_item.setToolTip(10, field_element.get("edit_guidance") or "")
             field_item.setToolTip(11, field_element.get("suggested_edit_step") or field_element.get("value_constraints") or "")
             group_item.addChild(field_item)
@@ -283,8 +283,8 @@ def _dialog_step_0130(_state):
         item.setData(4, _state.ORIGINAL_VALUE_ROLE, original_value)
         item.setData(4, _state.DIRTY_KEY_ROLE, _state._dirty_lookup("collision", key))
         item.setFlags(item.flags() | _state.Qt.ItemFlag.ItemIsEditable)
-        item.setForeground(1, _state.QBrush(_state.QColor("#bae6fd")))
-        item.setForeground(4, _state.QBrush(_state.QColor("#dbeafe")))
+        item.setBackground(1, _state.QBrush(_state.QColor("#48bae6fd")))
+        item.setBackground(4, _state.QBrush(_state.QColor("#48dbeafe")))
         item.setToolTip(
             4,
             "Guarded mesh edit. Enter four byte values, keeping the same values as the original tuple, only reordered.",
@@ -307,8 +307,8 @@ def _dialog_step_0131(_state):
     ) -> None:
         item = _state.QTreeWidgetItem((shape_index, field, row, component, value, confidence, description))
         item.setFlags(item.flags() & ~_state.Qt.ItemFlag.ItemIsEditable)
-        item.setForeground(1, _state.QBrush(_state.QColor("#cbd5e1")))
-        item.setForeground(4, _state.QBrush(_state.QColor("#cbd5e1")))
+        item.setBackground(1, _state.QBrush(_state.QColor("#48cbd5e1")))
+        item.setBackground(4, _state.QBrush(_state.QColor("#48cbd5e1")))
         item.setToolTip(4, "Read-only decoded collision context. It is ignored on import.")
         parent.addChild(item)
     _state._add_collision_read_only_item = _add_collision_read_only_item

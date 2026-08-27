@@ -482,8 +482,8 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         )
         _alignment_startup_step(_alignment_setup_warning_startup_text_helper())
         mapping_warning = QLabel(_alignment_setup_warning_label_text_helper(exc))
+        mapping_warning.setObjectName("WarningText")
         mapping_warning.setWordWrap(True)
-        mapping_warning.setStyleSheet("color: #fdd663;")
         parts_layout.addWidget(mapping_warning)
 
 

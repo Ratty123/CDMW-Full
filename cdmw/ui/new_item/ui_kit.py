@@ -11,8 +11,8 @@ from __future__ import annotations
 from html import escape
 from typing import Optional, Tuple
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QSizePolicy, QTableWidget, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtWidgets import QApplication, QLabel, QSizePolicy, QTableWidget, QToolButton, QVBoxLayout, QWidget
 
 __all__ = [
     "BLOCK",
@@ -42,11 +42,11 @@ BLOCK = "block"
 #: differs from the template
 EDIT = "edit"
 
-_COLORS = {
-    OK: "#2e9e4f",
-    WARN: "#d18a00",
-    BLOCK: "#d64545",
-    EDIT: "#3d7bd9",
+_TONE_ROLES = {
+    OK: "text_strong",
+    WARN: "warning_text",
+    BLOCK: "error",
+    EDIT: "accent",
 }
 
 #: Guided pages use the header as their only title. Internal group boxes retain their
@@ -60,34 +60,26 @@ STEP_STYLE = (
 
 
 def muted_color(palette) -> str:
-    """A secondary-text colour readable on this palette: the text colour pulled part of the
-    way toward the window colour, so it is grey on light and light grey on dark."""
+    """The active application's contrast-checked secondary-text colour."""
 
     from PySide6.QtGui import QPalette
 
-    text = palette.color(QPalette.ColorRole.WindowText)
-    window = palette.color(QPalette.ColorRole.Window)
-    mix = 0.62
-    return "#%02x%02x%02x" % (
-        int(text.red() * mix + window.red() * (1 - mix)),
-        int(text.green() * mix + window.green() * (1 - mix)),
-        int(text.blue() * mix + window.blue() * (1 - mix)),
-    )
+    return palette.color(QPalette.ColorRole.PlaceholderText).name()
 
 
 def step_style(palette) -> str:
-    """Professional guided-workspace roles, exact on dark and palette-derived elsewhere."""
+    """Guided-workspace roles derived entirely from the active application palette."""
 
     from PySide6.QtGui import QPalette
 
-    window = palette.color(QPalette.ColorRole.Window)
-    dark = window.lightness() < 128
-    background = "#16191c" if dark else window.name()
-    panel = "#1d2125" if dark else palette.color(QPalette.ColorRole.Base).name()
-    border = "#343a40" if dark else palette.color(QPalette.ColorRole.Mid).name()
-    active = "#078de5" if dark else palette.color(QPalette.ColorRole.Highlight).name()
+    background = palette.color(QPalette.ColorRole.Window).name()
+    panel = palette.color(QPalette.ColorRole.Base).name()
+    border = palette.color(QPalette.ColorRole.Mid).name()
+    active = palette.color(QPalette.ColorRole.Highlight).name()
+    active_text = palette.color(QPalette.ColorRole.HighlightedText).name()
     text = palette.color(QPalette.ColorRole.WindowText).name()
     muted = muted_color(palette)
+    caution = palette.color(QPalette.ColorRole.Link).name()
     return (STEP_STYLE % {"muted": muted}) + f"""
         QWidget#new_item_steps, QStackedWidget {{ background: {background}; }}
         QGroupBox#new_item_step[guidedPage="true"] {{ border: none; margin-top: 0; padding: 0; }}
@@ -101,15 +93,15 @@ def step_style(palette) -> str:
         QSplitter#effect_workspace_splitter::handle, QSplitter#effect_placement_splitter::handle {{ background: {border}; width: 1px; }}
         QLabel#effect_library_heading, QLabel#effect_inspector_heading {{ font-weight: 600; color: {text}; }}
         QLabel#effect_compatibility {{ color: {muted}; }}
-        QLabel#effect_visual_caution {{ color: #d18a00; border-top: 1px solid {border}; }}
+        QLabel#effect_visual_caution {{ color: {caution}; border-top: 1px solid {border}; }}
         QTableView#effect_library {{ border: 1px solid {border}; background: {panel}; alternate-background-color: {background}; outline: none; }}
         QTableView#effect_library::item {{ border: none; padding: 0 4px; }}
         QTableView#effect_library::item:hover {{ background: {border}; }}
-        QTableView#effect_library::item:selected {{ color: white; background: {active}; }}
+        QTableView#effect_library::item:selected {{ color: {active_text}; background: {active}; }}
         QTableView#effect_library QHeaderView::section {{ min-height: 20px; padding: 0 4px; font-weight: normal; }}
         QLineEdit#effect_search {{ min-height: 30px; border: 1px solid {border}; padding: 0 8px; background: {background}; }}
         QToolButton[effectChip="true"] {{ min-height: 24px; padding: 0 5px; border: 1px solid {border}; border-radius: 4px; }}
-        QToolButton[effectChip="true"]:checked {{ color: white; background: {active}; border-color: {active}; }}
+        QToolButton[effectChip="true"]:checked {{ color: {active_text}; background: {active}; border-color: {active}; }}
         QPushButton[effectToolbarButton="true"] {{ min-height: 30px; padding: 0 2px; }}
         QGroupBox#new_item_step QLineEdit, QGroupBox#new_item_step QComboBox,
         QGroupBox#new_item_step QDoubleSpinBox, QGroupBox#new_item_step QPushButton {{ min-height: 30px; }}
@@ -137,9 +129,17 @@ def note(text: str, tone: Optional[str] = None) -> Tuple[str, Optional[str]]:
 
 
 def tone_color(tone: Optional[str]) -> str:
-    """The hex colour of a tone, "" for none."""
+    """The active theme's semantic colour for a tone, or "" for none."""
 
-    return _COLORS.get(str(tone or ""), "")
+    role = _TONE_ROLES.get(str(tone or ""), "")
+    if not role:
+        return ""
+    from cdmw.constants import DEFAULT_UI_THEME
+    from cdmw.ui.themes import get_theme
+
+    application = QApplication.instance()
+    theme_key = str(application.property("_cdmw_theme_key") or "") if application is not None else ""
+    return get_theme(theme_key or DEFAULT_UI_THEME)[role]
 
 
 def tinted(text: str, tone: Optional[str] = None, *, bold: bool = False) -> str:
@@ -181,6 +181,7 @@ class NoteLabel(QLabel):
 
     def __init__(self, text: str = "", tone: Optional[str] = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
+        self._line_rows: Optional[Tuple[Tuple[str, Optional[str]], ...]] = None
         self.setWordWrap(True)
         self.setTextFormat(Qt.RichText)
         self.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -190,6 +191,7 @@ class NoteLabel(QLabel):
         self.set_note(text, tone)
 
     def set_note(self, text: str, tone: Optional[str] = None) -> None:
+        self._line_rows = None
         self._plain = str(text or "")
         self._tone = tone
         self.updateGeometry()
@@ -201,8 +203,9 @@ class NoteLabel(QLabel):
         drawn with the label bold and, with `line_chars`, the value shortened in the
         middle so label and value fit that many characters on the line."""
 
+        line_rows = tuple((str(text), tone) for text, tone in lines)
         rows = []
-        for text, tone in lines:
+        for text, tone in line_rows:
             text = str(text or "")
             if not text:
                 continue
@@ -212,9 +215,23 @@ class NoteLabel(QLabel):
                 rows.append(tinted(label + ":", tone, bold=True) + " " + tinted(shown, tone))
             else:
                 rows.append(tinted(text, tone))
-        self._plain = "\n".join(str(text) for text, _tone in lines)
+        self._line_rows = line_rows
+        self._plain = "\n".join(text for text, _tone in line_rows)
+        self._line_chars = int(line_chars or 0)
         self.setText("<br>".join(rows))
         self.setVisible(bool(rows))
+
+    def changeEvent(self, event: QEvent) -> None:  # noqa: N802 - QWidget API
+        super().changeEvent(event)
+        if event.type() not in {
+            QEvent.Type.ApplicationPaletteChange,
+            QEvent.Type.PaletteChange,
+        } or not hasattr(self, "_plain"):
+            return
+        if self._line_rows is None:
+            self.setText(tinted(self._plain, self._tone) if self._plain else "")
+            return
+        self.set_lines(self._line_rows, line_chars=getattr(self, "_line_chars", 0))
 
     def plain_text(self) -> str:
         return self._plain

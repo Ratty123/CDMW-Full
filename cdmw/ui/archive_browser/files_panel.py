@@ -59,11 +59,6 @@ class ArchiveFilesPanelMixin:
 
         self.archive_swap_banner = QFrame()
         self.archive_swap_banner.setObjectName("ArchiveSwapBanner")
-        self.archive_swap_banner.setStyleSheet(
-            "#ArchiveSwapBanner { background-color: rgba(253, 214, 99, 28);"
-            " border: 1px solid #fdd663; border-radius: 4px; }"
-            " #ArchiveSwapBannerLabel { color: #fdd663; }"
-        )
         swap_banner_layout = QHBoxLayout(self.archive_swap_banner)
         swap_banner_layout.setContentsMargins(10, 6, 10, 6)
         swap_banner_layout.setSpacing(8)

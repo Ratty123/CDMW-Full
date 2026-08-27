@@ -187,11 +187,11 @@ class ArchiveSourceMixOverlayMixin:
             item.setToolTip(1, candidate.display_path)
             item.setToolTip(6, candidate.confidence or "Source-mix evidence.")
             if candidate.default_action == "resolve":
-                item.setForeground(6, QBrush(QColor("#fbbf24")))
+                item.setBackground(6, QBrush(QColor("#48fbbf24")))
             elif candidate.default_action == "replace":
-                item.setForeground(0, QBrush(QColor("#86efac")))
+                item.setBackground(0, QBrush(QColor("#4886efac")))
             elif not isinstance(candidate.target_archive_entry, ArchiveEntry):
-                item.setForeground(0, QBrush(QColor("#9ca3af")))
+                item.setBackground(0, QBrush(QColor("#489ca3af")))
             candidate_item_by_key.setdefault(_candidate_key(candidate), []).append(item)
             return item
 

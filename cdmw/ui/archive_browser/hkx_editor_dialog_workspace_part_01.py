@@ -8,26 +8,26 @@ def _dialog_step_0066(_state):
         risk = str(item.text(2) or "").casefold()
         linked_by = str(item.text(4) or "")
         if safety == "Import-safe":
-            item.setForeground(1, _state.QBrush(_state.QColor("#9fd0ff")))
-            item.setForeground(0, _state.QBrush(_state.QColor("#dbeafe")))
+            item.setBackground(1, _state.QBrush(_state.QColor("#489fd0ff")))
+            item.setBackground(0, _state.QBrush(_state.QColor("#48dbeafe")))
         elif safety == "Read-only candidate":
-            item.setForeground(1, _state.QBrush(_state.QColor("#fde68a")))
-            item.setForeground(0, _state.QBrush(_state.QColor("#e5e7eb")))
+            item.setBackground(1, _state.QBrush(_state.QColor("#48fde68a")))
+            item.setBackground(0, _state.QBrush(_state.QColor("#48e5e7eb")))
         elif safety == "Structural blocked":
-            item.setForeground(1, _state.QBrush(_state.QColor("#fca5a5")))
-            item.setForeground(0, _state.QBrush(_state.QColor("#cbd5e1")))
+            item.setBackground(1, _state.QBrush(_state.QColor("#48fca5a5")))
+            item.setBackground(0, _state.QBrush(_state.QColor("#48cbd5e1")))
         if "low" in risk or "existing" in risk:
-            item.setForeground(2, _state.QBrush(_state.QColor("#86efac")))
+            item.setBackground(2, _state.QBrush(_state.QColor("#4886efac")))
         elif "medium" in risk or "required" in risk:
-            item.setForeground(2, _state.QBrush(_state.QColor("#fde68a")))
+            item.setBackground(2, _state.QBrush(_state.QColor("#48fde68a")))
         elif risk:
-            item.setForeground(2, _state.QBrush(_state.QColor("#fca5a5")))
+            item.setBackground(2, _state.QBrush(_state.QColor("#48fca5a5")))
         if linked_by in {"Fixup-backed", "Owner-array"}:
-            item.setForeground(4, _state.QBrush(_state.QColor("#67e8f9")))
+            item.setBackground(4, _state.QBrush(_state.QColor("#4867e8f9")))
         elif linked_by == "Inferred":
-            item.setForeground(4, _state.QBrush(_state.QColor("#fde68a")))
+            item.setBackground(4, _state.QBrush(_state.QColor("#48fde68a")))
         elif linked_by:
-            item.setForeground(4, _state.QBrush(_state.QColor("#cbd5e1")))
+            item.setBackground(4, _state.QBrush(_state.QColor("#48cbd5e1")))
     _state._style_modding_workspace_item = _style_modding_workspace_item
 
 def _dialog_step_0067(_state):
@@ -251,18 +251,18 @@ def _dialog_step_0072(_state):
             data["computed_risk"] = risk
             item.setData(0, _state.BROWSER_DATA_ROLE, data)
             if safe_rows > 0:
-                item.setForeground(2, _state.QBrush(_state.QColor("#86efac")))
+                item.setBackground(2, _state.QBrush(_state.QColor("#4886efac")))
             elif context_rows > 0:
-                item.setForeground(3, _state.QBrush(_state.QColor("#fde68a")))
+                item.setBackground(3, _state.QBrush(_state.QColor("#48fde68a")))
             else:
-                item.setForeground(4, _state.QBrush(_state.QColor("#9aa7b4")))
+                item.setBackground(4, _state.QBrush(_state.QColor("#489aa7b4")))
             risk_key = risk.casefold()
             if risk_key in {"low", "safe"}:
-                item.setForeground(4, _state.QBrush(_state.QColor("#86efac")))
+                item.setBackground(4, _state.QBrush(_state.QColor("#4886efac")))
             elif "medium" in risk_key or "context" in risk_key:
-                item.setForeground(4, _state.QBrush(_state.QColor("#fde68a")))
+                item.setBackground(4, _state.QBrush(_state.QColor("#48fde68a")))
             elif "high" in risk_key or "read-only" in risk_key:
-                item.setForeground(4, _state.QBrush(_state.QColor("#fca5a5")))
+                item.setBackground(4, _state.QBrush(_state.QColor("#48fca5a5")))
             item.setToolTip(
                 0,
                 "Double-click to filter values for this area. Safe rows are importable fixed-size CDMW patch targets; context rows are naming/link evidence.",

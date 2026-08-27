@@ -145,7 +145,7 @@ def test_mapping_edit_and_status_summary_helpers_preserve_presentation_copy() ->
     html = mapping_status_summary_html(("<span>Source A</span>", "<span>DDS B</span>"))
 
     assert "font-size:0.8em" in html
-    assert "background:#0d1117" in html
+    assert "background:" not in html
     assert "<span>Source A</span><span>DDS B</span>" in html
     badge = mapping_status_summary_badge("DDS", "Review", "#d29922")
     assert "DDS" in badge
@@ -509,10 +509,10 @@ def test_mapping_validation_warning_text_preserves_dialog_copy() -> None:
 def test_geometry_mapping_summary_html_preserves_counts_and_session_edits() -> None:
     html = geometry_mapping_summary_html(1234, 56, 7, session_edit_count=8)
 
-    assert "Replacement parts</span><span style='color:#f0f6fc;'> 1,234</span>" in html
-    assert "Active targets</span><span style='color:#f0f6fc;'> 56</span>" in html
-    assert "Empty targets</span><span style='color:#f0f6fc;'> 7</span>" in html
-    assert "Session edits</span><span style='color:#f0f6fc;'> 8</span>" in html
+    assert "Replacement parts</span><span style=''> 1,234</span>" in html
+    assert "Active targets</span><span style=''> 56</span>" in html
+    assert "Empty targets</span><span style=''> 7</span>" in html
+    assert "Session edits</span><span style=''> 8</span>" in html
     assert "Session edits" not in geometry_mapping_summary_html(1, 2, 3)
 
 

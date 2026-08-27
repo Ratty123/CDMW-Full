@@ -531,7 +531,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         else:
             self._value_edits[offset] = (original_raw, new_raw)
         item.setText(2, describe_value(type_name, new_raw))
-        item.setForeground(
+        item.setBackground(
             2, QBrush(_CHANGED_COLOUR) if offset in self._value_edits else QBrush()
         )
         self._sync_twin_placements(item, placement, editor.result_placement)
@@ -547,7 +547,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         changed = current != original
         warning = self._warning_for(original, current) if changed else ""
         colour = _WARNING_COLOUR if warning else _CHANGED_COLOUR if changed else None
-        item.setForeground(2, QBrush(colour) if colour else QBrush())
+        item.setBackground(2, QBrush(colour) if colour else QBrush())
         item.setToolTip(2, warning or ("Changed." if changed else ""))
         self._refresh_pending_state()
 
@@ -716,7 +716,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
                     offset, type_name, original_raw, member_name = stored
                     if offset in self._value_edits:
                         child.setText(2, describe_value(type_name, original_raw))
-                        child.setForeground(2, QBrush())
+                        child.setBackground(2, QBrush())
         self._value_edits.clear()
         self._log("Reverted to the values stored in the file.")
         # Last: it rebuilds the tree, so the row work above has to be done with

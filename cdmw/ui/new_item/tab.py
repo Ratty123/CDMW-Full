@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import QEvent, Qt, Signal, QTimer
 from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -83,6 +83,7 @@ class NewItemStudioTab(QWidget):
         effect_dirty_prompt: Optional[Callable[[], str]] = None,
     ) -> None:
         super().__init__(parent)
+        self._applying_step_style = False
         self._window = window
         self._get_entries = get_archive_entries or (lambda: getattr(window, "archive_entries", None) or ())
         self._get_package_root = get_package_root or (lambda: _window_package_root(window))
@@ -152,6 +153,26 @@ class NewItemStudioTab(QWidget):
             archive_settings_signal.connect(self.set_archive_performance_settings)
 
     # ------------------------------------------------------------------ bootstrap
+
+    def changeEvent(self, event: QEvent) -> None:  # noqa: N802 - QWidget API
+        super().changeEvent(event)
+        if event.type() in {
+            QEvent.Type.ApplicationPaletteChange,
+            QEvent.Type.PaletteChange,
+        }:
+            self._apply_step_style()
+
+    def _apply_step_style(self) -> None:
+        if getattr(self, "_applying_step_style", False):
+            return
+        stylesheet = step_style(self.palette())
+        if self.styleSheet() == stylesheet:
+            return
+        self._applying_step_style = True
+        try:
+            self.setStyleSheet(stylesheet)
+        finally:
+            self._applying_step_style = False
 
     def set_preview_render_settings(self, settings: object | None) -> None:
         self._preview_render_settings = clamp_model_preview_render_settings(settings)
@@ -332,7 +353,7 @@ class NewItemStudioTab(QWidget):
 
         # One guided workspace: the clickable header owns navigation, the current page
         # owns the whole width, and the footer keeps Back / progress / Continue stable.
-        self.setStyleSheet(step_style(self.palette()))
+        self._apply_step_style()
         self.steps = WorkflowHeader()
         self.steps.setObjectName("new_item_steps")
         self.pages = QStackedWidget()
@@ -367,8 +388,11 @@ class NewItemStudioTab(QWidget):
         self.summary = NoteLabel("", parent=self.summary_box)
         self.summary.setObjectName("new_item_summary")
         summary_layout.addWidget(self.summary)
-        green, amber, red, blue = tinted("green", OK), tinted("amber", WARN), tinted("red", BLOCK), tinted("blue", EDIT)
-        self.summary_box.setToolTip(f"{green} settled, {amber} wants a decision or an in-game check, {red} blocks the plan, {blue} differs from the template.")
+        settled, review, blocked, edited = "OK", tinted("amber"), "Blocked", "Edited"
+        self.summary_box.setToolTip(
+            f"{settled} settled, {review} wants a decision or an in-game check, "
+            f"{blocked} blocks the plan, {edited} differs from the template."
+        )
         self.summary_box.setVisible(False)
 
         body = QWidget()

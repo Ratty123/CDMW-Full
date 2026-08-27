@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import difflib
 
-from PySide6.QtCore import QRect, QRegularExpression, QSize, Qt
+from PySide6.QtCore import QEvent, QRect, QRegularExpression, QSize, Qt
 from PySide6.QtGui import (
     QColor,
     QFontDatabase,
@@ -16,26 +16,35 @@ from PySide6.QtGui import (
     QTextCursor,
     QTextDocument,
 )
-from PySide6.QtWidgets import QLabel, QPlainTextEdit, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QPlainTextEdit, QTabWidget, QVBoxLayout, QWidget
+
+from cdmw.constants import DEFAULT_UI_THEME
+from cdmw.ui.themes import get_theme
 
 
-_EDITOR_BACKGROUND = QColor("#1e1e1e")
-_EDITOR_FOREGROUND = QColor("#d4d4d4")
-_GUTTER_BACKGROUND = QColor("#181818")
-_GUTTER_FOREGROUND = QColor("#858585")
-_GUTTER_ACTIVE = QColor("#c6c6c6")
-_GUTTER_BORDER = QColor("#333333")
-_TAG_COLOR = QColor("#569cd6")
-_ATTRIBUTE_COLOR = QColor("#9cdcfe")
-_VALUE_COLOR = QColor("#ce9178")
-_COMMENT_COLOR = QColor("#6a9955")
-_ENTITY_COLOR = QColor("#dcdcaa")
-_DECLARATION_COLOR = QColor("#c586c0")
-_ADDED_BACKGROUND = QColor("#173b2a")
-_ADDED_FOREGROUND = QColor("#b5f4c7")
-_REMOVED_BACKGROUND = QColor("#4a1f25")
-_REMOVED_FOREGROUND = QColor("#ffb3ba")
-_HUNK_BACKGROUND = QColor("#24385e")
+def _active_editor_colors() -> dict[str, QColor]:
+    application = QApplication.instance()
+    theme_key = str(application.property("_cdmw_theme_key") or "") if application is not None else ""
+    theme = get_theme(theme_key or DEFAULT_UI_THEME)
+    return {
+        "editor_background": QColor(theme["field_alt"]),
+        "editor_foreground": QColor(theme["text"]),
+        "gutter_background": QColor(theme["surface_alt"]),
+        "gutter_foreground": QColor(theme["text_muted"]),
+        "gutter_active": QColor(theme["text_strong"]),
+        "gutter_border": QColor(theme["border"]),
+        "tag": QColor(theme["accent"]),
+        "attribute": QColor(theme["warning_text"]),
+        "value": QColor(theme["text_strong"]),
+        "comment": QColor(theme["text_muted"]),
+        "entity": QColor(theme["warning_text"]),
+        "declaration": QColor(theme["accent"]),
+        "added_background": QColor(theme["accent_soft"]),
+        "added_foreground": QColor(theme["text_strong"]),
+        "removed_background": QColor(theme["warning_bg"]),
+        "removed_foreground": QColor(theme["error"]),
+        "hunk_background": QColor(theme["surface_alt"]),
+    }
 
 
 def _text_format(
@@ -58,24 +67,24 @@ def _text_format(
 
 
 class _XmlRuleHighlighter(QSyntaxHighlighter):
-    def __init__(self, document: QTextDocument) -> None:
+    def __init__(self, document: QTextDocument, colors: dict[str, QColor]) -> None:
         super().__init__(document)
-        self._comment_format = _text_format(_COMMENT_COLOR, italic=True)
-        self._declaration_format = _text_format(_DECLARATION_COLOR)
+        self._comment_format = _text_format(colors["comment"], italic=True)
+        self._declaration_format = _text_format(colors["declaration"])
         self._rules: tuple[tuple[QRegularExpression, QTextCharFormat, int], ...] = (
-            (QRegularExpression(r"</?|/?>"), _text_format(_TAG_COLOR), 0),
+            (QRegularExpression(r"</?|/?>"), _text_format(colors["tag"]), 0),
             (
                 QRegularExpression(r"(<\/?)([A-Za-z_][A-Za-z0-9_.:-]*)"),
-                _text_format(_TAG_COLOR, bold=True),
+                _text_format(colors["tag"], bold=True),
                 2,
             ),
             (
                 QRegularExpression(r"\b([A-Za-z_:][A-Za-z0-9_.:-]*)(?=\s*=)"),
-                _text_format(_ATTRIBUTE_COLOR),
+                _text_format(colors["attribute"]),
                 1,
             ),
-            (QRegularExpression(r'"[^"\r\n]*"|\'[^\'\r\n]*\''), _text_format(_VALUE_COLOR), 0),
-            (QRegularExpression(r"&(?:#\d+|#x[0-9A-Fa-f]+|[A-Za-z_:][\w:.-]*);"), _text_format(_ENTITY_COLOR), 0),
+            (QRegularExpression(r'"[^"\r\n]*"|\'[^\'\r\n]*\''), _text_format(colors["value"]), 0),
+            (QRegularExpression(r"&(?:#\d+|#x[0-9A-Fa-f]+|[A-Za-z_:][\w:.-]*);"), _text_format(colors["entity"]), 0),
             (QRegularExpression(r"<\?.*?\?>"), self._declaration_format, 0),
             (QRegularExpression(r"<!--.*?-->"), self._comment_format, 0),
         )
@@ -121,22 +130,24 @@ class _PacXmlSyntaxHighlighter(_XmlRuleHighlighter):
 
 
 class _UnifiedDiffHighlighter(_XmlRuleHighlighter):
-    def __init__(self, document: QTextDocument) -> None:
-        super().__init__(document)
-        self._added_line = _text_format(_EDITOR_FOREGROUND, background=_ADDED_BACKGROUND)
+    def __init__(self, document: QTextDocument, colors: dict[str, QColor]) -> None:
+        super().__init__(document, colors)
+        self._added_line = _text_format(colors["editor_foreground"], background=colors["added_background"])
         self._added_prefix = _text_format(
-            _ADDED_FOREGROUND,
-            background=_ADDED_BACKGROUND,
+            colors["added_foreground"],
+            background=colors["added_background"],
             bold=True,
         )
-        self._removed_line = _text_format(_EDITOR_FOREGROUND, background=_REMOVED_BACKGROUND)
+        self._removed_line = _text_format(colors["editor_foreground"], background=colors["removed_background"])
         self._removed_prefix = _text_format(
-            _REMOVED_FOREGROUND,
-            background=_REMOVED_BACKGROUND,
+            colors["removed_foreground"],
+            background=colors["removed_background"],
             bold=True,
         )
-        self._hunk = _text_format(_ATTRIBUTE_COLOR, background=_HUNK_BACKGROUND, bold=True)
-        self._metadata = _text_format(_DECLARATION_COLOR, bold=True)
+        self._hunk = _text_format(colors["attribute"], background=colors["hunk_background"], bold=True)
+        self._metadata = _text_format(colors["declaration"], bold=True)
+        self._added_background = colors["added_background"]
+        self._removed_background = colors["removed_background"]
 
     def highlightBlock(self, text: str) -> None:
         self.setCurrentBlockState(0)
@@ -154,12 +165,12 @@ class _UnifiedDiffHighlighter(_XmlRuleHighlighter):
             return
         if text.startswith("+"):
             self.setFormat(0, len(text), self._added_line)
-            self._apply_xml_rules(text[1:], offset=1, background=_ADDED_BACKGROUND)
+            self._apply_xml_rules(text[1:], offset=1, background=self._added_background)
             self.setFormat(0, 1, self._added_prefix)
             return
         if text.startswith("-"):
             self.setFormat(0, len(text), self._removed_line)
-            self._apply_xml_rules(text[1:], offset=1, background=_REMOVED_BACKGROUND)
+            self._apply_xml_rules(text[1:], offset=1, background=self._removed_background)
             self.setFormat(0, 1, self._removed_prefix)
             return
         if text.startswith(" "):
@@ -192,6 +203,8 @@ class PacXmlCodeEditor(QPlainTextEdit):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self._highlighter_kind = str(highlighter or "xml")
+        self._applying_theme = False
         self.setReadOnly(True)
         self.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.setUndoRedoEnabled(False)
@@ -200,13 +213,8 @@ class PacXmlCodeEditor(QPlainTextEdit):
         self.setFont(fixed_font)
         self.setTabStopDistance(QFontMetricsF(fixed_font).horizontalAdvance(" ") * 4)
 
-        palette = self.palette()
-        palette.setColor(QPalette.Base, _EDITOR_BACKGROUND)
-        palette.setColor(QPalette.Text, _EDITOR_FOREGROUND)
-        palette.setColor(QPalette.Highlight, QColor("#264f78"))
-        palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
-        self.setPalette(palette)
-        self.setStyleSheet("QPlainTextEdit { border: 1px solid #3c3c3c; }")
+        self._theme_colors = _active_editor_colors()
+        self._apply_theme_palette()
 
         self.line_number_area = _LineNumberArea(self)
         self.blockCountChanged.connect(self._update_line_number_area_width)
@@ -214,11 +222,36 @@ class PacXmlCodeEditor(QPlainTextEdit):
         self.cursorPositionChanged.connect(self.line_number_area.update)
         self.setPlainText(str(text))
         self.highlighter: QSyntaxHighlighter
-        if highlighter == "diff":
-            self.highlighter = _UnifiedDiffHighlighter(self.document())
-        else:
-            self.highlighter = _PacXmlSyntaxHighlighter(self.document())
+        self.highlighter = self._build_highlighter()
         self._update_line_number_area_width()
+
+    def _build_highlighter(self) -> QSyntaxHighlighter:
+        if self._highlighter_kind == "diff":
+            return _UnifiedDiffHighlighter(self.document(), self._theme_colors)
+        return _PacXmlSyntaxHighlighter(self.document(), self._theme_colors)
+
+    def _apply_theme_palette(self) -> None:
+        palette = QPalette(QApplication.palette())
+        palette.setColor(QPalette.Base, self._theme_colors["editor_background"])
+        palette.setColor(QPalette.Text, self._theme_colors["editor_foreground"])
+        self._applying_theme = True
+        try:
+            self.setPalette(palette)
+        finally:
+            self._applying_theme = False
+
+    def changeEvent(self, event: QEvent) -> None:  # noqa: N802 - QWidget API
+        super().changeEvent(event)
+        if getattr(self, "_applying_theme", False) or event.type() not in {
+            QEvent.Type.ApplicationPaletteChange,
+            QEvent.Type.PaletteChange,
+        } or not hasattr(self, "highlighter"):
+            return
+        self._theme_colors = _active_editor_colors()
+        self._apply_theme_palette()
+        self.highlighter.setDocument(None)
+        self.highlighter = self._build_highlighter()
+        self.line_number_area.update()
 
     def line_number_area_width(self) -> int:
         digits = max(2, len(str(max(1, self.blockCount()))))
@@ -249,8 +282,8 @@ class PacXmlCodeEditor(QPlainTextEdit):
 
     def paint_line_number_area(self, event) -> None:  # type: ignore[no-untyped-def]
         painter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), _GUTTER_BACKGROUND)
-        painter.setPen(_GUTTER_BORDER)
+        painter.fillRect(event.rect(), self._theme_colors["gutter_background"])
+        painter.setPen(self._theme_colors["gutter_border"])
         painter.drawLine(
             self.line_number_area.width() - 1,
             event.rect().top(),
@@ -265,7 +298,11 @@ class PacXmlCodeEditor(QPlainTextEdit):
         active_block = self.textCursor().blockNumber()
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
-                painter.setPen(_GUTTER_ACTIVE if block_number == active_block else _GUTTER_FOREGROUND)
+                painter.setPen(
+                    self._theme_colors["gutter_active"]
+                    if block_number == active_block
+                    else self._theme_colors["gutter_foreground"]
+                )
                 painter.drawText(
                     0,
                     top,

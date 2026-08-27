@@ -69,9 +69,9 @@ def _dialog_step_0009(_state):
             )
             item.setToolTip(4, str(socket.source_path or socket_entry.path))
             if socket_name.strip().casefold() in important_names:
-                item.setForeground(0, _state.QBrush(_state.QColor("#86efac")))
-                item.setForeground(2, _state.QBrush(_state.QColor("#bfdbfe")))
-                item.setForeground(3, _state.QBrush(_state.QColor("#bfdbfe")))
+                item.setBackground(0, _state.QBrush(_state.QColor("#4886efac")))
+                item.setBackground(2, _state.QBrush(_state.QColor("#48bfdbfe")))
+                item.setBackground(3, _state.QBrush(_state.QColor("#48bfdbfe")))
                 if first_important_item is None:
                     first_important_item = item
             _state.placement_socket_tree.addTopLevelItem(item)
@@ -275,7 +275,7 @@ def _dialog_step_0014(_state):
     _state.line_numbers.setHorizontalScrollBarPolicy(_state.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     _state.line_numbers.setFixedWidth(58)
     _state.line_numbers.setFont(_state.build_monospace_font(_state.self.settings))
-    _state.line_numbers.setStyleSheet("QPlainTextEdit { color: #7f8c98; background: rgba(127, 140, 152, 0.08); }")
+    _state.line_numbers.setObjectName("HkxLineNumbers")
     _state.editor = _state.QPlainTextEdit()
     _state.editor.setPlainText(_state.document_text)
     _state.editor.setLineWrapMode(_state.QPlainTextEdit.LineWrapMode.NoWrap)

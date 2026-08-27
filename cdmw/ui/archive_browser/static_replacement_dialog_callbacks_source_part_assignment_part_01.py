@@ -121,7 +121,6 @@ def _build_assignment_summary(_state, frame):
     assignment_dialog = _state.QDialog(_state.dialog)
     assignment_dialog.setWindowTitle(frame.text['window_title'])
     assignment_dialog.setMinimumWidth(820)
-    assignment_dialog.setStyleSheet(assignment_dialog.styleSheet() + '\n            QFrame#AssignmentSummary {\n                background: #151b22;\n                border: 1px solid #30363d;\n                border-radius: 6px;\n            }\n            QLabel#AssignmentTitle {\n                color: #79c0ff;\n                font-weight: 600;\n            }\n            QLabel#AssignmentWarning {\n                color: #f2cc60;\n                font-weight: 500;\n            }\n            QTreeWidget#AssignmentTree {\n                background: #0d1117;\n                border: 1px solid #30363d;\n                border-radius: 4px;\n                alternate-background-color: #12181f;\n            }\n            ')
     assignment_layout = _state.QVBoxLayout(assignment_dialog)
     assignment_layout.setContentsMargins(14, 12, 14, 12)
     assignment_layout.setSpacing(10)

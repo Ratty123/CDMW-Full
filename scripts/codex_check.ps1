@@ -30,6 +30,7 @@ $TestsByArea = @{
         "tests/test_compact_shell_presentations.py",
         "tests/test_compact_shell_visual_harness.py",
         "tests/test_shell_theme_controller.py",
+        "tests/test_theme_surface_coherence.py",
         "tests/test_format_explorer.py",
         "tests/test_translation_studio.py",
         # New Item Studio: headless construction, and a plan driven through its panels.

@@ -233,7 +233,7 @@ def _texture_texture_table_step_009(_state):
             _state._sync_selected_texture_editor(row_state)
         _state._sync_texture_selection_highlight(row_state)
         if row_state is None:
-            _state.texture_detail_browser.setHtml("<html><body style='color:#8b949e; background:#1f1f1f; font-size:0.8em;'>Select a texture role to inspect parameter, source, original DDS, final behavior, and warnings.</body></html>")
+            _state.texture_detail_browser.setHtml("<html><body style='  font-size:0.8em;'>Select a texture role to inspect parameter, source, original DDS, final behavior, and warnings.</body></html>")
         else:
             row_state['_assigned_count'] = details_state.assigned_count
             row_state['_target_row_count'] = details_state.target_row_count

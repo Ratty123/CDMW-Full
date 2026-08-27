@@ -155,10 +155,10 @@ def mapping_source_cell_text(summary: str, ok: bool) -> str:
 def texture_context_path_html(path_text: object) -> str:
     text = str(path_text or "").strip()
     if not text:
-        return "<span style='color:#8b949e;'>none</span>"
+        return "<span style=''>none</span>"
     normalized = text.replace("\\", "/")
     compact = Path(normalized).name or normalized
-    return f"<span title='{escape(text)}' style='color:#a5d6ff; word-break:break-all;'>{escape(compact)}</span>"
+    return f"<span title='{escape(text)}' style=' word-break:break-all;'>{escape(compact)}</span>"
 
 
 def texture_slot_role_color(row_state: dict[str, object]) -> str:
@@ -182,8 +182,8 @@ def texture_context_chip_cell(label: object, background: str, *, foreground: str
 def texture_context_kv_row(label: str, value_html: str) -> str:
     return (
         "<tr>"
-        f"<td width='84' style='padding:1px 7px 1px 0; color:#8b949e; vertical-align:top; white-space:nowrap;'>{escape(label)}</td>"
-        f"<td style='padding:1px 0; color:#e6edf3; vertical-align:top; word-break:break-word;'>{value_html}</td>"
+        f"<td width='84' style='padding:1px 7px 1px 0; vertical-align:top; white-space:nowrap;'>{escape(label)}</td>"
+        f"<td style='padding:1px 0; vertical-align:top; word-break:break-word;'>{value_html}</td>"
         "</tr>"
     )
 
@@ -280,9 +280,9 @@ def material_contract_block(
     status_color = "#f85149" if blocker_count else "#3fb950"
     return (
         "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid "
-        f"{status_color}; background:#161b22;'>"
-        f"<span style='color:{status_color}; font-weight:700;'>DDS {escape(status_text)}</span>"
-        f"<span style='color:#c9d1d9;'> | routes {route_count:,}"
+        f"{status_color}; '>"
+        f"<span style='font-weight:700;'>DDS {escape(status_text)}</span>"
+        f"<span style=''> | routes {route_count:,}"
         f" | base {base_count:,} | normal {normal_count:,}"
         f" | review {pbr_count:,}</span>"
         "</div>"
@@ -301,18 +301,18 @@ def material_plan_summary_block(
 ) -> str:
     if empty:
         return (
-            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #d29922; background:#2b2416;'>"
-            "<span style='color:#f2cc60; font-weight:700;'>Textures 0</span>"
-            "<span style='color:#c9d1d9;'> | original/none</span>"
+            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #d29922; '>"
+            "<span style=' font-weight:700;'>Textures 0</span>"
+            "<span style=''> | original/none</span>"
             "</div>"
         )
     profile_count = profile_material_count + profile_shader_count + profile_emissive_count
     color = "#f2cc60" if conflicts else "#79c0ff"
     return (
         "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid "
-        f"{color}; background:#10233a;'>"
-        f"<span style='color:{color}; font-weight:700;'>Textures</span>"
-        f"<span style='color:#c9d1d9;'> {detected_sets:,} sets | {detected_slots:,} maps"
+        f"{color}; '>"
+        f"<span style='font-weight:700;'>Textures</span>"
+        f"<span style=''> {detected_sets:,} sets | {detected_slots:,} maps"
         f" | warnings {len(conflicts):,} | profiles {profile_count:,}</span>"
         "</div>"
     )
@@ -490,31 +490,31 @@ def texture_assignment_summary_html(
             "material": "#a371f7",
         }.get(table_row.slot_kind, "#8b949e")
         row_html.append(
-            "<tr style='background:#161b22;'>"
-            f"<td style='padding:6px 7px; color:#f0f6fc; white-space:nowrap;'>{escape(table_row.part_label or table_row.part_material)}</td>"
+            "<tr style=''>"
+            f"<td style='padding:6px 7px;  white-space:nowrap;'>{escape(table_row.part_label or table_row.part_material)}</td>"
             f"<td style='padding:6px 7px;'>{html_chip_span(table_row.role, role_color)}</td>"
-            f"<td style='padding:6px 7px; color:#a5d6ff; word-break:break-all;'>{escape(table_row.original_slot)}</td>"
-            f"<td style='padding:6px 7px; color:#e6edf3; word-break:break-all;'>{escape(Path(source_path).name if source_path else 'Keep original')}</td>"
+            f"<td style='padding:6px 7px;  word-break:break-all;'>{escape(table_row.original_slot)}</td>"
+            f"<td style='padding:6px 7px;  word-break:break-all;'>{escape(Path(source_path).name if source_path else 'Keep original')}</td>"
             f"<td style='padding:6px 7px;'>{html_chip_span(status_label, status_color, status_foreground)}</td>"
             f"<td style='padding:6px 7px;'>{html_chip_span(decision, '#238636', '#ffffff')}</td>"
             "</tr>"
         )
     if len(planned_rows) > 18:
         row_html.append(
-            f"<tr><td colspan='6' style='padding:7px; color:#8b949e;'>... {len(planned_rows) - 18:,} more row(s)</td></tr>"
+            f"<tr><td colspan='6' style='padding:7px; '>... {len(planned_rows) - 18:,} more row(s)</td></tr>"
         )
     return (
-        "<html><body style='background:#1f1f1f; color:#e6edf3; font-size:1.2em; margin:0;'>"
+        "<html><body style='  font-size:1.2em; margin:0;'>"
         "<div style='padding:10px 12px; line-height:1.35;'>"
-        f"<div style='font-size:1.7em; font-weight:700; color:#f0f6fc;'>{escape(title)}</div>"
-        f"<div style='margin-top:7px; color:#c9d1d9;'>{escape(reason)}</div>"
-        "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:10px; background:#2b2416; border:1px solid #3d2f12;'>"
-        "<tr><td width='8' style='background:#d29922;'></td>"
-        "<td style='padding:8px 10px; color:#f2cc60;'>"
+        f"<div style='font-size:1.7em; font-weight:700; '>{escape(title)}</div>"
+        f"<div style='margin-top:7px; '>{escape(reason)}</div>"
+        "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:10px;  border:1px solid #3d2f12;'>"
+        "<tr><td width='8' style=''></td>"
+        "<td style='padding:8px 10px; '>"
         "Suggested rows become manual overrides; unchanged rows keep original DDS slots."
         "</td></tr></table>"
         "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:12px; border:1px solid #30363d;'>"
-        "<tr style='background:#24292f; color:#8b949e;'>"
+        "<tr style=' '>"
         "<th align='left' style='padding:6px 7px;'>Part</th>"
         "<th align='left' style='padding:6px 7px;'>Role</th>"
         "<th align='left' style='padding:6px 7px;'>DDS</th>"
@@ -622,9 +622,9 @@ def html_chip_span(label: object, background: str, foreground: str = "#0d1117") 
 def mapping_status_summary_badge(label: str, value: str, color: str) -> str:
     return (
         "<span style='display:inline-block; margin:1px 3px 1px 0; padding:2px 6px; "
-        f"border:1px solid {color}; border-radius:3px; background:#161b22;'>"
-        f"<span style='color:{color}; font-weight:700;'>{escape(label)}</span>"
-        f"<span style='color:#f0f6fc;'> {escape(value or '-')}</span>"
+        f"border:1px solid {color}; border-radius:3px; '>"
+        f"<span style='font-weight:700;'>{escape(label)}</span>"
+        f"<span style=''> {escape(value or '-')}</span>"
         "</span>"
     )
 

@@ -90,7 +90,7 @@ class _PreviewColorButton(QPushButton):
         self.setStyleSheet(
             "QPushButton#PreviewColorButton {"
             f"background-color: {value}; color: {text_color};"
-            "border: 1px solid #5B6470; border-radius: 3px; padding: 5px 10px;"
+            "border: 1px solid palette(mid); border-radius: 3px; padding: 5px 10px;"
             "}"
         )
 

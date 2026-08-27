@@ -529,28 +529,28 @@ def manual_material_profile_delete_question(name: object) -> str:
 def manual_material_profile_texture_impact_html() -> str:
     return (
         "<div style='line-height:1.35;'>"
-        "<div style='font-weight:700; color:#f0f6fc; margin-bottom:4px;'>Texture impact</div>"
-        "<div style='color:#d29922; margin-bottom:6px;'>"
+        "<div style='font-weight:700;  margin-bottom:4px;'>Texture impact</div>"
+        "<div style=' margin-bottom:6px;'>"
         "<b>Conditional:</b> controls need matching source maps/factors and target sidecar slots. If missing, the change may only affect generated metadata, or may have no visible in-game effect."
         "</div>"
         "<table cellspacing='0' cellpadding='3' style='border-collapse:collapse;'>"
-        "<tr><td><span style='color:#7ee787; font-weight:700;'>Color</span></td>"
-        "<td>base DDS <span style='color:#8b949e;'>*_base*.dds / _overlayColorTexture</span></td>"
-        "<td style='color:#8b949e;'>Affects source albedo/color.</td></tr>"
-        "<tr><td><span style='color:#ff7b72; font-weight:700;'>Emissive</span></td>"
-        "<td>emissive DDS <span style='color:#8b949e;'>*_emi.dds</span></td>"
-        "<td style='color:#8b949e;'>Only when source has emissive.</td></tr>"
-        "<tr><td><span style='color:#79c0ff; font-weight:700;'>PBR mask</span></td>"
-        "<td>material mask DDS <span style='color:#8b949e;'>*_ma.dds / _detailMaskTexture</span></td>"
-        "<td style='color:#8b949e;'>Roughness, metal, AO, mask alpha. Shared masks affect every part using that DDS.</td></tr>"
-        "<tr><td><span style='color:#ffa657; font-weight:700;'>Shader</span></td>"
-        "<td>sidecar XML <span style='color:#8b949e;'>no separate DDS</span></td>"
-        "<td style='color:#8b949e;'>Shader roughness/metal/shine, neutral tint, invert, force nonmetal.</td></tr>"
-        "<tr><td><span style='color:#c297ff; font-weight:700;'>Height</span></td>"
-        "<td>support DDS <span style='color:#8b949e;'>*_disp.dds / *_mg.dds</span></td>"
-        "<td style='color:#8b949e;'>Only when support maps write or preserve height/detail.</td></tr>"
+        "<tr><td><span style=' font-weight:700;'>Color</span></td>"
+        "<td>base DDS <span style=''>*_base*.dds / _overlayColorTexture</span></td>"
+        "<td style=''>Affects source albedo/color.</td></tr>"
+        "<tr><td><span style=' font-weight:700;'>Emissive</span></td>"
+        "<td>emissive DDS <span style=''>*_emi.dds</span></td>"
+        "<td style=''>Only when source has emissive.</td></tr>"
+        "<tr><td><span style=' font-weight:700;'>PBR mask</span></td>"
+        "<td>material mask DDS <span style=''>*_ma.dds / _detailMaskTexture</span></td>"
+        "<td style=''>Roughness, metal, AO, mask alpha. Shared masks affect every part using that DDS.</td></tr>"
+        "<tr><td><span style=' font-weight:700;'>Shader</span></td>"
+        "<td>sidecar XML <span style=''>no separate DDS</span></td>"
+        "<td style=''>Shader roughness/metal/shine, neutral tint, invert, force nonmetal.</td></tr>"
+        "<tr><td><span style=' font-weight:700;'>Height</span></td>"
+        "<td>support DDS <span style=''>*_disp.dds / *_mg.dds</span></td>"
+        "<td style=''>Only when support maps write or preserve height/detail.</td></tr>"
         "</table>"
-        "<div style='color:#8b949e; margin-top:5px;'>Exact output filenames appear in the build notes.</div>"
+        "<div style=' margin-top:5px;'>Exact output filenames appear in the build notes.</div>"
         "</div>"
     )
 
@@ -664,7 +664,7 @@ def manual_material_profile_token(
 
 def manual_material_profile_initial_status_html() -> str:
     return (
-        "<span style='color:#8b949e;'>Manual sliders queue preview refresh after input settles; "
+        "<span style=''>Manual sliders queue preview refresh after input settles; "
         "Apply forces the current values now.</span>"
     )
 
@@ -684,12 +684,12 @@ def manual_material_profile_fallback_payload(profile: object) -> dict[str, str]:
 def manual_material_profile_preview_warning_html() -> str:
     return (
         "<div style='line-height:1.35;'>"
-        "<div style='font-weight:700; color:#d29922; margin-bottom:3px;'>Preview warning</div>"
+        "<div style='font-weight:700;  margin-bottom:3px;'>Preview warning</div>"
         "<table cellspacing='0' cellpadding='3' style='border-collapse:collapse;'>"
-        "<tr><td><span style='color:#ffa657; font-weight:700;'>Tool preview</span></td>"
-        "<td style='color:#c9d1d9;'>Approximation only.</td></tr>"
-        "<tr><td><span style='color:#ff7b72; font-weight:700;'>In-game render</span></td>"
-        "<td style='color:#8b949e;'>It cannot render the exact same textured look as the in-game CD shader, lighting, material layers, and post-processing.</td></tr>"
+        "<tr><td><span style=' font-weight:700;'>Tool preview</span></td>"
+        "<td style=''>Approximation only.</td></tr>"
+        "<tr><td><span style=' font-weight:700;'>In-game render</span></td>"
+        "<td style=''>It cannot render the exact same textured look as the in-game CD shader, lighting, material layers, and post-processing.</td></tr>"
         "</table>"
         "</div>"
     )

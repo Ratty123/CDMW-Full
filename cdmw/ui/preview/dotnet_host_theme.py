@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from PySide6.QtWidgets import QApplication
+
 from cdmw.constants import DEFAULT_UI_THEME
 from cdmw.ui.theme_schemes import UI_THEME_SCHEMES
 
@@ -30,6 +32,10 @@ class DotNetPreviewHostThemeMixin:
 
     def set_theme(self, theme_key: str) -> None:
         resolved = str(theme_key or "").strip()
+        if not resolved:
+            application = QApplication.instance()
+            if application is not None:
+                resolved = str(application.property("_cdmw_theme_key") or "").strip()
         if resolved not in UI_THEME_SCHEMES:
             resolved = DEFAULT_UI_THEME
         self._theme_key = resolved

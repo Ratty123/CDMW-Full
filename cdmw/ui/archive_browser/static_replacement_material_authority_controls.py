@@ -164,7 +164,7 @@ def material_authority_global_gloss_tooltip() -> str:
 
 def material_authority_sidecar_warning_html() -> str:
     return (
-        "<span style='color:#8b949e;'>Shader wrappers preserved; "
+        "<span style=''>Shader wrappers preserved; "
         "added parts can emit their own DDS bindings when routed.</span>"
     )
 

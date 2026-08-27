@@ -8,6 +8,7 @@ from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
     install_static_replacement_prompt_dependencies,
 )
 from cdmw.ui.archive_browser.static_replacement_dialog_ui_sections import _alignment_dialog_font_sizes
+from cdmw.ui.themes import get_theme
 
 install_static_replacement_prompt_dependencies(globals())
 
@@ -210,6 +211,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
 
     def _alignment_dialog_font_stylesheet() -> str:
         font_sizes = _alignment_dialog_font_sizes(context)
+        theme = get_theme(str(getattr(self, "current_theme_key", "") or ""))
         ui_font_size = int(font_sizes["ui"])
         data_font_size = int(font_sizes["data"])
         hint_font_size = int(font_sizes["hint"])
@@ -224,7 +226,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             font-size: {ui_font_size}px;
         }}
         QDialog#MeshReplacementAlignmentDialog QLabel#HintLabel {{
-            color: #9aa4b2;
+            color: {theme["text_muted"]};
             font-size: {hint_font_size}px;
         }}
         QDialog#MeshReplacementAlignmentDialog QGroupBox {{
@@ -279,7 +281,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             min-height: {button_min_height}px;
         }}
         QDialog#MeshReplacementAlignmentDialog QPushButton#InlineHelpButton {{
-            color: #79c0ff;
+            color: {theme["accent"]};
             font-weight: 700;
             min-width: {help_button_size}px;
             max-width: {help_button_size}px;
@@ -289,8 +291,8 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             border-radius: {help_button_size // 2}px;
         }}
         QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette {{
-            background: #0d1117;
-            border: 1px solid #30363d;
+            background: {theme["surface_alt"]};
+            border: 1px solid {theme["border"]};
             border-radius: 4px;
             padding: 2px;
         }}
@@ -298,19 +300,20 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             font-size: {ui_font_size}px;
             text-align: left;
             padding: 2px 6px;
-            border: 1px solid #30363d;
+            color: {theme["text"]};
+            border: 1px solid {theme["button_border"]};
             border-radius: 3px;
-            background: #161b22;
+            background: {theme["button"]};
         }}
         QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette QToolButton:checked {{
-            color: #0d1117;
-            background: #f78166;
-            border-color: #ffab70;
+            color: {theme["accent_text"]};
+            background: {theme["accent"]};
+            border-color: {theme["accent"]};
             font-weight: 700;
         }}
         QDialog#MeshReplacementAlignmentDialog QFrame#ClassicMeshEditPreviewToolbar {{
-            background: #111820;
-            border: 1px solid #30363d;
+            background: {theme["surface_alt"]};
+            border: 1px solid {theme["border"]};
             border-radius: 4px;
         }}
         QDialog#MeshReplacementAlignmentDialog QFrame#ClassicMeshEditPreviewActionBar QToolButton {{
@@ -319,9 +322,9 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             min-width: 40px;
         }}
         QDialog#MeshReplacementAlignmentDialog QFrame#ClassicMeshEditPreviewActionBar QToolButton:checked {{
-            color: #0d1117;
-            background: #58a6ff;
-            border: 1px solid #79c0ff;
+            color: {theme["accent_text"]};
+            background: {theme["accent"]};
+            border: 1px solid {theme["accent"]};
             font-weight: 700;
         }}
         QDialog#MeshReplacementAlignmentDialog QWidget#ClassicMeshEditPreviewOptions QLabel,

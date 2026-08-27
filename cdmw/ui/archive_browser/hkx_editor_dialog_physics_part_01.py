@@ -25,18 +25,17 @@ def _dialog_step_0095(_state):
         row_data.setdefault("details", item.text(7))
         item.setData(0, _state.BROWSER_DATA_ROLE, row_data)
         if patchable:
-            item.setForeground(3, _state.QBrush(_state.QColor("#9fd0ff")))
+            item.setBackground(3, _state.QBrush(_state.QColor("#489fd0ff")))
             item.setToolTip(3, "Patchable fixed-size value. Open Linked Value to edit it in the owning editor.")
-            item.setBackground(3, _state.QBrush(_state.QColor("#17324d")))
+            item.setBackground(3, _state.QBrush(_state.QColor("#489fd0ff")))
         elif risk_bucket == "experimental":
-            item.setForeground(0, _state.QBrush(_state.QColor("#cbd5e1")))
-            item.setForeground(3, _state.QBrush(_state.QColor("#9aa7b4")))
+            item.setBackground(0, _state.QBrush(_state.QColor("#48cbd5e1")))
         if risk_bucket == "safe":
-            item.setForeground(5, _state.QBrush(_state.QColor("#86efac")))
+            item.setBackground(5, _state.QBrush(_state.QColor("#4886efac")))
         elif risk_bucket == "inferred":
-            item.setForeground(5, _state.QBrush(_state.QColor("#fde68a")))
+            item.setBackground(5, _state.QBrush(_state.QColor("#48fde68a")))
         elif risk_bucket == "experimental":
-            item.setForeground(5, _state.QBrush(_state.QColor("#fca5a5")))
+            item.setBackground(5, _state.QBrush(_state.QColor("#48fca5a5")))
         item.setToolTip(2, f"Linked by: {_state.self._ui_evidence_label(row_data.get('link_evidence') or item.text(2))}")
         _state.self._ui_style_status_columns(item, {4: item.text(4), 5: risk_bucket})
         parent.addChild(item)
@@ -287,11 +286,11 @@ def _populate_decoder_evidence_tree_part_008(_state, _frame):
         _frame.row_item.setData(0, _state.BROWSER_DATA_ROLE, _frame.data)
         _frame.status_text = (_frame.class_element.get('status') or '').casefold()
         if 'raw' in _frame.status_text:
-            _frame.row_item.setForeground(1, _state.QBrush(_state.QColor('#fca5a5')))
+            _frame.row_item.setBackground(1, _state.QBrush(_state.QColor('#48fca5a5')))
         elif 'partial' in _frame.status_text:
-            _frame.row_item.setForeground(1, _state.QBrush(_state.QColor('#fde68a')))
+            _frame.row_item.setBackground(1, _state.QBrush(_state.QColor('#48fde68a')))
         else:
-            _frame.row_item.setForeground(1, _state.QBrush(_state.QColor('#86efac')))
+            _frame.row_item.setBackground(1, _state.QBrush(_state.QColor('#4886efac')))
         if _frame.link_evidence:
             _frame.row_item.setToolTip(0, f"Link evidence: {', '.join((_state.self._ui_evidence_label(value) for value in _frame.link_evidence))}")
         _frame.classes_group.addChild(_frame.row_item)
@@ -351,9 +350,9 @@ def _populate_decoder_evidence_tree_part_009(_state, _frame):
             _frame.child = _state.QTreeWidgetItem((f"{_frame.candidate.get('class') or ''}.{_frame.candidate.get('member') or ''}".strip('.'), 'write-enabled' if _frame.candidate.get('write_enabled') == 'true' else 'candidate only', _frame.candidate.get('byte_size') or '', _frame.candidate.get('record_index') or '', _frame.candidate.get('local_offset') or _frame.candidate.get('offset_hex') or '', f"{_frame.candidate.get('supported_write_type') or ''} | {_frame.candidate.get('risk_label') or ''}".strip(' |')))
             _frame.child.setData(0, _state.BROWSER_DATA_ROLE, _frame.data)
             if _frame.candidate.get('write_enabled') == 'true':
-                _frame.child.setForeground(1, _state.QBrush(_state.QColor('#86efac')))
+                _frame.child.setBackground(1, _state.QBrush(_state.QColor('#4886efac')))
             else:
-                _frame.child.setForeground(1, _state.QBrush(_state.QColor('#9aa7b4')))
+                _frame.child.setBackground(1, _state.QBrush(_state.QColor('#489aa7b4')))
             _frame.edit_map_group.addChild(_frame.child)
         _frame.edit_map_group.setExpanded(_frame.edit_map_group.childCount() <= 80)
     if _frame.semantic_gate is not None:
@@ -364,7 +363,7 @@ def _populate_decoder_evidence_tree_part_009(_state, _frame):
             _frame.data = {'kind': 'decoder_blocked_edit', 'source': 'semanticWriterGateV1/blockedEditClasses', 'status': 'blocked'}
             _frame.child = _state.QTreeWidgetItem((_frame.blocked.text or '', 'blocked', '', '', '', 'semantic writer gate'))
             _frame.child.setData(0, _state.BROWSER_DATA_ROLE, _frame.data)
-            _frame.child.setForeground(1, _state.QBrush(_state.QColor('#fca5a5')))
+            _frame.child.setBackground(1, _state.QBrush(_state.QColor('#48fca5a5')))
             _frame.gate_group.addChild(_frame.child)
         _frame.gate_group.setExpanded(False)
     if _frame.real_metadata_v2 is not None:

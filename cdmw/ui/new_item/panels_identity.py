@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.new_item.rules import LOCALIZATION_LANGUAGES
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.ui_kit import BLOCK, OK, WARN, NoteLabel, intro_label, note, tinted
+from cdmw.ui.new_item.ui_kit import BLOCK, OK, WARN, NoteLabel, intro_label, note
 
 LANGUAGE_LABELS = {
     "eng": "English", "kor": "Korean", "jpn": "Japanese", "rus": "Russian", "tur": "Turkish",
@@ -119,7 +119,9 @@ class IdentityPanel(QGroupBox):
         checks_layout = QVBoxLayout(checks)
         self.issues = NoteLabel("")
         checks_layout.addWidget(self.issues)
-        self.issues_ok = QLabel(tinted("Nothing blocks the plan.", OK))
+        self.issues_ok = QLabel("Nothing blocks the plan.")
+        self.issues_ok.setObjectName("HintLabel")
+        self.issues_ok.setProperty("healthState", "healthy")
         checks_layout.addWidget(self.issues_ok)
         layout.addWidget(checks)
         layout.addStretch(1)

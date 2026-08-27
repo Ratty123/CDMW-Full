@@ -586,7 +586,8 @@ def test_apply_texture_row_to_item_populates_columns_roles_and_colors() -> None:
     assert item.data(0, Qt.UserRole + 1) == row
     assert item.toolTip(1) == "Source 2 full"
     assert item.toolTip(4) == "mods/body.dds"
-    assert item.foreground(4).color().name() == "#7ee787"
+    assert item.background(4).color().name() == "#7ee787"
+    assert item.background(4).color().alpha() == 72
     assert item.background(5).color().name() == "#3fb950"
 
 

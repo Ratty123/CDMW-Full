@@ -5,9 +5,9 @@ in them is useful, but nothing in them is *findable*: a socket name, its parent 
 rows that use it and the warnings all render identically, so reading either means reading
 all of it.
 
-These helpers add the structure the text always implied — headings, indentation, and colour
-carrying meaning rather than decoration. Only three colours are used, and each one means one
-thing: a name, a number, or a problem.
+These helpers add the structure the text always implied — headings, indentation, weight and
+emphasis carrying meaning rather than decoration. They deliberately inherit the active
+application palette so the same report remains readable in every light and dark theme.
 """
 
 from __future__ import annotations
@@ -15,23 +15,14 @@ from __future__ import annotations
 from html import escape
 from typing import Iterable, List
 
-#: Deliberately few. Colour that means nothing is noise, and these panels are read against
-#: both the dark and light palettes the app can run under.
-NAME = "#7fb2e8"      # a socket, a bone, a file — something you could look up
-VALUE = "#c9a3e8"     # a count or a measurement
-WARN = "#e8a33c"      # something that needs attention
-GOOD = "#78dc8c"      # something confirmed fine
-MUTED = "#98a2b3"     # commentary
-
-#: Qt's rich-text engine supports only a small CSS subset and ignores class selectors in a
-#: <style> block, so every colour is written onto the element itself. Verified by reading
-#: `toHtml()` back: with classes, none of the colours survived.
-_PATH = f"color:{NAME}; font-weight:bold;"
-_OP = f"color:{MUTED}; margin-left:18px;"
-_TIER = f"color:{VALUE}; font-weight:bold;"
-_WARN = f"color:{WARN};"
-_KEY = f"color:{MUTED};"
-_VAL = f"color:{VALUE};"
+#: Qt rich text inherits the QTextBrowser palette when no foreground is forced. Inline
+#: structure is retained because Qt ignores class selectors in a `<style>` block.
+_PATH = "font-weight:bold;"
+_OP = "margin-left:18px;"
+_TIER = "font-weight:bold; text-decoration:underline;"
+_WARN = "font-weight:bold;"
+_KEY = "font-style:italic;"
+_VAL = "font-weight:bold;"
 _STYLE = ""
 
 

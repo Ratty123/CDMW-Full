@@ -510,8 +510,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(action_bar.button_for_key("brush_smooth").isChecked())
         self.assertFalse(action_bar.button_for_key("brush_inflate").isChecked())
         self.assertFalse(action_bar.button_for_key("select_parts").isChecked())
-        self.assertIn("QToolButton:checked", action_bar.styleSheet())
-        self.assertIn("#1769aa", action_bar.styleSheet())
+        self.assertEqual("", action_bar.styleSheet())
 
         action_bar.update_action_state(
             has_target=True,

@@ -4285,7 +4285,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             source.index('summary_layout = QVBoxLayout(summary_group)'),
             source.index("summary_layout.addWidget(source_group)"),
         )
-        self.assertIn('QLabel#MetricChip', source)
+        theme_source = (ROOT / "cdmw" / "ui" / "themes.py").read_text(encoding="utf-8")
+        self.assertIn('chip.setObjectName("MetricChip")', source)
+        self.assertIn('QLabel#MetricChip', theme_source)
         self.assertIn('def _compact_path', source)
         self.assertIn("content_scroll = QScrollArea(dialog)", source)
         self.assertIn("def _fit_mesh_import_setup_dialog_to_screen", source)

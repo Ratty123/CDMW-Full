@@ -57,7 +57,9 @@ class ArchiveUiFormattingMixin:
 
     def _ui_style_status_columns(self, item: QTreeWidgetItem, values_by_column: Mapping[int, object]) -> None:
         for column, value in values_by_column.items():
-            item.setForeground(int(column), QBrush(self._ui_risk_color(value)))
+            tint = self._ui_risk_color(value)
+            tint.setAlpha(72)
+            item.setBackground(int(column), QBrush(tint))
 
     @staticmethod
     def _archive_role_color(role: str) -> QColor:
@@ -82,8 +84,9 @@ class ArchiveUiFormattingMixin:
 
     def _style_archive_role_columns(self, item: QTreeWidgetItem, role: str, *columns: int) -> None:
         color = self._archive_role_color(role)
+        color.setAlpha(72)
         for column in columns:
-            item.setForeground(column, QBrush(color))
+            item.setBackground(column, QBrush(color))
 
     @staticmethod
     def _archive_override_state_color(state: str) -> QColor:
@@ -97,7 +100,9 @@ class ArchiveUiFormattingMixin:
         return QColor("#8b949e")
 
     def _style_archive_override_state_column(self, item: QTreeWidgetItem, state: str, column: int) -> None:
-        item.setForeground(column, QBrush(self._archive_override_state_color(state)))
+        tint = self._archive_override_state_color(state)
+        tint.setAlpha(72)
+        item.setBackground(column, QBrush(tint))
         if str(state or "").casefold().startswith("active"):
             font = item.font(column)
             font.setBold(True)

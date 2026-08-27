@@ -17,7 +17,6 @@ from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from cdmw.ui.new_item.workflow_header import (  # noqa: E402
-    ACTIVE_DARK_COLOR,
     DEFAULT_STEP_LABELS,
     WorkflowStepState,
     WorkflowHeader,
@@ -183,14 +182,16 @@ class WorkflowHeaderTests(unittest.TestCase):
         self.header._finish_progress_animation()
         self.assertAlmostEqual(self.header._progress_position, 5.0, places=2)
 
-    def test_dark_palette_uses_required_active_cyan(self) -> None:
+    def test_dark_palette_uses_its_own_highlight_and_highlighted_text(self) -> None:
         palette = QPalette()
         palette.setColor(QPalette.ColorRole.Window, QColor("#20242a"))
         palette.setColor(QPalette.ColorRole.WindowText, QColor("#f4f6f8"))
         palette.setColor(QPalette.ColorRole.Highlight, QColor("#ff00ff"))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#001122"))
         self.header.setPalette(palette)
         self.app.processEvents()
-        self.assertEqual(self.header._active_color.name(), ACTIVE_DARK_COLOR.name())
+        self.assertEqual(self.header._active_color.name(), "#ff00ff")
+        self.assertEqual(self.header._active_text_color.name(), "#001122")
 
 
 if __name__ == "__main__":

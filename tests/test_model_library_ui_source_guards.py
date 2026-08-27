@@ -195,8 +195,9 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
 
     def test_mesh_import_setup_warns_when_textures_are_absent_or_unchecked(self) -> None:
         source = Path("cdmw/ui/archive_browser/mesh_import_export.py").read_text(encoding="utf-8")
+        theme_source = Path("cdmw/ui/themes.py").read_text(encoding="utf-8")
 
-        self.assertIn('QLabel#WarningLabel', source)
+        self.assertIn('QLabel#WarningLabel', theme_source)
         self.assertIn('supplemental_warning_label.setObjectName("WarningLabel")', source)
         self.assertIn("def _refresh_supplemental_warning() -> None:", source)
         self.assertIn("No local texture files were found for this source.", source)
