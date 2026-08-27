@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+- **Archive Browser no longer leaves another workspace painted over its right-side preview after switching away and back.** The resident .NET/Vortice child window was restored during Qt's still-in-progress stacked-page change, so its native host could remain below the previous page's surface even though Browse Archives was selected. The host now reasserts its settled HWND, size, and z-order on the next UI turn while keeping the resident model and camera state.
+
 ## [0.11.0-alpha.9] - 2026-08-27
 
 ### Added
