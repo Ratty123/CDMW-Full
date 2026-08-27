@@ -279,6 +279,8 @@ def build_controls_panel(tab: object) -> QWidget:
 def _compact_model_library_controls(tab: object) -> None:
     tab._model_library_controls_layout.setSpacing(4)
     tab._model_library_controls_layout.addStretch(1)
+    tab._model_library_controls_content.setMinimumWidth(0)
+    tab._model_library_controls_content.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum)
     tab._model_library_controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     for form in (tab._model_library_mirror_form, tab._model_library_filter_form):
         form.setRowWrapPolicy(form.RowWrapPolicy.WrapAllRows)
