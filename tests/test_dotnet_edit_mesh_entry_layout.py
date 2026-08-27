@@ -113,3 +113,18 @@ def test_the_scene_inspector_opens_settled_and_inside_its_column(
     assert len(bounds) == 3, json.dumps(proof["diagnostic"], indent=2)
     tops = [int(value.split(",")[1]) for value in bounds.values()]
     assert len(set(tops)) == 3, json.dumps(bounds, indent=2)
+
+
+def test_live_ui_theme_recolors_the_real_resident_form(entry_report: dict) -> None:
+    proof = entry_report["ui_theme_state"]
+
+    assert proof["ok"] is True, json.dumps(proof, indent=2)
+    assert proof["light_applied"] is True
+    assert proof["light_controls_match"] is True
+    assert proof["light_ms"] <= 250.0
+    assert proof["crimson_applied"] is True
+    assert proof["crimson_controls_match"] is True
+    assert proof["crimson_ms"] <= 250.0
+    assert proof["final_window"] == "#211814"
+    assert proof["final_input"] == "#1b130f"
+    assert proof["final_text"] == "#d9c0aa"

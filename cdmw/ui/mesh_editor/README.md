@@ -228,10 +228,13 @@ picked. The Orbit button in the Viewport section returns the viewport to Orbit
 navigation; the camera is otherwise reached by the rebindable modifiers named on
 the navigation strip. Host
 `tool_state` synchronization still applies its requested tool directly and does
-not toggle it off during resident-state replay. Every .NET button uses the same
-dark-theme depth treatment: raised at rest and visibly sunken while held by
-mouse or keyboard. Stateful tool, placement-gizmo, and active-pane buttons keep
-the sunken bevel after release, with color serving as a secondary state cue.
+not toggle it off during resident-state replay. The visible resident host
+receives the active application palette before reveal and again on a live theme
+change, including light/dark common-control treatment, fields, panels, text,
+buttons and accent states. Every .NET button keeps the same depth treatment:
+raised at rest and visibly sunken while held by mouse or keyboard. Stateful tool,
+placement-gizmo, and active-pane buttons keep the sunken bevel after release,
+with color serving as a secondary state cue.
 Rendered Gizmo size and pointer hit testing share the Preview Settings values,
 so customized handles remain aligned with interaction.
 Native D3D11 viewport Move/Grab/Smooth/Inflate/Pinch stroke events also route

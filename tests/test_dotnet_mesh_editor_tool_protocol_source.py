@@ -879,7 +879,7 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert "if (!options.Embedded)" not in program_source
     assert '"DotNetMeshEditorLeftToolScroll"' in program_source
     assert '"DotNetMeshEditorRightToolScroll"' in program_source
-    assert 'SetWindowTheme(control.Handle, "DarkMode_Explorer", null)' in program_source
+    assert "ApplyNativeControlTheme(control);" in program_source
     assert "ApplyDarkScrollbars(_submeshList);" in program_source
     # The Parts group builds through its own owner, which also carries the
     # selected-part detail; the whole-part commands stay exactly as they were.

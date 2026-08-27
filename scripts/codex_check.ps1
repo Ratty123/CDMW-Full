@@ -175,6 +175,7 @@ $TestsByArea = @{
         "tests/test_dotnet_helper_manifest_contract.py",
         "tests/test_dotnet_ui_localization_protocol_source.py",
         "tests/test_dotnet_preview_shared_host.py",
+        "tests/test_dotnet_preview_theme.py",
         "tests/test_dotnet_ready_watchdog_progress.py",
         "tests/test_dotnet_mesh_editor_layout_contract.py",
         "tests/test_dotnet_mesh_editor_tool_protocol_source.py",

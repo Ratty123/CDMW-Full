@@ -48,6 +48,7 @@ internal static class HelperBuildProvenance
         "authoritative_resident_scene_frame_v2",
         "helper_build_provenance_v1",
         "ui_localization_v1",
+        "ui_theme_state_v1",
         "renderer_status_request_v1",
         "deterministic_offscreen_capture_v1",
         "performance_capture_v1",

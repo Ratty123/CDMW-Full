@@ -2036,7 +2036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 414,
+          "line": 417,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -20331,12 +20331,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 441,
+          "line": 442,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 442,
+          "line": 443,
           "sink": "setAccessibleName"
         },
         {
@@ -31606,7 +31606,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 399,
+          "line": 400,
           "sink": "QPushButton"
         }
       ]
@@ -32726,7 +32726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 422,
+          "line": 423,
           "sink": "setToolTip"
         }
       ]
@@ -32736,7 +32736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 401,
+          "line": 402,
           "sink": "setToolTip"
         }
       ]
@@ -34091,7 +34091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 427,
+          "line": 428,
           "sink": "QLabel"
         }
       ]
@@ -40926,7 +40926,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 596,
+          "line": 595,
           "sink": "csharp:.Text="
         }
       ]
@@ -41116,7 +41116,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 406,
+          "line": 407,
           "sink": "QPushButton"
         }
       ]
@@ -41526,7 +41526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 408,
+          "line": 409,
           "sink": "setToolTip"
         }
       ]
@@ -46426,7 +46426,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 585,
+          "line": 584,
           "sink": "csharp:.Text="
         }
       ]
@@ -56576,12 +56576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 310,
+          "line": 313,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 411,
+          "line": 414,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -56591,7 +56591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 414,
+          "line": 417,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -57296,7 +57296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 300,
+          "line": 303,
           "sink": "addItem"
         },
         {
@@ -57651,7 +57651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 271,
+          "line": 274,
           "sink": "addItem"
         }
       ]
@@ -58036,7 +58036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 308,
+          "line": 311,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -58141,17 +58141,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 267,
+          "line": 270,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 306,
+          "line": 309,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 355,
+          "line": 358,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -59146,17 +59146,17 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 273,
+          "line": 276,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 313,
+          "line": 316,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 357,
+          "line": 360,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -61371,7 +61371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 413,
+          "line": 414,
           "sink": "QPushButton"
         },
         {
@@ -62376,7 +62376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 415,
+          "line": 416,
           "sink": "setToolTip"
         }
       ]
@@ -65776,7 +65776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 434,
+          "line": 435,
           "sink": "QLabel"
         }
       ]
@@ -76576,7 +76576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 394,
+          "line": 395,
           "sink": "setToolTip"
         }
       ]
@@ -79351,7 +79351,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 175,
+          "line": 177,
           "sink": "QPushButton"
         }
       ]
@@ -79361,7 +79361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 156,
+          "line": 158,
           "sink": "QPushButton"
         }
       ]
@@ -82356,7 +82356,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 1160,
+          "line": 1159,
           "sink": "csharp:.Text="
         }
       ]
@@ -84191,7 +84191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 150,
+          "line": 152,
           "sink": "QLabel"
         },
         {
@@ -86346,7 +86346,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 592,
+          "line": 591,
           "sink": "csharp:.Text="
         }
       ]
@@ -86606,7 +86606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 269,
+          "line": 272,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -99476,7 +99476,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 909,
+          "line": 908,
           "sink": "csharp:.Text="
         }
       ]
@@ -100441,12 +100441,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 345,
+          "line": 348,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 402,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -100456,7 +100456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 471,
+          "line": 474,
           "sink": "setText"
         }
       ]
@@ -100476,7 +100476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 475,
+          "line": 478,
           "sink": "setText"
         }
       ]
@@ -103386,7 +103386,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 782,
+          "line": 781,
           "sink": "csharp:.Text="
         }
       ]
@@ -117841,7 +117841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 335,
+          "line": 338,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -118951,7 +118951,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 269,
+          "line": 272,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -200676,7 +200676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 353,
+          "line": 356,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -204556,7 +204556,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 322,
+          "line": 325,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -204566,7 +204566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 419,
+          "line": 422,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205016,7 +205016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 335,
+          "line": 338,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205821,17 +205821,17 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 345,
+          "line": 348,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 353,
+          "line": 356,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 402,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -206476,7 +206476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 419,
+          "line": 422,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -206636,12 +206636,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 322,
+          "line": 325,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 335,
+          "line": 338,
           "sink": "QTreeWidgetItem"
         },
         {

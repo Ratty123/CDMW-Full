@@ -15,26 +15,26 @@ internal sealed partial class ExperimentForm : Form
     private const int ToolPanelSplitterWidth = 6;
     private const int MinimumViewportWidth = 240;
     private static readonly UTF8Encoding Utf8NoBom = new(false);
-    // The workbench shell's "graphite" scheme, verbatim from
-    // cdmw/ui/theme_schemes.py. The editor is embedded in that shell, so it has
-    // to read as the same application rather than a second one.
-    private static readonly Color ThemeWindowBackground = Color.FromArgb(30, 30, 30);      // #1e1e1e
-    private static readonly Color ThemePanelBackground = Color.FromArgb(37, 37, 38);       // #252526
-    private static readonly Color ThemeSectionBackground = Color.FromArgb(37, 37, 38);     // #252526
-    private static readonly Color ThemeRailBackground = Color.FromArgb(45, 45, 48);        // #2d2d30
-    private static readonly Color ThemeInputBackground = Color.FromArgb(31, 31, 31);       // #1f1f1f
-    private static readonly Color ThemeButtonBackground = Color.FromArgb(45, 45, 48);      // #2d2d30
-    private static readonly Color ThemeButtonHover = Color.FromArgb(55, 55, 61);           // #37373d
-    private static readonly Color ThemeButtonPressed = Color.FromArgb(37, 37, 38);         // #252526
-    private static readonly Color ThemeButtonBorder = Color.FromArgb(69, 73, 74);          // #45494a
-    private static readonly Color ThemeBorder = Color.FromArgb(60, 60, 60);                // #3c3c3c
-    private static readonly Color ThemeAccent = Color.FromArgb(0, 122, 204);               // #007acc
-    private static readonly Color ThemeAccentHover = Color.FromArgb(28, 145, 224);
-    private static readonly Color ThemeAccentPressed = Color.FromArgb(0, 90, 158);
-    private static readonly Color ThemeText = Color.FromArgb(204, 204, 204);               // #cccccc
-    private static readonly Color ThemeStrongText = Color.FromArgb(243, 243, 243);         // #f3f3f3
-    private static readonly Color ThemeMutedText = Color.FromArgb(157, 160, 166);          // #9da0a6
-    private static readonly Color ThemeStatusBackground = Color.FromArgb(30, 30, 30);      // #1e1e1e
+    // Graphite remains the standalone/default palette. The embedded host can
+    // replace these values atomically through ui_theme_state before revealing
+    // the resident window, and can replace them again after a live theme change.
+    private static Color ThemeWindowBackground = Color.FromArgb(30, 30, 30);      // #1e1e1e
+    private static Color ThemePanelBackground = Color.FromArgb(37, 37, 38);       // #252526
+    private static Color ThemeSectionBackground = Color.FromArgb(37, 37, 38);     // #252526
+    private static Color ThemeRailBackground = Color.FromArgb(45, 45, 48);        // #2d2d30
+    private static Color ThemeInputBackground = Color.FromArgb(31, 31, 31);       // #1f1f1f
+    private static Color ThemeButtonBackground = Color.FromArgb(45, 45, 48);      // #2d2d30
+    private static Color ThemeButtonHover = Color.FromArgb(55, 55, 61);           // #37373d
+    private static Color ThemeButtonPressed = Color.FromArgb(37, 37, 38);         // #252526
+    private static Color ThemeButtonBorder = Color.FromArgb(69, 73, 74);          // #45494a
+    private static Color ThemeBorder = Color.FromArgb(60, 60, 60);                // #3c3c3c
+    private static Color ThemeAccent = Color.FromArgb(0, 122, 204);               // #007acc
+    private static Color ThemeAccentHover = Color.FromArgb(28, 145, 224);
+    private static Color ThemeAccentPressed = Color.FromArgb(0, 90, 158);
+    private static Color ThemeText = Color.FromArgb(204, 204, 204);               // #cccccc
+    private static Color ThemeStrongText = Color.FromArgb(243, 243, 243);         // #f3f3f3
+    private static Color ThemeMutedText = Color.FromArgb(157, 160, 166);          // #9da0a6
+    private static Color ThemeStatusBackground = Color.FromArgb(30, 30, 30);      // #1e1e1e
     // Not readonly: the host window this form is embedded in is destroyed and
     // recreated by Qt when the app moves to a screen at a different scale, and
     // the replacement has a different HWND. See HandleReembedRequest.
@@ -531,7 +531,7 @@ internal sealed partial class ExperimentForm : Form
 
     private static void ApplyDarkScrollbars(Control control)
     {
-        void Apply() => _ = SetWindowTheme(control.Handle, "DarkMode_Explorer", null);
+        void Apply() => ApplyNativeControlTheme(control);
         control.HandleCreated += (_, _) => Apply();
         if (control.IsHandleCreated)
         {

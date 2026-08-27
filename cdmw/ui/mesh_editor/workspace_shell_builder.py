@@ -374,6 +374,7 @@ class WorkspaceShellBuilderMixin:
             frame,
             profile=DotNetPreviewProfile.AUTHORING,
             direct_authoring=True,
+            theme_key=theme_key,
         )
         self.native_host_frame.setObjectName("MeshEditorStandaloneDotNetVorticeHost")
         # Retained off-stack as a data/settings compatibility adapter.  The

@@ -607,6 +607,12 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         assert window._tool_key_for_widget(window._current_navigation_widget()) == "archive_browser"
         assert window.compact_workspace.rail.tool_buttons["archive_browser"].isChecked()
 
+        window._activate_tool_key("mesh_editor")
+        app.processEvents()
+        mesh_editor = window.mesh_editor_tab.widget_if_created()
+        assert mesh_editor is not None
+        assert mesh_editor.standalone_workspace.native_host_frame._theme_key == "crimson_desert"
+
         compact_theme = next(
             key
             for key in UI_THEME_SCHEMES
@@ -616,12 +622,21 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
             window.settings_tab.compact_shell_theme_combo.findData(compact_theme)
         )
         deadline = time.monotonic() + 4.0
-        while window.current_theme_key != compact_theme and time.monotonic() < deadline:
+        while (
+            (
+                window.current_theme_key != compact_theme
+                or mesh_editor.theme_key != compact_theme
+            )
+            and time.monotonic() < deadline
+        ):
             QTest.qWait(40)
         assert window.current_theme_key == compact_theme
         assert window.compact_workspace.status_strip.progress_bar.height() == 10
         assert settings.value(COMPACT_SHELL_THEME_SETTING) == compact_theme
         assert settings.value("appearance/theme") == "graphite"
+
+        assert mesh_editor.theme_key == compact_theme
+        assert mesh_editor.standalone_workspace.native_host_frame._theme_key == compact_theme
 
         archive_widget = window.archive_browser_tab
         window._detach_tool_key("archive_browser")

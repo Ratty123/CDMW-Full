@@ -105,6 +105,19 @@ def test_both_mesh_view_controls_offer_the_same_modes_and_default(builder) -> No
         _APPLICATION.processEvents()
 
 
+def test_workspace_theme_reaches_the_visible_resident_host() -> None:
+    workspace = MeshEditorWorkspace(theme_key="graphite")
+    try:
+        workspace.set_theme("crimson_desert")
+
+        assert workspace._theme_key == "crimson_desert"
+        assert workspace.native_host_frame._theme_key == "crimson_desert"
+        assert "#211814" in workspace.native_host_frame._status_panel.styleSheet()
+    finally:
+        workspace.deleteLater()
+        _APPLICATION.processEvents()
+
+
 def test_tool_rail_mesh_view_labels_fit_the_control(builder) -> None:
     """The rail caps this combo, so its labels must not render elided."""
     workspace = MeshEditorWorkspace(embedded_controls_only=True)

@@ -68,7 +68,7 @@ internal sealed partial class ExperimentForm
             Name = "ResidentRoleViewHeaderDivider",
             Dock = DockStyle.Fill,
             Margin = new Padding(0),
-            BackColor = Color.FromArgb(190, 198, 207),
+            BackColor = ThemeBorder,
             Cursor = Cursors.VSplit,
         };
         divider.MouseDown += (_, e) =>

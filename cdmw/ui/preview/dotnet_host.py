@@ -37,6 +37,7 @@ from cdmw.ui.preview.dotnet_host_prewarm import DotNetPreviewPrewarmTask as _Dot
 from cdmw.ui.preview.dotnet_host_lifecycle import DotNetPreviewHostLifecycleMixin
 from cdmw.ui.preview.dotnet_host_render_tuning import render_tuning_payloads
 from cdmw.ui.preview.dotnet_host_protocol import DotNetPreviewHostProtocolMixin
+from cdmw.ui.preview.dotnet_host_theme import DotNetPreviewHostThemeMixin
 from cdmw.ui.preview.dotnet_host_placement import (
     apply_placement_to_editable_role as _apply_placement_to_editable_role,
     placement_matrix as _placement_matrix,
@@ -44,7 +45,7 @@ from cdmw.ui.preview.dotnet_host_placement import (
 from cdmw.ui.preview.dotnet_host_values import _indices, _triple
 from cdmw.ui.preview.profile import DotNetPreviewProfile
 
-class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostProtocolMixin, QFrame):
+class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostProtocolMixin, DotNetPreviewHostThemeMixin, QFrame):
     """Native-window host plus compatibility-facing .NET presentation API."""
 
     view_state_changed = Signal(float, bool)
@@ -81,6 +82,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
         controller: DotNetPreviewSessionController | None = None,
         ui_localizer: object | None = None,
         direct_authoring: bool = False,
+        theme_key: str = "graphite",
     ) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
@@ -196,10 +198,12 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
         self.controller.view_state_changed.connect(self._handle_view_state_payload)
         self.controller.part_pick_result.connect(self._handle_part_pick_result)
         self.controller.capture_completed.connect(self._handle_capture_completed)
+        self._connect_theme_ready_signal()
         self._retry_button.clicked.connect(self.controller.retry_now)
         self._resident_retry_button.clicked.connect(self.controller.retry_now)
         self.destroyed.connect(self.controller.shutdown)
         self.controller.set_visible(False)
+        self.set_theme(theme_key)
 
     @staticmethod
     def _find_ui_localizer(parent: QWidget | None) -> object | None:
