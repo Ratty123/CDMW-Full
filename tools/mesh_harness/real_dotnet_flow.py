@@ -540,11 +540,7 @@ def exercise_assignment_and_mesh_edits(
             and int(after.get("ack_timeouts", 0) or 0) == int(before.get("ack_timeouts", 0) or 0)
         )
     before_status = request_full_renderer_status(state, pump_until)
-    before_resources = (
-        renderer_resource_metrics(before_status)
-        if isinstance(before_status, Mapping)
-        else {}
-    )
+    before_resources = renderer_resource_metrics(before_status) if isinstance(before_status, Mapping) else {}
     if not before_resources:
         return "Renderer resource metrics were unavailable before resident mesh edits."
     partial_rebuild_floor = int(before_resources.get("partial_topology_rebuilds", 0) or 0) + 4
