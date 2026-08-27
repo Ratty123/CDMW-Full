@@ -134,6 +134,7 @@ internal sealed partial class ExperimentForm
         RowKeys.Inflate => "◉",
         RowKeys.Pinch => "◇",
         RowKeys.Topology => "△",
+        RowKeys.Viewport => "▣",
         _ => "◑",
     };
 
@@ -150,6 +151,7 @@ internal sealed partial class ExperimentForm
         RowKeys.Inflate => "Inflate",
         RowKeys.Pinch => "Pinch",
         RowKeys.Topology => "Topology",
+        RowKeys.Viewport => "Viewport",
         _ => "Morph & Refit",
     };
 
@@ -164,6 +166,8 @@ internal sealed partial class ExperimentForm
         RowKeys.Smooth or RowKeys.Inflate or RowKeys.Pinch =>
             "Smooth, Inflate and Pinch with radius, strength and falloff.",
         RowKeys.Topology => "Subdivide and Refine Smooth.",
+        RowKeys.Viewport =>
+            "Choose the preview mode, topology appearance, viewport background, or a camera preset. Mouse and keyboard bindings update with the active tool.",
         _ => "Definition profiles, shape sliders and garment refit binding.",
     };
 
@@ -185,10 +189,12 @@ internal sealed partial class ExperimentForm
         else
         {
             button.Name = $"EditMeshToolList{row.Page}PageButton";
-            button.AccessibleName = $"{caption} commands";
-            // A command row only reveals. Topology, Colour and Morph & Refit
-            // hold one-shot commands, so opening one must leave the armed tool
-            // exactly as it was.
+            button.AccessibleName = row.Page == ToolRailPage.Viewport
+                ? caption
+                : $"{caption} commands";
+            // A reveal-only row never arms. Topology and Morph & Refit hold
+            // one-shot commands, while Viewport holds presentation settings,
+            // so opening any of them must leave the armed tool exactly as it was.
             button.Click += (_, _) => ShowToolRailPage(row.Page);
             _toolRailPageButtons.Add(row.Page, button);
         }

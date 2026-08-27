@@ -1,8 +1,8 @@
 """Opening Edit Mesh must leave the scene inspector already settled.
 
-The rail adopts the Parts, Layers, Action History and Viewport sections from the
-placement flanks with every layout suspended, and resumes without a pass of its
-own. Nothing downstream is guaranteed to force the measure: a form-wide layout
+The rail adopts the Parts, Layers and Action History sections from the placement
+flanks with every layout suspended, and resumes without a pass of its own.
+Nothing downstream is guaranteed to force the measure: a form-wide layout
 only cascades where a bound actually changes. A section left on its previous
 parent's bounds reads as the right-hand menu opening with its rows on top of
 each other and its buttons clipped past the column edge -- and as dragging the
@@ -107,9 +107,9 @@ def test_the_scene_inspector_opens_settled_and_inside_its_column(
     # Stability alone is not enough: a column that clips every section the same
     # way before and after a resize is stable and still unusable.
     assert proof["sections_overflowing_column"] == []
-    # All four rows, each inside the column, none sharing a top edge with
+    # All three rows, each inside the column, none sharing a top edge with
     # another -- overlapping rows are what the reader actually reports.
     bounds = proof["bounds_after_entry"]
-    assert len(bounds) == 4, json.dumps(proof["diagnostic"], indent=2)
+    assert len(bounds) == 3, json.dumps(proof["diagnostic"], indent=2)
     tops = [int(value.split(",")[1]) for value in bounds.values()]
-    assert len(set(tops)) == 4, json.dumps(bounds, indent=2)
+    assert len(set(tops)) == 3, json.dumps(bounds, indent=2)

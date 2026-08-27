@@ -149,7 +149,7 @@ internal sealed partial class ExperimentForm
         var requiredButtons = new[]
         {
             "◰    Select", "✥    Move", "✜    Grab", "◍    Smooth", "◉    Inflate",
-            "◇    Pinch", "△    Topology", "◑    Morph & Refit", "▾  Morph & Refit",
+            "◇    Pinch", "△    Topology", "◑    Morph & Refit", "▣    Viewport", "▾  Morph & Refit",
             "Clear Selection", "Select All", "Invert", "Undo", "Redo",
             "Grow", "Shrink", "-X", "+X", "-Y", "+Y", "-Z", "+Z",
             "Delete Selection", "Duplicate Selection", "Subdivide", "Refine Smooth",
@@ -734,6 +734,14 @@ internal sealed partial class ExperimentForm
             "morph",
             ToolRailPage.MorphRefit,
             () => WriteCommandRequest("morph_state_request") > 0));
+        rows.Add(RunEditMeshCommandPageDiagnostic(
+            "viewport",
+            ToolRailPage.Viewport,
+            () =>
+            {
+                _viewport.FrameMesh();
+                return true;
+            }));
         return rows;
     }
 

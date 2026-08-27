@@ -8,7 +8,7 @@ internal enum ToolListRowKind
     /// <summary>Arms the tool it names and opens that tool's settings.</summary>
     Tool,
 
-    /// <summary>Opens a page of one-shot commands without arming anything.</summary>
+    /// <summary>Opens a reveal-only page without arming anything.</summary>
     CommandPage,
 }
 
@@ -17,7 +17,7 @@ internal enum ToolListRowKind
 /// page of settings that opens underneath it.
 /// </summary>
 /// <remarks>
-/// Six tool rows share three page bodies. Move and Grab both open Transform;
+/// Six tool rows share three modal page bodies. Move and Grab both open Transform;
 /// Smooth, Inflate and Pinch all open Brush. Keeping the row and the page as
 /// separate ideas is what stops the list repeating itself: the row is the only
 /// place a tool is named, and the page holds only settings. The old rail listed
@@ -54,11 +54,12 @@ internal static class EditMeshToolListContract
         public const string Pinch = "pinch";
         public const string Topology = "topology";
         public const string Morph = "morph";
+        public const string Viewport = "viewport";
     }
 
     /// <summary>
-    /// Every row, in list order: the six armable tools, then the two command
-    /// pages. The order matches <see cref="EditMeshLayoutContracts.RailToolOrder"/>
+    /// Every row, in list order: the six armable tools, then the three
+    /// reveal-only pages. The order matches <see cref="EditMeshLayoutContracts.RailToolOrder"/>
     /// and <see cref="EditMeshLayoutContracts.RailCommandPageOrder"/>, and
     /// <see cref="RequireCompleteList"/> is what keeps it matching.
     /// </summary>
@@ -77,11 +78,12 @@ internal static class EditMeshToolListContract
         new(ToolListRowKind.Tool, Keys.Pinch, ToolRailPage.Brush),
         new(ToolListRowKind.CommandPage, Keys.Topology, ToolRailPage.Topology),
         new(ToolListRowKind.CommandPage, Keys.Morph, ToolRailPage.MorphRefit),
+        new(ToolListRowKind.CommandPage, Keys.Viewport, ToolRailPage.Viewport),
     };
 
     /// <summary>
     /// The index the group label sits above: the first command-page row. The
-    /// break is what tells the reader that everything below it opens a page
+    /// break is what tells the reader that everything below it reveals a page
     /// without touching the armed tool.
     /// </summary>
     public static int CommandGroupStartIndex =>

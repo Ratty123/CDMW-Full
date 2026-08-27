@@ -437,9 +437,9 @@ if ($Area -eq "mesh-unit") {
         -or -not $LayoutPayload.material_sync_completion_is_correlated `
         -or -not $LayoutPayload.activation_package_generation_is_fenced `
         -or -not $LayoutPayload.zero_size_splitter_construction `
-        -or $LayoutPayload.pages_visited.Count -ne 5 `
+        -or $LayoutPayload.pages_visited.Count -ne 6 `
         -or $LayoutPayload.rail_tool_count -ne 6 `
-        -or $LayoutPayload.rail_command_page_count -ne 2 `
+        -or $LayoutPayload.rail_command_page_count -ne 3 `
         -or $LayoutPayload.opening_page -ne "none" `
         -or $LayoutPayload.opening_tool -ne "orbit" `
         -or $LayoutPayload.renderer_started `

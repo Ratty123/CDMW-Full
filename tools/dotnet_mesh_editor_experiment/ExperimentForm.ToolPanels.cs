@@ -209,7 +209,7 @@ internal sealed partial class ExperimentForm
         _meshEditOnlySections.Add(topologySection);
         StartupTiming.Mark("transform_brush_topology_sections_built");
         _viewportSection = AddHelpSection(
-            rightStack,
+            leftStack,
             "Viewport",
             "Choose the preview mode, topology appearance, viewport background, or a camera preset. Mouse and keyboard bindings update with the active tool.",
             out var viewportHelpMarker,
