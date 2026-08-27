@@ -226,6 +226,58 @@ class ModelTests(unittest.TestCase):
         self.assertIsNotNone(model.data(model.index(0, 0), Qt.BackgroundRole))
         self.assertIn("Ships as:", str(model.data(model.index(0, 2), Qt.ToolTipRole)))
 
+    def test_edited_row_mark_stays_readable_in_every_theme(self) -> None:
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QColor, QPalette
+
+        from cdmw.ui.themes import UI_THEME_SCHEMES, build_app_palette
+
+        def relative_luminance(color: QColor) -> float:
+            channels = (color.redF(), color.greenF(), color.blueF())
+            linear = tuple(
+                channel / 12.92
+                if channel <= 0.04045
+                else ((channel + 0.055) / 1.055) ** 2.4
+                for channel in channels
+            )
+            return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+        def contrast_ratio(foreground: QColor, background: QColor) -> float:
+            lighter, darker = sorted(
+                (relative_luminance(foreground), relative_luminance(background)),
+                reverse=True,
+            )
+            return (lighter + 0.05) / (darker + 0.05)
+
+        def composite(foreground: QColor, background: QColor) -> QColor:
+            alpha = foreground.alphaF()
+            return QColor.fromRgbF(
+                foreground.redF() * alpha + background.redF() * (1.0 - alpha),
+                foreground.greenF() * alpha + background.greenF() * (1.0 - alpha),
+                foreground.blueF() * alpha + background.blueF() * (1.0 - alpha),
+            )
+
+        model, _cat = self._model()
+        model.setData(model.index(0, 2), "Changed.", Qt.EditRole)
+        edit_mark = model.data(model.index(0, 0), Qt.BackgroundRole)
+        self.assertIsInstance(edit_mark, QColor)
+        self.assertLess(edit_mark.alpha(), 255)
+
+        for theme_key in UI_THEME_SCHEMES:
+            palette = build_app_palette(theme_key)
+            painted_background = composite(
+                edit_mark,
+                palette.color(QPalette.ColorRole.Base),
+            )
+            with self.subTest(theme=theme_key):
+                self.assertGreaterEqual(
+                    contrast_ratio(
+                        palette.color(QPalette.ColorRole.Text),
+                        painted_background,
+                    ),
+                    4.5,
+                )
+
     def test_reverting_a_row_clears_the_mark(self) -> None:
         from PySide6.QtCore import Qt
 

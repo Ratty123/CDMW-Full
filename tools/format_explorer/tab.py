@@ -42,8 +42,8 @@ from cdmw.services.active_ui_translation import (
 from .catalogue import FormatRow, filter_rows, groups, headline, load_rows
 
 _ALL = "All areas"
-_EDITABLE = QColor(58, 74, 42)
-_READ_ONLY = QColor(70, 62, 40)
+_EDITABLE = QColor(63, 143, 69, 72)
+_READ_ONLY = QColor(161, 122, 44, 72)
 _TOOL_LINK_PREFIX = "cdmw-tool:"
 _TOOL_KEYS = {
     "Archive Browser": "archive_browser",

@@ -11,7 +11,7 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPalette
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPalette
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
@@ -19,6 +19,9 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMenu,
     QPushButton,
+    QStyle,
+    QStyleOptionButton,
+    QStyleOptionToolButton,
     QTableWidget,
     QToolButton,
     QTreeWidget,
@@ -196,12 +199,13 @@ class ShellThemeControllerTests(unittest.TestCase):
             app.setPalette(previous_palette)
             app.setFont(previous_font)
 
-    def test_added_themes_keep_text_selections_and_controls_visible(self) -> None:
+    def test_every_theme_keeps_text_selections_and_controls_visible(self) -> None:
         expected_roles = set(UI_THEME_SCHEMES["graphite"])
-        for key, label in ADDED_THEMES.items():
+        self.assertIn("accent_text", expected_roles)
+        for key, theme in UI_THEME_SCHEMES.items():
             with self.subTest(theme=key):
-                theme = UI_THEME_SCHEMES[key]
-                self.assertEqual(label, theme["label"])
+                if key in ADDED_THEMES:
+                    self.assertEqual(ADDED_THEMES[key], theme["label"])
                 self.assertEqual(expected_roles, set(theme))
                 for role, value in theme.items():
                     if role != "label":
@@ -214,25 +218,188 @@ class ShellThemeControllerTests(unittest.TestCase):
                             4.5,
                             f"{key}: {foreground} on {background}",
                         )
+                for foreground in ("text", "text_strong"):
+                    for background in ("button_hover", "button_pressed", "preview_bg"):
+                        self.assertGreaterEqual(
+                            _contrast_ratio(theme[foreground], theme[background]),
+                            4.5,
+                            f"{key}: {foreground} on {background}",
+                        )
+                for background in ("button_hover", "preview_bg"):
+                    self.assertGreaterEqual(
+                        _contrast_ratio(theme["text_muted"], theme[background]),
+                        4.5,
+                        f"{key}: text_muted on {background}",
+                    )
                 for foreground, background in (
                     ("button_disabled_text", "button_disabled"),
+                    ("button_disabled_text", "surface"),
+                    ("button_disabled_text", "surface_alt"),
                     ("text_strong", "accent_soft"),
                     ("warning_text", "warning_bg"),
+                    ("warning_text", "surface"),
                     ("error", "window"),
+                    ("error", "surface"),
                     ("accent", "window"),
+                    ("accent", "surface"),
+                    ("accent", "field"),
+                    ("accent_text", "accent"),
                 ):
                     self.assertGreaterEqual(
                         _contrast_ratio(theme[foreground], theme[background]),
                         4.5,
                         f"{key}: {foreground} on {background}",
                     )
-                self.assertGreaterEqual(_contrast_ratio("#ffffff", theme["accent"]), 4.5, f"{key}: selection text")
                 self.assertGreaterEqual(_contrast_ratio(theme["border_strong"], theme["field"]), 3.0, f"{key}: field border")
                 self.assertGreaterEqual(_contrast_ratio(theme["button_border"], theme["button"]), 3.0, f"{key}: button border")
+                self.assertGreaterEqual(
+                    _contrast_ratio(theme["warning_border"], theme["warning_bg"]),
+                    3.0,
+                    f"{key}: warning border",
+                )
+                self.assertGreaterEqual(
+                    _contrast_ratio(theme["accent"], theme["accent_soft"]),
+                    3.0,
+                    f"{key}: accent boundary",
+                )
+
+                palette = build_app_palette(key)
+                self.assertEqual(theme["accent"], palette.color(QPalette.Highlight).name())
+                self.assertEqual(theme["accent_text"], palette.color(QPalette.HighlightedText).name())
+                stylesheet = build_app_stylesheet(key)
+                self.assertIn(f"selection-color: {theme['accent_text']};", stylesheet)
+                self.assertIn(f"background: {theme['preview_bg']};", stylesheet)
 
         desert_stylesheet = build_app_stylesheet("desert_dawn")
         self.assertIn("color: #0369a1;", desert_stylesheet)
         self.assertIn("color: #047857;", desert_stylesheet)
+
+    def test_every_theme_renders_distinct_standard_button_states(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        previous_palette = QPalette(app.palette())
+        previous_style_sheet = app.styleSheet()
+        parent = QWidget()
+        parent.resize(320, 100)
+        button = QPushButton("Theme action", parent)
+        button.setCheckable(True)
+        button.setGeometry(70, 28, 180, 38)
+
+        def background_color(state: QStyle.StateFlag) -> str:
+            image = QImage(button.size(), QImage.Format.Format_ARGB32)
+            image.fill(Qt.GlobalColor.transparent)
+            option = QStyleOptionButton()
+            option.initFrom(button)
+            option.rect = button.rect()
+            option.text = button.text()
+            option.state = state
+            painter = QPainter(image)
+            button.style().drawControl(
+                QStyle.ControlElement.CE_PushButton,
+                option,
+                painter,
+                button,
+            )
+            painter.end()
+            return image.pixelColor(8, button.height() // 2).name()
+
+        try:
+            parent.show()
+            button.show()
+            for theme_key, theme in UI_THEME_SCHEMES.items():
+                with self.subTest(theme=theme_key):
+                    app.setPalette(build_app_palette(theme_key))
+                    app.setStyleSheet(build_app_stylesheet(theme_key))
+                    app.processEvents()
+                    enabled = QStyle.StateFlag.State_Enabled
+                    normal = background_color(enabled)
+                    hovered = background_color(enabled | QStyle.StateFlag.State_MouseOver)
+                    pressed = background_color(enabled | QStyle.StateFlag.State_Sunken)
+                    checked = background_color(enabled | QStyle.StateFlag.State_On)
+                    checked_hover = background_color(
+                        enabled | QStyle.StateFlag.State_On | QStyle.StateFlag.State_MouseOver
+                    )
+                    disabled = background_color(QStyle.StateFlag.State_None)
+
+                    self.assertEqual(
+                        (
+                            theme["button"],
+                            theme["button_hover"],
+                            theme["button_pressed"],
+                            theme["accent"],
+                            theme["accent_soft"],
+                            theme["button_disabled"],
+                        ),
+                        (normal, hovered, pressed, checked, checked_hover, disabled),
+                    )
+                    self.assertEqual(3, len({normal, hovered, pressed}))
+                    self.assertNotEqual(checked, checked_hover)
+                    self.assertNotEqual(normal, disabled)
+                    self.assertGreaterEqual(
+                        len({normal, hovered, pressed, checked, checked_hover, disabled}),
+                        5,
+                    )
+        finally:
+            parent.deleteLater()
+            app.processEvents()
+            app.setStyleSheet(previous_style_sheet)
+            app.setPalette(previous_palette)
+
+    def test_every_theme_renders_compact_editor_tool_checked_hover_feedback(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        previous_palette = QPalette(app.palette())
+        previous_style_sheet = app.styleSheet()
+        parent = QWidget()
+        parent.setProperty("compactPresentation", True)
+        parent.resize(320, 100)
+        button = QToolButton(parent)
+        button.setObjectName("EditorToolButton")
+        button.setText("Paint")
+        button.setGeometry(70, 28, 180, 38)
+
+        def background_color(state: QStyle.StateFlag) -> str:
+            image = QImage(button.size(), QImage.Format.Format_ARGB32)
+            image.fill(Qt.GlobalColor.transparent)
+            option = QStyleOptionToolButton()
+            option.initFrom(button)
+            option.rect = button.rect()
+            option.text = button.text()
+            option.state = state
+            painter = QPainter(image)
+            button.style().drawComplexControl(
+                QStyle.ComplexControl.CC_ToolButton,
+                option,
+                painter,
+                button,
+            )
+            painter.end()
+            return image.pixelColor(8, button.height() // 2).name()
+
+        try:
+            parent.show()
+            button.show()
+            for theme_key, theme in UI_THEME_SCHEMES.items():
+                with self.subTest(theme=theme_key):
+                    app.setPalette(build_app_palette(theme_key))
+                    app.setStyleSheet(build_app_stylesheet(theme_key))
+                    app.processEvents()
+                    checked = background_color(
+                        QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_On
+                    )
+                    checked_hover = background_color(
+                        QStyle.StateFlag.State_Enabled
+                        | QStyle.StateFlag.State_On
+                        | QStyle.StateFlag.State_MouseOver
+                    )
+                    self.assertEqual(
+                        (theme["accent_soft"], theme["accent"]),
+                        (checked, checked_hover),
+                    )
+                    self.assertNotEqual(checked, checked_hover)
+        finally:
+            parent.deleteLater()
+            app.processEvents()
+            app.setStyleSheet(previous_style_sheet)
+            app.setPalette(previous_palette)
 
     def test_mesh_editor_output_buttons_render_distinct_pointer_states(self) -> None:
         app = QApplication.instance() or QApplication([])

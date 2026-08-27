@@ -253,62 +253,24 @@ class TextureEditorTab(
         self.setStyleSheet(
             """
             QGroupBox {
-                border: 1px solid rgba(128, 146, 179, 0.08);
                 border-radius: 10px;
                 margin-top: 10px;
                 padding-top: 10px;
                 font-weight: 600;
-                background-color: rgba(255, 255, 255, 0.01);
-            }
-            QPushButton#EditorPanelButton {
-                background-color: rgba(255, 255, 255, 0.02);
-                border: 1px solid rgba(128, 146, 179, 0.12);
-                color: #E7EDF7;
-            }
-            QPushButton#EditorPanelButton:hover {
-                background-color: rgba(255, 255, 255, 0.04);
-                border: 1px solid rgba(128, 146, 179, 0.2);
-            }
-            QPushButton#EditorPrimaryButton {
-                background-color: rgba(116, 193, 255, 0.14);
-                border: 1px solid rgba(116, 193, 255, 0.34);
-                color: #EAF5FF;
-            }
-            QPushButton#EditorPrimaryButton:hover {
-                background-color: rgba(116, 193, 255, 0.2);
-                border: 1px solid rgba(116, 193, 255, 0.5);
             }
             QLineEdit, QComboBox, QTextBrowser, QListWidget {
                 border-radius: 6px;
-                border: 1px solid rgba(128, 146, 179, 0.12);
-                background-color: rgba(255, 255, 255, 0.02);
-            }
-            QToolButton#EditorToolButton {
-                background-color: rgba(255, 255, 255, 0.012);
-                border: 1px solid rgba(255, 255, 255, 0.04);
-            }
-            QToolButton#EditorToolButton:checked {
-                background-color: rgba(116, 193, 255, 0.18);
-                border: 1px solid rgba(116, 193, 255, 0.45);
             }
             QFrame#EditorSectionBody {
-                border: 1px solid rgba(128, 146, 179, 0.08);
                 border-radius: 10px;
-                background-color: rgba(255, 255, 255, 0.016);
             }
             QFrame#EditorActionPane {
-                border: 1px solid rgba(128, 146, 179, 0.08);
                 border-radius: 10px;
-                background-color: rgba(255, 255, 255, 0.012);
             }
             QWidget#EditorLeftSidebar, QWidget#EditorInspectorSidebar {
-                background-color: rgba(255, 255, 255, 0.012);
-                border: 1px solid rgba(128, 146, 179, 0.08);
                 border-radius: 12px;
             }
             QWidget#EditorCanvasPane {
-                background-color: rgba(255, 255, 255, 0.008);
-                border: 1px solid rgba(128, 146, 179, 0.06);
                 border-radius: 12px;
             }
             QScrollArea#EditorSidebarScroll {

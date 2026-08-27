@@ -9,7 +9,6 @@ from cdmw.constants import (
     DEFAULT_UI_DENSITY,
     DEFAULT_UI_FONT_SIZE,
     DEFAULT_UI_THEME,
-    MODEL_PREVIEW_BACKGROUND_COLOR,
 )
 
 from cdmw.ui.theme_schemes import UI_THEME_SCHEMES
@@ -134,9 +133,9 @@ def build_app_palette(theme_key: str) -> QPalette:
     palette.setColor(QPalette.Text, QColor(theme["text"]))
     palette.setColor(QPalette.Button, QColor(theme["button"]))
     palette.setColor(QPalette.ButtonText, QColor(theme["text_strong"]))
-    palette.setColor(QPalette.BrightText, QColor("#ffffff"))
+    palette.setColor(QPalette.BrightText, QColor(theme["accent_text"]))
     palette.setColor(QPalette.Highlight, QColor(theme["accent"]))
-    palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
+    palette.setColor(QPalette.HighlightedText, QColor(theme["accent_text"]))
     palette.setColor(QPalette.PlaceholderText, QColor(theme["text_muted"]))
     palette.setColor(QPalette.Link, QColor(theme["accent"]))
     palette.setColor(QPalette.Disabled, QPalette.Text, QColor(theme["button_disabled_text"]))
@@ -253,8 +252,13 @@ def _compact_tool_shape_override_stylesheet(theme: Dict[str, str]) -> str:
     }}
     QWidget[compactPresentation="true"] QToolButton#EditorToolButton:checked {{
         background: {theme["accent_soft"]};
+        color: {theme["text_strong"]};
         border: none;
         border-left: 2px solid {theme["accent"]};
+    }}
+    QWidget[compactPresentation="true"] QToolButton#EditorToolButton:checked:hover {{
+        background: {theme["accent"]};
+        color: {theme["accent_text"]};
     }}
     QWidget[compactPresentation="true"] QToolButton[effectChip="true"],
     QWidget[compactPresentation="true"] QLineEdit,
@@ -630,6 +634,31 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
     QToolButton#SectionToggle:checked {{
         background: {theme["button"]};
     }}
+    QToolButton#EditorToolButton {{
+        background: {theme["button"]};
+        color: {theme["text"]};
+        border: 1px solid {theme["button_border"]};
+        border-radius: 4px;
+    }}
+    QToolButton#EditorToolButton:hover:enabled {{
+        background: {theme["button_hover"]};
+        border-color: {theme["accent"]};
+    }}
+    QToolButton#EditorToolButton:checked {{
+        background: {theme["accent"]};
+        color: {theme["accent_text"]};
+        border-color: {theme["accent"]};
+    }}
+    QToolButton#EditorToolButton:checked:hover {{
+        background: {theme["accent_soft"]};
+        color: {theme["text_strong"]};
+        border-color: {theme["accent"]};
+    }}
+    QToolButton#EditorToolButton:disabled {{
+        background: {theme["button_disabled"]};
+        color: {theme["button_disabled_text"]};
+        border-color: {theme["border"]};
+    }}
     QFrame#SectionBody {{
         border: 1px solid {theme["border"]};
         border-radius: 5px;
@@ -774,7 +803,7 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
         border-radius: 4px;
         padding: {metrics["field_pad_y"]}px {metrics["field_pad_x"]}px;
         selection-background-color: {theme["accent"]};
-        selection-color: #ffffff;
+        selection-color: {theme["accent_text"]};
     }}
     QComboBox {{
         padding-right: 24px;
@@ -865,13 +894,26 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
         background: {theme["button_pressed"]};
     }}
     QPushButton:checked {{
-        color: #ffffff;
-        background: #16803c;
-        border-color: #2fbf64;
+        color: {theme["accent_text"]};
+        background: {theme["accent"]};
+        border-color: {theme["accent"]};
         font-weight: 600;
     }}
     QPushButton:checked:hover {{
-        background: #1f9a4d;
+        color: {theme["text_strong"]};
+        background: {theme["accent_soft"]};
+        border-color: {theme["accent"]};
+    }}
+    QPushButton#EditorPrimaryButton {{
+        color: {theme["accent_text"]};
+        background: {theme["accent"]};
+        border-color: {theme["accent"]};
+        font-weight: 600;
+    }}
+    QPushButton#EditorPrimaryButton:hover:enabled {{
+        color: {theme["text_strong"]};
+        background: {theme["accent_soft"]};
+        border-color: {theme["accent"]};
     }}
     QPushButton:disabled {{
         color: {theme["button_disabled_text"]};
@@ -924,7 +966,6 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
         border: 1px solid {theme["border_strong"]};
         border-radius: 4px;
         background: {theme["field"]};
-        color: #ffffff;
         font-weight: 600;
         text-align: center;
         min-height: {metrics["progress_min_h"]}px;
@@ -988,7 +1029,7 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
     QLabel#PreviewLabel {{
         border: 1px solid {theme["border_strong"]};
         border-radius: 5px;
-        background: {MODEL_PREVIEW_BACKGROUND_COLOR};
+        background: {theme["preview_bg"]};
         color: {theme["text_muted"]};
         padding: 8px;
     }}
