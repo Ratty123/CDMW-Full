@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from cdmw.constants import APP_VERSION
+from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,23 @@ DELETED_ACTIVE_PLANS = {
     "code-review-findings-remediation.md",
     "oversized-file-split-followup.md",
     "whole-codebase-repair.md",
+}
+README_TOOL_NAMES_BY_KEY = {
+    "archive_browser": "Archive Browser",
+    "model_library": "Model Library",
+    "item_icons": "Icon Creator",
+    "new_item_studio": "New Item Studio",
+    "mesh_editor": "Mesh Editor",
+    "placement_studio": "Placement & Animations",
+    "texture_workflow": "Texture Workflow",
+    "replace_assistant": "Texture Replacer",
+    "recolor_variants": "Texture Recolor",
+    "texture_editor": "Texture Editor",
+    "mod_package_retrofit": "Retrofit/Repackage",
+    "format_explorer": "Format Explorer",
+    "translation_studio": "Translations",
+    "research": "Research",
+    "text_search": "Text Search",
 }
 
 
@@ -154,3 +172,14 @@ def test_readme_badge_and_source_note_track_current_application_version() -> Non
 
     assert f"version-{badge_version}-" in readme
     assert f"`{APP_VERSION}` is the current source version" in readme
+
+
+def test_readme_lists_the_exact_current_tool_inventory() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8-sig")
+    registered_keys = {spec.key for spec in COMPACT_TOOL_SPECS}
+
+    assert set(README_TOOL_NAMES_BY_KEY) == registered_keys
+    for tool_name in README_TOOL_NAMES_BY_KEY.values():
+        assert f"| **{tool_name}** |" in readme
+    assert "| **Material Authority** |" not in readme
+    assert "- [New Item Studio](#new-item-studio)" in readme
