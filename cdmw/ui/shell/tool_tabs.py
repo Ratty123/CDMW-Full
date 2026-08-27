@@ -377,7 +377,7 @@ class ShellToolTabsMixin:
 
         from tools.format_explorer.tab import FormatExplorerTab
 
-        tab = FormatExplorerTab()
+        tab = FormatExplorerTab(activate_tool=self._activate_tool_key)
         tab.setObjectName("format_explorer")
         return tab
 

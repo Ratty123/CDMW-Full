@@ -4301,7 +4301,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 562,
+          "line": 573,
           "sink": "setText"
         },
         {
@@ -6101,7 +6101,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 155,
+          "line": 201,
           "sink": "addItem"
         }
       ]
@@ -10661,7 +10661,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 103,
+          "line": 149,
           "sink": "QLabel"
         }
       ]
@@ -18647,21 +18647,6 @@
       ]
     },
     {
-      "key": "Choose a template item.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 96,
-          "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 305,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "Choose a template to check compatibility.",
       "origins": [
         {
@@ -20076,7 +20061,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 72,
+          "line": 69,
           "sink": "setToolTip"
         }
       ]
@@ -23766,7 +23751,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 150,
+          "line": 196,
           "sink": "setText"
         }
       ]
@@ -30867,16 +30852,6 @@
       ]
     },
     {
-      "key": "Every new item is a copy of a shipped one: the template sets its slot, type, sockets, animations and any optional sheathed variant; everything after changes the copy. Equipment only.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 44,
-          "sink": "intro_label"
-        }
-      ]
-    },
-    {
       "key": "Every pending operation  (advanced)",
       "origins": [
         {
@@ -33561,7 +33536,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 99,
+          "line": 145,
           "sink": "setPlaceholderText"
         }
       ]
@@ -34721,7 +34696,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 119,
+          "line": 165,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -35581,7 +35556,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 97,
+          "line": 143,
           "sink": "QLabel"
         },
         {
@@ -35716,7 +35691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 51,
+          "line": 48,
           "sink": "QLabel"
         }
       ]
@@ -37066,7 +37041,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 119,
+          "line": 165,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -42361,7 +42336,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 110,
+          "line": 156,
           "sink": "QCheckBox"
         }
       ]
@@ -43391,7 +43366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 53,
+          "line": 50,
           "sink": "setPlaceholderText"
         }
       ]
@@ -43406,7 +43381,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 59,
+          "line": 56,
           "sink": "setHeaderLabels"
         }
       ]
@@ -43936,7 +43911,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 59,
+          "line": 56,
           "sink": "setHeaderLabels"
         },
         {
@@ -45071,7 +45046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 59,
+          "line": 56,
           "sink": "setHeaderLabels"
         },
         {
@@ -54291,7 +54266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 593,
+          "line": 604,
           "sink": "setText"
         }
       ]
@@ -58156,7 +58131,7 @@
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 581,
+          "line": 589,
           "sink": "clear_media"
         }
       ]
@@ -60371,7 +60346,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 211,
+          "line": 269,
           "sink": "setHtml"
         }
       ]
@@ -61366,7 +61341,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 107,
+          "line": 153,
           "sink": "QCheckBox"
         }
       ]
@@ -66931,7 +66906,7 @@
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 653,
+          "line": 661,
           "sink": "setText"
         },
         {
@@ -68401,22 +68376,22 @@
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 468,
+          "line": 476,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 498,
+          "line": 506,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 653,
+          "line": 661,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 659,
+          "line": 667,
           "sink": "setText"
         },
         {
@@ -70316,7 +70291,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 102,
+          "line": 92,
           "sink": "QGroupBox"
         },
         {
@@ -70746,7 +70721,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 105,
+          "line": 95,
           "sink": "QLabel"
         }
       ]
@@ -72546,7 +72521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 592,
+          "line": 600,
           "sink": "setText"
         }
       ]
@@ -72921,7 +72896,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 119,
+          "line": 165,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -88106,7 +88081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 595,
+          "line": 606,
           "sink": "setToolTip"
         }
       ]
@@ -90541,7 +90516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 449,
+          "line": 457,
           "sink": "QLabel"
         }
       ]
@@ -92621,12 +92596,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 469,
+          "line": 477,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 499,
+          "line": 507,
           "sink": "QPushButton"
         },
         {
@@ -96827,16 +96802,6 @@
       ]
     },
     {
-      "key": "The chosen template",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 94,
-          "sink": "QGroupBox"
-        }
-      ]
-    },
-    {
       "key": "The clone carries the template's own perks.",
       "origins": [
         {
@@ -100201,7 +100166,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 59,
+          "line": 56,
           "sink": "setHeaderLabels"
         },
         {
@@ -105211,7 +105176,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 227,
+          "line": 341,
           "sink": "setHtml"
         }
       ]
@@ -105271,7 +105236,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 119,
+          "line": 165,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -105346,7 +105311,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 227,
+          "line": 341,
           "sink": "setHtml"
         }
       ]
@@ -105636,7 +105601,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 119,
+          "line": 165,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -106466,7 +106431,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 119,
+          "line": 165,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -114046,7 +114011,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 227,
+          "line": 341,
           "sink": "setHtml"
         }
       ]
@@ -202241,17 +202206,17 @@
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 637,
+          "line": 645,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 643,
+          "line": 651,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 648,
+          "line": 656,
           "sink": "setText"
         },
         {
@@ -203291,7 +203256,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 172,
+          "line": 218,
           "sink": "setText"
         }
       ]
@@ -203891,7 +203856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 538,
+          "line": 546,
           "sink": "addItem"
         }
       ]
@@ -205141,7 +205106,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 190,
+          "line": 236,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -205246,7 +205211,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 227,
+          "line": 341,
           "sink": "setHtml"
         }
       ]
@@ -206286,7 +206251,7 @@
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 420,
+          "line": 428,
           "sink": "python-return:_format_media_preview_time"
         }
       ]
@@ -206296,7 +206261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 419,
+          "line": 427,
           "sink": "python-return:_format_media_preview_time"
         }
       ]

@@ -19,8 +19,6 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.ui_kit import intro_label
-
 #: How long keyboard row navigation waits before it takes a row as chosen. Long enough
 #: that arrow-keying through the list passes rows without rebuilding five steps at each
 #: one. An explicit mouse click commits immediately through ``_apply_clicked_pick``.
@@ -41,7 +39,6 @@ class TemplatePanel(QGroupBox):
         self._column_widths_initialized = False
         self._resizing_match_columns = False
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("Every new item is a copy of a shipped one: the template sets its slot, type, sockets, animations and any optional sheathed variant; everything after changes the copy. Equipment only."))
         self.workspace_layout = QHBoxLayout()
         self.workspace_layout.setContentsMargins(0, 0, 0, 0)
         self.selection_column = QWidget(self)
@@ -91,28 +88,21 @@ class TemplatePanel(QGroupBox):
         self._pick_timer.timeout.connect(self._apply_pick)
         self._pending_key: Optional[int] = None
         selection_layout.addWidget(self.matches, 1)
-        chosen = QGroupBox("The chosen template")
-        chosen_layout = QVBoxLayout(chosen)
-        self.summary = QLabel("Choose a template item.")
-        self.summary.setWordWrap(True)
-        self.summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        chosen_layout.addWidget(self.summary)
-        selection_layout.addWidget(chosen)
         self.workspace_layout.addWidget(self.selection_column, 2)
         self.preview_group = QGroupBox("Preview")
         self.preview_group.setMinimumHeight(340)
         preview_layout = QVBoxLayout(self.preview_group)
-        preview_note = QLabel(
+        self.preview_note = QLabel(
             "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; "
             "mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view."
         )
-        preview_note.setObjectName("new_item_intro")
-        preview_note.setWordWrap(True)
-        preview_layout.addWidget(preview_note)
+        self.preview_note.setObjectName("new_item_intro")
+        self.preview_note.setWordWrap(True)
         self.preview_holder = QWidget(self.preview_group)
         self.preview_holder_layout = QVBoxLayout(self.preview_holder)
         self.preview_holder_layout.setContentsMargins(0, 0, 0, 0)
         preview_layout.addWidget(self.preview_holder, 1)
+        preview_layout.addWidget(self.preview_note)
         self.preview_status = QLabel("")
         self.preview_status.setObjectName("new_item_intro")
         self.preview_status.setWordWrap(True)
@@ -302,10 +292,7 @@ class TemplatePanel(QGroupBox):
 
     def _show_template(self, key: object) -> None:
         if key is None:
-            self.summary.setText("Choose a template item.")
             self.preview_status.setText("")
-            return
-        self.summary.setText("\n".join(self._controller.template_summary()))
 
 
 __all__ = ["TemplatePanel"]

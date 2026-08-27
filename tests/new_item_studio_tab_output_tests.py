@@ -37,6 +37,27 @@ from test_iteminfo_row import COPPER, DDD, build_row  # noqa: E402
 from test_new_item_service import OTHER, TEMPLATE, _read, build_package, synthetic_files  # noqa: E402
 
 
+def _assert_template_panel_chrome_removed(case: unittest.TestCase, template) -> None:
+    from PySide6.QtWidgets import QLabel
+
+    case.assertFalse(hasattr(template, "summary"))
+    preview_layout = template.preview_group.layout()
+    case.assertLess(
+        preview_layout.indexOf(template.preview_holder),
+        preview_layout.indexOf(template.preview_note),
+    )
+    case.assertLess(
+        preview_layout.indexOf(template.preview_note),
+        preview_layout.indexOf(template.preview_status),
+    )
+    case.assertFalse(
+        any(
+            label.text().startswith("Every new item is a copy")
+            for label in template.findChildren(QLabel)
+        )
+    )
+
+
 class _TabOutputMixin:
     def test_snapshot_panels_and_a_plan_through_the_panels(self) -> None:
         from PySide6.QtCore import Qt
@@ -47,7 +68,8 @@ class _TabOutputMixin:
         tab.prefill_template(TEMPLATE)
         self.assertTrue(tab.controller.ready)
         self.assertEqual(tab.controller.draft.template_key, TEMPLATE)
-        self.assertIn("Ziane_OneHandSword", tab.template_panel.summary.text())
+        template = tab.template_panel
+        _assert_template_panel_chrome_removed(self, template)
         # identity
         tab.identity_panel.internal_name.setText("Ziane_Clone_OneHandSword")
         tab.identity_panel.display_name.setText("Wolf's Fang (Clone)")
