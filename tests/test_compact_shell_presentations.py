@@ -334,7 +334,7 @@ class CompactShellPresentationTests(unittest.TestCase):
 
         placement = QWidget()
         placement_layout = QVBoxLayout(placement)
-        turn_button = QPushButton("Turn it the right way up")
+        turn_button = QPushButton("Rotate")
         placement_layout.addWidget(turn_button)
         self.assertTrue(
             apply_compact_presentation(
@@ -342,8 +342,8 @@ class CompactShellPresentationTests(unittest.TestCase):
             )
         )
         self.assertEqual("Rotate", turn_button.text())
-        self.assertEqual("Turn it the right way up", turn_button.toolTip())
-        self.assertEqual("Turn it the right way up", turn_button.accessibleName())
+        self.assertEqual("Rotate", turn_button.toolTip())
+        self.assertEqual("Rotate", turn_button.accessibleName())
         self.assertEqual("placement_studio", placement.property("compactToolKey"))
 
     def test_new_item_uses_compact_theme_accent_without_changing_classic(self) -> None:
