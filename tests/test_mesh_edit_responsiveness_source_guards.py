@@ -2403,8 +2403,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("wparam=_MK_LBUTTON,", source)
         self.assertIn("tab._send_dotnet_protocol_message", source)
         self.assertIn("def _write_checker_png(", source)
-        self.assertIn('interaction.name == "texture-update"', source)
-        self.assertIn("build_texture_editor_resident_patch", source)
+        self.assertNotIn('interaction.name == "texture-update"', source)
+        self.assertNotIn("build_texture_editor_resident_patch", source)
         self.assertIn("apply_resident_material_parameters", source)
         self.assertIn("exercise_deterministic_offscreen_capture", source)
 

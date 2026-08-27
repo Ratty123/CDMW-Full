@@ -5,12 +5,7 @@ import time
 from types import SimpleNamespace
 from unittest.mock import patch
 from tools.mesh_harness.evidence import _real_game_mesh_evidence
-from tools.mesh_harness.real_dotnet_flow import (
-    PRODUCTION_FLOW_STEPS,
-    _latest_settled_topology_metrics,
-    production_flow_gates,
-    record_flow_step,
-)
+from tools.mesh_harness.real_dotnet_flow import _latest_settled_topology_metrics
 from tools.mesh_harness.real_dotnet_material import resident_material_gates
 from tools.mesh_harness.real_dotnet_display import (
     _DISPLAY_MODE_LABELS,

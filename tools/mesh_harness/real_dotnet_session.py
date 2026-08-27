@@ -11,10 +11,6 @@ from tools.mesh_harness.real_dotnet_capture import (
     exercise_deterministic_offscreen_capture,
 )
 from tools.mesh_harness.real_dotnet_flow import (
-    exercise_assignment_and_mesh_edits,
-    exercise_coherent_export,
-    exercise_linked_texture_strokes,
-    production_flow_gates,
     record_flow_step,
 )
 from tools.mesh_harness.real_dotnet_evidence import (

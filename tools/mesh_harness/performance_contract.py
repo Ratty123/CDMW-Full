@@ -38,7 +38,6 @@ SUPPORTED_PERFORMANCE_INTERACTIONS = frozenset(
         "wire-vertices-part-highlight",
         "selection-brush-burst",
         "material-update",
-        "texture-update",
         "topology-update",
         "resize-stress",
     }

@@ -134,7 +134,7 @@ def _real_game_mesh_evidence(proof: Mapping[str, object]) -> dict[str, object]:
     if isinstance(nested_gates, Mapping) and (proof.get("renderer_backend") or "backend_gate_ok" in proof):
         gates.update({str(key): bool(value) for key, value in nested_gates.items()})
     return {
-        "schema": "cdmw_real_game_mesh_proof_v1",
+        "schema": "cdmw_real_game_mesh_proof_v2",
         "ok": bool(proof.get("ok")) and all(gates.values()),
         "backend": str(proof.get("backend", "")),
         "renderer_backend": str(proof.get("renderer_backend", "")),
@@ -193,8 +193,8 @@ def _real_game_mesh_evidence(proof: Mapping[str, object]) -> dict[str, object]:
         "production_flow": [
             dict(row) for row in tuple(proof.get("production_flow", ()) or ()) if isinstance(row, Mapping)
         ],
-        "linked_texture_updates": dict(proof.get("linked_texture_updates", {}))
-        if isinstance(proof.get("linked_texture_updates"), Mapping)
+        "source_texture_export": dict(proof.get("source_texture_export", {}))
+        if isinstance(proof.get("source_texture_export"), Mapping)
         else {},
         "resident_mesh_edits": dict(proof.get("resident_mesh_edits", {}))
         if isinstance(proof.get("resident_mesh_edits"), Mapping)

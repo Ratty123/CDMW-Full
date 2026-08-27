@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import math
 from types import SimpleNamespace
-
-from cdmw.ui.texture_workflow.editor_resident_texture import build_texture_editor_resident_patch
 from tools.mesh_harness.constants import _MK_LBUTTON, _WM_LBUTTONDOWN, _WM_LBUTTONUP, _WM_MOUSEMOVE
 from tools.mesh_harness.performance_contract import (
     PerformanceInteraction,
@@ -31,8 +29,6 @@ class _PerformanceInteractionDriver:
         self.protocol_cursor = len(tuple(self.tab.standalone_dotnet_protocol_events or ()))
         self.interaction_event_sequence = 0
         self.active_name = ""
-        self.texture_revision = int(getattr(state, "performance_texture_revision", 0) or 0)
-        self.texture_last_variant = 1
         self.topology_undone = False
 
     def protocol_input(self, interaction: PerformanceInteraction, ordinal: int) -> bool:
@@ -98,14 +94,8 @@ class _PerformanceInteractionDriver:
         if interaction.name in {
             "wire-vertices-part-highlight",
             "material-update",
-            "texture-update",
             "topology-update",
         }:
-            if interaction.name == "texture-update":
-                return bool(
-                    getattr(self.state, "performance_texture_binding", None) is not None
-                    and len(tuple(getattr(self.state, "performance_texture_variants", ()) or ())) == 2
-                )
             return True
         if interaction.name == "resize-stress":
             self.state.host.setMinimumSize(0, 0)
@@ -178,18 +168,6 @@ class _PerformanceInteractionDriver:
                 self.tab.apply_resident_material_parameters((group,))
                 and self.tab._flush_dotnet_material_parameter_update()
             )
-        elif interaction.name == "texture-update":
-            variants = tuple(self.state.performance_texture_variants)
-            bounds = tuple(self.state.performance_texture_dirty_bounds)
-            self.texture_last_variant = ordinal % 2
-            self.texture_revision += 1
-            patch = build_texture_editor_resident_patch(
-                self.state.performance_texture_binding,
-                variants[self.texture_last_variant],
-                texture_revision=self.texture_revision,
-                dirty_bounds=bounds[self.texture_last_variant],
-            )
-            workload_ok = bool(self.tab.apply_texture_editor_region_patch(patch))
         elif interaction.name == "topology-update":
             result = self.state.controller.redo() if self.topology_undone else self.state.controller.undo()
             if result.ok:
@@ -271,19 +249,6 @@ class _PerformanceInteractionDriver:
                     10.0,
                 )
             )
-        if interaction.name == "texture-update":
-            if self.texture_last_variant != 1:
-                self.texture_revision += 1
-                final_patch = build_texture_editor_resident_patch(
-                    self.state.performance_texture_binding,
-                    tuple(self.state.performance_texture_variants)[1],
-                    texture_revision=self.texture_revision,
-                    dirty_bounds=tuple(self.state.performance_texture_dirty_bounds)[1],
-                )
-                if not self.tab.apply_texture_editor_region_patch(final_patch):
-                    return False
-                self.texture_last_variant = 1
-            return bool(_pump_until(self.state, self.tab._dotnet_texture_updates_idle, 20.0))
         if interaction.name == "topology-update":
             if self.topology_undone:
                 result = self.state.controller.redo()
@@ -333,7 +298,6 @@ class _PerformanceInteractionDriver:
         interaction_events = tuple(self.tab.standalone_dotnet_protocol_events or ())[self.protocol_cursor:]
         acknowledgement_names = {
             "material_parameter_applied",
-            "texture_region_applied",
             "preview_vertex_update_ack",
             "preview_triangle_update_ack",
             "presentation_state_update_ack",
@@ -415,7 +379,7 @@ def _restore_performance_viewport(state: SimpleNamespace) -> None:
 
 def _performance_requires_edit_preparation(request: PerformanceRequest) -> bool:
     return any(
-        interaction.name in {"material-update", "texture-update", "topology-update"}
+        interaction.name in {"material-update", "topology-update"}
         for interaction in request.manifest.interactions
     )
 

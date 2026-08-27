@@ -88,7 +88,7 @@ class MeshHarnessRealArchiveTests(unittest.TestCase):
 
         evidence = _real_game_mesh_evidence(proof)
 
-        self.assertEqual("cdmw_real_game_mesh_proof_v1", evidence["schema"])
+        self.assertEqual("cdmw_real_game_mesh_proof_v2", evidence["schema"])
         self.assertTrue(evidence["ok"])
         self.assertEqual(1, evidence["bound_texture_count"])
         self.assertEqual(set(gate_names), set(evidence["gates"]))
