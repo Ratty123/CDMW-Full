@@ -214,3 +214,38 @@ class PanelTests(unittest.TestCase):
         row = panel.selected_row()
         self.assertIsNotNone(row)
         self.assertEqual(panel.table.item(0, 0).text(), row.extension)
+
+    def test_where_to_edit_cells_are_links_to_the_real_shell_tool(self) -> None:
+        from PySide6.QtWidgets import QLabel
+        from tools.format_explorer.tab import FormatExplorerTab
+
+        activated: list[str] = []
+        panel = FormatExplorerTab(activate_tool=activated.append)
+        panel.search_box.setText(".pac")
+        link = panel.table.cellWidget(0, 5)
+        self.assertIsInstance(link, QLabel)
+        self.assertIn('href="cdmw-tool:mesh_editor"', link.text())
+
+        link.linkActivated.emit("cdmw-tool:mesh_editor")
+
+        self.assertEqual(["mesh_editor"], activated)
+        self.assertEqual(0, panel.table.currentRow())
+
+    def test_plain_text_editor_guidance_does_not_become_a_broken_link(self) -> None:
+        panel = self._panel()
+        panel.search_box.setText("Any text editor")
+        self.assertGreater(panel.table.rowCount(), 0)
+        link = panel.table.cellWidget(0, 5)
+        self.assertNotIn("href=", link.text())
+
+    def test_columns_fill_the_viewport_in_proportion_to_their_contents(self) -> None:
+        panel = self._panel()
+        panel.resize(1600, 800)
+        panel.show()
+        self.app.processEvents()
+        widths = [panel.table.columnWidth(column) for column in range(panel.table.columnCount())]
+
+        self.assertGreaterEqual(sum(widths), panel.table.viewport().width() - 2)
+        self.assertGreater(widths[5], widths[2])
+        self.assertLess(widths[2], panel.table.viewport().width() // 3)
+        panel.close()

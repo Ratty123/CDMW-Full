@@ -9,7 +9,7 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication,
@@ -208,6 +208,36 @@ class CompactShellPresentationTests(unittest.TestCase):
         self.assertIsNotNone(filters_button.menu())
         self.assertEqual("", filters_group.title())
         widget.close()
+
+    def test_real_item_icons_keeps_both_empty_previews_visible_without_scrollbars(self) -> None:
+        from cdmw.ui.item_icons.tab import ItemIconLibraryTab
+
+        root = Path(self._temporary.name)
+        tab = ItemIconLibraryTab(
+            settings=QSettings(str(root / "item-icons.ini"), QSettings.IniFormat),
+            base_dir=root,
+            get_archive_entries=lambda: (),
+            resolve_target_template_path=lambda _entry: root / "target.png",
+        )
+        try:
+            self.assertTrue(
+                apply_compact_presentation(
+                    self._window("compact_rail"), "item_icons", tab
+                )
+            )
+            for width, height in ((1444, 895), (1132, 794), (892, 674)):
+                tab.resize(width, height)
+                tab.show()
+                _app().processEvents()
+
+                self.assertEqual(0, tab.source_preview_scroll.verticalScrollBar().maximum())
+                self.assertEqual(0, tab.final_preview_scroll.verticalScrollBar().maximum())
+                self.assertGreaterEqual(tab.source_preview_scroll.viewport().height(), 72)
+                self.assertGreaterEqual(tab.final_preview_scroll.viewport().height(), 72)
+        finally:
+            tab.shutdown()
+            tab.close()
+            tab.deleteLater()
 
     def test_compact_label_changes_do_not_change_internal_tool_key(self) -> None:
         widget = QWidget()

@@ -13,10 +13,11 @@ checkbox away, not in the way.
 
 from __future__ import annotations
 
-from typing import Optional
+from html import escape
+from typing import Callable, Optional
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -42,6 +43,16 @@ from .catalogue import FormatRow, filter_rows, groups, headline, load_rows
 _ALL = "All areas"
 _EDITABLE = QColor(58, 74, 42)
 _READ_ONLY = QColor(70, 62, 40)
+_TOOL_LINK_PREFIX = "cdmw-tool:"
+_TOOL_KEYS = {
+    "Archive Browser": "archive_browser",
+    "Mesh Editor": "mesh_editor",
+    "Placement & Animations": "placement_studio",
+    "Texture Upscaling & Editing": "texture_workflow",
+    "Texture Replacer": "replace_assistant",
+    "Texture Editor": "texture_editor",
+    "Translations": "translation_studio",
+}
 
 
 def localized_tool_location(location: str) -> str:
@@ -62,13 +73,39 @@ def localized_tool_location(location: str) -> str:
     )
 
 
+def linked_tool_location(location: str, *, link_color: str = "") -> str:
+    """Render in-app tool names as links while leaving guidance as plain text."""
+
+    def linked(alternative: str) -> str:
+        source = alternative.strip()
+        label = escape(translate_active_ui_text(source))
+        tool_key = _TOOL_KEYS.get(source)
+        if tool_key is None:
+            return label
+        style = f' style="color: {escape(link_color)}"' if link_color else ""
+        return f'<a href="{_TOOL_LINK_PREFIX}{tool_key}"{style}>{label}</a>'
+
+    return " &gt; ".join(
+        " / ".join(linked(alternative) for alternative in segment.split(" / "))
+        for segment in location.split(" > ")
+    )
+
+
 class FormatExplorerTab(QWidget):
     """A browsable view of what each game file format can and cannot do."""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        *,
+        activate_tool: Optional[Callable[[str], None]] = None,
+    ) -> None:
         super().__init__(parent)
+        self._activate_tool = activate_tool
         self._rows: tuple[FormatRow, ...] = ()
         self._shown: tuple[FormatRow, ...] = ()
+        self._natural_column_widths: tuple[int, ...] = ()
+        self._applying_column_widths = False
         self._build_ui()
         # The "Where to edit it" cells are composed of translated label segments
         # at fill time, so a language switch must refill them; nothing else in
@@ -81,6 +118,15 @@ class FormatExplorerTab(QWidget):
 
     def _on_language_changed(self, *_args) -> None:
         self._refresh()
+
+    def resizeEvent(self, event: object) -> None:
+        super().resizeEvent(event)  # type: ignore[arg-type]
+        self._apply_column_widths()
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.PaletteChange and hasattr(self, "table"):
+            self._refresh_tool_link_colors()
 
     # ------------------------------------------------------------------ widgets
 
@@ -127,12 +173,12 @@ class FormatExplorerTab(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.setTextElideMode(Qt.ElideRight)
         # Interactive with one sizing pass after each fill, not ResizeToContents:
-        # auto mode re-measured four columns on every one of the ~500 setItem
-        # calls a refresh makes, which is what the filter checkboxes' lag was.
+        # auto mode re-measured every column on each of the ~500 setItem calls a
+        # refresh makes, which is what the filter checkboxes' lag was.
         header = self.table.horizontalHeader()
-        for column in (0, 1, 3, 4, 5):
+        header.setStretchLastSection(False)
+        for column in range(self.table.columnCount()):
             header.setSectionResizeMode(column, QHeaderView.Interactive)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
         self.table.itemSelectionChanged.connect(self._on_selected)
         outer.addWidget(self.table, 3)
 
@@ -192,13 +238,25 @@ class FormatExplorerTab(QWidget):
                 self.table.setItem(index, 3, QTableWidgetItem(row.read_label))
                 self.table.setItem(index, 4, QTableWidgetItem(row.write_label))
                 location = localized_tool_location(row.tool)
-                where = QTableWidgetItem(location)
+                where = QTableWidgetItem("")
                 where.setToolTip(location)
+                link = QLabel(linked_tool_location(row.tool))
+                link.setObjectName("FormatExplorerToolLink")
+                link.setTextFormat(Qt.RichText)
+                link.setTextInteractionFlags(Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
+                link.setOpenExternalLinks(False)
+                link.setFocusPolicy(Qt.StrongFocus)
+                link.setToolTip(location)
+                link.setProperty("sourceLocation", row.tool)
+                link.linkActivated.connect(
+                    lambda target, row_index=index: self._follow_tool_link(row_index, target)
+                )
+                where.setSizeHint(QSize(link.sizeHint().width() + 8, link.sizeHint().height()))
                 self.table.setItem(index, 5, where)
+                self.table.setCellWidget(index, 5, link)
             if rows:
                 self.table.selectRow(0)
-            for column in (0, 1, 3, 4, 5):
-                self.table.resizeColumnToContents(column)
+            self._measure_column_widths()
         finally:
             self.table.blockSignals(False)
             self.table.setUpdatesEnabled(True)
@@ -209,6 +267,61 @@ class FormatExplorerTab(QWidget):
             self._on_selected()
         else:
             self.detail.setHtml("<p>Nothing matches that filter.</p>")
+
+    def _measure_column_widths(self) -> None:
+        for column in range(self.table.columnCount()):
+            self.table.resizeColumnToContents(column)
+        self._natural_column_widths = tuple(
+            self.table.horizontalHeader().sectionSize(column)
+            for column in range(self.table.columnCount())
+        )
+        self._apply_column_widths()
+
+    def _apply_column_widths(self) -> None:
+        if self._applying_column_widths or len(self._natural_column_widths) != self.table.columnCount():
+            return
+        widths = list(self._natural_column_widths)
+        available = max(0, self.table.viewport().width())
+        slack = available - sum(widths)
+        if slack > 0:
+            flexible = (2, 5)
+            weight = max(1, sum(widths[column] for column in flexible))
+            what_extra = round(slack * widths[2] / weight)
+            widths[2] += what_extra
+            widths[5] += slack - what_extra
+        self._applying_column_widths = True
+        try:
+            header = self.table.horizontalHeader()
+            for column, width in enumerate(widths):
+                header.resizeSection(column, width)
+        finally:
+            self._applying_column_widths = False
+
+    def _follow_tool_link(self, row_index: int, target: str) -> None:
+        if not target.startswith(_TOOL_LINK_PREFIX):
+            return
+        tool_key = target[len(_TOOL_LINK_PREFIX):]
+        if tool_key not in _TOOL_KEYS.values():
+            return
+        if 0 <= row_index < self.table.rowCount():
+            self.table.selectRow(row_index)
+        if self._activate_tool is not None:
+            self._activate_tool(tool_key)
+
+    def _refresh_tool_link_colors(self) -> None:
+        selected = self.table.currentRow()
+        selected_color = self.table.palette().color(QPalette.HighlightedText).name()
+        for row_index in range(self.table.rowCount()):
+            label = self.table.cellWidget(row_index, 5)
+            if not isinstance(label, QLabel):
+                continue
+            location = str(label.property("sourceLocation") or "")
+            label.setText(
+                linked_tool_location(
+                    location,
+                    link_color=selected_color if row_index == selected else "",
+                )
+            )
 
     # ---------------------------------------------------------------- selection
 
@@ -223,6 +336,7 @@ class FormatExplorerTab(QWidget):
         row = self.selected_row()
         if row is None:
             return
+        self._refresh_tool_link_colors()
         remaining = row.remaining.strip() or "Nothing outstanding."
         self.detail.setHtml(
             f"<h3>{row.extension} &mdash; {row.read_label.lower()}, {row.write_label.lower()}</h3>"

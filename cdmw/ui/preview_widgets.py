@@ -21,7 +21,8 @@ class PreviewLabel(QLabel):
     def __init__(self, title: str):
         super().__init__(title)
         self.setAlignment(Qt.AlignCenter)
-        self.setMinimumSize(280, 220)
+        self._empty_minimum_size = QSize(280, 220)
+        self.setMinimumSize(self._empty_minimum_size)
         self.setWordWrap(True)
         self.setObjectName("PreviewLabel")
         self._source_pixmap: Optional[QPixmap] = None
@@ -74,9 +75,16 @@ class PreviewLabel(QLabel):
         self.setPixmap(QPixmap())
         self.setText(message)
         self.setAlignment(Qt.AlignCenter)
-        self.setMinimumSize(280, 220)
+        self.setMinimumSize(self._empty_minimum_size)
         self.setMaximumSize(16777215, 16777215)
         self.unsetCursor()
+
+    def set_empty_minimum_size(self, size: QSize) -> None:
+        """Set one caller's empty-state floor without changing shared defaults."""
+
+        self._empty_minimum_size = QSize(max(0, size.width()), max(0, size.height()))
+        if not self._has_source_image():
+            self.setMinimumSize(self._empty_minimum_size)
 
     def attach_scroll_area(self, scroll_area) -> None:
         self._scroll_area = scroll_area

@@ -597,8 +597,14 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         app.processEvents()
         assert window._tool_key_for_widget(window._current_navigation_widget()) == "format_explorer"
         assert window.compact_workspace.rail.tool_buttons["format_explorer"].isChecked()
-        window._activate_tool_key("archive_browser")
+        format_panel = window.format_explorer_tab.widget_if_created()
+        assert format_panel is not None
+        format_panel.search_box.setText(".wem")
+        link = format_panel.table.cellWidget(0, 5)
+        assert isinstance(link, QLabel)
+        link.linkActivated.emit("cdmw-tool:archive_browser")
         app.processEvents()
+        assert window._tool_key_for_widget(window._current_navigation_widget()) == "archive_browser"
         assert window.compact_workspace.rail.tool_buttons["archive_browser"].isChecked()
 
         compact_theme = next(

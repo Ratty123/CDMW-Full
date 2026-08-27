@@ -28,9 +28,12 @@ all available width across the columns instead of leaving an empty strip. An exp
 while keyboard row navigation keeps its 180 ms latest-row settle so holding an arrow key
 does not rebuild every dependent step along the way. It mounts the same resident item
 viewport used by Model & Placement, so a selected helmet, armour piece or weapon can
-be orbited and zoomed before the workflow inherits it. Search, results and selected-item
-facts stay in a left column while the preview receives the wider right column and the
-full working height; moving to step 3 reparents that live viewport without rebuilding
+be orbited and zoomed before the workflow inherits it. Search and results stay in the
+left column while the preview receives the wider right column and the full working
+height. The workflow summary remains the one selected-template status authority, so
+Template does not repeat it in another group; its camera help follows the viewport
+instead of separating the viewport from its heading. Moving to step 3 reparents that
+live viewport without rebuilding
 its package or resetting its camera. Snapshot creation
 reuses Archive Browser's published path, basename and extension indexes. A valid durable
 material-package hit is accepted before either preview builder. On a cold miss, bare

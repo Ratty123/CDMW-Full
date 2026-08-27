@@ -62,7 +62,13 @@ _COMPACT_BUTTON_LABELS: Mapping[str, Mapping[str, str]] = MappingProxyType(
             {
                 "Add Folder...": "Add",
                 "Edited Folder": "Folder",
+                "Save Metadata": "Save",
+                "Open In Texture Editor": "Open",
+                "Delete Source": "Delete",
+                "Refresh Targets": "Refresh",
+                "Use Archive Selection": "Use Selection",
                 "Open In Archive Browser": "Open",
+                "Preview Final": "Preview",
                 "Export Generated Icon...": "Export",
                 "Add To Existing Loose Mod...": "Add",
             }
@@ -431,6 +437,11 @@ def _flatten_compact_sections(widget: QWidget) -> None:
 def _apply_tool_specific_presentation(window: object, key: str, widget: QWidget) -> None:
     if key == "archive_browser":
         _build_archive_command_strip(window, widget)
+
+    elif key == "item_icons":
+        from cdmw.ui.item_icons.panels import apply_compact_item_icons_presentation
+
+        apply_compact_item_icons_presentation(widget)
 
     elif key == "new_item_studio":
         highlight = widget.palette().color(QPalette.ColorRole.Highlight)

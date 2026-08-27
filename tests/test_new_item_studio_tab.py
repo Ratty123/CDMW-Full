@@ -463,8 +463,12 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         selection = panel.selection_column.geometry()
         preview = panel.preview_group.geometry()
         self.assertTrue(panel.selection_column.isAncestorOf(panel.matches))
-        self.assertTrue(panel.selection_column.isAncestorOf(panel.summary))
+        self.assertFalse(hasattr(panel, "summary"))
         self.assertTrue(panel.preview_group.isAncestorOf(panel.preview_holder))
+        self.assertLess(
+            panel.preview_group.layout().indexOf(panel.preview_holder),
+            panel.preview_group.layout().indexOf(panel.preview_note),
+        )
         self.assertEqual(panel.matches.columnCount(), 4)
         self.assertEqual(
             [panel.matches.headerItem().text(column) for column in range(panel.matches.columnCount())],
@@ -533,10 +537,16 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
 
     def test_new_item_copy_is_equipment_neutral_and_sheathed_wording_is_conditional(self) -> None:
         from cdmw.ui.new_item.ui_kit import DetailsToggle
+        from PySide6.QtWidgets import QLabel
 
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
-        template_intro = tab.template_panel.layout().itemAt(0).widget().text()
+        self.assertFalse(
+            any(
+                label.text().startswith("Every new item is a copy")
+                for label in tab.template_panel.findChildren(QLabel)
+            )
+        )
         self.assertFalse(
             any(
                 details.toggle.text() == "Import tips"
@@ -545,7 +555,6 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         )
         visible_copy = "\n".join(
             (
-                template_intro,
                 tab.template_panel.filter_edit.placeholderText(),
                 tab.identity_panel.internal_name.placeholderText(),
                 tab.identity_panel.internal_name.toolTip(),
@@ -559,8 +568,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertNotIn("sword", visible_copy)
         self.assertNotIn("weapon", visible_copy)
         self.assertNotIn("armour", visible_copy)
-        self.assertIn("optional sheathed variant", visible_copy)
-        self.assertIn("when the template has one", visible_copy)
+        self.assertIn("sheathed or holstered when the template has one", visible_copy)
         tab.close()
         tab.deleteLater()
 

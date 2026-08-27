@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -100,12 +100,12 @@ def build_library_panel(tab: object) -> QWidget:
 
 def build_preview_panel(tab: object) -> QWidget:
     panel = QWidget()
-    layout = QVBoxLayout(panel)
+    layout = tab._item_icons_preview_layout = QVBoxLayout(panel)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(6)
 
-    source_group = QGroupBox("Source")
-    source_layout = QVBoxLayout(source_group)
+    source_group = tab.source_group = QGroupBox("Source")
+    source_layout = tab._item_icons_source_layout = QVBoxLayout(source_group)
     source_layout.setContentsMargins(8, 8, 8, 8)
     source_layout.setSpacing(6)
     tab.source_preview_label = PreviewLabel("Select an icon source.")
@@ -120,7 +120,7 @@ def build_preview_panel(tab: object) -> QWidget:
     tab.source_meta_label.setWordWrap(True)
     source_layout.addWidget(tab.source_meta_label)
 
-    metadata_grid = QGridLayout()
+    metadata_grid = tab._item_icons_metadata_grid = QGridLayout()
     tab.favorite_checkbox = QCheckBox("Favorite")
     tab.tags_edit = QLineEdit()
     tab.tags_edit.setPlaceholderText("comma separated tags")
@@ -143,8 +143,8 @@ def build_preview_panel(tab: object) -> QWidget:
     source_layout.addLayout(metadata_grid)
     layout.addWidget(source_group, stretch=1)
 
-    target_group = QGroupBox("Compatible Output")
-    target_layout = QVBoxLayout(target_group)
+    target_group = tab.target_group = QGroupBox("Compatible Output")
+    target_layout = tab._item_icons_target_layout = QVBoxLayout(target_group)
     target_layout.setContentsMargins(8, 8, 8, 8)
     target_layout.setSpacing(6)
     tab.target_filter_edit = QLineEdit()
@@ -219,4 +219,41 @@ def build_preview_panel(tab: object) -> QWidget:
     return panel
 
 
-__all__ = ["build_library_panel", "build_preview_panel", "build_roots_panel"]
+def apply_compact_item_icons_presentation(tab: object) -> None:
+    """Fit both Item Icons previews and their existing controls without idle scrollbars."""
+
+    if bool(tab.property("itemIconsCompactPanelsApplied")):
+        return
+    tab.setProperty("itemIconsCompactPanelsApplied", True)
+    tab._item_icons_preview_layout.setContentsMargins(0, 0, 0, 0)
+    tab._item_icons_preview_layout.setSpacing(4)
+    for group, group_layout in (
+        (tab.source_group, tab._item_icons_source_layout),
+        (tab.target_group, tab._item_icons_target_layout),
+    ):
+        group.setFlat(True)
+        group.setProperty("compactFlatSection", True)
+        group_layout.setContentsMargins(4, 4, 4, 4)
+        group_layout.setSpacing(4)
+
+    tab.notes_edit.setMaximumHeight(48)
+    tab._item_icons_metadata_grid.addWidget(tab.save_metadata_button, 3, 0)
+    tab._item_icons_metadata_grid.addWidget(tab.open_editor_button, 3, 1)
+    tab._item_icons_metadata_grid.addWidget(tab.delete_source_button, 3, 2)
+    tab._item_icons_metadata_grid.setColumnStretch(1, 1)
+
+    for preview, scroll in (
+        (tab.source_preview_label, tab.source_preview_scroll),
+        (tab.final_preview_label, tab.final_preview_scroll),
+    ):
+        preview.set_empty_minimum_size(QSize(96, 72))
+        scroll.setWidgetResizable(True)
+        scroll.setMinimumHeight(84)
+
+
+__all__ = [
+    "apply_compact_item_icons_presentation",
+    "build_library_panel",
+    "build_preview_panel",
+    "build_roots_panel",
+]
