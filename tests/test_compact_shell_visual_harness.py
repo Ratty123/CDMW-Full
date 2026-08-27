@@ -30,6 +30,7 @@ from tools.compact_shell_visual_harness import (
     clipped_button_error,
     geometry_payload,
     parse_size,
+    unflattened_surface_error,
 )
 from tools.compact_shell_visual.mesh_fixture import _wait_for_synthetic_mesh_renderer
 
@@ -178,6 +179,24 @@ class CompactShellVisualHarnessTests(unittest.TestCase):
         message = clipped_button_error(captures)
 
         self.assertIn("archive_browser@1120x720:Action 0 (40/80 px)", message)
+        self.assertIn("plus 2 more", message)
+
+    def test_unflattened_surface_error_is_bounded_and_empty_on_success(self) -> None:
+        self.assertEqual(
+            "",
+            unflattened_surface_error(({"unflattened_compact_surfaces": []},)),
+        )
+        captures = (
+            {
+                "key": "texture_editor",
+                "requested_size": "1120x720",
+                "unflattened_compact_surfaces": [f"Card-{index}" for index in range(14)],
+            },
+        )
+
+        message = unflattened_surface_error(captures)
+
+        self.assertIn("texture_editor@1120x720:Card-0", message)
         self.assertIn("plus 2 more", message)
 
     def test_bundled_helper_resolution_requires_expected_executable_and_source(self) -> None:

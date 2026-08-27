@@ -4301,7 +4301,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 574,
+          "line": 692,
           "sink": "setText"
         },
         {
@@ -54266,7 +54266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 605,
+          "line": 723,
           "sink": "setText"
         }
       ]
@@ -88081,7 +88081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 607,
+          "line": 725,
           "sink": "setToolTip"
         }
       ]

@@ -11,6 +11,7 @@ from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QAbstractButton, QApplication, QSplitter, QWidget
 
+from cdmw.ui.shell.compact.presentations import compact_surface_contract
 from tools.compact_shell_visual.contracts import REFERENCE_FILENAMES
 
 
@@ -121,6 +122,7 @@ def geometry_payload(window: QWidget, key: str, widget: QWidget) -> dict[str, ob
         "resident_hosts": _resident_host_payload(widget),
     }
     payload.update(_visible_button_payload(widget))
+    payload.update(compact_surface_contract(widget))
     return payload
 
 
@@ -145,6 +147,25 @@ def clipped_button_error(captures: Sequence[Mapping[str, object]]) -> str:
     shown = offenders[:12]
     suffix = f"; plus {len(offenders) - len(shown)} more" if len(offenders) > len(shown) else ""
     return "Compact button text was clipped: " + "; ".join(shown) + suffix
+
+
+def unflattened_surface_error(captures: Sequence[Mapping[str, object]]) -> str:
+    """Return one bounded failure for decorative surfaces outside the flat contract."""
+
+    offenders: list[str] = []
+    for capture in captures:
+        rows = capture.get("unflattened_compact_surfaces", ())
+        if not isinstance(rows, (list, tuple)):
+            continue
+        for name in rows:
+            offenders.append(
+                f"{capture.get('key', '?')}@{capture.get('requested_size', '?')}:{name}"
+            )
+    if not offenders:
+        return ""
+    shown = offenders[:12]
+    suffix = f"; plus {len(offenders) - len(shown)} more" if len(offenders) > len(shown) else ""
+    return "Compact decorative surfaces were not flattened: " + "; ".join(shown) + suffix
 
 
 class _RECT(ctypes.Structure):
