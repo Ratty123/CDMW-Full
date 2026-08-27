@@ -35,7 +35,7 @@ import re
 from dataclasses import dataclass, replace
 from typing import Iterable, Mapping, Sequence, Tuple
 
-_BOM = "﻿"
+_BOM = "\ufeff"
 
 #: A tag, a comment, or an anonymous close. Ordered so comments win over tags.
 #: The comment accepts `--!>` as well as `-->`, because a tolerant parser ends a

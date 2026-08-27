@@ -112,7 +112,7 @@ PROVIDER_SOURCE_HASHES = {
     'cdmw/ui/shell/navigation_controller.py': '765b0e614e641ca5e3cb6546bd5f7b30785a296e43ed1427926818ab6b7657e4',
     'cdmw/ui/shell/path_controller.py': '3b63b582a43e75c7175bafc62b893597f622f1b6e822e05f022b678c6f26ee10',
     'cdmw/ui/shell/profile_controller.py': '694d476dc8102c162b01885d3dfc6533a6264dbca779e1d7bac262cfe1ef34cb',
-    'cdmw/ui/shell/responsiveness_controller.py': 'b6ae4b10d76b5d63c1d29d96f6770b675e62521c7d1d441bba6072630f2c8a43',
+    'cdmw/ui/shell/responsiveness_controller.py': '26f6c152f53c43d61d3f708b52463ee4cbe766b8e1d30c3abab41e709c2a04cb',
     'cdmw/ui/shell/root_layout.py': '936e712b1566f2a76f91ba314b5b47cbd36f259f0996e43a56a0bdd6ff8b9e3c',
     'cdmw/ui/shell/settings_autosave.py': '53bd778d6c992554031c5129e7c2bfa9780c474f9b59d4eb776c6a090331b15f',
     'cdmw/ui/shell/settings_persistence.py': 'e449bd9be849e0dd9421ac25a8b7f2a965dcaf08c73207a9d125d795b1e6d93c',

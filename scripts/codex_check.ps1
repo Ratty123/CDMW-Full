@@ -135,6 +135,8 @@ $TestsByArea = @{
         "tests/test_texture_workflow_ui_source_guards.py",
         "tests/test_texture_domain_profiles.py",
         "tests/test_texture_workflow_unavailable_editor.py",
+        "tests/test_material_combiner_decode_retry.py",
+        "tests/test_material_combiner_vectorized.py",
         "tests/test_static_texture_replacement.py"
     )
     "mesh-unit" = @(

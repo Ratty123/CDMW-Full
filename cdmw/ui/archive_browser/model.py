@@ -120,19 +120,19 @@ class ArchiveBrowserModel(QAbstractItemModel):
         entries: Sequence[ArchiveEntry],
         *,
         mode: str,
-        tree_child_folders: Mapping[Tuple[str, ...], Sequence[Tuple[str, Tuple[str, ...]]]] = {},
-        tree_direct_files: Mapping[Tuple[str, ...], Sequence[int]] = {},
-        tree_folder_entry_indexes: Mapping[Tuple[str, ...], Sequence[int]] = {},
-        category_entry_indexes: Mapping[str, Sequence[int]] = {},
+        tree_child_folders: Optional[Mapping[Tuple[str, ...], Sequence[Tuple[str, Tuple[str, ...]]]]] = None,
+        tree_direct_files: Optional[Mapping[Tuple[str, ...], Sequence[int]]] = None,
+        tree_folder_entry_indexes: Optional[Mapping[Tuple[str, ...], Sequence[int]]] = None,
+        category_entry_indexes: Optional[Mapping[str, Sequence[int]]] = None,
         fetch_batch_size: int = 500,
     ) -> None:
         self.beginResetModel()
         self._entries = entries
         self._mode = mode if mode in {"flat", "folders", "categories"} else "flat"
-        self._tree_child_folders = tree_child_folders
-        self._tree_direct_files = tree_direct_files
-        self._tree_folder_entry_indexes = tree_folder_entry_indexes
-        self._category_entry_indexes = category_entry_indexes
+        self._tree_child_folders = tree_child_folders if tree_child_folders is not None else {}
+        self._tree_direct_files = tree_direct_files if tree_direct_files is not None else {}
+        self._tree_folder_entry_indexes = tree_folder_entry_indexes if tree_folder_entry_indexes is not None else {}
+        self._category_entry_indexes = category_entry_indexes if category_entry_indexes is not None else {}
         self._fetch_batch_size = max(100, min(5000, int(fetch_batch_size or 500)))
         self._flat_loaded_count = min(len(entries), self._fetch_batch_size) if self._mode == "flat" else 0
         self._row_cache.clear()

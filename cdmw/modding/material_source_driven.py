@@ -1917,8 +1917,8 @@ def _build_source_driven_sidecar_text(
     insert_missing_slots: bool = False,
     material_authority_bruteforce: bool = False,
     material_profile: Optional[CDMaterialRuntimeProfile] = None,
-    template_allowed_insertions: Mapping[str, Mapping[str, str]] = {},
-    template_shader_overrides: Mapping[str, str] = {},
+    template_allowed_insertions: Optional[Mapping[str, Mapping[str, str]]] = None,
+    template_shader_overrides: Optional[Mapping[str, str]] = None,
     target_safe_preserve_enabled: bool = False,
     target_safe_preserve_wrapper_names: Optional[set[str]] = None,
 ) -> tuple[str, int, set[str], set[str]]:
@@ -1965,7 +1965,7 @@ def _build_source_driven_sidecar_text(
             insert_missing_slots=insert_missing_slots,
             material_authority_bruteforce=material_authority_bruteforce,
             material_profile=material_profile,
-            template_allowed_insertions=template_allowed_insertions.get(
+            template_allowed_insertions=(template_allowed_insertions if template_allowed_insertions is not None else {}).get(
                 _normalize_sidecar_material_name(wrapper_name),
                 {},
             ),
@@ -2990,7 +2990,7 @@ def _patch_source_driven_wrapper_texture_slots(
     insert_missing_slots: bool = False,
     material_authority_bruteforce: bool = False,
     material_profile: Optional[CDMaterialRuntimeProfile] = None,
-    template_allowed_insertions: Mapping[str, str] = {},
+    template_allowed_insertions: Optional[Mapping[str, str]] = None,
     target_safe_preserve: bool = False,
 ) -> tuple[str, bool, set[str]]:
     patched = wrapper_text

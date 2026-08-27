@@ -910,6 +910,7 @@
     "Armour indexing cancelled": "アーマーのインデックス作成がキャンセルされました",
     "Armour: {value_0} mesh(es) bound to the rig": "アーマー: {value_0} メッシュがリグにバインドされています",
     "Asking the provider...": "プロバイダーに聞いてみると…",
+    "Asset": "アセット",
     "Asset Authoring": "アセットのオーサリング",
     "Asset Authoring Helpers": "アセット オーサリング ヘルパー",
     "Asset Compatibility": "資産の互換性",

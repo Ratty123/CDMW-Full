@@ -1,4 +1,4 @@
-﻿"""Shell responsiveness policy boundary."""
+"""Shell responsiveness policy boundary."""
 
 from __future__ import annotations
 

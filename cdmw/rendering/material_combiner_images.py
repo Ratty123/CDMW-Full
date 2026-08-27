@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Callable, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QFile, QIODevice, QSize, QUrl, Qt
+from PySide6.QtCore import QSize, QUrl, Qt
 from PySide6.QtGui import QColor, QImage, QImageReader
 
 from cdmw.domain.cancellation import RunCancelled
@@ -568,9 +568,7 @@ def _image_reader(source_url: str, *, max_dimension: int = 0) -> QImage:
     source_path = _source_url_local_path(source_url)
     if not source_path:
         return QImage()
-    source_file = QFile(source_path)
-    source_file.open(QIODevice.OpenModeFlag.ReadOnly)
-    reader = QImageReader(source_file)
+    reader = QImageReader(source_path)
     reader.setAutoTransform(True)
     limit = max(0, int(max_dimension or 0))
     if limit > 0:
@@ -580,7 +578,9 @@ def _image_reader(source_url: str, *, max_dimension: int = 0) -> QImage:
             if target.width() > 0 and target.height() > 0:
                 reader.setScaledSize(target)
     image = reader.read()
-    source_file.close()
+    device = reader.device()
+    if device is not None:
+        device.close()
     if not image.isNull():
         return image
     fallback = _image_from_file_bytes_with_retry(source_path)
