@@ -16,7 +16,7 @@ from __future__ import annotations
 from html import escape
 from typing import Callable, Optional
 
-from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtCore import QEvent, QObject, QSize, QTimer, Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QTextBrowser,
@@ -106,6 +107,9 @@ class FormatExplorerTab(QWidget):
         self._shown: tuple[FormatRow, ...] = ()
         self._natural_column_widths: tuple[int, ...] = ()
         self._applying_column_widths = False
+        self._column_resize_timer = QTimer(self)
+        self._column_resize_timer.setSingleShot(True)
+        self._column_resize_timer.timeout.connect(self._apply_column_widths)
         self._build_ui()
         # The "Where to edit it" cells are composed of translated label segments
         # at fill time, so a language switch must refill them; nothing else in
@@ -119,9 +123,14 @@ class FormatExplorerTab(QWidget):
     def _on_language_changed(self, *_args) -> None:
         self._refresh()
 
-    def resizeEvent(self, event: object) -> None:
-        super().resizeEvent(event)  # type: ignore[arg-type]
-        self._apply_column_widths()
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt contract
+        if (
+            hasattr(self, "table")
+            and watched is self.table.viewport()
+            and event.type() == QEvent.Resize
+        ):
+            self._column_resize_timer.start(0)
+        return super().eventFilter(watched, event)
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
@@ -161,6 +170,10 @@ class FormatExplorerTab(QWidget):
         controls.addWidget(self.count_label)
         outer.addLayout(controls)
 
+        self.main_splitter = QSplitter(Qt.Horizontal)
+        self.main_splitter.setChildrenCollapsible(False)
+        outer.addWidget(self.main_splitter, 1)
+
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(
             ["Format", "Files", "What it is", "Read", "Write", "Where to edit it"]
@@ -180,12 +193,16 @@ class FormatExplorerTab(QWidget):
         for column in range(self.table.columnCount()):
             header.setSectionResizeMode(column, QHeaderView.Interactive)
         self.table.itemSelectionChanged.connect(self._on_selected)
-        outer.addWidget(self.table, 3)
+        self.table.viewport().installEventFilter(self)
+        self.main_splitter.addWidget(self.table)
 
         self.detail = QTextBrowser()
         self.detail.setOpenExternalLinks(False)
-        self.detail.setMinimumHeight(150)
-        outer.addWidget(self.detail, 1)
+        self.detail.setMinimumWidth(300)
+        self.main_splitter.addWidget(self.detail)
+        self.main_splitter.setStretchFactor(0, 7)
+        self.main_splitter.setStretchFactor(1, 3)
+        self.main_splitter.setSizes([980, 420])
 
     # ------------------------------------------------------------------ loading
 

@@ -164,10 +164,21 @@ class PanelTests(unittest.TestCase):
 
         cls.app = QApplication.instance() or QApplication([])
 
-    def _panel(self):
+    def _dispose_panel(self, panel) -> None:
+        from PySide6.QtCore import QEvent
+        from PySide6.QtWidgets import QApplication
+
+        panel.close()
+        panel.deleteLater()
+        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        QApplication.processEvents()
+
+    def _panel(self, *, activate_tool=None):
         from tools.format_explorer.tab import FormatExplorerTab
 
-        return FormatExplorerTab()
+        panel = FormatExplorerTab(activate_tool=activate_tool)
+        self.addCleanup(self._dispose_panel, panel)
+        return panel
 
     def test_the_panel_fills_from_the_manifest(self) -> None:
         panel = self._panel()
@@ -217,10 +228,9 @@ class PanelTests(unittest.TestCase):
 
     def test_where_to_edit_cells_are_links_to_the_real_shell_tool(self) -> None:
         from PySide6.QtWidgets import QLabel
-        from tools.format_explorer.tab import FormatExplorerTab
 
         activated: list[str] = []
-        panel = FormatExplorerTab(activate_tool=activated.append)
+        panel = self._panel(activate_tool=activated.append)
         panel.search_box.setText(".pac")
         link = panel.table.cellWidget(0, 5)
         self.assertIsInstance(link, QLabel)
@@ -240,7 +250,7 @@ class PanelTests(unittest.TestCase):
 
     def test_columns_fill_the_viewport_in_proportion_to_their_contents(self) -> None:
         panel = self._panel()
-        panel.resize(1600, 800)
+        panel.resize(3000, 800)
         panel.show()
         self.app.processEvents()
         widths = [panel.table.columnWidth(column) for column in range(panel.table.columnCount())]
@@ -249,3 +259,32 @@ class PanelTests(unittest.TestCase):
         self.assertGreater(widths[5], widths[2])
         self.assertLess(widths[2], panel.table.viewport().width() // 3)
         panel.close()
+
+    def test_table_and_detail_share_width_and_refill_after_splitter_resize(self) -> None:
+        from PySide6.QtCore import Qt
+
+        panel = self._panel()
+        self.addCleanup(panel.close)
+        panel.resize(3000, 800)
+        panel.show()
+        self.app.processEvents()
+
+        self.assertEqual(Qt.Orientation.Horizontal, panel.main_splitter.orientation())
+        self.assertLess(panel.table.geometry().right(), panel.detail.geometry().left())
+
+        panel.main_splitter.setSizes([1200, 1760])
+        self.app.processEvents()
+        self.app.processEvents()
+        narrow_viewport = panel.table.viewport().width()
+        panel.main_splitter.setSizes([2450, 510])
+        self.app.processEvents()
+        self.app.processEvents()
+
+        viewport = panel.table.viewport().width()
+        widths = [panel.table.columnWidth(column) for column in range(panel.table.columnCount())]
+        self.assertGreater(viewport, narrow_viewport + 300)
+        self.assertLessEqual(abs(sum(widths) - viewport), 2)
+        for column in (0, 1, 3, 4):
+            self.assertEqual(panel._natural_column_widths[column], widths[column])
+        for column in (2, 5):
+            self.assertGreaterEqual(widths[column], panel._natural_column_widths[column])

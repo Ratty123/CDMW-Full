@@ -38,8 +38,10 @@ from cdmw.ui.shell.app_startup import read_shell_startup_theme_key
 from cdmw.ui.shell.compact.activity import (
     ActivityHistory,
     CompactStatusSnapshot,
+    ToolLogAdapter,
     tool_log_adapter_for,
 )
+from cdmw.ui.shell.compact.drawer import CompactActivityDrawer
 from cdmw.ui.shell.compact.config import (
     COMPACT_SHELL_THEME_SETTING,
     COMPACT_SHELL_VARIANT,
@@ -64,6 +66,7 @@ from cdmw.ui.shell.theme_controller import (
     _DATA_FONT_CLASS_NAMES,
     _UI_FONT_CLASS_NAMES,
     ThemeControllerMixin,
+    apply_window_data_fonts,
 )
 from cdmw.ui.themes import UI_THEME_SCHEMES
 
@@ -524,6 +527,72 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     owner.close()
     owner.deleteLater()
     app.processEvents()
+
+
+def test_compact_drawer_follows_appearance_log_font_across_tool_switches(tmp_path: Path) -> None:
+    app = _app()
+    settings = create_settings(settings_file_path=tmp_path / "drawer-font-settings.cfg")
+    settings.setValue("appearance/log_font_size", 16)
+    host = QWidget()
+    drawer = CompactActivityDrawer(ActivityHistory(parent=host), host)
+
+    class _PreviewFontTarget:
+        def apply_font_preferences(self, _font, *, preserve_size: bool = False) -> None:
+            assert not preserve_size
+
+    class _Highlighter:
+        def set_bold_enabled(self, _enabled: bool) -> None:
+            pass
+
+        def set_highlight_style(self, _style: str) -> None:
+            pass
+
+        def set_color_scheme(self, _scheme: str) -> None:
+            pass
+
+    window = SimpleNamespace(
+        settings=settings,
+        log_view=QPlainTextEdit(host),
+        archive_log_view=QPlainTextEdit(host),
+        archive_preview_text_edit=_PreviewFontTarget(),
+        archive_preview_info_edit=_PreviewFontTarget(),
+        archive_preview_details_edit=_PreviewFontTarget(),
+        log_highlighter=_Highlighter(),
+        archive_log_highlighter=_Highlighter(),
+        compact_workspace=SimpleNamespace(drawer=drawer),
+    )
+
+    try:
+        apply_window_data_fonts(window)  # type: ignore[arg-type]
+
+        assert drawer.activity_view.font().pointSize() == 16
+        assert drawer.activity_view.document().defaultFont().pointSize() == 16
+        assert drawer.tool_log_view.font().pointSize() == 16
+        assert drawer.tool_log_view.document().defaultFont().pointSize() == 16
+
+        first_tool_log = QPlainTextEdit(host)
+        first_tool_log.setPlainText("first tool")
+        first_tool_document = first_tool_log.document()
+        drawer.set_tool_log(ToolLogAdapter("first", "First", first_tool_document))
+        assert drawer.tool_log_view.document() is first_tool_document
+        assert first_tool_document.defaultFont().pointSize() == 16
+
+        settings.setValue("appearance/log_font_size", 13)
+        apply_window_data_fonts(window)  # type: ignore[arg-type]
+        assert first_tool_document.defaultFont().pointSize() == 13
+
+        second_tool_log = QPlainTextEdit(host)
+        second_tool_log.setPlainText("second tool")
+        second_tool_document = second_tool_log.document()
+        drawer.set_tool_log(ToolLogAdapter("second", "Second", second_tool_document))
+        assert drawer.tool_log_view.document() is second_tool_document
+        assert drawer.tool_log_view.font().pointSize() == 13
+        assert second_tool_document.defaultFont().pointSize() == 13
+    finally:
+        drawer.set_tool_log(ToolLogAdapter("", ""))
+        host.close()
+        host.deleteLater()
+        app.processEvents()
 
 
 def test_settings_layout_controls_are_exposed_and_persist_independently(tmp_path: Path) -> None:

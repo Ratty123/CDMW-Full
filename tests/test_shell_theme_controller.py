@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from collections import deque
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -12,7 +13,18 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPalette
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLabel, QListWidget, QMenu, QPushButton, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QListWidget,
+    QMenu,
+    QPushButton,
+    QTableWidget,
+    QToolButton,
+    QTreeWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cdmw.ui.settings_tab import SettingsTab
 from cdmw.ui.app_icon import resolve_app_icon_path
@@ -532,9 +544,16 @@ class ShellThemeControllerTests(unittest.TestCase):
             )
             label = QLabel("Label")
             list_widget = QListWidget()
+            tree_widget = QTreeWidget()
+            tree_widget.setColumnCount(2)
+            tree_widget.setHeaderLabels(("Name", "Type"))
+            table_widget = QTableWidget(1, 2)
+            table_widget.setHorizontalHeaderLabels(("Name", "Type"))
             layout = QVBoxLayout(window)
             layout.addWidget(label)
             layout.addWidget(list_widget)
+            layout.addWidget(tree_widget)
+            layout.addWidget(table_widget)
 
             resolved_fonts = apply_window_ui_fonts(window, app)  # type: ignore[arg-type]
 
@@ -542,6 +561,11 @@ class ShellThemeControllerTests(unittest.TestCase):
             ui_font, data_font = resolved_fonts or (QFont(), QFont())
             self.assertEqual(ui_font.pointSize(), label.font().pointSize())
             self.assertEqual(data_font.pointSize(), list_widget.font().pointSize())
+            self.assertEqual(data_font.pointSize(), tree_widget.font().pointSize())
+            self.assertEqual(data_font.pointSize(), tree_widget.header().font().pointSize())
+            self.assertEqual(data_font.pointSize(), table_widget.font().pointSize())
+            self.assertEqual(data_font.pointSize(), table_widget.horizontalHeader().font().pointSize())
+            self.assertEqual(data_font.pointSize(), table_widget.verticalHeader().font().pointSize())
         finally:
             window.deleteLater()
             app.setFont(previous_font)
@@ -631,6 +655,32 @@ class ShellThemeControllerTests(unittest.TestCase):
         self.assertTrue(payload["requires_ui_fonts"])
         self.assertFalse(payload["requires_data_fonts"])
         self.assertFalse(payload["requires_text_colors"])
+
+    def test_live_log_font_apply_routes_to_compact_activity_drawer(self) -> None:
+        queued_steps: list[tuple[str, object]] = []
+        applied_fonts: list[QFont] = []
+        drawer = SimpleNamespace(apply_log_font=lambda font: applied_fonts.append(QFont(font)))
+        owner = SimpleNamespace(
+            settings=_Settings({"appearance/log_font_size": 16}),
+            log_view=object(),
+            archive_log_view=object(),
+            archive_preview_text_edit=object(),
+            archive_preview_info_edit=object(),
+            archive_preview_details_edit=object(),
+            log_highlighter=object(),
+            archive_log_highlighter=object(),
+            compact_workspace=SimpleNamespace(drawer=drawer),
+            _queue_appearance_apply_step=lambda label, callback: queued_steps.append((label, callback)),
+        )
+
+        ThemeControllerMixin._queue_data_font_apply_steps(owner, schedule_column_autofit=False)  # type: ignore[arg-type]
+        compact_callback = next(
+            callback for label, callback in queued_steps if label == "Updating compact activity log font"
+        )
+        compact_callback()  # type: ignore[operator]
+
+        self.assertEqual(1, len(applied_fonts))
+        self.assertEqual(16, applied_fonts[0].pointSize())
 
     def test_settings_appearance_payload_keeps_theme_and_text_routes_separate(self) -> None:
         previous = {

@@ -4711,7 +4711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 64,
+          "line": 65,
           "sink": "addTab"
         },
         {
@@ -4726,7 +4726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 63,
+          "line": 64,
           "sink": "setPlaceholderText"
         }
       ]
@@ -6101,7 +6101,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 201,
+          "line": 218,
           "sink": "addItem"
         }
       ]
@@ -8186,7 +8186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 525,
+          "line": 530,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -10661,7 +10661,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 149,
+          "line": 158,
           "sink": "QLabel"
         }
       ]
@@ -19516,7 +19516,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 50,
+          "line": 51,
           "sink": "QPushButton"
         },
         {
@@ -22801,7 +22801,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 52,
+          "line": 53,
           "sink": "QPushButton"
         },
         {
@@ -23751,7 +23751,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 196,
+          "line": 213,
           "sink": "setText"
         }
       ]
@@ -24706,7 +24706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 76,
+          "line": 77,
           "sink": "addTab"
         }
       ]
@@ -33536,7 +33536,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 145,
+          "line": 154,
           "sink": "setPlaceholderText"
         }
       ]
@@ -34696,7 +34696,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 165,
+          "line": 178,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -35556,7 +35556,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 143,
+          "line": 152,
           "sink": "QLabel"
         },
         {
@@ -37041,7 +37041,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 165,
+          "line": 178,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -42336,7 +42336,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 156,
+          "line": 165,
           "sink": "QCheckBox"
         }
       ]
@@ -57916,12 +57916,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 67,
+          "line": 68,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 122,
+          "line": 134,
           "sink": "setText"
         }
       ]
@@ -60346,7 +60346,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 269,
+          "line": 286,
           "sink": "setHtml"
         }
       ]
@@ -61341,7 +61341,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 153,
+          "line": 162,
           "sink": "QCheckBox"
         }
       ]
@@ -72896,7 +72896,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 165,
+          "line": 178,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -81691,7 +81691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 560,
+          "line": 565,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -82366,17 +82366,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 559,
+          "line": 564,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 624,
+          "line": 629,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 753,
+          "line": 769,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -93541,12 +93541,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 557,
+          "line": 562,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 568,
+          "line": 573,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -98941,7 +98941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 125,
+          "line": 137,
           "sink": "setText"
         }
       ]
@@ -101376,7 +101376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 611,
+          "line": 616,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101411,7 +101411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 543,
+          "line": 548,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101421,7 +101421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 542,
+          "line": 547,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101431,7 +101431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 538,
+          "line": 543,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101441,7 +101441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 541,
+          "line": 546,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101451,7 +101451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 537,
+          "line": 542,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101476,7 +101476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 540,
+          "line": 545,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101486,7 +101486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 618,
+          "line": 623,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101496,7 +101496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 556,
+          "line": 561,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101506,7 +101506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 539,
+          "line": 544,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101516,7 +101516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 814,
+          "line": 830,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101526,7 +101526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 552,
+          "line": 557,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101536,12 +101536,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 558,
+          "line": 563,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 622,
+          "line": 627,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101551,7 +101551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 546,
+          "line": 551,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101571,7 +101571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 614,
+          "line": 619,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101591,22 +101591,27 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 736,
+          "line": 741,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 748,
+          "line": 750,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 788,
+          "line": 764,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
           "line": 804,
+          "sink": "_queue_appearance_apply_step"
+        },
+        {
+          "path": "cdmw/ui/shell/theme_controller.py",
+          "line": 820,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -105176,7 +105181,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 341,
+          "line": 358,
           "sink": "setHtml"
         }
       ]
@@ -105236,7 +105241,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 165,
+          "line": 178,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -105311,7 +105316,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 341,
+          "line": 358,
           "sink": "setHtml"
         }
       ]
@@ -105601,7 +105606,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 165,
+          "line": 178,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -106336,7 +106341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 46,
+          "line": 47,
           "sink": "QLabel"
         }
       ]
@@ -106431,7 +106436,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 165,
+          "line": 178,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -114011,7 +114016,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 341,
+          "line": 358,
           "sink": "setHtml"
         }
       ]
@@ -203256,7 +203261,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 218,
+          "line": 235,
           "sink": "setText"
         }
       ]
@@ -205106,7 +205111,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 236,
+          "line": 253,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -205211,7 +205216,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 341,
+          "line": 358,
           "sink": "setHtml"
         }
       ]

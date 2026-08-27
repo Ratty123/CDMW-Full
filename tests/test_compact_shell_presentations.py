@@ -337,7 +337,7 @@ class CompactShellPresentationTests(unittest.TestCase):
         self.assertEqual(0, left_layout.indexOf(paths_section))
         self.assertEqual(1, splitter.handleWidth())
 
-    def test_real_format_explorer_retains_source_authoritative_detail_orientation(self) -> None:
+    def test_real_format_explorer_retains_source_authoritative_side_by_side_layout(self) -> None:
         from tools.format_explorer.tab import FormatExplorerTab
 
         tab = FormatExplorerTab()
@@ -350,7 +350,10 @@ class CompactShellPresentationTests(unittest.TestCase):
         )
         _app().processEvents()
 
-        self.assertGreater(tab.table.height(), tab.detail.height())
+        self.assertEqual(Qt.Orientation.Horizontal, tab.main_splitter.orientation())
+        self.assertGreater(tab.table.width(), tab.detail.width())
+        self.assertLess(tab.table.geometry().right(), tab.detail.geometry().left())
+        self.assertEqual(tab.table.height(), tab.detail.height())
         self.assertTrue(tab.table.isVisibleTo(tab))
         self.assertTrue(tab.detail.isVisibleTo(tab))
         self.assertEqual(1, tab.table.selectionMode().value)
