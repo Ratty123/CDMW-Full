@@ -34,6 +34,7 @@ is smaller and safer to hand to someone who is not modding.
 ## Contents
 
 - [What it does](#what-it-does)
+  - [New Item Studio](#new-item-studio)
 - [File format decoding status](#file-format-decoding-status)
 - [Architecture](#architecture)
 - [Install](#install)
@@ -48,8 +49,12 @@ is smaller and safer to hand to someone who is not modding.
 
 ## What it does
 
-The main strip has five entries. Mesh Editor and Placement & Animations are
-complete workspaces and sit there directly; the other three group related tools.
+CDMW currently exposes 15 tools. **New Item Studio** is the end-to-end path for
+creating a brand-new equipment item without overwriting its shipped template;
+Archive Browser, Mesh Editor, Placement & Animations, and the texture tools cover
+inspection and replacement work. In Classic Workspace, Mesh Editor and Placement
+& Animations sit directly on the five-entry main strip while the other tools are
+grouped under Assets, Texture Upscaling & Editing, and Tools.
 
 ```mermaid
 flowchart TD
@@ -81,24 +86,30 @@ flowchart TD
     O --> O5["Text Search"]
 ```
 
-Every tool can be detached into its own window and restored from the Window menu.
-The diagram is the default **Classic Workspace**. Settings also offers a
+Most Classic workspaces can be detached and restored from the Window menu;
+Format Explorer and Translations stay anchored in Tools. The diagram is the
+default **Classic Workspace**. Settings also offers a
 restart-selected **Compact Workspace** that presents the same 15 tool widgets in
 a four-category rail with a compact status strip and Activity drawer; it does
 not create a second set of services, workers, previews, or saved tool state.
 
 | Workspace | What you can do |
 |---|---|
+| **New Item Studio** | Create a new equipment identity through a guided seven-step workflow: choose and preview a shipped template, import and place a model, author its icon, stats, prices, perks and visual effect, choose distribution, review the exact file plan, then export a mod folder or use an explicit backed-up install route. The template is read as a baseline and is never silently overwritten. |
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
-| **New Item Studio** | Clone a shipped equipment item into a new identity through a guided seven-step workflow: choose and preview the template, import and place a model, author its icon, stats, prices, perks and visual effect, choose distribution, review the exact plan, then export a mod folder or use an explicit backed-up install route. |
+| **Model Library** | Scan and preview local or importable models, then send a selected model directly into New Item Studio. |
+| **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
 | **Mesh Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with the game's layered materials composited as layers, inspect referenced textures, and edit resident meshes through the native edit core: vertex/wire/face selection with brush, rectangle and lasso, persistent geometry layers with a mesh-internal clipboard, morph profiles with per-garment refit, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview. |
+| **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
 | **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` native DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
 | **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
+| **Texture Recolor** | Build reviewed colour variants from source textures while retaining the existing texture workflow and package routes. |
 | **Texture Editor** | Edit visible textures in-app: layered projects, selections, masks, adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen, soften, flattened PNG export. Finished work goes to `Texture Replacer` or `Icon Creator` from the Send To menu. |
-| **Material Authority** | Build and audit material/mesh replacement packages with source-owned material routing, runtime XML preservation, diagnostics, and final package preview. |
-| **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
+| **Retrofit/Repackage** | Inspect and normalize an existing loose mod for the supported manager layouts without mutating shipped game archives. |
 | **Format Explorer** | What every game file format can and cannot do, and which tool does it, read from the same capability manifest the [decoding status](#file-format-decoding-status) below is generated from, so it cannot drift from what the code actually supports. |
-| **Supporting tools** | Model Library, Icon Creator, Texture Recolor, Research, Text Search, Translations, Retrofit/Repackage, settings/profile export, diagnostic bundles, detachable tabs. |
+| **Translations** | Edit language catalogue entries with reference-language context and export reviewed translation data. |
+| **Research** | Inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local research notes. |
+| **Text Search** | Search archive or loose text-like assets such as XML, JSON, CFG, and Lua with preview and export. |
 
 ### New Item Studio
 
