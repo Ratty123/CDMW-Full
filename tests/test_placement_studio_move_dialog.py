@@ -296,6 +296,21 @@ class PlacementPageTests(unittest.TestCase):
 
 
 class AnimationScopeTests(unittest.TestCase):
+    def test_construction_does_not_report_an_unhandled_exception(self) -> None:
+        captured: list[tuple[type[BaseException], BaseException]] = []
+        previous_hook = sys.excepthook
+        sys.excepthook = lambda exc_type, exc_value, _traceback: captured.append(
+            (exc_type, exc_value)
+        )
+        try:
+            dialog = _Bench().dialog()
+        finally:
+            sys.excepthook = previous_hook
+
+        dialog.deleteLater()
+        _APP.processEvents()
+        self.assertEqual([], captured)
+
     def test_draw_and_stow_is_the_default(self) -> None:
         dialog = _Bench().dialog()
         self.assertTrue(dialog._scope_buttons[carry.SCOPE_DRAW_STOW].isChecked())
