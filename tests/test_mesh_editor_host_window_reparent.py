@@ -19,7 +19,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, QSize
 from PySide6.QtGui import QResizeEvent, QShowEvent
-from PySide6.QtWidgets import QApplication, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.preview.dotnet_host import DotNetPreviewHostFrame
 from cdmw.ui.preview.profile import DotNetPreviewProfile
@@ -151,39 +151,6 @@ def test_show_after_a_hidden_resize_resyncs_the_helper_window() -> None:
         )
     finally:
         frame.deleteLater()
-
-
-def test_returning_to_a_native_preview_reasserts_its_host_window_and_z_order() -> None:
-    frame, controller = _host_frame()
-    tabs = QTabWidget()
-    preview_page = QWidget()
-    preview_layout = QVBoxLayout(preview_page)
-    preview_layout.setContentsMargins(0, 0, 0, 0)
-    preview_layout.addWidget(frame)
-    tabs.addTab(preview_page, "Preview")
-    tabs.addTab(QWidget(), "Other tool")
-    tabs.resize(800, 600)
-    raised: list[int] = []
-    frame.raise_ = lambda: raised.append(frame._host_hwnd())  # type: ignore[method-assign]
-    try:
-        tabs.show()
-        _APP.processEvents()
-        controller.reembedded.clear()
-        raised.clear()
-
-        tabs.setCurrentIndex(1)
-        _APP.processEvents()
-        tabs.setCurrentIndex(0)
-        _APP.processEvents()
-
-        assert controller.visibility[-2:] == [False, True]
-        assert controller.reembedded
-        assert controller.reembedded[-1] == frame._host_hwnd()
-        assert raised == [frame._host_hwnd()]
-    finally:
-        tabs.close()
-        tabs.deleteLater()
-        _APP.processEvents()
 
 
 def test_the_helper_window_is_remembered_from_both_events() -> None:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
 from PySide6.QtGui import QResizeEvent
 
 
@@ -37,17 +36,6 @@ class DotNetPreviewHostLifecycleMixin:
     def showEvent(self, event: object) -> None:  # type: ignore[override]
         super().showEvent(event)  # type: ignore[arg-type]
         self.controller.set_visible(True)
-        self._sync_embedded_child_geometry(force_frame_refresh=True)
-        QTimer.singleShot(0, self._restore_embedded_child_after_show)
-
-    def _restore_embedded_child_after_show(self) -> None:
-        if not self.isVisible():
-            return
-        # A stacked-page switch finishes ordering native siblings after the
-        # descendant show event. Reassert the settled host so the prior page's
-        # pixels cannot remain over the embedded renderer rectangle.
-        self.raise_()
-        self._reembed_helper_in_current_window()
         self._sync_embedded_child_geometry(force_frame_refresh=True)
 
     def hideEvent(self, event: object) -> None:  # type: ignore[override]

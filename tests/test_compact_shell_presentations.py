@@ -137,6 +137,25 @@ class CompactShellPresentationTests(unittest.TestCase):
         self.assertGreater(splitter.sizes()[2], splitter.sizes()[0])
         widget.close()
 
+    def test_compact_tool_root_paints_over_the_previous_stacked_page(self) -> None:
+        widget = QWidget()
+        widget.setLayout(QVBoxLayout())
+
+        self.assertFalse(widget.autoFillBackground())
+        self.assertTrue(
+            apply_compact_presentation(
+                self._window("compact_rail"),
+                "text_search",
+                widget,
+            )
+        )
+
+        self.assertTrue(
+            widget.autoFillBackground(),
+            "a transparent Compact root can preserve pixels from the previously visible tool",
+        )
+        widget.close()
+
     def test_compact_flat_contract_overrides_tool_cards_and_preserves_real_separators(self) -> None:
         widget = QWidget()
         widget.setStyleSheet(

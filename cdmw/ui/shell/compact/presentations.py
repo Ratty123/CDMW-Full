@@ -852,6 +852,9 @@ def apply_compact_presentation(window: object, key: str, widget: QWidget) -> boo
     widget.setProperty("compactPresentation", True)
     widget.setProperty("compactToolKey", tool_key)
     widget.setProperty("compactReferenceFilename", spec.reference_filename)
+    # Compact flattens its structural child panels to transparent surfaces.
+    # The stacked tool root must still erase the previously visible page.
+    widget.setAutoFillBackground(True)
     root_layout = widget.layout()
     if root_layout is not None:
         _compact_layout(root_layout, root_margin=spec.root_margin)
