@@ -191,6 +191,7 @@ class CompactShellPresentationTests(unittest.TestCase):
         window.archive_extract_filtered_button = extract_filtered
         window.archive_resolve_in_research_button = resolve
         clicked: list[str] = []
+        extension_picker.clicked.connect(lambda: clicked.append("select"))
         extract_selected.clicked.connect(lambda: clicked.append("selected"))
 
         self.assertTrue(apply_compact_presentation(window, "archive_browser", widget))
@@ -200,13 +201,19 @@ class CompactShellPresentationTests(unittest.TestCase):
         self.assertEqual(0, controls_scroll.maximumWidth())
         self.assertTrue(files.header_widget.isHidden())
         self.assertTrue(preview.header_widget.isHidden())
+        self.assertEqual("CompactArchiveSelectButton", extension_picker.objectName())
+        extension_picker.click()
+        self.assertEqual(["select"], clicked)
         actions_button = widget._cdmw_compact_archive_actions_button
         self.assertEqual(3, len(actions_button.menu().actions()))
         actions_button.menu().actions()[0].trigger()
-        self.assertEqual(["selected"], clicked)
+        self.assertEqual(["select", "selected"], clicked)
         filters_button = widget._cdmw_compact_archive_more_filters_button
         self.assertIsNotNone(filters_button.menu())
         self.assertEqual("", filters_group.title())
+        for button in (extension_picker, actions_button, filters_button):
+            self.assertFalse(button.autoRaise())
+            self.assertEqual(Qt.FocusPolicy.StrongFocus, button.focusPolicy())
         widget.close()
 
     def test_real_item_icons_keeps_both_empty_previews_visible_without_scrollbars(self) -> None:

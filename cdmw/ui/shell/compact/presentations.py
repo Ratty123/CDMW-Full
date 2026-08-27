@@ -538,6 +538,7 @@ def _build_archive_command_strip(window: object, widget: QWidget) -> None:
     layout.setContentsMargins(4, 2, 4, 2)
     layout.setSpacing(4)
     scan, refresh, finder, search_edit, search_button, extension, extension_picker = controls
+    extension_picker.setObjectName("CompactArchiveSelectButton")
     for button in (scan, refresh, finder):
         button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(button)
@@ -616,6 +617,9 @@ def _build_archive_command_strip(window: object, widget: QWidget) -> None:
     else:
         more_filters.setEnabled(False)
     layout.addWidget(more_filters)
+    for command_button in (extension_picker, actions_button, more_filters):
+        command_button.setAutoRaise(False)
+        command_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     if isinstance(search_group, QGroupBox):
         search_group.setVisible(False)
     if isinstance(actions_group, QGroupBox):
