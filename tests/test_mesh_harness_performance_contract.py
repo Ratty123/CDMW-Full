@@ -107,6 +107,13 @@ def test_performance_manifest_rejects_duplicate_and_unknown_fields(tmp_path: Pat
     with pytest.raises(PerformanceContractError, match="unknown"):
         load_performance_manifest(unknown)
 
+    retired_texture_update = _write_manifest(tmp_path / "retired-texture-update.json")
+    payload = json.loads(retired_texture_update.read_text(encoding="utf-8"))
+    payload["interactions"] = [{"name": "texture-update", "input_rate_hz": 60}]
+    retired_texture_update.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(PerformanceContractError, match="texture-update.*unsupported"):
+        load_performance_manifest(retired_texture_update)
+
 
 def test_performance_interactions_use_monotonic_rate_schedule_and_finalize_each_stream(
     tmp_path: Path,
@@ -372,6 +379,7 @@ def test_canonical_performance_capture_drives_manifest_interactions_instead_of_i
 
     assert "run_performance_interaction_schedule(" in source
     assert "_run_performance_interactions(state, request)" in capture
+    assert 'interaction.name == "texture-update"' not in source
     assert flow.count("_execute_performance_capture(state, performance_request)") == 2
     assert flow.index("_performance_requires_edit_preparation(performance_request)") < flow.index(
         "exercise_coherent_export"
@@ -385,7 +393,6 @@ def test_canonical_performance_capture_drives_manifest_interactions_instead_of_i
         "wire-vertices-part-highlight",
         "selection-brush-burst",
         "material-update",
-        "texture-update",
         "topology-update",
         "resize-stress",
     ):

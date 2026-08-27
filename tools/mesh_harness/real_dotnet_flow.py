@@ -23,9 +23,6 @@ PRODUCTION_FLOW_STEPS = (
     "select",
     "transform",
     "scalar_update",
-    "linked_texture_stroke_1",
-    "linked_texture_stroke_2",
-    "committed_assignment",
     "uv_edit",
     "duplicate",
     "delete",
@@ -53,7 +50,6 @@ def record_flow_step(state: SimpleNamespace, name: str, **evidence: object) -> N
 def production_flow_gates(state: SimpleNamespace) -> dict[str, bool]:
     rows = tuple(getattr(state, "production_flow", ()) or ())
     names = tuple(str(row.get("step", "")) for row in rows if isinstance(row, Mapping) and row.get("ok") is True)
-    texture = dict(getattr(state, "texture_flow_evidence", {}) or {})
     edits = dict(getattr(state, "edit_flow_evidence", {}) or {})
     export = dict(getattr(state, "export_flow_evidence", {}) or {})
     lifecycle = dict(getattr(state.tab, "standalone_dotnet_lifecycle_counts", {}) or {})
@@ -74,21 +70,13 @@ def production_flow_gates(state: SimpleNamespace) -> dict[str, bool]:
             and int(lifecycle.get("package_build_count", 0)) == 1
             and int(lifecycle.get("full_reload_count", 0)) == 0
         ),
-        "linked_texture_updates_applied": bool(texture.get("updates_applied")),
-        "linked_texture_queue_bounded": bool(texture.get("queue_bounded")),
-        "linked_texture_copy_on_write_once": bool(texture.get("copy_on_write_once")),
-        "linked_texture_mip_chain_preserved": bool(texture.get("mip_chain_preserved")),
-        "linked_texture_snapshot_exact": bool(texture.get("snapshot_pixels_match")),
-        "linked_texture_exportable": bool(texture.get("painted_derivative_exported")),
-        "committed_assignment_exportable": bool(
-            texture.get("assignment_in_snapshot") and texture.get("assignment_exported")
-        ),
         "uv_topology_undo_redo_applied": bool(getattr(state, "edit_flow_ok", False)),
         "affected_only_geometry_updates": bool(edits.get("affected_only_updates")),
         "coherent_export_snapshot": bool(export.get("coherent_snapshot")),
         "export_source_asset_hash_matches": bool(export.get("source_asset_hash_matches")),
         "complete_output_reparse": export.get("output_reparse_status") == "passed",
         "export_artifact_hashes_present": bool(export.get("artifact_hashes_present")),
+        "source_texture_exported": bool(export.get("source_textures_exported")),
         "exact_topology_rebuild": bool(getattr(state, "topology_rebuild_ok", False)),
         # Reads the aggregate, so one admitted operation reaching the generic
         # path fails this even when the other two did not.
@@ -551,10 +539,14 @@ def exercise_assignment_and_mesh_edits(
             == int(before.get("rejected_updates", 0) or 0)
             and int(after.get("ack_timeouts", 0) or 0) == int(before.get("ack_timeouts", 0) or 0)
         )
-    assignment_error = _commit_painted_assignment(state, pump_until)
-    if assignment_error:
-        return assignment_error
-    before_resources = dict(state.texture_flow_evidence.get("resource_metrics_after", {}) or {})
+    before_status = request_full_renderer_status(state, pump_until)
+    before_resources = (
+        renderer_resource_metrics(before_status)
+        if isinstance(before_status, Mapping)
+        else {}
+    )
+    if not before_resources:
+        return "Renderer resource metrics were unavailable before resident mesh edits."
     partial_rebuild_floor = int(before_resources.get("partial_topology_rebuilds", 0) or 0) + 4
     topology_generation_floor = int(before_resources.get("topology_generation", 0) or 0) + 4
     restored_live_batches = int(before_resources.get("live_geometry_batches", 0) or 0)
@@ -712,26 +704,38 @@ def exercise_coherent_export(
         for row in tuple(report.get("texture_revisions", ()) or ())
         if isinstance(row, Mapping)
     }
+    texture_artifacts = [row for row in artifacts if row.get("role") == "texture_dds"]
+    bindings = [dict(row) for row in tuple(report.get("resolved_texture_bindings", ()) or ()) if isinstance(row, Mapping)]
+    dds_readback = [dict(row) for row in tuple(reparse.get("dds_readback", ()) or ()) if isinstance(row, Mapping)]
+    texture_artifact_keys = {
+        (str(row.get("resource_id", "")), str(row.get("channel", "")))
+        for row in texture_artifacts
+    }
+    binding_keys = {
+        (str(row.get("resource_id", "")), str(row.get("channel", "")))
+        for row in bindings
+    }
+    source_textures_exported = bool(
+        texture_artifacts
+        and dds_readback
+        and all(row.get("status") == "passed" for row in dds_readback)
+        and texture_artifact_keys <= binding_keys
+    )
     coherent = bool(
         str(report.get("session_id", "")) == current.session_id
         and int(report.get("mesh_revision", -1) or 0) == current.revision
-        and texture_revisions.get((str(state.assigned_resource_id), "base"), 0) == int(state.assigned_texture_revision)
+        and texture_artifact_keys
+        and all(
+            texture_revisions.get(
+                (str(row.get("resource_id", "")), str(row.get("channel", ""))),
+                0,
+            )
+            == int(row.get("revision", 0) or 0)
+            for row in texture_artifacts
+        )
     )
     hashes_present = bool(artifacts) and all(str(row.get("sha256", "")).strip() for row in artifacts)
     artifact_roles = {str(row.get("role", "")) for row in artifacts}
-    dds_readback = [dict(row) for row in tuple(reparse.get("dds_readback", ()) or ()) if isinstance(row, Mapping)]
-    bindings = [dict(row) for row in tuple(report.get("resolved_texture_bindings", ()) or ()) if isinstance(row, Mapping)]
-    assignment_artifacts = [
-        row
-        for row in artifacts
-        if row.get("role") == "texture_dds"
-        and str(row.get("resource_id", "")) == str(state.assigned_resource_id)
-    ]
-    assignment_exported = bool(
-        assignment_artifacts
-        and assignment_artifacts[-1].get("sha256") == state.assigned_dds_sha256
-        and any(str(row.get("resource_id", "")) == str(state.assigned_resource_id) for row in bindings)
-    )
     source_asset_hash = str(report.get("source_asset_hash", "") or "").strip().lower()
     original_hash_path = export_dir / "original_asset_hash.txt"
     sidecar_path = export_dir / "mesh.cdmeta.json"
@@ -749,10 +753,6 @@ def exercise_coherent_export(
         and original_asset_hash == expected_source_asset_hash
         and sidecar_source_asset_hash == expected_source_asset_hash
     )
-    state.texture_flow_evidence["assignment_exported"] = assignment_exported
-    state.texture_flow_evidence["painted_derivative_exported"] = bool(
-        assignment_exported and state.texture_flow_evidence.get("assignment_is_painted_derivative")
-    )
     complete_reparse = bool(
         reparse.get("status") == "passed"
         and reparse.get("draw_section_lineage_readback") == "passed"
@@ -763,8 +763,15 @@ def exercise_coherent_export(
         and dds_readback
         and all(row.get("status") == "passed" for row in dds_readback)
         and {"mesh_glb", "mesh_obj", "mesh_material", "texture_dds"} <= artifact_roles
-        and assignment_exported
+        and source_textures_exported
     )
+    state.source_texture_export_evidence = {
+        "texture_revisions": list(report.get("texture_revisions", ()) or ()),
+        "resolved_texture_bindings": bindings,
+        "texture_artifacts": texture_artifacts,
+        "dds_readback": dds_readback,
+        "source_textures_exported": source_textures_exported,
+    }
     state.export_flow_evidence = {
         "report_path": str(report_path),
         "schema": str(report.get("schema", "")),
@@ -783,8 +790,8 @@ def exercise_coherent_export(
         "sidecar_source_asset_hash": sidecar_source_asset_hash,
         "expected_source_asset_hash": expected_source_asset_hash,
         "source_asset_hash_matches": source_asset_hash_matches,
-        "assignment_artifact": assignment_artifacts[-1] if assignment_artifacts else {},
-        "painted_derivative_exported": state.texture_flow_evidence["painted_derivative_exported"],
+        "source_textures_exported": source_textures_exported,
+        "texture_artifacts": texture_artifacts,
     }
     record_flow_step(state, "export", report_path=str(report_path))
     if not complete_reparse:

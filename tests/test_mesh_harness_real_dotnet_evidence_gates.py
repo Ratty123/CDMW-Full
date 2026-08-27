@@ -132,10 +132,10 @@ def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> 
     selection = run.index("_configure_selection_and_projection(state)")
     transform = run.index("_drive_viewport_stroke(state)")
     parameter_update = run.index("exercise_material_parameter_update(")
-    texture_update = run.index("exercise_linked_texture_strokes(")
     topology = run.index("exercise_assignment_and_mesh_edits(")
     export = run.index("exercise_coherent_export(")
-    assert state_update < offscreen_capture < builder_presentation < geometry_display < selection < transform < parameter_update < texture_update < topology < export
+    assert "exercise_linked_texture_strokes(" not in run
+    assert state_update < offscreen_capture < builder_presentation < geometry_display < selection < transform < parameter_update < topology < export
     capture_source = (
         Path(__file__).resolve().parents[1] / "tools" / "mesh_harness" / "real_dotnet_capture.py"
     ).read_text(encoding="utf-8")
@@ -148,6 +148,7 @@ def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> 
     topology_flow = flow_source.split("def exercise_assignment_and_mesh_edits", maxsplit=1)[1].split(
         "def exercise_coherent_export", maxsplit=1
     )[0]
+    assert "_commit_painted_assignment" not in topology_flow
     assert "_send_dotnet_native_update(update)" in topology_flow
     assert "_apply_standalone_native_update(update)" not in topology_flow
     package_source = (
@@ -307,21 +308,12 @@ def test_production_flow_is_ordered_and_gated_by_real_lifecycle_evidence() -> No
         form_hwnd=10,
         viewport_hwnd=11,
         tab=tab,
-        texture_flow_evidence={
-            "updates_applied": True,
-            "queue_bounded": True,
-            "copy_on_write_once": True,
-            "mip_chain_preserved": True,
-            "snapshot_pixels_match": True,
-            "assignment_in_snapshot": True,
-            "assignment_exported": True,
-            "painted_derivative_exported": True,
-        },
         export_flow_evidence={
             "coherent_snapshot": True,
             "source_asset_hash_matches": True,
             "output_reparse_status": "passed",
             "artifact_hashes_present": True,
+            "source_textures_exported": True,
         },
         edit_flow_evidence={"affected_only_updates": True},
         edit_flow_ok=True,
@@ -332,6 +324,8 @@ def test_production_flow_is_ordered_and_gated_by_real_lifecycle_evidence() -> No
         record_flow_step(state, step)
 
     assert all(production_flow_gates(state).values())
+    state.export_flow_evidence["source_textures_exported"] = False
+    assert production_flow_gates(state)["source_texture_exported"] is False
 
 
 def test_production_flow_rejects_skips_and_evidence_preserves_new_sections() -> None:
@@ -347,7 +341,7 @@ def test_production_flow_rejects_skips_and_evidence_preserves_new_sections() -> 
     proof = {
         "ok": True,
         "production_flow": [{"step": "ready", "ok": True}],
-        "linked_texture_updates": {"updates_applied": True},
+        "source_texture_export": {"source_textures_exported": True},
         "resident_mesh_edits": {"affected_only_updates": True},
         "resident_export": {"output_reparse_status": "passed"},
         "lifecycle_counts": {"renderer_process_start_count": 1},
@@ -357,7 +351,7 @@ def test_production_flow_rejects_skips_and_evidence_preserves_new_sections() -> 
     evidence = _real_game_mesh_evidence(proof)
 
     assert evidence["production_flow"] == proof["production_flow"]
-    assert evidence["linked_texture_updates"] == proof["linked_texture_updates"]
+    assert evidence["source_texture_export"] == proof["source_texture_export"]
     assert evidence["resident_mesh_edits"] == proof["resident_mesh_edits"]
     assert evidence["resident_export"] == proof["resident_export"]
     assert evidence["process_identity"] == proof["process_identity"]
@@ -441,7 +435,6 @@ def test_canonical_real_dotnet_runner_drives_extended_flow_without_legacy_render
             side_effect=lambda _state: calls.append("stroke_evidence"),
         ),
         patch("tools.mesh_harness.real_dotnet.exercise_material_parameter_update", side_effect=scalar),
-        patch("tools.mesh_harness.real_dotnet.exercise_linked_texture_strokes", side_effect=flow("texture")),
         patch("tools.mesh_harness.real_dotnet.exercise_assignment_and_mesh_edits", side_effect=flow("mesh_edits")),
         patch("tools.mesh_harness.real_dotnet.exercise_coherent_export", side_effect=flow("export")),
         patch(
@@ -463,7 +456,6 @@ def test_canonical_real_dotnet_runner_drives_extended_flow_without_legacy_render
         "transform",
         "stroke_evidence",
         "scalar",
-        "texture",
         "mesh_edits",
         "export",
         "topology_rebuild",

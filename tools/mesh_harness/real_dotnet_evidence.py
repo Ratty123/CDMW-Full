@@ -53,11 +53,7 @@ from tools.mesh_harness.real_dotnet_material import (
     resident_material_gates,
 )
 from tools.mesh_harness.real_dotnet_flow import (
-    exercise_assignment_and_mesh_edits,
-    exercise_coherent_export,
-    exercise_linked_texture_strokes,
     production_flow_gates,
-    record_flow_step,
 )
 from tools.mesh_harness.real_dotnet_input import (
     drive_viewport_stroke,
@@ -120,7 +116,7 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         "geometry_display": dict(getattr(state, "geometry_display_evidence", {}) or {}),
         "builder_presentation": dict(getattr(state, "builder_presentation_evidence", {}) or {}),
         "camera_zoom": dict(getattr(state, "camera_zoom_evidence", {}) or {}),
-        "linked_texture_updates": dict(getattr(state, "texture_flow_evidence", {}) or {}),
+        "source_texture_export": dict(getattr(state, "source_texture_export_evidence", {}) or {}),
         "lifecycle_counts": dict(
             getattr(getattr(state, "tab", None), "standalone_dotnet_lifecycle_counts", {}) or {}
         ),
