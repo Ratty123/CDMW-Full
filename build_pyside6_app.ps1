@@ -11,7 +11,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
-Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
 
 $appName = "CrimsonDesertModWorkbench"
 $legacyAppNames = @("DDSRebuildApp")
@@ -37,6 +36,25 @@ $vgmstreamVersion = "r1980"
 $vgmstreamBuildCommit = "21bfb6f0a513271f2e18a51322128756bb59f365"
 $vgmstreamArchiveSha256 = "110f9087e60057c4af6cff84e26c214159c224792421affdddd3aaa2091f2641"
 $vgmstreamDownloadUrl = "https://github.com/bnnm/vgmstream-builds/raw/$vgmstreamBuildCommit/bin/vgmstream-$vgmstreamVersion-test-u.zip"
+
+function Get-Sha256Hex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LiteralPath
+    )
+
+    $stream = [IO.File]::OpenRead($LiteralPath)
+    try {
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        try {
+            return ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace("-", "").ToLowerInvariant()
+        } finally {
+            $sha256.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
+}
 
 function Test-HostInjectedCodexPopplerPathEntry {
     param(
@@ -287,7 +305,7 @@ function Test-VgmstreamRuntimePin {
             if (-not (Test-Path -LiteralPath $runtimeFile -PathType Leaf)) {
                 return $false
             }
-            $actualHash = (Get-FileHash -LiteralPath $runtimeFile -Algorithm SHA256).Hash.ToLowerInvariant()
+            $actualHash = Get-Sha256Hex -LiteralPath $runtimeFile
             if ($actualHash -ne [string]$row.Value) {
                 return $false
             }
@@ -321,7 +339,7 @@ function Ensure-VgmstreamRuntime {
     Remove-PathWithRetries -LiteralPath $backupDir -Recurse
     try {
         Invoke-WebRequest -Uri $vgmstreamDownloadUrl -OutFile $zipPath
-        $downloadHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $downloadHash = Get-Sha256Hex -LiteralPath $zipPath
         if ($downloadHash -ne $vgmstreamArchiveSha256) {
             throw "vgmstream archive SHA-256 mismatch. Expected $vgmstreamArchiveSha256, got $downloadHash."
         }
@@ -342,7 +360,7 @@ function Ensure-VgmstreamRuntime {
         }
         $fileHashes = [ordered]@{}
         foreach ($file in Get-ChildItem -LiteralPath $preparedDir -File | Sort-Object Name) {
-            $fileHashes[$file.Name] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $fileHashes[$file.Name] = Get-Sha256Hex -LiteralPath $file.FullName
         }
         [ordered]@{
             schema = 1
@@ -850,8 +868,8 @@ function Invoke-DotNetMeshEditorBuild {
     if (-not (Test-Path -LiteralPath $shaderPath -PathType Leaf)) {
         throw ".NET Mesh Editor publish did not include the authoritative shader: $shaderPath"
     }
-    $exeHash = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $shaderHash = (Get-FileHash -LiteralPath $shaderPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $exeHash = Get-Sha256Hex -LiteralPath $exePath
+    $shaderHash = Get-Sha256Hex -LiteralPath $shaderPath
     $helperContract = Get-DotNetMeshEditorHelperContract
     $semanticVersion = $helperContract.SemanticVersion
     $protocolCapabilities = $helperContract.Capabilities
@@ -1106,8 +1124,8 @@ if (Test-Path -LiteralPath $sourceShader -PathType Leaf) {
     if (-not (Test-Path -LiteralPath $stagedShader -PathType Leaf)) {
         throw "The packaged Mesh Editor renderer is missing its shader: $stagedShader`nRun a build without -SkipNativeBuild, or publish the helper:`n  dotnet publish tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o native\cdmw_mesh_dotnet_editor\build\Release"
     }
-    $stagedHash = (Get-FileHash -LiteralPath $stagedShader -Algorithm SHA256).Hash.ToLowerInvariant()
-    $sourceHash = (Get-FileHash -LiteralPath $sourceShader -Algorithm SHA256).Hash.ToLowerInvariant()
+    $stagedHash = Get-Sha256Hex -LiteralPath $stagedShader
+    $sourceHash = Get-Sha256Hex -LiteralPath $sourceShader
     if ($stagedHash -ne $sourceHash) {
         throw "The staged Mesh Editor shader is stale, so this build would ship an old renderer.`n  staged: $stagedShader`n  source: $sourceShader`nRepublish the helper:`n  dotnet publish tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o native\cdmw_mesh_dotnet_editor\build\Release"
     }
