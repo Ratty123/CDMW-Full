@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from PySide6.QtWidgets import QLabel, QScrollArea
+from PySide6.QtWidgets import QComboBox, QLabel, QScrollArea
 
 from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementWorkspace
 from tests.test_effect_placement_dialog import _Host, _blade
@@ -132,11 +132,14 @@ class _DialogPresentationMixin:
         self.assertTrue(dialog.legend_rows["anchor"].isVisibleTo(dialog), "one click and it is there")
 
     def test_guided_presentation_exposes_the_exact_toolbar_and_inspector_controls(self) -> None:
+        character_control = QComboBox()
+        character_control.addItems(("Auto", "Kliff", "Damian"))
         workspace = EffectPlacementWorkspace(
             item_mesh=_blade(),
             box_min=(-1.0, -1.0, -1.0),
             box_max=(1.0, 1.0, 1.0),
             host_factory=lambda parent: _Host(parent),
+            character_fit_control=character_control,
             compatibility_ui=False,
         )
         self.addCleanup(workspace.request_shutdown)
@@ -148,6 +151,13 @@ class _DialogPresentationMixin:
         self.assertEqual(visible_scrolls, ["effect_inspector_scroll"])
         inspector_scroll = workspace.preview_splitter.widget(1)
         self.assertEqual(inspector_scroll.horizontalScrollBar().maximum(), 0)
+        self.assertIs(character_control.parentWidget(), workspace.inspector_widget)
+        self.assertEqual(workspace.show_character.text(), "Character")
+        self.assertEqual(
+            character_control.mapTo(workspace.inspector_widget, character_control.rect().center()).y(),
+            workspace.show_character.mapTo(workspace.inspector_widget, workspace.show_character.rect().center()).y(),
+            "Character uses the existing show-character line instead of another vertical band",
+        )
         inspector_width = inspector_scroll.viewport().width()
         apply_bottom = workspace.apply_button.mapTo(
             inspector_scroll.viewport(), workspace.apply_button.rect().bottomRight()

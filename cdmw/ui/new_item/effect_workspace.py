@@ -464,13 +464,11 @@ class GuidedEffectsWorkspace(QWidget):
         self._initial_preview_timer.timeout.connect(self._rebuild_preview)
 
     def _build_character_fit_row(self) -> None:
-        self.character_fit_row = QWidget()
+        self.character_fit_row = QWidget(self.placement_holder)
         self.character_fit_row.setObjectName("effect_character_fit_row")
         character_fit_layout = QHBoxLayout(self.character_fit_row)
-        character_fit_layout.setContentsMargins(8, 6, 8, 0)
+        character_fit_layout.setContentsMargins(0, 0, 0, 0)
         character_fit_layout.setSpacing(6)
-        character_fit_layout.addStretch(1)
-        character_fit_layout.addWidget(QLabel("Character"))
         self.character_fit_choice = QComboBox()
         self.character_fit_choice.setObjectName("effect_character_fit_choice")
         self.character_fit_choice.setAccessibleName("Character")
@@ -483,7 +481,6 @@ class GuidedEffectsWorkspace(QWidget):
         self.character_fit_choice.setEnabled(self._controller.draft.template_key is not None)
         self.character_fit_choice.currentIndexChanged.connect(self._character_fit_changed)
         character_fit_layout.addWidget(self.character_fit_choice)
-        self.placement_layout.addWidget(self.character_fit_row)
 
     def _wire_controller(self) -> None:
         controller = self._controller
@@ -854,6 +851,7 @@ class GuidedEffectsWorkspace(QWidget):
                 effect_preview=preview_builder,
                 texture_reader=texture_reader,
                 character_builder=character_builder,
+                character_fit_control=self.character_fit_row,
                 model_source_usage=model_source_usage if callable(model_source_usage) else None,
             )
             if self._host_factory is not None:
