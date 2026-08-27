@@ -146,3 +146,11 @@ def test_test_matrix_command_paths_exist() -> None:
 def test_security_policy_tracks_current_application_version() -> None:
     security = (ROOT / "SECURITY.md").read_text(encoding="utf-8-sig")
     assert f"`{APP_VERSION}`" in security
+
+
+def test_readme_badge_and_source_note_track_current_application_version() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8-sig")
+    badge_version = APP_VERSION.replace("-", "--")
+
+    assert f"version-{badge_version}-" in readme
+    assert f"`{APP_VERSION}` is the current source version" in readme
