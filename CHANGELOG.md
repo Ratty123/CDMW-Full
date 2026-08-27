@@ -39,6 +39,9 @@ The format is intentionally simple:
 - **New Item Studio and the shared model previews keep imported glTF metal and roughness maps at their authored strength.** glTF defines an omitted metallic or roughness factor as `1.0`, but the shared compiler supplied that identity only when the corresponding map was absent. With a valid packed map present it fell through to CDMW's generic `0.0` metalness and `0.5` roughness defaults, so the shader multiplied a strongly metallic helmet map by zero and rendered it as pale dielectric material. Omitted glTF factors now stay at `1.0` with or without a map, while explicit factors still win.
 - **New Item Studio keeps an applied helmet correction and puts the Perks & Effects gizmo on the wearable.** Model & Placement and the final Builder rotate and scale an imported model around its fitted source origin, but Effects re-baked the same placement around world zero. In the reported scene that discarded a helmet pivot at `(0.001, 1.764, -0.049)` metres and swung the model down the Z axis; the subsequent +90 degree workaround returned it near the head but cancelled the orientation and offset the reader had applied. Effects now uses the exact origin-aware Model & Placement bake, leaves body-mounted equipment in Placement Studio's already-upright bind frame, and uses the placed source origin as the neutral effect offset so the gizmo opens on the equipment instead of at the feet. The matching player body and bind-space stand-in remain available.
 
+### Docs
+- **The README version badge now matches the current source version.** The visible badge still reported `0.11.0-alpha.4` while the source note and application metadata reported `0.11.0-alpha.8`; documentation validation now checks both representations against `APP_VERSION`.
+
 ## [0.11.0-alpha.8] - 2026-08-25
 
 ### Changed

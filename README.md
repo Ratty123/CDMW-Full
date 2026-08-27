@@ -1,7 +1,7 @@
 # Crimson Desert Mod Workbench
 
 [![Windows build](https://img.shields.io/github/actions/workflow/status/Ratty123/CDMW-Full/windows-build.yml?branch=main&style=flat-square&logo=github&label=Windows%20build)](https://github.com/Ratty123/CDMW-Full/actions/workflows/windows-build.yml)
-![version](https://img.shields.io/badge/version-0.11.0--alpha.4-1f6feb?style=flat-square)
+![version](https://img.shields.io/badge/version-0.11.0--alpha.8-1f6feb?style=flat-square)
 ![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)

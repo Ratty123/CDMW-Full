@@ -81,7 +81,6 @@ _FIELDS: dict[str, FieldMeaning] = {
     "_ignoreRenderNodeMasks": FieldMeaning(
         "Skip render groups", "Render groups this object is left out of."
     ),
-    "_shapeId": FieldMeaning("Shape"),
     "_useVertexNormal": FieldMeaning(
         "Use mesh normals", "Take surface direction from the model rather than computing it."
     ),
