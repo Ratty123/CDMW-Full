@@ -244,6 +244,7 @@ def test_new_item_guided_workspace_uses_only_each_theme_palette() -> None:
             palette = build_app_palette(theme_key)
             _APP.setPalette(palette)
             _APP.processEvents()
+            header._refresh_palette()
             stylesheet = step_style(palette)
             used_colors = {value.lower() for value in re.findall(r"#[0-9a-fA-F]{6,8}", stylesheet)}
             theme_colors = {value.lower() for role, value in theme.items() if role != "label"}

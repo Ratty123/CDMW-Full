@@ -6,6 +6,13 @@ prepares schema-v8 D3D11 packages, and emits deterministic reports. Native
 preview jobs do not inject synthetic textures or silently enable Python
 fallback.
 
+Archive Browser and New Item Studio both consume this package contract. A New
+Item template request may race bare Python geometry against the native package;
+the native result promotes the resident scene to canonical textures without
+restarting the renderer or resetting its camera. Character appearance overrides
+are read-only presentation clones and are acknowledged in the package report;
+they never rewrite the selected PAC or its linked PABC/PAMT sources.
+
 `src/main.cpp` is only the executable adapter. Ordered protocol, archive,
 geometry, material, package, report, rebuild, index, and command owners live in
 `src/owners/`. CMake compiles those owners in one named unity group because the

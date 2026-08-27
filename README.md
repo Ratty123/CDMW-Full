@@ -10,9 +10,10 @@
 [![license](https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square)](LICENSE)
 
 A Windows desktop workbench for modding **Crimson Desert**: browse and extract
-game archives, preview and edit meshes on a native D3D11 renderer, rebuild and
-author DDS textures, assemble material and mesh replacement packages, and read
-formats that had to be reverse engineered from the shipped build.
+game archives, create equipment items, preview and edit meshes on a native
+D3D11 renderer, place and customize visual effects, rebuild and author DDS
+textures, assemble replacement packages, and read formats that had to be
+reverse engineered from the shipped build.
 
 This is the full workbench. If you only need to look inside the archives, the
 read-only companion app [**CDMW Lite**](https://github.com/Ratty123/CDMW-Lite)
@@ -68,6 +69,7 @@ flowchart TD
     A --> A1["Archive Browser"]
     A --> A2["Model Library"]
     A --> A3["Icon Creator"]
+    A --> A4["New Item Studio"]
     T --> T1["Texture Workflow"]
     T --> T2["Texture Replacer"]
     T --> T3["Texture Recolor"]
@@ -80,10 +82,15 @@ flowchart TD
 ```
 
 Every tool can be detached into its own window and restored from the Window menu.
+The diagram is the default **Classic Workspace**. Settings also offers a
+restart-selected **Compact Workspace** that presents the same 15 tool widgets in
+a four-category rail with a compact status strip and Activity drawer; it does
+not create a second set of services, workers, previews, or saved tool state.
 
 | Workspace | What you can do |
 |---|---|
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
+| **New Item Studio** | Clone a shipped equipment item into a new identity through a guided seven-step workflow: choose and preview the template, import and place a model, author its icon, stats, prices, perks and visual effect, choose distribution, review the exact plan, then export a mod folder or use an explicit backed-up install route. |
 | **Mesh Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with the game's layered materials composited as layers, inspect referenced textures, and edit resident meshes through the native edit core: vertex/wire/face selection with brush, rectangle and lasso, persistent geometry layers with a mesh-internal clipboard, morph profiles with per-garment refit, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview. |
 | **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` native DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
 | **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
@@ -92,6 +99,30 @@ Every tool can be detached into its own window and restored from the Window menu
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
 | **Format Explorer** | What every game file format can and cannot do, and which tool does it, read from the same capability manifest the [decoding status](#file-format-decoding-status) below is generated from, so it cannot drift from what the code actually supports. |
 | **Supporting tools** | Model Library, Icon Creator, Texture Recolor, Research, Text Search, Translations, Retrofit/Repackage, settings/profile export, diagnostic bundles, detachable tabs. |
+
+### New Item Studio
+
+New Item Studio creates a new equipment row from a shipped template; it never
+silently overwrites the template. Search covers the internal name, localized
+English name, numeric item key, and equipment type. Template and imported-model
+previews use the same resident D3D11 host and native Preview Core cache as the
+Archive Browser, with geometry allowed to arrive before the complete textured
+package. Model placement, icon capture, the enhancement ladder, base prices,
+Abyss Gear perks, shop and item-group membership, and the final file plan stay
+visible as separate decisions.
+
+Effects are visual-only authoring. CDMW can decode `.pae` and `.paem` completely,
+clone compatible fixed-layout effect data, edit fixed-size colour, brightness,
+particle-size, spawn-rate and lifetime values, and show an explicitly approximate
+particle preview against the selected item and a preview-only Kliff or Damian
+reference. The preview does not reproduce the game's GPU vector fields, post
+effects, animation clipping, or final gameplay appearance.
+
+Output can be a loose manager package, a CDMW-owned archive-group overlay, or the
+confirmed archive-install path. Planning and preview are read-only; every game
+write goes through `ArchiveMutationService` with preflight, backup or receipt,
+rollback, and restore. The part-prefab reader preserves both the original and
+Crimson Desert 2.00.00 layouts byte-for-byte.
 
 ### Placement & Animations
 
@@ -179,7 +210,8 @@ rebuild exactly, across 2,737 configuration blocks.
 | `.paac` | 520 | partial | constrained | The chart node structure around the strings is not parsed, so only same-length animation retargets are allowed. |
 | `.wem` | 375,762 | partial | constrained | Only uncompressed PCM is re-encoded; Vorbis/Opus streams cannot be authored. |
 | `.pat` | 1,397 | partial | none | No builder, and LOD1+ plus unrecognised vertex layouts stay undecoded, so static world geometry is view-only. |
-| `.parg` `.pasg` `.pcg` | 882 | partial | none | The pointer-addressed heap walk stops at the pointee trailer, so nested values are not read. Closing `.parg` opens VFX modding; closing `.pcg` allows custom collision hulls. |
+| `.pae` `.paem` | 6,669 | full | constrained | The reflection graph and inline values are decoded to the byte. Fixed-size look values and same-length references can be cloned or edited; strings and collections cannot be resized, and the particle preview is intentionally approximate. |
+| `.parg` `.pasg` `.pcg` | 882 | partial | none | The pointer-addressed heap walk stops at the pointee trailer, so nested values are not read. Closing `.parg` would extend effect render-schema authoring; closing `.pcg` would allow custom collision hulls. |
 | `.pab` | 257 | partial | none | Unknown and truncated variants fall back to a best-effort scan, and there is no writer, so bones cannot be added, removed, or renamed. |
 
 ### What is still closed
@@ -190,8 +222,6 @@ The highest-value gaps, in the order they would pay off:
   so level layout cannot be edited.
 - **`.paseq` / `.paseqc` / `.pastage`** (10,947 files): track and event layout is
   not parsed, so cutscene authoring is closed.
-- **`.pae` / `.paem`** (6,669 files): parameter tables are not parsed, so VFX
-  authoring is closed.
 - **`.meshinfo`** (35,310 files): count/offset tables are unproven, which is why
   mesh replacement treats it as read-only; physics bounds and socket context
   cannot be edited.
@@ -229,7 +259,7 @@ flowchart LR
         direction TB
         APP["cdmw/app<br/>bootstrap<br/>single instance"]
         SHELL["cdmw/ui/shell<br/>MainWindow<br/>tabs · controllers"]
-        FEAT["cdmw/ui features<br/>archive · texture<br/>mesh · research"]
+        FEAT["cdmw/ui features<br/>archive · new item · texture<br/>mesh · research"]
         SVC["cdmw/services<br/>cdmw/domain<br/>rules · policy"]
         WRK["cdmw/workers<br/>QThread jobs<br/>cancellation"]
         APP --> SHELL --> FEAT --> SVC --> WRK
@@ -439,7 +469,8 @@ the Bazel migration notes.
 cdmw/                    application code
   app/                   bootstrap, startup routing, single-instance handling
   ui/shell/              MainWindow, tabs, controllers, close/diagnostics
-  ui/<feature>/          archive browser, texture workflow, mesh editor, research
+  ui/shell/compact/      optional rail layout around the same tool widgets
+  ui/<feature>/          archive, new item, texture, mesh, research workspaces
   ui/preview/            shared Qt host and resident preview session controller
   services/              coordination boundaries, no PySide widget imports
   domain/                pure rules: archive safety, texture policy, manifests
@@ -470,6 +501,11 @@ Archive mutation is explicit. Browsing, previewing, extracting, scanning, and
 package building never silently rewrite game archives. Supported archive patch
 flows use confirmation, preflight checks, backups, and restore support.
 
+Overlay installs build a CDMW-owned archive group and mount-list entry rather
+than rewriting shipped payload archives. They use the same service-owned
+confirmation, staging, receipt, rollback, and restore boundary; UI code never
+calls an archive writer directly.
+
 Keep local game archives, extracted assets, DDS payloads, build output, crash
 reports, restore points, and corpus data out of source control.
 
@@ -496,8 +532,12 @@ path of the feature that crashed.
 and `.meshinfo` is treated as read-only because its count/offset tables are
 unproven, so physics bounds and socket context cannot be edited.
 
-**Level layout, cutscenes, and VFX are read-only.** See
-[what is still closed](#what-is-still-closed) for the formats behind that and the
+**Level layout and cutscenes are read-only. Effect authoring is deliberately
+bounded.** `.pae` / `.paem` look values can be edited only where the decoded
+fixed-size layout preserves every offset, and references are renamed only at the
+same byte length. The resident particle preview is an approximation, not a claim
+of engine-identical simulation or in-game appearance. See
+[what is still closed](#what-is-still-closed) for the remaining formats and the
 order in which closing them would pay off.
 
 ## License

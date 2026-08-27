@@ -44,6 +44,12 @@ def _send_source_role_update(dialog: object, mesh: object, source_index: int, ro
     )
 
 
+def _translucent_brush(brush_type, color_type, value: str):
+    tint = color_type(value)
+    tint.setAlpha(72)
+    return brush_type(tint)
+
+
 def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> SimpleNamespace:
     Dict = context.get("Dict")
     Mapping = context.get("Mapping")
@@ -511,12 +517,8 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
             item.setText(3, row_state.role_text)
             item.setText(4, row_state.assigned_targets_text)
             item.setText(5, row_state.status_text)
-            assigned_tint = QColor(row_state.assigned_targets_color)
-            assigned_tint.setAlpha(72)
-            item.setBackground(4, QBrush(assigned_tint))
-            status_tint = QColor(row_state.status_color)
-            status_tint.setAlpha(72)
-            item.setBackground(5, QBrush(status_tint))
+            item.setBackground(4, _translucent_brush(QBrush, QColor, row_state.assigned_targets_color))
+            item.setBackground(5, _translucent_brush(QBrush, QColor, row_state.status_color))
             item.setToolTip(4, row_state.target_tooltip)
             item.setToolTip(5, row_state.status_tooltip)
         source_help_text = _source_index_help_text()

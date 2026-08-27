@@ -208,7 +208,6 @@ class EditPanelMixin:
         self._new_socket_button.setToolTip(tip("Attach point", keyboard_hint()))
         self._new_socket_button.clicked.connect(lambda: self._create_socket())
 
-
         # The step that makes a *newly created* child socket actually do something. Routing the
         # body socket moves where an item sits; the child socket is what aims it, and a socket
         # the user just invented has no vanilla pairing for the tool to infer.

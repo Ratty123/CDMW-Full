@@ -69,6 +69,12 @@ point into that renderer: they push session and scene state to a running .NET
 editor process, or start one when none is running. The Python D3D11 preview host
 was removed with the resident Vortice migration, so there is no D3D11 fallback
 and no host-command construction left to own.
+Helper status JSON commits are serialized per destination across processes,
+then published through a unique sibling file and an atomic replacement, so an
+overlapping helper or a monitor reading the prior status cannot collide with a
+new write. Fatal reporting is best effort: embedded and headless failures
+preserve the original exception on stderr and exit nonzero without opening a
+Windows application-error dialog even when the status destination is locked.
 
 `native_preview_payloads.py` owns Mesh Editor payloads for the .NET preview
 bridge; callers should not duplicate mesh-to-preview JSON/blob packing.

@@ -34,5 +34,14 @@ list font size. The seven-page Settings navigation is a top-aligned,
 content-sized rail whose width follows its translated labels instead of taking
 a fixed sidebar width and full-window height.
 
+All 19 application themes use semantic palette roles for shared and
+feature-owned chrome. Feature surfaces may retain intentional content colours
+only with an explicit paired foreground; they must not pin buttons, fields,
+selection, warnings, editors, or disabled text to a Graphite-era literal.
+`tests/test_theme_surface_coherence.py` applies every theme to real Classic
+Placement, Mesh Editor, Archive Browser, New Item, and XML-editor surfaces and
+guards new stylesheet/rich-text literals. Compact's separate synthetic harness
+continues to cover the same production widgets at its supported sizes.
+
 Related tests: `tests/test_shell_*.py`, architecture guards, and shell entries
 under `tests/`.

@@ -2,8 +2,8 @@
 
 Owns business coordination boundaries shared by UI features. `ServiceContainer`
 constructs archive, archive mutation, asset authoring, cache, diagnostics,
-filesystem, Item Icon, mesh, Model Library, package, research, settings, and
-texture workflow services.
+filesystem, Item Icon, mesh, Model Library, New Item, package, research,
+settings, and texture workflow services.
 
 Services may coordinate domain, core, modding, rendering, filesystem, and worker
 code. They must not import PySide widgets or mutate UI state directly. Archive
@@ -58,9 +58,18 @@ normal startup does not run external tools.
 `new_item_service.py`, `new_item_snapshot.py` and `new_item_planning.py` are the
 New Item Studio's boundary: a read-only snapshot of the tables a brand-new item
 touches, the plan that composes the core format owners into patches and
-additions, a loose-mod export, and an install that goes through
-`ArchiveMutationService` and refuses while the game runs. Nothing there writes
-on its own.
+additions, a loose-mod or archive-group export, and installs that go through
+`ArchiveMutationService` and refuse while the game runs. Overlay install,
+migration, removal and restore stay in the focused `archive_overlay_*.py`
+services; they stage complete output, keep an ownership marker and receipt, and
+never adopt a foreign numeric archive group.
+
+Effect catalogue, placement, character-reference, rotation, target-compatibility
+and preview-model services decode archive facts off the UI thread and produce a
+bounded, explicitly approximate resident package. `new_item_materials.py` and
+the model-preview services share the canonical material route rather than
+building a New Item-only renderer. None of these services mutates a widget or a
+shipped archive on its own.
 
 Related tests: `tests/test_services.py`, `tests/test_archive_service_boundaries.py`,
 `tests/test_research_service_boundary.py`, `tests/test_diagnostics_service.py`,

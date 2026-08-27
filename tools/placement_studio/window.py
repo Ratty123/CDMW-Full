@@ -56,7 +56,6 @@ from .window_playback import PlaybackMixin
 from .window_rig_behaviour import RigBehaviourMixin
 from .window_rig_tabs import RigTabsMixin
 
-
 class PosedMesh:
     """Deformed geometry the viewport can draw without a per-frame Vec3 rebuild.
 
@@ -108,7 +107,6 @@ _CHILD = QColor(190, 170, 235, 72)
 #: Re-exported: `window.py` is where these were, and tests and tabs import them from here.
 _let_header_shrink = let_header_shrink
 fit_popup = _fit_popup
-
 
 class PlacementStudioWindow(
     EditPanelMixin, AnimationTabMixin, PlaybackMixin, ClipBrowserMixin,
@@ -1223,7 +1221,6 @@ class PlacementStudioWindow(
         self._viewport.set_attachments(points)
         self._viewport.set_selected(binding.part.in_socket)
         self._inspector.setHtml(inspector_html(describe_part(session, binding, points)))
-
 
 def launch(baseline: Optional[Baseline] = None) -> int:
     """Open the window. Returns the Qt exit code."""

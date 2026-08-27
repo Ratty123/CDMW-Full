@@ -19,7 +19,6 @@ from tests.static_replacement_source_support import (
     static_replacement_ui_implementation_source,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MAIN_WINDOW = ROOT / "cdmw" / "ui" / "shell" / "app_window.py"
 SHELL_TOOL_TABS = ROOT / "cdmw" / "ui" / "shell" / "tool_tabs.py"
@@ -446,7 +445,6 @@ MESH_DOMAIN_VALIDATION = ROOT / "cdmw" / "domain" / "mesh" / "validation.py"
 STARTUP_DIALOGS = ROOT / "cdmw" / "ui" / "shell" / "startup_dialogs.py"
 NATIVE_PREVIEW_PACKAGE = ROOT / "cdmw" / "rendering" / "native_preview_package.py"
 NATIVE_PREVIEW_PACKAGE_WRITER = ROOT / "cdmw" / "rendering" / "native_preview_package_writer.py"
-
 
 def _legacy_nested_source(path: Path) -> str:
     return "\n".join(f"    {line}" if line else line for line in path.read_text(encoding="utf-8").splitlines())

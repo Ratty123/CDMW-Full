@@ -165,13 +165,8 @@ class MeshEditorDotNetLaunchMixin:
         self.standalone_dotnet_deactivate_acknowledged = False
         self.standalone_dotnet_deactivate_timer.stop()
         if self._standalone_dotnet_package_worker_active():
-            # A package for this request is already being built, so there is
-            # nothing to decide: the worker's own completion loads what was
-            # asked for. This used to be checked only after the resident-reuse
-            # block below, which meant a re-entrant start evaluated reuse against
-            # a scene that was about to be replaced, and released the resident
-            # scene mid-build -- clearing the controller's package, its leases
-            # and the queued updates that the in-flight build then landed on.
+            # The in-flight worker owns this request. Releasing its resident
+            # scene here would clear its package leases and queued updates.
             self._set_dotnet_status("Mesh .NET editor package is already preparing.")
             return
         resident_scene_released = False

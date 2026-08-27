@@ -38,7 +38,8 @@ from cdmw.ui.shell.compact.config import (
     active_shell_theme_key,
     read_shell_variant,
 )
-from cdmw.ui.themes import _compact_tool_shape_override_stylesheet, get_theme
+from cdmw.ui.shell.compact.styles import _compact_tool_shape_override_stylesheet
+from cdmw.ui.themes import get_theme
 
 
 @dataclass(frozen=True, slots=True)

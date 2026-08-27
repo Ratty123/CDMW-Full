@@ -120,6 +120,18 @@ def test_proven_formats_are_not_claimed_without_evidence(entries: list[dict]) ->
             )
 
 
+def test_effect_capabilities_match_current_authoring_and_preview(entries: list[dict]) -> None:
+    by_extension = {entry["extension"]: entry for entry in entries}
+
+    for extension in (".pae", ".paem"):
+        entry = by_extension[extension]
+        assert entry["decode"] == "full"
+        assert entry["write"] == "constrained"
+        assert entry["visual"] is True
+        assert "approximate particle preview" in entry["evidence"]
+        assert "does not reproduce" in entry["remaining"]
+
+
 def test_validate_rejects_an_unknown_status(entries: list[dict]) -> None:
     broken = [dict(entries[0], decode="mostly")]
     with pytest.raises(ManifestError):

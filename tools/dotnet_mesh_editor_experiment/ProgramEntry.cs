@@ -120,32 +120,52 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            var options = LaunchOptions.TryParse(args);
-            if (options is not null)
-            {
-                ExperimentForm.WriteStatus(options, "error", ex.Message, null);
-            }
-            var suppressDialog = IsEmbedded(args) || Array.Exists(args, arg =>
-                string.Equals(arg, "--headless-smoke", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-edit-mesh-layout-smoke", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-morph-page-stability-smoke", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-edit-mesh-entry-smoke", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-ui-localization-contract", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-capture-camera-parity", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-gpu-frame-pacing-soak", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-gpu-interaction-soak", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-material-authority-parity", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--capture-package", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--visual-audit-batch", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--material-resource-policy-report", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--helper-provenance-report", StringComparison.OrdinalIgnoreCase));
-            if (!suppressDialog)
-            {
-                MessageBox.Show(ex.Message, "CDMW .NET Mesh Editor Experiment", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            return 1;
+            return HandleMainException(args, ex);
         }
+    }
+
+    private static int HandleMainException(string[] args, Exception exception)
+    {
+        var options = LaunchOptions.TryParse(args);
+        if (options is not null)
+        {
+            try
+            {
+                ExperimentForm.WriteStatus(options, "error", exception.Message, null);
+            }
+            catch (Exception)
+            {
+                // Fatal-path status is best effort; never replace the original fault.
+            }
+        }
+        try
+        {
+            Console.Error.WriteLine(exception);
+            Console.Error.Flush();
+        }
+        catch (IOException)
+        {
+        }
+        var suppressDialog = IsEmbedded(args) || Array.Exists(args, arg =>
+            string.Equals(arg, "--headless-smoke", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-edit-mesh-layout-smoke", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-morph-page-stability-smoke", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-edit-mesh-entry-smoke", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-ui-localization-contract", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-capture-camera-parity", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-gpu-frame-pacing-soak", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-gpu-interaction-soak", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-material-authority-parity", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--capture-package", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--visual-audit-batch", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--material-resource-policy-report", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--helper-provenance-report", StringComparison.OrdinalIgnoreCase));
+        if (!suppressDialog)
+        {
+            MessageBox.Show(exception.Message, "CDMW .NET Mesh Editor Experiment", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        return 1;
     }
 
     private static bool IsEmbedded(string[] args) => Array.Exists(

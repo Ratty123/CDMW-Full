@@ -33,6 +33,7 @@ $TestsByArea = @{
         "tests/test_theme_surface_coherence.py",
         "tests/test_format_explorer.py",
         "tests/test_translation_studio.py",
+        "tests/test_translation_studio_theme.py",
         # New Item Studio: headless construction, and a plan driven through its panels.
         "tests/test_combo_popup_limiter.py",
         "tests/test_new_item_item_preview.py",
@@ -204,6 +205,7 @@ $TestsByArea = @{
         "tests/test_mesh_editor_controller.py",
         "tests/test_mesh_editor_actions.py",
         "tests/test_mesh_editor_action_bar.py",
+        "tests/test_mesh_editor_warm_reopen.py",
         "tests/test_mesh_editor_builder_interaction_defaults.py",
         "tests/test_mesh_builder_runtime_wiring.py",
         "tests/test_mesh_builder_construction_lifecycle.py",
@@ -405,6 +407,8 @@ if ($Area -eq "mesh-unit") {
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
+
+    & (Join-Path $PSScriptRoot "test_dotnet_status_concurrency.ps1")
 
     $LayoutRunId = [Guid]::NewGuid().ToString("N")
     $LayoutReport = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-edit-mesh-layout-$LayoutRunId.json"
