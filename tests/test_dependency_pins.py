@@ -20,14 +20,14 @@ def test_directxtex_fetches_are_pinned_to_the_same_commit() -> None:
 def test_vgmstream_packaging_uses_immutable_version_commit_and_sha256() -> None:
     source = Path("build_pyside6_app.ps1").read_text(encoding="utf-8")
 
-    assert "Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop" in source
     assert '$vgmstreamVersion = "r1980"' in source
     assert f'$vgmstreamBuildCommit = "{VGMSTREAM_BUILD_COMMIT}"' in source
     assert f'$vgmstreamArchiveSha256 = "{VGMSTREAM_SHA256}"' in source
     assert "raw/master" not in source
     assert "vgmstream-latest" not in source
-    assert "Get-FileHash -LiteralPath $zipPath -Algorithm SHA256" in source
+    assert "function Get-Sha256Hex" in source
+    assert "Get-Sha256Hex -LiteralPath $zipPath" in source
     assert re.search(r"if \(\$downloadHash -ne \$vgmstreamArchiveSha256\)", source)
     assert "function Test-VgmstreamRuntimePin" in source
     assert 'Join-Path $RuntimeDir ".cdmw-dependency.json"' in source
-    assert "Get-FileHash -LiteralPath $runtimeFile -Algorithm SHA256" in source
+    assert "Get-Sha256Hex -LiteralPath $runtimeFile" in source
