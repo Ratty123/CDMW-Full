@@ -27,14 +27,16 @@ from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state i
     ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
     ORIGINAL_REFERENCE_TEXTURE_REQUEST_UNAVAILABLE,
 )
-from tests.test_mesh_editor_textured_view_request_settles import (
+from tests.test_mesh_editor_textured_view_import import (
     _acknowledge_material_update,
     _bind_own_textures_to_working_mesh,
+    _material_updates,
+    _wait_for_material_updates,
+)
+from tests.test_mesh_editor_textured_view_request_settles import (
     _display_modes,
     _mark_material_role_ready,
-    _material_updates,
     _mounted_tab,
-    _wait_for_material_updates,
 )
 
 
