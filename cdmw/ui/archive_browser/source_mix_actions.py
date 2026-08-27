@@ -377,7 +377,7 @@ class ArchiveSourceMixActionsMixin:
             existing_keys.add(candidate_key)
             combo.addItem(_candidate_label(candidate), candidate)
             item.setText(4, f"{combo.count() - 1:,} candidate(s)")
-            item.setForeground(4, QBrush(QColor("#86efac")))
+            item.setBackground(4, QBrush(QColor("#4886efac")))
             _refresh_source_mix_status()
 
         def _add_candidates(candidates: Sequence[SourceMixCandidate]) -> None:

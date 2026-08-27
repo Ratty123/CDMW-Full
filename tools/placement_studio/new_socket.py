@@ -77,6 +77,7 @@ class NewSocketDialog(QDialog):
         self._name_edit.textChanged.connect(self._revalidate)
 
         self._length_label = QLabel()
+        self._length_label.setObjectName("HintLabel")
         self._length_label.setWordWrap(True)
 
         # Starting from an existing socket matters more than it looks: a socket created at the
@@ -90,8 +91,9 @@ class NewSocketDialog(QDialog):
         self._bone_box.setEditable(True)
 
         self._problem = QLabel()
+        self._problem.setObjectName("HintLabel")
+        self._problem.setProperty("healthState", "unhealthy")
         self._problem.setWordWrap(True)
-        self._problem.setStyleSheet("color: #e25858;")
 
         form = QFormLayout()
         form.addRow("Define in:", self._file_box)
@@ -115,8 +117,8 @@ class NewSocketDialog(QDialog):
         layout.addLayout(form)
         if target_length and target_length_reason:
             note = QLabel(target_length_reason)
+            note.setObjectName("HintLabel")
             note.setWordWrap(True)
-            note.setStyleSheet("color: #8a95a8;")
             layout.addWidget(note)
         layout.addWidget(self._problem)
         layout.addWidget(self._buttons)
@@ -228,12 +230,16 @@ class NewSocketDialog(QDialog):
                     f"{length} of {MAX_SOCKET_NAME} characters — does not match the "
                     f"{self._target_length} needed to retarget an animation"
                 )
-            self._length_label.setStyleSheet(
-                "color: #78dc8c;" if length == self._target_length else "color: #8a95a8;"
-            )
+            health_state = "healthy" if length == self._target_length else ""
         else:
             self._length_label.setText(f"{length} of {MAX_SOCKET_NAME} characters")
-            self._length_label.setStyleSheet("color: #8a95a8;")
+            health_state = ""
+
+        if str(self._length_label.property("healthState") or "") != health_state:
+            self._length_label.setProperty("healthState", health_state)
+            self._length_label.style().unpolish(self._length_label)
+            self._length_label.style().polish(self._length_label)
+            self._length_label.update()
 
         self._buttons.button(QDialogButtonBox.Ok).setEnabled(bool(name) and not problem)
 

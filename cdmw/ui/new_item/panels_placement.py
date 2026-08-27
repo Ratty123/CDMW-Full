@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -21,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.new_item.spec import ItemGroupsChoice, PlacementKind
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel, intro_label, tone_color
+from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel, intro_label
 
 # A normal shell tab leaves about 600 px for a guided page at 1280x720. Keep the
 # optional group picker inside that page; its own list remains scrollable when there
@@ -136,7 +135,9 @@ class PlacementPanel(QGroupBox):
             for name, label, _count, camp in self._controller.store_choices():
                 self.store.addItem(label, name)
                 if camp:
-                    self.store.setItemData(self.store.count() - 1, QColor(tone_color(OK)), Qt.ForegroundRole)
+                    preferred_font = self.store.font()
+                    preferred_font.setBold(True)
+                    self.store.setItemData(self.store.count() - 1, preferred_font, Qt.FontRole)
             wanted = current or self.DEFAULT_STORE
             index = self.store.findData(wanted)
             if index < 0:

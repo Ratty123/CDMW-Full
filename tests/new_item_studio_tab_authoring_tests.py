@@ -226,17 +226,16 @@ class _TabAuthoringMixin:
 
         from PySide6.QtCore import Qt
 
-        from cdmw.ui.new_item.ui_kit import EDIT, tone_color
-
         with patch.object(stats, "summary_text", counted_summary_text), patch.object(tab.controller, "validate", counted_validate):
             stats.rebuild()
             self.assertEqual((counts["summary"], counts["validate"]), (0, 0), "a refill is not an edit")
             stats.table.item(0, 0).setText("20000")
             self.assertEqual((counts["summary"], counts["validate"]), (1, 1))
             self.assertIn("1 stat cell(s)", tab.summary.plain_text(), "the rail read the draft after the edit")
-            self.assertEqual(stats.table.item(0, 0).foreground().color().name(), tone_color(EDIT), "an edited cell turns blue at once")
+            self.assertTrue(stats.table.item(0, 0).font().bold(), "an edited cell is emphasised at once")
+            self.assertIsNone(stats.table.item(0, 0).data(Qt.ForegroundRole))
             stats.table.item(0, 0).setText("12000")
-            self.assertIsNone(stats.table.item(0, 0).data(Qt.ForegroundRole), "back on the template: the default look, not a null brush")
+            self.assertIsNone(stats.table.item(0, 0).data(Qt.FontRole), "back on the template: the default look")
             counts.update(summary=0, validate=0)
             stats.advanced_toggle.setChecked(True)
             stats.add_level_button.click()

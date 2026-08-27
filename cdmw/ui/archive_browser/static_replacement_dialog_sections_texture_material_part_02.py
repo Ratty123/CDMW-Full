@@ -492,7 +492,9 @@ def _texture_material_step_037(_state):
                             state_text = 'Original'
                             state_color = '#94a3b8'
                         item.setText(4, state_text)
-                        item.setForeground(4, _state.QBrush(_state.QColor(state_color)))
+                        state_tint = _state.QColor(state_color)
+                        state_tint.setAlpha(72)
+                        item.setBackground(4, _state.QBrush(state_tint))
                     _state._refresh_texture_status = _refresh_texture_status
 
                     def _texture_combo_changed(_index: int, *, checkbox: QCheckBox=_state.checkbox, combo: QComboBox=_state.combo, refresh_status: Callable[[], None]=_state._refresh_texture_status) -> None:

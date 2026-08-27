@@ -70,7 +70,8 @@ def test_source_material_route_item_sets_columns_roles_and_detail_html() -> None
     assert item.data(0, Qt.UserRole + 1) == 4
     assert item.data(0, Qt.UserRole + 2) == "Skin"
     assert "Use source material" in item.data(0, Qt.UserRole + 3)
-    assert item.foreground(4).color().name() == "#3fb950"
+    assert item.background(4).color().name() == "#3fb950"
+    assert item.background(4).color().alpha() == 72
 
 
 def test_replacement_texture_plan_item_keeps_source_preview_and_status_roles() -> None:
@@ -170,7 +171,7 @@ def test_donor_material_plan_item_labels_mode_status_and_target_role() -> None:
     assert item.text(4) == "emissive/glow"
     assert item.data(0, Qt.UserRole) == 3
     assert item.data(0, Qt.UserRole + 1) is plan
-    assert item.foreground(4).color().name() == "#facc15"
+    assert item.background(4).color().name() == "#facc15"
 
 
 def test_donor_picker_items_store_bindings_and_texture_state() -> None:
@@ -184,7 +185,7 @@ def test_donor_picker_items_store_bindings_and_texture_state() -> None:
     assert part_item.text(3) == "Yes"
     assert part_item.data(0, Qt.UserRole) == (binding,)
     assert part_item.data(0, Qt.UserRole + 1) == "Body"
-    assert part_item.foreground(3).color().name() == "#facc15"
+    assert part_item.background(3).color().name() == "#facc15"
 
     empty_item = empty_donor_part_tree_item()
     assert empty_item.text(0) == "No material wrappers found"
@@ -201,4 +202,4 @@ def test_donor_picker_items_store_bindings_and_texture_state() -> None:
     assert texture_item.text(2) == "body.dds"
     assert texture_item.data(0, Qt.UserRole) is binding
     assert texture_item.toolTip(2) == "textures/body.dds"
-    assert texture_item.foreground(4).color().name() == "#facc15"
+    assert texture_item.background(4).color().name() == "#facc15"

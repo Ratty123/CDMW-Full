@@ -44,8 +44,8 @@ class SourceTreeContextMenuSelectionState:
 
 def source_tree_control_text() -> dict[str, object]:
     return {
-        "original_label_html": "<span style='color:#79c0ff; font-weight:700;'>Original reference parts</span>",
-        "replacement_label_html": "<span style='color:#79c0ff; font-weight:700;'>Replacement reference parts</span>",
+        "original_label_html": "<span style=' font-weight:700;'>Original reference parts</span>",
+        "replacement_label_html": "<span style=' font-weight:700;'>Replacement reference parts</span>",
         "source_group_title": "Replacement reference parts",
         "source_tree_headers": ["Use", "#", "Source", "Role", "Target", "Status", "Geometry"],
     }

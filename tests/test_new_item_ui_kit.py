@@ -40,6 +40,32 @@ class UiKitTests(unittest.TestCase):
         label.set_lines([])
         self.assertEqual(label.text(), "")
 
+    def test_note_label_recolors_when_the_application_theme_changes(self) -> None:
+        from PySide6.QtGui import QPalette
+
+        from cdmw.ui.new_item.ui_kit import NoteLabel, WARN
+        from cdmw.ui.themes import build_app_palette, get_theme
+
+        previous_palette = QPalette(self.app.palette())
+        previous_theme_key = self.app.property("_cdmw_theme_key")
+        label = NoteLabel("Careful", WARN)
+        try:
+            self.app.setProperty("_cdmw_theme_key", "graphite")
+            self.app.setPalette(build_app_palette("graphite"))
+            self.app.processEvents()
+            self.assertIn(get_theme("graphite")["warning_text"], label.text())
+
+            self.app.setProperty("_cdmw_theme_key", "light")
+            self.app.setPalette(build_app_palette("light"))
+            self.app.processEvents()
+            self.assertIn(get_theme("light")["warning_text"], label.text())
+            self.assertNotIn(get_theme("graphite")["warning_text"], label.text())
+        finally:
+            label.deleteLater()
+            self.app.processEvents()
+            self.app.setProperty("_cdmw_theme_key", previous_theme_key)
+            self.app.setPalette(previous_palette)
+
     def test_details_toggle_folds_its_body(self) -> None:
         from cdmw.ui.new_item.ui_kit import DetailsToggle
 

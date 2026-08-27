@@ -93,7 +93,9 @@ def source_material_route_item(
     )
     for column in range(6):
         item.setToolTip(column, item.text(column))
-    item.setForeground(4, QBrush(QColor(status_color)))
+    status_tint = QColor(status_color)
+    status_tint.setAlpha(72)
+    item.setBackground(4, QBrush(status_tint))
     return item
 
 
@@ -141,7 +143,6 @@ def replacement_texture_plan_item(
             item.setToolTip(column, str(getattr(plan_row, "full_part_material", "") or getattr(plan_row, "part_material", "")))
         else:
             item.setToolTip(column, str(getattr(plan_row, "controls", "") or "") if column in {1, 4, 5} else item.text(column))
-    item.setForeground(4, QBrush(QColor(status_color)))
     item.setBackground(4, QBrush(QColor(status_color)))
     item.setForeground(4, QBrush(QColor(status_foreground)))
     return item
@@ -174,7 +175,9 @@ def final_material_status_item(
         f"<b>Sidecar action:</b> {escape(detail or 'Validated from final texture contract')}"
         "</div>",
     )
-    item.setForeground(4, QBrush(QColor(status_color)))
+    status_tint = QColor(status_color)
+    status_tint.setAlpha(72)
+    item.setBackground(4, QBrush(status_tint))
     return item
 
 
@@ -227,7 +230,9 @@ def final_binding_row_item(
     )
     for column in range(6):
         item.setToolTip(column, item.text(column))
-    item.setForeground(4, QBrush(QColor(status_color)))
+    status_tint = QColor(status_color)
+    status_tint.setAlpha(72)
+    item.setBackground(4, QBrush(status_tint))
     return item
 
 
@@ -268,7 +273,7 @@ def donor_material_plan_item(
     )
     item.setData(0, Qt.UserRole, int(target_index))
     item.setData(0, Qt.UserRole + 1, plan)
-    item.setForeground(4, QBrush(QColor("#facc15" if status == "emissive/glow" else "#86efac")))
+    item.setBackground(4, QBrush(QColor("#48facc15" if status == "emissive/glow" else "#4886efac")))
     for column in range(5):
         item.setToolTip(column, item.text(column))
     return item
@@ -288,7 +293,7 @@ def donor_part_tree_item(row: object) -> QTreeWidgetItem:
     item.setData(0, Qt.UserRole, bindings_for_part)
     item.setData(0, Qt.UserRole + 1, str(row.get("part_name") or "") if hasattr(row, "get") else "")
     if emissive:
-        item.setForeground(3, QBrush(QColor("#facc15")))
+        item.setBackground(3, QBrush(QColor("#48facc15")))
     return item
 
 
@@ -320,7 +325,7 @@ def donor_texture_binding_item(
     )
     item.setData(0, Qt.UserRole, binding)
     if state == "emissive/glow":
-        item.setForeground(4, QBrush(QColor("#facc15")))
+        item.setBackground(4, QBrush(QColor("#48facc15")))
     for column in range(5):
         item.setToolTip(column, texture_path if column == 2 else item.text(column))
     return item

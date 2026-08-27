@@ -56,3 +56,6 @@ def test_texture_target_diagnostics_html_reports_selected_row_and_warnings() -> 
     assert "no replacement base/color" in html
     assert "material/mask data" in html
     assert "advanced shader slot" in html
+    assert "#161b22" not in html
+    assert "#1c2128" not in html
+    assert "<tr style='background:" not in html

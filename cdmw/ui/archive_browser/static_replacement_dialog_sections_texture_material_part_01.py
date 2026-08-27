@@ -465,7 +465,6 @@ def _texture_material_step_006(_state):
     _state.dds_detail_thumbnail_label.setAlignment(_state.Qt.AlignCenter)
     _state.dds_detail_thumbnail_label.setFixedSize(128, 128)
     _state.dds_detail_thumbnail_label.setScaledContents(False)
-    _state.dds_detail_thumbnail_label.setStyleSheet('QLabel#DDSDetailThumbnail { border: 1px solid #30363d; background: #0d1117; color: #8b949e; }')
     _state.dds_detail_label = _state.QLabel(_state.str(_state.material_plan_control_text['dds_detail_select_row']))
     _state.dds_detail_label.setObjectName('HintLabel')
     _state.dds_detail_label.setWordWrap(True)

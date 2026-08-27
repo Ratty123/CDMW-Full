@@ -49,9 +49,9 @@ def _dialog_step_0110(_state):
                         _frame.hint_item.setToolTip(5, 'Read-only descriptor context. Edit the patchable rows with an Item and Offset below.')
                         _frame.hint_item.setData(7, _state.Qt.ItemDataRole.UserRole, {'title': _frame.hint_name, 'category': _frame.category, 'confidence': _frame.hint_element.get('confidence') or 'descriptor_context', 'description': _frame.hint_element.get('description') or '', 'descriptor_path': _frame.hint_element.get('descriptor_path') or '', 'body_name': _frame.hint_element.get('body_name') or '', 'socket_name': _frame.hint_element.get('socket_name') or '', 'patchable': False, 'read_only_reason': 'Read-only descriptor context. These values are not imported into the HKX.'})
                         _frame.hint_item.setFlags(_frame.hint_item.flags() & ~_state.Qt.ItemFlag.ItemIsEditable)
-                        _frame.hint_item.setForeground(2, _state.QBrush(_state.QColor('#9aa7b4')))
-                        _frame.hint_item.setForeground(3, _state.QBrush(_state.QColor('#9aa7b4')))
-                        _frame.hint_item.setForeground(5, _state.QBrush(_state.QColor('#9aa7b4')))
+                        _frame.hint_item.setBackground(2, _state.QBrush(_state.QColor('#489aa7b4')))
+                        _frame.hint_item.setBackground(3, _state.QBrush(_state.QColor('#489aa7b4')))
+                        _frame.hint_item.setBackground(5, _state.QBrush(_state.QColor('#489aa7b4')))
                         _frame.group_item.addChild(_frame.hint_item)
                 for _frame.slot_element in _frame.group_element.findall('./slots/slot'):
                     _frame.item_index = _frame.slot_element.get('item_index') or ''
@@ -70,7 +70,7 @@ def _dialog_step_0110(_state):
                     _frame.slot_item.setToolTip(5, 'Patchable value. Double-click this Value cell or use Edit Selected Value.')
                     _frame.slot_item.setToolTip(7, 'Plain-language effect: ' + (_frame.slot_element.get('plain_language_effect') or 'unknown') + '\nIf increased: ' + (_frame.slot_element.get('if_increased') or 'not recovered') + '\nIf decreased: ' + (_frame.slot_element.get('if_decreased') or 'not recovered') + '\nSafe edit hint: ' + (_frame.slot_element.get('safe_edit_hint') or 'change one value at a time') + '\nEdit risk: ' + (_frame.slot_element.get('edit_risk') or 'experimental') + '\nValue constraints: ' + (_frame.slot_element.get('value_constraints') or 'finite float; fixed offset') + '\nEdit note: ' + (_frame.slot_element.get('suggested_edit_step') or 'Fixed-size value; avoid count, topology, reference, and string changes.'))
                     _frame.slot_item.setFlags(_frame.slot_item.flags() | _state.Qt.ItemFlag.ItemIsEditable)
-                    _frame.slot_item.setForeground(5, _state.QBrush(_state.QColor('#9fd0ff')))
+                    _frame.slot_item.setBackground(5, _state.QBrush(_state.QColor('#489fd0ff')))
                     _state._set_dirty_item_style(_frame.slot_item, 5, _frame.value.strip() != _frame.original_value.strip())
                     _frame.group_item.addChild(_frame.slot_item)
                     _frame.patchable_count += 1
@@ -246,7 +246,9 @@ def _dialog_step_0115(_state):
                     "missing_requirements": missing_requirements,
                 },
             )
-            object_item.setForeground(2, _state.QBrush(status_color))
+            status_tint = _state.QColor(status_color)
+            status_tint.setAlpha(72)
+            object_item.setBackground(2, _state.QBrush(status_tint))
             object_item.setToolTip(2, status_reason)
             if missing_requirements:
                 object_item.setToolTip(5, f"Missing for full decode: {missing_requirements}")

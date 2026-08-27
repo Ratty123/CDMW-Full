@@ -331,7 +331,11 @@ def test_dense_graph_layout_keeps_text_lines_and_boxes_separate() -> None:
 
 
 def test_source_changes_views_are_read_only_diffable_and_jumpable() -> None:
-    _app()
+    app = _app()
+    from cdmw.constants import DEFAULT_UI_THEME
+    from cdmw.ui.themes import get_theme
+
+    theme = get_theme(str(app.property("_cdmw_theme_key") or DEFAULT_UI_THEME))
     view = PacXmlSourceChangesView(XML)
     view.resize(1000, 700)
     view.show()
@@ -368,7 +372,7 @@ def test_source_changes_views_are_read_only_diffable_and_jumpable() -> None:
         view.original_edit,
         '<SkinnedMeshMaterialWrapper _subMeshName="body">',
     )
-    assert {"#569cd6", "#9cdcfe", "#ce9178"} <= xml_foregrounds
+    assert {theme["accent"], theme["warning_text"], theme["text_strong"]} <= xml_foregrounds
     _removed_foregrounds, removed_backgrounds = block_colors(
         view.diff_edit,
         "-    <MaterialParameterFloat",
@@ -378,9 +382,9 @@ def test_source_changes_views_are_read_only_diffable_and_jumpable() -> None:
         "+    <MaterialParameterFloat",
     )
     _hunk_foregrounds, hunk_backgrounds = block_colors(view.diff_edit, "@@")
-    assert "#4a1f25" in removed_backgrounds
-    assert "#173b2a" in added_backgrounds
-    assert "#24385e" in hunk_backgrounds
+    assert theme["warning_bg"] in removed_backgrounds
+    assert theme["accent_soft"] in added_backgrounds
+    assert theme["surface_alt"] in hunk_backgrounds
     view.jump_to_line(3)
     assert view.original_edit.textCursor().blockNumber() == 2
     view.deleteLater()

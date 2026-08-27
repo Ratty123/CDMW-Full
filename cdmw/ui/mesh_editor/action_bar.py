@@ -61,13 +61,6 @@ class MeshEditorActionBar(QFrame):
     def __init__(self, actions: Sequence[MeshEditorAction] = MESH_EDITOR_VISIBLE_ACTIONS, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("MeshEditorActionBar")
-        self.setStyleSheet(
-            "QFrame#MeshEditorActionBar QToolButton:checked {"
-            " background-color: #1769aa;"
-            " color: white;"
-            " border: 1px solid #58a6ff;"
-            "}"
-        )
         self.buttons_by_key: dict[str, QToolButton] = {}
         self._actions_by_key = {action.key: action for action in actions}
         self._button_groups: list[QButtonGroup] = []

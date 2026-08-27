@@ -128,6 +128,10 @@ def build_app_palette(theme_key: str) -> QPalette:
     palette.setColor(QPalette.WindowText, QColor(theme["text"]))
     palette.setColor(QPalette.Base, QColor(theme["field"]))
     palette.setColor(QPalette.AlternateBase, QColor(theme["field_alt"]))
+    palette.setColor(QPalette.Light, QColor(theme["surface_alt"]))
+    palette.setColor(QPalette.Midlight, QColor(theme["border"]))
+    palette.setColor(QPalette.Mid, QColor(theme["border"]))
+    palette.setColor(QPalette.Dark, QColor(theme["border_strong"]))
     palette.setColor(QPalette.ToolTipBase, QColor(theme["surface"]))
     palette.setColor(QPalette.ToolTipText, QColor(theme["text_strong"]))
     palette.setColor(QPalette.Text, QColor(theme["text"]))
@@ -526,6 +530,16 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
     }}
     QLabel, QCheckBox, QToolButton {{
         background: transparent;
+    }}
+    QFrame#MeshEditorActionBar QToolButton:checked {{
+        color: {theme["accent_text"]};
+        background: {theme["accent"]};
+        border: 1px solid {theme["accent"]};
+    }}
+    QFrame#MeshEditorActionBar QToolButton:checked:hover:enabled {{
+        color: {theme["text_strong"]};
+        background: {theme["accent_soft"]};
+        border-color: {theme["accent"]};
     }}
     QToolButton#ArchiveActionMenuButton,
     QToolButton#MeshEditorRunValidationReportButton,
@@ -928,8 +942,8 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
         padding: 3px 6px;
     }}
     QLabel#HintLabel[healthState="healthy"] {{
-        color: #2fbf64;
-        border-color: #2fbf64;
+        color: {theme["accent"]};
+        border-color: {theme["accent"]};
         font-weight: 700;
     }}
     QLabel#HintLabel[healthState="building"] {{
@@ -1015,7 +1029,88 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
         padding: 4px 8px;
         font-weight: 600;
     }}
+    QLabel#ActiveBadge {{
+        color: {theme["accent_text"]};
+        background: {theme["accent"]};
+        border: 1px solid {theme["accent"]};
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-weight: 600;
+    }}
     QLabel#WarningText {{
+        color: {theme["warning_text"]};
+        background: transparent;
+    }}
+    QLabel#WarningLabel {{
+        color: {theme["warning_text"]};
+        background: transparent;
+    }}
+    QLabel#CompactPathValue {{
+        color: {theme["text_strong"]};
+        background: transparent;
+    }}
+    QLabel#MetricChip {{
+        color: {theme["text_strong"]};
+        background: {theme["field_alt"]};
+        border: 1px solid {theme["border"]};
+        border-radius: 4px;
+        padding: 3px 8px;
+        font-weight: 600;
+    }}
+    QLabel#MetricChip[chipRole="format"],
+    QLabel#MetricChip[chipRole="info"] {{
+        color: {theme["text_strong"]};
+        background: {theme["accent_soft"]};
+        border-color: {theme["accent"]};
+    }}
+    QLabel#MetricChip[chipRole="ready"] {{
+        color: {theme["accent_text"]};
+        background: {theme["accent"]};
+        border-color: {theme["accent"]};
+    }}
+    QLabel#MetricChip[chipRole="warn"] {{
+        color: {theme["warning_text"]};
+        background: {theme["warning_bg"]};
+        border-color: {theme["warning_border"]};
+    }}
+    QLabel#MetricChip[chipRole="block"] {{
+        color: {theme["error"]};
+        background: {theme["warning_bg"]};
+        border-color: {theme["warning_border"]};
+    }}
+    QLabel#ItemFinderIconPreview,
+    QLabel#DDSDetailThumbnail {{
+        color: {theme["text_muted"]};
+        background: {theme["preview_bg"]};
+        border: 1px solid {theme["border_strong"]};
+        border-radius: 6px;
+    }}
+    QPlainTextEdit#HkxLineNumbers {{
+        color: {theme["text_muted"]};
+        background: {theme["field_alt"]};
+        border: 1px solid {theme["border"]};
+    }}
+    QFrame#AssignmentSummary {{
+        background: {theme["surface_alt"]};
+        border: 1px solid {theme["border"]};
+        border-radius: 6px;
+    }}
+    QLabel#AssignmentTitle {{
+        color: {theme["accent"]};
+        background: transparent;
+        font-weight: 600;
+    }}
+    QLabel#AssignmentWarning {{
+        color: {theme["warning_text"]};
+        background: transparent;
+        font-weight: 600;
+    }}
+    QFrame#ArchiveSwapBanner {{
+        background: {theme["warning_bg"]};
+        border: 1px solid {theme["warning_border"]};
+        border-radius: 4px;
+    }}
+    QLabel#ArchiveSwapBannerLabel {{
         color: {theme["warning_text"]};
         background: transparent;
     }}

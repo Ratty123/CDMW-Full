@@ -38,7 +38,7 @@ def alignment_transform_control_text() -> dict[str, str]:
         "tilt_z_minus_tooltip": "Roll or side-tilt the replacement around Z.",
         "tilt_z_plus_tooltip": "Roll or side-tilt the replacement around Z.",
         "hint_html": (
-            "<span style='color:#8b949e;'>Manual export transform. Drag axes to move; "
+            "<span style=''>Manual export transform. Drag axes to move; "
             "Alt+drag rotates X/Y; Alt+Shift+drag rolls Z.</span>"
         ),
         "section_title": "Transform",

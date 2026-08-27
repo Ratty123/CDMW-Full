@@ -108,6 +108,12 @@ def test_the_page_is_broken_into_sections_rather_than_run_together():
     assert page.count("<tr>") >= len(glossary.TERMS) + len(glossary.WALKTHROUGH)
 
 
+def test_the_help_page_inherits_the_active_theme_instead_of_forcing_dark_text():
+    page = glossary.as_html()
+
+    assert not re.search(r"(?:color|background)\s*:\s*#[0-9a-fA-F]{6,8}", page)
+
+
 def test_every_symptom_comes_with_a_cure():
     for symptom, cure in glossary.TROUBLESHOOTING:
         assert symptom and cure

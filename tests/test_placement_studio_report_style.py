@@ -11,9 +11,6 @@ from __future__ import annotations
 import unittest
 
 from tools.placement_studio.report_style import (
-    NAME,
-    VALUE,
-    WARN,
     inspector_html,
     pending_changes_html,
 )
@@ -26,12 +23,12 @@ class PendingChangesTests(unittest.TestCase):
             ["character/descriptors/thing.xml", "  [B] thing.xml :: moved a socket"],
         )
 
-    def test_colour_is_inline_so_qt_actually_applies_it(self) -> None:
+    def test_structure_is_inline_without_forcing_a_theme_colour(self) -> None:
         html = self._html()
 
         self.assertIn("style=", html)
         self.assertNotIn("class=", html, "Qt ignores class selectors in rich text")
-        self.assertIn(NAME, html)
+        self.assertNotIn("color:", html)
 
     def test_a_file_stands_out_from_its_operations(self) -> None:
         html = self._html()
@@ -40,7 +37,7 @@ class PendingChangesTests(unittest.TestCase):
         self.assertIn("margin-left", html)
 
     def test_the_tier_marker_is_picked_out(self) -> None:
-        self.assertIn(f"style='color:{VALUE}", self._html().replace('"', "'"))
+        self.assertIn("text-decoration:underline", self._html().replace(" ", ""))
 
     def test_an_empty_plan_says_so_rather_than_rendering_blank(self) -> None:
         self.assertIn("Nothing has been changed", pending_changes_html([], []))
@@ -62,14 +59,21 @@ class InspectorTests(unittest.TestCase):
     def test_a_key_and_its_value_are_told_apart(self) -> None:
         html = inspector_html("used by: 3 row(s)")
 
-        self.assertIn(VALUE, html)
+        self.assertIn("font-style:italic", html)
+        self.assertIn("font-weight:bold", html)
         self.assertIn("used by:", html)
 
-    def test_a_warning_is_coloured_as_one(self) -> None:
-        self.assertIn(WARN, inspector_html("WARNING: dangling socket"))
+    def test_a_warning_is_emphasised_without_forcing_a_theme_colour(self) -> None:
+        html = inspector_html("WARNING: dangling socket")
+
+        self.assertIn("<div style='font-weight:bold;'>WARNING", html)
+        self.assertNotIn("color:", html)
 
     def test_ordinary_lines_are_not_mistaken_for_warnings(self) -> None:
-        self.assertNotIn(WARN, inspector_html("rotation: 0.0 0.0 0.0 1.0"))
+        self.assertNotIn(
+            "<div style='font-weight:bold;'>rotation",
+            inspector_html("rotation: 0.0 0.0 0.0 1.0"),
+        )
 
     def test_markup_in_the_data_cannot_reach_the_page(self) -> None:
         self.assertNotIn("<b>", inspector_html("name: <b>x</b>"))

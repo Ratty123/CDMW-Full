@@ -176,7 +176,7 @@ def texture_editor_metadata_html(document: TextureEditorDocument) -> str:
     def _cell_text(value: str) -> str:
         text = value.strip() or "-"
         return (
-            "<div style='white-space:pre-wrap; word-break:break-word; color:#D8E1EE; line-height:1.25;'>"
+            "<div style='white-space:pre-wrap; word-break:break-word;  line-height:1.25;'>"
             f"{html.escape(text)}</div>"
         )
 
@@ -184,15 +184,15 @@ def texture_editor_metadata_html(document: TextureEditorDocument) -> str:
     if semantics_text == "unknown/unknown":
         semantics_text = "Unknown"
     refined_html = [
-        f"<div style='font-weight:600; color:#E7EDF7; margin-bottom:2px; line-height:1.2;'>{html.escape(document.title)}</div>",
-        f"<div style='margin-bottom:8px; color:#B4C0D4; line-height:1.2;'>{document.width}x{document.height} px</div>",
+        f"<div style='font-weight:600;  margin-bottom:2px; line-height:1.2;'>{html.escape(document.title)}</div>",
+        f"<div style='margin-bottom:8px;  line-height:1.2;'>{document.width}x{document.height} px</div>",
         "<table style='width:100%; border-collapse:separate; border-spacing:0 6px;'>",
-        f"<tr><td style='width:96px; vertical-align:top; color:#E7EDF7; font-weight:600;'>Origin</td><td>{_cell_text(binding.launch_origin or 'file')}</td></tr>",
-        f"<tr><td style='width:96px; vertical-align:top; color:#E7EDF7; font-weight:600;'>Source</td><td>{_cell_text(binding.source_path)}</td></tr>",
-        f"<tr><td style='width:96px; vertical-align:top; color:#E7EDF7; font-weight:600;'>Relative path</td><td>{_cell_text(binding.relative_path or binding.archive_relative_path)}</td></tr>",
-        f"<tr><td style='width:96px; vertical-align:top; color:#E7EDF7; font-weight:600;'>Package</td><td>{_cell_text(binding.package_root)}</td></tr>",
-        f"<tr><td style='width:96px; vertical-align:top; color:#E7EDF7; font-weight:600;'>Original DDS</td><td>{_cell_text(binding.original_dds_path)}</td></tr>",
-        f"<tr><td style='width:96px; vertical-align:top; color:#E7EDF7; font-weight:600;'>Semantics</td><td>{_cell_text(semantics_text)}</td></tr>",
+        f"<tr><td style='width:96px; vertical-align:top;  font-weight:600;'>Origin</td><td>{_cell_text(binding.launch_origin or 'file')}</td></tr>",
+        f"<tr><td style='width:96px; vertical-align:top;  font-weight:600;'>Source</td><td>{_cell_text(binding.source_path)}</td></tr>",
+        f"<tr><td style='width:96px; vertical-align:top;  font-weight:600;'>Relative path</td><td>{_cell_text(binding.relative_path or binding.archive_relative_path)}</td></tr>",
+        f"<tr><td style='width:96px; vertical-align:top;  font-weight:600;'>Package</td><td>{_cell_text(binding.package_root)}</td></tr>",
+        f"<tr><td style='width:96px; vertical-align:top;  font-weight:600;'>Original DDS</td><td>{_cell_text(binding.original_dds_path)}</td></tr>",
+        f"<tr><td style='width:96px; vertical-align:top;  font-weight:600;'>Semantics</td><td>{_cell_text(semantics_text)}</td></tr>",
         "</table>",
     ]
     return "".join(refined_html)

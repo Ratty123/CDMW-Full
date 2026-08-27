@@ -448,14 +448,14 @@ def texture_summary_label_html(
 ) -> str:
     return (
         "<div style='line-height:1.35;'>"
-        "<span style='color:#79c0ff; font-weight:700;'>Visible rows</span>"
-        f"<span style='color:#f0f6fc;'> {int(visible_count):,}</span>"
-        "<span style='color:#8b949e;'> | </span>"
-        "<span style='color:#7ee787; font-weight:700;'>Assigned</span>"
-        f"<span style='color:#f0f6fc;'> {int(assigned_count):,}/{int(total_count):,}</span>"
-        "<span style='color:#8b949e;'> | </span>"
-        "<span style='color:#d2a8ff; font-weight:700;'>Advanced hidden</span>"
-        f"<span style='color:#f0f6fc;'> {int(advanced_hidden):,}</span>"
+        "<span style=' font-weight:700;'>Visible rows</span>"
+        f"<span style=''> {int(visible_count):,}</span>"
+        "<span style=''> | </span>"
+        "<span style=' font-weight:700;'>Assigned</span>"
+        f"<span style=''> {int(assigned_count):,}/{int(total_count):,}</span>"
+        "<span style=''> | </span>"
+        "<span style=' font-weight:700;'>Advanced hidden</span>"
+        f"<span style=''> {int(advanced_hidden):,}</span>"
         "</div>"
     )
 

@@ -152,9 +152,9 @@ def make_attachment_donor_candidate_item(
     item.setToolTip(4, source)
     ext = str(candidate.extension or "").lower()
     if ext in {".pac", ".pam", ".pamlod"}:
-        item.setForeground(1, QBrush(QColor("#86efac")))
+        item.setBackground(1, QBrush(QColor("#4886efac")))
     elif ext == ".prefab":
-        item.setForeground(1, QBrush(QColor("#67e8f9")))
+        item.setBackground(1, QBrush(QColor("#4867e8f9")))
     return item
 
 

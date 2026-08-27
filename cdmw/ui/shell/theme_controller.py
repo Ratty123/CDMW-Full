@@ -224,6 +224,7 @@ def apply_app_theme(
         screen_height=screen_height,
     )
     _install_app_fonts(app, app_font, data_font)
+    app.setProperty("_cdmw_theme_key", resolved_theme)
     app.setPalette(build_app_palette(resolved_theme))
     stylesheet = build_app_stylesheet(
         resolved_theme,

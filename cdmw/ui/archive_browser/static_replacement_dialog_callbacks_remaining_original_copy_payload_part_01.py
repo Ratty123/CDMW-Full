@@ -139,7 +139,7 @@ def _remaining_original_copy_payload_step_005(_state):
             disabled = int(source_index) in _state.copied_original_texture_disabled_sources
             state_text, _state_color = _state._source_outliner_state(int(source_index), _state._source_assigned_target_indices_helper(int(source_index), _state.mapping_edits, parse_mapping_edit=_state._parse_mapping_edit))
             source_item.setText(5, _state._copied_original_dds_cell_text_helper(state_text, disabled=disabled, copied_badge=_state._copied_original_dds_badge(int(source_index))))
-            source_item.setForeground(5, _state.QBrush(_state.QColor('#d29922' if disabled else '#3fb950')))
+            source_item.setBackground(5, _state.QBrush(_state.QColor('#48d29922' if disabled else '#483fb950')))
             source_item.setToolTip(5, _state._copied_original_texture_tooltip(int(source_index)))
         try:
             _state._refresh_source_assignment_columns(lightweight=True)

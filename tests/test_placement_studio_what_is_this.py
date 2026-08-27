@@ -23,7 +23,7 @@ if str(REPO_ROOT) not in sys.path:
 from tools.placement_studio.constraints import guide as constraints_guide  # noqa: E402
 from tools.placement_studio.rig_behaviour import guide as behaviour_guide  # noqa: E402
 from tools.placement_studio.what_is_this import (  # noqa: E402
-    BADGE_STYLES,
+    BADGE_OBJECT_NAMES,
     Guide,
     Section,
     capability_sections,
@@ -69,7 +69,7 @@ class RenderingTests(unittest.TestCase):
     def test_an_unknown_badge_kind_falls_back_rather_than_raising(self) -> None:
         guide = Guide(title="T", badge="B", badge_kind="nonsense", summary="s")
 
-        self.assertEqual(guide.badge_colours, BADGE_STYLES["experimental"])
+        self.assertEqual(guide.badge_object_name, BADGE_OBJECT_NAMES["experimental"])
 
 
 class CapabilityTests(unittest.TestCase):
@@ -144,7 +144,7 @@ class StripTests(unittest.TestCase):
         self.assertEqual(guide.summary, badge.toolTip())
         self.assertIn("What is this for", button.text())
 
-    def test_the_badge_is_coloured_by_its_kind(self) -> None:
+    def test_the_badge_uses_the_active_theme_role_for_its_kind(self) -> None:
         from tools.placement_studio.what_is_this import guide_strip
 
         strip, warning, _button = guide_strip(constraints_guide())
@@ -152,8 +152,10 @@ class StripTests(unittest.TestCase):
         strip2, live, _b = guide_strip(behaviour_guide())
         self._b = strip2
 
-        self.assertIn(BADGE_STYLES["experimental"][0], warning.styleSheet())
-        self.assertIn(BADGE_STYLES["live"][0], live.styleSheet())
+        self.assertEqual(BADGE_OBJECT_NAMES["experimental"], warning.objectName())
+        self.assertEqual(BADGE_OBJECT_NAMES["live"], live.objectName())
+        self.assertEqual("", warning.styleSheet())
+        self.assertEqual("", live.styleSheet())
 
 
 if __name__ == "__main__":

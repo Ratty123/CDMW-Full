@@ -292,12 +292,12 @@ class ArchiveFilterStateMixin:
         extension_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
         extension_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         extension_tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        count_brush = QBrush(QColor("#fbbf24"))
-        group_brush = QBrush(QColor("#93c5fd"))
+        count_brush = QBrush(QColor("#48fbbf24"))
+        group_brush = QBrush(QColor("#4893c5fd"))
         all_count = sum(int(count) for count in extension_counts.values())
         all_item = QTreeWidgetItem(extension_tree, ["All files", f"{all_count:,}", "All"])
         all_item.setData(0, Qt.UserRole, "*")
-        all_item.setForeground(1, count_brush)
+        all_item.setBackground(1, count_brush)
 
         grouped: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
         for extension, count in sorted(extension_counts.items(), key=lambda item: (-item[1], item[0])):
@@ -322,14 +322,16 @@ class ArchiveFilterStateMixin:
             group_total = sum(count for _extension, count in values)
             group_item = QTreeWidgetItem(extension_tree, [group_name, f"{group_total:,}", group_name])
             group_item.setData(0, Qt.UserRole, "")
-            group_item.setForeground(0, group_brush)
-            group_item.setForeground(1, count_brush)
+            group_item.setBackground(0, group_brush)
+            group_item.setBackground(1, count_brush)
             group_item.setExpanded(True)
             for extension, count in values:
                 child = QTreeWidgetItem(group_item, [extension, f"{count:,}", group_name])
                 child.setData(0, Qt.UserRole, extension)
-                child.setForeground(0, QBrush(self._archive_role_color(group_name)))
-                child.setForeground(1, count_brush)
+                role_tint = self._archive_role_color(group_name)
+                role_tint.setAlpha(72)
+                child.setBackground(0, QBrush(role_tint))
+                child.setBackground(1, count_brush)
                 if extension == current_value:
                     selected_item = child
         if selected_item is not None:

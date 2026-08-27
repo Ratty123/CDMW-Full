@@ -82,7 +82,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
         controller: DotNetPreviewSessionController | None = None,
         ui_localizer: object | None = None,
         direct_authoring: bool = False,
-        theme_key: str = "graphite",
+        theme_key: str = "",
     ) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
@@ -142,10 +142,6 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
         self._scene_state: dict[str, object] = {}
         self._status_panel = QFrame(self)
         self._status_panel.setObjectName("DotNetPreviewStatusPanel")
-        self._status_panel.setStyleSheet(
-            "QFrame#DotNetPreviewStatusPanel { background: #171b22; }"
-            "QLabel { color: #d7dde8; }"
-        )
         status_layout = QVBoxLayout(self._status_panel)
         status_layout.setContentsMargins(18, 18, 18, 18)
         status_layout.addStretch(1)
@@ -164,11 +160,6 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
 
         self._resident_banner = QFrame(self)
         self._resident_banner.setObjectName("DotNetPreviewResidentBanner")
-        self._resident_banner.setStyleSheet(
-            "QFrame#DotNetPreviewResidentBanner { background: rgba(23, 27, 34, 235); "
-            "border: 1px solid #4b5568; border-radius: 4px; }"
-            "QLabel { color: #e7ebf2; }"
-        )
         banner_layout = QHBoxLayout(self._resident_banner)
         banner_layout.setContentsMargins(10, 6, 8, 6)
         self._resident_banner_label = QLabel("", self._resident_banner)

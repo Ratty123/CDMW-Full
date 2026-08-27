@@ -23,7 +23,10 @@ from PySide6.QtCore import (
     Signal,
 )
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPalette, QPen
-from PySide6.QtWidgets import QAbstractButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import QAbstractButton, QApplication, QSizePolicy, QWidget
+
+from cdmw.constants import DEFAULT_UI_THEME
+from cdmw.ui.themes import get_theme
 
 
 DEFAULT_STEP_LABELS = (
@@ -36,6 +39,8 @@ DEFAULT_STEP_LABELS = (
     "Output",
 )
 
+# Kept as an import-compatible fallback for callers that used the old constant. The
+# application palette's Highlight role now owns the rendered active colour.
 ACTIVE_DARK_COLOR = QColor("#078de5")
 _CIRCLE_DIAMETER = 22
 _HEADER_HEIGHT = 46
@@ -65,16 +70,6 @@ def _coerce_step_state(value: object) -> Optional[WorkflowStepState]:
     return aliases.get(normalized) or next(
         (state for state in WorkflowStepState if state.value == normalized), None
     )
-
-
-def _palette_is_dark(palette: QPalette) -> bool:
-    """Return whether ``palette`` is predominantly a dark application palette."""
-
-    window = palette.color(QPalette.ColorRole.Window)
-    text = palette.color(QPalette.ColorRole.WindowText)
-    # Looking at both roles handles custom palettes whose window colour is close to
-    # middle grey while still keeping the decision deterministic in offscreen tests.
-    return window.lightness() < 128 or window.lightness() < text.lightness()
 
 
 def _palette_color(palette: QPalette, role: QPalette.ColorRole, fallback: QColor) -> QColor:
@@ -127,8 +122,8 @@ class _StepButton(QAbstractButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        dark = owner._dark_palette
         active = owner._active_color
+        active_text = owner._active_text_color
         base = _palette_color(palette, QPalette.ColorRole.Button, palette.color(QPalette.ColorRole.Window))
         button_text = _palette_color(palette, QPalette.ColorRole.ButtonText, palette.color(QPalette.ColorRole.WindowText))
         window_text = _palette_color(palette, QPalette.ColorRole.WindowText, button_text)
@@ -140,31 +135,29 @@ class _StepButton(QAbstractButton):
 
         if current:
             circle_fill = active
-            circle_text = QColor(Qt.GlobalColor.white)
+            circle_text = active_text
             label_color = active
         elif state == WorkflowStepState.COMPLETED:
-            circle_fill = active.darker(125)
-            circle_text = QColor(Qt.GlobalColor.white)
+            circle_fill = active
+            circle_text = active_text
             label_color = window_text
         elif state == WorkflowStepState.BLOCKED:
-            circle_fill = QColor("#d29922") if dark else QColor("#a15c00")
-            circle_text = QColor(Qt.GlobalColor.white)
-            label_color = circle_fill
+            circle_fill = owner._warning_background
+            circle_text = owner._warning_text
+            label_color = owner._warning_text
         else:
             circle_fill = base
             circle_text = button_text
             label_color = window_text
             if hovered:
-                # Use a palette-derived hover fill on light themes and a slightly
-                # lifted button colour on dark themes; no fixed light-theme colour
-                # leaks into a custom application palette.
-                circle_fill = palette.color(QPalette.ColorRole.Highlight).lighter(115)
+                circle_fill = active
+                circle_text = active_text
 
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(circle_fill)
         painter.drawEllipse(circle)
 
-        border = active if current else mid
+        border = active if current else owner._warning_text if state == WorkflowStepState.BLOCKED else mid
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(border, 1))
         painter.drawEllipse(circle.adjusted(0, 0, -1, -1))
@@ -191,11 +184,8 @@ class _StepButton(QAbstractButton):
         painter.drawText(label_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, label)
 
         if self.hasFocus():
-            focus_color = active if dark else _palette_color(
-                palette, QPalette.ColorRole.Highlight, active
-            )
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(focus_color, 1, Qt.PenStyle.DashLine))
+            painter.setPen(QPen(active, 1, Qt.PenStyle.DashLine))
             painter.drawRoundedRect(self.rect().adjusted(2, 3, -2, -5), 5, 5)
         painter.end()
 
@@ -298,8 +288,9 @@ class WorkflowHeader(QWidget):
         self._progress_fallback = QTimer(self)
         self._progress_fallback.setSingleShot(True)
         self._progress_fallback.timeout.connect(self._finish_progress_animation)
-        self._dark_palette = _palette_is_dark(self.palette())
         self._active_color = self._resolve_active_color(self.palette())
+        self._active_text_color = self._resolve_active_text_color(self.palette())
+        self._warning_background, self._warning_text = self._resolve_warning_colors()
         self._buttons = [_StepButton(self, index, label) for index, label in enumerate(values)]
         self._items = [WorkflowStepItem(button) for button in self._buttons]
         for previous, current in zip(self._buttons, self._buttons[1:]):
@@ -308,20 +299,42 @@ class WorkflowHeader(QWidget):
 
     @staticmethod
     def _resolve_active_color(palette: QPalette) -> QColor:
-        if _palette_is_dark(palette):
-            return QColor(ACTIVE_DARK_COLOR)
-        return _palette_color(palette, QPalette.ColorRole.Highlight, QColor("#0078d4"))
+        return _palette_color(palette, QPalette.ColorRole.Highlight, ACTIVE_DARK_COLOR)
+
+    @staticmethod
+    def _resolve_active_text_color(palette: QPalette) -> QColor:
+        return _palette_color(
+            palette,
+            QPalette.ColorRole.HighlightedText,
+            palette.color(QPalette.ColorRole.BrightText),
+        )
+
+    @staticmethod
+    def _resolve_warning_colors() -> tuple[QColor, QColor]:
+        application = QApplication.instance()
+        theme_key = (
+            str(application.property("_cdmw_theme_key") or "")
+            if application is not None
+            else ""
+        )
+        theme = get_theme(theme_key or DEFAULT_UI_THEME)
+        return QColor(theme["warning_bg"]), QColor(theme["warning_text"])
 
     def _refresh_palette(self) -> None:
-        self._dark_palette = _palette_is_dark(self.palette())
         self._active_color = self._resolve_active_color(self.palette())
+        self._active_text_color = self._resolve_active_text_color(self.palette())
+        self._warning_background, self._warning_text = self._resolve_warning_colors()
         self.update()
         for button in getattr(self, "_buttons", ()):
             button.update()
 
     def changeEvent(self, event) -> None:  # noqa: N802 - Qt override
         super().changeEvent(event)
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+        if event.type() in (
+            QEvent.Type.ApplicationPaletteChange,
+            QEvent.Type.PaletteChange,
+            QEvent.Type.StyleChange,
+        ):
             self._refresh_palette()
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt override

@@ -32,7 +32,7 @@ def texture_target_diagnostics_html(
 ) -> str:
     if not rows:
         return (
-            "<html><body style='color:#8b949e; background:#1f1f1f; font-size:0.9em;'>"
+            "<html><body style='  font-size:0.9em;'>"
             "<p style='margin:5px;'>No sidecar texture rows were found for this target.</p>"
             "</body></html>"
         )
@@ -65,15 +65,15 @@ def texture_target_diagnostics_html(
             warnings.append(f"{role}: shared/detail layer is intentionally not auto-enabled.")
 
     html_parts: list[str] = [
-        "<html><body style='color:#e6edf3; background:#1f1f1f; font-size:0.8em; margin:0;'>",
+        "<html><body style='  font-size:0.8em; margin:0;'>",
         "<div style='padding:4px 5px; line-height:1.08;'>",
-        "<table width='100%' cellspacing='0' cellpadding='0' style='background:#161b22; border:1px solid #30363d;'>",
+        "<table width='100%' cellspacing='0' cellpadding='0' style=' border:1px solid #30363d;'>",
         "<tr><td style='padding:4px 5px;'>",
-        f"<div style='font-size:1em; font-weight:700; color:#f0f6fc;'>{escape(short_target)} "
-        f"<span style='color:#8b949e;'>- {assigned_count}/{target_row_count} slot(s) assigned</span></div>",
-        f"<div title='{escape(full_target)}' style='color:#8b949e; margin-top:1px; word-break:break-all;'>Original: {escape(short_target)}</div>",
+        f"<div style='font-size:1em; font-weight:700; '>{escape(short_target)} "
+        f"<span style=''>- {assigned_count}/{target_row_count} slot(s) assigned</span></div>",
+        f"<div title='{escape(full_target)}' style=' margin-top:1px; word-break:break-all;'>Original: {escape(short_target)}</div>",
         (
-            f"<div style='color:#79c0ff; margin-top:1px; word-break:break-all;'>Affects: {escape(selected_source_summary)}</div>"
+            f"<div style=' margin-top:1px; word-break:break-all;'>Affects: {escape(selected_source_summary)}</div>"
             if selected_source_summary
             else ""
         ),
@@ -93,7 +93,7 @@ def texture_target_diagnostics_html(
         html_parts.extend(
             [
                 "<div style='height:5px;'></div>",
-                "<table width='100%' cellspacing='0' cellpadding='0' style='background:#10233a; border:1px solid #388bfd;'>",
+                "<table width='100%' cellspacing='0' cellpadding='0' style=' border:1px solid #388bfd;'>",
                 "<tr><td style='padding:4px 5px;'>",
                 "<table cellspacing='0' cellpadding='0'><tr>",
                 texture_context_chip_cell(selected_table_row.role, texture_slot_role_color(selected_row)),
@@ -106,7 +106,7 @@ def texture_target_diagnostics_html(
                 texture_context_kv_row("Parameter", escape(str(selected_row.get("parameter_name") or "(unnamed parameter)"))),
                 texture_context_kv_row("Original DDS", texture_context_path_html(selected_row.get("target_path"))),
                 texture_context_kv_row("Affects", escape(texture_row_source_summary(selected_row))),
-                texture_context_kv_row("Override source", texture_context_path_html(source_path) if source_path else "<span style='color:#c9d1d9;'>Keep original</span>"),
+                texture_context_kv_row("Override source", texture_context_path_html(source_path) if source_path else "<span style=''>Keep original</span>"),
                 texture_context_kv_row(
                     "Final behavior",
                     escape(
@@ -130,25 +130,24 @@ def texture_target_diagnostics_html(
     html_parts.extend(
         [
             "<div style='height:6px;'></div>",
-            "<div style='font-weight:700; color:#f0f6fc; margin-bottom:3px;'>Original sidecar bindings</div>",
-            "<table width='100%' cellspacing='0' cellpadding='2' style='border:1px solid #30363d; background:#161b22;'>",
-            "<tr style='color:#8b949e; background:#24292f;'>"
+            "<div style='font-weight:700;  margin-bottom:3px;'>Original sidecar bindings</div>",
+            "<table width='100%' cellspacing='0' cellpadding='2'>",
+            "<tr style=' '>"
             "<th align='left'>Role</th><th align='left'>Parameter</th><th align='left'>DDS</th><th align='left'>State</th></tr>",
         ]
     )
-    for row_index, row_state in enumerate(rows):
+    for row_state in rows:
         table_row = build_dds_override_table_row(row_state)
         status_label = table_row.status.label
-        row_bg = "#161b22" if row_index % 2 == 0 else "#1c2128"
         state_text = str(row_state.get("_contract_action", "") or "").replace("_", " ").title()
         if not state_text:
             state_text = "Assigned" if bool(row_state.get("checked")) and str(row_state.get("source_path", "") or "").strip() else "Keep original"
         html_parts.append(
-            f"<tr style='background:{row_bg};'>"
-            f"<td style='color:{texture_slot_role_color(row_state)}; font-weight:700; white-space:nowrap;'>{escape(table_row.role)}</td>"
-            f"<td style='color:#f2cc60;'>{escape(str(row_state.get('parameter_name') or '(unnamed parameter)'))}</td>"
+            "<tr>"
+            f"<td style='font-weight:700; white-space:nowrap;'>{escape(table_row.role)}</td>"
+            f"<td style=''>{escape(str(row_state.get('parameter_name') or '(unnamed parameter)'))}</td>"
             f"<td>{texture_context_path_html(row_state.get('target_path'))}</td>"
-            f"<td style='color:{texture_plan_status_color(status_label)}; white-space:nowrap;'>{escape(state_text)}</td>"
+            f"<td style='white-space:nowrap;'>{escape(state_text)}</td>"
             "</tr>"
         )
     html_parts.append("</table>")
@@ -156,14 +155,14 @@ def texture_target_diagnostics_html(
         html_parts.extend(
             [
                 "<div style='height:6px;'></div>",
-                "<div style='font-weight:700; color:#f0f6fc; margin-bottom:3px;'>Warnings</div>",
-                "<table width='100%' cellspacing='0' cellpadding='3' style='border:1px solid #3d2f12; background:#2b2416;'>",
+                "<div style='font-weight:700;  margin-bottom:3px;'>Warnings</div>",
+                "<table width='100%' cellspacing='0' cellpadding='3'>",
             ]
         )
         for warning in sorted(set(warnings)):
             html_parts.append(
-                "<tr><td width='8' style='background:#d29922;'></td>"
-                f"<td style='color:#f2cc60;'>{escape(warning)}</td></tr>"
+                "<tr><td width='8' style=''></td>"
+                f"<td style=''>{escape(warning)}</td></tr>"
             )
         html_parts.append("</table>")
     html_parts.append("</div></body></html>")

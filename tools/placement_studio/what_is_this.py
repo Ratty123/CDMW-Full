@@ -20,11 +20,11 @@ from dataclasses import dataclass, field
 from html import escape
 from typing import Optional, Tuple
 
-#: Badge kinds and their colours. `experimental` is the warning one: the tab works, but
-#: what it edits may never reach the game.
-BADGE_STYLES = {
-    "experimental": ("#e08a3c", "#3a2a12"),
-    "live": ("#6fbf8b", "#16301f"),
+#: Badge kinds and their application-theme object names. `experimental` is the warning one:
+#: the tab works, but what it edits may never reach the game.
+BADGE_OBJECT_NAMES = {
+    "experimental": "WarningBadge",
+    "live": "ActiveBadge",
 }
 
 
@@ -48,24 +48,21 @@ class Guide:
 
     title: str
     badge: str
-    #: A key of `BADGE_STYLES`.
+    #: A key of `BADGE_OBJECT_NAMES`.
     badge_kind: str
     #: The one sentence worth reading if nothing else is.
     summary: str
     sections: Tuple[Section, ...] = field(default_factory=tuple)
 
     @property
-    def badge_colours(self) -> Tuple[str, str]:
-        return BADGE_STYLES.get(self.badge_kind, BADGE_STYLES["experimental"])
+    def badge_object_name(self) -> str:
+        return BADGE_OBJECT_NAMES.get(self.badge_kind, BADGE_OBJECT_NAMES["experimental"])
 
 
 def guide_html(guide: Guide) -> str:
     """The dialog body. Kept separate from the widget so it can be tested as text."""
 
-    foreground, _background = guide.badge_colours
-    parts = [
-        f'<p style="color:{foreground}; margin:0 0 10px 0;"><b>{escape(guide.summary)}</b></p>'
-    ]
+    parts = [f'<p style="margin:0 0 10px 0;"><b>{escape(guide.summary)}</b></p>']
     for section in guide.sections:
         parts.append(f'<h3 style="margin:14px 0 4px 0;">{escape(section.heading)}</h3>')
         if section.body:
@@ -117,18 +114,8 @@ def guide_strip(guide: Guide, parent=None):
     row.setContentsMargins(0, 0, 0, 0)
     row.setSpacing(8)
 
-    foreground, background = guide.badge_colours
     badge = QLabel(guide.badge)
-    badge.setStyleSheet(
-        f"QLabel {{ color: {foreground}; background: {background};"
-        f" border: 1px solid {foreground}; border-radius: 3px;"
-        # One brace: this piece is not an f-string, so `}}` would emit two. Copy-paste from
-        # the f-string parts above, where doubling is required. Qt tolerates the stray brace
-        # -- the badge renders correctly either way and no warning is logged -- so this is
-        # hygiene rather than a fix, and worth keeping only because the next edit to this
-        # rule might not be so lucky.
-        " padding: 1px 7px; font-weight: bold; }"
-    )
+    badge.setObjectName(guide.badge_object_name)
     badge.setToolTip(guide.summary)
     row.addWidget(badge)
 

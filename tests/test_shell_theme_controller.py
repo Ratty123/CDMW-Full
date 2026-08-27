@@ -188,6 +188,7 @@ class ShellThemeControllerTests(unittest.TestCase):
                 apply_app_theme(app, settings, "crimson_desert", screen_width=1360, screen_height=840)
                 first_apply_calls = tuple(calls)
                 applied_stylesheet = app.styleSheet()
+                self.assertEqual("crimson_desert", app.property("_cdmw_theme_key"))
                 calls.clear()
                 apply_app_theme(app, settings, "crimson_desert", screen_width=1360, screen_height=840)
 

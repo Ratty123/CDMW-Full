@@ -98,11 +98,8 @@ class RigBehaviourMixin:
         outer.addWidget(self._behaviour_header)
 
         self._behaviour_disabled = QLabel("")
+        self._behaviour_disabled.setObjectName("WarningBadge")
         self._behaviour_disabled.setWordWrap(True)
-        self._behaviour_disabled.setStyleSheet(
-            "QLabel { background: #4a3a12; color: #f3e2b3; border: 1px solid #7a5f1c;"
-            " padding: 5px; border-radius: 3px; }"
-        )
         self._behaviour_disabled.setVisible(False)
         outer.addWidget(self._behaviour_disabled)
 

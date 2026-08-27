@@ -85,12 +85,8 @@ def retrofit_comparison_detail_for_summary(
     return "Payload paths will be preserved unless the selected manager profile requires a wrapper folder."
 
 
-def _retrofit_plan_badge(label: str, color: str) -> str:
-    return (
-        f"<span style=\"background:{color}18; color:{color}; "
-        "padding: 2px 7px; border-radius: 9px; border:1px solid "
-        f"{color};\"><strong>{escape(label)}</strong></span>"
-    )
+def _retrofit_plan_badge(label: str, _color: str) -> str:
+    return f"<span><strong>[{escape(label)}]</strong></span>"
 
 
 def _summary_for_row(
@@ -120,7 +116,7 @@ def build_retrofit_update_plan_html(
         return "<p>No packages selected.</p>"
     html_lines = [
         "<h3 style=\"margin:0 0 8px 0;\">Package plan preview</h3>",
-        "<p style=\"margin: 0 0 8px 0; color: #4b5563;\">"
+        "<p style=\"margin: 0 0 8px 0;\">"
         "Selected packages will be rewritten for their chosen manager profile."
         "</p>",
     ]
@@ -162,12 +158,12 @@ def build_retrofit_update_plan_html(
             for warning in summary.warnings[:5]:
                 html_lines.append(
                     "<li>"
-                    "<span style='color:#ef4444;'><strong>[warning]</strong></span> "
+                    "<span style=''><strong>[warning]</strong></span> "
                     f"{escape(warning)}</li>"
                 )
             if len(summary.warnings) > 5:
                 html_lines.append(
-                    f"<li><span style='color:#6b7280;'><em>... {len(summary.warnings) - 5} more warning(s)</em></span></li>"
+                    f"<li><span style=''><em>... {len(summary.warnings) - 5} more warning(s)</em></span></li>"
                 )
             html_lines.append("</ul>")
         html_lines.append("</div>")
@@ -220,9 +216,9 @@ def build_retrofit_processing_results_html(
     summary_html = f"""
         <h3 style=\"margin:0 0 8px 0;\">Process summary</h3>
         <p style=\"margin: 0 0 10px 0;\">
-          <span style=\"color:#16a34a;\"><strong>Processed:</strong> {processed_count}</span> &nbsp;|&nbsp;
-          <span style=\"color:#ef4444;\"><strong>Failed:</strong> {failed_count}</span> &nbsp;|&nbsp;
-          <span style=\"color:#6b7280;\"><strong>Selected:</strong> {processed_count + failed_count}</span>
+          <span style=\"\"><strong>Processed:</strong> {processed_count}</span> &nbsp;|&nbsp;
+          <span style=\"\"><strong>Failed:</strong> {failed_count}</span> &nbsp;|&nbsp;
+          <span style=\"\"><strong>Selected:</strong> {processed_count + failed_count}</span>
         </p>
     """
     if processed:
@@ -233,25 +229,25 @@ def build_retrofit_processing_results_html(
                 update_mode=update_mode,
             )
             warnings = "".join(
-                f"<br/><span style=\"color:#ef4444;\">warning:</span> {escape(warning)}"
+                f"<br/><span style=\"\">warning:</span> {escape(warning)}"
                 for warning in summary.warnings[:5]
             )
             summary_html += (
                 "<li>"
-                f"<span style=\"color:{status_color};\"><strong>[{escape(status_label)}]</strong></span> "
+                f"<span data-status-color=\"{status_color}\"><strong>[{escape(status_label)}]</strong></span> "
                 f"<strong>{escape(package_name)}</strong><br/>"
-                f"<span style=\"color:#6b7280;\">Output:</span> {escape(str(output_root))}<br/>"
+                f"<span style=\"\">Output:</span> {escape(str(output_root))}<br/>"
                 f"{escape(status_detail)}"
                 f"{warnings}"
                 "</li>"
             )
         summary_html += "</ul>"
     if failed:
-        summary_html += "<h4 style=\"margin: 10px 0 4px 0; color: #dc2626;\">Failed</h4><ul style=\"margin: 0; padding-left: 18px;\">"
+        summary_html += "<h4 style=\"margin: 10px 0 4px 0; \">Failed</h4><ul style=\"margin: 0; padding-left: 18px;\">"
         for package_name, reason in failed:
             summary_html += (
                 "<li>"
-                f"<span style=\"color:#ef4444;\"><strong>[failed]</strong></span> "
+                f"<span style=\"\"><strong>[failed]</strong></span> "
                 f"<strong>{escape(package_name)}</strong><br/>"
                 f"{escape(reason)}"
                 "</li>"

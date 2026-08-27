@@ -44,7 +44,6 @@ from .editing import EditSession
 from .model import PlacementBinding, Vec3
 from .session import PlacementSession
 from .glossary import as_html as glossary_html, tip
-from .palette import WINDOW_STYLE
 from .report_style import inspector_html
 from .viewport import SkeletonViewport
 from .window_animation import AnimationTabMixin
@@ -100,10 +99,10 @@ class PosedMesh:
 _ROLE_SOCKET = Qt.UserRole + 1
 _ROLE_PART = Qt.UserRole + 2
 
-_USED = QColor(120, 190, 245)
-_UNUSED = QColor(150, 150, 155)
-_DANGLING = QColor(235, 140, 120)
-_CHILD = QColor(190, 170, 235)
+_USED = QColor(120, 190, 245, 72)
+_UNUSED = QColor(150, 150, 155, 72)
+_DANGLING = QColor(235, 140, 120, 72)
+_CHILD = QColor(190, 170, 235, 72)
 
 
 #: Re-exported: `window.py` is where these were, and tests and tabs import them from here.
@@ -187,7 +186,6 @@ class PlacementStudioWindow(
     # ── construction ────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        self.setStyleSheet(WINDOW_STYLE)
         self._model_box = QComboBox()
         self._model_box.setToolTip(tip("Character"))
         self._model_box.currentIndexChanged.connect(self._on_model_changed)
@@ -239,6 +237,7 @@ class PlacementStudioWindow(
         self._part_box.currentIndexChanged.connect(self._on_part_box_changed)
 
         self._clipping_label = QLabel("sinks into body: not measured")
+        self._clipping_label.setObjectName("HintLabel")
         self._measure_clipping_button = QPushButton("Check Fit/Clipping")
         self._measure_clipping_button.setToolTip(
             tip("Clipping", "Checks this frame only. Press it again after moving the item "
@@ -1052,19 +1051,23 @@ class PlacementStudioWindow(
         # A broken proxy outranks the clipping number, because the number is derived from it and
         # would otherwise read as a confident "no clipping".
         if self._body_problems:
-            self._clipping_label.setText("body proxy: " + "; ".join(self._body_problems[:2]))
-            self._clipping_label.setStyleSheet("color: #e8a33c;")
-            return
-        report = self._clipping_report
-        if report is None:
-            self._clipping_label.setText("sinks into body: press Check Fit/Clipping")
-            self._clipping_label.setStyleSheet("")
-            return
-        subject = self._selected_part or "CD_MainWeapon_Sword_R"
-        self._clipping_label.setText(f"{subject}: {report.summary()}")
-        self._clipping_label.setStyleSheet(
-            "color: #e25858;" if report.clipping else "color: #78dc8c;"
-        )
+            text = "body proxy: " + "; ".join(self._body_problems[:2])
+            health_state = "stale"
+        else:
+            report = self._clipping_report
+            if report is None:
+                text = "sinks into body: press Check Fit/Clipping"
+                health_state = ""
+            else:
+                subject = self._selected_part or "CD_MainWeapon_Sword_R"
+                text = f"{subject}: {report.summary()}"
+                health_state = "unhealthy" if report.clipping else "healthy"
+        self._clipping_label.setText(text)
+        if str(self._clipping_label.property("healthState") or "") != health_state:
+            self._clipping_label.setProperty("healthState", health_state)
+            self._clipping_label.style().unpolish(self._clipping_label)
+            self._clipping_label.style().polish(self._clipping_label)
+            self._clipping_label.update()
 
     def _report_status(self) -> None:
         """The idle status line.
@@ -1103,14 +1106,14 @@ class PlacementStudioWindow(
 
         for bone_name in sorted(by_bone):
             bone_item = QTreeWidgetItem([bone_name, f"{len(by_bone[bone_name])} socket(s)"])
-            bone_item.setForeground(0, _UNUSED)
+            bone_item.setBackground(0, _UNUSED)
             self._tree.addTopLevelItem(bone_item)
 
             for socket_name in sorted(by_bone[bone_name]):
                 usage = self._session.usage(socket_name)
                 socket_item = QTreeWidgetItem([socket_name, usage.roles()])
                 socket_item.setData(0, _ROLE_SOCKET, socket_name)
-                socket_item.setForeground(0, _USED if not usage.empty else _UNUSED)
+                socket_item.setBackground(0, _USED if not usage.empty else _UNUSED)
                 bone_item.addChild(socket_item)
 
                 for part_name in sorted(set(usage.stowed) | set(usage.held) | set(usage.child_offset)):
@@ -1134,13 +1137,13 @@ class PlacementStudioWindow(
             child_root = QTreeWidgetItem(
                 [f"{weapon.weapon_id}", f"{len(weapon.sockets)} child socket(s)"]
             )
-            child_root.setForeground(0, _CHILD)
+            child_root.setBackground(0, _CHILD)
             self._tree.addTopLevelItem(child_root)
             for socket in sorted(weapon.sockets.values(), key=lambda s: s.name):
                 usage = self._session.usage(socket.name)
                 item = QTreeWidgetItem([socket.name, usage.roles()])
                 item.setData(0, _ROLE_SOCKET, socket.name)
-                item.setForeground(0, _USED if not usage.empty else _CHILD)
+                item.setBackground(0, _USED if not usage.empty else _CHILD)
                 child_root.addChild(item)
 
         # Rows routed to a socket nothing defines: vanilla really does contain these.
@@ -1149,12 +1152,12 @@ class PlacementStudioWindow(
             dangling = QTreeWidgetItem(
                 ["(undefined sockets)", f"{len(report.missing_body_sockets)} row(s)"]
             )
-            dangling.setForeground(0, _DANGLING)
+            dangling.setBackground(0, _DANGLING)
             self._tree.addTopLevelItem(dangling)
             for part_name, gaps in sorted(report.missing_body_sockets.items()):
                 child = QTreeWidgetItem([part_name, ", ".join(gaps)])
                 child.setData(0, _ROLE_PART, part_name)
-                child.setForeground(0, _DANGLING)
+                child.setBackground(0, _DANGLING)
                 dangling.addChild(child)
 
         self._tree.blockSignals(False)

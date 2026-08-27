@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 from PySide6.QtCore import QSettings, Qt, QThread, QUrl, Signal, Slot
-from PySide6.QtGui import QColor, QDesktopServices, QImage, QPixmap
+from PySide6.QtGui import QBrush, QColor, QDesktopServices, QImage, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
@@ -782,7 +782,7 @@ class RecolorVariantsTab(QWidget):
             )
             item.setData(0, Qt.UserRole, target.target_id)
             if not target.editable:
-                item.setForeground(4, Qt.GlobalColor.darkYellow)
+                item.setBackground(4, QBrush(QColor(184, 134, 11, 72)))
             elif first_editable_item is None:
                 first_editable_item = item
             self.targets_tree.addTopLevelItem(item)

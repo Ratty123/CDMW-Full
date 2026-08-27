@@ -248,7 +248,7 @@ def test_alignment_d3d11_loading_spinner_helpers_preserve_frame_html() -> None:
 
     assert "font-size:2.4em" in html
     assert "line-height:1.17" in html
-    assert "color:#79c0ff" in html
+    assert "color:" not in html
     assert "&#9679;" in html
 
 

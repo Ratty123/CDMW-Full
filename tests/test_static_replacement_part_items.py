@@ -56,7 +56,8 @@ def test_source_and_original_part_items_store_roles_and_tooltips() -> None:
     assert source_item.data(0, Qt.UserRole) == (2,)
     assert source_item.checkState(0) == Qt.Checked
     assert "CapeMat" in source_item.toolTip(2)
-    assert source_item.foreground(5).color().name() == "#3fb950"
+    assert source_item.background(5).color().name() == "#3fb950"
+    assert source_item.background(5).color().alpha() == 72
 
     original_item = original_part_tree_item(
         original_index=4,
@@ -97,9 +98,9 @@ def test_mapping_target_item_stores_target_roles_and_review_state() -> None:
     assert item.data(0, Qt.UserRole + 2) == "mapped: high (0.9)"
     assert item.data(0, Qt.UserRole + 3) is False
     assert item.toolTip(5) == "texture details"
-    assert item.foreground(3).color().name() == "#fca5a5"
-    assert item.foreground(4).color().name() == "#86efac"
-    assert item.foreground(6).color().name() == "#f2cc60"
+    assert item.background(3).color().name() == "#fca5a5"
+    assert item.background(4).color().name() == "#86efac"
+    assert item.background(6).color().name() == "#f2cc60"
 
 
 def test_mapping_target_item_marks_removed_targets() -> None:
@@ -122,7 +123,7 @@ def test_mapping_target_item_marks_removed_targets() -> None:
     )
 
     assert item.data(0, Qt.UserRole + 3) is True
-    assert item.foreground(5).color().name() == "#fb923c"
+    assert item.background(5).color().name() == "#fb923c"
     assert "Removed target" in item.toolTip(5)
 
 
@@ -144,7 +145,7 @@ def test_parts_outliner_items_store_target_source_and_unassigned_roles() -> None
     assert target_item.data(0, Qt.UserRole) == "target"
     assert target_item.data(0, Qt.UserRole + 2) == (2, 3)
     assert target_item.toolTip(3) == "texture detail"
-    assert target_item.foreground(5).color().name() == "#f2cc60"
+    assert target_item.background(5).color().name() == "#f2cc60"
 
     source_item = parts_outliner_source_item(
         source_index=2,
@@ -164,7 +165,7 @@ def test_parts_outliner_items_store_target_source_and_unassigned_roles() -> None
     assert source_item.data(0, Qt.UserRole + 1) == 1
     assert source_item.data(0, Qt.UserRole + 2) == (2,)
     assert source_item.toolTip(3) == "copied dds"
-    assert source_item.foreground(5).color().name() == "#7ee787"
+    assert source_item.background(5).color().name() == "#7ee787"
 
     group_item = parts_outliner_unassigned_group_item(12)
     assert group_item.text(6) == "12 part(s)"

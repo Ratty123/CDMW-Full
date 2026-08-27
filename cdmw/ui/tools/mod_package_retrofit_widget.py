@@ -380,7 +380,9 @@ class ModPackageRetrofitUi:
         _text, detail, color = retrofit_readiness_for_summary(summary, update_mode=False)
         status_item = QTableWidgetItem(label)
         status_item.setToolTip(detail)
-        status_item.setForeground(QBrush(QColor(color)))
+        status_tint = QColor(color)
+        status_tint.setAlpha(72)
+        status_item.setBackground(QBrush(status_tint))
         self.table.setItem(row, 11, status_item)
 
     def _add_row_controls(self, row: int) -> None:

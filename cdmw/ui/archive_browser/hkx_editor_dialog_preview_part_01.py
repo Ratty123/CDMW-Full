@@ -110,37 +110,41 @@ def _dialog_step_0023(_state):
         status_key = str(status or item.text(1) or "").strip().lower()
         if status_key in {"editable", "decoded", "partially_decoded", "raw_preserved", "raw"}:
             status_label, status_tip, status_color = _state._hkx_status_display(status_key)
-            item.setForeground(0, _state.QBrush(status_color))
+            status_tint = _state.QColor(status_color)
+            status_tint.setAlpha(72)
+            item.setBackground(0, _state.QBrush(status_tint))
             item.setToolTip(0, status_tip)
             if item.text(3).strip() == status_key:
                 item.setText(3, status_label)
             elif not item.toolTip(3):
                 item.setToolTip(3, status_tip)
         if importable:
-            item.setForeground(2, _state.QBrush(_state.QColor("#9fd0ff")))
-            item.setForeground(0, _state.QBrush(_state.QColor("#dbeafe")))
+            item.setBackground(2, _state.QBrush(_state.QColor("#489fd0ff")))
+            item.setBackground(0, _state.QBrush(_state.QColor("#48dbeafe")))
             item.setToolTip(0, "Patchable fixed-size HKX value.")
         elif read_only and viewer_id:
-            item.setForeground(0, _state.QBrush(_state.QColor("#bae6fd")))
-            item.setForeground(2, _state.QBrush(_state.QColor("#cbd5e1")))
+            item.setBackground(0, _state.QBrush(_state.QColor("#48bae6fd")))
+            item.setBackground(2, _state.QBrush(_state.QColor("#48cbd5e1")))
             item.setToolTip(0, "Read-only decoded HKX row with a 3D preview target.")
         elif read_only:
-            item.setForeground(0, _state.QBrush(_state.QColor("#cbd5e1")))
+            item.setBackground(0, _state.QBrush(_state.QColor("#48cbd5e1")))
             item.setToolTip(0, "Read-only HKX metadata. It is ignored on import.")
         if viewer_id:
-            item.setForeground(1, _state.QBrush(_state.QColor("#67e8f9")))
+            item.setBackground(1, _state.QBrush(_state.QColor("#4867e8f9")))
             item.setToolTip(1, f"Preview target: {viewer_id}")
         if confidence_key in {"confirmed", "descriptor_context", "descriptor-context"}:
-            item.setForeground(3, _state.QBrush(_state.QColor("#86efac")))
+            item.setBackground(3, _state.QBrush(_state.QColor("#4886efac")))
         elif confidence_key in {"strong inference", "strong_inference", "skeleton_context"}:
-            item.setForeground(3, _state.QBrush(_state.QColor("#fde68a")))
+            item.setBackground(3, _state.QBrush(_state.QColor("#48fde68a")))
         elif confidence_key in {"experimental", "raw", "raw_preserved"}:
-            item.setForeground(3, _state.QBrush(_state.QColor("#fca5a5")))
+            item.setBackground(3, _state.QBrush(_state.QColor("#48fca5a5")))
         if status_key in {"editable", "decoded", "partially_decoded", "raw_preserved", "raw"}:
             status_label, status_tip, status_color = _state._hkx_status_display(status_key)
-            item.setForeground(0, _state.QBrush(status_color))
+            status_tint = _state.QColor(status_color)
+            status_tint.setAlpha(72)
+            item.setBackground(0, _state.QBrush(status_tint))
             if status_key == "partially_decoded":
-                item.setForeground(1, _state.QBrush(status_color))
+                item.setBackground(1, _state.QBrush(status_tint))
             if not item.toolTip(0) or item.toolTip(0).startswith("Read-only"):
                 item.setToolTip(0, status_tip)
             if item.text(3).strip() == status_key:
@@ -193,7 +197,7 @@ def _dialog_step_0026(_state):
             for column in offset_columns:
                 if column < tree.columnCount() and item.text(column).strip():
                     item.setFont(column, mono_font)
-                    item.setForeground(column, _state.QBrush(_state.QColor("#fbbf24")))
+                    item.setBackground(column, _state.QBrush(_state.QColor("#48fbbf24")))
             for column in value_columns:
                 if column >= tree.columnCount() or not item.text(column).strip():
                     continue
@@ -202,26 +206,27 @@ def _dialog_step_0026(_state):
                 if patchable and column == patchable_value_column:
                     dirty_key = item.data(column, _state.DIRTY_KEY_ROLE)
                     if dirty_key not in _state.dirty_values_by_key:
-                        item.setBackground(column, _state.QBrush(_state.QColor("#17324d")))
-                    item.setForeground(column, _state.QBrush(_state.QColor("#bfdbfe")))
+                        item.setBackground(column, _state.QBrush(_state.QColor("#48bfdbfe")))
                 elif text_kind == "offset":
-                    item.setForeground(column, _state.QBrush(_state.QColor("#fbbf24")))
+                    item.setBackground(column, _state.QBrush(_state.QColor("#48fbbf24")))
                 elif text_kind == "reference":
-                    item.setForeground(column, _state.QBrush(_state.QColor("#67e8f9")))
+                    item.setBackground(column, _state.QBrush(_state.QColor("#4867e8f9")))
                 elif text_kind == "before_after":
-                    item.setForeground(column, _state.QBrush(_state.QColor("#f0abfc")))
+                    item.setBackground(column, _state.QBrush(_state.QColor("#48f0abfc")))
                 elif text_kind in {"number", "mixed"}:
-                    item.setForeground(column, _state.QBrush(_state.QColor("#c4b5fd")))
+                    item.setBackground(column, _state.QBrush(_state.QColor("#48c4b5fd")))
                 elif text_kind == "vector":
-                    item.setForeground(column, _state.QBrush(_state.QColor("#93c5fd")))
+                    item.setBackground(column, _state.QBrush(_state.QColor("#4893c5fd")))
                 else:
-                    item.setForeground(column, _state.QBrush(_state.QColor("#d1d5db")))
+                    item.setBackground(column, _state.QBrush(_state.QColor("#48d1d5db")))
             if confidence_column >= 0 and confidence_column < tree.columnCount():
                 confidence = item.text(confidence_column)
                 if confidence:
-                    item.setForeground(confidence_column, _state.QBrush(_state._hkx_confidence_color(confidence)))
+                    confidence_tint = _state._hkx_confidence_color(confidence)
+                    confidence_tint.setAlpha(72)
+                    item.setBackground(confidence_column, _state.QBrush(confidence_tint))
             if patchable:
-                item.setForeground(0, _state.QBrush(_state.QColor("#dbeafe")))
+                item.setBackground(0, _state.QBrush(_state.QColor("#48dbeafe")))
     _state._style_hkx_tree_values = _style_hkx_tree_values
 
 def _dialog_step_0027(_state):
@@ -349,8 +354,7 @@ def _dialog_step_0031(_state):
 def _dialog_step_0032(_state):
     def _set_dirty_item_style(item: QTreeWidgetItem, value_column: int, dirty: bool) -> None:
         if dirty:
-            item.setBackground(value_column, _state.QBrush(_state.QColor("#314d73")))
-            item.setForeground(value_column, _state.QBrush(_state.QColor("#ffffff")))
+            item.setBackground(value_column, _state.QBrush(_state.QColor("#48314d73")))
             font = item.font(value_column)
             font.setBold(True)
             item.setFont(value_column, font)

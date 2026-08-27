@@ -648,11 +648,15 @@ def _parts_outliner_mapping_step_025(_state):
         edit.setProperty('committed_mapping_text', edit.text())
         confidence_state = _state._mapping_target_confidence_state_helper(mapping)
         confidence_label_text = str(confidence_state['text'])
-        confidence_color = str(confidence_state['color'])
         outliner_state, outliner_state_color = _state._target_outliner_state(row_state.target_index, row_state.initial_source_indices)
         confidence_label = _state.QLabel(confidence_label_text)
         confidence_label.setToolTip('Low confidence means the source name, size, or position did not strongly match this original slot. Override by typing the correct replacement source index.')
-        confidence_label.setStyleSheet(f'color: {confidence_color}; font-weight: 600;')
+        confidence_label.setObjectName('MetricChip')
+        confidence_key = confidence_label_text.casefold()
+        confidence_label.setProperty(
+            'chipRole',
+            'ready' if 'high' in confidence_key else 'warn' if any(value in confidence_key for value in ('medium', 'low', 'remove')) else 'info',
+        )
         selected_text, selected_ok = _state._selected_source_summary(edit.text())
         selected_display = _state._mapping_source_cell_text(selected_text, selected_ok)
         target_details = _state._mapping_target_details_text_helper(row_state.target_index, row_state.target_label_text, target_role_hint, target)
@@ -668,7 +672,9 @@ def _parts_outliner_mapping_step_025(_state):
             item.setData(0, _state.Qt.UserRole, tuple(_state._parse_mapping_edit(edit)))
             item.setData(0, _state.Qt.UserRole + 3, bool(source_cell_state['is_empty']))
             item.setToolTip(3, _state._mapping_edit_draft_tooltip_helper())
-            item.setForeground(3, _state.QBrush(_state.QColor(str(source_cell_state['foreground']))))
+            source_tint = _state.QColor(str(source_cell_state['foreground']))
+            source_tint.setAlpha(72)
+            item.setBackground(3, _state.QBrush(source_tint))
         edit.textChanged.connect(_update_selected_source_label)
         edit.editingFinished.connect(lambda edit=edit: _state._commit_mapping_edit(edit))
         edit.setPlaceholderText(_state._mapping_edit_placeholder_text_helper())

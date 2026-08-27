@@ -252,19 +252,17 @@ TROUBLESHOOTING: Tuple[Tuple[str, str], ...] = (
 
 _STYLE = """
 <style>
-  body { line-height: 148%; color: #d3d9e6; }
+  body { line-height: 148%; }
   h2 {
     margin-top: 4px; margin-bottom: 2px;
-    color: #8fbcf0; font-size: large;
+    font-size: large;
   }
-  h3 { margin-top: 2px; margin-bottom: 2px; color: #cfd6e4; }
+  h3 { margin-top: 2px; margin-bottom: 2px; }
   p { margin-top: 2px; margin-bottom: 8px; }
   td { padding-bottom: 10px; padding-right: 16px; }
-  .lead { color: #b6c0d0; }
-  .term { color: #e2e7f0; }
-  .why { color: #97a1b2; }
-  .step { color: #7fb2e8; }
-  .rule { color: #3a4152; }
+  .term { font-weight: bold; }
+  .step { font-weight: bold; }
+  .rule { font-style: italic; }
 </style>
 """
 

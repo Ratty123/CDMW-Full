@@ -41,8 +41,8 @@ VALUE_ROLE = Qt.ItemDataRole.UserRole + 5
 #: duplicate or remove one; rows without it are fields, not objects.
 OBJECT_ROLE = Qt.ItemDataRole.UserRole + 6
 
-CHANGED_COLOUR = QColor("#7ec8ff")
-WARNING_COLOUR = QColor("#ffb86b")
+CHANGED_COLOUR = QColor(126, 200, 255, 72)
+WARNING_COLOUR = QColor(255, 184, 107, 72)
 
 
 class PrefabEditingMixin:
@@ -84,7 +84,7 @@ class PrefabEditingMixin:
             else:
                 self._value_edits[offset] = (original_raw, twin)
             sibling.setText(2, describe_value(type_name, twin))
-            sibling.setForeground(
+            sibling.setBackground(
                 2, QBrush(CHANGED_COLOUR) if offset in self._value_edits else QBrush()
             )
             self._log(
@@ -188,7 +188,7 @@ class PrefabEditingMixin:
         else:
             self._value_edits[offset] = (original_raw, new_raw)
         item.setText(2, describe_value(type_name, new_raw))
-        item.setForeground(
+        item.setBackground(
             2, QBrush(CHANGED_COLOUR) if offset in self._value_edits else QBrush()
         )
         self._refresh_pending_state()
@@ -219,7 +219,7 @@ class PrefabEditingMixin:
             offset, type_name, original_raw, _member = stored
             self._value_edits.pop(offset, None)
             item.setText(2, describe_value(type_name, original_raw))
-            item.setForeground(2, QBrush())
+            item.setBackground(2, QBrush())
             reverted = True
             # A transform and its twin were moved together, so they come back
             # together; leaving one edited would recreate exactly the mismatch
@@ -244,7 +244,7 @@ class PrefabEditingMixin:
                 continue
             self._value_edits.pop(offset, None)
             sibling.setText(2, describe_value(type_name, original_raw))
-            sibling.setForeground(2, QBrush())
+            sibling.setBackground(2, QBrush())
 
     def _row_is_changeable(self, item: QTreeWidgetItem) -> bool:
         from PySide6.QtCore import Qt

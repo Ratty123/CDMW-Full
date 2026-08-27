@@ -138,9 +138,6 @@ class ArchiveAssetCatalogDialogMixin:
         icon_preview.setObjectName("ItemFinderIconPreview")
         icon_preview.setFixedSize(132, 132)
         icon_preview.setAlignment(Qt.AlignCenter)
-        icon_preview.setStyleSheet(
-            "QLabel#ItemFinderIconPreview { border: 1px solid #38424f; border-radius: 6px; background: #10161d; color: #7f8b99; }"
-        )
         detail_header.addWidget(icon_preview)
         text_stack = QVBoxLayout()
         selected_title = QLabel("Select an item")

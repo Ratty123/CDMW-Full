@@ -141,9 +141,9 @@ def mapping_table_action_control_text() -> dict[str, str]:
     return {
         "headers": ["Target", "Role", "Index", "Source", "State", "DDS", "Physics"],
         "routing_hint_html": (
-            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #d2a8ff; background:#20252d;'>"
-            "<span style='color:#d2a8ff; font-weight:700;'>Routing</span>"
-            "<span style='color:#c9d1d9;'> | target -> source -> DDS</span>"
+            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #d2a8ff; '>"
+            "<span style=' font-weight:700;'>Routing</span>"
+            "<span style=''> | target -> source -> DDS</span>"
             "</div>"
         ),
         "routing_hint_tooltip": (
@@ -151,9 +151,9 @@ def mapping_table_action_control_text() -> dict[str, str]:
             "or leave it empty to remove the original slot and prune its DDS sidecar references when material sidecar patching is enabled."
         ),
         "target_slots_html": (
-            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #79c0ff; background:#10233a;'>"
-            "<span style='color:#79c0ff; font-weight:700;'>Targets</span>"
-            "<span style='color:#c9d1d9;'> | source | state | DDS | physics</span>"
+            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #79c0ff; '>"
+            "<span style=' font-weight:700;'>Targets</span>"
+            "<span style=''> | source | state | DDS | physics</span>"
             "</div>"
         ),
         "target_slots_tooltip": (
@@ -178,7 +178,7 @@ def mapping_table_action_control_text() -> dict[str, str]:
             "Normal routing should use Parts Outliner."
         ),
         "mapping_status_initial": "No target/source selected.",
-        "geometry_hint_html": "<span style='color:#8b949e;'>Preview + Transform place parts.</span>",
+        "geometry_hint_html": "<span style=''>Preview + Transform place parts.</span>",
         "geometry_hint_tooltip": (
             "Use preview + Transform for placement. Advanced routing controls original PAC draw-slot assignment."
         ),
@@ -457,7 +457,7 @@ def source_assignment_state_tooltip(source_state: str) -> str:
 
 def mapping_status_summary_html(badges: Sequence[str]) -> str:
     return (
-        "<div style='font-size:0.8em; line-height:1.2; padding:4px 5px; border:1px solid #30363d; border-radius:4px; background:#0d1117;'>"
+        "<div style='font-size:0.8em; line-height:1.2; padding:4px 5px;'>"
         + "".join(str(badge) for badge in tuple(badges or ()))
         + "</div>"
     )
@@ -466,9 +466,9 @@ def mapping_status_summary_html(badges: Sequence[str]) -> str:
 def mapping_status_summary_badge(label: object, value: object, color: object) -> str:
     return (
         "<span style='display:inline-block; margin:1px 3px 1px 0; padding:2px 6px; "
-        f"border:1px solid {color}; border-radius:3px; background:#161b22;'>"
-        f"<span style='color:{color}; font-weight:700;'>{escape(str(label))}</span>"
-        f"<span style='color:#f0f6fc;'> {escape(str(value or '-'))}</span>"
+        f"border:1px solid {color}; border-radius:3px; '>"
+        f"<span style='font-weight:700;'>{escape(str(label))}</span>"
+        f"<span style=''> {escape(str(value or '-'))}</span>"
         "</span>"
     )
 
@@ -617,22 +617,22 @@ def geometry_mapping_summary_html(
     session_edit_count: int = 0,
 ) -> str:
     appended_text = (
-        "<span style='color:#8b949e;'> | </span>"
-        "<span style='color:#d2a8ff; font-weight:700;'>Session edits</span>"
-        f"<span style='color:#f0f6fc;'> {int(session_edit_count):,}</span>"
+        "<span style=''> | </span>"
+        "<span style=' font-weight:700;'>Session edits</span>"
+        f"<span style=''> {int(session_edit_count):,}</span>"
         if int(session_edit_count)
         else ""
     )
     return (
-        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #2f81f7; background:#10233a;'>"
-        "<span style='color:#79c0ff; font-weight:700;'>Replacement parts</span>"
-        f"<span style='color:#f0f6fc;'> {int(replacement_part_count):,}</span>"
-        "<span style='color:#8b949e;'> | </span>"
-        "<span style='color:#7ee787; font-weight:700;'>Active targets</span>"
-        f"<span style='color:#f0f6fc;'> {int(active_target_count):,}</span>"
-        "<span style='color:#8b949e;'> | </span>"
-        "<span style='color:#f2cc60; font-weight:700;'>Empty targets</span>"
-        f"<span style='color:#f0f6fc;'> {int(empty_target_count):,}</span>"
+        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #2f81f7; '>"
+        "<span style=' font-weight:700;'>Replacement parts</span>"
+        f"<span style=''> {int(replacement_part_count):,}</span>"
+        "<span style=''> | </span>"
+        "<span style=' font-weight:700;'>Active targets</span>"
+        f"<span style=''> {int(active_target_count):,}</span>"
+        "<span style=''> | </span>"
+        "<span style=' font-weight:700;'>Empty targets</span>"
+        f"<span style=''> {int(empty_target_count):,}</span>"
         f"{appended_text}"
         "</div>"
     )
@@ -732,9 +732,9 @@ def output_impact_review_presentation(
     )
     replaced_segment = f" | replaces {escape(replaced_text)}" if summary_lines else ""
     html = (
-        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #f2cc60; background:#211b12;'>"
-        "<span style='color:#f2cc60; font-weight:700;'>Output</span>"
-        f"<span style='color:#c9d1d9;'> | remove {removed_target_count:,}"
+        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #f2cc60; '>"
+        "<span style=' font-weight:700;'>Output</span>"
+        f"<span style=''> | remove {removed_target_count:,}"
         f" | source {int(used_source_count):,}"
         f" | disabled {int(disabled_mapped_source_count):,}"
         f" | preview-only {int(preview_only_source_count):,}"

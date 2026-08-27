@@ -128,12 +128,16 @@ def _parts_outliner_mapping_step_035(_state):
         summary, ok = _state._selected_source_summary(committed_text)
         source_cell_state = _state._mapping_committed_source_cell_state_helper(selection_ok=ok, has_source_indices=bool(committed_indices))
         item.setText(3, _state._mapping_source_cell_text(summary, ok))
-        item.setForeground(3, _state.QBrush(_state.QColor(str(source_cell_state['foreground']))))
+        source_tint = _state.QColor(str(source_cell_state['foreground']))
+        source_tint.setAlpha(72)
+        item.setBackground(3, _state.QBrush(source_tint))
         item.setData(0, _state.Qt.UserRole, tuple(committed_indices))
         item.setData(0, _state.Qt.UserRole + 3, bool(source_cell_state['is_empty']))
         state_text, state_color = _state._target_outliner_state(int(target_index), committed_indices)
         item.setText(4, state_text)
-        item.setForeground(4, _state.QBrush(_state.QColor(state_color)))
+        state_tint = _state.QColor(state_color)
+        state_tint.setAlpha(72)
+        item.setBackground(4, _state.QBrush(state_tint))
         dds_cell_state = _state._mapping_target_dds_cell_state_helper(state_text=state_text, has_source_indices=bool(committed_indices))
         if dds_cell_state['uses_removed_target_text']:
             item.setText(5, _state._removed_target_dds_cell_text(item.text(0)))
@@ -141,7 +145,9 @@ def _parts_outliner_mapping_step_035(_state):
         else:
             item.setText(5, _state._target_texture_status_text(item.text(0)))
             item.setToolTip(5, _state._target_texture_status_details(item.text(0)))
-        item.setForeground(5, _state.QBrush(_state.QColor(str(dds_cell_state['foreground']))))
+        dds_tint = _state.QColor(str(dds_cell_state['foreground']))
+        dds_tint.setAlpha(72)
+        item.setBackground(5, _state.QBrush(dds_tint))
     _state._sync_target_mapping_tree_item = _sync_target_mapping_tree_item
 
 def _parts_outliner_mapping_step_036(_state):

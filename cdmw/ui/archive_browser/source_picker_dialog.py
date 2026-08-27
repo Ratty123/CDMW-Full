@@ -234,7 +234,7 @@ class ArchiveSourcePickerDialogMixin:
             for column in range(tree.columnCount()):
                 item.setToolTip(column, item.text(column))
             if str(row.get("extension", "") or "").lower() in ARCHIVE_MESH_EXTENSIONS:
-                item.setForeground(1, QBrush(QColor("#86efac")))
+                item.setBackground(1, QBrush(QColor("#4886efac")))
             tree.addTopLevelItem(item)
 
         def _set_source_preview_message(message: str) -> None:
