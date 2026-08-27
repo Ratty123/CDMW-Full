@@ -18,6 +18,7 @@ internal sealed partial class ExperimentForm
     private int _appliedToolDockWidth = -1;
     private int _appliedInspectorWidth = -1;
     private int _appliedLayoutDpi = -1;
+    private int _appliedToolRailHostWidth = -1;
     // The construction cells of the two sections placement mode shares with the
     // rail, so leaving mesh edit can put them back where they were built.
     private TableLayoutPanelCellPosition? _partPickPlacementCell;
@@ -511,6 +512,7 @@ internal sealed partial class ExperimentForm
             // Entering lands on the saved placement widths.
             _appliedToolDockWidth = -1;
             _appliedInspectorWidth = -1;
+            _appliedToolRailHostWidth = -1;
             ApplyToolRailSplitterLayout();
             if (!_toolRailPageSelected)
             {
@@ -895,13 +897,15 @@ internal sealed partial class ExperimentForm
         // width back to the viewport instead of a full-height empty panel.
         var inspectorWidth = MeasureInspectorWidth();
         var toolDockWidth = ScaleToolPanelWidth(MeasureToolColumnWidth());
+        var hostWidth = _editMeshLayoutHost?.ClientSize.Width ?? -1;
         // Nothing to move. Laying the splitter out anyway resizes the D3D11
         // swap chain beside it, which reads as the preview flickering.
         // Keyed on DPI too: the applied width is in device pixels, so a stale
         // match on another monitor would skip the pass that resizes it.
         if (_appliedToolDockWidth == toolDockWidth
             && _appliedInspectorWidth == inspectorWidth
-            && _appliedLayoutDpi == DeviceDpi)
+            && _appliedLayoutDpi == DeviceDpi
+            && _appliedToolRailHostWidth == hostWidth)
         {
             return;
         }
@@ -935,6 +939,7 @@ internal sealed partial class ExperimentForm
             _appliedToolDockWidth = toolDockWidth;
             _appliedInspectorWidth = inspectorWidth;
             _appliedLayoutDpi = DeviceDpi;
+            _appliedToolRailHostWidth = hostWidth;
         }
         finally
         {

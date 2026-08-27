@@ -30,6 +30,7 @@ from tools.compact_shell_visual.capture import (
     _rect_payload,
     _splitter_payload,
     capture_window,
+    clipped_button_error,
     geometry_payload,
 )
 from tools.compact_shell_visual.cli import build_argument_parser, main
@@ -73,6 +74,7 @@ from tools.compact_shell_visual.runtime import (
     _registered_widgets,
     _resize_frame,
     _resolve_tool_widget,
+    _settle_resident_host_resize,
     _wait_until,
 )
 
@@ -105,6 +107,7 @@ __all__ = [
     "_require_bundled_mesh_helper",
     "_resize_frame",
     "_resolve_tool_widget",
+    "_settle_resident_host_resize",
     "_seed_in_memory_rows",
     "_selected_keys",
     "_splitter_payload",
@@ -117,6 +120,7 @@ __all__ = [
     "build_capture_plan",
     "capture_sizes",
     "capture_window",
+    "clipped_button_error",
     "geometry_payload",
     "main",
     "parse_size",

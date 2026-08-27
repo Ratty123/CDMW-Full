@@ -1107,46 +1107,11 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self._settings_ready = True
 
     def _apply_section_nav_style(self) -> None:
-        theme = UI_THEME_SCHEMES.get(self.current_theme_key(), UI_THEME_SCHEMES[DEFAULT_UI_THEME])
         nav_font_size = self.current_data_font_size()
-        self.section_nav_list.setStyleSheet(
-            f"""
-            QListWidget#SettingsSectionNav {{
-                background: {theme["field"]};
-                border: 1px solid {theme["border_strong"]};
-                border-radius: 8px;
-                padding: 4px;
-                outline: 0;
-                font-size: {nav_font_size}pt;
-            }}
-            QListWidget#SettingsSectionNav::item {{
-                background: transparent;
-                color: {theme["text"]};
-                border: 1px solid transparent;
-                border-radius: 6px;
-                margin: 1px 0px;
-                padding: 5px 8px;
-            }}
-            QListWidget#SettingsSectionNav::item:hover {{
-                background: {theme["button_hover"]};
-                border-color: {theme["button_border"]};
-                color: {theme["text_strong"]};
-            }}
-            QListWidget#SettingsSectionNav::item:selected {{
-                background: {theme["accent_soft"]};
-                border: 1px solid {theme["accent"]};
-                color: {theme["text_strong"]};
-                font-weight: 600;
-            }}
-            QListWidget#SettingsSectionNav::item:selected:!active {{
-                background: {theme["accent_soft"]};
-                color: {theme["text_strong"]};
-            }}
-            """
-        )
         nav_font = QFont(self.section_nav_list.font())
         nav_font.setFamily(self.current_ui_font_family())
         nav_font.setPointSize(nav_font_size)
+        self.section_nav_list.setFont(nav_font)
         nav_metrics = QFontMetrics(nav_font)
         row_height = max(28, nav_metrics.height() + 14)
         widest_label = max(

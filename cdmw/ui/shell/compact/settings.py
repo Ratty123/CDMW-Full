@@ -22,6 +22,10 @@ from cdmw.ui.themes import UI_THEME_SCHEMES
 class CompactWorkspaceSettingsMixin:
     def _build_compact_workspace_settings_ui(self) -> None:
         self._running_shell_variant = read_shell_variant(self.settings)
+        self.setProperty(
+            "compactPresentation",
+            self._running_shell_variant == COMPACT_SHELL_VARIANT,
+        )
         self.application_layout_group = QGroupBox("Application layout")
         application_layout = QFormLayout(self.application_layout_group)
         application_layout.setContentsMargins(12, 14, 12, 12)

@@ -36,7 +36,14 @@ class ModelLibrarySelectionMixin:
         self.preview_button.setEnabled(can_preview_here)
         self.generate_icon_button.setEnabled(can_preview_here)
         self.download_button.setEnabled(batch_mirror_count > 0 and mirror_url_ready)
-        self.download_button.setText("Download Checked" if batch_mirror_count <= 1 else f"Download Checked ({batch_mirror_count})")
+        standard_download_label = (
+            "Download Checked"
+            if batch_mirror_count <= 1
+            else f"Download Checked ({batch_mirror_count})"
+        )
+        self.download_button.setText(
+            self._model_library_button_label(standard_download_label, "Download")
+        )
         self.download_import_button.setEnabled(is_mirror and mirror_url_ready)
         self.open_file_url_button.setEnabled(is_mirror)
         self.open_location_button.setEnabled(has_selection)

@@ -16,15 +16,19 @@ from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QAction, QPalette
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QApplication,
     QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLayout,
+    QMenu,
     QPlainTextEdit,
     QPushButton,
     QSizePolicy,
     QSplitter,
+    QToolButton,
+    QWidgetAction,
     QWidget,
 )
 
@@ -43,7 +47,7 @@ class CompactSplitterRule:
 @dataclass(frozen=True, slots=True)
 class CompactPresentationSpec:
     reference_filename: str
-    root_margin: int = 8
+    root_margin: int = 6
     splitter_rules: tuple[CompactSplitterRule, ...] = ()
     hidden_attributes: tuple[tuple[str, str], ...] = ()
     hidden_text_prefixes: tuple[str, ...] = ()
@@ -51,6 +55,68 @@ class CompactPresentationSpec:
 
 _HORIZONTAL = Qt.Orientation.Horizontal
 _VERTICAL = Qt.Orientation.Vertical
+
+_COMPACT_BUTTON_LABELS: Mapping[str, Mapping[str, str]] = MappingProxyType(
+    {
+        "item_icons": MappingProxyType(
+            {
+                "Add Folder...": "Add",
+                "Edited Folder": "Folder",
+                "Open In Archive Browser": "Open",
+                "Export Generated Icon...": "Export",
+                "Add To Existing Loose Mod...": "Add",
+            }
+        ),
+        "mesh_editor": MappingProxyType(
+            {
+                "Run validation": "Check",
+                "Export Mesh File": "Export",
+                "Build Mod": "Build",
+                "Install as Overlay": "Apply",
+                "Restore Last Overlay Install": "Reset",
+            }
+        ),
+        "placement_studio": MappingProxyType(
+            {
+                "Swap animations...": "Swap",
+                "Recent actions...": "History",
+                "Check Fit/Clipping": "Fit",
+                "Revert point": "Reset",
+                "New point…": "Add",
+                "Aim with this": "Use",
+                "Turn it the right way up": "Rotate",
+                "Packages…": "Packages",
+            }
+        ),
+        "replace_assistant": MappingProxyType(
+            {
+                "Open In Texture Editor": "Open",
+                "Choose Local Original": "Local",
+                "Choose Archive Original": "Original",
+                "Clear existing output package before build": "Clear",
+                "Mirror Texture Workflow": "Mirror",
+                "Definitive Mod Manager": "Mod Manager",
+            }
+        ),
+        "recolor_variants": MappingProxyType(
+            {
+                "Import JSON": "Import",
+                "Export JSON": "Export",
+                "Save Templates": "Save",
+                "Review Matches": "Review",
+            }
+        ),
+        "research": MappingProxyType(
+            {
+                "Refresh List": "Refresh",
+                "Use In References": "References",
+                "Use In Notes": "Notes",
+            }
+        ),
+        "text_search": MappingProxyType({"Export Selected": "Export"}),
+        "texture_editor": MappingProxyType({"Save Preset": "Save"}),
+    }
+)
 
 
 COMPACT_PRESENTATION_SPECS: Mapping[str, CompactPresentationSpec] = MappingProxyType(
@@ -61,9 +127,9 @@ COMPACT_PRESENTATION_SPECS: Mapping[str, CompactPresentationSpec] = MappingProxy
                 CompactSplitterRule(
                     _HORIZONTAL,
                     0,
-                    (18, 32, 50),
-                    (190, 240, 260),
-                    (330, None, None),
+                    (0, 38, 62),
+                    (0, 260, 360),
+                    (0, None, None),
                 ),
             ),
             hidden_attributes=(("archive_log_view", "parent"),),
@@ -82,7 +148,7 @@ COMPACT_PRESENTATION_SPECS: Mapping[str, CompactPresentationSpec] = MappingProxy
                 CompactSplitterRule(
                     _HORIZONTAL,
                     0,
-                    (18, 45, 37),
+                    (18, 42, 40),
                     (160, 260, 250),
                     (280, None, None),
                 ),
@@ -113,7 +179,7 @@ COMPACT_PRESENTATION_SPECS: Mapping[str, CompactPresentationSpec] = MappingProxy
         "texture_workflow": CompactPresentationSpec(
             "07-upscale-process-textures.png",
             splitter_rules=(
-                CompactSplitterRule(_HORIZONTAL, 0, (36, 64), (230, 340), (480, None)),
+                CompactSplitterRule(_HORIZONTAL, 0, (30, 70), (230, 340), (420, None)),
                 CompactSplitterRule(_VERTICAL, 0, (44, 56), (170, 220)),
                 CompactSplitterRule(_HORIZONTAL, 1, (50, 50), (180, 180)),
             ),
@@ -124,9 +190,9 @@ COMPACT_PRESENTATION_SPECS: Mapping[str, CompactPresentationSpec] = MappingProxy
                 CompactSplitterRule(
                     _HORIZONTAL,
                     0,
-                    (34, 40, 26),
-                    (220, 260, 210),
-                    (520, None, 420),
+                    (31, 38, 31),
+                    (210, 260, 240),
+                    (500, None, 440),
                 ),
             ),
             hidden_attributes=(("log_view", "widget"), ("status_label", "widget")),
@@ -137,21 +203,21 @@ COMPACT_PRESENTATION_SPECS: Mapping[str, CompactPresentationSpec] = MappingProxy
                 CompactSplitterRule(
                     _HORIZONTAL,
                     0,
-                    (21, 46, 33),
-                    (190, 300, 240),
-                    (390, None, None),
+                    (26, 44, 30),
+                    (220, 300, 240),
+                    (430, None, None),
                 ),
             ),
             hidden_attributes=(("log_edit", "section"),),
         ),
         "texture_editor": CompactPresentationSpec(
             "10-texture-editor.png",
-            root_margin=8,
+            root_margin=6,
             splitter_rules=(
                 CompactSplitterRule(
                     _HORIZONTAL,
                     0,
-                    (18, 52, 30),
+                    (17, 49, 34),
                     (170, 320, 240),
                     (280, None, 420),
                 ),
@@ -178,8 +244,9 @@ COMPACT_PRESENTATION_SPECS: Mapping[str, CompactPresentationSpec] = MappingProxy
         "research": CompactPresentationSpec(
             "14-asset-research.png",
             splitter_rules=(
-                CompactSplitterRule(_HORIZONTAL, 0, (68, 32), (380, 260)),
+                CompactSplitterRule(_HORIZONTAL, 0, (64, 36), (360, 280)),
                 CompactSplitterRule(_HORIZONTAL, 1, (42, 58), (220, 300)),
+                CompactSplitterRule(_HORIZONTAL, 2, (52, 48), (130, 150)),
             ),
             hidden_attributes=(
                 ("refresh_status_label", "widget"),
@@ -189,7 +256,7 @@ COMPACT_PRESENTATION_SPECS: Mapping[str, CompactPresentationSpec] = MappingProxy
         "text_search": CompactPresentationSpec(
             "15-search-file-text.png",
             splitter_rules=(
-                CompactSplitterRule(_HORIZONTAL, 0, (27, 33, 40), (190, 220, 250)),
+                CompactSplitterRule(_HORIZONTAL, 0, (30, 32, 38), (210, 220, 250)),
             ),
             hidden_attributes=(("log_view", "section"),),
             hidden_text_prefixes=(
@@ -222,15 +289,15 @@ def _compact_layout(layout: QLayout, *, root_margin: int | None = None) -> None:
         layout.setContentsMargins(root_margin, root_margin, root_margin, root_margin)
     else:
         margins = layout.contentsMargins()
-        if max(margins.left(), margins.top(), margins.right(), margins.bottom()) > 12:
+        if max(margins.left(), margins.top(), margins.right(), margins.bottom()) > 8:
             layout.setContentsMargins(
-                min(margins.left(), 10),
-                min(margins.top(), 10),
-                min(margins.right(), 10),
-                min(margins.bottom(), 10),
+                min(margins.left(), 6),
+                min(margins.top(), 6),
+                min(margins.right(), 6),
+                min(margins.bottom(), 6),
             )
-    if layout.spacing() > 8:
-        layout.setSpacing(6)
+    if layout.spacing() > 6:
+        layout.setSpacing(4)
 
 
 def _hide_presentation_attribute(
@@ -270,25 +337,45 @@ def _replace_new_item_label(text: str) -> str:
 
 
 def _apply_compact_tool_labels(key: str, widget: QWidget) -> None:
-    if key not in {"archive_browser", "model_library", "new_item_studio"}:
+    if key in {"archive_browser", "model_library", "new_item_studio"}:
+        for button in widget.findChildren(QAbstractButton):
+            replaced = _replace_new_item_label(button.text())
+            if replaced != button.text():
+                button.setText(replaced)
+        for label in widget.findChildren(QLabel):
+            replaced = _replace_new_item_label(label.text())
+            if replaced != label.text():
+                label.setText(replaced)
+        for action in widget.findChildren(QAction):
+            replaced = _replace_new_item_label(action.text())
+            if replaced != action.text():
+                action.setText(replaced)
+        for child in (widget, *widget.findChildren(QWidget)):
+            tooltip = child.toolTip()
+            replaced = _replace_new_item_label(tooltip)
+            if replaced != tooltip:
+                child.setToolTip(replaced)
+
+    compact_labels = _COMPACT_BUTTON_LABELS.get(key, {})
+    if not compact_labels:
         return
+    app = QApplication.instance()
+    localizer = app.property("_cdmw_ui_localizer") if app is not None else None
+    translate = getattr(localizer, "translate", None)
     for button in widget.findChildren(QAbstractButton):
-        replaced = _replace_new_item_label(button.text())
-        if replaced != button.text():
-            button.setText(replaced)
-    for label in widget.findChildren(QLabel):
-        replaced = _replace_new_item_label(label.text())
-        if replaced != label.text():
-            label.setText(replaced)
-    for action in widget.findChildren(QAction):
-        replaced = _replace_new_item_label(action.text())
-        if replaced != action.text():
-            action.setText(replaced)
-    for child in (widget, *widget.findChildren(QWidget)):
-        tooltip = child.toolTip()
-        replaced = _replace_new_item_label(tooltip)
-        if replaced != tooltip:
-            child.setToolTip(replaced)
+        source_text = str(button.property("_i18n_source_text") or button.text() or "")
+        compact_source = compact_labels.get(source_text)
+        if compact_source is None:
+            continue
+        original_text = str(button.text() or source_text)
+        if not button.toolTip():
+            button.setToolTip(original_text)
+        if not button.accessibleName():
+            button.setAccessibleName(original_text)
+        rendered = translate(compact_source) if callable(translate) else compact_source
+        button.setProperty("_i18n_source_text", compact_source)
+        button.setProperty("_i18n_rendered_text", str(rendered))
+        button.setText(str(rendered))
 
 
 def _hide_redundant_text(widget: QWidget, spec: CompactPresentationSpec) -> None:
@@ -298,6 +385,47 @@ def _hide_redundant_text(widget: QWidget, spec: CompactPresentationSpec) -> None
         text = str(label.text() or "").strip()
         if any(text.startswith(prefix) for prefix in spec.hidden_text_prefixes):
             label.setVisible(False)
+
+
+_REDUNDANT_SECTION_TITLES = frozenset({"Actions", "Controls", "Files", "Preview"})
+
+
+def _flatten_compact_sections(widget: QWidget) -> None:
+    """Keep semantic headings while removing nested decorative panel chrome."""
+
+    for panel in widget.findChildren(QWidget):
+        if type(panel).__name__ != "FlatSectionPanel":
+            continue
+        panel.setProperty("compactSection", True)
+        body = getattr(panel, "body_frame", None)
+        if isinstance(body, QWidget):
+            body.setProperty("compactSection", True)
+        title_label = getattr(panel, "title_label", None)
+        header = getattr(panel, "header_widget", None)
+        title = str(title_label.text() if isinstance(title_label, QLabel) else "").strip()
+        if title not in _REDUNDANT_SECTION_TITLES:
+            continue
+        panel.setProperty("compactStructural", True)
+        if isinstance(body, QWidget):
+            body.setProperty("compactStructural", True)
+        if isinstance(header, QWidget):
+            header.setVisible(False)
+        layout = panel.layout()
+        if layout is not None:
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
+
+    for group in widget.findChildren(QGroupBox):
+        group.setProperty("compactSection", True)
+        if group.title().strip() not in _REDUNDANT_SECTION_TITLES:
+            continue
+        group.setTitle("")
+        group.setProperty("compactStructural", True)
+        layout = group.layout()
+        if layout is not None:
+            layout.setContentsMargins(0, 0, 0, 0)
+            if layout.spacing() > 4:
+                layout.setSpacing(4)
 
 
 def _apply_tool_specific_presentation(window: object, key: str, widget: QWidget) -> None:
@@ -343,10 +471,18 @@ def _apply_tool_specific_presentation(window: object, key: str, widget: QWidget)
             if callable(set_expanded):
                 set_expanded(True)
 
+    elif key == "texture_editor":
+        grid_checkbox = getattr(widget, "grid_checkbox", None)
+        if isinstance(grid_checkbox, QAbstractButton):
+            grid_checkbox.setMinimumWidth(grid_checkbox.sizeHint().width())
+
     elif key == "research":
         refresh_button = getattr(widget, "refresh_button", None)
         if isinstance(refresh_button, QAbstractButton):
             refresh_button.setMaximumWidth(160)
+        references_button = getattr(widget, "archive_picker_use_reference_button", None)
+        if isinstance(references_button, QAbstractButton):
+            references_button.setMinimumWidth(references_button.sizeHint().width())
 
     elif key == "text_search":
         for panel in widget.findChildren(QWidget):
@@ -386,9 +522,10 @@ def _build_archive_command_strip(window: object, widget: QWidget) -> None:
     strip = QFrame(widget)
     strip.setObjectName("CompactArchiveCommandStrip")
     strip.setFrameShape(QFrame.Shape.NoFrame)
+    strip.setProperty("compactStructural", True)
     layout = QHBoxLayout(strip)
-    layout.setContentsMargins(8, 6, 8, 6)
-    layout.setSpacing(8)
+    layout.setContentsMargins(4, 2, 4, 2)
+    layout.setSpacing(4)
     scan, refresh, finder, search_edit, search_button, extension, extension_picker = controls
     for button in (scan, refresh, finder):
         button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -402,27 +539,84 @@ def _build_archive_command_strip(window: object, widget: QWidget) -> None:
     layout.addWidget(extension)
     layout.addWidget(extension_picker)
 
+    controls_group = getattr(window, "archive_controls_group", widget)
     filters_group = next(
         (
             group
-            for group in getattr(window, "archive_controls_group", widget).findChildren(QGroupBox)
+            for group in controls_group.findChildren(QGroupBox)
             if group.title().strip() == "Filters"
         ),
         None,
     )
-    more_filters = QPushButton("More Filters")
-    more_filters.setCheckable(True)
+    actions_group = next(
+        (
+            group
+            for group in controls_group.findChildren(QGroupBox)
+            if group.title().strip() == "Actions"
+        ),
+        None,
+    )
+
+    actions_button = QToolButton(strip)
+    actions_button.setObjectName("CompactArchiveActionsButton")
+    actions_button.setText("Actions")
+    actions_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+    actions_menu = QMenu(actions_button)
+    action_pairs: list[tuple[QAction, QAbstractButton]] = []
+    for source in (
+        getattr(window, "archive_extract_selected_button", None),
+        getattr(window, "archive_extract_filtered_button", None),
+        getattr(window, "archive_resolve_in_research_button", None),
+    ):
+        if not isinstance(source, QAbstractButton):
+            continue
+        action = actions_menu.addAction(source.text())
+        action.setToolTip(source.toolTip())
+        action.triggered.connect(lambda _checked=False, source=source: source.click())
+        action_pairs.append((action, source))
+
+    def sync_actions() -> None:
+        for action, source in action_pairs:
+            action.setText(source.text())
+            action.setToolTip(source.toolTip())
+            action.setEnabled(source.isEnabled())
+            action.setVisible(not source.isHidden())
+
+    actions_menu.aboutToShow.connect(sync_actions)
+    sync_actions()
+    actions_button.setMenu(actions_menu)
+    actions_button.setEnabled(bool(action_pairs))
+    layout.addWidget(actions_button)
+
+    more_filters = QToolButton(strip)
+    more_filters.setObjectName("CompactArchiveMoreFiltersButton")
+    more_filters.setText("More Filters")
+    more_filters.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
     more_filters.setToolTip("Show or hide Archive Browser filters only.")
     if isinstance(filters_group, QGroupBox):
-        filters_group.setVisible(False)
-        more_filters.toggled.connect(filters_group.setVisible)
+        filters_group.setTitle("")
+        filters_group.setProperty("compactStructural", True)
+        filter_menu = QMenu(more_filters)
+        filter_menu.setObjectName("CompactArchiveFiltersMenu")
+        filter_widget_action = QWidgetAction(filter_menu)
+        filter_widget_action.setDefaultWidget(filters_group)
+        filter_menu.addAction(filter_widget_action)
+        more_filters.setMenu(filter_menu)
     else:
         more_filters.setEnabled(False)
     layout.addWidget(more_filters)
     if isinstance(search_group, QGroupBox):
         search_group.setVisible(False)
+    if isinstance(actions_group, QGroupBox):
+        actions_group.setVisible(False)
+    controls_scroll = getattr(window, "archive_controls_scroll", None)
+    if isinstance(controls_scroll, QWidget):
+        controls_scroll.setMinimumWidth(0)
+        controls_scroll.setMaximumWidth(0)
+        controls_scroll.setVisible(False)
     root_layout.insertWidget(0, strip)
     widget._cdmw_compact_archive_command_strip = strip  # type: ignore[attr-defined]
+    widget._cdmw_compact_archive_actions_button = actions_button  # type: ignore[attr-defined]
     widget._cdmw_compact_archive_more_filters_button = more_filters  # type: ignore[attr-defined]
 
 
@@ -535,6 +729,7 @@ def apply_compact_presentation(window: object, key: str, widget: QWidget) -> boo
     _hide_redundant_text(widget, spec)
     _apply_compact_tool_labels(tool_key, widget)
     _apply_tool_specific_presentation(window, tool_key, widget)
+    _flatten_compact_sections(widget)
     _apply_splitter_rules(widget, spec)
 
     resize_filter = getattr(widget, "_cdmw_compact_presentation_filter", None)

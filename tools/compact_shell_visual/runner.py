@@ -14,7 +14,7 @@ from cdmw.services.service_container import ServiceContainer
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.main_window import MainWindow
 from cdmw.ui.shell.app_context import AppContext
-from tools.compact_shell_visual.capture import capture_window, geometry_payload
+from tools.compact_shell_visual.capture import capture_window, clipped_button_error, geometry_payload
 from tools.compact_shell_visual.contracts import (
     REFERENCE_FILENAMES,
     build_capture_plan,
@@ -31,6 +31,7 @@ from tools.compact_shell_visual.runtime import (
     _registered_widgets,
     _resize_frame,
     _resolve_tool_widget,
+    _settle_resident_host_resize,
 )
 
 
@@ -128,6 +129,7 @@ def run_harness(arguments: argparse.Namespace) -> dict[str, object]:
         with _PlacementBaselineGuard():
             window = MainWindow(app_context=context)
             try:
+                _resize_frame(window, primary)
                 if str(getattr(window, "current_theme_key", "")) != arguments.theme:
                     raise RuntimeError(
                         f"Requested compact theme {arguments.theme!r}, but MainWindow uses "
@@ -162,6 +164,7 @@ def run_harness(arguments: argparse.Namespace) -> dict[str, object]:
                     _resize_frame(window, size)
                     _apply_presentation(window, key, widget)
                     _process_events(5)
+                    _settle_resident_host_resize(widget)
                     geometry = geometry_payload(window, key, widget)
                     method, image_size = capture_window(
                         window,
@@ -210,6 +213,9 @@ def run_harness(arguments: argparse.Namespace) -> dict[str, object]:
 
     report_path = output_root / "compact-shell-report.json"
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    if minimum_size_error:
-        raise RuntimeError(minimum_size_error)
+    capture_rows = report["captures"]
+    clipping_error = clipped_button_error(capture_rows if isinstance(capture_rows, list) else ())
+    failures = tuple(message for message in (minimum_size_error, clipping_error) if message)
+    if failures:
+        raise RuntimeError(" ".join(failures))
     return report

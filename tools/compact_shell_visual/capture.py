@@ -5,10 +5,11 @@ from __future__ import annotations
 import ctypes
 from pathlib import Path
 import sys
+from typing import Mapping, Sequence
 
-from PySide6.QtCore import QRect, Qt
+from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtGui import QImage
-from PySide6.QtWidgets import QApplication, QSplitter, QWidget
+from PySide6.QtWidgets import QAbstractButton, QApplication, QSplitter, QWidget
 
 from tools.compact_shell_visual.contracts import REFERENCE_FILENAMES
 
@@ -40,8 +41,72 @@ def _splitter_payload(widget: QWidget) -> list[dict[str, object]]:
     return payload
 
 
-def geometry_payload(window: QWidget, key: str, widget: QWidget) -> dict[str, object]:
+def _visible_button_payload(widget: QWidget) -> dict[str, object]:
+    """Report real compact buttons whose full rendered text does not fit."""
+
+    rows: list[dict[str, object]] = []
+    visible_count = 0
+    for index, button in enumerate(widget.findChildren(QAbstractButton)):
+        text = str(button.text() or "").strip()
+        if not text or not button.isVisibleTo(widget) or button.width() <= 0:
+            continue
+        visible_count += 1
+        needed_width = int(button.sizeHint().width())
+        actual_width = int(button.width())
+        if actual_width + 1 >= needed_width:
+            continue
+        rows.append(
+            {
+                "id": button.objectName() or f"{type(button).__name__}-{index + 1}",
+                "class": type(button).__name__,
+                "text": text,
+                "actual_width": actual_width,
+                "needed_width": needed_width,
+                "shortfall": needed_width - actual_width,
+            }
+        )
     return {
+        "visible_button_count": visible_count,
+        "clipped_button_count": len(rows),
+        "clipped_buttons": rows,
+    }
+
+
+def _resident_host_payload(widget: QWidget) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for host in widget.findChildren(QWidget):
+        name = host.objectName()
+        if "DotNetVorticeHost" not in name:
+            continue
+        origin = host.mapTo(widget, QPoint(0, 0))
+        row: dict[str, object] = {
+            "id": name,
+            "geometry": {
+                "x": int(origin.x()),
+                "y": int(origin.y()),
+                "width": int(host.width()),
+                "height": int(host.height()),
+            },
+            "visible": bool(host.isVisibleTo(widget)),
+        }
+        hwnd = int(getattr(host, "_embedded_child_hwnd", 0) or 0)
+        row["native_child_hwnd"] = hwnd
+        if hwnd > 0 and sys.platform == "win32":
+            rect = _RECT()
+            user32 = ctypes.windll.user32
+            if user32.IsWindow(ctypes.c_void_p(hwnd)) and user32.GetWindowRect(
+                ctypes.c_void_p(hwnd), ctypes.byref(rect)
+            ):
+                row["native_child_size"] = {
+                    "width": int(rect.right - rect.left),
+                    "height": int(rect.bottom - rect.top),
+                }
+        rows.append(row)
+    return rows
+
+
+def geometry_payload(window: QWidget, key: str, widget: QWidget) -> dict[str, object]:
+    payload = {
         "key": key,
         "reference_filename": REFERENCE_FILENAMES[key],
         "widget_class": type(widget).__name__,
@@ -53,7 +118,33 @@ def geometry_payload(window: QWidget, key: str, widget: QWidget) -> dict[str, ob
             "height": int(widget.minimumHeight()),
         },
         "splitters": _splitter_payload(widget),
+        "resident_hosts": _resident_host_payload(widget),
     }
+    payload.update(_visible_button_payload(widget))
+    return payload
+
+
+def clipped_button_error(captures: Sequence[Mapping[str, object]]) -> str:
+    """Return one bounded failure message for every capture with hidden button text."""
+
+    offenders: list[str] = []
+    for capture in captures:
+        rows = capture.get("clipped_buttons", ())
+        if not isinstance(rows, (list, tuple)):
+            continue
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            offenders.append(
+                f"{capture.get('key', '?')}@{capture.get('requested_size', '?')}:"
+                f"{row.get('text', '?')} ({row.get('actual_width', '?')}/"
+                f"{row.get('needed_width', '?')} px)"
+            )
+    if not offenders:
+        return ""
+    shown = offenders[:12]
+    suffix = f"; plus {len(offenders) - len(shown)} more" if len(offenders) > len(shown) else ""
+    return "Compact button text was clipped: " + "; ".join(shown) + suffix
 
 
 class _RECT(ctypes.Structure):

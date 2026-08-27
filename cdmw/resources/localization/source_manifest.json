@@ -1911,12 +1911,12 @@
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
@@ -3511,22 +3511,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -3751,7 +3751,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 244,
+          "line": 297,
           "sink": "_set_status"
         },
         {
@@ -4300,6 +4300,11 @@
           "sink": "QGroupBox"
         },
         {
+          "path": "cdmw/ui/shell/compact/presentations.py",
+          "line": 562,
+          "sink": "setText"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 403,
           "sink": "setText"
@@ -4711,7 +4716,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/status_strip.py",
-          "line": 61,
+          "line": 69,
           "sink": "QPushButton"
         }
       ]
@@ -6001,7 +6006,12 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 321,
+          "line": 305,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 469,
           "sink": "addItem"
         },
         {
@@ -6131,7 +6141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 312,
+          "line": 460,
           "sink": "addItem"
         }
       ]
@@ -7651,12 +7661,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/settings.py",
-          "line": 25,
+          "line": 29,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/shell/compact/settings.py",
-          "line": 34,
+          "line": 38,
           "sink": "addRow"
         }
       ]
@@ -7666,7 +7676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/settings.py",
-          "line": 110,
+          "line": 114,
           "sink": "setText"
         }
       ]
@@ -8166,7 +8176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1415,
+          "line": 1380,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -8176,7 +8186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 522,
+          "line": 525,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -8246,7 +8256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1415,
+          "line": 1380,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -8256,7 +8266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1415,
+          "line": 1380,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -8306,7 +8316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1415,
+          "line": 1380,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -10601,22 +10611,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -10946,12 +10956,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -11526,12 +11536,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -11541,12 +11551,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -11947,6 +11957,16 @@
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
           "line": 454,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Auto-preview",
+      "origins": [
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 316,
           "sink": "setText"
         }
       ]
@@ -13807,6 +13827,16 @@
       ]
     },
     {
+      "key": "Build Index",
+      "origins": [
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 305,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Build Log",
       "origins": [
         {
@@ -14028,11 +14058,6 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 131,
           "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/model_library/tasks.py",
-          "line": 148,
-          "sink": "setText"
         }
       ]
     },
@@ -18121,7 +18146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 187,
+          "line": 201,
           "sink": "_set_status"
         }
       ]
@@ -18146,7 +18171,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 294,
+          "line": 347,
           "sink": "getItem"
         }
       ]
@@ -19341,7 +19366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/settings.py",
-          "line": 32,
+          "line": 36,
           "sink": "addItem"
         }
       ]
@@ -19481,7 +19506,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 325,
+          "line": 473,
           "sink": "QPushButton"
         },
         {
@@ -19851,7 +19876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 485,
+          "line": 633,
           "sink": "setToolTip"
         }
       ]
@@ -20926,7 +20951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 344,
+          "line": 492,
           "sink": "QLabel"
         },
         {
@@ -21121,7 +21146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/settings.py",
-          "line": 33,
+          "line": 37,
           "sink": "addItem"
         }
       ]
@@ -21131,7 +21156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/settings.py",
-          "line": 39,
+          "line": 43,
           "sink": "setToolTip"
         }
       ]
@@ -21141,7 +21166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/settings.py",
-          "line": 42,
+          "line": 46,
           "sink": "addRow"
         }
       ]
@@ -23892,6 +23917,16 @@
       ]
     },
     {
+      "key": "Create Item",
+      "origins": [
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 305,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Create Morph Profile",
       "origins": [
         {
@@ -24226,12 +24261,12 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 314,
+          "line": 462,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 386,
+          "line": 534,
           "sink": "setHeaderLabels"
         }
       ]
@@ -24261,22 +24296,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -24693,6 +24728,16 @@
           "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
           "line": 322,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Current only",
+      "origins": [
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 312,
+          "sink": "setText"
         }
       ]
     },
@@ -26116,7 +26161,7 @@
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 45,
+          "line": 52,
           "sink": "setText"
         }
       ]
@@ -26126,7 +26171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 45,
+          "line": 52,
           "sink": "setText"
         }
       ]
@@ -26196,7 +26241,7 @@
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 47,
+          "line": 54,
           "sink": "setText"
         }
       ]
@@ -26206,7 +26251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 47,
+          "line": 54,
           "sink": "setText"
         }
       ]
@@ -26878,6 +26923,11 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 145,
           "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 353,
+          "sink": "setTitle"
         },
         {
           "path": "cdmw/ui/research/tab_builders.py",
@@ -28132,6 +28182,16 @@
       ]
     },
     {
+      "key": "Download",
+      "origins": [
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 305,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Download + New Item Studio",
       "origins": [
         {
@@ -28158,16 +28218,6 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 193,
           "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/model_library/selection.py",
-          "line": 39,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/model_library/tasks.py",
-          "line": 152,
-          "sink": "setText"
         }
       ]
     },
@@ -28178,11 +28228,6 @@
           "path": "cdmw/ui/model_library/commands.py",
           "line": 533,
           "sink": "addAction"
-        },
-        {
-          "path": "cdmw/ui/model_library/selection.py",
-          "line": 39,
-          "sink": "setText"
         }
       ]
     },
@@ -28346,12 +28391,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -29496,7 +29541,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 251,
+          "line": 252,
           "sink": "csharp:newLabel{"
         }
       ]
@@ -33568,6 +33613,11 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 123,
           "sink": "QCheckBox"
+        },
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 291,
+          "sink": "setText"
         }
       ]
     },
@@ -34121,12 +34171,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
@@ -34566,12 +34616,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -35505,6 +35555,11 @@
           "sink": "QLabel"
         },
         {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 305,
+          "sink": "setText"
+        },
+        {
           "path": "tools/format_explorer/tab.py",
           "line": 97,
           "sink": "QLabel"
@@ -36321,7 +36376,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 480,
+          "line": 628,
           "sink": "QCheckBox"
         },
         {
@@ -36956,12 +37011,12 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 316,
+          "line": 464,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 386,
+          "line": 534,
           "sink": "setHeaderLabels"
         },
         {
@@ -37021,12 +37076,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
@@ -37051,12 +37106,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -37413,6 +37468,11 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 164,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 291,
+          "sink": "setText"
         }
       ]
     },
@@ -39256,7 +39316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 322,
+          "line": 470,
           "sink": "addItem"
         }
       ]
@@ -39551,7 +39611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 172,
+          "line": 174,
           "sink": "setText"
         },
         {
@@ -41631,12 +41691,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -41646,12 +41706,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -45831,12 +45891,12 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 315,
+          "line": 463,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 386,
+          "line": 534,
           "sink": "setHeaderLabels"
         },
         {
@@ -45856,22 +45916,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
@@ -46016,12 +46076,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -47076,7 +47136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 265,
+          "line": 267,
           "sink": "_set_status"
         }
       ]
@@ -47086,7 +47146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 270,
+          "line": 272,
           "sink": "_set_status"
         }
       ]
@@ -47361,7 +47421,12 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 386,
+          "line": 305,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 534,
           "sink": "setHeaderLabels"
         },
         {
@@ -47406,7 +47471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 288,
+          "line": 436,
           "sink": "QPushButton"
         }
       ]
@@ -47416,7 +47481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 252,
+          "line": 254,
           "sink": "setText"
         }
       ]
@@ -47466,7 +47531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 492,
+          "line": 640,
           "sink": "QLabel"
         }
       ]
@@ -47476,22 +47541,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -47521,12 +47586,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -47561,7 +47626,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 386,
+          "line": 534,
           "sink": "setHeaderLabels"
         }
       ]
@@ -49076,12 +49141,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -49456,12 +49521,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -49506,12 +49571,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -50611,7 +50676,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 252,
+          "line": 253,
           "sink": "csharp:Text="
         }
       ]
@@ -50621,7 +50686,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 260,
+          "line": 261,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -52655,6 +52720,11 @@
           "sink": "MeshEditorAction"
         },
         {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 305,
+          "sink": "setText"
+        },
+        {
           "path": "tools/dotnet_mesh_editor_experiment/MorphAuthorWizard.cs",
           "line": 345,
           "sink": "csharp:csharp-wrapper:AddField[1]"
@@ -52666,7 +52736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 287,
+          "line": 435,
           "sink": "QPushButton"
         }
       ]
@@ -52676,7 +52746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 258,
+          "line": 260,
           "sink": "setText"
         }
       ]
@@ -52756,7 +52826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 310,
+          "line": 458,
           "sink": "QLabel"
         }
       ]
@@ -53466,7 +53536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 450,
+          "line": 598,
           "sink": "QGroupBox"
         }
       ]
@@ -53671,7 +53741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 281,
+          "line": 334,
           "sink": "_set_status"
         }
       ]
@@ -53861,12 +53931,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -54175,8 +54245,13 @@
           "sink": "setText"
         },
         {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 305,
+          "sink": "setText"
+        },
+        {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 191,
+          "line": 197,
           "sink": "setText"
         }
       ]
@@ -54196,8 +54271,8 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 413,
-          "sink": "QPushButton"
+          "line": 593,
+          "sink": "setText"
         }
       ]
     },
@@ -55026,12 +55101,12 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 313,
+          "line": 461,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 386,
+          "line": 534,
           "sink": "setHeaderLabels"
         },
         {
@@ -59396,7 +59471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 323,
+          "line": 471,
           "sink": "addItem"
         }
       ]
@@ -59672,6 +59747,11 @@
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
           "line": 637,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 305,
           "sink": "setText"
         },
         {
@@ -65326,22 +65406,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
@@ -66631,7 +66711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 317,
+          "line": 465,
           "sink": "addItem"
         }
       ]
@@ -66736,12 +66816,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
@@ -68451,7 +68531,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 151,
+          "line": 155,
           "sink": "setText"
         }
       ]
@@ -72106,7 +72186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 192,
+          "line": 198,
           "sink": "setToolTip"
         }
       ]
@@ -75771,7 +75851,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 289,
+          "line": 437,
           "sink": "QPushButton"
         },
         {
@@ -76467,6 +76547,16 @@
       ]
     },
     {
+      "key": "Reload",
+      "origins": [
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 305,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Reload .NET/Vortice Preview",
       "origins": [
         {
@@ -76976,7 +77066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 201,
+          "line": 208,
           "sink": "setText"
         }
       ]
@@ -77691,7 +77781,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 484,
+          "line": 632,
           "sink": "QPushButton"
         },
         {
@@ -78461,22 +78551,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -78751,7 +78841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/settings.py",
-          "line": 106,
+          "line": 110,
           "sink": "setText"
         }
       ]
@@ -80021,12 +80111,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -81596,7 +81686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 557,
+          "line": 560,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -82271,17 +82361,17 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 556,
+          "line": 559,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 621,
+          "line": 624,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 750,
+          "line": 753,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -82386,13 +82476,8 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 324,
+          "line": 472,
           "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/model_library/view_state.py",
-          "line": 221,
-          "sink": "setText"
         },
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
@@ -82446,7 +82531,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 150,
+          "line": 154,
           "sink": "setText"
         }
       ]
@@ -82626,7 +82711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 222,
+          "line": 224,
           "sink": "setPlaceholderText"
         }
       ]
@@ -82931,7 +83016,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 416,
+          "line": 564,
           "sink": "QPushButton"
         },
         {
@@ -83321,7 +83406,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 417,
+          "line": 565,
           "sink": "QPushButton"
         }
       ]
@@ -83996,7 +84081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 79,
+          "line": 86,
           "sink": "setPlainText"
         }
       ]
@@ -87593,10 +87678,15 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 60,
           "sink": "QPushButton"
-        },
+        }
+      ]
+    },
+    {
+      "key": "Show Models",
+      "origins": [
         {
-          "path": "cdmw/ui/model_library/tasks.py",
-          "line": 149,
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 305,
           "sink": "setText"
         }
       ]
@@ -87986,7 +88076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 415,
+          "line": 595,
           "sink": "setToolTip"
         }
       ]
@@ -88006,7 +88096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/status_strip.py",
-          "line": 65,
+          "line": 76,
           "sink": "setToolTip"
         }
       ]
@@ -88396,7 +88486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 293,
+          "line": 295,
           "sink": "_set_status"
         }
       ]
@@ -88456,7 +88546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/view_state.py",
-          "line": 281,
+          "line": 283,
           "sink": "_set_status"
         }
       ]
@@ -89151,7 +89241,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 386,
+          "line": 534,
           "sink": "setHeaderLabels"
         },
         {
@@ -89246,12 +89336,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -90481,7 +90571,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 386,
+          "line": 534,
           "sink": "setHeaderLabels"
         },
         {
@@ -90688,6 +90778,16 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 500,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Source ZIP",
+      "origins": [
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 291,
+          "sink": "setText"
         }
       ]
     },
@@ -93141,7 +93241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 182,
+          "line": 186,
           "sink": "setText"
         },
         {
@@ -93436,12 +93536,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 554,
+          "line": 557,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 565,
+          "line": 568,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -94546,7 +94646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 481,
+          "line": 629,
           "sink": "setToolTip"
         }
       ]
@@ -95536,12 +95636,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -95911,12 +96011,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -95986,12 +96086,12 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 319,
+          "line": 467,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 386,
+          "line": 534,
           "sink": "setHeaderLabels"
         },
         {
@@ -96081,22 +96181,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
@@ -96161,7 +96261,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 438,
+          "line": 439,
           "sink": "csharp:.Text="
         }
       ]
@@ -98266,7 +98366,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 294,
+          "line": 347,
           "sink": "getItem"
         }
       ]
@@ -100276,7 +100376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 318,
+          "line": 466,
           "sink": "addItem"
         }
       ]
@@ -100286,12 +100386,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -101281,7 +101381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 608,
+          "line": 611,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101291,7 +101391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1415,
+          "line": 1380,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -101306,7 +101406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1415,
+          "line": 1380,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -101316,7 +101416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 540,
+          "line": 543,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101326,7 +101426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 539,
+          "line": 542,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101336,7 +101436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 535,
+          "line": 538,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101346,7 +101446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 538,
+          "line": 541,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101356,7 +101456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 534,
+          "line": 537,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101366,12 +101466,12 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1415,
+          "line": 1380,
           "sink": "python-return:_appearance_change_payload"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1415,
+          "line": 1380,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -101381,7 +101481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 537,
+          "line": 540,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101391,7 +101491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 615,
+          "line": 618,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101401,7 +101501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 553,
+          "line": 556,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101411,7 +101511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 536,
+          "line": 539,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101421,7 +101521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 811,
+          "line": 814,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101431,7 +101531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 549,
+          "line": 552,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101441,12 +101541,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 555,
+          "line": 558,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 619,
+          "line": 622,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101456,7 +101556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 543,
+          "line": 546,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101476,7 +101576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 611,
+          "line": 614,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -101496,22 +101596,22 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 733,
+          "line": 736,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 745,
+          "line": 748,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 785,
+          "line": 788,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 801,
+          "line": 804,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -103221,22 +103321,22 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -103351,12 +103451,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         },
         {
@@ -103541,12 +103641,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 115,
+          "line": 122,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 200,
+          "line": 207,
           "sink": "setPlainText"
         }
       ]
@@ -106101,12 +106201,12 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 381,
+          "line": 529,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 199,
+          "line": 205,
           "sink": "setFormat"
         },
         {
@@ -106201,12 +106301,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 177,
+          "line": 183,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 187,
+          "line": 193,
           "sink": "setText"
         }
       ]
@@ -107681,7 +107781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tab.py",
-          "line": 303,
+          "line": 356,
           "sink": "_set_status"
         }
       ]
@@ -108126,12 +108226,12 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 312,
+          "line": 460,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 321,
+          "line": 469,
           "sink": "addItem"
         },
         {
@@ -111191,7 +111291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 314,
+          "line": 462,
           "sink": "addItem"
         }
       ]
@@ -112356,7 +112456,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 2196,
+          "line": 2161,
           "sink": "python-return:current_language_code"
         }
       ]
@@ -114311,7 +114411,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 316,
+          "line": 464,
           "sink": "addItem"
         }
       ]
@@ -114443,6 +114543,11 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 163,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/model_library/panels.py",
+          "line": 291,
+          "sink": "setText"
         }
       ]
     },
@@ -114731,7 +114836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 322,
+          "line": 470,
           "sink": "addItem"
         }
       ]
@@ -116271,7 +116376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 315,
+          "line": 463,
           "sink": "addItem"
         }
       ]
@@ -117716,7 +117821,7 @@
         },
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 323,
+          "line": 471,
           "sink": "addItem"
         },
         {
@@ -117986,7 +118091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 313,
+          "line": 461,
           "sink": "addItem"
         }
       ]
@@ -119821,7 +119926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 317,
+          "line": 465,
           "sink": "addItem"
         }
       ]
@@ -120531,7 +120636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host_protocol.py",
-          "line": 310,
+          "line": 313,
           "sink": "emit"
         },
         {
@@ -199676,7 +199781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/panels.py",
-          "line": 318,
+          "line": 466,
           "sink": "addItem"
         }
       ]
@@ -202096,7 +202201,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 196,
+          "line": 202,
           "sink": "setFormat"
         },
         {
@@ -204366,7 +204471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 50,
+          "line": 51,
           "sink": "setAccessibleName"
         }
       ]
@@ -205491,7 +205596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 73,
+          "line": 80,
           "sink": "setText"
         }
       ]
@@ -205501,7 +205606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 71,
+          "line": 78,
           "sink": "setText"
         }
       ]
@@ -206036,7 +206141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/selection.py",
-          "line": 66,
+          "line": 73,
           "sink": "setText"
         }
       ]

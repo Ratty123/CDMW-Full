@@ -499,6 +499,7 @@ internal sealed partial class ExperimentForm
         _inspectorWidth = null;
         _appliedToolDockWidth = -1;
         _appliedInspectorWidth = -1;
+        _appliedToolRailHostWidth = -1;
     }
 
     protected override void OnDpiChanged(DpiChangedEventArgs e)

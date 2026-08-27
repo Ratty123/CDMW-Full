@@ -13,9 +13,15 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
     QSplitter,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -25,6 +31,7 @@ from cdmw.ui.shell.compact.presentations import (
     COMPACT_PRESENTATION_SPECS,
     apply_compact_presentation,
 )
+from cdmw.ui.widgets import FlatSectionPanel
 
 
 EXPECTED_TOOL_KEYS = (
@@ -119,13 +126,87 @@ class CompactShellPresentationTests(unittest.TestCase):
 
         self.assertIs(first_filter, widget._cdmw_compact_presentation_filter)
         margins = layout.contentsMargins()
-        self.assertEqual((8, 8, 8, 8), (margins.left(), margins.top(), margins.right(), margins.bottom()))
-        self.assertEqual(6, layout.spacing())
+        self.assertEqual((6, 6, 6, 6), (margins.left(), margins.top(), margins.right(), margins.bottom()))
+        self.assertEqual(4, layout.spacing())
         self.assertEqual(1, splitter.handleWidth())
         self.assertTrue(bool(widget.property("compactPresentation")))
         self.assertEqual("text_search", widget.property("compactToolKey"))
         self.assertEqual(3, len(splitter.sizes()))
         self.assertGreater(splitter.sizes()[2], splitter.sizes()[0])
+        widget.close()
+
+    def test_archive_compact_strip_replaces_empty_controls_column_with_menus(self) -> None:
+        widget = QWidget()
+        root = QVBoxLayout(widget)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        controls_scroll = QScrollArea()
+        controls = FlatSectionPanel("Controls")
+        controls_scroll.setWidget(controls)
+        files = FlatSectionPanel("Files")
+        preview = FlatSectionPanel("Preview")
+        splitter.addWidget(controls_scroll)
+        splitter.addWidget(files)
+        splitter.addWidget(preview)
+        root.addWidget(splitter)
+
+        search_group = QGroupBox()
+        search_layout = QHBoxLayout(search_group)
+        scan = QPushButton("Scan")
+        refresh = QPushButton("Refresh")
+        finder = QPushButton("Item Finder")
+        search_edit = QLineEdit()
+        search_button = QPushButton("Search")
+        extension = QComboBox()
+        extension.addItem("All files")
+        extension_picker = QToolButton()
+        extension_picker.setText("Select")
+        for control in (scan, refresh, finder, search_edit, search_button, extension, extension_picker):
+            search_layout.addWidget(control)
+        controls.body_layout.addWidget(search_group)
+
+        actions_group = QGroupBox("Actions")
+        actions_layout = QVBoxLayout(actions_group)
+        extract_selected = QPushButton("Extract Selected")
+        extract_filtered = QPushButton("Extract Filtered")
+        resolve = QPushButton("Resolve In Research")
+        for button in (extract_selected, extract_filtered, resolve):
+            actions_layout.addWidget(button)
+        controls.body_layout.addWidget(actions_group)
+        filters_group = QGroupBox("Filters")
+        filters_group.setLayout(QVBoxLayout())
+        filters_group.layout().addWidget(QLineEdit())
+        controls.body_layout.addWidget(filters_group)
+
+        window = self._window("compact_rail")
+        window.archive_controls_group = controls
+        window.archive_controls_scroll = controls_scroll
+        window.archive_scan_button = scan
+        window.archive_refresh_scan_button = refresh
+        window.archive_asset_catalog_button = finder
+        window.archive_filter_edit = search_edit
+        window.archive_path_search_button = search_button
+        window.archive_extension_filter_combo = extension
+        window.archive_extension_picker_button = extension_picker
+        window.archive_extract_selected_button = extract_selected
+        window.archive_extract_filtered_button = extract_filtered
+        window.archive_resolve_in_research_button = resolve
+        clicked: list[str] = []
+        extract_selected.clicked.connect(lambda: clicked.append("selected"))
+
+        self.assertTrue(apply_compact_presentation(window, "archive_browser", widget))
+        _app().processEvents()
+
+        self.assertTrue(controls_scroll.isHidden())
+        self.assertEqual(0, controls_scroll.maximumWidth())
+        self.assertTrue(files.header_widget.isHidden())
+        self.assertTrue(preview.header_widget.isHidden())
+        actions_button = widget._cdmw_compact_archive_actions_button
+        self.assertEqual(3, len(actions_button.menu().actions()))
+        actions_button.menu().actions()[0].trigger()
+        self.assertEqual(["selected"], clicked)
+        filters_button = widget._cdmw_compact_archive_more_filters_button
+        self.assertIsNotNone(filters_button.menu())
+        self.assertEqual("", filters_group.title())
         widget.close()
 
     def test_compact_label_changes_do_not_change_internal_tool_key(self) -> None:
@@ -144,6 +225,20 @@ class CompactShellPresentationTests(unittest.TestCase):
         self.assertEqual("Use in Create New Item", label.text())
         self.assertEqual("Open Create New Item with this model.", label.toolTip())
         self.assertEqual("model_library", widget.property("compactToolKey"))
+
+        placement = QWidget()
+        placement_layout = QVBoxLayout(placement)
+        turn_button = QPushButton("Turn it the right way up")
+        placement_layout.addWidget(turn_button)
+        self.assertTrue(
+            apply_compact_presentation(
+                self._window("compact_rail"), "placement_studio", placement
+            )
+        )
+        self.assertEqual("Rotate", turn_button.text())
+        self.assertEqual("Turn it the right way up", turn_button.toolTip())
+        self.assertEqual("Turn it the right way up", turn_button.accessibleName())
+        self.assertEqual("placement_studio", placement.property("compactToolKey"))
 
     def test_new_item_uses_compact_theme_accent_without_changing_classic(self) -> None:
         from cdmw.ui.new_item.workflow_header import WorkflowHeader

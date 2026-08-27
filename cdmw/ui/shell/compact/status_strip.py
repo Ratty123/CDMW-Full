@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QWidget,
+)
 
 from cdmw.ui.shell.compact.activity import CompactStatusSnapshot
 from cdmw.ui.shell.compact.icons import compact_line_icon
@@ -22,32 +30,33 @@ class CompactBottomStatusStrip(QFrame):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("CompactBottomStatusStrip")
-        self.setFixedHeight(56)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setFixedHeight(42)
         self._active_tool_key = ""
         self._snapshots: dict[str, CompactStatusSnapshot] = {}
         self._messages: dict[str, tuple[str, str]] = {}
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 0, 14, 0)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 0, 10, 0)
+        layout.setSpacing(8)
         self.ready_label = ready_label
         self.progress_bar = progress_bar
         self.cache_label = cache_label
-        ready_label.setFixedWidth(84)
+        ready_label.setFixedWidth(72)
         ready_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         progress_bar.setFixedSize(76, 10)
         # Qt style-sheet heights describe the content box; the themed 1 px border
         # brings this to the intended 10 px outer height.
         progress_bar.setStyleSheet(
             "min-height: 8px; max-height: 8px; "
-            "border: 1px solid palette(mid); border-radius: 4px;"
+            "border: 1px solid palette(mid); border-radius: 0;"
         )
         progress_bar.setTextVisible(False)
-        cache_label.setFixedWidth(118)
+        cache_label.setObjectName("CompactCacheStatusLabel")
+        cache_label.setFixedWidth(110)
         cache_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         layout.addWidget(ready_label)
         layout.addWidget(progress_bar)
-        layout.addWidget(self._separator())
         layout.addWidget(cache_label)
         layout.addStretch(1)
 
@@ -57,22 +66,16 @@ class CompactBottomStatusStrip(QFrame):
         self.snapshot_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.snapshot_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.snapshot_label, stretch=1)
-        layout.addWidget(self._separator())
         self.activity_button = QPushButton("Activity")
         self.activity_button.setObjectName("CompactActivityToggle")
         self.activity_button.setCheckable(True)
+        self.activity_button.setFlat(True)
+        self.activity_button.setFixedHeight(28)
+        self.activity_button.setStyleSheet("border-radius: 0; padding: 2px 7px;")
         self.activity_button.setIcon(compact_line_icon("activity", self.palette()))
         self.activity_button.setToolTip("Show or hide session Activity and the current tool's log.")
         self.activity_button.toggled.connect(self.drawer_requested.emit)
         layout.addWidget(self.activity_button)
-
-    @staticmethod
-    def _separator() -> QFrame:
-        separator = QFrame()
-        separator.setFrameShape(QFrame.VLine)
-        separator.setFrameShadow(QFrame.Plain)
-        separator.setObjectName("CompactStatusSeparator")
-        return separator
 
     def set_active_tool(self, tool_key: str) -> None:
         self._active_tool_key = str(tool_key or "")

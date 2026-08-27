@@ -31,6 +31,12 @@ download-state filtering, column filtering, and sorting produce one immutable
 prepared-row result in that same tracked task lane. The UI only rejects stale
 request IDs and adds already-prepared rows in batches.
 
+Compact Workspace rearranges these same widgets without creating a second
+Model Library implementation. Its controls lane is bounded to 256-300 px and
+does not horizontally scroll at the supported compact sizes; results keep the
+remaining width, while details sit beside the resident preview. Classic
+Workspace retains the original arrangement.
+
 Confirmed local deletion also uses the tracked task lane. The worker revalidates
 the approved root and downloaded-folder ownership marker, plans recursively
 with cooperative cancellation before mutation, then removes the confirmed

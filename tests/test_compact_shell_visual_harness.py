@@ -13,7 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("CDMW_GUI_STARTUP_SMOKE", "1")
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QSplitter, QWidget
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QPushButton, QSplitter, QWidget
 
 from tools.compact_shell_visual_harness import (
     REFERENCE_FILENAMES,
@@ -27,6 +27,7 @@ from tools.compact_shell_visual_harness import (
     build_argument_parser,
     build_capture_plan,
     capture_sizes,
+    clipped_button_error,
     geometry_payload,
     parse_size,
 )
@@ -131,7 +132,53 @@ class CompactShellVisualHarnessTests(unittest.TestCase):
         self.assertEqual(1, payload["splitters"][0]["handle_width"])
         self.assertEqual("fixture_splitter", payload["splitters"][0]["id"])
         self.assertEqual(2, len(payload["splitters"][0]["sizes"]))
+        self.assertEqual([], payload["resident_hosts"])
         window.close()
+
+    def test_geometry_payload_reports_only_visible_clipped_button_text(self) -> None:
+        app = _app()
+        window = QWidget()
+        layout = QHBoxLayout(window)
+        clipped = QPushButton("A deliberately long action", window)
+        clipped.setObjectName("ClippedAction")
+        clipped.setFixedWidth(48)
+        fitting = QPushButton("Fits", window)
+        fitting.setFixedWidth(120)
+        hidden = QPushButton("Hidden long action", window)
+        hidden.setFixedWidth(20)
+        hidden.hide()
+        layout.addWidget(clipped)
+        layout.addWidget(fitting)
+        layout.addWidget(hidden)
+        window.resize(220, 80)
+        window.show()
+        app.processEvents()
+
+        payload = geometry_payload(window, "archive_browser", window)
+
+        self.assertEqual(2, payload["visible_button_count"])
+        self.assertEqual(1, payload["clipped_button_count"])
+        self.assertEqual("ClippedAction", payload["clipped_buttons"][0]["id"])
+        self.assertGreater(payload["clipped_buttons"][0]["shortfall"], 0)
+        window.close()
+
+    def test_clipped_button_error_is_bounded_and_empty_on_success(self) -> None:
+        self.assertEqual("", clipped_button_error(({"clipped_buttons": []},)))
+        captures = (
+            {
+                "key": "archive_browser",
+                "requested_size": "1120x720",
+                "clipped_buttons": [
+                    {"text": f"Action {index}", "actual_width": 40, "needed_width": 80}
+                    for index in range(14)
+                ],
+            },
+        )
+
+        message = clipped_button_error(captures)
+
+        self.assertIn("archive_browser@1120x720:Action 0 (40/80 px)", message)
+        self.assertIn("plus 2 more", message)
 
     def test_bundled_helper_resolution_requires_expected_executable_and_source(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

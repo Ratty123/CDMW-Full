@@ -21,7 +21,7 @@ class DotNetPreviewHostProtocolMixin:
             self._embedded_child_hwnd = hwnd
             self._sync_embedded_child_geometry()
 
-    def _sync_embedded_child_geometry(self) -> None:
+    def _sync_embedded_child_geometry(self, *, force_frame_refresh: bool = False) -> None:
         """Size the helper's window with this one, in the same frame.
 
         The helper owns a Win32 child of this widget's window and used to learn
@@ -61,8 +61,11 @@ class DotNetPreviewHostProtocolMixin:
             if width <= 0 or height <= 0:
                 return
             # SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER
+            flags = 0x0004 | 0x0010 | 0x0200
+            if force_frame_refresh:
+                flags |= 0x0020  # SWP_FRAMECHANGED: settle a child resized while hidden.
             user32.SetWindowPos(
-                wintypes.HWND(hwnd), None, 0, 0, width, height, 0x0004 | 0x0010 | 0x0200
+                wintypes.HWND(hwnd), None, 0, 0, width, height, flags
             )
         except (OSError, AttributeError, ValueError):
             # Never let a geometry sync take the preview down; the helper's own

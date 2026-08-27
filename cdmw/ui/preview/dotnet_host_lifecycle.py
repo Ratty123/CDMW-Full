@@ -36,6 +36,7 @@ class DotNetPreviewHostLifecycleMixin:
     def showEvent(self, event: object) -> None:  # type: ignore[override]
         super().showEvent(event)  # type: ignore[arg-type]
         self.controller.set_visible(True)
+        self._sync_embedded_child_geometry(force_frame_refresh=True)
 
     def hideEvent(self, event: object) -> None:  # type: ignore[override]
         self.controller.set_visible(False)

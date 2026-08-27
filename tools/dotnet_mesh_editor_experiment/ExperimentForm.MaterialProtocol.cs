@@ -228,6 +228,11 @@ internal sealed partial class ExperimentForm
         // so this can be the first show. It has to go through the reveal, or the
         // window comes back invisible on the next handle recreation.
         EnsureEmbeddedWindowRevealed();
+        if (IsToolRailActive)
+        {
+            _appliedToolRailHostWidth = -1;
+            ApplyToolRailSplitterLayout();
+        }
         Show();
         Focus();
         _viewport.Focus();
