@@ -195,7 +195,7 @@ def test_widths_do_not_change_when_another_test_registers_cjk_fonts():
             _unregister_cjk_fonts()
 
 
-def test_the_editing_bar_fits_without_clipping_anything():
+def test_the_editing_bar_fits_without_clipping_anything(tmp_path):
     """Every control in the bottom bar must get the width its own text needs.
 
     Qt answers a row it cannot fit by clipping, and this bar has clipped twice: first from a
@@ -213,15 +213,13 @@ def test_the_editing_bar_fits_without_clipping_anything():
     from tools.placement_studio.window import PlacementStudioWindow
 
     _app = QApplication.instance() or QApplication([])
-    try:
-        baseline = Baseline.load()
-    except Exception as error:  # noqa: BLE001 - needs a pinned baseline to build at all
-        import pytest
-
-        pytest.skip(f"no baseline available: {error}")
+    baseline = Baseline(tmp_path / "empty-placement-baseline", {})
 
     window = PlacementStudioWindow(baseline)
     try:
+        window.resize(1600, 900)
+        window.show()
+        QApplication.processEvents()
         panel = window._edit_target.parent()
         while panel is not None and not isinstance(panel, QFrame):
             panel = panel.parent()
@@ -231,6 +229,21 @@ def test_the_editing_bar_fits_without_clipping_anything():
         assert panel.sizeHint().width() <= 1500, (
             f"the editing bar asks for {panel.sizeHint().width()}px and will clip"
         )
+
+        for button in (
+            window._new_socket_button,
+            window._use_orientation_button,
+            window._turn_over_button,
+            window._revert_button,
+            window._undo_button,
+            window._redo_button,
+            window._export_button,
+            window._package_button,
+        ):
+            assert button.width() >= button.minimumSizeHint().width(), (
+                f"{button.text()!r} is squeezed to {button.width()}px below its "
+                f"{button.minimumSizeHint().width()}px readable width"
+            )
 
         # Each angle box has to hold its own prefix plus the widest value it accepts.
         for box in window._euler:

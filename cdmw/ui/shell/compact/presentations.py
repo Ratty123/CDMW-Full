@@ -96,7 +96,7 @@ _COMPACT_BUTTON_LABELS: Mapping[str, Mapping[str, str]] = MappingProxyType(
                 "Revert point": "Reset",
                 "New point…": "Add",
                 "Aim with this": "Use",
-                "Turn it the right way up": "Rotate",
+                "Rotate": "Rotate",
                 "Packages…": "Packages",
             }
         ),

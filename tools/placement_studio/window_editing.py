@@ -225,7 +225,8 @@ class EditPanelMixin:
         # corpus, so it is usually right — but the check that decided *whether* to apply it is
         # a geometry heuristic, and it was wrong often enough to ship an inverted sword. It
         # reports now, and this applies the turn when the user agrees.
-        self._turn_over_button = QPushButton("Turn it the right way up")
+        self._turn_over_button = QPushButton("Rotate")
+        self._turn_over_button.setAccessibleName("Turn it the right way up")
         self._turn_over_button.setToolTip(
             "Add a half turn about Y to the selected child socket.\n\n"
             "Offered rather than applied: the check that spots an inverted item measures the "
