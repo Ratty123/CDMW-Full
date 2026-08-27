@@ -767,6 +767,20 @@ def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
         assert f'"{page}"' in smoke
 
 
+def test_resident_editor_accepts_the_host_application_theme() -> None:
+    program = _source("Program.cs")
+    protocol = _source("ExperimentForm.Protocol.cs")
+    theme = _source("ExperimentForm.UiTheme.cs")
+    provenance = _source("HelperBuildProvenance.cs")
+
+    assert "static readonly Color ThemeWindowBackground" not in program
+    assert 'case "ui_theme_state": HandleUiThemeState(root); break;' in protocol
+    assert '"ui_theme_state_v1"' in provenance
+    assert "TryApplyUiThemeState" in theme
+    assert "ApplyThemeToControlTree(this, previous, palette);" in theme
+    assert 'ThemeUsesDarkControls() ? "DarkMode_Explorer" : "Explorer"' in theme
+
+
 def test_embedded_authoring_tool_panels_build_hidden_before_reveal() -> None:
     """The expensive panel tree must be complete before the user can see it.
 

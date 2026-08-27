@@ -107,9 +107,12 @@ class WorkspaceStateMixin:
 
     def set_theme(self, theme_key: str) -> None:
         self._theme_key = str(theme_key or self._theme_key)
-        preview = getattr(self, "preview", None)
-        if preview is not None and hasattr(preview, "set_theme"):
-            preview.set_theme(self._theme_key)
+        for preview in (
+            getattr(self, "preview", None),
+            getattr(self, "native_host_frame", None),
+        ):
+            if preview is not None and hasattr(preview, "set_theme"):
+                preview.set_theme(self._theme_key)
         for button in self.findChildren(QToolButton):
             icon_key = str(button.property("meshEditorIconKey") or "")
             if icon_key:

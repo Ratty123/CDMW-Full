@@ -42,6 +42,8 @@ internal static class EditMeshEntrySmoke
             var allEditMeshTools = form.AllEditMeshToolsDiagnosticProof();
             stage = "scene_inspector_entry_layout";
             var sceneInspector = form.SceneInspectorEntryLayoutProof();
+            stage = "ui_theme_state";
+            var uiThemeState = form.UiThemeStateProof();
             // The helper the workbench launches is embedded, and an embedded
             // helper defers building its authoring panels until the first
             // mesh-edit entry. The rail then adopts sections that were never
@@ -65,12 +67,14 @@ internal static class EditMeshEntrySmoke
                 ["ok"] = solidTextured.GetValueOrDefault("ok") is true
                     && allEditMeshTools.GetValueOrDefault("ok") is true
                     && sceneInspector.GetValueOrDefault("ok") is true
+                    && uiThemeState.GetValueOrDefault("ok") is true
                     && embeddedSceneInspector.GetValueOrDefault("ok") is true
                     && missingTextureReadiness.GetValueOrDefault("ok") is true
                     && gpuBindingRollback.GetValueOrDefault("ok") is true,
                 ["solid_textured_view"] = solidTextured,
                 ["all_edit_mesh_tools"] = allEditMeshTools,
                 ["scene_inspector_entry_layout"] = sceneInspector,
+                ["ui_theme_state"] = uiThemeState,
                 ["scene_inspector_entry_layout_embedded"] = embeddedSceneInspector,
                 ["missing_texture_readiness"] = missingTextureReadiness,
                 ["gpu_binding_rollback"] = gpuBindingRollback,

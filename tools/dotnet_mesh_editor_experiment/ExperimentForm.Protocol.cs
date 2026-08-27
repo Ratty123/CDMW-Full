@@ -518,9 +518,8 @@ internal sealed partial class ExperimentForm
                 case "renderer_status_request":
                     HandleRendererStatusRequest(root);
                     break;
-                case "ui_localization_state":
-                    HandleUiLocalizationState(root);
-                    break;
+                case "ui_localization_state": HandleUiLocalizationState(root); break;
+                case "ui_theme_state": HandleUiThemeState(root); break;
                 case "package_load_request":
                     HandleResidentPackageLoadRequest(root);
                     break;
