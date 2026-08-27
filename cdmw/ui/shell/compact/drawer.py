@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QTextDocument
+from PySide6.QtGui import QFont, QTextDocument
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -30,6 +30,7 @@ class CompactActivityDrawer(QFrame):
         self._history = history
         self._tool_adapter = ToolLogAdapter("", "")
         self._connected_document: QTextDocument | None = None
+        self._log_font: QFont | None = None
         self._empty_document = QTextDocument(self)
         self._empty_document.setDocumentLayout(QPlainTextDocumentLayout(self._empty_document))
         self._refresh_timer = QTimer(self)
@@ -111,10 +112,21 @@ class CompactActivityDrawer(QFrame):
         self._tool_adapter = adapter
         document = adapter.document or self._empty_document
         self.tool_log_view.setDocument(document)
+        if self._log_font is not None:
+            self.tool_log_view.setFont(self._log_font)
+            self.tool_log_view.setProperty("_cdmw_global_font_managed", False)
+            document.setDefaultFont(self._log_font)
         if adapter.document is not None:
             self._connected_document = adapter.document
             adapter.document.contentsChanged.connect(self._update_tool_log_empty_state)
         self._update_tool_log_empty_state()
+
+    def apply_log_font(self, font: QFont) -> None:
+        self._log_font = QFont(font)
+        for view in (self.activity_view, self.tool_log_view):
+            view.setFont(self._log_font)
+            view.setProperty("_cdmw_global_font_managed", False)
+            view.document().setDefaultFont(self._log_font)
 
     def _update_tool_log_empty_state(self) -> None:
         adapter = self._tool_adapter

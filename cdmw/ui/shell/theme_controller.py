@@ -318,6 +318,11 @@ def apply_window_data_fonts(window: "MainWindow") -> None:
     _mark_custom_font(window.archive_preview_info_edit)
     window.archive_preview_details_edit.apply_font_preferences(log_font, preserve_size=False)
     _mark_custom_font(window.archive_preview_details_edit)
+    compact_workspace = getattr(window, "compact_workspace", None)
+    compact_drawer = getattr(compact_workspace, "drawer", None)
+    apply_compact_log_font = getattr(compact_drawer, "apply_log_font", None)
+    if callable(apply_compact_log_font):
+        apply_compact_log_font(log_font)
     text_search_tab = created_tool_widget(getattr(window, "text_search_tab", None))
     if text_search_tab is not None:
         text_search_tab.log_view.setFont(log_font)
@@ -736,6 +741,17 @@ class ThemeControllerMixin:
             self._queue_appearance_apply_step(
                 f"Updating {label}",
                 lambda widget=widget, log_font=log_font: self._apply_single_text_widget_font(widget, log_font),
+            )
+        compact_workspace = getattr(self, "compact_workspace", None)
+        compact_drawer = getattr(compact_workspace, "drawer", None)
+        apply_compact_log_font = getattr(compact_drawer, "apply_log_font", None)
+        if callable(apply_compact_log_font):
+            compact_log_label = "compact activity log font"
+            self._queue_appearance_apply_step(
+                f"Updating {compact_log_label}",
+                lambda apply_compact_log_font=apply_compact_log_font, log_font=log_font: apply_compact_log_font(
+                    log_font
+                ),
             )
         bold_enabled = _read_bool_setting(self.settings, "appearance/log_font_bold", DEFAULT_UI_LOG_FONT_BOLD)
         highlighters = [

@@ -243,8 +243,8 @@ COMPACT_PRESENTATION_SPECS: Mapping[str, CompactPresentationSpec] = MappingProxy
                 "Status: Ready packages",
             ),
         ),
-        # Source-authoritative Format Explorer keeps its proven table-over-detail
-        # orientation; the mockup's hierarchy is preserved without reparenting.
+        # Source-authoritative Format Explorer keeps its table-and-detail split;
+        # the mockup's hierarchy is preserved without shell-side reparenting.
         "format_explorer": CompactPresentationSpec("12-inspect-file-formats.png"),
         "translation_studio": CompactPresentationSpec("13-edit-translations.png"),
         "research": CompactPresentationSpec(
