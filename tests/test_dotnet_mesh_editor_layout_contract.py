@@ -91,7 +91,7 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert 'normalizedCommand is "subdivide" or "refine_smooth" or "separate"' in command_guard
     assert 'or "refine_smooth" or "separate" or "copy"' in command_guard
     assert _section_stack(program, "Action History") == "rightStack"
-    assert _section_stack(program, "Viewport") == "rightStack"
+    assert _section_stack(program, "Viewport") == "leftStack"
     # Parts builds through its own owner, which carries the selected-part
     # detail; it is still constructed into the right placement stack.
     assert "_partsSection = BuildPartsSection(rightStack, " in program
@@ -380,7 +380,7 @@ def test_tool_rail_is_the_only_layout_and_reuses_the_live_editor_controls() -> N
     homes = layout.split("private void CapturePlacementSectionHomes()", 1)[1]
     homes = homes.split("private void ReturnPlacementSectionsToFlanks()", 1)[0]
     assert "_leftToolStack.GetCellPosition(_partPickSection)" in homes
-    assert "_rightToolStack.GetCellPosition(_viewportSection)" in homes
+    assert "_leftToolStack.GetCellPosition(_viewportSection)" in homes
 
 
 def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
@@ -408,10 +408,11 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
     for page, const, caption in (
         ("Topology", "Topology", "Topology"),
         ("MorphRefit", "Morph", "Morph & Refit"),
+        ("Viewport", "Viewport", "Viewport"),
     ):
         assert f"new(ToolListRowKind.CommandPage, Keys.{const}, ToolRailPage.{page})" in rows
         assert f'"{caption}"' in tool_list
-    assert rows.count("new(ToolListRowKind.CommandPage") == 2
+    assert rows.count("new(ToolListRowKind.CommandPage") == 3
     assert "Keys.Colour" not in rows
     assert "ToolRailPage.Colour" not in contracts
     assert rows.count("new(ToolListRowKind.Tool") == 6
@@ -424,11 +425,13 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
     assert "public static readonly string[] RailToolOrder" in contracts
     assert "public static readonly ToolRailPage[] RailCommandPageOrder" in contracts
 
-    # Parts, Action History and Viewport are not modal, so hiding them behind
-    # a list row would trade a full-height column for a click.
-    for absent in ("ToolRailPage.Parts", "ToolRailPage.History", "ToolRailPage.Viewport"):
+    # Parts and Action History remain nonmodal scene data. Viewport settings
+    # move into one reveal-only row in the left list to free the right column.
+    for absent in ("ToolRailPage.Parts", "ToolRailPage.History"):
         assert absent not in layout
         assert absent not in rows
+    assert "ToolRailPage.Viewport" in layout
+    assert "ToolRailPage.Viewport" in rows
 
     activate = layout.split("private void ActivateToolRailLayout()", 1)[1]
     activate = activate.split("private void RestorePlacementLayoutForNonMeshMode", 1)[0]
@@ -439,13 +442,14 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
         ("Brush", "_brushSection"),
         ("Topology", "_topologySection"),
         ("MorphRefit", "_morphRefitSection"),
+        ("Viewport", "_viewportSection"),
     ):
         assert f"AddRailSection(_toolRailPages[ToolRailPage.{page}], {section});" in activate
-        # The scene column keeps its order and is always on screen.
-        assert "AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);" in activate
-        assert "AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);" in activate
-        assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);" in activate
-        assert "AddRailSection(_sceneInspectorColumn, _viewportSection, row: 3);" in activate
+    # The scene column keeps its data-heavy groups ordered and always on screen.
+    assert "AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);" in activate
+    assert "AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);" in activate
+    assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);" in activate
+    assert "AddRailSection(_sceneInspectorColumn, _viewportSection" not in activate
 
     # Both flanks are in use: the mesh is tall and narrow, so width is the
     # cheap axis and the viewport keeps the full window height.
@@ -530,7 +534,7 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     assert "EditMeshLayoutContracts.ToolRailPageForTool(_viewport.ActiveTool)" in layout
 
     # Clearing the rail because the tool is orbit must only close a modal page.
-    # Topology, Colour and Morph & Refit arm nothing, so the viewport sits on
+    # Topology, Morph & Refit and Viewport arm nothing, so the viewport sits on
     # orbit the whole time one is open -- closing on the tool alone shut them
     # the moment the host published a disabled mesh-edit tool state, which it
     # does on every selection change.
@@ -729,6 +733,9 @@ def test_edit_mesh_captions_and_inputs_survive_theming_and_resize() -> None:
 def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
     entry = _source("ProgramEntry.cs")
     smoke = _source("EditMeshLayoutSmoke.cs")
+    gate = (DOTNET_ROOT.parents[1] / "scripts" / "codex_check.ps1").read_text(
+        encoding="utf-8-sig"
+    )
 
     assert "EditMeshLayoutSmoke.IsRequested(args)" in entry
     assert "return EditMeshLayoutSmoke.Run(args);" in entry
@@ -740,7 +747,8 @@ def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
     assert "same_viewport_instance" in smoke
     assert "same_viewport_handle" in smoke
     assert "stable_viewport_parent" in smoke
-    assert "MoveControl(viewport" not in smoke
+    assert "MoveControl(viewport," not in smoke
+    assert 'MoveControl(viewportSection, pages["Viewport"]' in smoke
     assert "zero_size_splitter_construction" in smoke
     # The round trip is mesh-edit entry and the return to the placement
     # flanks: the Classic layout is gone.
@@ -751,9 +759,11 @@ def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
     assert "EditMeshLayoutContracts.RailCommandPageOrder" in smoke
     assert "rail_tool_count" in smoke
     assert "rail_command_page_count" in smoke
+    assert "$LayoutPayload.pages_visited.Count -ne 6" in gate
+    assert "$LayoutPayload.rail_command_page_count -ne 3" in gate
     assert "RailPageIsModal" in smoke
     assert "RequireCompleteRail" in smoke
-    for page in ("Selection", "Transform", "Brush", "Topology", "Morph & Refit"):
+    for page in ("Selection", "Transform", "Brush", "Topology", "Morph & Refit", "Viewport"):
         assert f'"{page}"' in smoke
 
 

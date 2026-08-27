@@ -202,8 +202,9 @@ internal sealed partial class ExperimentForm
         _leftToolModeHost.Controls.Add(toolDock);
         _leftToolSplit.Panel1.Controls.Add(_leftToolModeHost);
 
-        // The Parts list, Action History and Viewport groups: selecting a part
-        // repainted this column one child window at a time.
+        // The Parts, Layers and Action History groups: selecting a part
+        // repainted this column one child window at a time. Viewport settings
+        // now live in the left tool list.
         _rightToolModeHost = new MeshEditorCompositedPanel
         {
             Name = "DotNetMeshEditorRightToolModeHost",
@@ -315,8 +316,8 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
-    /// Right flank: the groups every tool reads and changes. None of them are
-    /// modal, so they are all visible at once instead of hiding behind tabs.
+    /// Right flank: the scene groups every tool reads and changes. None are
+    /// modal, so Parts, Layers and Action History stay visible at once.
     /// </summary>
     private Control BuildSceneInspector()
     {
@@ -332,7 +333,7 @@ internal sealed partial class ExperimentForm
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.Font = new Font(Font.FontFamily, 8.5f);
-        // No "SCENE" header: Parts, Action History and Viewport name themselves,
+        // No "SCENE" header: Parts, Layers and Action History name themselves,
         // so the band above them only cost height.
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -360,7 +361,7 @@ internal sealed partial class ExperimentForm
             BackColor = ThemePanelBackground,
         };
         _sceneInspectorColumn.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (var row = 0; row < 4; row++)
+        for (var row = 0; row < 3; row++)
         {
             _sceneInspectorColumn.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
@@ -490,12 +491,12 @@ internal sealed partial class ExperimentForm
             AddRailSection(_toolRailPages[ToolRailPage.Brush], _brushSection);
             AddRailSection(_toolRailPages[ToolRailPage.Topology], _topologySection);
             AddRailSection(_toolRailPages[ToolRailPage.MorphRefit], _morphRefitSection);
+            AddRailSection(_toolRailPages[ToolRailPage.Viewport], _viewportSection);
 
-            // Right: the scene groups every tool reads and changes, all visible.
+            // Right: the data-heavy scene groups stay visible together.
             AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);
             AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);
             AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);
-            AddRailSection(_sceneInspectorColumn, _viewportSection, row: 3);
 
             _compactSessionBar.Visible = true;
             _editMeshLayoutHost.RowStyles[0].Height = ScaleToolPanelWidth(46);
@@ -619,11 +620,11 @@ internal sealed partial class ExperimentForm
             _partPickPlacementCell = _leftToolStack.GetCellPosition(_partPickSection);
         }
         if (_viewportSectionPlacementCell is null
-            && _rightToolStack is not null
+            && _leftToolStack is not null
             && _viewportSection is not null
-            && ReferenceEquals(_viewportSection.Parent, _rightToolStack))
+            && ReferenceEquals(_viewportSection.Parent, _leftToolStack))
         {
-            _viewportSectionPlacementCell = _rightToolStack.GetCellPosition(_viewportSection);
+            _viewportSectionPlacementCell = _leftToolStack.GetCellPosition(_viewportSection);
         }
     }
 
@@ -641,14 +642,14 @@ internal sealed partial class ExperimentForm
                 partPickCell.Row,
                 DockStyle.Top);
         }
-        if (_rightToolStack is not null
+        if (_leftToolStack is not null
             && _viewportSection is not null
             && _viewportSectionPlacementCell is { } viewportCell)
         {
             NormalizeSectionStyle(_viewportSection);
             EditMeshLayoutContracts.MoveControl(
                 _viewportSection,
-                _rightToolStack,
+                _leftToolStack,
                 viewportCell.Column,
                 viewportCell.Row,
                 DockStyle.Top);
@@ -852,8 +853,8 @@ internal sealed partial class ExperimentForm
     /// Dropping back to orbit owns no page, so a modal tool page clears.
     /// </summary>
     /// <remarks>
-    /// Topology, Colour and Morph &amp; Refit are command pages: they never arm
-    /// a tool, so the viewport sits on orbit the whole time one is open. Closing
+    /// Topology, Morph &amp; Refit and Viewport are reveal-only pages: they never
+    /// arm a tool, so the viewport sits on orbit the whole time one is open. Closing
     /// a page on "the tool is now orbit" alone would therefore shut them the
     /// moment anything re-asserted orbit — and the host does exactly that every
     /// time it publishes a disabled mesh-edit tool state.

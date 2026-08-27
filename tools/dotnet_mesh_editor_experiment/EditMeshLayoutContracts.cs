@@ -3,8 +3,9 @@ namespace Cdmw.MeshEditorExperiment;
 /// <summary>
 /// The tool-property pages, one per tool family or command group. The rail
 /// itself lists individual tools, several of which share a page — the
-/// scene groups (Parts, Action History, Viewport) are not modal and live
-/// permanently in the right inspector.
+/// scene groups (Parts, Layers, Action History) are not modal and live
+/// permanently in the right inspector. Viewport settings use a reveal-only
+/// page in the left tool list.
 /// </summary>
 internal enum ToolRailPage
 {
@@ -13,6 +14,7 @@ internal enum ToolRailPage
     Brush,
     Topology,
     MorphRefit,
+    Viewport,
 }
 
 internal static class EditMeshLayoutContracts
@@ -33,21 +35,22 @@ internal static class EditMeshLayoutContracts
     };
 
     /// <summary>
-    /// The command pages that keep a rail entry of their own, in rail order.
-    /// Their entries only reveal the page: Topology and Morph &amp; Refit
-    /// hold one-shot commands and settings, not modal tools, so revealing one
-    /// leaves the active tool alone.
+    /// The reveal-only pages that keep a rail entry of their own, in rail
+    /// order. Topology and Morph &amp; Refit hold one-shot commands and settings,
+    /// while Viewport holds presentation settings; none are modal tools, so
+    /// revealing one leaves the active tool alone.
     /// </summary>
     public static readonly ToolRailPage[] RailCommandPageOrder =
     {
         ToolRailPage.Topology,
         ToolRailPage.MorphRefit,
+        ToolRailPage.Viewport,
     };
 
     /// <summary>
     /// True for a page that owns modal tools. Only a modal page follows the
     /// active tool — and only a modal page may be closed because the tool
-    /// dropped back to orbit. Command pages sit on orbit the whole time they
+    /// dropped back to orbit. Reveal-only pages sit on orbit the whole time they
     /// are open, so the tool says nothing about whether to close them.
     /// </summary>
     public static bool RailPageIsModal(ToolRailPage page) =>

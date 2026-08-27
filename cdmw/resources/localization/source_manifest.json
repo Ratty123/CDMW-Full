@@ -15531,7 +15531,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 227,
+          "line": 233,
           "sink": "csharp:Text="
         }
       ]
@@ -19194,6 +19194,11 @@
     {
       "key": "Choose the preview mode, topology appearance, viewport background, or a camera preset. Mouse and keyboard bindings update with the active tool.",
       "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
+          "line": 170,
+          "sink": "csharp:csharp-return:ToolListRowDescription"
+        },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
           "line": 214,
@@ -26046,7 +26051,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 167,
+          "line": 171,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -29556,7 +29561,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 252,
+          "line": 253,
           "sink": "csharp:newLabel{"
         }
       ]
@@ -38271,7 +38276,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 148,
+          "line": 149,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -42776,7 +42781,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 150,
+          "line": 151,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -50691,7 +50696,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 253,
+          "line": 254,
           "sink": "csharp:Text="
         }
       ]
@@ -50701,7 +50706,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 261,
+          "line": 262,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -52351,7 +52356,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 162,
+          "line": 164,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -54296,7 +54301,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 153,
+          "line": 155,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -54426,7 +54431,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 147,
+          "line": 148,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         },
         {
@@ -67481,7 +67486,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 151,
+          "line": 152,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -83006,7 +83011,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 146,
+          "line": 147,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -89791,7 +89796,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 149,
+          "line": 150,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         },
         {
@@ -89811,7 +89816,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 165,
+          "line": 167,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -93116,7 +93121,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 166,
+          "line": 168,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -96286,7 +96291,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 439,
+          "line": 440,
           "sink": "csharp:.Text="
         }
       ]
@@ -99491,7 +99496,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 152,
+          "line": 153,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         },
         {
@@ -99761,7 +99766,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 163,
+          "line": 165,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -103609,6 +103614,11 @@
     {
       "key": "Viewport",
       "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
+          "line": 154,
+          "sink": "csharp:csharp-return:ToolListRowCaption"
+        },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
           "line": 213,
@@ -203011,7 +203021,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 188,
+          "line": 194,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -204476,7 +204486,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 178,
+          "line": 182,
           "sink": "csharp:AccessibleName="
         }
       ]

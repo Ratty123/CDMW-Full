@@ -305,8 +305,7 @@ internal sealed partial class ExperimentForm
         // Enter the way the host does. Calling ActivateToolRailLayout directly
         // skips ApplyInteractionModeControls, which is what reveals the
         // mesh-edit-only sections -- and a TableLayoutPanel lays out no hidden
-        // child, so the shortcut would prove nothing about three of the four
-        // rows.
+        // child, so the shortcut would prove nothing about the three rows.
         _scene.SetInteractionMode("mesh_edit");
         ApplyInteractionModeControls();
 

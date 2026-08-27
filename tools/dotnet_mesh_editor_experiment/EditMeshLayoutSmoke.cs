@@ -12,6 +12,7 @@ internal static partial class EditMeshLayoutSmoke
         "Brush",
         "Topology",
         "Morph & Refit",
+        "Viewport",
     };
 
     public static bool IsRequested(string[] args) => args.Any(arg =>
@@ -119,23 +120,23 @@ internal static partial class EditMeshLayoutSmoke
         };
         var inspectorSections = new[]
         {
-            NewSection("Parts"),
-            NewSection("Action History"),
-            NewSection("Viewport"),
+            NewSection("Parts"), NewSection("Layers"), NewSection("Action History"),
         };
+        var viewportSection = NewSection("Viewport");
         var morphSection = NewSection("Morph & Refit");
         foreach (var section in editSections)
         {
             AddRow(placementLeft, section);
         }
-        AddRow(placementRight, inspectorSections[1]);
+        AddRow(placementLeft, viewportSection);
+        AddRow(placementRight, inspectorSections[2]);
         AddRow(placementRight, morphSection);
         AddRow(placementRight, inspectorSections[0]);
-        AddRow(placementRight, inspectorSections[2]);
+        AddRow(placementRight, inspectorSections[1]);
         permanentViewportHost.Controls.Add(viewport);
 
         var partPickHomeCell = placementLeft.GetCellPosition(editSections[0]);
-        var viewportSectionHomeCell = placementRight.GetCellPosition(inspectorSections[2]);
+        var viewportSectionHomeCell = placementLeft.GetCellPosition(viewportSection);
 
         var compactSession = new FlowLayoutPanel { Name = "CompactSession" };
         var compactInspector = CreateStack("CompactInspector");
@@ -167,8 +168,7 @@ internal static partial class EditMeshLayoutSmoke
             .Cast<Control>()
             .Concat(editSections)
             .Concat(inspectorSections)
-            .Append(morphSection)
-            .Append(viewport)
+            .Append(viewportSection).Append(morphSection).Append(viewport)
             .ToArray();
         var originalIdentities = originalControls
             .ToDictionary(control => control.Name, control => control, StringComparer.Ordinal);
@@ -187,6 +187,7 @@ internal static partial class EditMeshLayoutSmoke
         EditMeshLayoutContracts.MoveControl(editSections[2], pages["Transform"], DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(editSections[3], pages["Brush"], DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(editSections[4], pages["Topology"], DockStyle.Top);
+        EditMeshLayoutContracts.MoveControl(viewportSection, pages["Viewport"], DockStyle.Top);
         foreach (var section in inspectorSections)
         {
             AddRow(compactInspector, section);
@@ -224,8 +225,8 @@ internal static partial class EditMeshLayoutSmoke
             partPickHomeCell.Row,
             DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(
-            inspectorSections[2],
-            placementRight,
+            viewportSection,
+            placementLeft,
             viewportSectionHomeCell.Column,
             viewportSectionHomeCell.Row,
             DockStyle.Top);
@@ -251,8 +252,8 @@ internal static partial class EditMeshLayoutSmoke
                 && placementLeft.GetCellPosition(editSections[0]) == partPickHomeCell,
             "Part Pick did not return to its placement cell.");
         Require(
-            ReferenceEquals(inspectorSections[2].Parent, placementRight)
-                && placementRight.GetCellPosition(inspectorSections[2]) == viewportSectionHomeCell,
+            ReferenceEquals(viewportSection.Parent, placementLeft)
+                && placementLeft.GetCellPosition(viewportSection) == viewportSectionHomeCell,
             "The Viewport section did not return to its placement cell.");
         Require(
             sessionCommands.All(command => ReferenceEquals(command.Parent, compactSession)),
@@ -318,11 +319,8 @@ internal static partial class EditMeshLayoutSmoke
                 && !EditMeshLayoutContracts.RailPageOwnsTool(ToolRailPage.Brush, "select"),
             "A rail page claimed a tool that belongs to another page.");
 
-        // Command pages arm no tool, so the viewport sits on orbit the whole
-        // time one is open. Whether the rail may close a page because the tool
-        // is orbit is decided by whether the page is modal at all -- closing on
-        // the tool alone shut Topology, Colour and Morph & Refit every time the
-        // host published a disabled mesh-edit state.
+        // Reveal-only pages arm no tool, so orbit must not close them when the host
+        // republishes a disabled mesh-edit state. Viewport follows the same rule.
         var commandPages = Enum.GetValues<ToolRailPage>()
             .Where(page => !EditMeshLayoutContracts.RailPageIsModal(page))
             .ToArray();
@@ -330,15 +328,16 @@ internal static partial class EditMeshLayoutSmoke
             .Where(EditMeshLayoutContracts.RailPageIsModal)
             .ToArray();
         Require(
-            commandPages.Length == 2 && modalPages.Length == 3,
+            commandPages.Length == 3 && modalPages.Length == 3,
             "The split between modal tool pages and command pages changed.");
         Require(
             EditMeshLayoutContracts.RailCommandPageOrder.SequenceEqual(
-                new[] { ToolRailPage.Topology, ToolRailPage.MorphRefit }),
+                new[] { ToolRailPage.Topology, ToolRailPage.MorphRefit, ToolRailPage.Viewport }),
             "The rail's command-page entries changed.");
         Require(
             commandPages.Contains(ToolRailPage.Topology)
-                && commandPages.Contains(ToolRailPage.MorphRefit),
+                && commandPages.Contains(ToolRailPage.MorphRefit)
+                && commandPages.Contains(ToolRailPage.Viewport),
             "A command page became modal, so orbit would now close it.");
         Require(
             EditMeshLayoutContracts.RailToolOrder
@@ -530,7 +529,7 @@ internal static partial class EditMeshLayoutSmoke
         EditMeshToolListContract.RequireCompleteList(
             EditMeshToolListContract.RowOrder.Select(row => row.Key).ToArray());
         Require(
-            EditMeshToolListContract.RowOrder.Length == 8,
+            EditMeshToolListContract.RowOrder.Length == 9,
             "The Edit Mesh tool list's row count changed.");
         Require(
             EditMeshToolListContract.RowForTool("orbit") is null

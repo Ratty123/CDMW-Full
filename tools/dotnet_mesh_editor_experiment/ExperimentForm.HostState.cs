@@ -125,7 +125,7 @@ internal sealed partial class ExperimentForm
         // Re-asserting the tool the viewport already has is not a no-op: it runs
         // SyncToolRailPageToActiveTool, which closes whichever rail page is open.
         // The host republishes this state on every control refresh, so without
-        // the guard a Topology, Colour or Morph page cannot stay open at all.
+        // the guard a Topology, Morph & Refit or Viewport page cannot stay open.
         if (!string.Equals(tool, _viewport.ActiveTool, StringComparison.OrdinalIgnoreCase))
         {
             ActivateTool(tool, tool[..1].ToUpperInvariant() + tool[1..]);
