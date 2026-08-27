@@ -131,6 +131,7 @@ class _Placement(QWidget):
         self.lifetime = float(kwargs.get("lifetime", 1.0))
         self.decoder_reason = ""
         self.content_calls = []
+        self.character_fit_control = kwargs.get("character_fit_control")
 
     def _set_numbers(self, offset, scale, rotation=None):
         self.offset = tuple(offset)
@@ -383,6 +384,17 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertEqual(requested, ["2_phw", ""], "Auto keeps the template-owned callback")
 
         self.assertTrue(workspace.character_fit_choice.toolTip())
+        self.assertIs(workspace.placement.character_fit_control, workspace.character_fit_row)
+        self.assertEqual(
+            workspace.placement_layout.indexOf(workspace.character_fit_row),
+            -1,
+            "Character shares an existing inspector row instead of reserving a full-width band",
+        )
+        self.assertEqual(
+            workspace.placement.geometry().top(),
+            0,
+            "the placement preview starts at the top of its column",
+        )
         controller.draft.template_key = None
         controller.template_changed.emit(None)
         self.assertFalse(

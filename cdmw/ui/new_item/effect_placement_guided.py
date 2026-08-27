@@ -265,7 +265,13 @@ class EffectPlacementGuidedMixin:
         self.backdrop_choice.blockSignals(False)
         backdrop_row.addWidget(self.backdrop_choice, 1)
         layout.addLayout(backdrop_row)
-        layout.addWidget(self.show_character)
+        self.show_character.setText("Character")
+        character_row = QHBoxLayout()
+        character_row.addWidget(self.show_character)
+        character_row.addStretch(1)
+        if self._character_fit_control is not None:
+            character_row.addWidget(self._character_fit_control)
+        layout.addLayout(character_row)
 
     def _add_guided_look_controls(self, layout: QVBoxLayout) -> None:
         self.colour_as_shipped = QCheckBox("Colour as shipped")

@@ -118,6 +118,7 @@ class EffectPlacementWorkspace(
         # builds the game's own character, on the worker thread: reading a rig and a body
         # out of the archives is a second the dialog should not spend frozen
         character_builder: Optional[Callable[..., object]] = None,
+        character_fit_control: Optional[QWidget] = None,
         model_source_usage: Optional[Callable[[], object]] = None,
         color: Optional[Vec3] = None,
         intensity: float = 1.0,
@@ -150,6 +151,7 @@ class EffectPlacementWorkspace(
         self._effect_preview = effect_preview
         self._texture_reader = texture_reader
         self._character_builder = character_builder
+        self._character_fit_control = character_fit_control
         self._model_source_usage = model_source_usage
         #: `(name, point)` for the item's own FX sockets, once the character has been read
         self._effect_sockets: tuple = ()

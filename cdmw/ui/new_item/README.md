@@ -104,9 +104,10 @@ The character reference defaults to the template's player rig. Effects and Model
 reuse Placement & Animations' bare-character choice: the playable rig's nude anatomy plus its
 separate face, never the generic distance proxy that previously made Damian look like another
 body and left Kliff on the bar mannequin. The Effects workspace's
-**Character** control can preview **Auto**, Kliff or Damian without changing the template,
-item output or equip compatibility. `EquipTypeInfo`, rather than the model folder's spelling,
-decides the frame. Hand-carried families reuse the selected
+**Character** control shares the compact character-visibility row in **Placement & Look**,
+so it does not reserve a separate band above the viewport. It can preview **Auto**, Kliff or
+Damian without changing the template, item output or equip compatibility. `EquipTypeInfo`,
+rather than the model folder's spelling, decides the frame. Hand-carried families reuse the selected
 prefab's primary part and Placement & Animations' held body/child socket route; body-,
 creature- and vehicle-mounted equipment stays in its upright authored bind frame. A folder
 and the established right-hand/basic pair are only fallbacks when template metadata is
