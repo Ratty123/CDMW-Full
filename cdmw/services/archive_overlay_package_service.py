@@ -11,6 +11,7 @@ from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.core.atomic_file import atomic_write_bytes
 from cdmw.core.papgt_format import papgt_with_directory
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
+from cdmw.domain.archives.safety import safe_archive_output_path
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.archive_overlay_install import (
     OVERLAY_DIRECTORY_FIRST,
@@ -28,6 +29,23 @@ class ArchiveOverlayPackageResult:
     paths: Tuple[str, ...]
     metadata_files: Tuple[str, ...]
     mount_list_written: bool
+
+
+def _safe_overlay_package_output_path(
+    root: Path,
+    relative: str,
+    *,
+    single_component: bool = False,
+) -> Path:
+    try:
+        return safe_archive_output_path(
+            root,
+            relative,
+            error_message="",
+            single_component=single_component,
+        )
+    except ValueError as exc:
+        raise ValueError(f"Overlay package metadata path escapes the package: {relative}") from exc
 
 
 def export_archive_overlay_package(
@@ -82,9 +100,19 @@ def export_archive_overlay_package(
         if game_root is not None and Path(game_root).is_dir()
         else f"{OVERLAY_DIRECTORY_FIRST:04d}"
     )
+    directory = _safe_overlay_package_output_path(
+        root,
+        name,
+        single_component=True,
+    )
+    prepared_metadata: list[tuple[Path, str, bytes]] = []
+    for relative, payload in metadata_files:
+        raise_if_cancelled(stop_event, "Overlay package export cancelled before metadata publication.")
+        target = _safe_overlay_package_output_path(root, str(relative))
+        prepared_metadata.append((target, target.relative_to(root).as_posix(), bytes(payload)))
+
     built = build_overlay_archive(sorted(files.values(), key=lambda item: item.path), on_log=on_log)
     raise_if_cancelled(stop_event, "Overlay package export cancelled before publishing.")
-    directory = root / name
     directory.mkdir(parents=True, exist_ok=True)
     atomic_write_bytes(directory / "0.paz", built.paz_bytes)
     atomic_write_bytes(directory / "0.pamt", built.pamt_bytes)
@@ -99,15 +127,11 @@ def export_archive_overlay_package(
             mount_written = True
 
     written: list[str] = []
-    for relative, payload in metadata_files:
+    for target, normalized, payload in prepared_metadata:
         raise_if_cancelled(stop_event, "Overlay package export cancelled before metadata publication.")
-        normalized = Path(str(relative).replace("\\", "/"))
-        if normalized.is_absolute() or ".." in normalized.parts:
-            raise ValueError(f"Overlay package metadata path escapes the package: {relative}")
-        target = root / normalized
         target.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_bytes(target, bytes(payload))
-        written.append(normalized.as_posix())
+        atomic_write_bytes(target, payload)
+        written.append(normalized)
 
     if on_log is not None:
         on_log(

@@ -6816,7 +6816,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 78,
+          "line": 96,
           "sink": "ValueError"
         }
       ]
@@ -64376,7 +64376,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 103,
+          "line": 110,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_package_service.py",
+          "line": 131,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -64386,7 +64391,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 86,
+          "line": 115,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -64396,7 +64401,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 64,
+          "line": 82,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -64406,7 +64411,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 49,
+          "line": 67,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -64416,7 +64421,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 106,
+          "line": 48,
           "sink": "ValueError"
         }
       ]
@@ -107606,7 +107611,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_package_service.py",
-          "line": 113,
+          "line": 137,
           "sink": "on_log"
         }
       ]

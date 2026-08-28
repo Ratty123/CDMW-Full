@@ -10,7 +10,7 @@ import tempfile
 import threading
 import time
 from collections import defaultdict
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 try:
@@ -34,6 +34,7 @@ from cdmw.core.dds_resource_limits import (
     checked_dds_surface_byte_count,
     validate_dds_dimensions,
 )
+from cdmw.domain.archives.safety import safe_archive_output_path
 from cdmw.models import ArchiveEntry, RunCancelled
 
 
@@ -257,12 +258,15 @@ def reconstruct_partial_dds(entry: ArchiveEntry, data: bytes) -> bytes:
 
 
 def sanitize_archive_entry_output_path(entry: ArchiveEntry, output_root: Path) -> Path:
-    pure_path = PurePosixPath(entry.path.replace("\\", "/"))
-    safe_parts = [part for part in pure_path.parts if part not in {"", ".", ".."}]
-    if not safe_parts:
-        raise ValueError(f"Archive entry has an invalid path: {entry.path}")
+    error_message = f"Archive entry has an invalid path: {entry.path}"
     package_root = entry.pamt_path.parent.name.strip() or "package"
-    return output_root.joinpath(package_root, *safe_parts)
+    package_output = safe_archive_output_path(
+        output_root,
+        package_root,
+        error_message=error_message,
+        single_component=True,
+    )
+    return safe_archive_output_path(package_output, entry.path, error_message=error_message)
 
 
 def find_available_output_path(target_path: Path, reserved_paths: Optional[set[str]] = None) -> Path:
