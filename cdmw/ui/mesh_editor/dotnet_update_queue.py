@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from cdmw.ui.mesh_editor.resident_mutation import ResidentMutationBatch
+from cdmw.domain.mesh.resident_mutation import ResidentMutationBatch
 
 
 MESH_EDIT_REVISION_CAPABILITY = "mesh_edit_revision_ack_v1"

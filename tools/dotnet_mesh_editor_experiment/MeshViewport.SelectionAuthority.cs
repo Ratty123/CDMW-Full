@@ -2,13 +2,31 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class MeshViewport
 {
-    private sealed record SelectionAuthoritySnapshot(
+    internal sealed record SelectionAuthoritySnapshot(
         Dictionary<int, HashSet<int>> Vertices,
         Dictionary<int, HashSet<int>> Faces,
         HashSet<int> Edges,
         HashSet<int> Sources,
         long RequestId,
         long Revision);
+
+    internal sealed record ResidentMutationSelectionSnapshot(
+        Dictionary<int, HashSet<int>> Vertices,
+        Dictionary<int, HashSet<int>> Faces,
+        HashSet<int> Edges,
+        HashSet<int> Sources,
+        Dictionary<int, HashSet<int>> ProvisionalVertices,
+        Dictionary<int, HashSet<int>> ProvisionalFaces,
+        HashSet<int> ProvisionalEdges,
+        HashSet<int> ProvisionalSources,
+        bool ProvisionalPartSelectionActive,
+        int EdgeTopologyGeneration,
+        SelectionAuthoritySnapshot Acknowledged,
+        long ProvisionalRequestId,
+        long ProvisionalBaseRevision,
+        string ProvisionalStrokeId,
+        long ProvisionalStrokeSequence,
+        SelectionAuthoritySnapshot? StrokeBase);
 
     private SelectionAuthoritySnapshot _acknowledgedSelection = new(
         new Dictionary<int, HashSet<int>>(),
@@ -229,4 +247,67 @@ internal sealed partial class MeshViewport
     private static Dictionary<int, HashSet<int>> CloneSelectionMap(
         IReadOnlyDictionary<int, HashSet<int>> source) =>
         source.ToDictionary(pair => pair.Key, pair => new HashSet<int>(pair.Value));
+
+    private static SelectionAuthoritySnapshot CloneSelectionSnapshot(
+        SelectionAuthoritySnapshot source) =>
+        new(
+            CloneSelectionMap(source.Vertices),
+            CloneSelectionMap(source.Faces),
+            new HashSet<int>(source.Edges),
+            new HashSet<int>(source.Sources),
+            source.RequestId,
+            source.Revision);
+
+    internal ResidentMutationSelectionSnapshot CaptureResidentMutationSelection() =>
+        new(
+            CloneSelectionMap(_selectedVertices),
+            CloneSelectionMap(_selectedFaces),
+            new HashSet<int>(_selectedEdges),
+            new HashSet<int>(_selectedSources),
+            CloneSelectionMap(_provisionalSelectedVertices),
+            CloneSelectionMap(_provisionalSelectedFaces),
+            new HashSet<int>(_provisionalSelectedEdges),
+            new HashSet<int>(_provisionalSelectedSources),
+            _provisionalPartSelectionActive,
+            _edgeTopology.Generation,
+            CloneSelectionSnapshot(_acknowledgedSelection),
+            _provisionalSelectionRequestId,
+            _provisionalSelectionBaseRevision,
+            _provisionalSelectionStrokeId,
+            _provisionalSelectionStrokeSequence,
+            _selectionStrokeBase is null ? null : CloneSelectionSnapshot(_selectionStrokeBase));
+
+    internal void RestoreResidentMutationSelection(ResidentMutationSelectionSnapshot snapshot)
+    {
+        if (_edgeTopology.Edges.Count == 0)
+        {
+            _edgeTopology = NetEdgeTopology.Build(
+                _document,
+                Math.Max(1, snapshot.EdgeTopologyGeneration));
+        }
+        ReplaceSelectionMap(_selectedVertices, snapshot.Vertices);
+        ReplaceSelectionMap(_selectedFaces, snapshot.Faces);
+        _selectedEdges.Clear();
+        _selectedEdges.UnionWith(snapshot.Edges.Where(_edgeTopology.Contains));
+        _selectedSources.Clear();
+        _selectedSources.UnionWith(snapshot.Sources);
+        ReplaceSelectionMap(_provisionalSelectedVertices, snapshot.ProvisionalVertices);
+        ReplaceSelectionMap(_provisionalSelectedFaces, snapshot.ProvisionalFaces);
+        _provisionalSelectedEdges.Clear();
+        _provisionalSelectedEdges.UnionWith(snapshot.ProvisionalEdges.Where(_edgeTopology.Contains));
+        _provisionalSelectedSources.Clear();
+        _provisionalSelectedSources.UnionWith(snapshot.ProvisionalSources);
+        _provisionalPartSelectionActive = snapshot.ProvisionalPartSelectionActive;
+        _acknowledgedSelection = CloneSelectionSnapshot(snapshot.Acknowledged);
+        _provisionalSelectionRequestId = snapshot.ProvisionalRequestId;
+        _provisionalSelectionBaseRevision = snapshot.ProvisionalBaseRevision;
+        _provisionalSelectionStrokeId = snapshot.ProvisionalStrokeId;
+        _provisionalSelectionStrokeSequence = snapshot.ProvisionalStrokeSequence;
+        _selectionStrokeBase = snapshot.StrokeBase is null
+            ? null
+            : CloneSelectionSnapshot(snapshot.StrokeBase);
+        SyncSelectedPartFocus();
+        UpdateGpuViewport();
+        Invalidate();
+    }
 }

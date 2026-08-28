@@ -15356,12 +15356,12 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ProgramEntry.cs",
-          "line": 166,
+          "line": 170,
           "sink": "csharp:MessageBox.Show("
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ProgramEntry.cs",
-          "line": 224,
+          "line": 228,
           "sink": "csharp:MessageBox.Show("
         }
       ]
@@ -34086,7 +34086,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 74,
+          "line": 76,
           "sink": "csharp:csharp-return:RendererMetricsText"
         },
         {
@@ -34101,7 +34101,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 80,
+          "line": 82,
           "sink": "csharp:csharp-return:RendererMetricsText"
         }
       ]
@@ -34141,7 +34141,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 82,
+          "line": 84,
           "sink": "csharp:csharp-return:RendererMetricsText"
         }
       ]
@@ -40976,7 +40976,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 596,
+          "line": 613,
           "sink": "csharp:.Text="
         }
       ]
@@ -46476,7 +46476,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 585,
+          "line": 602,
           "sink": "csharp:.Text="
         }
       ]
@@ -77101,7 +77101,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 76,
+          "line": 78,
           "sink": "csharp:csharp-return:RendererMetricsText"
         }
       ]
@@ -82511,7 +82511,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 1160,
+          "line": 1184,
           "sink": "csharp:.Text="
         }
       ]
@@ -86516,7 +86516,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 592,
+          "line": 609,
           "sink": "csharp:.Text="
         }
       ]
@@ -99736,7 +99736,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 909,
+          "line": 933,
           "sink": "csharp:.Text="
         }
       ]
@@ -103686,7 +103686,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 782,
+          "line": 806,
           "sink": "csharp:.Text="
         }
       ]

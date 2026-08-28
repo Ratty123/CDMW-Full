@@ -689,6 +689,10 @@ internal sealed partial class NetSceneState
         return clone;
     }
 
+    internal NetSceneState CloneForResidentMutation() => Clone();
+
+    internal void ReplaceFromResidentMutation(NetSceneState other) => CopyFrom(other);
+
     private void CopyFrom(NetSceneState other)
     {
         EditableSubmeshCount = other.EditableSubmeshCount;

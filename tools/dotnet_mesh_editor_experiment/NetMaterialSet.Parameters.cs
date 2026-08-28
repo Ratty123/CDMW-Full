@@ -104,6 +104,34 @@ internal sealed partial class NetMaterialSet
             throw new InvalidDataException("Material parameter update requires a non-empty groups array.");
         }
 
+        var (groups, affected) = ParseParameterGroups(groupArray);
+        return new NetMaterialParameterUpdate(
+            JsonText(root, "session_id"), editRevision, parameterGeneration, groups, affected);
+    }
+
+    internal static NetMaterialParameterUpdate ParseResidentMutationParameterUpdate(
+        JsonElement groupArray,
+        string sessionId,
+        long editRevision,
+        long parameterGeneration)
+    {
+        if (groupArray.ValueKind != JsonValueKind.Array || groupArray.GetArrayLength() == 0)
+        {
+            throw new InvalidDataException("Resident mutation material_updates must be a non-empty array.");
+        }
+        var (groups, affected) = ParseParameterGroups(groupArray);
+        return new NetMaterialParameterUpdate(
+            sessionId,
+            editRevision,
+            parameterGeneration,
+            groups,
+            affected);
+    }
+
+    private static (
+        IReadOnlyList<NetMaterialParameterGroup> Groups,
+        IReadOnlyList<int> Affected) ParseParameterGroups(JsonElement groupArray)
+    {
         var groups = new List<NetMaterialParameterGroup>();
         var affected = new HashSet<int>();
         foreach (var item in groupArray.EnumerateArray())
@@ -134,8 +162,7 @@ internal sealed partial class NetMaterialSet
         {
             throw new InvalidDataException("An all-submesh material parameter group must be the only group.");
         }
-        return new NetMaterialParameterUpdate(
-            JsonText(root, "session_id"), editRevision, parameterGeneration, groups, affected.Order().ToArray());
+        return (groups, affected.Order().ToArray());
     }
 
     private static long RequiredParameterLong(JsonElement root, string name)

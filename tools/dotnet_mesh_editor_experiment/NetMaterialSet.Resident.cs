@@ -25,6 +25,13 @@ internal sealed partial class NetMaterialSet
             Generation);
     }
 
+    internal NetMaterialSet CloneForResidentMutation()
+    {
+        var clone = new NetMaterialSet(Slots, Submeshes, ManifestDirectory, Signature);
+        clone.ReplaceState(CaptureState());
+        return clone;
+    }
+
     public NetMaterialStateUpdate NormalizeStateUpdate(NetMaterialStateUpdate update)
     {
         return update with

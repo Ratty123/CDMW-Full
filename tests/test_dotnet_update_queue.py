@@ -8,7 +8,7 @@ from cdmw.ui.mesh_editor.dotnet_update_queue import (
     MESH_MUTATION_ENVELOPE_CAPABILITY,
     DotNetRevisionUpdateQueue,
 )
-from cdmw.ui.mesh_editor.resident_mutation import ResidentMutationBatch
+from cdmw.domain.mesh.resident_mutation import ResidentMutationBatch
 
 
 def _packet(event: str, owned_path: Path | None = None) -> dict[str, object]:

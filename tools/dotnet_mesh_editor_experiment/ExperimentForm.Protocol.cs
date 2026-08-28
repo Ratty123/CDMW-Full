@@ -40,6 +40,8 @@ internal sealed partial class ExperimentForm
         bool VertexUpdatePrepared = false,
         PreviewTriangleUpdatePlan? PreparedTriangleUpdate = null,
         bool TriangleUpdatePrepared = false,
+        PreparedResidentMutationBatch? PreparedMutationBatch = null,
+        bool MutationBatchPrepared = false,
         long ArrivalSequence = 0L);
 
     private static Dictionary<string, object?> MetricsPayload(RenderMetrics metrics)
@@ -222,13 +224,23 @@ internal sealed partial class ExperimentForm
                                     JsonLongValue(root, "request_id"));
                             }
                         }
+                        PreparedResidentMutationBatch? preparedMutationBatch = null;
+                        var mutationBatchPrepared = false;
+                        if (eventName == "resident_mutation_batch")
+                        {
+                            mutationBatchPrepared = TryPrepareResidentMutationBatchPayload(
+                                root,
+                                out preparedMutationBatch);
+                        }
                         QueueParsedProtocolMessage(new ParsedProtocolMessage(
                             root,
                             eventName,
                             preparedVertexUpdate,
                             vertexUpdatePrepared,
                             preparedTriangleUpdate,
-                            triangleUpdatePrepared));
+                            triangleUpdatePrepared,
+                            preparedMutationBatch,
+                            mutationBatchPrepared));
                     }
                     catch (JsonException ex)
                     {
@@ -404,6 +416,11 @@ internal sealed partial class ExperimentForm
     {
         var root = message.Root;
         var sessionId = JsonString(root, "session_id").Trim();
+        if (JsonLongValue(root, "request_id") > 0
+            && message.EventName is "preview_vertex_update" or "preview_triangle_update")
+        {
+            return null;
+        }
         return message.EventName switch
         {
             "preview_vertex_update" or "preview_triangle_update" => $"{message.EventName}|{sessionId}",
@@ -611,6 +628,12 @@ internal sealed partial class ExperimentForm
                 case "resident_state_resync":
                     ApplyResidentStateResync(root);
                     break;
+                case "resident_mutation_batch":
+                    ApplyResidentMutationBatch(
+                        root,
+                        message.PreparedMutationBatch,
+                        message.MutationBatchPrepared);
+                    break;
                 case "material_state_update":
                     HandleMaterialStateUpdate(root);
                     break;
@@ -669,6 +692,7 @@ internal sealed partial class ExperimentForm
         "performance_input" or
         "preview_vertex_update" or
         "preview_triangle_update" or
+        "resident_mutation_batch" or
         "material_state_update" or
         "material_parameter_update" or
         "morph_state_update" or
