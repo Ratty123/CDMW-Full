@@ -63,7 +63,7 @@
     "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 1063,
     "cdmw/ui/archive_browser/static_replacement_dialog_material_authority_callbacks.py": 1073,
     "cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py": 1563,
-    "cdmw/ui/localization.py": 2673,
+    "cdmw/ui/localization.py": 2677,
     "cdmw/ui/mesh_editor/native_preview_payloads.py": 1380,
     "cdmw/ui/model_preview_settings_dialog.py": 1266,
     "cdmw/ui/preview/dotnet_session.py": 1998,
