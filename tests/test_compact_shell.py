@@ -707,6 +707,7 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
             (
                 window.current_theme_key != compact_theme
                 or mesh_editor.theme_key != compact_theme
+                or settings.value("appearance/theme") != compact_theme
             )
             and time.monotonic() < deadline
         ):

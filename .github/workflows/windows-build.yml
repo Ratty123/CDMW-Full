@@ -120,10 +120,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # A push to main runs the interpreter the package is built with, and
-        # everything else runs both: pull requests, tags, the nightly schedule,
-        # and a manual dispatch. The second leg is a compatibility check rather
-        # than a different suite, so it does not have to gate every commit.
+        # An ordinary push to main runs the fast smoke contract on the
+        # interpreter the package is built with. Pull requests, tags, the
+        # nightly schedule, and manual dispatch retain the complete one-process
+        # suite on both supported interpreters.
         python-version: >-
           ${{ (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
               && fromJSON('["3.14"]')
@@ -190,26 +190,29 @@ jobs:
         shell: pwsh
         run: dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release --nologo --verbosity:minimal
 
+      # Focused area gates run before a change is committed. The remote push
+      # gate owns assembled shell, manifest, localization and Qt-lifetime smoke;
+      # repeating every one of roughly 9,800 tests here delayed all feedback by
+      # about an hour without preventing the already-pushed commit.
+      - name: Run fast main-push validation
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTEST_ADDOPTS: '-m "not visual and not real_game and not timing"'
+        run: |
+          $baseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-smoke-${{ matrix.python-version }}"
+          .\scripts\codex_check.ps1 -Area smoke -PytestBaseTemp $baseTemp
+
       - name: Run canonical nonvisual QA
+        if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
           PYTEST_ADDOPTS: '-m "not visual and not real_game and not timing"'
         run: |
           $baseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-${{ matrix.python-version }}"
-          $nativeAccessViolation = -1073741819 # 0xC0000005 from Qt/PySide teardown on shared Windows runners
-          for ($attempt = 1; $attempt -le 3; $attempt++) {
-            $attemptBaseTemp = "$baseTemp-attempt-$attempt"
-            .\scripts\codex_check.ps1 -Area full -PytestBaseTemp $attemptBaseTemp
-            $exitCode = $LASTEXITCODE
-            if ($exitCode -eq 0) {
-              exit 0
-            }
-            if ($exitCode -ne $nativeAccessViolation -or $attempt -eq 3) {
-              exit $exitCode
-            }
-            Write-Warning "Canonical QA attempt $attempt ended with transient Windows access violation 0xC0000005; retrying the same full one-process suite."
-          }
+          .\scripts\codex_check.ps1 -Area full -PytestBaseTemp $baseTemp
 
   package:
     name: Package after QA
