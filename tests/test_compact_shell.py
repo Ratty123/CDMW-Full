@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -737,6 +737,7 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
     finally:
         window._finalize_close()
         window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.setPalette(original_palette)
         app.setStyleSheet(original_stylesheet)
         app.setFont(original_font)
