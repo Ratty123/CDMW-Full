@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -11,6 +12,7 @@ import pytest
 from scripts.verify_release_dependencies import (
     SUPPORTED_PYTHON_RELEASES,
     read_exact_constraints,
+    read_hashed_release_lock,
     release_dependency_mismatches,
     verify_release_environment,
 )
@@ -18,6 +20,7 @@ from scripts.verify_release_dependencies import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CONSTRAINTS = ROOT / "constraints-release.txt"
+RELEASE_LOCK = ROOT / "requirements-build.txt"
 BUILDER = ROOT / "build_pyside6_app.ps1"
 SPEC = ROOT / "CrimsonDesertModWorkbench.spec"
 STARTUP_VERIFIER = ROOT / "scripts" / "verify_packaged_startup.ps1"
@@ -28,21 +31,52 @@ POWERSHELL = shutil.which("powershell.exe")
 
 def test_release_constraints_are_exact_complete_and_installed() -> None:
     pins = read_exact_constraints(CONSTRAINTS)
+    locked = read_hashed_release_lock(RELEASE_LOCK)
+    locked_versions = {key: version for key, (_display_name, version, _hashes) in locked.items()}
 
     assert SUPPORTED_PYTHON_RELEASES == ((3, 11), (3, 14))
     assert {
+        "brotli",
         "cryptography",
+        "inflate64",
         "lz4",
+        "multivolumefile",
         "numpy",
         "opencv-python-headless",
         "pillow",
+        "psutil",
+        "py7zr",
+        "pybcj",
+        "pycryptodomex",
         "pyinstaller",
+        "pyppmd",
         "pyside6",
         "pyside6-addons",
         "pyside6-essentials",
         "shiboken6",
+        "texttable",
     }.issubset(pins)
+    assert {key: version for key, (_display_name, version) in pins.items()} == locked_versions
+    lock_source = RELEASE_LOCK.read_text(encoding="utf-8")
+    assert "--require-hashes" in lock_source
+    assert "--only-binary :all:" in lock_source
+    assert 'backports.zstd==1.7.0 ; python_version < "3.14"' in lock_source
     assert verify_release_environment(CONSTRAINTS) == ()
+
+
+def test_release_verifier_rejects_an_unhashed_or_incomplete_lock(tmp_path: Path) -> None:
+    source = RELEASE_LOCK.read_text(encoding="utf-8")
+    texttable_line = next(line for line in source.splitlines() if line.startswith("texttable=="))
+    hashless = tmp_path / "hashless-lock.txt"
+    hashless.write_text(source.replace(texttable_line, "texttable==1.7.0"), encoding="utf-8")
+    with pytest.raises(ValueError, match="has no SHA-256 hash"):
+        read_hashed_release_lock(hashless)
+
+    incomplete = tmp_path / "incomplete-lock.txt"
+    incomplete.write_text(source.replace(texttable_line + "\n", ""), encoding="utf-8")
+    errors = verify_release_environment(CONSTRAINTS, incomplete)
+    assert "texttable: release constraint has no hashed lock entry" in errors
+    assert "py7zr: active dependency texttable is not pinned in the release lock" in errors
 
 
 def test_release_dependency_verifier_reports_missing_and_wrong_versions() -> None:
@@ -252,6 +286,25 @@ def test_windows_workflow_gates_packaging_on_both_headless_python_releases() -> 
     assert "Build and startup-smoke onefile package" in source
     assert "-Area mesh " not in source
     assert "CDMW_GAME_ROOT" not in source
+
+
+def test_windows_workflow_uses_only_approved_action_commit_shas() -> None:
+    source = WORKFLOW.read_text(encoding="utf-8")
+    approved = {
+        "actions/cache": "0057852bfaa89a56745cba8c7296529d2fc39830",
+        "actions/checkout": "fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+        "actions/download-artifact": "37930b1c2abaa49bbe596cd826c3c89aef350131",
+        "actions/setup-dotnet": "26b0ec14cb23fa6904739307f278c14f94c95bf1",
+        "actions/setup-python": "ece7cb06caefa5fff74198d8649806c4678c61a1",
+        "actions/upload-artifact": "b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+        "signpath/github-action-submit-signing-request": "c92b958760219087e01f8d67a1669ed57afe2627",
+    }
+    references = re.findall(r"^\s*uses:\s+([^@\s]+)@([^#\s]+)", source, flags=re.MULTILINE)
+
+    assert references
+    for action, revision in references:
+        assert action in approved
+        assert revision == approved[action]
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
