@@ -96,10 +96,9 @@ tools/dotnet_bazel_launcher/bin/
 tools/dotnet_bazel_launcher/obj/
 
 # Working notes kept on the developer's machine rather than in the repository.
-# docs/plans was already local; the rest of docs/ and the two agent instruction
-# files follow the same rule. Guards that read documentation ask git which files
+# docs/plans was already local; the rest of docs/ and the agent instructions
+# follow the same rule. Guards that read documentation ask git which files
 # are tracked rather than reading the directory, so they assert on what the
 # repository actually ships.
 /AGENTS.md
-/CLAUDE.md
 /docs/

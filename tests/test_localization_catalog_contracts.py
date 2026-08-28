@@ -1153,7 +1153,7 @@ def test_template_index_agrees_with_a_full_scan_of_every_rule(tmp_path: Path) ->
         (
             "",
             "Random line that matches nothing at all",
-            "D:/CLAUDETEST/file_12.pac",
+            "D:/CDMWTEST/file_12.pac",
             "12 / 24",
             "[12:30:05] Wrote 7 files",
             "- Loaded 7 rows",
