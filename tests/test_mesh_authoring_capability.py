@@ -75,6 +75,14 @@ def test_face_deletion_is_exact_because_it_derives_no_vertices() -> None:
     assert capability.authorable
 
 
+def test_face_delete_action_reports_its_exact_route_instead_of_falling_through() -> None:
+    capability = action_authoring_capability("delete")
+
+    assert capability is not None
+    assert capability.support is AuthoringSupport.EXACT
+    assert capability.authorable
+
+
 @pytest.mark.parametrize(
     "operation",
     [TOPOLOGY_OPERATION_LOOP_CUT, TOPOLOGY_OPERATION_SUBDIVIDE_MIDPOINT],
@@ -135,6 +143,38 @@ def test_the_blocked_topology_actions_all_have_a_stated_reason(action_key: str) 
     assert capability.detail
 
 
+@pytest.mark.parametrize(
+    "action_key",
+    [
+        "dissolve",
+        "split",
+        "mirror",
+        "remove_doubles",
+        "delete_loose_vertices",
+        "compact_orphans",
+        "fix_winding",
+        "fill_holes",
+        "uv_auto_unwrap",
+    ],
+)
+def test_visible_topology_capable_actions_are_blocked_before_exact_output_mutation(
+    action_key: str,
+) -> None:
+    capability = action_authoring_capability(action_key)
+
+    assert capability is not None
+    assert capability.support is AuthoringSupport.BLOCKED
+    assert "exact writeback route" in capability.reason
+
+
+def test_loaded_format_and_lod_outrank_an_action_specific_answer() -> None:
+    read_only = action_authoring_capability("delete", mesh_format="meshinfo")
+    higher_lod = action_authoring_capability("delete", mesh_format="pac", lod_index=1)
+
+    assert read_only is not None and read_only.support is AuthoringSupport.READ_ONLY
+    assert higher_lod is not None and higher_lod.support is AuthoringSupport.UNPROVEN
+
+
 @pytest.mark.parametrize("action_key", ["loop_cut", "subdivide"])
 def test_vertex_deriving_actions_report_their_limit(action_key: str) -> None:
     capability = action_authoring_capability(action_key)
@@ -147,7 +187,7 @@ def test_vertex_deriving_actions_report_their_limit(action_key: str) -> None:
 def test_an_action_with_no_authoring_limit_reports_none() -> None:
     # None means "no limit of its own", not "always available": selection and
     # session state still gate it.
-    for action_key in ("delete", "transform_move", "select_parts", "", None):
+    for action_key in ("transform_move", "select_parts", "", None):
         assert action_authoring_capability(action_key) is None
 
 
@@ -161,6 +201,8 @@ def test_the_matrix_covers_geometry_operations_and_blocked_actions() -> None:
     assert matrix["topology_operations"][TOPOLOGY_OPERATION_DELETE_FACES]["authorable"] is True
     assert matrix["topology_operations"][TOPOLOGY_OPERATION_LOOP_CUT]["authorable"] is False
     assert "extrude" in matrix["blocked_actions"]
+    assert "dissolve" in matrix["blocked_actions"]
+    assert "uv_auto_unwrap" in matrix["blocked_actions"]
     assert all(
         not entry["authorable"] and entry["reason"]
         for entry in matrix["blocked_actions"].values()

@@ -7,6 +7,11 @@ from typing import Mapping, Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+from cdmw.domain.mesh.authoring_capability import (
+    PROVEN_AUTHORING_LOD,
+    geometry_authoring_capability,
+    normalize_mesh_format,
+)
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     MESH_PREVIEW_TEXTURED_DISPLAY_MODES,
     normalize_mesh_preview_display_mode,
@@ -14,6 +19,8 @@ from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
 )
 from cdmw.ui.mesh_editor.actions import (
     NATIVE_EDITOR_SESSION_COMMANDS,
+    mesh_editor_action_authoring_blocker,
+    mesh_editor_actions_by_key,
     normalize_mesh_element_type,
     normalize_mesh_selection_shape,
 )
@@ -235,6 +242,25 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         if self.current_request is not None:
             return self.current_request.target_entry
         return self.current_archive_selection
+    def _standalone_mesh_format(self) -> str:
+        target = self._current_target_entry()
+        path_text = self._entry_path(target) if target is not None else self.standalone_mesh_label
+        return normalize_mesh_format(Path(str(path_text or "")).suffix)
+    def _standalone_action_authoring_blocker(
+        self,
+        action_key: object,
+        *,
+        deletes_parts: bool = False,
+    ) -> str:
+        normalized = str(action_key or "").strip().lower().replace("-", "_")
+        if not self._standalone_exact_output_required() and normalized != "toggle_visibility":
+            return ""
+        return mesh_editor_action_authoring_blocker(
+            action_key,
+            deletes_parts=deletes_parts,
+            mesh_format=self._standalone_mesh_format(),
+            lod_index=PROVEN_AUTHORING_LOD,
+        )
     def _standalone_exact_output_required(self) -> bool:
         if isinstance(self._current_target_entry(), _tab.ArchiveEntry):
             return True
@@ -275,11 +301,46 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         path_text = self._entry_path(target) if target is not None else self.standalone_mesh_label
         label_text = self._entry_label(target) if target is not None else Path(self.standalone_mesh_label).name or "none"
         self.target_label.setText(f"Target: {path_text or label_text}")
-        self.session_label.setText(
-            f"Mode: {'standalone' if has_standalone else workflow_mode.replace('_', ' ')} | Edit: {self.current_edit_mode}"
-            if has_target
-            else "Mode: no active session"
-        )
+        session_text = ""
+        authoring_tooltip = ""
+        authoring_blockers: dict[str, str] = {}
+        if has_standalone:
+            if self._standalone_exact_output_required():
+                mesh_format = self._standalone_mesh_format()
+                capability = geometry_authoring_capability(
+                    mesh_format,
+                    lod_index=PROVEN_AUTHORING_LOD,
+                )
+                format_label = mesh_format.upper() or "MESH"
+                support_label = capability.support.value.replace("_", "-")
+                session_text = (
+                    f"Mode: standalone | Edit: {self.current_edit_mode} | Authoring: "
+                    f"{format_label} LOD{PROVEN_AUTHORING_LOD} {support_label}"
+                )
+                if capability.authorable:
+                    authoring_tooltip = (
+                        f"{format_label} LOD{PROVEN_AUTHORING_LOD} is the active exact-authoring target. "
+                        "LOD1 and above remain unchanged and are not authorable."
+                    )
+                else:
+                    authoring_tooltip = " ".join(
+                        part for part in (capability.reason, capability.detail) if str(part).strip()
+                    )
+                for action in mesh_editor_actions_by_key().values():
+                    blocker = mesh_editor_action_authoring_blocker(action.key, mesh_format=mesh_format)
+                    if blocker:
+                        authoring_blockers[action.key] = blocker
+            else:
+                session_text = f"Mode: standalone | Edit: {self.current_edit_mode} | Authoring: working mesh (non-exact)"
+                authoring_tooltip = (
+                    "This imported working mesh is editable, but exact PAC/PAM/PAMLOD writeback is not claimed."
+                )
+        if has_target and not has_standalone:
+            session_text = (
+                f"Mode: {workflow_mode.replace('_', ' ')} | Edit: {self.current_edit_mode}"
+            )
+        self.session_label.setText(session_text if has_target else "Mode: no active session")
+        self.session_label.setToolTip(authoring_tooltip)
         self.empty_status_label.setText(
             "Ready: open the selected archive mesh directly in Mesh Editor. "
             "Textures remain available as a read-only Mesh View."
@@ -317,6 +378,7 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
             undo_count=self.current_undo_count,
             redo_count=self.current_redo_count,
             native_editor_available=native_editor_available,
+            authoring_blockers=authoring_blockers,
         )
         workspace_state = getattr(self.standalone_workspace, "update_action_state", None)
         if callable(workspace_state):
@@ -328,6 +390,7 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
                 undo_count=self.current_undo_count,
                 redo_count=self.current_redo_count,
                 native_editor_available=native_editor_available,
+                authoring_blockers=authoring_blockers,
             )
         dotnet_button = getattr(self, "standalone_dotnet_editor_button", None)
         if dotnet_button is not None:

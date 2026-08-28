@@ -24,9 +24,11 @@ from cdmw.domain.mesh.authoring_capability import (
 )
 from cdmw.ui.mesh_editor.actions import (
     LEGACY_PART_SELECTION_ACTION_KEYS,
+    MESH_EDITOR_ACTIONS,
     _UNAUTHORABLE_TOPOLOGY_ACTION_KEYS,
     _USER_HIDDEN_ACTION_KEYS,
     MESH_EDITOR_VISIBLE_ACTIONS,
+    mesh_editor_action_authoring_blocker,
     mesh_editor_actions_by_key,
 )
 
@@ -70,6 +72,26 @@ def test_loop_cut_is_unproven_where_the_others_are_blocked() -> None:
     assert action_authoring_capability("loop_cut").support is AuthoringSupport.UNPROVEN
     for key in sorted(_UNAUTHORABLE_TOPOLOGY_ACTION_KEYS - {"loop_cut"}):
         assert action_authoring_capability(key).support is AuthoringSupport.BLOCKED, key
+
+
+def test_every_topology_capable_palette_action_has_an_explicit_answer() -> None:
+    keys = {
+        action.key
+        for action in MESH_EDITOR_ACTIONS
+        if action.category in {"topology", "cleanup"}
+    } | {"uv_auto_unwrap"}
+
+    for key in sorted(keys):
+        assert action_authoring_capability(key) is not None, key
+
+
+def test_a_read_only_loaded_format_blocks_same_count_mutations_too() -> None:
+    blocker = mesh_editor_action_authoring_blocker(
+        "transform_move",
+        mesh_format="meshinfo",
+    )
+
+    assert "read-only" in blocker
 
 
 @pytest.mark.parametrize("key", sorted(LEGACY_PART_SELECTION_ACTION_KEYS))

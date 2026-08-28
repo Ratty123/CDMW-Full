@@ -100,7 +100,7 @@ not create a second set of services, workers, previews, or saved tool state.
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
 | **Model Library** | Scan and preview local or importable models, then send a selected model directly into Create New Item. |
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
-| **Mesh Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with the game's layered materials composited as layers, inspect referenced textures, and edit resident meshes through the native edit core: vertex/wire/face selection with brush, rectangle and lasso, persistent geometry layers with a mesh-internal clipboard, morph profiles with per-garment refit, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview. |
+| **Mesh Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with the game's layered materials composited as layers, inspect referenced textures, and use capability-gated LOD0 authoring through the native edit core: vertex/wire/face selection with brush, rectangle and lasso, same-count transforms and brushes, exact Face Delete where provenance is valid, morph profiles with per-garment refit, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview. Unsupported exact-output operations stay disabled with their reason. |
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
 | **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` native DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
 | **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
@@ -544,6 +544,9 @@ path of the feature that crashed.
 **Mesh rebuild is LOD0-only.** `.pamlod` LOD1+ can be read but not re-authored,
 and `.meshinfo` is treated as read-only because its count/offset tables are
 unproven, so physics bounds and socket context cannot be edited.
+Mesh Editor is therefore a constrained game-mesh authoring editor with
+Blender-inspired controls, not a general modeller or a promise that every
+registered backend action can be published into an exact game mesh.
 
 **Level layout and cutscenes are read-only. Effect authoring is deliberately
 bounded.** `.pae` / `.paem` look values can be edited only where the decoded

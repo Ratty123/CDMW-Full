@@ -121,14 +121,20 @@ _TOPOLOGY_CAPABILITY: dict[str, AuthoringCapability] = {
     ),
 }
 
-#: Native editor actions that change topology but have no exact-writer route at
-#: all, with the reason each is unavailable. The UI hides these rather than
-#: showing them disabled, which is a settled product decision rather than a
-#: pending one -- see `_UNAUTHORABLE_TOPOLOGY_ACTION_KEYS` in
-#: `cdmw/ui/mesh_editor/actions.py`. The reasons are kept current anyway: they
-#: are what a capability panel or a diagnostics snapshot reads, and what a
-#: future decision to surface them would use.
-_UNIMPLEMENTED_TOPOLOGY_ACTIONS: dict[str, str] = {
+#: Implemented editor actions that the exact writer cannot publish. Some stay
+#: hidden because they can never become available in an exact session; others
+#: remain visible for imported working meshes and must be disabled with their
+#: reason when an exact output is active.
+_BLOCKED_EXACT_AUTHORING_ACTIONS: dict[str, str] = {
+    "dissolve": "Dissolve has no exact writeback route",
+    "split": "Split has no exact writeback route",
+    "mirror": "Mirror has no exact writeback route",
+    "remove_doubles": "Remove Doubles has no exact writeback route",
+    "delete_loose_vertices": "Delete Loose has no exact writeback route",
+    "compact_orphans": "Compact Orphans has no exact writeback route",
+    "fix_winding": "Fix Winding has no exact writeback route",
+    "fill_holes": "Fill Holes has no exact writeback route",
+    "uv_auto_unwrap": "Auto UV can split vertices and has no exact writeback route",
     "edge_split": "Edge Split has no exact writeback route",
     "bridge": "Bridge has no exact writeback route",
     "extrude": "Extrude has no exact writeback route",
@@ -200,24 +206,33 @@ def topology_authoring_capability(
     )
 
 
-def action_authoring_capability(action_key: object) -> AuthoringCapability | None:
-    """The capability for a native editor action, or ``None`` when unrestricted.
+def action_authoring_capability(
+    action_key: object,
+    *,
+    mesh_format: object = "pac",
+    lod_index: int = PROVEN_AUTHORING_LOD,
+) -> AuthoringCapability | None:
+    """The capability for an authoring-sensitive native editor action.
 
-    ``None`` means the action carries no authoring limit of its own, not that it
-    is always available: selection state and session state still gate it.
+    Topology and topology-capable actions always return a result, including the
+    exact Face Delete route. ``None`` is reserved for controls and same-count
+    edits whose format/session validation remains authoritative elsewhere.
     """
 
     key = str(action_key or "").strip().lower()
-    reason = _UNIMPLEMENTED_TOPOLOGY_ACTIONS.get(key)
-    if reason is not None:
-        return AuthoringCapability(AuthoringSupport.BLOCKED, reason, _NO_EXACT_ROUTE_DETAIL)
     from cdmw.domain.mesh.topology import TOPOLOGY_OPERATION_BY_NATIVE_ACTION
 
     operation = TOPOLOGY_OPERATION_BY_NATIVE_ACTION.get(key)
-    if operation is None:
+    reason = _BLOCKED_EXACT_AUTHORING_ACTIONS.get(key)
+    if operation is None and reason is None:
         return None
+    geometry = geometry_authoring_capability(mesh_format, lod_index=lod_index)
+    if not geometry.authorable:
+        return geometry
+    if reason is not None:
+        return AuthoringCapability(AuthoringSupport.BLOCKED, reason, _NO_EXACT_ROUTE_DETAIL)
     capability = _TOPOLOGY_CAPABILITY.get(operation)
-    return capability if capability is not None and not capability.authorable else None
+    return capability
 
 
 def capability_matrix(mesh_format: object, *, lod_index: int = PROVEN_AUTHORING_LOD) -> dict[str, object]:
@@ -237,10 +252,12 @@ def capability_matrix(mesh_format: object, *, lod_index: int = PROVEN_AUTHORING_
             for operation in sorted(_TOPOLOGY_CAPABILITY)
         },
         "blocked_actions": {
-            key: AuthoringCapability(
-                AuthoringSupport.BLOCKED, reason, _NO_EXACT_ROUTE_DETAIL
+            key: action_authoring_capability(
+                key,
+                mesh_format=mesh_format,
+                lod_index=lod_index,
             ).as_payload()
-            for key, reason in sorted(_UNIMPLEMENTED_TOPOLOGY_ACTIONS.items())
+            for key in sorted(_BLOCKED_EXACT_AUTHORING_ACTIONS)
         },
     }
 

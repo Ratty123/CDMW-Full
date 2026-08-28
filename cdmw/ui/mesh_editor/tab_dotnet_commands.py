@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
 from cdmw.ui.shell.settings_bridge import read_bool_setting
-from cdmw.ui.mesh_editor.actions import mesh_editor_action_authoring_blocker, mesh_editor_actions_by_key
+from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -788,7 +788,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
             not self.standalone_dotnet_target_embedded
             and (self._standalone_exact_output_required() or command == "toggle_visibility")
         ):
-            blocker = mesh_editor_action_authoring_blocker(command)
+            blocker = self._standalone_action_authoring_blocker(command)
             if blocker:
                 self._send_dotnet_command_result(
                     command,
@@ -820,7 +820,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
             and not local_selection.edges_by_submesh
             and not local_selection.faces_by_submesh
         ):
-            blocker = mesh_editor_action_authoring_blocker(command, deletes_parts=True)
+            blocker = self._standalone_action_authoring_blocker(command, deletes_parts=True)
             self._send_dotnet_command_result(
                 command,
                 ok=False,

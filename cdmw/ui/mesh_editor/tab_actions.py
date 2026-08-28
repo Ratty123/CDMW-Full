@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal
 
-from cdmw.ui.mesh_editor.actions import MeshEditorAction, mesh_editor_action_authoring_blocker
+from cdmw.ui.mesh_editor.actions import MeshEditorAction
 
 
 from cdmw.ui.mesh_editor.tab_support import (
@@ -62,10 +62,9 @@ class MeshEditorActionsMixin:
             return self._handle_part_selection(part_index, "replace")
         if normalized == "toggle_selection":
             return self._handle_part_selection(part_index, "toggle")
-        blocker = (
-            mesh_editor_action_authoring_blocker(normalized, deletes_parts=normalized == "delete")
-            if self._standalone_exact_output_required()
-            else ""
+        blocker = self._standalone_action_authoring_blocker(
+            normalized,
+            deletes_parts=normalized == "delete",
         )
         if blocker:
             self.status_message_requested.emit(f"Mesh Editor action unavailable: {blocker}", True)
@@ -132,7 +131,7 @@ class MeshEditorActionsMixin:
             return True
         text = str(getattr(action, "text", "") or getattr(action, "key", "") or "action")
         key = str(getattr(action, "key", "") or "").strip()
-        blocker = mesh_editor_action_authoring_blocker(key) if self._standalone_exact_output_required() else ""
+        blocker = self._standalone_action_authoring_blocker(key)
         if blocker:
             self.status_message_requested.emit(f"Mesh Editor action unavailable: {blocker}", True)
             return True

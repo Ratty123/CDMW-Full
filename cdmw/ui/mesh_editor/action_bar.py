@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QFont, QKeySequence
@@ -112,9 +112,11 @@ class MeshEditorActionBar(QFrame):
         undo_count: int = 0,
         redo_count: int = 0,
         native_editor_available: bool = True,
+        authoring_blockers: Mapping[str, str] | None = None,
     ) -> None:
         self.setEnabled(bool(has_target))
         current_mode = str(mode or "").strip().lower()
+        blockers = dict(authoring_blockers or {})
         for action in self._actions_by_key.values():
             button = self.button_for_key(action.key)
             if button is None:
@@ -133,7 +135,11 @@ class MeshEditorActionBar(QFrame):
                 enabled = False
             if action.command in NATIVE_EDITOR_SESSION_COMMANDS and not native_editor_available:
                 enabled = False
+            blocker = str(blockers.get(action.key, "") or "").strip()
+            if blocker:
+                enabled = False
             button.setEnabled(enabled)
+            button.setToolTip(blocker or _action_tooltip(action))
         self.set_active_action(_MODE_ACTION_BY_MODE.get(str(mode or "").strip().lower(), ""))
         active_tool = str(active_tool_key or "").strip()
         if active_tool in _TOOL_ACTION_KEYS:

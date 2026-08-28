@@ -1174,6 +1174,44 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    def test_dotnet_exact_session_rejects_unpublishable_topology_before_worker(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetExactCapability"))
+        tab.open_mesh_session(
+            build_synthetic_mesh("pac"),
+            session_id="dotnet-exact-capability",
+            mode="edit",
+        )
+        assert tab.standalone_controller is not None
+        tab.standalone_dotnet_target_controller = tab.standalone_controller
+        tab.standalone_dotnet_target_embedded = False
+        responses: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+        with patch.object(
+            tab,
+            "_start_dotnet_action_worker",
+            side_effect=AssertionError("blocked exact command started a worker"),
+        ), patch.object(
+            tab,
+            "_send_dotnet_command_result",
+            side_effect=lambda *args, **kwargs: responses.append((args, kwargs)) or True,
+        ):
+            self.assertTrue(
+                tab._handle_dotnet_command_request(
+                    {
+                        "event": "command_request",
+                        "command": "split",
+                        "local_selection": {"faces_by_submesh": {"0": [0]}},
+                    }
+                )
+            )
+
+        self.assertEqual("split", responses[0][0][0])
+        self.assertEqual("unavailable", responses[0][1]["status"])
+        self.assertIn("exact writeback route", responses[0][1]["diagnostics"][0])
+        app.processEvents()
+        tab.deleteLater()
+
     def test_dotnet_transform_request_routes_delta_through_host_action(self) -> None:
         app = QApplication.instance() or QApplication([])
         settings = QSettings("CDMWTests", "MeshEditorDotNetTransformRequest")
@@ -2597,10 +2635,13 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_auto_uv_dispatches_native_allow_flag_without_preflight(self) -> None:
+    def test_mesh_editor_working_mesh_auto_uv_dispatches_native_allow_flag_without_preflight(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorAutoUvDispatch"))
-        tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-auto-uv-accept", mode="edit")
+        mesh = build_synthetic_mesh()
+        mesh.path = "tools/harness_quad.obj"
+        mesh.format = "obj"
+        tab.open_mesh_session(mesh, session_id="standalone-auto-uv-accept", mode="edit")
         assert tab.standalone_controller is not None
         tab.standalone_controller.select(source_indices=(0,))
         tab.update_editor_session_state(
@@ -2621,6 +2662,53 @@ class MeshEditorActionBarTests(unittest.TestCase):
         params = dict(tuple(getattr(dispatched[0], "params", ()) or ()))
         self.assertTrue(params.get("auto_uv"))
         self.assertTrue(params.get("allow_topology_change"))
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_exact_session_shows_lod_and_blocks_unpublishable_actions(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorExactCapability"))
+        messages: list[tuple[str, bool]] = []
+        tab.status_message_requested.connect(
+            lambda message, error=False: messages.append((str(message), bool(error)))
+        )
+        tab.open_mesh_session(
+            build_synthetic_mesh("pac"),
+            session_id="standalone-exact-capability",
+            mode="edit",
+        )
+        assert tab.standalone_controller is not None
+        tab.standalone_controller.select(source_indices=(0,))
+        tab.update_editor_session_state(
+            tab.standalone_controller.session_view(),
+            active_selection_mode=tab.standalone_controller.active_selection_mode,
+        )
+
+        self.assertIn("Authoring: PAC LOD0 exact", tab.session_label.text())
+        self.assertIn("LOD1 and above", tab.session_label.toolTip())
+        blocked_buttons = [
+            tab.action_bar.button_for_key("split"),
+            tab.standalone_workspace.button_for_key("dissolve"),
+            tab.standalone_workspace.button_for_key("mirror"),
+            tab.standalone_workspace.button_for_key("remove_doubles"),
+            tab.standalone_workspace.button_for_key("fill_holes"),
+            tab.standalone_workspace.findChild(QToolButton, "MeshEditorUVAction_uv_auto_unwrap"),
+        ]
+        for button in blocked_buttons:
+            assert button is not None
+            self.assertFalse(button.isEnabled())
+            self.assertIn("exact writeback route", button.toolTip())
+
+        with patch.object(
+            tab.standalone_controller,
+            "run_editor_action",
+            side_effect=AssertionError("blocked exact action reached the controller"),
+        ):
+            self.assertTrue(
+                tab._run_standalone_action(mesh_editor_actions_by_key()["split"])
+            )
+        self.assertIn("Mesh Editor action unavailable", messages[-1][0])
+        self.assertTrue(messages[-1][1])
         app.processEvents()
         tab.deleteLater()
 
