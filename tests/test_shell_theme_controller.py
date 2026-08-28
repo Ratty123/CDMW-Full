@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from collections import deque
+from functools import wraps
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -186,6 +187,45 @@ def _exercise_compact_font_sizes() -> None:
         app.setStyleSheet(previous_style_sheet)
 
 
+def _isolated_qt_test(method):
+    @wraps(method)
+    def run(self) -> None:
+        if os.environ.get("CDMW_SHELL_THEME_PROBE_CHILD") == "1":
+            method(self)
+            return
+        with tempfile.TemporaryDirectory() as temp_dir:
+            node_id = f"{Path(__file__).resolve()}::{type(self).__name__}::{method.__name__}"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "-q",
+                    node_id,
+                    "-p",
+                    "no:cacheprovider",
+                    f"--basetemp={Path(temp_dir) / 'pytest'}",
+                ],
+                cwd=ROOT,
+                env={
+                    **os.environ,
+                    "CDMW_SHELL_THEME_PROBE_CHILD": "1",
+                    "QT_QPA_PLATFORM": "offscreen",
+                },
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=120,
+            )
+        self.assertEqual(
+            0,
+            result.returncode,
+            f"Isolated theme test {method.__name__} failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+        )
+
+    return run
+
+
 class ShellThemeControllerTests(unittest.TestCase):
     def _run_isolated_probe(self, function_name: str) -> None:
         script = "\n".join(
@@ -230,6 +270,7 @@ class ShellThemeControllerTests(unittest.TestCase):
         self.assertNotIn("border-top:", compact_group_style)
         self.assertNotIn("font-size:", stylesheet)
 
+    @_isolated_qt_test
     def test_settings_navigation_inherits_the_active_compact_theme(self) -> None:
         app = QApplication.instance() or QApplication([])
         previous_palette = QPalette(app.palette())
@@ -386,6 +427,7 @@ class ShellThemeControllerTests(unittest.TestCase):
         self.assertIn("color: #0369a1;", desert_stylesheet)
         self.assertIn("color: #047857;", desert_stylesheet)
 
+    @_isolated_qt_test
     def test_every_theme_renders_distinct_standard_button_states(self) -> None:
         app = QApplication.instance() or QApplication([])
         previous_palette = QPalette(app.palette())
@@ -456,6 +498,7 @@ class ShellThemeControllerTests(unittest.TestCase):
             app.setStyleSheet(previous_style_sheet)
             app.setPalette(previous_palette)
 
+    @_isolated_qt_test
     def test_every_theme_renders_compact_editor_tool_checked_hover_feedback(self) -> None:
         app = QApplication.instance() or QApplication([])
         previous_palette = QPalette(app.palette())
@@ -513,6 +556,7 @@ class ShellThemeControllerTests(unittest.TestCase):
             app.setStyleSheet(previous_style_sheet)
             app.setPalette(previous_palette)
 
+    @_isolated_qt_test
     def test_mesh_editor_output_buttons_render_distinct_pointer_states(self) -> None:
         app = QApplication.instance() or QApplication([])
         previous_style_sheet = app.styleSheet()
@@ -572,6 +616,7 @@ class ShellThemeControllerTests(unittest.TestCase):
             parent.deleteLater()
             app.setStyleSheet(previous_style_sheet)
 
+    @_isolated_qt_test
     def test_compact_archive_command_buttons_render_distinct_pointer_states(self) -> None:
         app = QApplication.instance() or QApplication([])
         previous_style_sheet = app.styleSheet()
