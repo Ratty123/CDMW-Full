@@ -84,6 +84,7 @@ $TestsByArea = @{
         "tests/test_archive_remote_preview_dependencies.py",
         "tests/test_archive_d3d11_process_lifecycle.py",
         "tests/test_archive_extract_progress.py",
+        "tests/test_archive_output_path_safety.py",
         "tests/test_archive_progress_bar_writes_on_change.py",
         # Unregistered until 2026-08-08, which is how its progress-bar and
         # selection-context needles sat stale across four commits.
