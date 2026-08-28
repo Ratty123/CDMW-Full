@@ -15,6 +15,9 @@ from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
 from cdmw.services.mesh_workflow_service import SceneImportResult
+from cdmw.services.preview_rendering_service import (
+    acquire_dotnet_preview_package_cache_lease_for_path,
+)
 from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
 
 
@@ -200,10 +203,24 @@ class MeshEditorShellBridgeMixin:
             return
         current_preview = getattr(self, "current_archive_preview_result", None)
         material_preview_model = getattr(current_preview, "preview_model", None)
+        material_package_path = str(
+            getattr(current_preview, "dotnet_preview_package_path", "") or ""
+        ).strip()
+        material_package_lease = (
+            acquire_dotnet_preview_package_cache_lease_for_path(
+                Path(material_package_path)
+            )
+            if material_package_path
+            else None
+        )
+        material_companion_entry = self._find_archive_preview_companion_entry(entry)
         self._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
         self.mesh_editor_tab.open_archive_session(
             entry,
             material_preview_model=material_preview_model,
+            material_companion_entry=material_companion_entry,
+            material_package_path=material_package_path,
+            material_package_lease=material_package_lease,
         )
         self._activate_tool_widget(self.mesh_editor_tab)
         self.set_status_message(f"Opening {entry.basename} directly in Mesh Editor.")

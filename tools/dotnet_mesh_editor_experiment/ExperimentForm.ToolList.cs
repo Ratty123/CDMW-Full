@@ -175,7 +175,7 @@ internal sealed partial class ExperimentForm
         }
         else if (key == RowKeys.Topology && DirectAuthoringRestrictionsActive)
         {
-            SetHelpText(button, "Delete Selection");
+            SetHelpText(button, DirectAuthoringCommandBlocker("subdivide"));
         }
         else if (key == RowKeys.Topology)
         {

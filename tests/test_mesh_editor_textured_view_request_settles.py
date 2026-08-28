@@ -271,6 +271,7 @@ def test_a_resolver_that_starts_work_arms_the_watchdog_and_still_times_out() -> 
     assert tab._handle_embedded_viewport_display_mode("textured")
     assert tab.standalone_dotnet_pending_textured_view is True
     assert tab.standalone_dotnet_pending_textured_view_timer.isActive()
+    assert combo.currentData() == "textured"
 
     # Fire the watchdog directly rather than waiting out its real interval.
     tab._handle_pending_textured_view_timeout()
@@ -387,7 +388,7 @@ def test_failed_textured_request_can_be_selected_again_as_a_real_retry() -> None
     assert calls == ["resolve", "resolve"]
     assert tab.standalone_dotnet_pending_textured_view is True
     assert tab.standalone_dotnet_pending_textured_view_timer.isActive()
-    assert combo.currentData() == "untextured_faces"
+    assert combo.currentData() == "textured"
     assert _display_modes(process)[-1] == "untextured_faces"
 
     tab.deleteLater()
@@ -418,6 +419,7 @@ def test_a_busy_compiler_extends_the_wait_instead_of_failing_it() -> None:
     assert tab.standalone_dotnet_pending_textured_view is True
     assert tab.standalone_dotnet_pending_textured_view_extensions == 1
     assert tab.standalone_dotnet_pending_textured_view_timer.isActive()
+    assert combo.currentData() == "textured"
     # Still waiting, so nothing has been put back yet.
     assert _display_modes(process)[-1] == "untextured_faces"
     assert tab.standalone_dotnet_deferred_textured_view_mode == ""
@@ -524,6 +526,7 @@ def test_a_deduplicated_material_publish_completes_the_textured_view() -> None:
     assert tab._handle_embedded_viewport_display_mode("textured")
     assert tab.standalone_dotnet_pending_textured_view is True
     assert _display_modes(process)[-1] == "untextured_faces"
+    assert combo.currentData() == "textured"
 
     # The resolver's model carries exactly the materials the helper reported at
     # ready, so publishing it deduplicates instead of sending an update.
@@ -640,7 +643,7 @@ def test_same_session_package_swap_republishes_before_restoring_textured_view() 
         "material_state_deduplicated_count"
     ] == 1
     assert tab.standalone_dotnet_pending_textured_view is True
-    assert combo.currentData() == "untextured_faces"
+    assert combo.currentData() == "textured"
 
     assert tab._handle_dotnet_protocol_event(
         {

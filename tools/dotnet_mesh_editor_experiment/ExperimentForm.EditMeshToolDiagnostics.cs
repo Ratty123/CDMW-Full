@@ -65,7 +65,7 @@ internal sealed partial class ExperimentForm
             var createPartControl = RunCreatePartFromSelectionDiagnostic(formProtocolEvents);
             var partCommandTargets = RunPartCommandTargetDiagnostic(formProtocolEvents);
             var mixedMorphRefit = RunMixedMorphRefitSelectionDiagnostic();
-            var restrictedControlsHidden = _directAuthoringBlockedButtons.All(button => !OwnVisibleState(button) && !button.Enabled);
+            var restrictedControlsVisible = _directAuthoringBlockedButtons.All(button => OwnVisibleState(button) && !button.Enabled);
             ApplyDirectAuthoringOutputContract(exactOutputRequired: false);
             var importedModelControlsVisible = _directAuthoringBlockedButtons.All(OwnVisibleState);
             var importedLayerCopyEnabled = _layerCopyButton?.Enabled is true;
@@ -74,21 +74,20 @@ internal sealed partial class ExperimentForm
                 ?? string.Empty;
             var importedTopologyHelp = importedTopologyDescription.Contains("Subdivide", StringComparison.Ordinal);
             ApplyDirectAuthoringOutputContract(exactOutputRequired: true);
-            var exactTopologyHelp = string.Equals(
-                _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Topology)?.AccessibleDescription,
-                "Delete Selection",
-                StringComparison.Ordinal);
+            var exactTopologyHelp = (
+                _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Topology)?.AccessibleDescription
+                ?? string.Empty).Contains("Subdivide is unavailable", StringComparison.Ordinal);
             var directAuthoringControls = new Dictionary<string, object?>
             {
                 ["ok"] = !_options.DirectAuthoring
                     || (_directAuthoringBlockedButtons.Count == 9
-                        && restrictedControlsHidden
+                        && restrictedControlsVisible
                         && importedModelControlsVisible
                         && importedLayerCopyEnabled
                         && importedTopologyHelp
                         && exactTopologyHelp),
                 ["blocked_control_count"] = _directAuthoringBlockedButtons.Count,
-                ["all_hidden"] = _directAuthoringBlockedButtons.All(button => !OwnVisibleState(button)),
+                ["all_visible"] = _directAuthoringBlockedButtons.All(OwnVisibleState),
                 ["all_disabled"] = _directAuthoringBlockedButtons.All(button => !button.Enabled),
                 ["imported_model_controls_visible"] = importedModelControlsVisible,
                 ["imported_layer_copy_enabled"] = importedLayerCopyEnabled,
@@ -192,8 +191,8 @@ internal sealed partial class ExperimentForm
             "◇    Pinch", "△    Topology", "◑    Morph & Refit", "▣    Viewport",
             "Clear Selection", "Select All", "Invert", "Undo", "Redo",
             "Grow", "Shrink", "-X", "+X", "-Y", "+Y", "-Z", "+Z",
-            "Delete Selection",
-            "All", "None",
+            "Delete Selection", "Duplicate Selection", "Subdivide", "Refine Smooth",
+            "All", "None", "Duplicate", "Delete", "Copy", "Paste",
             "Rename", "Up", "Down",
             "Create Profile...", "Save Profile", "Delete Profile", "Save Preset...", "Delete Preset",
             "1. Set Selected Driver Parts", "2. Bind Selected Garment Parts", "Clear Refit",

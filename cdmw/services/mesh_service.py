@@ -1916,6 +1916,12 @@ class MeshService(_MeshServiceSessionLayerCore):
         )
         finalize_started = time.perf_counter()
         diagnostics = self._commit_geometry_command(execution, topology_changed)
+        if topology_changed and execution.action == "delete":
+            # Delete intentionally leaves no element selection. The native
+            # report still describes the pre-delete target in some PAC paths;
+            # publishing those face indices against compacted topology lights
+            # unrelated faces and makes the deletion look random.
+            execution.native_selection_groups = ()
         diagnostics = _append_unique_diagnostics(
             diagnostics,
             _native_blocked_fallback_diagnostics(execution.fallback_event_start),

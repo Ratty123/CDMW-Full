@@ -41,7 +41,7 @@ def _section_stack(program_source: str, title: str) -> str:
     return match.group(1)
 
 
-def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
+def test_edit_mesh_keeps_viewport_left_of_one_stable_controls_column() -> None:
     program = _source("Program.cs")
     controls = _source("ExperimentForm.Controls.cs")
     layout = _source("ExperimentForm.EditMeshLayouts.cs")
@@ -62,6 +62,9 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert "_viewportWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);" in layout
     assert "_leftToolModeHost.Controls.Add(_leftToolPanel);" in layout
     assert "_rightToolModeHost.Controls.Add(_rightToolPanel);" in layout
+    assert '_rightEditControlsSplit = CreateCompactSplit(' in layout
+    assert '_rightEditControlsSplit.Panel1.Controls.Add(toolDock);' in layout
+    assert '_rightEditControlsSplit.Panel2.Controls.Add(inspector);' in layout
     assert layout.count("Controls.Add(_presentationViewportRegion)") == 1
     assert layout.index(
         "_rightToolSplit.Panel1.Controls.Add(_viewportWorkspaceSplit);"
@@ -95,6 +98,8 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert 'ApplyDirectAuthoringOutputContract(JsonBoolean(root, "exact_output_required"));' in _source(
         "ExperimentForm.Protocol.cs"
     )
+    assert "button.Visible = true;" in program
+    assert "button.Visible = !DirectAuthoringRestrictionsActive;" not in program
     assert _section_stack(program, "Action History") == "rightStack"
     assert _section_stack(program, "Viewport") == "leftStack"
     # Parts builds through its own owner, which carries the selected-part
@@ -431,7 +436,7 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
     assert "public static readonly ToolRailPage[] RailCommandPageOrder" in contracts
 
     # Parts and Action History remain nonmodal scene data. Viewport settings
-    # move into one reveal-only row in the left list to free the right column.
+    # remain a reveal-only row in the controls column, not the live viewport.
     for absent in ("ToolRailPage.Parts", "ToolRailPage.History"):
         assert absent not in layout
         assert absent not in rows
@@ -456,10 +461,11 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
     assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);" in activate
     assert "AddRailSection(_sceneInspectorColumn, _viewportSection" not in activate
 
-    # Both flanks are in use: the mesh is tall and narrow, so width is the
-    # cheap axis and the viewport keeps the full window height.
-    assert "_leftToolSplit.Panel1Collapsed = false;" in activate
+    # The placement flank collapses in Edit Mesh. The permanent viewport is
+    # therefore the leftmost surface and every control stays in one right lane.
+    assert "_leftToolSplit.Panel1Collapsed = true;" in activate
     assert "_rightToolSplit.Panel2Collapsed = false;" in activate
+    assert "_rightEditControlsSplit.Visible = true;" in activate
     assert "_viewportWorkspaceSplit.Panel2Collapsed = true;" in activate
     assert '_viewport.ActivatePresentationView("editable");' in layout
     assert "_presentationViewSelector.Visible = !compactEditableOnly;" in layout
@@ -964,7 +970,8 @@ def test_tool_column_width_is_measured_rather_than_reserved() -> None:
 
     # The dock asks what is in it.
     assert "GetPreferredSize(Size.Empty)" in tool_list
-    assert "ScaleToolPanelWidth(MeasureToolColumnWidth())" in layout
+    assert "Enum.GetValues<ToolRailPage>()" in layout
+    assert ".Select(page => MeasureColumnWidthFor(page))" in layout
     assert "MeasureInspectorWidth()" in layout
 
     # A closed column collapses to its rows; Morph & Refit is the one page

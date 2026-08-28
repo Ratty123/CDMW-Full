@@ -10,6 +10,39 @@ internal sealed partial class ExperimentForm
         PerformLayout();
         var before = MorphPageActivationSnapshot();
 
+        bool StableExceptForArmedTool(Dictionary<string, object?> current) => before
+            .Where(pair => !string.Equals(pair.Key, "active_tool", StringComparison.Ordinal))
+            .All(pair => current.TryGetValue(pair.Key, out var value)
+                && string.Equals(
+                    System.Text.Json.JsonSerializer.Serialize(pair.Value),
+                    System.Text.Json.JsonSerializer.Serialize(value),
+                    StringComparison.Ordinal));
+
+        var activationCases = new List<Dictionary<string, object?>>();
+        foreach (var tool in EditMeshLayoutContracts.RailToolOrder)
+        {
+            SetActiveTool(tool);
+            PerformLayout();
+            activationCases.Add(new Dictionary<string, object?>
+            {
+                ["name"] = tool,
+                ["kind"] = "tool",
+                ["stable"] = StableExceptForArmedTool(MorphPageActivationSnapshot()),
+            });
+        }
+        foreach (var page in EditMeshLayoutContracts.RailCommandPageOrder)
+        {
+            ShowToolRailPage(page);
+            PerformLayout();
+            activationCases.Add(new Dictionary<string, object?>
+            {
+                ["name"] = page.ToString(),
+                ["kind"] = "page",
+                ["stable"] = StableExceptForArmedTool(MorphPageActivationSnapshot()),
+            });
+        }
+
+        SetActiveTool("orbit");
         ShowToolRailPage(ToolRailPage.MorphRefit);
         PerformLayout();
         var after = MorphPageActivationSnapshot();
@@ -20,9 +53,11 @@ internal sealed partial class ExperimentForm
         return new Dictionary<string, object?>
         {
             ["ok"] = unchanged
+                && activationCases.All(item => item.GetValueOrDefault("stable") is true)
                 && _selectedToolRailPage == ToolRailPage.MorphRefit
                 && _toolRailPages.GetValueOrDefault(ToolRailPage.MorphRefit)?.Parent is not null,
             ["redraw_scope"] = "tool_column",
+            ["activation_cases"] = activationCases,
             ["before"] = before,
             ["after"] = after,
         };
@@ -46,6 +81,8 @@ internal sealed partial class ExperimentForm
             ["full_geometry_rebuilds"] = resources.GetValueOrDefault("full_geometry_rebuilds"),
             ["helper_pid"] = Environment.ProcessId,
             ["viewport_hwnd"] = viewport.GetValueOrDefault("hwnd"),
+            ["viewport_bounds"] = _viewportWorkspaceSplit?.Bounds.ToString(),
+            ["controls_splitter_distance"] = _rightToolSplit?.SplitterDistance,
             ["form_hwnd"] = viewport.GetValueOrDefault("form_hwnd"),
             ["active_tool"] = _viewport.ActiveTool,
             ["presentation_generation"] = presentation.GetValueOrDefault("presentation_generation"),

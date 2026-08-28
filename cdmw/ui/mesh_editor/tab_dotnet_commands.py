@@ -373,6 +373,39 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
                 diagnostics=("Merged into the next cumulative stroke update.",),
                 request_payload=request_payload,
             )
+
+    def _dotnet_live_stroke_render_lane_busy(self) -> bool:
+        queue = getattr(self, "standalone_dotnet_update_queue", None)
+        metrics = queue.metrics() if queue is not None else {}
+        return bool(
+            int(metrics.get("active_revision", 0) or 0) > 0
+            or int(metrics.get("pending_depth", 0) or 0) > 0
+            or bool(metrics.get("resync_active", False))
+        )
+
+    def _coalesce_dotnet_live_stroke_presentation(self, outcome: object) -> None:
+        if not isinstance(outcome, _tab.MeshLiveStrokeOutcome):
+            return
+        for request_payload in tuple(outcome.request_payloads):
+            self._send_dotnet_command_result(
+                str(outcome.result.action or "stroke"),
+                ok=True,
+                status="coalesced",
+                revision=outcome.result.revision,
+                diagnostics=("Superseded by a newer cumulative renderer update.",),
+                request_payload=request_payload,
+            )
+
+    def _flush_pending_dotnet_live_stroke_presentation(self) -> bool:
+        if self._dotnet_live_stroke_render_lane_busy():
+            return False
+        outcome = getattr(self, "standalone_pending_dotnet_live_stroke_outcome", None)
+        if not isinstance(outcome, _tab.MeshLiveStrokeOutcome):
+            return False
+        self.standalone_pending_dotnet_live_stroke_outcome = None
+        self._handle_dotnet_live_stroke_completed(outcome)
+        return True
+
     def _commit_embedded_stroke_presentation(
         self,
         outcome: object,
@@ -461,6 +494,17 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
                 for key, value in dict(outcome.result.metrics or {}).items()
             },
         )
+        if outcome.source == "dotnet" and outcome.phase == "update" and self._dotnet_live_stroke_render_lane_busy():
+            previous = getattr(self, "standalone_pending_dotnet_live_stroke_outcome", None)
+            if previous is not None:
+                self._coalesce_dotnet_live_stroke_presentation(previous)
+            self.standalone_pending_dotnet_live_stroke_outcome = outcome
+            return
+        if outcome.source == "dotnet" and outcome.phase in {"end", "cancel"}:
+            previous = getattr(self, "standalone_pending_dotnet_live_stroke_outcome", None)
+            self.standalone_pending_dotnet_live_stroke_outcome = None
+            if previous is not None:
+                self._coalesce_dotnet_live_stroke_presentation(previous)
         selection_outcome = outcome.source == "dotnet_selection"
         terminal_selection_presentation = (
             selection_outcome and outcome.phase in {"end", "cancel"}

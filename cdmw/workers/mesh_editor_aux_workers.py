@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import threading
 import time
@@ -29,6 +30,9 @@ from cdmw.services.archive_preview_service import build_archive_preview_result
 from cdmw.services.mesh_dotnet_material_state import (
     copy_dotnet_preview_material_bindings,
     count_dotnet_own_material_bindings,
+)
+from cdmw.services.mesh_dotnet_material_bindings import (
+    apply_dotnet_native_material_batch_bindings,
 )
 from cdmw.services.mesh_dotnet_reference_composite import (
     apply_dotnet_native_reference_materials,
@@ -154,6 +158,8 @@ class MeshArchiveMaterialContextWorker(QObject):
         request_id: int,
         entry: ArchiveEntry,
         *,
+        companion_entry: ArchiveEntry | None = None,
+        material_package_path: Path | str | None = None,
         entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]] | None = None,
         entries_by_basename: Mapping[str, Sequence[ArchiveEntry]] | None = None,
         sidecar_entries_by_texture_path: Mapping[str, Sequence[ArchiveEntry]] | None = None,
@@ -162,6 +168,10 @@ class MeshArchiveMaterialContextWorker(QObject):
         super().__init__()
         self.request_id = int(request_id)
         self.entry = entry
+        self.companion_entry = companion_entry
+        self.material_package_path = (
+            Path(material_package_path) if material_package_path else None
+        )
         self.entries_by_normalized_path = entries_by_normalized_path or {}
         self.entries_by_basename = entries_by_basename or {}
         self.sidecar_entries_by_texture_path = sidecar_entries_by_texture_path or {}
@@ -171,14 +181,55 @@ class MeshArchiveMaterialContextWorker(QObject):
     def stop(self) -> None:
         self.stop_event.set()
 
+    def _native_package_material_model(self) -> object | None:
+        package_path = self.material_package_path
+        if package_path is None:
+            return None
+        manifest_path = package_path / "manifest.json"
+        if not manifest_path.is_file():
+            return None
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        batches = manifest.get("batches") if isinstance(manifest, Mapping) else None
+        if not isinstance(batches, Sequence) or isinstance(
+            batches,
+            (str, bytes, bytearray),
+        ) or not batches:
+            return None
+        material_sources = [
+            SimpleNamespace(source_submesh_index=index)
+            for index in range(len(batches))
+        ]
+        preview_model = SimpleNamespace(
+            path=str(self.entry.path or ""),
+            meshes=material_sources,
+            submeshes=material_sources,
+        )
+        if apply_dotnet_native_material_batch_bindings(preview_model, batches) <= 0:
+            return None
+        return (
+            preview_model
+            if count_dotnet_own_material_bindings(preview_model) > 0
+            else None
+        )
+
     @Slot()
     def run(self) -> None:
         try:
             if self.stop_event.is_set():
                 return
+            preview_model = self._native_package_material_model()
+            if self.stop_event.is_set():
+                return
+            if preview_model is not None:
+                self.resolved.emit(self.request_id, preview_model)
+                return
             result = build_archive_preview_result(
                 self.entry,
                 (),
+                companion_entry=self.companion_entry,
                 texture_entries_by_normalized_path=self.entries_by_normalized_path,
                 texture_entries_by_basename=self.entries_by_basename,
                 sidecar_entries_by_texture_path=self.sidecar_entries_by_texture_path,

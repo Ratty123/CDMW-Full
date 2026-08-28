@@ -311,6 +311,12 @@ internal sealed partial class ExperimentForm
 
         var afterEntry = SceneInspectorSectionBounds();
         var columnWidthOnEntry = _sceneInspectorColumn?.ClientSize.Width ?? 0;
+        var viewportOnLeft = _leftToolSplit?.Panel1Collapsed is true
+            && _rightToolSplit is { } rightSplit
+            && !rightSplit.Panel2Collapsed
+            && rightSplit.Panel1.Left < rightSplit.Panel2.Left
+            && _rightEditControlsSplit is { } controlsSplit
+            && OwnVisibleState(controlsSplit);
         var overflowingOnEntry = SceneInspectorSections()
             .Where(section => section.Right > columnWidthOnEntry)
             .Select(section => section.Name)
@@ -338,8 +344,10 @@ internal sealed partial class ExperimentForm
             ["ok"] = settled
                 && overflowingOnEntry.Length == 0
                 && afterEntry.Count > 0
-                && columnWidthOnEntry > 0,
+                && columnWidthOnEntry > 0
+                && viewportOnLeft,
             ["settled_on_entry"] = settled,
+            ["viewport_on_left"] = viewportOnLeft,
             ["column_width"] = columnWidthOnEntry,
             ["diagnostic"] = SceneInspectorDiagnostic(),
             ["sections_overflowing_column"] = overflowingOnEntry,
@@ -372,6 +380,8 @@ internal sealed partial class ExperimentForm
             ["column_bounds"] = column?.Bounds.ToString(),
             ["column_row_count"] = column?.RowCount,
             ["inspector_panel_bounds"] = _rightToolSplit?.Panel2.Bounds.ToString(),
+            ["viewport_panel_bounds"] = _rightToolSplit?.Panel1.Bounds.ToString(),
+            ["placement_left_flank_collapsed"] = _leftToolSplit?.Panel1Collapsed,
             ["sections"] = SceneInspectorSections().Select(section => new Dictionary<string, object?>
             {
                 ["name"] = section.Name,
