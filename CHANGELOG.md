@@ -11,6 +11,8 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.10] - 2026-08-28
+
 ### Changed
 - **Settings now keeps layout and theme together on Appearance.** The separate Layout page and Compact-only theme picker are gone: one **Layout** selector, one shared **Theme** selector, the restart notice, and pane-memory control now live with the other appearance controls. Changing layouts still takes effect only after restart, while theme changes remain live and apply to both Classic and Compact Workspace.
 - **Create New Item is now the single user-facing name of the item-authoring workflow.** Classic and Compact navigation, detachable-window titles, Model Library and Archive Browser handoffs, in-app help, export metadata, and current documentation now use the same label. The README gives Create New Item its own top-level section instead of nesting it beneath **What it does**.
