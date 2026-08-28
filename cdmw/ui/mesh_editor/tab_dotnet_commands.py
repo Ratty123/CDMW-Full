@@ -23,6 +23,19 @@ def _record_interaction_decision(target: object, event: str, **payload: object) 
         recorder(event, **payload)
 
 
+_DOTNET_ACTION_ALIASES = {
+    "delete_selection": "delete",
+    "subdivide_selection": "subdivide",
+    "refine": "refine_smooth",
+    "duplicate_selection": "duplicate",
+    "move": "transform_move",
+    "grab": "brush_grab",
+    "smooth": "brush_smooth",
+    "inflate": "brush_inflate",
+    "pinch": "brush_pinch",
+}
+
+
 class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
     def _queue_dotnet_topology_after_selection(
         self,
@@ -857,18 +870,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
             if direct_result is not None:
                 return direct_result
             else:
-                aliases = {
-                    "delete_selection": "delete",
-                    "subdivide_selection": "subdivide",
-                    "refine": "refine_smooth",
-                    "duplicate_selection": "duplicate",
-                    "move": "transform_move",
-                    "grab": "brush_grab",
-                    "smooth": "brush_smooth",
-                    "inflate": "brush_inflate",
-                    "pinch": "brush_pinch",
-                }
-                action_key = aliases.get(command, command)
+                action_key = _DOTNET_ACTION_ALIASES.get(command, command)
                 action = mesh_editor_actions_by_key().get(action_key)
                 params: dict[str, object] = dict(action.params) if action is not None else {}
                 if (
