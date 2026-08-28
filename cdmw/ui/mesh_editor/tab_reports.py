@@ -47,6 +47,15 @@ class MeshEditorReportsMixin:
             return
         self.standalone_validation_request_id += 1
         request_id = self.standalone_validation_request_id
+        self.standalone_last_export_validation_report = None
+        self.standalone_export_validation_revision = None
+        self.standalone_validation_started_revision = None
+        self.standalone_workspace.update_export_validation(None)
+        revision = self._standalone_session_revision()
+        if revision is None:
+            self.status_message_requested.emit("Mesh validation could not identify the current session revision.", True)
+            return
+        self.standalone_validation_started_revision = revision
         worker = _tab.MeshExportValidationWorker(request_id, controller.mesh_service, controller.active_session_id)
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -71,7 +80,18 @@ class MeshEditorReportsMixin:
     def _handle_standalone_export_validation_completed(self, request_id: int, report: object, elapsed_ms: float) -> None:
         if int(request_id) != int(self.standalone_validation_request_id):
             return
+        started_revision = self.standalone_validation_started_revision
+        current_revision = self._standalone_session_revision()
+        if started_revision is None or current_revision != started_revision:
+            self.standalone_last_export_validation_report = None
+            self.standalone_export_validation_revision = None
+            self.standalone_workspace.update_export_validation(None)
+            text = "Validation result ignored because the mesh changed; run validation again."
+            self.standalone_status_label.setText(text)
+            self.status_message_requested.emit(text, True)
+            return
         self.standalone_last_export_validation_report = report
+        self.standalone_export_validation_revision = current_revision
         self.standalone_workspace.update_export_validation(report)
         self.standalone_workspace._focus_right_panel("Checks")
         blocker_count = len(tuple(getattr(report, "blockers", ()) or ()))
@@ -87,6 +107,8 @@ class MeshEditorReportsMixin:
     def _handle_standalone_export_validation_error(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.standalone_validation_request_id):
             return
+        self.standalone_last_export_validation_report = None
+        self.standalone_export_validation_revision = None
         text = f"Validation failed: {message}"
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, True)
@@ -99,6 +121,7 @@ class MeshEditorReportsMixin:
             self.standalone_validation_thread = None
         if self.standalone_validation_worker is worker:
             self.standalone_validation_worker = None
+        self.standalone_validation_started_revision = None
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
     def _cancel_standalone_export_validation_worker(self) -> None:
         worker = self.standalone_validation_worker
@@ -106,6 +129,7 @@ class MeshEditorReportsMixin:
         if worker is None and thread is None:
             return
         self.standalone_validation_request_id += 1
+        self.standalone_validation_started_revision = None
         if worker is not None:
             try:
                 worker.stop()
@@ -284,11 +308,12 @@ class MeshEditorReportsMixin:
             self.standalone_rebuild_report_progress = None
         self._set_rebuild_report_button_enabled(self.has_active_standalone_session())
         self._set_rebuild_asset_button_enabled(self.has_active_standalone_session() and self._standalone_export_validation_ok())
+        has_archive_target = isinstance(self._current_target_entry(), _tab.ArchiveEntry)
         self._set_preview_rebuilt_asset_button_enabled(
-            self.has_active_standalone_session() and self._standalone_export_validation_ok()
+            has_archive_target and self.has_active_standalone_session() and self._standalone_export_validation_ok()
         )
         self._set_package_rebuilt_asset_button_enabled(
-            self.has_active_standalone_session() and self._standalone_export_validation_ok()
+            has_archive_target and self.has_active_standalone_session() and self._standalone_export_validation_ok()
         )
     def _cancel_standalone_rebuild_report_worker(self) -> None:
         worker = self.standalone_rebuild_report_worker
@@ -322,7 +347,16 @@ class MeshEditorReportsMixin:
         if button is not None:
             button.setEnabled(bool(enabled))
     def _standalone_export_validation_ok(self) -> bool:
-        return bool(getattr(self.standalone_last_export_validation_report, "ok", False))
+        return self._standalone_export_validation_current() and bool(
+            getattr(self.standalone_last_export_validation_report, "ok", False)
+        )
+    def _standalone_export_validation_current(self) -> bool:
+        revision = self._standalone_session_revision()
+        return (
+            revision is not None
+            and self.standalone_export_validation_revision == revision
+            and self.standalone_last_export_validation_report is not None
+        )
     def _standalone_rebuild_allowed(self) -> bool:
         return self._standalone_export_validation_ok() or self._standalone_developer_rebuild_override_allowed()
     def _standalone_developer_rebuild_override_enabled(self) -> bool:
@@ -335,7 +369,7 @@ class MeshEditorReportsMixin:
         reason = str(self.settings.value("mesh_editor/developer_rebuild_override_reason", "") or "").strip()
         return reason or "Developer-mode unsafe rebuild override."
     def _standalone_developer_rebuild_override_allowed(self) -> bool:
-        if not self._standalone_developer_rebuild_override_enabled():
+        if not self._standalone_developer_rebuild_override_enabled() or not self._standalone_export_validation_current():
             return False
         blockers = tuple(getattr(self.standalone_last_export_validation_report, "blockers", ()) or ())
         return bool(blockers) and all(
@@ -697,8 +731,9 @@ class MeshEditorReportsMixin:
             move_to_thread(self.thread())
         current.quit()
 
-    def _cancel_mesh_direct_output_worker(self) -> None:
-        self.standalone_output_request_id += 1
+    def _cancel_mesh_direct_output_worker(self, *, invalidate_result: bool = False) -> None:
+        if invalidate_result:
+            self.standalone_output_request_id += 1
         worker = self.standalone_output_worker
         stop = getattr(worker, "stop", None)
         if callable(stop):

@@ -61,6 +61,12 @@ are hidden from the normal product surface.
 The five direct output buttons use explicit normal, hover, pressed, and disabled
 states. Validation-gated outputs and receipt-gated restore stay visibly
 unavailable until their prerequisites exist.
+The session-state bridge also declares whether the current source requires an
+exact PAC/PAM/PAMLOD output. Those sessions omit topology controls whose result
+cannot preserve protected records and the host rejects the same commands before
+mutation. Imported GLB/OBJ sessions opened by **Create New Item** declare a
+working-mesh output instead, so Create Part, duplicate and the other imported-
+model topology tools remain available.
 The resident strip keeps **Close** at its far edge. It remains available while
 session work is active, confirms before discarding edits, and returns Mesh Editor
 to its empty state through the same nonblocking worker and renderer teardown path.
@@ -99,8 +105,9 @@ resident session; per-face source indices are ancestor bookkeeping, never a
 selection space. Geometry and selection are one native history pair, so one
 Undo or Redo restores both. The Builder adopts the native remapped selection
 after topology rather than clearing its mirror independently.
-The Selection panel offers **Create Part from Selection**. It sends the existing
-`separate` command after current or provisional Brush selection authority has landed,
+For imported-model authoring, the Selection panel offers **Create Part from
+Selection**. It sends the existing `separate` command after current or
+provisional Brush selection authority has landed,
 requires Faces from exactly one source part, moves those faces into a uniquely named
 appended submesh, and retains the source part's vertex channels and material route. The
 new Parts row is selected and revealed with its moved-face count. Create New Item opens
@@ -127,7 +134,10 @@ geometry frame at the same revision, but it cannot be merged into that frame or
 published under its ID. Cancellation or publication failure returns an explicit
 rollback result so provisional selection cannot remain stranded.
 `MeshEditorController.export_validation_report()` exposes the service-backed
-pre-export validator for the active session.
+pre-export validator for the active session. The visible **Run validation**
+action executes it in a background worker. Its report is stamped to the checked
+geometry revision; a later edit clears the report and all validation-gated
+outputs until validation is run again.
 `MeshEditorController.workspace_summary()` exposes the service-backed part,
 material route, UV channel, and skinning summary for panel rendering. Whole-part
 selection belongs to the explicit Parts/PARTS lists: clicking a row toggles it
@@ -569,11 +579,14 @@ prepares the exact mount-list change, carry-forward set and backup targets befor
 confirmation; apply rechecks the game state, stages and validates the complete
 overlay, backs up through `ArchiveMutationService`, and publishes the mount list
 last. The resident helper is the editor rather than a blocking output task, so
-**Run validation** and the validation-gated output controls remain enabled while
-that helper is open. Cancellation or failure after backup rolls back. The receipt consumed by
+it does not itself disable **Run validation** or an output whose own validation
+and target prerequisites are current. Cancellation or failure after backup
+rolls back. The receipt consumed by
 **Restore Last Overlay Install** restores the prior overlay/mount state and
 removes only paths created by that receipt. Source textures and material
-sidecars remain inherited and unchanged.
+sidecars remain inherited and unchanged. Restore validates the exact CDMW owner
+marker and proves the receipt's backup/created target sets against the backup
+manifest before invoking restore or deleting any overlay-owned path.
 
 Resident output import is prepare-then-commit. The worker prepares and validates
 an immutable replacement against a session/revision snapshot without touching

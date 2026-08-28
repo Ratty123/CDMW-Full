@@ -725,6 +725,7 @@ internal sealed partial class ExperimentForm
         string hint;
         var meshEdit = string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
         var tool = (_viewport.ActiveTool ?? string.Empty).Trim().ToLowerInvariant();
+        var selectionTarget = Convert.ToString(_selectionTarget.SelectedItem) ?? "Vertices";
         var primary = "Orbit: LMB drag";
         // Written from the live bindings: the pan/orbit modifiers and the
         // middle/right drags are rebindable, so a baked-in "Shift+LMB / MMB /
@@ -749,7 +750,7 @@ internal sealed partial class ExperimentForm
         {
             primary = tool switch
             {
-                "select" => "Select mesh vertices: LMB click/drag",
+                "select" => $"Select {selectionTarget}: LMB click/drag",
                 "orbit" => "Orbit: LMB drag",
                 "move" => "Move selection: LMB drag",
                 "grab" => "Grab: LMB drag",

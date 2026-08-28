@@ -1692,8 +1692,11 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPartContext"))
 
+        imported_mesh = _build_two_part_synthetic_mesh()
+        imported_mesh.path = "imports/part-context.glb"
+        imported_mesh.format = "gltf"
         tab.open_mesh_session(
-            _build_two_part_synthetic_mesh(),
+            imported_mesh,
             session_id="standalone-part-context",
             mode="edit",
         )
@@ -2118,6 +2121,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
         validator = tab.standalone_workspace.findChild(QTreeWidget, "MeshEditorValidatorPanel")
         assert validator is not None
         codes = [validator.topLevelItem(index).text(1) for index in range(validator.topLevelItemCount())]
+        self.assertEqual(["not_run"], codes)
+        tab._start_standalone_export_validation_requested()
+        self.assertTrue(_wait_for(app, lambda: tab.standalone_validation_thread is None))
+        codes = [validator.topLevelItem(index).text(1) for index in range(validator.topLevelItemCount())]
         self.assertIn("summary", codes)
         self.assertIn("missing_normals", codes)
         tab.standalone_workspace.update_export_validation(
@@ -2205,6 +2212,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.open_mesh_session(mesh, session_id="copy-validation-report", mode="edit")
         copy_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorCopyValidationReportButton")
         assert copy_button is not None
+        tab._start_standalone_export_validation_requested()
+        deadline = time.time() + 5.0
+        while tab.standalone_validation_thread is not None and time.time() < deadline:
+            app.processEvents()
+            time.sleep(0.01)
+        app.processEvents()
         self.assertTrue(copy_button.isEnabled())
 
         QApplication.clipboard().clear()
@@ -2244,8 +2257,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
         assert restore_overlay_button is not None
         self.assertEqual("No rebuild report.", rebuild.topLevelItem(0).text(1))
         self.assertFalse(save_button.isEnabled())
-        self.assertTrue(preview_rebuilt_button.isEnabled())
-        self.assertTrue(package_rebuilt_button.isEnabled())
+        self.assertFalse(preview_rebuilt_button.isEnabled())
+        self.assertFalse(package_rebuilt_button.isEnabled())
         tab.standalone_workspace.update_export_validation(None)
         self.assertFalse(rebuild_asset_button.isEnabled())
 
@@ -2393,6 +2406,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             no_op_roundtrip_status="PASS",
             no_op_byte_identical=True,
         )
+        tab.standalone_export_validation_revision = tab.standalone_controller.session_view().revision
         with tempfile.TemporaryDirectory() as temp_dir:
             target = str(Path(temp_dir) / "rebuilt.pac")
             with (
@@ -2431,6 +2445,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 ),
             ),
         )
+        tab.standalone_export_validation_revision = tab.standalone_controller.session_view().revision
 
         with tempfile.TemporaryDirectory() as temp_dir:
             target = str(Path(temp_dir) / "rebuilt.pac")
@@ -2507,6 +2522,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
     def test_mesh_editor_workspace_uv_canvas_region_signal_selects_uv_vertices(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorUvCanvasSelect"))
+        tab.standalone_workspace.right_panels.setVisible(True)
 
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-uv-region-select", mode="edit")
 
@@ -2524,6 +2540,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
     def test_mesh_editor_workspace_uv_canvas_lasso_signal_selects_uv_vertices(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorUvCanvasLasso"))
+        tab.standalone_workspace.right_panels.setVisible(True)
 
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-uv-lasso-select", mode="edit")
 
@@ -2541,6 +2558,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
     def test_mesh_editor_workspace_uv_panel_exposes_actions_and_selects_island_rows(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorUvPanelActions"))
+        tab.standalone_workspace.right_panels.setVisible(True)
 
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-uv-panel-actions", mode="edit")
 
@@ -2609,6 +2627,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
     def test_mesh_editor_workspace_right_panels_render_part_material_summary(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPartSummary"))
+        tab.standalone_workspace.right_panels.setVisible(True)
         mesh = build_synthetic_mesh()
         part = mesh.submeshes[0]
         setattr(part, "cdmw_target_material_slot_index", 7)

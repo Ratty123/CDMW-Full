@@ -882,11 +882,13 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert "ApplyNativeControlTheme(control);" in program_source
     assert "ApplyDarkScrollbars(_submeshList);" in program_source
     # The Parts group builds through its own owner, which also carries the
-    # selected-part detail; the whole-part commands stay exactly as they were.
+    # selected-part detail; every whole-part command declares source authority.
     parts_source = _source("ExperimentForm.PartsSection.cs")
-    assert 'CommandButton("Hide", "toggle_visibility")' in parts_source
-    assert 'CommandButton("Duplicate", "duplicate")' in program_source
-    assert 'CommandButton("Delete", "delete")' in program_source
+    assert 'WriteCommandRequest("toggle_visibility", new Dictionary<string, object?>' in parts_source
+    assert 'WriteCommandRequest("duplicate", new Dictionary<string, object?>' in program_source
+    assert 'WriteCommandRequest("delete", new Dictionary<string, object?>' in program_source
+    assert parts_source.count('["target_mode"] = "source"') >= 1
+    assert program_source.count('["target_mode"] = "source"') >= 2
     assert '"Finish Edit Mesh"' in program_source
     assert "RequestFinishEditMesh();" in program_source
     assert 'WriteProtocolEvent("save_request")' in morph_source

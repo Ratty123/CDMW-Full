@@ -159,17 +159,37 @@ internal sealed partial class ExperimentForm
     /// What a row's page holds, shown on hover. Rows that share a page share
     /// their description, because they open the same settings.
     /// </summary>
-    private static string ToolListRowDescription(string key) => key switch
+    private void ApplyToolListRowDescription(Button button, string key)
     {
-        RowKeys.Select => "Mesh vertex selection: drag shape, combine mode and X-Ray.",
-        RowKeys.Move or RowKeys.Grab => "Translate step, Move, Grab and Grab radius.",
-        RowKeys.Smooth or RowKeys.Inflate or RowKeys.Pinch =>
-            "Smooth, Inflate and Pinch with radius, strength and falloff.",
-        RowKeys.Topology => "Subdivide and Refine Smooth.",
-        RowKeys.Viewport =>
-            "Choose the preview mode, topology appearance, viewport background, or a camera preset. Mouse and keyboard bindings update with the active tool.",
-        _ => "Definition profiles, shape sliders and garment refit binding.",
-    };
+        if (key == RowKeys.Select)
+        {
+            SetHelpText(button, "Click or drag on the mesh to select vertices, wires, or faces. Brush, Rectangle and Lasso never select PARTS; X-Ray selects through the mesh.");
+        }
+        else if (key is RowKeys.Move or RowKeys.Grab)
+        {
+            SetHelpText(button, "Translate step, Move, Grab and Grab radius.");
+        }
+        else if (key is RowKeys.Smooth or RowKeys.Inflate or RowKeys.Pinch)
+        {
+            SetHelpText(button, "Smooth, Inflate and Pinch with radius, strength and falloff.");
+        }
+        else if (key == RowKeys.Topology && DirectAuthoringRestrictionsActive)
+        {
+            SetHelpText(button, "Delete Selection");
+        }
+        else if (key == RowKeys.Topology)
+        {
+            SetHelpText(button, "Subdivide and Refine Smooth require a selection and never change the whole mesh implicitly.");
+        }
+        else if (key == RowKeys.Viewport)
+        {
+            SetHelpText(button, "Choose the preview mode, topology appearance, viewport background, or a camera preset. Mouse and keyboard bindings update with the active tool.");
+        }
+        else
+        {
+            SetHelpText(button, "Definition profiles, shape sliders and garment refit binding.");
+        }
+    }
 
     private void AddToolListRow(ToolListRow row)
     {
@@ -220,7 +240,7 @@ internal sealed partial class ExperimentForm
         button.Margin = new Padding(0, 0, 0, 2);
         button.Padding = new Padding(8, 0, 6, 0);
         button.TextAlign = ContentAlignment.MiddleLeft;
-        SetHelpText(button, ToolListRowDescription(row.Key));
+        ApplyToolListRowDescription(button, row.Key);
         return button;
     }
 

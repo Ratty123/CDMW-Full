@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
 from cdmw.ui.shell.settings_bridge import read_bool_setting
-from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
+from cdmw.ui.mesh_editor.actions import mesh_editor_action_authoring_blocker, mesh_editor_actions_by_key
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -727,6 +727,20 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
             return False
         if command.startswith("morph_"):
             return self._handle_dotnet_morph_command_request(controller, command, payload)
+        if (
+            not self.standalone_dotnet_target_embedded
+            and (self._standalone_exact_output_required() or command == "toggle_visibility")
+        ):
+            blocker = mesh_editor_action_authoring_blocker(command)
+            if blocker:
+                self._send_dotnet_command_result(
+                    command,
+                    ok=False,
+                    status="unavailable",
+                    diagnostics=(blocker,),
+                    request_payload=payload,
+                )
+                return True
         if self._queue_dotnet_topology_after_selection(command, payload):
             return True
         if self._reject_dotnet_mutation_while_busy(command, payload):
@@ -740,6 +754,24 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
         )
         action_selection = local_selection if selection_supplied else None
         target_mode = str(payload.get("target_mode", "") or "").strip().lower()
+        if (
+            not self.standalone_dotnet_target_embedded
+            and self._standalone_exact_output_required()
+            and command == "delete"
+            and bool(local_selection.source_indices)
+            and not local_selection.vertices_by_submesh
+            and not local_selection.edges_by_submesh
+            and not local_selection.faces_by_submesh
+        ):
+            blocker = mesh_editor_action_authoring_blocker(command, deletes_parts=True)
+            self._send_dotnet_command_result(
+                command,
+                ok=False,
+                status="unavailable",
+                diagnostics=(blocker,),
+                request_payload=payload,
+            )
+            return True
         if command == "separate":
             if target_mode != "face":
                 self._send_dotnet_command_result(

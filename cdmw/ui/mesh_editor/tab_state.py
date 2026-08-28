@@ -105,10 +105,13 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         summary = getattr(self.standalone_workspace, "update_session_summary", None)
         if callable(summary):
             summary(view, mesh_label=self.standalone_mesh_label)
+        right_panels = getattr(self.standalone_workspace, "right_panels", None)
+        derived_panels_visible = right_panels is None or not right_panels.isHidden()
         self._refresh_standalone_workspace_summary(view)
-        self._refresh_standalone_uv_summary(view)
         self._refresh_standalone_skeleton_summary(view)
-        self._refresh_standalone_compare_summary(view)
+        if derived_panels_visible:
+            self._refresh_standalone_uv_summary(view)
+            self._refresh_standalone_compare_summary(view)
         self._refresh_standalone_export_validation(view)
         rebuild_updater = getattr(self.standalone_workspace, "update_rebuild_report", None)
         # A rebuild report goes stale when the geometry changes, not when the user
@@ -156,16 +159,16 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         controller = self.standalone_controller
         if view is None or controller is None or controller.active_session_id != view.session_id:
             self.standalone_last_export_validation_report = None
+            self.standalone_export_validation_revision = None
             updater(None)
             return
-        try:
-            report = controller.export_validation_report()
-            self.standalone_last_export_validation_report = report
-            updater(report)
-        except Exception as exc:
-            self._record_runtime_event("mesh_editor_export_validation_refresh_failed", error=str(exc))
+        revision = int(getattr(view, "revision", -1))
+        if self.standalone_export_validation_revision != revision:
             self.standalone_last_export_validation_report = None
+            self.standalone_export_validation_revision = None
             updater(None)
+            return
+        updater(self.standalone_last_export_validation_report)
     def _copy_standalone_validation_report_requested(self) -> None:
         report = self.standalone_last_export_validation_report
         if report is None:
@@ -232,6 +235,11 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         if self.current_request is not None:
             return self.current_request.target_entry
         return self.current_archive_selection
+    def _standalone_exact_output_required(self) -> bool:
+        if isinstance(self._current_target_entry(), _tab.ArchiveEntry):
+            return True
+        suffix = Path(str(self.standalone_mesh_label or "")).suffix.lower()
+        return suffix in {".pac", ".pam", ".pamlod", ".meshinfo"}
     def _native_mesh_editor_available(self) -> bool:
         controller = getattr(self, "standalone_controller", None)
         if controller is not None and bool(getattr(controller, "active_session_id", "")):
@@ -259,6 +267,7 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
     def _sync_state(self) -> None:
         target = self._current_target_entry()
         has_standalone = self.has_active_standalone_session()
+        has_archive_target = isinstance(target, _tab.ArchiveEntry)
         has_target = target is not None or has_standalone
         has_workflow_target = target is not None
         native_editor_available = self._native_mesh_editor_available()
@@ -355,6 +364,11 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
                     "standalone_install_overlay_button",
                 }:
                     enabled = enabled and self._standalone_rebuild_allowed()
+                    if button_name in {
+                        "standalone_build_mod_button",
+                        "standalone_install_overlay_button",
+                    }:
+                        enabled = enabled and has_archive_target
                 elif button_name == "standalone_restore_overlay_button":
                     receipt = self._mesh_overlay_receipt_path()
                     enabled = enabled and receipt is not None and receipt.is_file()

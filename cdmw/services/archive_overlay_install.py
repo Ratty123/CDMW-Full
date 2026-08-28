@@ -382,15 +382,65 @@ def restore_last_overlay_install(
     overlay_name = str(payload.get("overlay_directory") or "")
     if not overlay_name.isdigit() or int(overlay_name) < OVERLAY_DIRECTORY_FIRST:
         raise ValueError("Overlay receipt names an invalid overlay directory")
+    overlay_directory = root / overlay_name
+    if not is_cdmw_overlay_directory(overlay_directory):
+        raise ValueError("Overlay receipt does not name a CDMW-owned overlay directory")
     created_paths: list[Path] = []
     for raw in tuple(payload.get("created_files") or ()):
         path = Path(str(raw)).expanduser().resolve()
         if path != root and root not in path.parents:
             raise ValueError("Overlay receipt contains a created path outside the package root")
         created_paths.append(path)
+    if len(set(created_paths)) != len(created_paths):
+        raise ValueError("Overlay receipt contains duplicate created paths")
+    allowed_created_paths = {
+        (overlay_directory / "0.pamt").resolve(),
+        (overlay_directory / "0.paz").resolve(),
+        (overlay_directory / OVERLAY_OWNER_MARKER).resolve(),
+        receipt,
+    }
+    unexpected_created = set(created_paths) - allowed_created_paths
+    if unexpected_created:
+        raise ValueError("Overlay receipt contains a created path not owned by the overlay install")
     backup_dir = Path(str(payload.get("backup_dir") or "")).expanduser().resolve()
     if not backup_dir.is_dir():
         raise FileNotFoundError("The overlay install backup named by the receipt is unavailable")
+    raw_backup_targets = tuple(payload.get("backup_targets") or ())
+    backup_targets: list[Path] = []
+    for raw in raw_backup_targets:
+        path = Path(str(raw)).expanduser().resolve()
+        if path != root and root not in path.parents:
+            raise ValueError("Overlay receipt contains a backup target outside the package root")
+        backup_targets.append(path)
+    if len(set(backup_targets)) != len(backup_targets):
+        raise ValueError("Overlay receipt contains duplicate backup targets")
+    if set(created_paths) != allowed_created_paths - set(backup_targets):
+        raise ValueError("Overlay receipt targets do not match the install backup manifest")
+    manifest_path = backup_dir / "backup_manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError("The overlay install backup manifest is unavailable")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_files = manifest.get("files") if isinstance(manifest, dict) else None
+    if not isinstance(manifest_files, list):
+        raise ValueError("The overlay install backup manifest is invalid")
+    manifest_originals: set[Path] = set()
+    for item in manifest_files:
+        if not isinstance(item, dict):
+            raise ValueError("The overlay install backup manifest contains an invalid file entry")
+        original = Path(str(item.get("original_path") or "")).expanduser().resolve()
+        backup_path = Path(str(item.get("backup_path") or "")).expanduser().resolve()
+        if original != root and root not in original.parents:
+            raise ValueError("The overlay install backup manifest targets a path outside the package root")
+        if backup_path == backup_dir or backup_dir not in backup_path.parents or not backup_path.is_file():
+            raise ValueError("The overlay install backup manifest names an unavailable backup file")
+        if original in manifest_originals:
+            raise ValueError("The overlay install backup manifest contains duplicate targets")
+        manifest_originals.add(original)
+    expected_originals = set(backup_targets) - set(created_paths)
+    if manifest_originals != expected_originals:
+        raise ValueError("Overlay receipt targets do not match the install backup manifest")
+    if (root / "meta" / "0.papgt").resolve() not in manifest_originals:
+        raise ValueError("The overlay install backup does not contain the archive mount list")
     restore_backup(backup_dir)
     for path in sorted(created_paths, key=lambda value: len(value.parts), reverse=True):
         path.unlink(missing_ok=True)

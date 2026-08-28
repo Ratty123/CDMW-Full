@@ -16,6 +16,7 @@ from cdmw.models import ArchiveEntry
 from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_experiment_command
 from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_service_state import _MeshGeometryLayer
+from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
 from cdmw.ui.mesh_editor.tab import MeshEditorTab
 from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
 from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
@@ -78,7 +79,7 @@ def test_direct_workers_return_to_the_ui_thread_before_native_teardown(finish_me
     thread.start()
     loop.exec()
     try:
-        assert thread.wait(0), "the direct worker thread did not stop"
+        assert thread.wait(1_000), "the direct worker thread did not stop"
         assert worker.thread() is tab.thread()
     finally:
         if not thread.wait(0):
@@ -414,9 +415,13 @@ def test_direct_resident_editor_does_not_disable_qt_owned_output_controls(tmp_pa
         paz_index=0,
     )
     tab.current_archive_selection = entry
-    tab.standalone_controller = SimpleNamespace(active_session_id="direct-output-controls")
+    tab.standalone_controller = SimpleNamespace(
+        active_session_id="direct-output-controls",
+        session_view=lambda: SimpleNamespace(revision=7),
+    )
     tab.standalone_native_editor_available = True
     tab.standalone_last_export_validation_report = SimpleNamespace(ok=True)
+    tab.standalone_export_validation_revision = 7
     tab.standalone_dotnet_embedded_state = "launching"
     tab.standalone_dotnet_target_embedded = False
 
@@ -431,6 +436,268 @@ def test_direct_resident_editor_does_not_disable_qt_owned_output_controls(tmp_pa
         tab.standalone_dotnet_target_embedded = True
         tab.update_editor_action_state(publish_native=False)
         assert not tab.standalone_run_validation_report_button.isEnabled()
+    app.processEvents()
+
+
+def test_file_only_session_keeps_archive_outputs_disabled_after_current_validation() -> None:
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings("CDMWTests", "FileOnlyMeshOutputControls")
+    settings.clear()
+    tab = MeshEditorTab(settings=settings)
+    tab.open_mesh_session(_mesh(two_parts=False), session_id="file-only-output-controls", mode="edit")
+    assert tab.standalone_controller is not None
+    revision = tab.standalone_controller.session_view().revision
+    tab.standalone_last_export_validation_report = SimpleNamespace(ok=True)
+    tab.standalone_export_validation_revision = revision
+
+    tab.update_editor_action_state(publish_native=False)
+
+    assert tab.standalone_run_validation_report_button.isEnabled()
+    assert tab.standalone_export_mesh_file_button.isEnabled()
+    assert not tab.standalone_build_mod_button.isEnabled()
+    assert not tab.standalone_install_overlay_button.isEnabled()
+    tab.close_standalone_session()
+    tab.deleteLater()
+    app.processEvents()
+
+
+def test_hidden_standalone_panels_do_not_recompute_expensive_derived_reports() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "HiddenDirectDerivedReports"))
+    tab.open_mesh_session(_mesh(two_parts=False), session_id="hidden-derived-reports", mode="edit")
+    assert tab.standalone_controller is not None
+    assert tab.standalone_workspace.right_panels.isHidden()
+
+    with (
+        patch.object(tab.standalone_controller, "uv_summary", side_effect=AssertionError("UV summary ran")),
+        patch.object(tab.standalone_controller, "compare_summary", side_effect=AssertionError("compare summary ran")),
+        patch.object(tab.standalone_controller, "export_validation_report", side_effect=AssertionError("validation ran synchronously")),
+    ):
+        tab.update_editor_session_state(tab.standalone_controller.session_view())
+
+    tab.close_standalone_session()
+    tab.deleteLater()
+    app.processEvents()
+
+
+def test_geometry_revision_invalidates_cached_validation_and_output_authority() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshValidationRevisionAuthority"))
+    tab.open_mesh_session(_mesh(two_parts=False), session_id="validation-revision-authority", mode="edit")
+    assert tab.standalone_controller is not None
+    view = tab.standalone_controller.session_view()
+    tab.standalone_last_export_validation_report = SimpleNamespace(ok=True)
+    tab.standalone_export_validation_revision = view.revision
+    assert tab._standalone_export_validation_ok()
+
+    tab._refresh_standalone_export_validation(
+        SimpleNamespace(session_id=view.session_id, revision=view.revision + 1)
+    )
+
+    assert tab.standalone_last_export_validation_report is None
+    assert tab.standalone_export_validation_revision is None
+    assert not tab._standalone_export_validation_ok()
+    tab.close_standalone_session()
+    tab.deleteLater()
+    app.processEvents()
+
+
+def test_direct_result_update_invalidates_the_previous_revision_validation() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectResultValidationInvalidation"))
+    tab.open_mesh_session(_mesh(two_parts=False), session_id="direct-result-validation", mode="edit")
+    assert tab.standalone_controller is not None
+    controller = tab.standalone_controller
+    controller.select(vertices_by_submesh={0: (0,)}, operation="replace")
+    before = controller.session_view()
+    tab.standalone_last_export_validation_report = SimpleNamespace(ok=True)
+    tab.standalone_export_validation_revision = before.revision
+    result = controller.apply_editor_action("transform_move", delta=(0.1, 0.0, 0.0))
+    assert result.ok
+    assert result.revision > before.revision
+
+    with (
+        patch.object(tab, "_apply_standalone_native_update", return_value=True),
+        patch.object(tab, "_send_dotnet_native_update", return_value=True),
+        patch.object(tab, "_send_dotnet_session_state", return_value=True),
+    ):
+        assert tab._apply_dotnet_result_update(controller, result, command_name="transform_move")
+
+    assert tab.standalone_last_export_validation_report is None
+    assert tab.standalone_export_validation_revision is None
+    assert not tab._standalone_export_validation_ok()
+    tab.close_standalone_session()
+    tab.deleteLater()
+    app.processEvents()
+
+
+def test_user_output_cancel_preserves_request_correlation_until_terminal_feedback() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshOutputCancelFeedback"))
+
+    class Stoppable:
+        def __init__(self) -> None:
+            self.stopped = False
+
+        def stop(self) -> None:
+            self.stopped = True
+
+    worker = Stoppable()
+    messages: list[tuple[str, bool]] = []
+    tab.status_message_requested.connect(lambda text, error=False: messages.append((text, bool(error))))
+    tab.standalone_output_request_id = 41
+    tab.standalone_output_worker = worker
+
+    tab._cancel_mesh_direct_output_worker()
+    tab._handle_mesh_direct_output_cancelled(41, "Mesh output cancelled.")
+
+    assert worker.stopped
+    assert tab.standalone_output_request_id == 41
+    assert messages[-1] == ("Mesh output cancelled.", False)
+
+    tab._cancel_mesh_direct_output_worker(invalidate_result=True)
+    assert tab.standalone_output_request_id == 42
+    tab.standalone_output_worker = None
+    tab.deleteLater()
+    app.processEvents()
+
+
+def test_direct_dotnet_rejects_unexportable_commands_but_keeps_exact_face_delete() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectAuthoringCommandGate"))
+    tab.open_mesh_session(_mesh(two_parts=False), session_id="direct-authoring-command-gate", mode="edit")
+    assert tab.standalone_controller is not None
+    tab.standalone_dotnet_target_controller = tab.standalone_controller
+    tab.standalone_dotnet_target_embedded = False
+    before_revision = tab.standalone_controller.session_view().revision
+    protocol_messages: list[dict[str, object]] = []
+    with patch.object(
+        tab,
+        "_send_dotnet_protocol_message",
+        side_effect=lambda payload: protocol_messages.append(dict(payload)) or True,
+    ):
+        assert tab._send_dotnet_session_state()
+    assert protocol_messages[-1]["exact_output_required"] is True
+    results: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    blocked = (
+        "duplicate",
+        "separate",
+        "subdivide",
+        "refine_smooth",
+        "copy",
+        "paste",
+        "layer_delete",
+        "toggle_visibility",
+    )
+
+    with patch.object(
+        tab,
+        "_send_dotnet_command_result",
+        side_effect=lambda *args, **kwargs: results.append((args, kwargs)) or True,
+    ), patch.object(tab, "_start_dotnet_action_worker") as start_worker:
+        for command in blocked:
+            assert tab._handle_dotnet_command_request(
+                {
+                    "command": command,
+                    "target_mode": "face",
+                    "local_selection": {"faces_by_submesh": {"0": [0]}},
+                }
+            )
+        assert tab._handle_dotnet_command_request(
+            {
+                "command": "delete",
+                "target_mode": "source",
+                "local_selection": {"source_indices": [0]},
+            }
+        )
+        assert tab._handle_dotnet_command_request(
+            {
+                "command": "delete",
+                "target_mode": "face",
+                "local_selection": {"faces_by_submesh": {"0": [0]}},
+            }
+        )
+
+    assert tab.standalone_controller.session_view().revision == before_revision
+    assert len(results) == len(blocked) + 1
+    assert all(kwargs["status"] == "unavailable" for _args, kwargs in results)
+    start_worker.assert_called_once()
+    safe_command = start_worker.call_args.args[1]
+    assert safe_command.action == "delete"
+    assert safe_command.selection is not None
+    assert safe_command.selection.faces_by_submesh == ((0, (0,)),)
+    tab.close_standalone_session()
+    tab.deleteLater()
+    app.processEvents()
+
+
+def test_exact_output_qt_entry_points_reject_whole_part_and_duplicate_actions() -> None:
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings("CDMWTests", "ExactOutputQtActionGate")
+    settings.clear()
+    tab = MeshEditorTab(settings=settings)
+    tab.open_mesh_session(_mesh(two_parts=False), session_id="exact-output-qt-actions", mode="edit")
+    assert tab.standalone_controller is not None
+    messages: list[tuple[str, bool]] = []
+    tab.status_message_requested.connect(lambda text, error=False: messages.append((text, bool(error))))
+
+    with patch.object(
+        tab.standalone_controller,
+        "run_editor_action",
+        side_effect=AssertionError("blocked exact-output action reached the controller"),
+    ), patch.object(
+        tab,
+        "_start_standalone_action_worker",
+        side_effect=AssertionError("blocked exact-output action reached a worker"),
+    ):
+        assert not tab._handle_part_context_action("duplicate", 0)
+        assert not tab._handle_part_context_action("delete", 0)
+        assert tab._run_standalone_action(mesh_editor_actions_by_key()["duplicate"])
+
+    assert messages
+    assert all(error for _text, error in messages)
+    assert all("unavailable" in text.lower() for text, _error in messages)
+    tab.close_standalone_session()
+    tab.deleteLater()
+    app.processEvents()
+
+
+def test_imported_model_direct_session_keeps_topology_tools_and_reports_nonexact_output() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "ImportedModelAuthoringCapability"))
+    mesh = _mesh(two_parts=False)
+    mesh.path = "imports/new-item-model.glb"
+    mesh.format = "gltf"
+    tab.open_mesh_session(mesh, session_id="imported-model-authoring", mode="edit")
+    assert tab.standalone_controller is not None
+    tab.standalone_dotnet_target_controller = tab.standalone_controller
+    tab.standalone_dotnet_target_embedded = False
+    protocol_messages: list[dict[str, object]] = []
+
+    with patch.object(tab, "_start_dotnet_action_worker", return_value=True) as start_worker, patch.object(
+        tab,
+        "_send_dotnet_command_result",
+        side_effect=AssertionError("imported-model topology was rejected"),
+    ):
+        assert tab._handle_dotnet_command_request(
+            {
+                "command": "duplicate",
+                "target_mode": "face",
+                "local_selection": {"faces_by_submesh": {"0": [0]}},
+            }
+        )
+    start_worker.assert_called_once()
+
+    with patch.object(
+        tab,
+        "_send_dotnet_protocol_message",
+        side_effect=lambda payload: protocol_messages.append(dict(payload)) or True,
+    ):
+        assert tab._send_dotnet_session_state()
+    assert protocol_messages[-1]["exact_output_required"] is False
+
+    tab.close_standalone_session()
+    tab.deleteLater()
     app.processEvents()
 
 

@@ -83,13 +83,18 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert 'CreatePartFromSelectionButton()' in program
     assert 'CommandButton("Split Selection Into Part", "separate")' not in program
     assert "ButtonRow(separateSelectionButton)" not in program
-    assert '"Create Part from Selection"' in _source("ExperimentForm.EditMeshToolDiagnostics.cs")
-    assert '"Create Part from Selection",' in _source("ExperimentForm.EditMeshToolDiagnostics.cs")
+    diagnostics = _source("ExperimentForm.EditMeshToolDiagnostics.cs")
+    assert '"direct_authoring_controls"' in diagnostics
+    assert '"mixed_morph_refit_selection"' in diagnostics
+    assert "!_createPartFromSelectionButton.Visible" in diagnostics
     command_guard = program.split(
         "private long WriteCommandRequest", maxsplit=1
     )[1].split("var targetMode = SelectionTarget();", maxsplit=1)[0]
     assert 'normalizedCommand is "subdivide" or "refine_smooth" or "separate"' in command_guard
     assert 'or "refine_smooth" or "separate" or "copy"' in command_guard
+    assert 'ApplyDirectAuthoringOutputContract(JsonBoolean(root, "exact_output_required"));' in _source(
+        "ExperimentForm.Protocol.cs"
+    )
     assert _section_stack(program, "Action History") == "rightStack"
     assert _section_stack(program, "Viewport") == "leftStack"
     # Parts builds through its own owner, which carries the selected-part

@@ -220,7 +220,7 @@ internal sealed partial class ExperimentForm : Form
         _viewport.MouseDown += (_, _) => _viewport.Focus();
         _viewport.SubmeshSelectedRequested += _ => SyncSubmeshListSelection();
         ConfigureSubmeshList();
-        ConfigureNumeric(_translateStep, decimalPlaces: 4, minimum: -10, maximum: 10, value: 0.0100M, increment: 0.0100M);
+        ConfigureNumeric(_translateStep, decimalPlaces: 4, minimum: 0.0001M, maximum: 10, value: 0.0100M, increment: 0.0100M);
         // Whole-part selection is owned only by the explicit PARTS list. The
         // viewport Select tool operates on one element domain at a time.
         ConfigureCombo(_selectionTarget, new object[] { "Vertices", "Wires", "Faces" }, selectedIndex: 0);
@@ -583,6 +583,7 @@ internal sealed partial class ExperimentForm : Form
         }
         LoadPartColourControls();
         ApplySelectedMorphRefitSettings();
+        RefreshPartDetail();
     }
 
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
@@ -597,6 +598,14 @@ internal sealed partial class ExperimentForm : Form
             return 0;
         }
         var normalizedCommand = (command ?? string.Empty).Trim().ToLowerInvariant();
+        var directAuthoringBlocker = DirectAuthoringRestrictionsActive
+            ? DirectAuthoringCommandBlocker(normalizedCommand)
+            : string.Empty;
+        if (directAuthoringBlocker.Length > 0)
+        {
+            _statusLabel.Text = directAuthoringBlocker;
+            return 0;
+        }
         var topologyCanWaitForSelection = normalizedCommand is "subdivide" or "refine_smooth" or "separate"
             && _viewport.HasPendingSelectionAuthority;
         if (normalizedCommand is "transform_move" or "delete" or "duplicate" or "subdivide" or "refine_smooth" or "separate" or "copy"

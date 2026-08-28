@@ -128,6 +128,7 @@ class _MeshEditorTabStub(QWidget):
         self.opened_path: Path | None = None
         self.session_active = False
         self.standalone_last_export_validation_report = None
+        self.standalone_validation_thread = None
         self.mesh_smoke_service = _MeshSmokeServiceStub()
         self.standalone_controller = None
 
@@ -143,6 +144,12 @@ class _MeshEditorTabStub(QWidget):
             no_op_roundtrip_status="PASS",
         )
         return object()
+
+    def _start_standalone_export_validation_requested(self) -> None:
+        self.standalone_last_export_validation_report = SimpleNamespace(
+            ok=True,
+            no_op_roundtrip_status="PASS",
+        )
 
     def has_active_standalone_session(self) -> bool:
         return self.session_active

@@ -2,6 +2,62 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class ExperimentForm
 {
+    private readonly List<Button> _directAuthoringBlockedButtons = new();
+    private bool _directAuthoringExactOutputRequired;
+    private bool DirectAuthoringRestrictionsActive =>
+        _options.DirectAuthoring && _directAuthoringExactOutputRequired;
+
+    private void BlockDirectAuthoringButton(Button button, string reason)
+    {
+        if (!_options.DirectAuthoring)
+        {
+            return;
+        }
+        SetHelpText(button, reason);
+        _directAuthoringBlockedButtons.Add(button);
+        ReassertDirectAuthoringBlockedButtons();
+    }
+
+    private void ReassertDirectAuthoringBlockedButtons()
+    {
+        foreach (var button in _directAuthoringBlockedButtons)
+        {
+            button.Visible = !DirectAuthoringRestrictionsActive;
+            if (DirectAuthoringRestrictionsActive)
+            {
+                button.Enabled = false;
+            }
+        }
+    }
+
+    private void ApplyDirectAuthoringOutputContract(bool exactOutputRequired)
+    {
+        _directAuthoringExactOutputRequired = exactOutputRequired;
+        foreach (var button in _topologyMutationButtons)
+        {
+            button.Enabled = !_morphUnbaked;
+        }
+        RefreshCreatePartFromSelectionButton();
+        RefreshGeometryLayerButtonState();
+        RefreshPartDetail();
+        ReassertDirectAuthoringBlockedButtons();
+        if (_toolRailPageButtons.TryGetValue(ToolRailPage.Topology, out var topologyRow))
+        {
+            ApplyToolListRowDescription(topologyRow, "topology");
+        }
+    }
+
+    private static string DirectAuthoringCommandBlocker(string command) => command switch
+    {
+        "duplicate" => "Duplicate is unavailable because the exact PAC writer cannot add protected geometry records.",
+        "separate" => "Create Part is unavailable because the exact PAC writer cannot add a protected submesh record.",
+        "subdivide" => "Subdivide is unavailable because derived PAC vertices cannot preserve protected bytes.",
+        "refine_smooth" => "Refine Smooth is unavailable because derived PAC vertices cannot preserve protected bytes.",
+        "copy" or "paste" or "layer_delete" => "Geometry layers that change topology have no exact PAC writeback route.",
+        "toggle_visibility" => "Part visibility editing has no stored output authority in direct authoring.",
+        _ => string.Empty,
+    };
+
     private void ConfigureToolPanelListsAndFinish()
     {
     _submeshList.BackColor = ThemeInputBackground;
@@ -125,8 +181,24 @@ internal sealed partial class ExperimentForm
         // unchecked so no viewport input path can arm source-part picking.
         _partPick.Visible = false;
         _partPickSection = null;
-        var duplicatePartButton = CommandButton("Duplicate", "duplicate");
-        var deletePartButton = CommandButton("Delete", "delete");
+        var duplicatePartButton = StyledActionButton(
+            "Duplicate",
+            () => WriteCommandRequest("duplicate", new Dictionary<string, object?>
+            {
+                ["target_mode"] = "source",
+            }));
+        var deletePartButton = StyledActionButton(
+            "Delete",
+            () => WriteCommandRequest("delete", new Dictionary<string, object?>
+            {
+                ["target_mode"] = "source",
+            }));
+        BlockDirectAuthoringButton(
+            duplicatePartButton,
+            "Duplicate Part is unavailable because the exact PAC writer cannot add a protected submesh record.");
+        BlockDirectAuthoringButton(
+            deletePartButton,
+            "Delete Part is unavailable because the exact PAC writer cannot remove a protected submesh record.");
         RegisterTopologyMutationButton(duplicatePartButton);
         RegisterTopologyMutationButton(deletePartButton);
         _partsSection = BuildPartsSection(rightStack, duplicatePartButton, deletePartButton);
@@ -137,18 +209,23 @@ internal sealed partial class ExperimentForm
         _layersSection.Name = "CompactGeometryLayersSection";
         _meshEditOnlySections.Add(_layersSection);
         StartupTiming.Mark("layers_section_built");
-        var selectionSection = AddHelpSection(
-            leftStack,
-            "Selection",
-            "Click or drag on the mesh to select vertices, wires, or faces. Brush, Rectangle and Lasso never select PARTS; X-Ray selects through the mesh.",
-            out _,
+        var createPartButton = CreatePartFromSelectionButton();
+        var selectionControls = new List<Control>
+        {
             LabeledControl("Selection target", _selectionTarget),
             LabeledControl("Select shape", _selectionShape),
             LabeledControl("Selection mode", _selectionOperation),
             _xray,
             // No Select button: its list row arms the tool. Grow and Shrink are commands, so they stay.
             ButtonRow(CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink")),
-            CreatePartFromSelectionButton());
+        };
+        selectionControls.Add(createPartButton);
+        var selectionSection = AddHelpSection(
+            leftStack,
+            "Selection",
+            "Click or drag on the mesh to select vertices, wires, or faces. Brush, Rectangle and Lasso never select PARTS; X-Ray selects through the mesh.",
+            out _,
+            selectionControls.ToArray());
         selectionSection.Name = "CompactSelectionSection";
         _selectionSection = selectionSection;
         _meshEditOnlySections.Add(selectionSection);
@@ -192,18 +269,31 @@ internal sealed partial class ExperimentForm
         // keeps its own pair for whole-part actions.
         var deleteSelectionButton = CommandButton("Delete Selection", "delete");
         var duplicateSelectionButton = CommandButton("Duplicate Selection", "duplicate");
+        BlockDirectAuthoringButton(
+            subdivideButton,
+            "Subdivide is unavailable because derived PAC vertices cannot preserve protected bytes.");
+        BlockDirectAuthoringButton(
+            refineButton,
+            "Refine Smooth is unavailable because derived PAC vertices cannot preserve protected bytes.");
+        BlockDirectAuthoringButton(
+            duplicateSelectionButton,
+            "Duplicate Selection is unavailable because the exact PAC writer cannot add protected geometry records.");
         RegisterTopologyMutationButton(subdivideButton);
         RegisterTopologyMutationButton(refineButton);
         RegisterTopologyMutationButton(deleteSelectionButton);
         RegisterTopologyMutationButton(duplicateSelectionButton);
+        var topologyControls = new List<Control>
+        {
+            ButtonRow(deleteSelectionButton, duplicateSelectionButton),
+            ButtonRow(subdivideButton, refineButton),
+        };
         var topologySection = AddHelpSection(
             leftStack,
             "Topology",
             "Acts on the viewport mesh selection or the explicit PARTS selection. "
-            + "Subdivide and Refine Smooth require a selection and never change the whole mesh implicitly.",
+                + "Subdivide and Refine Smooth require a selection and never change the whole mesh implicitly.",
             out _,
-            ButtonRow(deleteSelectionButton, duplicateSelectionButton),
-            ButtonRow(subdivideButton, refineButton));
+            topologyControls.ToArray());
         topologySection.Name = "CompactTopologySection";
         _topologySection = topologySection;
         _meshEditOnlySections.Add(topologySection);

@@ -578,6 +578,7 @@ internal sealed partial class ExperimentForm
                     break;
                 case "session_state":
                     ObserveResidentSession(root);
+                    ApplyDirectAuthoringOutputContract(JsonBoolean(root, "exact_output_required"));
                     ApplyHistoryState(root);
                     ApplyGeometryLayerState(root);
                     ApplySelectionUpdate(root, requireCorrelation: false);

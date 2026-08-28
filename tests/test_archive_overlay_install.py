@@ -58,6 +58,26 @@ class OverlayInstallTests(unittest.TestCase):
                     return entry
         return None
 
+    @staticmethod
+    def _write_backup_manifest(backup_dir: Path, paths) -> dict[Path, bytes]:
+        backup_dir.mkdir(exist_ok=True)
+        snapshots: dict[Path, bytes] = {}
+        files: list[dict[str, str]] = []
+        for index, raw_path in enumerate(paths):
+            path = Path(raw_path).resolve()
+            if not path.is_file():
+                continue
+            payload = path.read_bytes()
+            snapshots[path] = payload
+            backup_path = backup_dir / f"{index:03d}-{path.name}"
+            backup_path.write_bytes(payload)
+            files.append({"original_path": str(path), "backup_path": str(backup_path.resolve())})
+        (backup_dir / "backup_manifest.json").write_text(
+            json.dumps({"description": "test overlay backup", "files": files}),
+            encoding="utf-8",
+        )
+        return snapshots
+
     def test_the_overlay_wins_where_the_game_reads_and_the_archives_are_untouched(self) -> None:
         target = self.entries[f"{BIN}/iteminfo.pabgb"]
         replacement = b"the patched item table" * 8
@@ -220,11 +240,10 @@ class OverlayInstallTests(unittest.TestCase):
         mount = self.root / "meta" / "0.papgt"
         before = mount.read_bytes()
         backup_dir = self.root / "backup"
-        backup_dir.mkdir()
         snapshots: dict[Path, bytes] = {}
 
         def backup(paths, _description):
-            snapshots.update({Path(path): Path(path).read_bytes() for path in paths})
+            snapshots.update(self._write_backup_manifest(backup_dir, paths))
             return backup_dir
 
         def restore(_path):
@@ -270,6 +289,119 @@ class OverlayInstallTests(unittest.TestCase):
         restored: list[Path] = []
 
         with self.assertRaisesRegex(ValueError, "outside the package root"):
+            restore_last_overlay_install(
+                result.receipt_path,
+                confirmed=True,
+                restore_backup=lambda path: restored.append(path),
+            )
+
+        self.assertEqual(restored, [])
+
+    def test_restore_rejects_a_tampered_same_root_created_path_before_restore_or_delete(self) -> None:
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        backup_dir = self.root / "backup"
+
+        def backup(paths, _description):
+            self._write_backup_manifest(backup_dir, paths)
+            return backup_dir
+
+        result = install_overlay(
+            [ArchivePatchRequest(target, b"payload")],
+            package_root=self.root,
+            backup=backup,
+        )
+        unrelated = self.root / "meta" / "unrelated-user-file.bin"
+        unrelated.write_bytes(b"keep")
+        payload = json.loads(result.receipt_path.read_text(encoding="utf-8"))
+        payload["created_files"].append(str(unrelated))
+        result.receipt_path.write_text(json.dumps(payload), encoding="utf-8")
+        restored: list[Path] = []
+
+        with self.assertRaisesRegex(ValueError, "not owned by the overlay install"):
+            restore_last_overlay_install(
+                result.receipt_path,
+                confirmed=True,
+                restore_backup=lambda path: restored.append(path),
+            )
+
+        self.assertEqual(restored, [])
+        self.assertEqual(unrelated.read_bytes(), b"keep")
+
+    def test_restore_rejects_a_receipt_whose_targets_do_not_match_the_backup_manifest(self) -> None:
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        backup_dir = self.root / "backup"
+
+        def backup(paths, _description):
+            self._write_backup_manifest(backup_dir, paths)
+            return backup_dir
+
+        result = install_overlay(
+            [ArchivePatchRequest(target, b"payload")],
+            package_root=self.root,
+            backup=backup,
+        )
+        unrelated = self.root / "meta" / "unrelated-user-file.bin"
+        unrelated.write_bytes(b"keep")
+        payload = json.loads(result.receipt_path.read_text(encoding="utf-8"))
+        payload["backup_targets"].append(str(unrelated))
+        result.receipt_path.write_text(json.dumps(payload), encoding="utf-8")
+        restored: list[Path] = []
+
+        with self.assertRaisesRegex(ValueError, "do not match the install backup manifest"):
+            restore_last_overlay_install(
+                result.receipt_path,
+                confirmed=True,
+                restore_backup=lambda path: restored.append(path),
+            )
+
+        self.assertEqual(restored, [])
+        self.assertEqual(unrelated.read_bytes(), b"keep")
+
+    def test_restore_rejects_a_receipt_that_omits_an_install_created_overlay_file(self) -> None:
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        backup_dir = self.root / "backup"
+
+        def backup(paths, _description):
+            self._write_backup_manifest(backup_dir, paths)
+            return backup_dir
+
+        result = install_overlay(
+            [ArchivePatchRequest(target, b"payload")],
+            package_root=self.root,
+            backup=backup,
+        )
+        payload = json.loads(result.receipt_path.read_text(encoding="utf-8"))
+        payload["created_files"].remove(str((result.directory / "0.pamt").resolve()))
+        result.receipt_path.write_text(json.dumps(payload), encoding="utf-8")
+        restored: list[Path] = []
+
+        with self.assertRaisesRegex(ValueError, "do not match the install backup manifest"):
+            restore_last_overlay_install(
+                result.receipt_path,
+                confirmed=True,
+                restore_backup=lambda path: restored.append(path),
+            )
+
+        self.assertEqual(restored, [])
+        self.assertTrue((result.directory / "0.pamt").is_file())
+
+    def test_restore_rejects_an_overlay_that_lost_its_owner_marker(self) -> None:
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        backup_dir = self.root / "backup"
+
+        def backup(paths, _description):
+            self._write_backup_manifest(backup_dir, paths)
+            return backup_dir
+
+        result = install_overlay(
+            [ArchivePatchRequest(target, b"payload")],
+            package_root=self.root,
+            backup=backup,
+        )
+        (result.directory / OVERLAY_OWNER_MARKER).write_bytes(b"foreign owner\n")
+        restored: list[Path] = []
+
+        with self.assertRaisesRegex(ValueError, "CDMW-owned overlay directory"):
             restore_last_overlay_install(
                 result.receipt_path,
                 confirmed=True,

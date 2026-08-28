@@ -45,6 +45,8 @@ internal sealed partial class ExperimentForm
                 ? "Bake or Reset active procedural sliders before changing topology."
                 : string.Empty);
         }
+        ReassertDirectAuthoringBlockedButtons();
+        RefreshCreatePartFromSelectionButton();
         ApplyMorphChoices(root, "available_profiles", "profile_id", _morphProfile, JsonString(root, "profile_id"));
         ApplyMorphChoices(root, "available_presets", "preset_id", _morphPreset, JsonString(root, "preset_id"), includeEmpty: true);
         ApplyMorphDefinitions(root);
@@ -61,6 +63,7 @@ internal sealed partial class ExperimentForm
                 : _morphUnbaked
                     ? "Active procedural values are non-destructive. Bake or Reset before topology edits."
                     : "Morph & Refit is ready.";
+        ApplySelectedMorphRefitSettings(showSelectionDiagnostic: failure.Length == 0 && !_morphBusy);
         var acknowledgement = new Dictionary<string, object?>
         {
             ["session_id"] = sessionId,
@@ -411,22 +414,39 @@ internal sealed partial class ExperimentForm
         {
             _morphRefitSettingsControl.Enabled = true;
         }
-        ApplySelectedMorphRefitSettings();
     }
 
-    private void ApplySelectedMorphRefitSettings()
+    private void ApplySelectedMorphRefitSettings(bool showSelectionDiagnostic = true)
     {
-        var selected = SelectedMorphParts()
+        var selectedParts = SelectedMorphParts();
+        var selected = selectedParts
             .Where(part => _morphGarmentSettings.ContainsKey(part.Index))
             .Select(part => _morphGarmentSettings[part.Index])
             .ToArray();
-        if (selected.Length == 0 && _morphGarmentSettings.Count == 1)
+        if (selectedParts.Count == 0 && _morphGarmentSettings.Count == 1)
         {
             selected = new[] { _morphGarmentSettings.Values.Single() };
         }
-        if (selected.Length == 0 || selected.Skip(1).Any(settings => settings != selected[0]))
+        var unboundSelected = selectedParts.Any(part => !_morphGarmentSettings.ContainsKey(part.Index));
+        var mixed = selected.Length > 1 && selected.Skip(1).Any(settings => settings != selected[0]);
+        if (selected.Length == 0 || unboundSelected || mixed)
         {
+            if (_morphRefitSettingsControl is not null)
+            {
+                _morphRefitSettingsControl.Enabled = false;
+            }
+            if (showSelectionDiagnostic)
+            {
+                _morphDiagnosticStatus.ForeColor = ThemeMutedText;
+                _morphDiagnosticStatus.Text = mixed
+                    ? "Selected garments use different refit settings. Select garments with matching settings before applying a batch change."
+                    : "Select one or more bound garment parts in the viewport, then apply the refit settings.";
+            }
             return;
+        }
+        if (_morphRefitSettingsControl is not null)
+        {
+            _morphRefitSettingsControl.Enabled = true;
         }
         var current = selected[0];
         _morphRefitEnabled.Checked = current.Enabled;

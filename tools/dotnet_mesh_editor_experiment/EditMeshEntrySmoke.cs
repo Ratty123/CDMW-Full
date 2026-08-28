@@ -34,6 +34,22 @@ internal static class EditMeshEntrySmoke
             WriteTexturedMaterialPackage(input);
             stage = "synthetic_document";
             var document = HeadlessGpuSparseSoak.BuildSyntheticDocument(300);
+            var garment = new ObjSubmesh("diagnostic_garment", 0, 0, 0);
+            garment.Vertices.AddRange(new[]
+            {
+                new Vec3(0, 0, 0.1f),
+                new Vec3(1, 0, 0.1f),
+                new Vec3(0, 1, 0.1f),
+            });
+            garment.Normals.AddRange(Enumerable.Repeat(new Vec3(0, 0, 1), 3));
+            garment.Uvs.AddRange(new[] { new Vec2(0, 0), new Vec2(1, 0), new Vec2(0, 1) });
+            garment.Faces.Add(new ObjFace(new[]
+            {
+                new ObjCorner(0, 0, 0),
+                new ObjCorner(1, 1, 1),
+                new ObjCorner(2, 2, 2),
+            }));
+            document.Submeshes.Add(garment);
             stage = "standalone_form";
             using var form = new ExperimentForm(Options(input, output, embedded: false), document, sourceParseCount: 1);
             stage = "solid_textured_view";
