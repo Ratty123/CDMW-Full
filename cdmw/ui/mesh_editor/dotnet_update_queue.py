@@ -7,16 +7,21 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from cdmw.ui.mesh_editor.resident_mutation import ResidentMutationBatch
+
 
 MESH_EDIT_REVISION_CAPABILITY = "mesh_edit_revision_ack_v1"
 MESH_MUTATION_ENVELOPE_CAPABILITY = "resident_mutation_envelope_v2"
+MESH_MUTATION_BATCH_CAPABILITY = "resident_mutation_batch_v3"
 _ACK_EVENTS = frozenset(
     {
         "preview_vertex_update_ack",
         "preview_triangle_update_ack",
         "resident_state_resync_ack",
+        "resident_mutation_batch_ack",
     }
 )
+_MUTATION_BATCH_EVENT = "resident_mutation_batch"
 _TOPOLOGY_EVENT = "preview_triangle_update"
 _SELECTION_EVENT = "selection_update"
 _VERTEX_EVENT = "preview_vertex_update"
@@ -265,6 +270,7 @@ class DotNetRevisionUpdateQueue:
         self._resync_packets = resync_packets
         self._capable = False
         self._correlated = False
+        self._atomic_batch = False
         self._session_id = ""
         self._process_generation = 0
         self._request_sequence = 0
@@ -288,14 +294,23 @@ class DotNetRevisionUpdateQueue:
         self._recovery_failed = False
         self._correlation_conflicts = 0
 
-    def set_context(self, *, session_id: str, process_generation: int) -> None:
+    def set_context(
+        self,
+        *,
+        session_id: str,
+        process_generation: int,
+        renderer_revision: int = 0,
+    ) -> None:
         normalized = str(session_id or "").strip()
         generation = max(0, int(process_generation))
+        revision = max(0, int(renderer_revision))
         if (normalized, generation) == (self._session_id, self._process_generation):
+            self._last_acked_revision = max(self._last_acked_revision, revision)
             return
         self.reset()
         self._session_id = normalized
         self._process_generation = generation
+        self._last_acked_revision = revision
 
     def set_resync_factory(
         self,
@@ -312,6 +327,7 @@ class DotNetRevisionUpdateQueue:
             _remove_paths(paths)
         self._capable = False
         self._correlated = False
+        self._atomic_batch = False
         self._active_revision = 0
         self._active_request_id = 0
         self._active_acks.clear()
@@ -338,7 +354,44 @@ class DotNetRevisionUpdateQueue:
             capabilities = {str(item) for item in raw}
             self._capable = self._capable or MESH_EDIT_REVISION_CAPABILITY in capabilities
             self._correlated = self._correlated or MESH_MUTATION_ENVELOPE_CAPABILITY in capabilities
+            self._atomic_batch = self._atomic_batch or MESH_MUTATION_BATCH_CAPABILITY in capabilities
         return self._capable
+
+    @property
+    def mutation_batch_capable(self) -> bool:
+        return self._atomic_batch
+
+    @property
+    def last_acked_revision(self) -> int:
+        return self._last_acked_revision
+
+    def reserve_request_id(self, preferred: int = 0) -> int:
+        requested = max(0, int(preferred))
+        if requested > 0:
+            self._request_sequence = max(self._request_sequence, requested)
+            return requested
+        self._request_sequence += 1
+        return self._request_sequence
+
+    def enqueue_mutation_batch(self, batch: ResidentMutationBatch) -> bool:
+        if not self._atomic_batch:
+            return False
+        expected_base_revision = (
+            self._pending[-1].revision
+            if self._pending
+            else self._active_revision
+            if self._active_revision > 0
+            else self._last_acked_revision
+        )
+        if (
+            batch.session_id != self._session_id
+            or batch.process_generation != self._process_generation
+            or batch.base_revision != expected_base_revision
+        ):
+            _remove_paths(_owned_payload_paths(batch.as_protocol_payload()))
+            self._correlation_conflicts += 1
+            return False
+        return self.enqueue(batch.target_revision, (batch.as_protocol_payload(),))
 
     @staticmethod
     def _packets(revision: int, packets: Sequence[Mapping[str, object]]) -> tuple[dict[str, object], ...]:
@@ -449,19 +502,29 @@ class DotNetRevisionUpdateQueue:
         request_id: int,
         revision: int,
     ) -> tuple[dict[str, object], ...]:
-        return tuple(
-            {
+        enveloped: list[dict[str, object]] = []
+        for packet in packets:
+            atomic = _event(packet) == _MUTATION_BATCH_EVENT
+            base_revision = (
+                max(0, int(packet.get("base_revision", self._last_acked_revision) or 0))
+                if atomic
+                else self._last_acked_revision
+            )
+            envelope = {
                 **dict(packet),
                 "session_id": self._session_id,
                 "request_id": request_id,
-                "base_revision": self._last_acked_revision,
+                "base_revision": base_revision,
+                "target_revision": revision if atomic else packet.get("target_revision", revision),
                 "edit_revision": revision,
                 "revision": revision,
                 "process_generation": self._process_generation,
-                "protocol_version": 2,
+                "protocol_version": 3 if atomic else 2,
             }
-            for packet in packets
-        )
+            if not atomic:
+                envelope.update({"base_revision": self._last_acked_revision})
+            enveloped.append(envelope)
+        return tuple(enveloped)
 
     def _send_batch(
         self,
@@ -509,7 +572,13 @@ class DotNetRevisionUpdateQueue:
             return False
         self.observe_capabilities(payload)
         try:
-            revision = int(payload.get("edit_revision", payload.get("revision", 0)) or 0)
+            revision = int(
+                payload.get(
+                    "target_revision",
+                    payload.get("edit_revision", payload.get("revision", 0)),
+                )
+                or 0
+            )
             request_id = int(payload.get("request_id", 0) or 0)
             process_generation = int(payload.get("process_generation", 0) or 0)
         except (TypeError, ValueError, OverflowError):
@@ -532,6 +601,27 @@ class DotNetRevisionUpdateQueue:
             else:
                 self._begin_resync()
             return True
+        if event == "resident_mutation_batch_ack":
+            active_packet = self._active_packets[0] if len(self._active_packets) == 1 else {}
+            try:
+                acknowledged_base = int(payload.get("base_revision", -1))
+                applied_revision = int(payload.get("applied_renderer_revision", -1))
+                protocol_version = int(payload.get("protocol_version", 0))
+            except (TypeError, ValueError, OverflowError):
+                acknowledged_base = applied_revision = protocol_version = -1
+            valid_status = status in {"applied", "already_applied"}
+            if (
+                not valid_status
+                or acknowledged_base != int(active_packet.get("base_revision", -1))
+                or applied_revision != self._active_revision
+                or protocol_version < 3
+            ):
+                self._rejected += 1
+                if self._resync_active:
+                    self._fail_recovery()
+                else:
+                    self._begin_resync()
+                return True
         self._active_acks.discard(event)
         if not self._active_acks:
             if self._resync_active:
@@ -563,26 +653,43 @@ class DotNetRevisionUpdateQueue:
             return
         self._uncertain_paths += self._active_paths
         revision = max(self._active_revision, self._last_acked_revision)
+        active_request_id = self._active_request_id
         uncertain_packets = self._active_packets
         self._clear_active(remove_paths=False)
         self._resync_attempts += 1
-        try:
-            packets = tuple(
-                dict(packet)
-                for packet in (
-                    self._resync_packets()
-                    if self._resync_packets
-                    else (
-                        {
-                            "event": "resident_state_resync",
-                            "packets": [dict(packet) for packet in uncertain_packets],
-                            "target_revision": revision,
-                        },
+        atomic_replay = (
+            self._atomic_batch
+            and len(uncertain_packets) == 1
+            and _event(uncertain_packets[0]) == _MUTATION_BATCH_EVENT
+        )
+        if atomic_replay:
+            replay = dict(uncertain_packets[0])
+            replay.update(
+                {
+                    "request_id": active_request_id,
+                    "recovery_snapshot": True,
+                    "mutation_kind": "recovery_snapshot",
+                }
+            )
+            packets = (replay,)
+        else:
+            try:
+                packets = tuple(
+                    dict(packet)
+                    for packet in (
+                        self._resync_packets()
+                        if self._resync_packets
+                        else (
+                            {
+                                "event": "resident_state_resync",
+                                "packets": [dict(packet) for packet in uncertain_packets],
+                                "target_revision": revision,
+                            },
+                        )
                     )
                 )
-            )
-        except Exception:
-            packets = ()
+            except Exception:
+                packets = ()
         if not packets:
             self._fail_recovery()
             return
@@ -618,6 +725,7 @@ class DotNetRevisionUpdateQueue:
         return {
             "revision_ack_capable": self._capable,
             "correlated_ack_capable": self._correlated,
+            "mutation_batch_capable": self._atomic_batch,
             "active_revision": self._active_revision,
             "active_request_id": self._active_request_id,
             "pending_depth": len(self._pending),
@@ -639,5 +747,6 @@ class DotNetRevisionUpdateQueue:
 __all__ = [
     "DotNetRevisionUpdateQueue",
     "MESH_EDIT_REVISION_CAPABILITY",
+    "MESH_MUTATION_BATCH_CAPABILITY",
     "MESH_MUTATION_ENVELOPE_CAPABILITY",
 ]

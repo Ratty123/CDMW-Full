@@ -4,9 +4,11 @@ from pathlib import Path
 
 from cdmw.ui.mesh_editor.dotnet_update_queue import (
     MESH_EDIT_REVISION_CAPABILITY,
+    MESH_MUTATION_BATCH_CAPABILITY,
     MESH_MUTATION_ENVELOPE_CAPABILITY,
     DotNetRevisionUpdateQueue,
 )
+from cdmw.ui.mesh_editor.resident_mutation import ResidentMutationBatch
 
 
 def _packet(event: str, owned_path: Path | None = None) -> dict[str, object]:
@@ -71,6 +73,227 @@ def _correlated_queue(
         }
     )
     return queue
+
+
+def _atomic_queue(
+    sent: list[dict[str, object]],
+    *,
+    renderer_revision: int = 4,
+) -> DotNetRevisionUpdateQueue:
+    queue = DotNetRevisionUpdateQueue(lambda payload: not sent.append(dict(payload)))
+    queue.set_context(
+        session_id="mesh-session",
+        process_generation=7,
+        renderer_revision=renderer_revision,
+    )
+    queue.observe_capabilities(
+        {
+            "capabilities": [
+                MESH_EDIT_REVISION_CAPABILITY,
+                MESH_MUTATION_ENVELOPE_CAPABILITY,
+                MESH_MUTATION_BATCH_CAPABILITY,
+            ]
+        }
+    )
+    return queue
+
+
+def _mutation_batch(
+    *,
+    request_id: int,
+    base_revision: int,
+    target_revision: int,
+    owned_path: Path | None = None,
+) -> ResidentMutationBatch:
+    vertex_group: dict[str, object] = {
+        "source_submesh_index": 0,
+        "source_vertex_indices": [0],
+        "positions": [1.0, 0.0, 0.0],
+    }
+    temporary_payloads: tuple[dict[str, object], ...] = ()
+    if owned_path is not None:
+        descriptor = {"path": str(owned_path), "delete_after": True}
+        vertex_group["positions_binary"] = descriptor
+        vertex_group.pop("positions", None)
+        temporary_payloads = (descriptor,)
+    return ResidentMutationBatch(
+        session_id="mesh-session",
+        process_generation=7,
+        request_id=request_id,
+        base_revision=base_revision,
+        target_revision=target_revision,
+        action="transform",
+        vertex_updates=(vertex_group,),
+        material_updates=(
+            {
+                "source_submesh_indices": [0],
+                "editor_role": "replacement_preview",
+                "roughness": 0.5,
+            },
+        ),
+        selection_update={"vertices_by_submesh": {"0": [0]}},
+        affected_submesh_indices=(0,),
+        temporary_payloads=temporary_payloads,
+    )
+
+
+def _mutation_ack(
+    sent: list[dict[str, object]],
+    *,
+    status: str = "applied",
+    applied_revision: int | None = None,
+) -> dict[str, object]:
+    active = sent[-1]
+    target_revision = int(active["target_revision"])
+    return {
+        "session_id": active["session_id"],
+        "process_generation": active["process_generation"],
+        "request_id": active["request_id"],
+        "base_revision": active["base_revision"],
+        "target_revision": target_revision,
+        "edit_revision": target_revision,
+        "applied_renderer_revision": (
+            target_revision if applied_revision is None else int(applied_revision)
+        ),
+        "protocol_version": 3,
+        "status": status,
+        "capabilities": [
+            MESH_EDIT_REVISION_CAPABILITY,
+            MESH_MUTATION_ENVELOPE_CAPABILITY,
+            MESH_MUTATION_BATCH_CAPABILITY,
+        ],
+    }
+
+
+def test_resident_mutation_batch_serializes_one_complete_authority() -> None:
+    batch = _mutation_batch(request_id=11, base_revision=4, target_revision=5)
+
+    payload = batch.as_protocol_payload()
+
+    assert payload["event"] == "resident_mutation_batch"
+    assert payload["session_id"] == "mesh-session"
+    assert payload["process_generation"] == 7
+    assert payload["request_id"] == 11
+    assert payload["base_revision"] == 4
+    assert payload["target_revision"] == 5
+    assert payload["protocol_version"] == 3
+    assert payload["vertex_updates"]
+    assert payload["material_updates"]
+    assert payload["selection_update"]
+    assert payload["affected_submesh_indices"] == [0]
+    assert payload["recovery_snapshot"] is False
+
+
+def test_atomic_batch_waits_for_one_ack_before_releasing_payload(tmp_path: Path) -> None:
+    sent: list[dict[str, object]] = []
+    owned = tmp_path / "positions.bin"
+    owned.write_bytes(b"positions")
+    queue = _atomic_queue(sent)
+
+    assert queue.enqueue_mutation_batch(
+        _mutation_batch(
+            request_id=11,
+            base_revision=4,
+            target_revision=5,
+            owned_path=owned,
+        )
+    )
+
+    assert len(sent) == 1
+    assert sent[0]["event"] == "resident_mutation_batch"
+    assert owned.exists()
+    assert queue.metrics()["active_revision"] == 5
+    assert queue.acknowledge("resident_mutation_batch_ack", _mutation_ack(sent))
+    assert not owned.exists()
+    assert queue.metrics()["last_acked_revision"] == 5
+    assert queue.metrics()["active_revision"] == 0
+
+
+def test_atomic_batches_preserve_distinct_positive_request_order() -> None:
+    sent: list[dict[str, object]] = []
+    queue = _atomic_queue(sent)
+
+    assert queue.enqueue_mutation_batch(
+        _mutation_batch(request_id=11, base_revision=4, target_revision=5)
+    )
+    assert queue.enqueue_mutation_batch(
+        _mutation_batch(request_id=12, base_revision=5, target_revision=6)
+    )
+    assert len(sent) == 1
+    assert queue.metrics()["pending_depth"] == 1
+
+    assert queue.acknowledge("resident_mutation_batch_ack", _mutation_ack(sent))
+    assert len(sent) == 2
+    assert [int(payload["request_id"]) for payload in sent] == [11, 12]
+    assert queue.acknowledge("resident_mutation_batch_ack", _mutation_ack(sent))
+    assert queue.metrics()["last_acked_revision"] == 6
+
+
+def test_atomic_timeout_replays_same_request_once_and_restores_equality(tmp_path: Path) -> None:
+    sent: list[dict[str, object]] = []
+    owned = tmp_path / "positions.bin"
+    owned.write_bytes(b"positions")
+    queue = _atomic_queue(sent)
+    assert queue.enqueue_mutation_batch(
+        _mutation_batch(
+            request_id=11,
+            base_revision=4,
+            target_revision=5,
+            owned_path=owned,
+        )
+    )
+
+    assert queue.expire_active(5)
+    assert len(sent) == 2
+    assert sent[-1]["request_id"] == sent[0]["request_id"] == 11
+    assert sent[-1]["recovery_snapshot"] is True
+    assert sent[-1]["mutation_kind"] == "recovery_snapshot"
+    assert queue.metrics()["resync_attempts"] == 1
+    assert owned.exists()
+
+    assert queue.acknowledge("resident_mutation_batch_ack", _mutation_ack(sent))
+    assert queue.metrics()["recovery_failed"] is False
+    assert queue.metrics()["last_acked_revision"] == 5
+    assert not owned.exists()
+
+
+def test_invalid_atomic_ack_replays_then_failed_recovery_cleans_payload(tmp_path: Path) -> None:
+    sent: list[dict[str, object]] = []
+    owned = tmp_path / "positions.bin"
+    owned.write_bytes(b"positions")
+    queue = _atomic_queue(sent)
+    assert queue.enqueue_mutation_batch(
+        _mutation_batch(
+            request_id=11,
+            base_revision=4,
+            target_revision=5,
+            owned_path=owned,
+        )
+    )
+
+    invalid = _mutation_ack(sent, applied_revision=4)
+    assert queue.acknowledge("resident_mutation_batch_ack", invalid)
+    assert sent[-1]["recovery_snapshot"] is True
+    assert owned.exists()
+
+    assert queue.acknowledge(
+        "resident_mutation_batch_ack",
+        _mutation_ack(sent, status="rejected"),
+    )
+    assert queue.metrics()["recovery_failed"] is True
+    assert not owned.exists()
+
+
+def test_atomic_batch_rejects_a_broken_revision_chain_without_sending() -> None:
+    sent: list[dict[str, object]] = []
+    queue = _atomic_queue(sent)
+
+    assert not queue.enqueue_mutation_batch(
+        _mutation_batch(request_id=11, base_revision=3, target_revision=5)
+    )
+
+    assert sent == []
+    assert queue.metrics()["correlation_conflicts"] == 1
 
 
 def test_independent_sparse_revisions_are_coalesced_without_losing_items() -> None:
