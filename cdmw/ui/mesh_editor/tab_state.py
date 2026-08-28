@@ -897,7 +897,10 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
                 requested_mode=normalized,
             )
             self._remember_dotnet_desired_display_mode(fallback_mode)
-            self.sync_viewport_display_combos(fallback_mode)
+            # The renderer remains on readable faces while resources resolve,
+            # but the selector is the user's requested state. Snapping the
+            # control back made every healthy asynchronous load look rejected.
+            self.sync_viewport_display_combos(normalized)
             self.status_message_requested.emit(
                 "Loading Mesh Editor textures in the resident viewport...",
                 False,

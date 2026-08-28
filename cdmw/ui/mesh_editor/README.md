@@ -62,11 +62,13 @@ The five direct output buttons use explicit normal, hover, pressed, and disabled
 states. Validation-gated outputs and receipt-gated restore stay visibly
 unavailable until their prerequisites exist.
 The session-state bridge also declares whether the current source requires an
-exact PAC/PAM/PAMLOD output. Those sessions omit topology controls whose result
-cannot preserve protected records and the host rejects the same commands before
-mutation. Imported GLB/OBJ sessions opened by **Create New Item** declare a
-working-mesh output instead, so Create Part, duplicate and the other imported-
-model topology tools remain available.
+exact PAC/PAM/PAMLOD output. Those sessions show the complete Topology, Parts,
+clipboard, and Layers control surface, but disable operations whose result cannot
+preserve protected records and expose the exact reason in help. The host rejects
+the same commands before mutation. **Delete Selection** remains available through
+the exact face-delete route. Imported GLB/OBJ sessions opened by **Create New
+Item** declare a working-mesh output instead, so Create Part, duplicate and the
+other imported-model topology tools are enabled.
 The resident strip keeps **Close** at its far edge. It remains available while
 session work is active, confirms before discarding edits, and returns Mesh Editor
 to its empty state through the same nonblocking worker and renderer teardown path.
@@ -104,7 +106,9 @@ click. Face-selection values are compact face offsets everywhere in the
 resident session; per-face source indices are ancestor bookkeeping, never a
 selection space. Geometry and selection are one native history pair, so one
 Undo or Redo restores both. The Builder adopts the native remapped selection
-after topology rather than clearing its mirror independently.
+after remapping topology rather than clearing its mirror independently. Delete
+is the exception: it intentionally clears element selection after commit and
+never republishes the pre-delete native target against compacted face offsets.
 For imported-model authoring, the Selection panel offers **Create Part from
 Selection**. It sends the existing `separate` command after current or
 provisional Brush selection authority has landed,
@@ -161,6 +165,10 @@ geometry or UVs keeps the same resident source-material bindings.
 After that initial default, the selected display mode is authoritative: tool,
 selection, scene, material, and tab-visibility publications add their overlays
 without replacing it, so Solid stays Solid while selecting or editing. The
+selector also stays on the requested **Solid (Textured)** mode while the renderer
+temporarily shows readable untextured faces during material resolution. A
+definitive resolution or binding failure reports its reason and then moves the
+selector to the actual fallback. The
 resident tab lifecycle is explicit `inactive -> resuming -> active`. Returning
 to Mesh Editor activates the already-resident matching package immediately; a
 different desired identity loads before activation. One timed activation retry
@@ -236,11 +244,14 @@ controls. Texture and view-mode choices synchronize across both role panes
 without merging their independent cameras.
 The Gizmo is a placement aid: entering Edit Mesh suppresses both its renderer
 overlay and its pointer interaction, while leaving Edit Mesh restores the saved
-placement visibility preference. Edit Mesh opens with no rail page selected and
-the viewport on Orbit — orbit owns no page, and neither does any tool the rail
-has not been taught — so the first drag turns the model rather than editing it,
-and the tool-properties column stays collapsed to the icon rail until a tool is
-picked. The Orbit button in the Viewport section returns the viewport to Orbit
+placement visibility preference. Edit Mesh opens with the viewport permanently
+visible as the leftmost working surface and Orbit as its neutral state. The tool
+dock and the always-visible Parts/Layers/Action History inspector occupy one
+fixed-width right column, split vertically; the width is sized for the widest
+tool page once, so opening Select, Move, Grab, Smooth, Inflate, Pinch, Topology,
+Morph & Refit, or Viewport does not resize the D3D surface or recreate its swap
+chain. Viewport is therefore never a page that must be opened to reveal the
+preview. The Orbit button in the Viewport section returns interaction to Orbit
 navigation; the camera is otherwise reached by the rebindable modifiers named on
 the navigation strip. Host
 `tool_state` synchronization still applies its requested tool directly and does
@@ -264,7 +275,10 @@ correlated resident-native result stream instead of a second local sculpt
 approximation. Protocol updates are bounded to 16 ms; coalescing retains the
 complete compact `screen_path` polyline, not only its newest endpoint, while
 the visible-depth mask spans that complete path and the dispatcher keeps one
-in-flight plus one pending update. Only a matching
+in-flight plus one pending update. The renderer publication lane is also
+acknowledgement-paced: while one geometry frame is applying it retains only the
+newest cumulative nonterminal stroke outcome, acknowledges every superseded
+request as coalesced, and treats end/cancel as an ordering boundary. Only a matching
 stroke ID, request, and revision can reconcile the result. Cancel restores the
 baseline, and the terminal phase publishes one cumulative geometry frame and
 creates one history entry.
@@ -411,7 +425,9 @@ camera starts an immutable background projection build; a first dab that arrives
 is queued against that correlated build rather than constructing the whole mesh on the
 WinForms input thread. Depth tiles are prepared only where the brush touches. Geometry,
 topology, vertex positions, camera/model matrices, viewport size, X-Ray, or visible and
-editable part changes invalidate the cache; ending a gesture does not. Selection status
+editable part changes invalidate the cache; ending a gesture and switching tool pages do
+not. The stable left viewport prevents ordinary menu/tool activation from changing its
+size and invalidating the projection. Selection status
 adds build, hit, invalidation, stale-build, and cold/warm first-dab timings, and the GPU
 interaction soak exercises repeated short Face Brush gestures as well as the existing
 held stroke and authoritative mouse-up paths.
@@ -550,8 +566,12 @@ manifest. **Character Dependency Package** preserves the selected app and exact
 virtual dependency tree, writes a ready-to-import FBX under `cdmw_blender`, and
 lets a reopened loose PAC reproduce the same presentation after hash validation.
 Texture resolution is read-only. Mesh Editor reuses an already-resolved Archive
-Browser material context when one exists. A geometry-only handoff starts a
-request-correlated material-context worker over the same archive preview resolver;
+Browser material context when one exists. A native Archive Browser handoff pins
+its resident package before retiring the Browser renderer and carries that path
+into the request-correlated material-context worker, which
+hydrates the already-resolved native material batches before attempting the slower
+Python archive resolver. The lease remains held for the direct edit session so cache
+pruning cannot remove its DDS sources. PAM/PAMLOD handoffs also retain their companion;
 selecting **Solid (Textured)** waits on that worker and the resident material
 acknowledgement rather than failing because Archive Browser had not loaded textures
 first. If a required texture cannot decode or bind, the choice reports the failure

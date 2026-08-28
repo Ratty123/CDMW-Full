@@ -44,6 +44,9 @@ class MeshEditorTabShellRuntimeMixin:
         self.archive_session_load_entry: _tab.ArchiveEntry | None = None
         self.archive_session_load_material_model: object | None = None
         self.standalone_archive_material_preview_model: object | None = None
+        self.archive_material_context_companion_entry: _tab.ArchiveEntry | None = None
+        self.archive_material_context_package_path = ""
+        self.archive_material_context_package_lease: object | None = None
         self.archive_material_context_thread: _tab.QThread | None = None
         self.archive_material_context_worker: _tab.MeshArchiveMaterialContextWorker | None = None
         self.archive_material_context_request_id = 0
@@ -294,6 +297,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_native_mesh_edit_stroke_id = ""
         self.standalone_native_selection_stroke_id = ""
         self.standalone_pending_dotnet_topology_request: dict[str, object] | None = None
+        self.standalone_pending_dotnet_live_stroke_outcome: object | None = None
         self.standalone_native_mesh_edit_stroke_changed = False
         self.standalone_live_stroke_dispatcher: _tab.MeshLiveStrokeDispatcher | None = None
         self.embedded_workspace: MeshEditorWorkspace | None = None

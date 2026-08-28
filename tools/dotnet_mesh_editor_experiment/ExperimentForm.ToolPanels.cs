@@ -22,7 +22,10 @@ internal sealed partial class ExperimentForm
     {
         foreach (var button in _directAuthoringBlockedButtons)
         {
-            button.Visible = !DirectAuthoringRestrictionsActive;
+            // Unsupported exact-PAC operations stay visible so the Topology,
+            // Parts and Layers surfaces are complete and their help can explain
+            // the writeback boundary. Hiding them made the editor look broken.
+            button.Visible = true;
             if (DirectAuthoringRestrictionsActive)
             {
                 button.Enabled = false;

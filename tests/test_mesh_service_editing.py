@@ -10103,6 +10103,14 @@ class MeshServiceEditingTests(unittest.TestCase):
                 "submesh_count": 1,
                 "affected_submesh_indices": [0],
                 "submeshes": [{"index": 0, "vertex_count": 2, "face_count": 0}],
+                # Some native delete reports retained the face target used by
+                # the operation. It is stale once topology is compacted and
+                # must never be republished as the post-delete selection.
+                "selection_groups": [{
+                    "source_submesh_index": 0,
+                    "source_vertex_indices": [0, 1],
+                    "source_face_indices": [0],
+                }],
                 "metrics": {"cpp_ms": 1.0},
                 "edit_report": {
                     "operation": "delete",
@@ -10128,6 +10136,8 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual((0,), result.affected_submesh_indices)
         self.assertTrue(result.topology_changed)
+        self.assertEqual((), result.native_selection_groups)
+        self.assertTrue(service.session_view(view.session_id).selection.is_empty())
         selection_payload = captured["selection"]
         self.assertIsInstance(selection_payload, Mapping)
         self.assertEqual({"0": {"selected_vertices_binary": descriptor}}, selection_payload["vertices_by_submesh"])  # type: ignore[index]

@@ -209,18 +209,11 @@ internal sealed partial class ExperimentForm
             // an early "Solid (Textured)" pick do nothing until the user
             // happened to pick another textured mode later.
             _pendingResidentDisplayMode = mode;
-            SyncPreviewModeSelection(_viewport.DisplayMode);
+            SyncPreviewModeSelection(mode);
             _statusLabel.Text = "Textures will load as soon as the resident preview is ready...";
             return;
         }
         _pendingResidentDisplayMode = string.Empty;
-        if (string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase))
-        {
-            // The selection event fires after WinForms has already moved the
-            // combo. Keep it on what the renderer is drawing until the host
-            // acknowledges decoded and bound resources.
-            SyncPreviewModeSelection(_viewport.DisplayMode);
-        }
         WriteProtocolEvent("viewport_display_request", new Dictionary<string, object?>
         {
             ["session_id"] = _residentMaterialSessionId,

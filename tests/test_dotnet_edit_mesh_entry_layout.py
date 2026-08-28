@@ -104,6 +104,7 @@ def test_the_scene_inspector_opens_settled_and_inside_its_column(
     assert proof["ok"] is True, json.dumps(proof, indent=2)
     # What a window resize would produce is what entering must already produce.
     assert proof["settled_on_entry"] is True
+    assert proof["viewport_on_left"] is True
     # Stability alone is not enough: a column that clips every section the same
     # way before and after a resize is stable and still unusable.
     assert proof["sections_overflowing_column"] == []

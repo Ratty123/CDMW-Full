@@ -29,8 +29,8 @@ def test_dotnet_display_and_authoring_protocol_stay_in_sync() -> None:
     assert '"Loading textures in the resident viewport..."' in controls_source
     assert "SyncPreviewModeSelection(" in display_source
     assert "texture_request_pending" in display_source
-    assert "SyncPreviewModeSelection(_viewport.DisplayMode);" in display_source
-    assert 'JsonString(root, "requested_mode")' not in display_source
+    assert 'var requestedMode = JsonString(root, "requested_mode")' in display_source
+    assert "textureRequestPending && requestedMode.Length > 0" in display_source
     assert 'message["source_identity"] = _scene.SourceIdentity;' in _source("ExperimentForm.Output.cs")
     assert 'hasTextureResources ? "textured" : "untextured_wire"' in resident_package_source
     assert "InitialResidentDisplayMode(bool hasTextureResources)" in resident_package_source
@@ -49,7 +49,8 @@ def test_dotnet_display_and_authoring_protocol_stay_in_sync() -> None:
         "private void RequestResidentViewportDisplay(string mode)",
         maxsplit=1,
     )[1].split("private void ReplayPendingResidentDisplayRequest", maxsplit=1)[0]
-    assert "SyncPreviewModeSelection(_viewport.DisplayMode);" in textured_request
+    assert "SyncPreviewModeSelection(mode);" in textured_request
+    assert "SyncPreviewModeSelection(_viewport.DisplayMode);" not in textured_request
     assert '"Faces + Wire"' in controls_source
     assert '"Solid + Wire"' not in controls_source
     assert 'normalized = "textured";' in controls_source

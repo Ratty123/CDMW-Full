@@ -24,10 +24,19 @@ class MeshEditorSessionMixin:
         *,
         resume_manifest_path: Path | str | None = None,
         material_preview_model: object | None = None,
+        material_companion_entry: _tab.ArchiveEntry | None = None,
+        material_package_path: Path | str | None = None,
+        material_package_lease: object | None = None,
     ) -> int:
         """Open an archive mesh directly in the resident authoring workspace."""
         if not isinstance(entry, _tab.ArchiveEntry):
             raise TypeError("entry must be ArchiveEntry")
+        if material_package_lease is getattr(
+            self,
+            "archive_material_context_package_lease",
+            None,
+        ):
+            self.archive_material_context_package_lease = None
         self.close_standalone_session()
         self.draft_banner.setVisible(False)
         self.archive_session_load_request_id += 1
@@ -67,6 +76,9 @@ class MeshEditorSessionMixin:
                 else None
             )
         )
+        self.archive_material_context_companion_entry = material_companion_entry
+        self.archive_material_context_package_path = str(material_package_path or "").strip()
+        self._replace_archive_material_context_package_lease(material_package_lease)
         self.current_archive_selection = entry
         self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
         self.standalone_mesh_label = str(entry.path)
@@ -142,7 +154,13 @@ class MeshEditorSessionMixin:
         if manifest_path is None:
             self.draft_banner.setVisible(False)
             return
-        self.open_archive_session(entry, resume_manifest_path=manifest_path)
+        self.open_archive_session(
+            entry,
+            resume_manifest_path=manifest_path,
+            material_companion_entry=self.archive_material_context_companion_entry,
+            material_package_path=self.archive_material_context_package_path,
+            material_package_lease=self.archive_material_context_package_lease,
+        )
 
     def _dismiss_archive_draft_banner(self, _checked: bool = False) -> None:
         self.draft_banner.setVisible(False)
@@ -151,6 +169,7 @@ class MeshEditorSessionMixin:
         if int(request_id) != int(self.archive_session_load_request_id):
             return
         self.standalone_controller = None
+        self._replace_archive_material_context_package_lease(None)
         text = f"Mesh Editor archive load failed: {message}"
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, True)
@@ -381,6 +400,8 @@ class MeshEditorSessionMixin:
         self.draft_banner.setVisible(False)
         self.mesh_editor_matching_drafts = ()
         self.standalone_archive_material_preview_model = None
+        self.archive_material_context_companion_entry = None
+        self.archive_material_context_package_path = ""
         self.standalone_animation_timer.stop()
         self.standalone_animation_last_tick = 0.0
         # The next mesh opens its own Edit Mesh session. Carrying this one's
@@ -396,6 +417,7 @@ class MeshEditorSessionMixin:
         self.standalone_controller = None
         self.standalone_native_selection_stroke_id = ""
         self.standalone_pending_dotnet_topology_request = None
+        self.standalone_pending_dotnet_live_stroke_outcome = None
         self.standalone_native_editor_available = None
         dispatcher = self.standalone_live_stroke_dispatcher
         if dispatcher is not None:
@@ -454,6 +476,18 @@ class MeshEditorSessionMixin:
         self._reset_standalone_native_status_tracking()
         self.standalone_native_status_timer.stop()
         self._request_standalone_native_part_picking(False)
+        self._replace_archive_material_context_package_lease(None)
+    def _replace_archive_material_context_package_lease(
+        self,
+        lease: object | None,
+    ) -> None:
+        previous = getattr(self, "archive_material_context_package_lease", None)
+        if previous is lease:
+            return
+        self.archive_material_context_package_lease = lease
+        release = getattr(previous, "release", None)
+        if callable(release):
+            release()
     def _reset_standalone_native_status_tracking(self) -> None:
         self.standalone_native_status_signature = (0, 0)
         self.standalone_native_status_payload_text = ""
@@ -706,6 +740,8 @@ class MeshEditorSessionMixin:
         worker = _tab.MeshArchiveMaterialContextWorker(
             request_id,
             target_entry,
+            companion_entry=self.archive_material_context_companion_entry,
+            material_package_path=self.archive_material_context_package_path,
             entries_by_normalized_path=path_index,
             entries_by_basename=basename_index,
             sidecar_entries_by_texture_path=sidecar_path_index,

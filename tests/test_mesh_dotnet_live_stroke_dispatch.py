@@ -63,6 +63,20 @@ class _Controller:
         )
 
 
+class _QueueState:
+    def __init__(self) -> None:
+        self.active_revision = 0
+        self.pending_depth = 0
+        self.resync_active = False
+
+    def metrics(self) -> dict[str, object]:
+        return {
+            "active_revision": self.active_revision,
+            "pending_depth": self.pending_depth,
+            "resync_active": self.resync_active,
+        }
+
+
 class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject):
     def __init__(self, controller: _Controller) -> None:
         QObject.__init__(self)
@@ -72,6 +86,8 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.standalone_native_selection_stroke_id = ""
         self.standalone_live_stroke_dispatcher = None
         self.standalone_pending_dotnet_topology_request = None
+        self.standalone_pending_dotnet_live_stroke_outcome = None
+        self.standalone_dotnet_update_queue = _QueueState()
         self.applied_revisions: list[int] = []
         self.applied_update_count = 0
         self.committed_revisions: list[int] = []
@@ -620,6 +636,52 @@ def test_dotnet_stroke_updates_return_quickly_coalesce_and_apply_final_revision(
             assert dispatcher.stop(2.0)
         harness.deleteLater()
         app.processEvents()
+
+
+def test_renderer_ack_backpressure_keeps_only_latest_cumulative_stroke_update() -> None:
+    controller = _Controller()
+    harness = _Harness(controller)
+    update = MeshEditorNativeUpdate(
+        vertex_groups=({"source_submesh_index": 0, "revision": 1},),
+    )
+
+    def outcome(sequence: int, revision: int, request_id: int, phase: str = "update") -> MeshLiveStrokeOutcome:
+        return MeshLiveStrokeOutcome(
+            sequence,
+            phase,
+            controller,
+            MeshEditResult(action="brush", status="ok", revision=revision),
+            update,
+            "dotnet",
+            ({"request_id": request_id, "stroke_id": "brush-1"},),
+        )
+
+    try:
+        harness.standalone_dotnet_update_queue.active_revision = 10
+        for index in range(1, 321):
+            harness._handle_dotnet_live_stroke_completed(
+                outcome(index, 10 + index, 100 + index)
+            )
+
+        assert harness.sent_update_count == 0
+        assert harness.command_results == [("brush", "coalesced")] * 319
+        assert harness.standalone_pending_dotnet_live_stroke_outcome.result.revision == 330
+
+        harness.standalone_dotnet_update_queue.active_revision = 0
+        assert harness._flush_pending_dotnet_live_stroke_presentation()
+        assert harness.sent_revisions == [330]
+        assert harness.sent_request_ids == [420]
+        assert harness.standalone_pending_dotnet_live_stroke_outcome is None
+
+        harness.standalone_dotnet_update_queue.active_revision = 12
+        harness._handle_dotnet_live_stroke_completed(outcome(321, 331, 421))
+        harness._handle_dotnet_live_stroke_completed(outcome(322, 332, 422, phase="end"))
+        assert harness.command_results[-1] == ("brush", "coalesced")
+        assert harness.sent_revisions[-1] == 332
+        assert harness.sent_request_ids[-1] == 422
+        assert harness.standalone_pending_dotnet_live_stroke_outcome is None
+    finally:
+        harness.deleteLater()
 
 
 @pytest.mark.parametrize("terminal_phase", ["end", "cancel"])

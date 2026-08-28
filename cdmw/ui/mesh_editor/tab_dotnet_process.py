@@ -148,6 +148,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
         self.standalone_dotnet_update_queue.reset()
+        self.standalone_pending_dotnet_live_stroke_outcome = None
         self._cancel_pending_dotnet_captures()
         self.standalone_dotnet_scene_request_id += 1
         self.standalone_dotnet_scene_pending = None
@@ -189,6 +190,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
         self.standalone_dotnet_update_queue.reset()
+        self.standalone_pending_dotnet_live_stroke_outcome = None
         self._cancel_pending_dotnet_captures()
         self.standalone_dotnet_scene_request_id += 1
         self.standalone_dotnet_scene_pending = None

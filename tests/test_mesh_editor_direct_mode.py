@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -285,6 +286,16 @@ def test_archive_material_context_uses_the_archive_preview_resolver_off_thread(t
         flags=0,
         paz_index=0,
     )
+    companion_entry = ArchiveEntry(
+        path="character/model/test_companion.pac",
+        pamt_path=entry.pamt_path,
+        paz_file=entry.paz_file,
+        offset=16,
+        comp_size=4,
+        orig_size=4,
+        flags=0,
+        paz_index=0,
+    )
     path_index = {texture_entry.path: (texture_entry,)}
     basename_index = {texture_entry.basename.casefold(): (texture_entry,)}
     sidecar_path_index = {"material/test_base": (texture_entry,)}
@@ -295,6 +306,7 @@ def test_archive_material_context_uses_the_archive_preview_resolver_off_thread(t
     worker = MeshArchiveMaterialContextWorker(
         9,
         entry,
+        companion_entry=companion_entry,
         entries_by_normalized_path=path_index,
         entries_by_basename=basename_index,
         sidecar_entries_by_texture_path=sidecar_path_index,
@@ -317,10 +329,141 @@ def test_archive_material_context_uses_the_archive_preview_resolver_off_thread(t
     assert errors == []
     assert finished == [True]
     assert resolver.call_args.args[:2] == (entry, ())
+    assert resolver.call_args.kwargs["companion_entry"] is companion_entry
     assert resolver.call_args.kwargs["texture_entries_by_normalized_path"] is path_index
     assert resolver.call_args.kwargs["sidecar_entries_by_texture_path"] is sidecar_path_index
     assert resolver.call_args.kwargs["sidecar_entries_by_texture_basename"] is sidecar_basename_index
     assert resolver.call_args.kwargs["stop_event"] is worker.stop_event
+
+
+def test_archive_material_context_reuses_archive_browser_native_package(tmp_path: Path) -> None:
+    entry = ArchiveEntry(
+        path="character/model/native_materials.pac",
+        pamt_path=tmp_path / "0009" / "0.pamt",
+        paz_file=tmp_path / "0009" / "0.paz",
+        offset=0,
+        comp_size=4,
+        orig_size=4,
+        flags=0,
+        paz_index=0,
+    )
+    package_path = tmp_path / "archive-preview-package"
+    package_path.mkdir()
+    (package_path / "manifest.json").write_text(
+        json.dumps(
+            {
+                "batches": [
+                    {
+                        "editor_identity": {"source_local_submesh_index": 0},
+                        "dds_textures": {
+                            "base": {
+                                "slot": "base",
+                                "source_path": str(tmp_path / "resolved_base.dds"),
+                                "semantic_type": "color",
+                                "semantic_subtype": "albedo",
+                            }
+                        },
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    worker = MeshArchiveMaterialContextWorker(
+        10,
+        entry,
+        material_package_path=package_path,
+    )
+    resolved: list[object] = []
+    errors: list[str] = []
+    worker.resolved.connect(lambda _request_id, model: resolved.append(model))
+    worker.error.connect(lambda _request_id, message: errors.append(message))
+
+    with patch(
+        "cdmw.workers.mesh_editor_aux_workers.build_archive_preview_result"
+    ) as resolver:
+        worker.run()
+
+    assert errors == []
+    assert len(resolved) == 1
+    assert resolved[0].meshes[0].preview_texture_dds_path == str(
+        tmp_path / "resolved_base.dds"
+    )
+    resolver.assert_not_called()
+
+
+def test_archive_browser_handoff_carries_native_package_and_companion(tmp_path: Path) -> None:
+    entry = ArchiveEntry(
+        path="character/model/body.pac",
+        pamt_path=tmp_path / "0009" / "0.pamt",
+        paz_file=tmp_path / "0009" / "0.paz",
+        offset=0,
+        comp_size=4,
+        orig_size=4,
+        flags=0,
+        paz_index=0,
+    )
+    companion = ArchiveEntry(
+        path="character/model/body_companion.pac",
+        pamt_path=entry.pamt_path,
+        paz_file=entry.paz_file,
+        offset=8,
+        comp_size=4,
+        orig_size=4,
+        flags=0,
+        paz_index=0,
+    )
+    preview_model = object()
+    material_package_path = tmp_path / "native-package"
+    material_package_lease = object()
+    opened: list[tuple[object, dict[str, object]]] = []
+
+    class Bridge(MeshEditorShellBridgeMixin):
+        current_archive_preview_result = SimpleNamespace(
+            preview_model=preview_model,
+            dotnet_preview_package_path=str(material_package_path),
+        )
+        mesh_editor_tab = SimpleNamespace(
+            open_archive_session=lambda target, **kwargs: opened.append((target, kwargs))
+        )
+
+        @staticmethod
+        def _prepare_mesh_editor_archive_launch(_entry: object) -> bool:
+            return True
+
+        @staticmethod
+        def _find_archive_preview_companion_entry(_entry: object) -> object:
+            return companion
+
+        @staticmethod
+        def _strip_archive_preview_heavy_payloads_for_mesh_editor(_entry: object) -> None:
+            pass
+
+        @staticmethod
+        def _activate_tool_widget(_widget: object) -> None:
+            pass
+
+        @staticmethod
+        def set_status_message(_message: str, error: bool = False) -> None:
+            del error
+
+    with patch(
+        "cdmw.ui.mesh_editor.shell_bridge.acquire_dotnet_preview_package_cache_lease_for_path",
+        return_value=material_package_lease,
+    ):
+        Bridge()._launch_archive_mesh_editor_for_entry(entry)
+
+    assert opened == [
+        (
+            entry,
+            {
+                "material_preview_model": preview_model,
+                "material_companion_entry": companion,
+                "material_package_path": str(material_package_path),
+                "material_package_lease": material_package_lease,
+            },
+        )
+    ]
 
 
 def test_loaded_archive_session_prefetches_materials_when_handoff_is_geometry_only(tmp_path: Path) -> None:
@@ -358,7 +501,12 @@ def test_loaded_archive_session_prefetches_materials_when_handoff_is_geometry_on
         tab._handle_archive_session_loaded(4, result)
 
     start.assert_called_once_with(entry)
+    released: list[bool] = []
+    tab.archive_material_context_package_lease = SimpleNamespace(
+        release=lambda: released.append(True)
+    )
     tab.close_standalone_session()
+    assert released == [True]
     app.processEvents()
 
 

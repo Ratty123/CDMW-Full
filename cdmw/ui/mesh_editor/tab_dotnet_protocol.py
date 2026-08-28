@@ -260,6 +260,8 @@ class MeshEditorDotNetProtocolMixin(
             self._append_dotnet_protocol_event(payload)
             handled = self.standalone_dotnet_update_queue.acknowledge(event, payload)
             self._sync_dotnet_update_ack_timer()
+            if handled:
+                self._flush_pending_dotnet_live_stroke_presentation()
             return handled
         if event == "scene_state_update_ack":
             return self._handle_dotnet_scene_state_ack(payload)

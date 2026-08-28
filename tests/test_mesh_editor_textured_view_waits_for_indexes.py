@@ -141,6 +141,8 @@ def test_missing_indexes_hold_the_resolution_instead_of_resolving_nothing() -> N
 
     # The lookup lands; the retry resolves with the populated indexes.
     path_index["character/texture/test.dds"] = (entry,)
+    companion = _archive_entry("character/model/test/test_companion.pac")
+    tab.archive_material_context_companion_entry = companion
     _FakeContextWorker.instances.clear()
     with patch(
         "cdmw.ui.mesh_editor.tab.MeshArchiveMaterialContextWorker",
@@ -150,6 +152,7 @@ def test_missing_indexes_hold_the_resolution_instead_of_resolving_nothing() -> N
         tab._retry_archive_material_context_after_index_wait()
         assert len(_FakeContextWorker.instances) == 1
         worker = _FakeContextWorker.instances[0]
+        assert worker.kwargs["companion_entry"] is companion
         assert worker.kwargs["entries_by_normalized_path"] is path_index
         assert tab.archive_material_context_thread is not None
         assert tab.archive_texture_index_wait_attempts == 0
