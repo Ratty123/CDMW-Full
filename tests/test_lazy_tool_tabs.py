@@ -4,13 +4,16 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QTabWidget, QWidget
+from PySide6.QtCore import QThread, QTimer
+from PySide6.QtWidgets import QApplication, QProgressBar, QTabWidget, QWidget
 
 from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
 from cdmw.ui.shell.settings_autosave import SettingsAutosaveMixin
@@ -41,6 +44,16 @@ class LazyToolTabTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
 
+    def _process_until(self, predicate, *, timeout: float = 3.0) -> bool:
+        deadline = time.perf_counter() + timeout
+        while time.perf_counter() < deadline:
+            self.app.processEvents()
+            if predicate():
+                return True
+            time.sleep(0.001)
+        self.app.processEvents()
+        return bool(predicate())
+
     def test_constructs_once_on_first_selection_and_forwards_explicit_use(self) -> None:
         builds: list[_ProbeTool] = []
 
@@ -59,6 +72,8 @@ class LazyToolTabTests(unittest.TestCase):
         self.assertEqual([], builds)
         tabs.setCurrentWidget(lazy)
         self.app.processEvents()
+        self.assertTrue(lazy.findChild(QProgressBar, "LazyToolLoadingProgress").isVisible())
+        self.assertTrue(self._process_until(lambda: lazy.widget_if_created() is not None))
         self.assertEqual(1, len(builds))
         self.assertEqual("pong", lazy.ping())
         tabs.setCurrentIndex(0)
@@ -76,6 +91,82 @@ class LazyToolTabTests(unittest.TestCase):
         self.assertEqual(1, builds[0].flush_calls)
         tabs.close()
         self.app.processEvents()
+
+    def test_first_selection_preloads_off_thread_and_keeps_the_ui_heartbeat_live(self) -> None:
+        prepared_on: list[QThread] = []
+        built_on: list[QThread] = []
+
+        def prepare() -> None:
+            prepared_on.append(QThread.currentThread())
+            time.sleep(0.25)
+
+        def build() -> _ProbeTool:
+            built_on.append(QThread.currentThread())
+            return _ProbeTool()
+
+        tabs = QTabWidget()
+        tabs.addTab(QWidget(), "Eager")
+        lazy = LazyToolTab(build, prepare=prepare)
+        tabs.addTab(lazy, "Lazy")
+        heartbeats: list[float] = []
+        timer = QTimer(tabs)
+        timer.setInterval(10)
+        timer.timeout.connect(lambda: heartbeats.append(time.perf_counter()))
+        tabs.show()
+        self.app.processEvents()
+        timer.start()
+
+        started = time.perf_counter()
+        tabs.setCurrentWidget(lazy)
+        activation_elapsed = time.perf_counter() - started
+        self.assertLess(activation_elapsed, 0.05)
+        self.assertTrue(self._process_until(lambda: lazy.widget_if_created() is not None))
+
+        timer.stop()
+        self.assertTrue(prepared_on)
+        self.assertIsNot(prepared_on[0], self.app.thread())
+        self.assertEqual([self.app.thread()], built_on)
+        gaps = [later - earlier for earlier, later in zip(heartbeats, heartbeats[1:])]
+        self.assertGreaterEqual(len(heartbeats), 5)
+        self.assertLess(max(gaps, default=0.0), 0.2)
+        tabs.close()
+        self.app.processEvents()
+
+    def test_shutdown_during_preload_drops_late_construction_and_retains_the_thread(self) -> None:
+        release = threading.Event()
+        builds: list[_ProbeTool] = []
+
+        def prepare() -> None:
+            release.wait(1.0)
+
+        lazy = LazyToolTab(
+            lambda: builds.append(_ProbeTool()) or builds[-1],
+            prepare=prepare,
+        )
+        lazy.request_widget()
+        self.assertTrue(self._process_until(lambda: bool(tuple(lazy.iter_shutdown_workers()))))
+
+        lazy.request_shutdown()
+        workers = tuple(lazy.iter_shutdown_workers())
+        self.assertEqual("lazy tool preload", workers[0][0])
+        release.set()
+        self.assertTrue(self._process_until(lambda: not tuple(lazy.iter_shutdown_workers())))
+        self.assertEqual([], builds)
+        self.assertIsNone(lazy.widget_if_created())
+
+    def test_shutdown_between_construction_and_publication_drops_created_callbacks(self) -> None:
+        built = _ProbeTool()
+        published: list[QWidget] = []
+        lazy = LazyToolTab(lambda: built)
+        lazy.when_created(published.append)
+        lazy.request_widget()
+        self.assertTrue(self._process_until(lambda: lazy._pending_widget is built))
+
+        lazy.request_shutdown()
+        self.assertTrue(self._process_until(lambda: lazy.widget_if_created() is built))
+        self.assertEqual([], published)
+        self.assertEqual(1, built.shutdown_requests)
+        self.assertTrue(built.isHidden())
 
     def test_unopened_lifecycle_does_not_construct_tool(self) -> None:
         builds: list[_ProbeTool] = []
@@ -220,6 +311,76 @@ class LazyToolTabTests(unittest.TestCase):
             0,
             result.returncode,
             f"Lazy main-window integration failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+        )
+
+    def test_every_registered_tab_activation_keeps_the_qt_heartbeat_below_200_ms(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings_path = Path(temp_dir) / "settings.ini"
+            script = "\n".join(
+                (
+                    "import os, sys, time",
+                    "from pathlib import Path",
+                    "os.environ['QT_QPA_PLATFORM'] = 'offscreen'",
+                    "os.environ['CDMW_GUI_STARTUP_SMOKE'] = '1'",
+                    "os.environ['CDMW_MAIN_WINDOW_CLASS_ONLY'] = '1'",
+                    "os.environ['CDMW_SINGLE_INSTANCE_SCOPE'] = f'tab-heartbeat-{os.getpid()}'",
+                    "from cdmw.services import settings_service",
+                    f"settings_path = Path({str(settings_path)!r})",
+                    "settings_service.resolve_settings_file_path = lambda **_kwargs: settings_path",
+                    "from PySide6.QtCore import QTimer",
+                    "from PySide6.QtWidgets import QApplication",
+                    "import cdmw.ui.shell.app_window as app_window",
+                    "app_window.resolve_settings_file_path = lambda: settings_path",
+                    "MainWindow = app_window.run_gui()",
+                    "from cdmw.app.events import AppEventBus",
+                    "from cdmw.services.service_container import ServiceContainer",
+                    "from cdmw.ui.shell.app_context import AppContext",
+                    "from cdmw.ui.shell.lazy_tool_tab import LazyToolTab",
+                    "app = QApplication.instance() or QApplication([])",
+                    "settings = settings_service.create_settings(settings_file_path=settings_path)",
+                    "settings.setValue('ui/shell_variant', 'compact_rail')",
+                    "context = AppContext(settings, ServiceContainer.create_default(settings=settings), AppEventBus())",
+                    "window = MainWindow(app_context=context)",
+                    "window.show(); app.processEvents()",
+                    "keys = ('archive_browser','model_library','item_icons','new_item_studio','texture_workflow','replace_assistant','recolor_variants','texture_editor','mod_package_retrofit','format_explorer','translation_studio','research','text_search','mesh_editor','placement_studio','settings')",
+                    "assert set(keys) == set(window._tool_widgets_by_key)",
+                    "beats = []",
+                    "timer = QTimer(); timer.setInterval(10); timer.timeout.connect(lambda: beats.append(time.perf_counter())); timer.start()",
+                    "for key in keys:",
+                    "    container = window._tool_widgets_by_key[key]",
+                    "    beat_index = len(beats)",
+                    "    started = time.perf_counter()",
+                    "    window._activate_tool_key(key)",
+                    "    assert time.perf_counter() - started < 0.05, key",
+                    "    deadline = time.perf_counter() + 10.0",
+                    "    while isinstance(container, LazyToolTab) and container.widget_if_created() is None and time.perf_counter() < deadline:",
+                    "        app.processEvents(); time.sleep(0.001)",
+                    "    app.processEvents()",
+                    "    finished = time.perf_counter()",
+                    "    assert not isinstance(container, LazyToolTab) or container.widget_if_created() is not None, key",
+                    "    points = [started, *beats[beat_index:], finished]",
+                    "    gaps = [later - earlier for earlier, later in zip(points, points[1:])]",
+                    "    assert max(gaps, default=0.0) < 0.2, (key, max(gaps, default=0.0))",
+                    "timer.stop(); window._request_tab_shutdowns(); window.hide()",
+                    "for _ in range(20): app.processEvents(); time.sleep(0.005)",
+                    "sys.stdout.flush(); sys.stderr.flush(); os._exit(0)",
+                )
+            )
+            result = subprocess.run(
+                [sys.executable, "-c", script],
+                cwd=repo_root,
+                env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=90,
+            )
+
+        self.assertEqual(
+            0,
+            result.returncode,
+            f"All-tab heartbeat integration failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
         )
 
 

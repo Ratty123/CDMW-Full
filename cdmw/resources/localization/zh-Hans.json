@@ -3850,7 +3850,6 @@
     "Listed {value_0}/{value_1} package tables, {value_2} entries so far...": "已列出 {value_0}/{value_1} 个包表，目前 {value_2} 个条目...",
     "Listing the archives under {value_0} ({value_1} package tables)...": "正在列出 {value_0} 下的归档（{value_1} 个包表）...",
     "Listing the archives under {value_0}, then reading the tables...": "正在列出 {value_0} 下的归档，然后读取表...",
-    "Listing the languages in the archives (first time only)...": "列出档案中的语言（仅限第一次）...",
     "Lists / columns font size": "列表/列字体大小",
     "Lists / columns font size (8-15 px)": "列表/列字体大小（8-15 像素）",
     "Lists / columns font size ({value_0}-{value_1} px)": "列表/列字体大小（{value_0}-{value_1} 像素）",

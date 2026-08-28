@@ -3850,7 +3850,6 @@
     "Listed {value_0}/{value_1} package tables, {value_2} entries so far...": "{value_0}/{value_1} tabelle di pacchetto elencate, {value_2} voci finora...",
     "Listing the archives under {value_0} ({value_1} package tables)...": "Elenco degli archivi sotto {value_0} ({value_1} tabelle di pacchetto)...",
     "Listing the archives under {value_0}, then reading the tables...": "Elenco degli archivi sotto {value_0}, poi lettura delle tabelle...",
-    "Listing the languages in the archives (first time only)...": "Elenco delle lingue negli archivi (solo la prima volta)...",
     "Lists / columns font size": "Dimensioni del carattere di elenchi/colonne",
     "Lists / columns font size (8-15 px)": "Dimensioni carattere elenchi/colonne (8-15 px)",
     "Lists / columns font size ({value_0}-{value_1} px)": "Dimensioni carattere elenchi/colonne ({value_0}-{value_1} px)",

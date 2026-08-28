@@ -3850,7 +3850,6 @@
     "Listed {value_0}/{value_1} package tables, {value_2} entries so far...": "패키지 테이블 {value_0}/{value_1} 나열, 지금까지 {value_2}개 항목...",
     "Listing the archives under {value_0} ({value_1} package tables)...": "{value_0} 아래 아카이브 나열 중({value_1}개 패키지 테이블)...",
     "Listing the archives under {value_0}, then reading the tables...": "{value_0} 아래 아카이브를 나열한 뒤 테이블을 읽습니다...",
-    "Listing the languages in the archives (first time only)...": "아카이브의 언어 나열(처음에만)...",
     "Lists / columns font size": "목록/열 글꼴 크기",
     "Lists / columns font size (8-15 px)": "목록/열 글꼴 크기(8-15px)",
     "Lists / columns font size ({value_0}-{value_1} px)": "목록/열 글꼴 크기({value_0}-{value_1} px)",

@@ -9,7 +9,11 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QLabel, QTabWidget, QWidget
 
 from cdmw.app.events import AppEventBus
-from cdmw.ui.shell.close_controller import iter_tab_shutdown_workers, request_tab_shutdowns
+from cdmw.ui.shell.close_controller import (
+    WORKER_TAB_NAMES,
+    iter_tab_shutdown_workers,
+    request_tab_shutdowns,
+)
 from cdmw.ui.shell.app_context import AppContext
 from cdmw.ui.shell.tab_registry import TabRegistry, TabSpec
 
@@ -133,6 +137,10 @@ class ShellContextTests(unittest.TestCase):
 
         self.assertIn("settings_tab.asset_authoring_helper_versions", worker_names)
         self.assertTrue(owner.settings_tab.shutdown_requested)
+
+    def test_close_controller_tracks_every_lazy_import_owner(self) -> None:
+        self.assertIn("format_explorer_tab", WORKER_TAB_NAMES)
+        self.assertIn("translation_studio_tab", WORKER_TAB_NAMES)
 
 
 if __name__ == "__main__":

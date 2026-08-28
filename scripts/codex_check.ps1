@@ -58,6 +58,8 @@ $TestsByArea = @{
     )
     responsiveness = @(
         "tests/test_attachment_async_io.py",
+        "tests/test_lazy_tool_tabs.py",
+        "tests/test_translation_studio.py",
         "tests/test_ui_responsiveness_source_guards.py",
         "tests/test_mesh_edit_responsiveness_source_guards.py",
         "tests/test_texture_workflow_ui_source_guards.py",

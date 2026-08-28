@@ -36,9 +36,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Mapping, Optional
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QCheckBox,
     QComboBox,
     QFileDialog,
@@ -59,7 +60,6 @@ from .catalogue import (
     TranslationCatalogue,
     attach_reference,
     available_languages,
-    default_game_root,
     export_packages,
     load_catalogue,
     read_language,
@@ -72,23 +72,62 @@ _NONE = "(none)"
 _MAX_HITS = 5000
 
 #: Worker threads outlive the widget that started them, deliberately. A `QThread` parented
-#: to the tab is destroyed with it, and destroying a running one is an access violation --
-#: which is exactly what closing or reloading the tab mid-scan would do. Holding them here
-#: until they finish lets Qt sever the signal to the dead receiver and end the thread
-#: cleanly instead.
-_LIVE_THREADS: set = set()
+#: to the tab is destroyed with it, and destroying a running one is an access violation.
+#: The process-scoped retainer releases them only after nonblocking `wait(0)` proves native
+#: teardown, even when the tab that started the work has already gone away.
+_LIVE_THREADS: dict[QThread, QObject] = {}
+_THREAD_RETAINER: Optional["_TranslationThreadRetainer"] = None
+
+
+class _TranslationThreadRetainer(QObject):
+    """Retain detached translation workers through native QThread teardown."""
+
+    def watch(self, thread: QThread, worker: QObject) -> None:
+        _LIVE_THREADS[thread] = worker
+        thread.finished.connect(self._thread_finished, Qt.ConnectionType.QueuedConnection)
+
+    @Slot()
+    def _thread_finished(self) -> None:
+        thread = self.sender()
+        if isinstance(thread, QThread):
+            self._retire(thread)
+
+    def _retire(self, thread: QThread) -> None:
+        try:
+            stopped = thread.wait(0)
+        except RuntimeError:
+            stopped = True
+        if not stopped:
+            QTimer.singleShot(1, lambda thread=thread: self._retire(thread))
+            return
+        worker = _LIVE_THREADS.pop(thread, None)
+        if worker is not None:
+            worker.deleteLater()
+        thread.deleteLater()
+
+
+def _translation_thread_retainer() -> _TranslationThreadRetainer:
+    global _THREAD_RETAINER
+    if _THREAD_RETAINER is None:
+        _THREAD_RETAINER = _TranslationThreadRetainer(QApplication.instance())
+    return _THREAD_RETAINER
 
 
 def _run_detached(thread: QThread, worker: QObject, *, on_done) -> None:
+    owner_thread = thread.thread()
+
+    def return_worker_to_owner_thread(*_args: object) -> None:
+        current_thread = QThread.currentThread()
+        if worker.thread() is current_thread:
+            worker.moveToThread(owner_thread)
+        current_thread.quit()
+
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
     worker.done.connect(on_done)
-    worker.done.connect(thread.quit)
-    thread.finished.connect(worker.deleteLater)
-    thread.finished.connect(lambda: _LIVE_THREADS.discard(thread))
-    thread.finished.connect(thread.deleteLater)
-    _LIVE_THREADS.add(thread)
-    thread.start()
+    worker.done.connect(return_worker_to_owner_thread, Qt.ConnectionType.DirectConnection)
+    _translation_thread_retainer().watch(thread, worker)
+    thread.start(QThread.Priority.LowPriority)
 
 
 class _LanguageWorker(QObject):
@@ -107,9 +146,22 @@ class _LanguageWorker(QObject):
         self._game_root = game_root
 
     def run(self) -> None:
+        thread = QThread.currentThread()
+        if thread.isInterruptionRequested():
+            self.done.emit(None, "")
+            return
+
+        def emit_progress(finished: int, total: int) -> None:
+            if thread.isInterruptionRequested():
+                raise InterruptedError
+            self.progress.emit(finished, total)
+
         try:
             root = Path(self._game_root) if self._game_root else None
-            languages = available_languages(root, on_progress=self.progress.emit)
+            languages = available_languages(root, on_progress=emit_progress)
+        except InterruptedError:
+            self.done.emit(None, "")
+            return
         except Exception as error:  # noqa: BLE001 - report, never take the window down
             self.done.emit(None, str(error))
             return
@@ -134,9 +186,16 @@ class _LoadWorker(QObject):
         self._game_root = game_root
 
     def run(self) -> None:
+        thread = QThread.currentThread()
+        if thread.isInterruptionRequested():
+            self.done.emit(None, "")
+            return
         root = Path(self._game_root) if self._game_root else None
         try:
             catalogue = load_catalogue(read_language(self._language, root), self._language)
+            if thread.isInterruptionRequested():
+                self.done.emit(None, "")
+                return
             if self._reference:
                 attach_reference(catalogue, read_language(self._reference, root), self._reference)
         except Exception as error:  # noqa: BLE001 - report, never take the window down
@@ -163,6 +222,7 @@ class TranslationStudioTab(QWidget):
         self._language_worker: Optional[_LanguageWorker] = None
         self._settings = settings
         self._window = window
+        self._shutdown_requested = False
         self._build_ui()
         self._populate_languages()
 
@@ -320,32 +380,21 @@ class TranslationStudioTab(QWidget):
         return ""
 
     def _populate_languages(self) -> None:
-        """List the languages, on a worker unless the answer is already cached.
+        """List languages on a worker; even warm cache validation performs filesystem I/O."""
 
-        Warm, this is one `stat` per package and worth no thread at all; cold it is a
-        sweep of all 33 package tables, which is what used to run right here and made
-        opening the tab lag. See `language_index.py`.
-        """
-
-        from .language_index import is_warm
-
-        root = self._game_root() or None
-        try:
-            warm = is_warm(Path(root) if root else default_game_root())
-        except Exception:  # noqa: BLE001 - an unreadable root is the worker's news to break
-            warm = False
-        if warm:
-            worker = _LanguageWorker(root)
-            worker.done.connect(self._on_languages)
-            worker.run()
+        if self._shutdown_requested:
             return
-
+        root = self._game_root() or None
         self.load_button.setEnabled(False)
-        self.status_label.setText("Listing the languages in the archives (first time only)...")
+        self.status_label.setText("Loading archive catalogue...")
         self._show_busy_progress()
         self._language_thread = QThread()
         self._language_worker = _LanguageWorker(root)
         self._language_worker.progress.connect(self._on_language_progress)
+        self._language_thread.finished.connect(
+            self._on_worker_thread_finished,
+            Qt.ConnectionType.QueuedConnection,
+        )
         _run_detached(self._language_thread, self._language_worker, on_done=self._on_languages)
 
     def _show_busy_progress(self) -> None:
@@ -360,6 +409,9 @@ class TranslationStudioTab(QWidget):
             self.progress_bar.setValue(finished)
 
     def _on_languages(self, languages, error: str) -> None:
+        sender = self.sender()
+        if self._shutdown_requested or (sender is not None and sender is not self._language_worker):
+            return
         self.progress_bar.setVisible(False)
         if error or languages is None:
             self.status_label.setText(f"Could not list languages: {error}")
@@ -380,6 +432,8 @@ class TranslationStudioTab(QWidget):
         self.status_label.setText(f"{len(languages)} languages available.")
 
     def _on_load(self) -> None:
+        if self._shutdown_requested:
+            return
         language = self.language_box.currentText()
         reference = self.reference_box.currentText()
         reference = "" if reference in (_NONE, language) else reference
@@ -390,9 +444,16 @@ class TranslationStudioTab(QWidget):
         self._show_busy_progress()
         self._thread = QThread()
         self._worker = _LoadWorker(language, reference, self._game_root() or None)
+        self._thread.finished.connect(
+            self._on_worker_thread_finished,
+            Qt.ConnectionType.QueuedConnection,
+        )
         _run_detached(self._thread, self._worker, on_done=self._on_loaded)
 
     def _on_loaded(self, catalogue, error: str) -> None:
+        sender = self.sender()
+        if self._shutdown_requested or (sender is not None and sender is not self._worker):
+            return
         self.load_button.setEnabled(True)
         self.progress_bar.setVisible(False)
         if error or catalogue is None:
@@ -423,6 +484,38 @@ class TranslationStudioTab(QWidget):
         )
         self.status_label.setText(f"{len(catalogue):,} lines in {language}{reference_note}.")
         self._refresh_view()
+
+    @Slot()
+    def _on_worker_thread_finished(self) -> None:
+        thread = self.sender()
+        if thread is self._language_thread:
+            self._language_thread = None
+            self._language_worker = None
+        if thread is self._thread:
+            self._thread = None
+            self._worker = None
+
+    def iter_shutdown_workers(self) -> tuple[tuple[str, QThread, QObject], ...]:
+        workers: list[tuple[str, QThread, QObject]] = []
+        if self._language_thread is not None and self._language_worker is not None:
+            workers.append(("language listing", self._language_thread, self._language_worker))
+        if self._thread is not None and self._worker is not None:
+            workers.append(("language load", self._thread, self._worker))
+        return tuple(workers)
+
+    def request_shutdown(self) -> None:
+        if self._shutdown_requested:
+            return
+        self._shutdown_requested = True
+        for thread in (self._language_thread, self._thread):
+            if thread is not None:
+                try:
+                    thread.requestInterruption()
+                except RuntimeError:
+                    pass
+
+    def shutdown(self) -> None:
+        self.request_shutdown()
 
     # ---------------------------------------------------------------- filtering
 

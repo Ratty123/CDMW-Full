@@ -3850,7 +3850,6 @@
     "Listed {value_0}/{value_1} package tables, {value_2} entries so far...": "{value_0}/{value_1} paket tablosu listelendi, şimdiye kadar {value_2} kayıt...",
     "Listing the archives under {value_0} ({value_1} package tables)...": "{value_0} altındaki arşivler listeleniyor ({value_1} paket tablosu)...",
     "Listing the archives under {value_0}, then reading the tables...": "{value_0} altındaki arşivler listeleniyor, sonra tablolar okunacak...",
-    "Listing the languages in the archives (first time only)...": "Arşivlerdeki diller listeleniyor (yalnızca ilk kez)...",
     "Lists / columns font size": "Listeler/sütunlar yazı tipi boyutu",
     "Lists / columns font size (8-15 px)": "Listeler/sütunlar yazı tipi boyutu (8-15 piksel)",
     "Lists / columns font size ({value_0}-{value_1} px)": "Listeler/sütunlar yazı tipi boyutu ({value_0}-{value_1} px)",

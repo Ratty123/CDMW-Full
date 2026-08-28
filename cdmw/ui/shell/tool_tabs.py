@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 from typing import Callable
 
@@ -13,6 +14,27 @@ from cdmw.ui.shell.lazy_tool_tab import LazyToolTab, as_label, created_tool_widg
 _texture_editor_tab_class: type | None = None
 _texture_editor_import_error: ModuleNotFoundError | None = None
 _texture_editor_import_attempted = False
+
+_LAZY_TOOL_PRELOAD_MODULES: dict[str, tuple[str, ...]] = {
+    "mesh_editor": ("cdmw.domain.archives.constants", "cdmw.ui.mesh_editor.tab"),
+    "model_library": ("cdmw.ui.model_library",),
+    "item_icons": ("cdmw.services.archive_preview_service", "cdmw.ui.item_icons"),
+    "new_item_studio": ("cdmw.ui.new_item",),
+    "replace_assistant": ("cdmw.ui.replace_assistant_tab",),
+    "recolor_variants": ("cdmw.ui.recolor_variants_tab",),
+    "texture_editor": ("cdmw.ui.texture_editor_tab",),
+    "mod_package_retrofit": ("cdmw.ui.tools.mod_package_retrofit_tasks",),
+    "placement_studio": ("tools.placement_studio.tab",),
+    "format_explorer": ("tools.format_explorer.tab",),
+    "translation_studio": ("tools.translation_studio.tab",),
+    "research": ("cdmw.ui.research",),
+    "text_search": ("cdmw.ui.text_search",),
+}
+
+
+def _preload_lazy_tool_modules(module_names: tuple[str, ...]) -> None:
+    for module_name in module_names:
+        importlib.import_module(module_name)
 
 
 def _load_texture_editor_tab_class() -> type | None:
@@ -44,7 +66,15 @@ class ShellToolTabsMixin:
         *,
         index: int | None = None,
     ) -> LazyToolTab:
-        container = LazyToolTab(factory)
+        module_names = _LAZY_TOOL_PRELOAD_MODULES.get(key, ())
+        container = LazyToolTab(
+            factory,
+            prepare=(
+                lambda module_names=module_names: _preload_lazy_tool_modules(module_names)
+            )
+            if module_names
+            else None,
+        )
         container.setObjectName(key)
         container.when_created(self._finish_lazy_shell_tool)
         if index is None:
@@ -430,12 +460,19 @@ class ShellToolTabsMixin:
         container = getattr(self, "new_item_studio_tab", None)
         if container is None:
             return
+
+        def apply_request(widget: QWidget) -> None:
+            if template_key is not None and hasattr(widget, "prefill_template"):
+                widget.prefill_template(int(template_key))
+            if model_path is not None and hasattr(widget, "open_model_source"):
+                widget.open_model_source(model_path)
+
         self._activate_tool_widget(container)
-        widget = container.ensure_widget() if isinstance(container, LazyToolTab) else container
-        if template_key is not None and hasattr(widget, "prefill_template"):
-            widget.prefill_template(int(template_key))
-        if model_path is not None and hasattr(widget, "open_model_source"):
-            widget.open_model_source(model_path)
+        if isinstance(container, LazyToolTab):
+            container.when_created(apply_request)
+            container.request_widget()
+        else:
+            apply_request(container)
 
     def _use_model_in_new_item_studio(self, import_path_text: str, _model_payload: object) -> None:
         self.open_new_item_studio(model_path=Path(import_path_text))

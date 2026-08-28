@@ -26,7 +26,7 @@ def normalize_shell_variant(value: object) -> str:
 
 def read_shell_variant(settings: object) -> str:
     return normalize_shell_variant(
-        settings.value(SHELL_VARIANT_SETTING, LEGACY_SHELL_VARIANT)  # type: ignore[attr-defined]
+        settings.value(SHELL_VARIANT_SETTING, COMPACT_SHELL_VARIANT)  # type: ignore[attr-defined]
     )
 
 

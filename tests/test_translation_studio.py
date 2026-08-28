@@ -7,6 +7,8 @@ from pathlib import Path
 import struct
 import sys
 import tempfile
+import threading
+import time
 import unittest
 
 import pytest
@@ -908,9 +910,20 @@ class TabAiTests(unittest.TestCase):
 
         while self._built_tabs:
             tab = self._built_tabs.pop()
+            tab.request_shutdown()
             tab.close()
             tab.deleteLater()
         QApplication.processEvents()
+
+    def _process_until(self, predicate, *, timeout: float = 3.0) -> bool:
+        deadline = time.perf_counter() + timeout
+        while time.perf_counter() < deadline:
+            self.app.processEvents()
+            if predicate():
+                return True
+            time.sleep(0.001)
+        self.app.processEvents()
+        return bool(predicate())
 
     def _tab(self):
         from tools.translation_studio.tab import TranslationStudioTab
@@ -934,6 +947,51 @@ class TabAiTests(unittest.TestCase):
         tab._on_languages(("eng", "kor"), "")
         self.assertEqual(tab.language_box.count(), 2)
         self.assertTrue(tab.load_button.isEnabled())
+
+    def test_warm_cache_validation_is_always_background_and_shutdown_drops_its_result(self) -> None:
+        from PySide6.QtCore import QTimer
+        from tools.translation_studio import tab as tab_module
+
+        started = threading.Event()
+        release = threading.Event()
+        heartbeats: list[float] = []
+        timer = QTimer()
+        timer.setInterval(10)
+        timer.timeout.connect(lambda: heartbeats.append(time.perf_counter()))
+
+        def delayed_languages(_root=None, *, on_progress=None):
+            started.set()
+            release.wait(2.0)
+            return ("eng",)
+
+        original = tab_module.available_languages
+        tab_module.available_languages = delayed_languages
+        timer.start()
+        try:
+            construction_started = time.perf_counter()
+            tab = tab_module.TranslationStudioTab()
+            construction_elapsed = time.perf_counter() - construction_started
+            self._built_tabs.append(tab)
+            self.assertLess(construction_elapsed, 0.1)
+            self.assertTrue(self._process_until(started.is_set, timeout=1.0))
+            self.assertEqual("language listing", tab.iter_shutdown_workers()[0][0])
+
+            heartbeat_deadline = time.perf_counter() + 0.15
+            while time.perf_counter() < heartbeat_deadline:
+                self.app.processEvents()
+                time.sleep(0.001)
+            tab.request_shutdown()
+            release.set()
+            self.assertTrue(self._process_until(lambda: not tab.iter_shutdown_workers()))
+            self.assertEqual(0, tab.language_box.count())
+        finally:
+            release.set()
+            timer.stop()
+            tab_module.available_languages = original
+
+        gaps = [later - earlier for earlier, later in zip(heartbeats, heartbeats[1:])]
+        self.assertGreaterEqual(len(heartbeats), 5)
+        self.assertLess(max(gaps, default=0.0), 0.2)
 
     def test_a_failed_listing_says_so_rather_than_raising(self) -> None:
         tab, _cat = self._tab()

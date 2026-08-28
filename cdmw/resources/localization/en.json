@@ -3852,7 +3852,6 @@
     "Listed {value_0}/{value_1} package tables, {value_2} entries so far...": "Listed {value_0}/{value_1} package tables, {value_2} entries so far...",
     "Listing the archives under {value_0} ({value_1} package tables)...": "Listing the archives under {value_0} ({value_1} package tables)...",
     "Listing the archives under {value_0}, then reading the tables...": "Listing the archives under {value_0}, then reading the tables...",
-    "Listing the languages in the archives (first time only)...": "Listing the languages in the archives (first time only)...",
     "Lists / columns font size": "Lists / columns font size",
     "Lists / columns font size (8-15 px)": "Lists / columns font size (8-15 px)",
     "Lists / columns font size ({value_0}-{value_1} px)": "Lists / columns font size ({value_0}-{value_1} px)",
