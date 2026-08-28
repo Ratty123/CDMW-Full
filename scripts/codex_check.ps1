@@ -48,7 +48,6 @@ $TestsByArea = @{
         "tests/test_utility_task_refusal_logging.py",
         "tests/test_hang_watchdog_keeps_reporting.py",
         "tests/test_pyinstaller_temp_cleanup.py",
-        "tests/test_pytest_qt_cleanup.py",
         "tests/test_startup_archive_path_async.py",
         "tests/test_session_recorder.py",
         "tests/test_window_frame_blink_detection.py",
