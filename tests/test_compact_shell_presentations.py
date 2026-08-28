@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import os
 from pathlib import Path
 import tempfile
@@ -9,7 +10,7 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication,
@@ -68,6 +69,8 @@ class CompactShellPresentationTests(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
+        gc.collect()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         _app().processEvents()
         self._temporary.cleanup()
 
