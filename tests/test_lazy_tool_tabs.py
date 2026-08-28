@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 import subprocess
 import sys
@@ -94,6 +95,7 @@ class LazyToolTabTests(unittest.TestCase):
 
     def test_first_selection_preloads_off_thread_and_keeps_the_ui_heartbeat_live(self) -> None:
         prepared_on: list[QThread] = []
+        ui_prepared_on: list[QThread] = []
         built_on: list[QThread] = []
 
         def prepare() -> None:
@@ -104,9 +106,12 @@ class LazyToolTabTests(unittest.TestCase):
             built_on.append(QThread.currentThread())
             return _ProbeTool()
 
+        def prepare_ui() -> None:
+            ui_prepared_on.append(QThread.currentThread())
+
         tabs = QTabWidget()
         tabs.addTab(QWidget(), "Eager")
-        lazy = LazyToolTab(build, prepare=prepare)
+        lazy = LazyToolTab(build, prepare=prepare, prepare_ui=prepare_ui)
         tabs.addTab(lazy, "Lazy")
         heartbeats: list[float] = []
         timer = QTimer(tabs)
@@ -125,6 +130,7 @@ class LazyToolTabTests(unittest.TestCase):
         timer.stop()
         self.assertTrue(prepared_on)
         self.assertIsNot(prepared_on[0], self.app.thread())
+        self.assertEqual([self.app.thread()], ui_prepared_on)
         self.assertEqual([self.app.thread()], built_on)
         gaps = [later - earlier for earlier, later in zip(heartbeats, heartbeats[1:])]
         self.assertGreaterEqual(len(heartbeats), 5)
@@ -167,6 +173,57 @@ class LazyToolTabTests(unittest.TestCase):
         self.assertEqual([], published)
         self.assertEqual(1, built.shutdown_requests)
         self.assertTrue(built.isHidden())
+
+    def test_background_preload_allowlist_stays_free_of_pyside_imports(self) -> None:
+        source_path = Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "shell" / "tool_tabs.py"
+        tree = ast.parse(source_path.read_text(encoding="utf-8"))
+        assignments = {
+            node.target.id: ast.literal_eval(node.value)
+            for node in tree.body
+            if isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id in {"_LAZY_TOOL_PRELOAD_MODULES", "_LAZY_TOOL_UI_MODULES"}
+        }
+        preload_modules = tuple(
+            sorted({module for modules in assignments["_LAZY_TOOL_PRELOAD_MODULES"].values() for module in modules})
+        )
+        ui_keys = set(assignments["_LAZY_TOOL_UI_MODULES"])
+        self.assertEqual(
+            {
+                "mesh_editor",
+                "model_library",
+                "item_icons",
+                "new_item_studio",
+                "replace_assistant",
+                "recolor_variants",
+                "texture_editor",
+                "mod_package_retrofit",
+                "placement_studio",
+                "format_explorer",
+                "translation_studio",
+                "research",
+                "text_search",
+            },
+            ui_keys,
+        )
+        script = (
+            "import importlib, sys; "
+            f"modules={preload_modules!r}; "
+            "[(importlib.import_module(name), "
+            "  (_ for _ in ()).throw(AssertionError(name)) "
+            "  if any(module.startswith('PySide6') for module in sys.modules) else None) "
+            " for name in modules]"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=source_path.parents[3],
+            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_unopened_lifecycle_does_not_construct_tool(self) -> None:
         builds: list[_ProbeTool] = []

@@ -16,9 +16,77 @@ _texture_editor_import_error: ModuleNotFoundError | None = None
 _texture_editor_import_attempted = False
 
 _LAZY_TOOL_PRELOAD_MODULES: dict[str, tuple[str, ...]] = {
-    "mesh_editor": ("cdmw.domain.archives.constants", "cdmw.ui.mesh_editor.tab"),
+    # These modules are intentionally Qt-free. Importing a module that defines
+    # QWidget/QObject classes on a worker thread can register Qt types from the
+    # wrong thread and crash during teardown. The feature module itself remains
+    # in the factory and is imported on the GUI thread after these heavy pure
+    # Python/data dependencies are warm.
+    "mesh_editor": (
+        "cdmw.models",
+        "cdmw.ui.localization_catalogs_v2",
+        "cdmw.domain.archives.constants",
+        "cdmw.modding.static_mesh_types",
+        "cdmw.core.upscale_profiles",
+    ),
+    "model_library": (
+        "cdmw.models",
+        "cdmw.ui.localization_catalogs_v2",
+        "cdmw.modding.static_mesh_types",
+        "cdmw.core.upscale_profiles",
+        "PIL.Image",
+        "numpy",
+    ),
+    "item_icons": (
+        "cdmw.models",
+        "cdmw.ui.localization_catalogs_v2",
+        "cdmw.services.archive_preview_service",
+        "PIL.Image",
+        "numpy",
+    ),
+    "new_item_studio": (
+        "cdmw.models",
+        "cdmw.ui.localization_catalogs_v2",
+        "cdmw.modding.static_mesh_types",
+        "cdmw.core.upscale_profiles",
+        "PIL.Image",
+        "numpy",
+    ),
+    "replace_assistant": (
+        "cdmw.models",
+        "cdmw.ui.localization_catalogs_v2",
+        "PIL.Image",
+        "numpy",
+    ),
+    "recolor_variants": (
+        "cdmw.models",
+        "cdmw.ui.localization_catalogs_v2",
+        "PIL.Image",
+        "numpy",
+    ),
+    "texture_editor": (
+        "cdmw.models",
+        "cdmw.ui.localization_catalogs_v2",
+        "cdmw.core.upscale_profiles",
+        "PIL.Image",
+        "numpy",
+    ),
+    "research": (
+        "cdmw.models",
+        "cdmw.ui.localization_catalogs_v2",
+        "cdmw.domain.research.contracts",
+        "PIL.Image",
+        "numpy",
+    ),
+    "text_search": (
+        "cdmw.models",
+        "cdmw.ui.localization_catalogs_v2",
+    ),
+}
+
+_LAZY_TOOL_UI_MODULES: dict[str, tuple[str, ...]] = {
+    "mesh_editor": ("cdmw.ui.mesh_editor.tab",),
     "model_library": ("cdmw.ui.model_library",),
-    "item_icons": ("cdmw.services.archive_preview_service", "cdmw.ui.item_icons"),
+    "item_icons": ("cdmw.ui.item_icons",),
     "new_item_studio": ("cdmw.ui.new_item",),
     "replace_assistant": ("cdmw.ui.replace_assistant_tab",),
     "recolor_variants": ("cdmw.ui.recolor_variants_tab",),
@@ -35,6 +103,16 @@ _LAZY_TOOL_PRELOAD_MODULES: dict[str, tuple[str, ...]] = {
 def _preload_lazy_tool_modules(module_names: tuple[str, ...]) -> None:
     for module_name in module_names:
         importlib.import_module(module_name)
+
+
+def _prepare_lazy_tool_ui_modules(module_names: tuple[str, ...]) -> None:
+    for module_name in module_names:
+        try:
+            importlib.import_module(module_name)
+        except Exception:
+            # The owning factory retains its existing unavailable/error path.
+            # This phase only separates UI-module import from widget construction.
+            pass
 
 
 def _load_texture_editor_tab_class() -> type | None:
@@ -67,12 +145,18 @@ class ShellToolTabsMixin:
         index: int | None = None,
     ) -> LazyToolTab:
         module_names = _LAZY_TOOL_PRELOAD_MODULES.get(key, ())
+        ui_module_names = _LAZY_TOOL_UI_MODULES.get(key, ())
         container = LazyToolTab(
             factory,
             prepare=(
                 lambda module_names=module_names: _preload_lazy_tool_modules(module_names)
             )
             if module_names
+            else None,
+            prepare_ui=(
+                lambda module_names=ui_module_names: _prepare_lazy_tool_ui_modules(module_names)
+            )
+            if ui_module_names
             else None,
         )
         container.setObjectName(key)
