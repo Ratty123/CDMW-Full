@@ -113,7 +113,105 @@ def _exercise_existing_styled_child_font_update() -> None:
         app.setStyleSheet(previous_style_sheet)
 
 
+def _exercise_theme_replacement() -> None:
+    app = QApplication.instance() or QApplication([])
+    previous_font = QFont(app.font())
+    previous_palette = QPalette(app.palette())
+    previous_style_sheet = app.styleSheet()
+    settings = _Settings({})
+    initial_stylesheet = build_app_stylesheet("graphite")
+    app.setStyleSheet(initial_stylesheet)
+    calls: list[str] = []
+    original_set_stylesheet = QApplication.setStyleSheet
+
+    def record_set_stylesheet(target: QApplication, stylesheet: str) -> None:
+        calls.append(stylesheet)
+        original_set_stylesheet(target, stylesheet)
+
+    try:
+        with patch.object(QApplication, "setStyleSheet", record_set_stylesheet):
+            apply_app_theme(app, settings, "crimson_desert", screen_width=1360, screen_height=840)
+            first_apply_calls = tuple(calls)
+            applied_stylesheet = app.styleSheet()
+            assert app.property("_cdmw_theme_key") == "crimson_desert"
+            calls.clear()
+            apply_app_theme(app, settings, "crimson_desert", screen_width=1360, screen_height=840)
+        assert first_apply_calls[0] == ""
+        assert first_apply_calls[1] == applied_stylesheet
+        assert calls == []
+    finally:
+        app.setStyleSheet(previous_style_sheet)
+        app.setPalette(previous_palette)
+        app.setFont(previous_font)
+
+
+def _exercise_compact_font_sizes() -> None:
+    app = QApplication.instance() or QApplication([])
+    previous_font = QFont(app.font())
+    previous_style_sheet = app.styleSheet()
+    parent = QWidget()
+    label = QLabel("Label")
+    list_widget = QListWidget()
+    layout = QVBoxLayout(parent)
+    layout.addWidget(label)
+    layout.addWidget(list_widget)
+    settings = _Settings(
+        {
+            "appearance/ui_font_family": previous_font.family(),
+            "appearance/ui_font_size": 10,
+            "appearance/data_font_size": 10,
+            "appearance/ui_density": "compact",
+        }
+    )
+    try:
+        parent.show()
+        apply_app_fonts(app, settings, screen_width=1366, screen_height=1080)
+        app.processEvents()
+        configured_ten = (label.font().pointSize(), list_widget.font().pointSize())
+        settings._values["appearance/ui_font_size"] = 8
+        settings._values["appearance/data_font_size"] = 8
+        apply_app_fonts(app, settings, screen_width=1366, screen_height=1080)
+        app.processEvents()
+        configured_eight = (label.font().pointSize(), list_widget.font().pointSize())
+        assert configured_ten == (10, 10)
+        assert configured_eight == (8, 8)
+    finally:
+        parent.deleteLater()
+        app.setFont(previous_font)
+        for class_name in (
+            "QWidget", "QListView", "QListWidget", "QTreeView",
+            "QTreeWidget", "QTableView", "QTableWidget", "QHeaderView",
+        ):
+            app.setFont(previous_font, class_name)
+        app.setStyleSheet(previous_style_sheet)
+
+
 class ShellThemeControllerTests(unittest.TestCase):
+    def _run_isolated_probe(self, function_name: str) -> None:
+        script = "\n".join(
+            (
+                "import os, sys",
+                "os.environ['QT_QPA_PLATFORM'] = 'offscreen'",
+                f"from tests.test_shell_theme_controller import {function_name}",
+                f"{function_name}()",
+                "sys.stdout.flush(); sys.stderr.flush(); os._exit(0)",
+            )
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=ROOT,
+            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+        )
+        self.assertEqual(
+            0,
+            result.returncode,
+            f"Theme probe {function_name} failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+        )
+
     def test_compact_styles_are_scoped_and_keep_structural_wrappers_flat(self) -> None:
         stylesheet = build_app_stylesheet("crimson_desert")
 
@@ -211,36 +309,7 @@ class ShellThemeControllerTests(unittest.TestCase):
             app.processEvents()
 
     def test_theme_replacement_clears_the_old_qss_without_an_unstyled_event_turn(self) -> None:
-        app = QApplication.instance() or QApplication([])
-        previous_font = QFont(app.font())
-        previous_palette = QPalette(app.palette())
-        previous_style_sheet = app.styleSheet()
-        settings = _Settings({})
-        initial_stylesheet = build_app_stylesheet("graphite")
-        app.setStyleSheet(initial_stylesheet)
-        calls: list[str] = []
-        original_set_stylesheet = QApplication.setStyleSheet
-
-        def record_set_stylesheet(target: QApplication, stylesheet: str) -> None:
-            calls.append(stylesheet)
-            original_set_stylesheet(target, stylesheet)
-
-        try:
-            with patch.object(QApplication, "setStyleSheet", record_set_stylesheet):
-                apply_app_theme(app, settings, "crimson_desert", screen_width=1360, screen_height=840)
-                first_apply_calls = tuple(calls)
-                applied_stylesheet = app.styleSheet()
-                self.assertEqual("crimson_desert", app.property("_cdmw_theme_key"))
-                calls.clear()
-                apply_app_theme(app, settings, "crimson_desert", screen_width=1360, screen_height=840)
-
-            self.assertEqual("", first_apply_calls[0])
-            self.assertEqual(applied_stylesheet, first_apply_calls[1])
-            self.assertEqual((), tuple(calls))
-        finally:
-            app.setStyleSheet(previous_style_sheet)
-            app.setPalette(previous_palette)
-            app.setFont(previous_font)
+        self._run_isolated_probe("_exercise_theme_replacement")
 
     def test_every_theme_keeps_text_selections_and_controls_visible(self) -> None:
         expected_roles = set(UI_THEME_SCHEMES["graphite"])
@@ -652,77 +721,10 @@ class ShellThemeControllerTests(unittest.TestCase):
         parent.deleteLater()
 
     def test_apply_app_fonts_updates_existing_styled_child_controls(self) -> None:
-        script = "\n".join(
-            (
-                "import os, sys",
-                "os.environ['QT_QPA_PLATFORM'] = 'offscreen'",
-                "from tests.test_shell_theme_controller import _exercise_existing_styled_child_font_update",
-                "_exercise_existing_styled_child_font_update()",
-                "sys.stdout.flush(); sys.stderr.flush(); os._exit(0)",
-            )
-        )
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=ROOT,
-            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=60,
-        )
-        self.assertEqual(
-            0,
-            result.returncode,
-            f"App-font child-control probe failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
-        )
+        self._run_isolated_probe("_exercise_existing_styled_child_font_update")
 
     def test_compact_layout_keeps_each_configured_font_size_distinct(self) -> None:
-        app = QApplication.instance() or QApplication([])
-        previous_font = QFont(app.font())
-        previous_style_sheet = app.styleSheet()
-        parent = QWidget()
-        label = QLabel("Label")
-        list_widget = QListWidget()
-        layout = QVBoxLayout(parent)
-        layout.addWidget(label)
-        layout.addWidget(list_widget)
-        settings = _Settings(
-            {
-                "appearance/ui_font_family": previous_font.family(),
-                "appearance/ui_font_size": 10,
-                "appearance/data_font_size": 10,
-                "appearance/ui_density": "compact",
-            }
-        )
-        try:
-            parent.show()
-            apply_app_fonts(app, settings, screen_width=1366, screen_height=1080)
-            app.processEvents()
-            configured_ten = (label.font().pointSize(), list_widget.font().pointSize())
-
-            settings._values["appearance/ui_font_size"] = 8
-            settings._values["appearance/data_font_size"] = 8
-            apply_app_fonts(app, settings, screen_width=1366, screen_height=1080)
-            app.processEvents()
-            configured_eight = (label.font().pointSize(), list_widget.font().pointSize())
-
-            self.assertEqual((10, 10), configured_ten)
-            self.assertEqual((8, 8), configured_eight)
-        finally:
-            parent.deleteLater()
-            app.setFont(previous_font)
-            for class_name in (
-                "QWidget",
-                "QListView",
-                "QListWidget",
-                "QTreeView",
-                "QTreeWidget",
-                "QTableView",
-                "QTableWidget",
-                "QHeaderView",
-            ):
-                app.setFont(previous_font, class_name)
-            app.setStyleSheet(previous_style_sheet)
+        self._run_isolated_probe("_exercise_compact_font_sizes")
 
     def test_apply_window_ui_fonts_updates_startup_widget_tree(self) -> None:
         app = QApplication.instance() or QApplication([])
