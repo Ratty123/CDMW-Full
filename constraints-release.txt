@@ -4,7 +4,7 @@ altgraph==0.17.5
 backports.zstd==1.7.0; python_version < "3.14"
 brotli==1.2.0
 cffi==2.0.0
-cryptography==46.0.6
+cryptography==50.0.0
 inflate64==1.0.4
 lz4==4.4.5
 multivolumefile==0.2.3
