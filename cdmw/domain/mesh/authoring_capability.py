@@ -139,6 +139,9 @@ _UNIMPLEMENTED_TOPOLOGY_ACTIONS: dict[str, str] = {
     "copy": "Copy has no exact writeback route",
     "paste": "Paste has no exact writeback route",
     "layer_delete": "Layer Delete has no exact writeback route",
+    "duplicate": "Duplicate has no exact writeback route",
+    "separate": "Create Part has no exact writeback route",
+    "refine_smooth": "Refine Smooth has no exact writeback route",
 }
 
 _NO_EXACT_ROUTE_DETAIL = (

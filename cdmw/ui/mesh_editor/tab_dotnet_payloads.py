@@ -32,6 +32,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 return False
         actions = sorted(mesh_editor_actions_by_key().keys())
+        exact_output_required = getattr(self, "_standalone_exact_output_required", None)
         payload = {
             "event": "session_state",
             "session_id": view.session_id,
@@ -60,6 +61,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             ],
             "actions": actions,
             "selection_depth_mode": "visible",
+            "exact_output_required": bool(exact_output_required()) if callable(exact_output_required) else False,
         }
         if include_selection:
             payload["selection"] = self._dotnet_selection_payload(view.selection)
@@ -567,6 +569,8 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             or update.material_override_groups
             or update.replace_all_triangles
         ):
+            if not selection_result:
+                self._refresh_standalone_export_validation(update.session_view)
             self._apply_standalone_native_update(update)
             QTimer.singleShot(0, self._sync_state)
         presentation_sent = self._send_dotnet_native_update(

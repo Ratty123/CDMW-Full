@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QWidget
@@ -217,6 +218,17 @@ def verify_mesh_editor_startup_smoke_target(window: object, app: QApplication) -
     has_session = getattr(mesh_editor_tab, "has_active_standalone_session", None)
     if callable(has_session) and not bool(has_session()):
         raise RuntimeError("Mesh Editor startup smoke failed: loaded file did not create an active session.")
+    start_validation = getattr(mesh_editor_tab, "_start_standalone_export_validation_requested", None)
+    if not callable(start_validation):
+        raise RuntimeError("Mesh Editor startup smoke failed: validation action is missing.")
+    start_validation()
+    deadline = time.monotonic() + 15.0
+    while getattr(mesh_editor_tab, "standalone_validation_thread", None) is not None:
+        app.processEvents()
+        if time.monotonic() >= deadline:
+            raise RuntimeError("Mesh Editor startup smoke failed: validation did not finish in 15 seconds.")
+        time.sleep(0.01)
+    app.processEvents()
     report = getattr(mesh_editor_tab, "standalone_last_export_validation_report", None)
     if report is None:
         raise RuntimeError("Mesh Editor startup smoke failed: loaded file did not produce validation status.")

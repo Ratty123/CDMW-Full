@@ -16,7 +16,9 @@ internal sealed partial class ExperimentForm
 
     internal Dictionary<string, object?> AllEditMeshToolsDiagnosticProof()
     {
+        _directAuthoringExactOutputRequired = _options.DirectAuthoring;
         BuildAuthoringToolPanels();
+        ReassertDirectAuthoringBlockedButtons();
         ActivateToolRailLayout();
         _scene.SetInteractionMode("mesh_edit");
         var displayApplied = _viewport.TrySetSynchronizedDisplayMode("textured", out var displayError);
@@ -61,6 +63,38 @@ internal sealed partial class ExperimentForm
             var pendingSelectionTopology = RunPendingSelectionTopologyDiagnostic(formProtocolEvents);
             var controlSurface = RunEditMeshControlSurfaceDiagnostics();
             var createPartControl = RunCreatePartFromSelectionDiagnostic(formProtocolEvents);
+            var partCommandTargets = RunPartCommandTargetDiagnostic(formProtocolEvents);
+            var mixedMorphRefit = RunMixedMorphRefitSelectionDiagnostic();
+            var restrictedControlsHidden = _directAuthoringBlockedButtons.All(button => !OwnVisibleState(button) && !button.Enabled);
+            ApplyDirectAuthoringOutputContract(exactOutputRequired: false);
+            var importedModelControlsVisible = _directAuthoringBlockedButtons.All(OwnVisibleState);
+            var importedLayerCopyEnabled = _layerCopyButton?.Enabled is true;
+            var importedTopologyDescription =
+                _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Topology)?.AccessibleDescription
+                ?? string.Empty;
+            var importedTopologyHelp = importedTopologyDescription.Contains("Subdivide", StringComparison.Ordinal);
+            ApplyDirectAuthoringOutputContract(exactOutputRequired: true);
+            var exactTopologyHelp = string.Equals(
+                _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Topology)?.AccessibleDescription,
+                "Delete Selection",
+                StringComparison.Ordinal);
+            var directAuthoringControls = new Dictionary<string, object?>
+            {
+                ["ok"] = !_options.DirectAuthoring
+                    || (_directAuthoringBlockedButtons.Count == 9
+                        && restrictedControlsHidden
+                        && importedModelControlsVisible
+                        && importedLayerCopyEnabled
+                        && importedTopologyHelp
+                        && exactTopologyHelp),
+                ["blocked_control_count"] = _directAuthoringBlockedButtons.Count,
+                ["all_hidden"] = _directAuthoringBlockedButtons.All(button => !OwnVisibleState(button)),
+                ["all_disabled"] = _directAuthoringBlockedButtons.All(button => !button.Enabled),
+                ["imported_model_controls_visible"] = importedModelControlsVisible,
+                ["imported_layer_copy_enabled"] = importedLayerCopyEnabled,
+                ["imported_topology_help"] = importedTopologyHelp,
+                ["exact_topology_help"] = exactTopologyHelp,
+            };
             var finalFrame = RunEditMeshDiagnosticFrame();
             var formProtocolOk = formProtocolEvents.Any(item =>
                     item.Name == "command_request"
@@ -94,6 +128,9 @@ internal sealed partial class ExperimentForm
                     && pendingSelectionTopology.GetValueOrDefault("ok") is true
                     && controlSurface.GetValueOrDefault("ok") is true
                     && createPartControl.GetValueOrDefault("ok") is true
+                    && partCommandTargets.GetValueOrDefault("ok") is true
+                    && mixedMorphRefit.GetValueOrDefault("ok") is true
+                    && directAuthoringControls.GetValueOrDefault("ok") is true
                     && formProtocolOk
                     && finalFrame.GetValueOrDefault("ok") is true
                     && allRowsCovered
@@ -119,6 +156,9 @@ internal sealed partial class ExperimentForm
                 ["pending_selection_topology"] = pendingSelectionTopology,
                 ["control_surface"] = controlSurface,
                 ["create_part_from_selection"] = createPartControl,
+                ["part_command_targets"] = partCommandTargets,
+                ["mixed_morph_refit_selection"] = mixedMorphRefit,
+                ["direct_authoring_controls"] = directAuthoringControls,
                 ["form_protocol_ok"] = formProtocolOk,
                 ["captured_viewport_protocol_events"] = protocolEvents.Count,
                 ["captured_form_protocol_events"] = formProtocolEvents.Select(item =>
@@ -149,13 +189,12 @@ internal sealed partial class ExperimentForm
         var requiredButtons = new[]
         {
             "◰    Select", "✥    Move", "✜    Grab", "◍    Smooth", "◉    Inflate",
-            "◇    Pinch", "△    Topology", "◑    Morph & Refit", "▣    Viewport", "▾  Morph & Refit",
+            "◇    Pinch", "△    Topology", "◑    Morph & Refit", "▣    Viewport",
             "Clear Selection", "Select All", "Invert", "Undo", "Redo",
             "Grow", "Shrink", "-X", "+X", "-Y", "+Y", "-Z", "+Z",
-            "Delete Selection", "Duplicate Selection", "Subdivide", "Refine Smooth",
-            "Create Part from Selection",
-            "All", "None", "Hide", "Duplicate", "Delete",
-            "Copy", "Paste", "Rename", "Up", "Down",
+            "Delete Selection",
+            "All", "None",
+            "Rename", "Up", "Down",
             "Create Profile...", "Save Profile", "Delete Profile", "Save Preset...", "Delete Preset",
             "1. Set Selected Driver Parts", "2. Bind Selected Garment Parts", "Clear Refit",
             "Apply to Selected Garments", "Reset", "Bake",
@@ -171,6 +210,7 @@ internal sealed partial class ExperimentForm
         };
         var buttonInventory = DescendantControls(this)
             .OfType<Button>()
+            .Where(OwnVisibleState)
             .Select(button => button.Text)
             .Where(text => !string.IsNullOrWhiteSpace(text))
             .Distinct(StringComparer.Ordinal)
@@ -303,6 +343,54 @@ internal sealed partial class ExperimentForm
             && shapeItems.SequenceEqual(new[] { "Brush", "Rectangle", "Lasso" })
             && operationItems.SequenceEqual(new[] { "Add", "Replace", "Subtract", "Toggle" })
             && falloffItems.SequenceEqual(new[] { "Smooth", "Linear", "Constant" });
+        var translateStepPositive = _translateStep.Minimum > 0 && _translateStep.Value > 0;
+        var previousSelectionTarget = _selectionTarget.SelectedIndex;
+        _selectionTarget.SelectedItem = "Wires";
+        UpdateViewportControlsHint();
+        var selectionHintTracksTarget = _controlsHintLabel.Text.Contains("Wires", StringComparison.Ordinal);
+        _selectionTarget.SelectedIndex = previousSelectionTarget;
+        UpdateViewportControlsHint();
+        _ = _viewport.UpdateSelection(
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<(int A, int B)>>(),
+            new HashSet<int> { 0 },
+            revision: _viewport.AcknowledgedSelectionRevision + 1);
+        RefreshPartDetail();
+        var visibleActionReadsHide = string.Equals(_partVisibilityButton?.Text, "Hide", StringComparison.Ordinal);
+        _materials.ApplyParameterUpdate(new NetMaterialParameterUpdate(
+            string.Empty,
+            0,
+            1,
+            new[]
+            {
+                new NetMaterialParameterGroup(
+                    new[] { 0 },
+                    false,
+                    new NetMaterialParameterDelta
+                    {
+                        Visible = new NetOptionalParameter<bool>(true, false),
+                    }),
+            },
+            new[] { 0 }));
+        RefreshPartDetail();
+        var hiddenActionReadsShow = string.Equals(_partVisibilityButton?.Text, "Show", StringComparison.Ordinal);
+        _materials.ApplyParameterUpdate(new NetMaterialParameterUpdate(
+            string.Empty,
+            0,
+            2,
+            new[]
+            {
+                new NetMaterialParameterGroup(
+                    new[] { 0 },
+                    false,
+                    new NetMaterialParameterDelta
+                    {
+                        Visible = new NetOptionalParameter<bool>(true, true),
+                    }),
+            },
+            new[] { 0 }));
+        RefreshPartDetail();
         return new Dictionary<string, object?>
         {
             ["ok"] = missingButtons.Length == 0
@@ -317,7 +405,11 @@ internal sealed partial class ExperimentForm
                 && orbitFrame.GetValueOrDefault("ok") is true
                 && xrayEnabled
                 && xrayDisabledConsistently
-                && restoredTextured,
+                && restoredTextured
+                && translateStepPositive
+                && selectionHintTracksTarget
+                && visibleActionReadsHide
+                && hiddenActionReadsShow,
             ["button_inventory"] = buttonInventory,
             ["required_buttons"] = requiredButtons,
             ["missing_buttons"] = missingButtons,
@@ -330,6 +422,8 @@ internal sealed partial class ExperimentForm
             ["selection_operations"] = operationItems,
             ["brush_falloffs"] = falloffItems,
             ["combo_contract_ok"] = comboContractOk,
+            ["translate_step_positive"] = translateStepPositive,
+            ["selection_hint_tracks_target"] = selectionHintTracksTarget,
             ["preview_cases"] = previewCases,
             ["camera_cases"] = cameraCases,
             ["yaw_round_trip"] = yawRoundTrip,
@@ -341,6 +435,8 @@ internal sealed partial class ExperimentForm
             ["xray_enabled"] = xrayEnabled,
             ["xray_disabled_consistently"] = xrayDisabledConsistently,
             ["restored_solid_textured"] = restoredTextured,
+            ["visible_part_action_reads_hide"] = visibleActionReadsHide,
+            ["hidden_part_action_reads_show"] = hiddenActionReadsShow,
             ["dialog_backed_controls"] = new[]
             {
                 "Create Profile...", "Save Preset...",
@@ -373,25 +469,6 @@ internal sealed partial class ExperimentForm
                 revision: _viewport.AcknowledgedSelectionRevision + 1);
             RefreshCreatePartFromSelectionButton();
             var enabled = _createPartFromSelectionButton.Enabled;
-            _ = _viewport.UpdateSelection(
-                new Dictionary<int, HashSet<int>>(),
-                new Dictionary<int, HashSet<int>>
-                {
-                    [0] = new HashSet<int> { 0 },
-                    [1] = new HashSet<int> { 0 },
-                },
-                new Dictionary<int, HashSet<(int A, int B)>>(),
-                new HashSet<int>(),
-                revision: _viewport.AcknowledgedSelectionRevision + 1);
-            RefreshCreatePartFromSelectionButton();
-            var mixedPartEnabled = _createPartFromSelectionButton.Enabled;
-            _ = _viewport.UpdateSelection(
-                new Dictionary<int, HashSet<int>>(),
-                new Dictionary<int, HashSet<int>> { [0] = new HashSet<int> { 0 } },
-                new Dictionary<int, HashSet<(int A, int B)>>(),
-                new HashSet<int>(),
-                revision: _viewport.AcknowledgedSelectionRevision + 1);
-            RefreshCreatePartFromSelectionButton();
             var clickMethod = typeof(Button).GetMethod(
                 "OnClick",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
@@ -409,13 +486,12 @@ internal sealed partial class ExperimentForm
             }
             return new Dictionary<string, object?>
             {
-                ["ok"] = enabled
-                    && !mixedPartEnabled
-                    && payload is not null
-                    && string.Equals(Convert.ToString(payload.GetValueOrDefault("command")), "separate", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(Convert.ToString(payload.GetValueOrDefault("target_mode")), "face", StringComparison.OrdinalIgnoreCase),
+                ["ok"] = !enabled
+                    && !_createPartFromSelectionButton.Visible
+                    && payload is null
+                    && requestId == 0,
                 ["button_enabled"] = enabled,
-                ["mixed_part_button_enabled"] = mixedPartEnabled,
+                ["button_visible"] = _createPartFromSelectionButton.Visible,
                 ["command"] = payload?.GetValueOrDefault("command"),
                 ["target_mode"] = payload?.GetValueOrDefault("target_mode"),
                 ["request_id"] = requestId,
@@ -430,6 +506,130 @@ internal sealed partial class ExperimentForm
             }
             RefreshCreatePartFromSelectionButton();
         }
+    }
+
+    private Dictionary<string, object?> RunMixedMorphRefitSelectionDiagnostic()
+    {
+        if (_document.Submeshes.Count < 2 || _morphRefitSettingsControl is null)
+        {
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = false,
+                ["reason"] = "Morph refit controls or two diagnostic parts were unavailable.",
+            };
+        }
+        _morphBoundGarmentPartIndices.Clear();
+        _morphBoundGarmentPartIndices.UnionWith(new[] { 0, 1 });
+        _morphGarmentSettings.Clear();
+        _morphGarmentSettings[0] = new MorphRefitGarmentState(true, 25.0, "surface", 0.5);
+        _morphGarmentSettings[1] = new MorphRefitGarmentState(false, 75.0, "volume", 1.5);
+        _ = _viewport.UpdateSelection(
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<(int A, int B)>>(),
+            new HashSet<int> { 0, 1 },
+            revision: _viewport.AcknowledgedSelectionRevision + 1);
+        ApplySelectedMorphRefitSettings();
+        var mixedDisabled = !_morphRefitSettingsControl.Enabled;
+        var mixedExplained = _morphDiagnosticStatus.Text.Contains(
+            "different refit settings",
+            StringComparison.OrdinalIgnoreCase);
+
+        _morphGarmentSettings[1] = _morphGarmentSettings[0];
+        ApplySelectedMorphRefitSettings();
+        var uniformEnabled = _morphRefitSettingsControl.Enabled;
+        var uniformLoaded = _morphRefitEnabled.Checked
+            && _morphRefitIntensity.Value == 25.0M
+            && _morphRefitClearance.Value == 0.5M;
+        _ = _viewport.UpdateSelection(
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<(int A, int B)>>(),
+            new HashSet<int>(),
+            revision: _viewport.AcknowledgedSelectionRevision + 1);
+        _morphBoundGarmentPartIndices.Clear();
+        _morphGarmentSettings.Clear();
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = mixedDisabled && mixedExplained && uniformEnabled && uniformLoaded,
+            ["mixed_disabled"] = mixedDisabled,
+            ["mixed_explained"] = mixedExplained,
+            ["uniform_enabled"] = uniformEnabled,
+            ["uniform_loaded"] = uniformLoaded,
+        };
+    }
+
+    private Dictionary<string, object?> RunPartCommandTargetDiagnostic(
+        List<(string Name, Dictionary<string, object?> Payload)> formProtocolEvents)
+    {
+        if (_partVisibilityButton is null || _partDuplicateButton is null || _partDeleteButton is null)
+        {
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = false,
+                ["reason"] = "Parts",
+            };
+        }
+        var protocolStart = formProtocolEvents.Count;
+        try
+        {
+            ApplyDirectAuthoringOutputContract(exactOutputRequired: false);
+            _ = _viewport.UpdateSelection(
+                new Dictionary<int, HashSet<int>>(),
+                new Dictionary<int, HashSet<int>>(),
+                new Dictionary<int, HashSet<(int A, int B)>>(),
+                new HashSet<int> { 0 },
+                revision: _viewport.AcknowledgedSelectionRevision + 1);
+            var clickMethod = typeof(Button).GetMethod(
+                "OnClick",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            foreach (var button in new[] { _partVisibilityButton, _partDuplicateButton, _partDeleteButton })
+            {
+                clickMethod?.Invoke(button, new object[] { EventArgs.Empty });
+            }
+            var emitted = formProtocolEvents
+                .Skip(protocolStart)
+                .Where(item => item.Name == "command_request")
+                .Select(item => item.Payload)
+                .ToArray();
+            foreach (var requestId in emitted.Select(payload =>
+                Convert.ToInt64(payload.GetValueOrDefault("request_id") ?? 0)))
+            {
+                if (requestId > 0)
+                {
+                    _pendingMutationRequests.Remove(requestId);
+                }
+            }
+            var commands = emitted.Select(payload =>
+                Convert.ToString(payload.GetValueOrDefault("command")) ?? string.Empty).ToArray();
+            var sourceTargets = emitted.All(payload =>
+                string.Equals(
+                    Convert.ToString(payload.GetValueOrDefault("target_mode")),
+                    "source",
+                    StringComparison.OrdinalIgnoreCase));
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = commands.SequenceEqual(new[] { "toggle_visibility", "duplicate", "delete" })
+                    && sourceTargets,
+                ["commands"] = commands,
+                ["source_targets"] = sourceTargets,
+                ["command_request_count"] = emitted.Length,
+            };
+        }
+        finally
+        {
+            _viewport.ResetSelectionAuthority();
+            ApplyDirectAuthoringOutputContract(exactOutputRequired: true);
+        }
+    }
+
+    private static bool OwnVisibleState(Control control)
+    {
+        const int stateVisible = 0x00000002;
+        var getState = typeof(Control).GetMethod(
+            "GetState",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        return getState?.Invoke(control, new object[] { stateVisible }) is true;
     }
 
     private static IEnumerable<Control> DescendantControls(Control root)
@@ -704,22 +904,16 @@ internal sealed partial class ExperimentForm
             .Where(item => item.Name == "command_request")
             .Select(item => item.Payload)
             .ToArray();
-        var payload = emitted.LastOrDefault();
-        var queuedWithoutStaleSelection = payload is not null
-            && Convert.ToString(payload.GetValueOrDefault("command")) == "subdivide"
-            && payload.GetValueOrDefault("selection_pending") is true
-            && !payload.ContainsKey("local_selection");
         _viewport.ResetSelectionAuthority();
         return new Dictionary<string, object?>
         {
             ["ok"] = pendingPrepared
-                && requestId > 0
-                && emitted.Length == 1
-                && queuedWithoutStaleSelection,
+                && requestId == 0
+                && emitted.Length == 0,
             ["pending_prepared"] = pendingPrepared,
             ["request_id"] = requestId,
             ["command_request_count"] = emitted.Length,
-            ["queued_without_stale_selection"] = queuedWithoutStaleSelection,
+            ["blocked_before_stale_selection"] = requestId == 0,
         };
     }
 

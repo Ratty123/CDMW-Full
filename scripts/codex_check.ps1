@@ -90,6 +90,7 @@ $TestsByArea = @{
         # table/part-prefab owners the New Item flow appends through.
         "tests/test_archive_patch_preflight.py",
         "tests/test_archive_mutation_service.py",
+        "tests/test_archive_overlay_install.py",
         "tests/test_archive_entry_addition.py",
         "tests/test_pappt_format.py",
         "tests/test_stringinfo_table.py",
@@ -200,6 +201,7 @@ $TestsByArea = @{
         "tests/test_mesh_editor_controller.py",
         "tests/test_mesh_editor_actions.py",
         "tests/test_mesh_editor_action_bar.py",
+        "tests/test_mesh_editor_direct_mode.py",
         "tests/test_mesh_editor_warm_reopen.py",
         "tests/test_mesh_editor_builder_interaction_defaults.py",
         "tests/test_mesh_builder_runtime_wiring.py",

@@ -834,6 +834,7 @@ internal sealed partial class ExperimentForm
             button.Enabled = true;
             _helpToolTip.SetToolTip(button, string.Empty);
         }
+        ReassertDirectAuthoringBlockedButtons();
         RefreshCreatePartFromSelectionButton();
     }
 
@@ -1018,7 +1019,8 @@ internal sealed partial class ExperimentForm
     private void RegisterTopologyMutationButton(Button button)
     {
         _topologyMutationButtons.Add(button);
-        button.Enabled = !_morphUnbaked;
+        button.Enabled = !_morphUnbaked
+            && !(DirectAuthoringRestrictionsActive && _directAuthoringBlockedButtons.Contains(button));
     }
 
     private void SaveMorphPreset()

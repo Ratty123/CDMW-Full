@@ -416,7 +416,7 @@ class MeshEditorSessionMixin:
         self._cancel_standalone_action_worker()
         self._cancel_standalone_export_validation_worker()
         self._cancel_standalone_rebuild_report_worker()
-        self._cancel_mesh_direct_output_worker()
+        self._cancel_mesh_direct_output_worker(invalidate_result=True)
         self._cancel_standalone_report_write_worker()
         self._cancel_standalone_editable_package_export_worker()
         self._cancel_standalone_edited_package_import_worker()
@@ -431,6 +431,10 @@ class MeshEditorSessionMixin:
                 pass
         self.standalone_mesh_label = ""
         self.standalone_source_skeleton = None
+        self.standalone_last_export_validation_report = None
+        self.standalone_export_validation_revision = None
+        self.standalone_validation_started_revision = None
+        self.standalone_workspace.update_export_validation(None)
         self.standalone_last_rebuild_report = None
         self.standalone_rebuild_report_revision = None
         self.standalone_last_rebuilt_asset_path = None

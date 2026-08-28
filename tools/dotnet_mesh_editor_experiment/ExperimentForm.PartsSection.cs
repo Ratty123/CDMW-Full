@@ -21,6 +21,9 @@ internal sealed partial class ExperimentForm
     private Label? _partDetailTextureCaption;
     private Label? _partDetailTextureValue;
     private Label? _partDetailHidden;
+    private Button? _partVisibilityButton;
+    private Button? _partDuplicateButton;
+    private Button? _partDeleteButton;
     private Button? _createPartFromSelectionButton;
     private bool _createdPartReportPending;
     // The value colours follow the editor's own dark palette: names of things
@@ -91,22 +94,38 @@ internal sealed partial class ExperimentForm
         _partDetail.Name = "DotNetMeshEditorPartDetail";
         _partDetail.AccessibleName = "Selected part detail";
 
-        var section = AddSection(
-            stack,
-            "Parts",
+        _partVisibilityButton = StyledActionButton(
+            "Hide",
+            () => WriteCommandRequest("toggle_visibility", new Dictionary<string, object?>
+            {
+                ["target_mode"] = "source",
+            }));
+        _partDuplicateButton = duplicatePartButton;
+        _partDeleteButton = deletePartButton;
+        if (_options.DirectAuthoring)
+        {
+            _partVisibilityButton.Enabled = false;
+            _partVisibilityButton.Visible = false;
+            SetHelpText(
+                _partVisibilityButton,
+                "Part visibility editing has no stored output authority in direct authoring.");
+        }
+        var partControls = new List<Control>
+        {
             _submeshList,
             _partDetail,
-            // Two rows of three, selection above whole-part commands. Short
-            // captions so each row fits the column instead of wrapping a lone
-            // button onto a third row.
+            // Selection stays available in direct authoring even when every
+            // whole-part mutation below it is absent.
             ButtonRow(
                 StyledActionButton("All", SelectAllParts),
                 StyledActionButton("None", ClearPartSelection),
                 StyledActionButton("Invert", InvertPartSelection)),
-            ButtonRow(
-                CommandButton("Hide", "toggle_visibility"),
-                duplicatePartButton,
-                deletePartButton));
+        };
+        partControls.Add(ButtonRow(_partVisibilityButton, duplicatePartButton, deletePartButton));
+        var section = AddSection(
+            stack,
+            "Parts",
+            partControls.ToArray());
         _submeshList.SelectedIndexChanged += (_, _) => RefreshPartDetail();
         RefreshPartDetail();
         return section;
@@ -120,6 +139,9 @@ internal sealed partial class ExperimentForm
         SetHelpText(button, "Move selected Faces from one source part into a uniquely named appended part.");
         _createPartFromSelectionButton = button;
         RegisterTopologyMutationButton(button);
+        BlockDirectAuthoringButton(
+            button,
+            "Create Part is unavailable because the exact PAC writer cannot add a protected submesh record.");
         RefreshCreatePartFromSelectionButton();
         return button;
     }
@@ -147,6 +169,12 @@ internal sealed partial class ExperimentForm
     {
         if (_createPartFromSelectionButton is null)
         {
+            return;
+        }
+        if (DirectAuthoringRestrictionsActive)
+        {
+            _createPartFromSelectionButton.Enabled = false;
+            _createPartFromSelectionButton.Visible = false;
             return;
         }
         var faceTarget = string.Equals(SelectionText(_selectionTarget, "vertices"), "faces", StringComparison.OrdinalIgnoreCase);
@@ -259,6 +287,10 @@ internal sealed partial class ExperimentForm
         var material = string.Empty;
         var texture = string.Empty;
         var hidden = false;
+        var hiddenCount = selected.Count(index =>
+            index >= 0
+            && index < _document.Submeshes.Count
+            && _materials.ParametersForSubmesh(index).Visible is false);
         if (selected.Length == 1 && selected[0] >= 0 && selected[0] < _document.Submeshes.Count)
         {
             var index = selected[0];
@@ -284,6 +316,15 @@ internal sealed partial class ExperimentForm
         _partDetailTextureValue.Visible = showTexture;
         _partDetailTextureValue.Text = showTexture ? texture : string.Empty;
         _partDetailHidden.Visible = hidden;
+        if (_partVisibilityButton is not null)
+        {
+            _partVisibilityButton.Enabled = selected.Length > 0 && !_options.DirectAuthoring;
+            var willShow = hiddenCount > 0;
+            _partVisibilityButton.Text = willShow ? "Show" : "Hide";
+            SetHelpText(
+                _partVisibilityButton,
+                willShow ? "Show" : "Hide");
+        }
         SetHelpText(_partDetail, _partDetailSummary.Text);
     }
 

@@ -14,12 +14,14 @@ internal sealed partial class ExperimentForm
 
     private readonly ListView _geometryLayerList = new();
     private GroupBox? _layersSection;
+    private Button? _layerCopyButton;
     private Button? _layerPasteButton;
     private Button? _layerRenameButton;
     private Button? _layerMoveUpButton;
     private Button? _layerMoveDownButton;
     private Button? _layerDeleteButton;
     private bool _syncingGeometryLayerList;
+    private bool _geometryLayerClipboardReady;
     private long _geometryLayerRevision = -1;
 
     private GroupBox BuildGeometryLayersSection(TableLayoutPanel stack)
@@ -106,21 +108,36 @@ internal sealed partial class ExperimentForm
         };
 
         var copyButton = StyledActionButton("Copy", () => WriteCommandRequest("copy"));
+        _layerCopyButton = copyButton;
         _layerPasteButton = StyledActionButton("Paste", () => WriteCommandRequest("paste"));
         _layerRenameButton = StyledActionButton("Rename", BeginRenameGeometryLayer);
         _layerMoveUpButton = StyledActionButton("Up", () => MoveSelectedGeometryLayer(-1));
         _layerMoveDownButton = StyledActionButton("Down", () => MoveSelectedGeometryLayer(1));
         _layerDeleteButton = StyledActionButton("Delete", DeleteSelectedGeometryLayer);
         _layerPasteButton.Enabled = false;
+        BlockDirectAuthoringButton(
+            copyButton,
+            "Copy is unavailable because copied geometry has no exact PAC writeback route.");
+        BlockDirectAuthoringButton(
+            _layerPasteButton,
+            "Paste is unavailable because copied geometry has no exact PAC writeback route.");
+        BlockDirectAuthoringButton(
+            _layerDeleteButton,
+            "Layer Delete is unavailable because changed topology has no exact PAC writeback route.");
 
+        var layerCommandRows = new[]
+        {
+            ButtonRow(copyButton, _layerPasteButton, _layerRenameButton),
+            ButtonRow(_layerMoveUpButton, _layerMoveDownButton, _layerDeleteButton),
+        };
+        var layerControls = new List<Control> { _geometryLayerList };
+        layerControls.AddRange(layerCommandRows);
         var section = AddHelpSection(
             stack,
             "Layers",
             "Base mesh is always included. Only the active layer can be edited; visible inactive layers are reference geometry.",
             out _,
-            _geometryLayerList,
-            ButtonRow(copyButton, _layerPasteButton, _layerRenameButton),
-            ButtonRow(_layerMoveUpButton, _layerMoveDownButton, _layerDeleteButton));
+            layerControls.ToArray());
         RefreshGeometryLayerButtonState();
         return section;
     }
@@ -144,7 +161,15 @@ internal sealed partial class ExperimentForm
             _layerMoveDownButton.Enabled = editable
                 && _geometryLayerList.SelectedIndices[0] < _geometryLayerList.Items.Count - 1;
         }
-        if (_layerDeleteButton is not null) _layerDeleteButton.Enabled = editable;
+        if (_layerDeleteButton is not null) _layerDeleteButton.Enabled = editable && !DirectAuthoringRestrictionsActive;
+        if (_layerCopyButton is not null)
+        {
+            _layerCopyButton.Enabled = !DirectAuthoringRestrictionsActive;
+        }
+        if (_layerPasteButton is not null)
+        {
+            _layerPasteButton.Enabled = _geometryLayerClipboardReady && !DirectAuthoringRestrictionsActive;
+        }
     }
 
     private void BeginRenameGeometryLayer()
@@ -245,9 +270,10 @@ internal sealed partial class ExperimentForm
             _geometryLayerList.EndUpdate();
             _syncingGeometryLayerList = false;
         }
+        _geometryLayerClipboardReady = JsonBoolean(state, "clipboard_ready");
         if (_layerPasteButton is not null)
         {
-            _layerPasteButton.Enabled = JsonBoolean(state, "clipboard_ready");
+            _layerPasteButton.Enabled = _geometryLayerClipboardReady && !DirectAuthoringRestrictionsActive;
         }
         RefreshGeometryLayerButtonState();
         var activeIndices = rows.FirstOrDefault(row => row.Active)?.SubmeshIndices ?? rows[0].SubmeshIndices;

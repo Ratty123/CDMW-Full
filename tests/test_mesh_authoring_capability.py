@@ -121,10 +121,12 @@ def test_an_unrecognised_topology_operation_is_blocked_not_allowed() -> None:
 
 @pytest.mark.parametrize(
     "action_key",
-    ["edge_split", "bridge", "extrude", "inset", "merge", "weld", "fill", "copy", "paste", "layer_delete"],
+    [
+        "edge_split", "bridge", "extrude", "inset", "merge", "weld", "fill",
+        "copy", "paste", "layer_delete", "duplicate", "separate", "refine_smooth",
+    ],
 )
-def test_the_hidden_topology_actions_all_have_a_stated_reason(action_key: str) -> None:
-    """These are hidden in the UI today, which reads as unfinished, not blocked."""
+def test_the_blocked_topology_actions_all_have_a_stated_reason(action_key: str) -> None:
     capability = action_authoring_capability(action_key)
 
     assert capability is not None
