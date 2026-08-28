@@ -3,13 +3,14 @@ from __future__ import annotations
 import os
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
 
 from cdmw.app.events import AppEventBus
 from cdmw.domain.archives.backend_mode import ArchiveBackendMode, ArchiveBackendSelection
@@ -53,6 +54,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         _app()
         self._temp_dir = tempfile.TemporaryDirectory()
         settings = create_settings(settings_file_path=Path(self._temp_dir.name) / "cdmw-test.cfg")
+        settings.setValue("ui/shell_variant", "classic")
         context = AppContext(
             settings=settings,
             services=ServiceContainer.create_default(settings=settings),
@@ -65,6 +67,18 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         self.window.deleteLater()
         _app().processEvents()
         self._temp_dir.cleanup()
+
+    def _wait_for_created_tool(self, widget: QWidget) -> QWidget:
+        created_widget = getattr(widget, "widget_if_created", None)
+        if not callable(created_widget):
+            return widget
+        deadline = time.monotonic() + 10.0
+        while created_widget() is None and time.monotonic() < deadline:
+            _app().processEvents()
+            time.sleep(0.001)
+        created = created_widget()
+        self.assertIsNotNone(created)
+        return created
 
     def test_shell_exposes_and_activates_all_primary_tools(self) -> None:
         visible_main_tabs = [
@@ -169,8 +183,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             widget = self.window._tool_widgets_by_key[key]
             self.window._activate_tool_widget(widget)
             self.assertIs(self.window._current_navigation_widget(), widget, key)
-            created = getattr(widget, "widget_if_created", lambda: widget)()
-            self.assertIsNotNone(created, key)
+            self.assertIsNotNone(self._wait_for_created_tool(widget), key)
 
     def test_new_user_opens_archive_browser_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -231,9 +244,10 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             "Retrofit/Repackage",
             self.window.tools_tabs.tabText(self.window.tools_tabs.indexOf(self.window.mod_package_retrofit_tab)),
         )
+        retrofit_tool = self._wait_for_created_tool(self.window.mod_package_retrofit_tab)
         button_labels = {
             button.text()
-            for button in self.window.mod_package_retrofit_tab.findChildren(QPushButton)
+            for button in retrofit_tool.findChildren(QPushButton)
         }
         self.assertIn("Scan", button_labels)
         self.assertIn("Preview Package Plan", button_labels)
