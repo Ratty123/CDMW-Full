@@ -21,6 +21,7 @@ $TestsByArea = @{
         # guessable from an area name, so it belongs in the cheapest gate.
         "tests/test_window_feature_controller.py",
         "tests/test_localization_catalog_contracts.py",
+        "tests/test_localization_runtime_owner.py",
         "tests/test_compact_shell.py",
         "tests/test_compact_shell_presentations.py",
         "tests/test_compact_shell_visual_harness.py",

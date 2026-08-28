@@ -1444,6 +1444,10 @@ class UiLocalizer(QObject):
         application: QApplication | None = None,
     ) -> None:
         app = application or QApplication.instance()
+        if app is not None and qt_object_is_valid(app):
+            previous_owner = app.property("_cdmw_ui_localizer")
+            if isinstance(previous_owner, UiLocalizer) and previous_owner is not self:
+                previous_owner.shutdown()
         if (
             app is not None
             and qt_object_is_valid(app)
