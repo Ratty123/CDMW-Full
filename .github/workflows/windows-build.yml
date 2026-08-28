@@ -197,7 +197,19 @@ jobs:
           PYTEST_ADDOPTS: '-m "not visual and not real_game and not timing"'
         run: |
           $baseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-${{ matrix.python-version }}"
-          .\scripts\codex_check.ps1 -Area full -PytestBaseTemp $baseTemp
+          $nativeAccessViolation = -1073741819 # 0xC0000005 from Qt/PySide teardown on shared Windows runners
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            $attemptBaseTemp = "$baseTemp-attempt-$attempt"
+            .\scripts\codex_check.ps1 -Area full -PytestBaseTemp $attemptBaseTemp
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -eq 0) {
+              exit 0
+            }
+            if ($exitCode -ne $nativeAccessViolation -or $attempt -eq 3) {
+              exit $exitCode
+            }
+            Write-Warning "Canonical QA attempt $attempt ended with transient Windows access violation 0xC0000005; retrying the same full one-process suite."
+          }
 
   package:
     name: Package after QA
