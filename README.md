@@ -405,7 +405,6 @@ native helpers.
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install "pip==25.3"
 .\.venv\Scripts\python.exe -m pip install -c constraints-release.txt -r requirements-build.txt
 .\.venv\Scripts\python.exe -m pip install "pytest==9.0.3"
 .\.venv\Scripts\python.exe scripts\verify_release_dependencies.py
@@ -430,10 +429,12 @@ Build a publishable onefile EXE:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mode onefile -BuildProfile release
 ```
 
-Release builds require the exact versions in `constraints-release.txt`, publish
-the bundled .NET Mesh Editor as a self-contained `win-x64` single file, and run
-an offscreen startup smoke. Output is published only after the atomic result
-marker reports `post_construction`:
+Release builds install the complete CPython 3.11/3.14 Windows x64 wheel graph
+from the hash-checked `requirements-build.txt` lock, cross-check every version
+against `constraints-release.txt`, publish the bundled .NET Mesh Editor as a
+self-contained `win-x64` single file, and run an offscreen startup smoke.
+Output is published only after the atomic result marker reports
+`post_construction`:
 
 ```text
 dist\CrimsonDesertModWorkbench-<version>-windows-portable.exe

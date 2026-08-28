@@ -41,9 +41,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-env:
-  PIP_VERSION: "25.3"
-
 jobs:
   # The suite is not a pure-Python suite. Several hundred tests drive the native
   # helpers for real -- mesh edit, DDS encode, UV unwrap -- and those paths fail
@@ -57,7 +54,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       # The helpers only change when native/ or the build script does, which is
       # rare, while the build itself is minutes of every push. The key covers
@@ -66,7 +63,7 @@ jobs:
       # whole suite and quietly change what it proves.
       - name: Restore built native helpers
         id: native_helpers_cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             native/*/build/Release
@@ -78,7 +75,7 @@ jobs:
       # cargo is on PATH. Runners ship Rust, so that one comes along for free.
       - name: Set up .NET 10
         if: steps.native_helpers_cache.outputs.cache-hit != 'true'
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           dotnet-version: "10.0.x"
 
@@ -106,7 +103,7 @@ jobs:
           $expected | ForEach-Object { "ok $_" }
 
       - name: Upload native helpers
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: native-helpers
           path: |
@@ -133,12 +130,12 @@ jobs:
               || fromJSON('["3.11", "3.14"]') }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       # Restores native/<helper>/build/Release/, which is where
       # cdmw/core/texture_native.py and cdmw/modding/mesh_native_core.py look.
       - name: Download native helpers
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: native-helpers
           path: native
@@ -159,7 +156,7 @@ jobs:
           $expected | ForEach-Object { "ok $_" }
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -169,7 +166,7 @@ jobs:
             constraints-release.txt
 
       - name: Set up .NET 10
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           dotnet-version: "10.0.x"
 
@@ -180,7 +177,6 @@ jobs:
       - name: Install exact tested dependencies
         shell: pwsh
         run: |
-          .\.venv\Scripts\python -m pip install "pip==$env:PIP_VERSION"
           .\.venv\Scripts\python -m pip install -c constraints-release.txt -r requirements-build.txt
           .\.venv\Scripts\python -m pip install "pytest==9.0.3"
           .\.venv\Scripts\python scripts\verify_release_dependencies.py
@@ -218,10 +214,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Set up Python 3.14
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.14"
           cache: pip
@@ -231,7 +227,7 @@ jobs:
             constraints-release.txt
 
       - name: Set up .NET 10
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           dotnet-version: "10.0.x"
 
@@ -239,7 +235,6 @@ jobs:
         shell: pwsh
         run: |
           python -m venv .venv
-          .\.venv\Scripts\python -m pip install "pip==$env:PIP_VERSION"
           .\.venv\Scripts\python -m pip install -c constraints-release.txt -r requirements-build.txt
           .\.venv\Scripts\python scripts\verify_release_dependencies.py
           .\.venv\Scripts\python -m pip check
@@ -261,7 +256,7 @@ jobs:
 
       - name: Upload unsigned onedir artifact
         if: env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onedir'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: CrimsonDesertModWorkbench-onedir-unsigned
           path: dist/CrimsonDesertModWorkbench-*-windows
@@ -270,7 +265,7 @@ jobs:
       - name: Upload unsigned onefile artifact
         if: env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onefile'
         id: upload_unsigned_onefile
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: CrimsonDesertModWorkbench-onefile-unsigned
           path: dist/CrimsonDesertModWorkbench-*-windows-portable.exe
@@ -297,7 +292,7 @@ jobs:
       - name: Submit onefile artifact to SignPath
         if: (env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onefile') && github.event_name == 'workflow_dispatch' && inputs.sign_with_signpath && vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG == ''
         id: signpath_default
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2.3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -310,7 +305,7 @@ jobs:
       - name: Submit onefile artifact to SignPath (custom artifact config)
         if: (env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onefile') && github.event_name == 'workflow_dispatch' && inputs.sign_with_signpath && vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG != ''
         id: signpath_custom
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2.3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -323,7 +318,7 @@ jobs:
 
       - name: Upload signed onefile artifact
         if: steps.signpath_default.outcome == 'success' || steps.signpath_custom.outcome == 'success'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: CrimsonDesertModWorkbench-onefile-signed
           path: signed-artifacts/onefile/**

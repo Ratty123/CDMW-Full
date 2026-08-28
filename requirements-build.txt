@@ -1,9 +1,35 @@
--r requirements.txt
-PyInstaller>=6.0
-# Bundled into release packages, and build_pyside6_app.ps1 refuses to build
-# without it. It was only ever installed by hand, so a clean environment could
-# not produce a release.
-openimageio>=3.1
-# Unpacks the Qt SDK that scripts/vendor_qt_sdk.py fetches for the Qt Quick RHI
-# viewport plugin. Build-time only: nothing at runtime reads a .7z.
-py7zr>=1.0
+# Approved Windows x64 release lock for CPython 3.11 and 3.14.
+# Every selected wheel is exact and hash-checked; source distributions are refused.
+--require-hashes
+--only-binary :all:
+
+altgraph==0.17.5 --hash=sha256:f3a22400bce1b0c701683820ac4f3b159cd301acab067c51c653e06961600597
+backports.zstd==1.7.0 ; python_version < "3.14" --hash=sha256:ae840be71108f6020567dd389c973e70a4374a6c0b03c02d3242c8a98a9b3cdb
+brotli==1.2.0 --hash=sha256:022426c9e99fd65d9475dce5c195526f04bb8be8907607e27e747893f6ee3e24 --hash=sha256:e7c0af964e0b4e3412a0ebf341ea26ec767fa0b4cf81abb5e897c9338b5ad6a3
+cffi==2.0.0 --hash=sha256:66f011380d0e49ed280c789fbd08ff0d40968ee7b665575489afa95c98196ab5 --hash=sha256:203a48d1fb583fc7d78a4c6655692963b860a417c0528492a6bc21f1aaefab25
+cryptography==46.0.6 --hash=sha256:6739d56300662c468fddb0e5e291f9b4d084bead381667b9e654c7dd81705124
+inflate64==1.0.4 --hash=sha256:7056148548c1f25dcb38251f88c19b4635a5f32af4c7bad00621c85509e3d8c0 --hash=sha256:fb2fdd63ef3933b67af98b3f2ee2f57e7787278041d7ba4821382fedd729b68a
+lz4==4.4.5 --hash=sha256:8a842ead8ca7c0ee2f396ca5d878c4c40439a527ebad2b996b0444f0074ed004 --hash=sha256:92159782a4502858a21e0079d77cdcaade23e8a5d252ddf46b0652604300d7be
+multivolumefile==0.2.3 --hash=sha256:237f4353b60af1703087cf7725755a1f6fcaeeea48421e1896940cd1c920d678
+numpy==2.4.4 --hash=sha256:6bbe4eb67390b0a0265a2c25458f6b90a409d5d069f1041e6aff1e27e3d9a79e --hash=sha256:715d1c092715954784bc79e1174fc2a90093dc4dc84ea15eb14dad8abdcdeb74
+opencv-python-headless==4.13.0.92 --hash=sha256:77a82fe35ddcec0f62c15f2ba8a12ecc2ed4207c17b0902c7a3151ae29f37fb6
+openimageio==3.1.15.0 --hash=sha256:6f415cbd75473e245b2ed2f0fb6385f2c461c4184f9ad9063e2ab94155d48ff9 --hash=sha256:380ff999b1640b6713d446d7c9a94393b423564ca7c773414e04de7701560b5a
+packaging==26.0 --hash=sha256:b36f1fef9334a5588b4166f8bcd26a14e521f2b55e6b9de3aaa80d3ff7a37529
+pefile==2024.8.26 --hash=sha256:76f8b485dcd3b1bb8166f1128d395fa3d87af26360c2358fb75b80019b957c6f
+pillow==12.2.0 --hash=sha256:6e6b2a0c538fc200b38ff9eb6628228b77908c319a005815f2dde585a0664b60 --hash=sha256:4e6c62e9d237e9b65fac06857d511e90d8461a32adcc1b9065ea0c0fa3a28150
+pip==25.3 --hash=sha256:9655943313a94722b7774661c21049070f6bbb0a1516bf02f7c8d5d9201514cd
+psutil==7.2.2 --hash=sha256:eb7e81434c8d223ec4a219b5fc1c47d0417b12be7ea866e24fb5ad6e84b3d988
+py7zr==1.1.3 --hash=sha256:17934a35089e026dec6c72ee275d9b841e646881ef822d618e805c3006661d9a
+pybcj==1.0.8 --hash=sha256:090eb05fe7a2f7cd7eb42809616ce1b49437c3e995a8aae2faa92b66f218172f --hash=sha256:0074af187b1acce9e31717fc9aa42bc36b67f1a44088a8b44f4f4792af688ee6
+pycparser==3.0 --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
+pycryptodomex==3.23.0 --hash=sha256:52e5ca58c3a0b0bd5e100a9fbc8015059b05cffc6c66ce9d98b4b45e023443b9
+pyinstaller==6.19.0 --hash=sha256:b5bb6536c6560330d364d91522250f254b107cf69129d9cbcd0e6727c570be33
+pyinstaller-hooks-contrib==2026.4 --hash=sha256:1de1a5e49a878122010b88c7e295502bc69776c157c4a4dc78741a4e6178b00f
+pyppmd==1.3.1 --hash=sha256:23b83799f33f9a24577f22e092b0feecda8cd1ea33871ad8610a58629874f7bc --hash=sha256:0e64247618cb150d2909beb0137da3084fef1d3479b4cc73b5b47fda7611abf9
+pyside6==6.11.0 --hash=sha256:9092cb002ca43c64006afb2e0d0f6f51aef17aa737c33a45e502326a081ddcbc
+pyside6-addons==6.11.0 --hash=sha256:413e6121c24f5ffdce376298059eddecff74aa6d638e94e0f6015b33d29b889e
+pyside6-essentials==6.11.0 --hash=sha256:3b3362882ad9389357a80504e600180006a957731fec05786fced7b038461fdf
+pywin32-ctypes==0.2.3 --hash=sha256:8a1513379d709975552d202d942d9837758905c8d01eb82b8bcc30918929e7b8
+setuptools==82.0.1 --hash=sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb
+shiboken6==6.11.0 --hash=sha256:483ff78a73c7b3189ca924abc694318084f078bcfeaffa68e32024ff2d025ee1
+texttable==1.7.0 --hash=sha256:72227d592c82b3d7f672731ae73e4d1f88cd8e2ef5b075a7a7f01a23a3743917
