@@ -42,12 +42,12 @@ README_TOOL_NAMES_BY_KEY = {
 def _documentation_files() -> tuple[Path, ...]:
     """Every markdown file this repository actually ships.
 
-    Asked of git rather than read off disk. `docs/`, `AGENTS.md` and
-    `CLAUDE.md` are local working notes now, on the same footing plans were
-    already on, so a developer with those open must not be held to link and
-    index rules for files nobody else receives. Package READMEs are
-    documentation wherever they live: limiting this to cdmw/ once let a broken
-    docs/ link sit in native/cdmw_mesh_core/README.md.
+    Asked of git rather than read off disk. `docs/` and `AGENTS.md` are local
+    working notes now, on the same footing plans were already on, so a
+    developer with those open must not be held to link and index rules for
+    files nobody else receives. Package READMEs are documentation wherever
+    they live: limiting this to cdmw/ once let a broken docs/ link sit in
+    native/cdmw_mesh_core/README.md.
     """
 
     result = subprocess.run(
