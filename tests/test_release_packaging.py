@@ -282,14 +282,34 @@ def test_windows_workflow_gates_packaging_on_both_headless_python_releases() -> 
     assert "matrix.shard" not in source
     assert "-Shard" not in source
     assert 'PYTEST_ADDOPTS: \'-m "not visual and not real_game and not timing"\'' in source
-    assert "$nativeAccessViolation = -1073741819" in source
-    assert "for ($attempt = 1; $attempt -le 3; $attempt++)" in source
-    assert '$attemptBaseTemp = "$baseTemp-attempt-$attempt"' in source
-    assert "$exitCode -ne $nativeAccessViolation -or $attempt -eq 3" in source
     assert "Build and startup-smoke onedir package" in source
     assert "Build and startup-smoke onefile package" in source
     assert "-Area mesh " not in source
     assert "CDMW_GAME_ROOT" not in source
+
+
+def test_windows_workflow_keeps_ordinary_main_pushes_fast() -> None:
+    """A normal push must not spend an hour rerunning release-grade QA."""
+
+    source = WORKFLOW.read_text(encoding="utf-8")
+    fast_start = source.index("- name: Run fast main-push validation")
+    canonical_start = source.index("- name: Run canonical nonvisual QA")
+    package_start = source.index("  package:", canonical_start)
+    fast_step = source[fast_start:canonical_start]
+    canonical_step = source[canonical_start:package_start]
+
+    assert "if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')" in fast_step
+    assert "codex_check.ps1 -Area smoke" in fast_step
+    assert "codex_check.ps1 -Area full" not in fast_step
+    assert (
+        "if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')"
+        in canonical_step
+    )
+    assert "codex_check.ps1 -Area full" in canonical_step
+    assert "codex_check.ps1 -Area smoke" not in canonical_step
+    assert "$nativeAccessViolation" not in canonical_step
+    assert "for ($attempt = 1; $attempt -le 3; $attempt++)" not in canonical_step
+    assert "retrying the same full one-process suite" not in canonical_step
 
 
 def test_windows_workflow_uses_only_approved_action_commit_shas() -> None:
