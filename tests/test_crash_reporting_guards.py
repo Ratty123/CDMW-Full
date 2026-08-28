@@ -844,7 +844,6 @@ class CrashReportingGuardTests(unittest.TestCase):
             '"Paths"',
             '"Performance"',
             '"Appearance"',
-            '"Layout"',
             '"Safety"',
         ):
             self.assertIn(title, settings_source)
@@ -853,7 +852,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.paths_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.archive_performance_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.appearance_page_layout = _add_settings_page(", settings_source)
-        self.assertIn("self.layout_page_layout = _add_settings_page(", settings_source)
+        self.assertNotIn("self.layout_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.safety_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.setup_page_layout.insertWidget(2, setup_section)", settings_source)
         self.assertIn("toggle_button.setVisible(False)", settings_source)

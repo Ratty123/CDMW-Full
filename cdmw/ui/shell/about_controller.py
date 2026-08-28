@@ -79,7 +79,7 @@ class AboutControllerMixin:
               <li><b>Texture Workflow</b>: batch processing, review, DDS rebuild, and mod-ready export.</li>
               <li><b>Archive Browser</b>: game-file search, preview, extraction, references, and direct opening of supported meshes.</li>
               <li><b>Mesh Editor</b>: mesh-only geometry authoring with read-only textured review and safe file/mod/overlay outputs.</li>
-              <li><b>Model Library and Icon Creator</b>: models route to New Item Studio; icon helpers prepare item-icon packages.</li>
+              <li><b>Model Library and Icon Creator</b>: models route to Create New Item; icon helpers prepare item-icon packages.</li>
               <li><b>Texture Editor</b>: visible texture edits with handoff back to workflow/replacement tools.</li>
               <li><b>Texture Replacer</b>: guided one-off replacement packaging.</li>
               <li><b>Research and Text Search</b>: inspect file families, references, strings, and notes.</li>
@@ -108,7 +108,7 @@ class AboutControllerMixin:
               <li><b>Flujo de texturas</b>: proceso por lotes, revision, reconstruccion DDS y exportacion mod-ready.</li>
               <li><b>Explorador de archivos</b>: busqueda, vista previa, extraccion, referencias y apertura directa de mallas compatibles.</li>
               <li><b>Editor de mallas</b>: edicion geometrica solamente, revision con texturas de solo lectura y salidas seguras de archivo, mod u overlay.</li>
-              <li><b>Biblioteca de modelos y creador de iconos</b>: los modelos se envian a New Item Studio; el creador prepara iconos de items.</li>
+              <li><b>Biblioteca de modelos y creador de iconos</b>: los modelos se envian a Crear objeto nuevo; el creador prepara iconos de items.</li>
               <li><b>Editor de texturas</b>: ediciones de texturas visibles con envio a flujo o reemplazo.</li>
               <li><b>Asistente de reemplazo</b>: empaquetado guiado para reemplazos individuales.</li>
               <li><b>Investigacion y busqueda de texto</b>: inspeccion de familias de archivos, referencias, cadenas y notas.</li>
@@ -137,7 +137,7 @@ class AboutControllerMixin:
               <li><b>Textur-Workflow</b>: Stapelverarbeitung, Pruefung, DDS-Neuaufbau und mod-fertiger Export.</li>
               <li><b>Archiv-Browser</b>: Suche, Vorschau, Extraktion, Referenzen und direktes Oeffnen kompatibler Meshes.</li>
               <li><b>Mesh-Editor</b>: reine Geometriebearbeitung, schreibgeschuetzte Texturkontrolle und sichere Datei-/Mod-/Overlay-Ausgaben.</li>
-              <li><b>Modellbibliothek und Icon Creator</b>: Modelle gehen an New Item Studio; der Icon Creator bereitet Item-Icons vor.</li>
+              <li><b>Modellbibliothek und Icon Creator</b>: Modelle gehen an Neuen Gegenstand erstellen; der Icon Creator bereitet Item-Icons vor.</li>
               <li><b>Textur-Editor</b>: sichtbare Texturbearbeitung mit Uebergabe an Workflow oder Ersetzung.</li>
               <li><b>Ersetzungsassistent</b>: gefuehrte Einzelersatz-Paketierung.</li>
               <li><b>Recherche und Textsuche</b>: Dateifamilien, Referenzen, Strings und Notizen pruefen.</li>

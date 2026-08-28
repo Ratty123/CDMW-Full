@@ -6,7 +6,7 @@ prepares schema-v8 D3D11 packages, and emits deterministic reports. Native
 preview jobs do not inject synthetic textures or silently enable Python
 fallback.
 
-Archive Browser and New Item Studio both consume this package contract. A New
+Archive Browser and Create New Item both consume this package contract. A New
 Item template request may race bare Python geometry against the native package;
 the native result promotes the resident scene to canonical textures without
 restarting the renderer or resetting its camera. Character appearance overrides

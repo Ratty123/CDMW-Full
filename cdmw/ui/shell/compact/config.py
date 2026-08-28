@@ -11,8 +11,9 @@ LEGACY_SHELL_VARIANT = "legacy"
 COMPACT_SHELL_VARIANT = "compact_rail"
 SHELL_VARIANTS = (LEGACY_SHELL_VARIANT, COMPACT_SHELL_VARIANT)
 
+# Compatibility names for settings written before Classic and Compact shared one theme.
 COMPACT_SHELL_THEME_SETTING = "appearance/compact_shell_theme"
-DEFAULT_COMPACT_SHELL_THEME = "crimson_desert"
+DEFAULT_COMPACT_SHELL_THEME = DEFAULT_UI_THEME
 
 # All fifteen production tool presentations passed the compact visual review.
 APPLICATION_LAYOUT_SELECTOR_EXPOSED = True
@@ -35,32 +36,30 @@ def normalize_theme_key(value: object, *, default: str) -> str:
 
 
 def read_classic_theme_key(settings: object) -> str:
+    legacy_compact_theme = settings.value(  # type: ignore[attr-defined]
+        COMPACT_SHELL_THEME_SETTING,
+        DEFAULT_UI_THEME,
+    )
     return normalize_theme_key(
-        settings.value("appearance/theme", DEFAULT_UI_THEME),  # type: ignore[attr-defined]
+        settings.value("appearance/theme", legacy_compact_theme),  # type: ignore[attr-defined]
         default=DEFAULT_UI_THEME,
     )
 
 
 def read_compact_shell_theme_key(settings: object) -> str:
-    return normalize_theme_key(
-        settings.value(COMPACT_SHELL_THEME_SETTING, DEFAULT_COMPACT_SHELL_THEME),  # type: ignore[attr-defined]
-        default=DEFAULT_COMPACT_SHELL_THEME,
-    )
+    """Compatibility wrapper for callers that still use the former name."""
+
+    return read_classic_theme_key(settings)
 
 
 def active_shell_theme_key(settings: object, shell_variant: object | None = None) -> str:
-    variant = normalize_shell_variant(shell_variant) if shell_variant is not None else read_shell_variant(settings)
-    if variant == COMPACT_SHELL_VARIANT:
-        return read_compact_shell_theme_key(settings)
+    _ = shell_variant
     return read_classic_theme_key(settings)
 
 
 def active_shell_theme_setting(shell_variant: object) -> str:
-    return (
-        COMPACT_SHELL_THEME_SETTING
-        if normalize_shell_variant(shell_variant) == COMPACT_SHELL_VARIANT
-        else "appearance/theme"
-    )
+    _ = shell_variant
+    return "appearance/theme"
 
 
 def theme_change_field(setting_key: object) -> str:

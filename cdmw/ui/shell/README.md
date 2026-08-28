@@ -8,7 +8,7 @@ activation handling, diagnostics, and app-level dialogs.
 same authoritative tool widgets. Classic remains the default. Compact mode
 hides the existing tab bars, routes its rail through the shared activation
 path, reuses the existing actions and status widgets, and never constructs a
-second tool/controller/worker tree. Its independent theme and category state
+second tool/controller/worker tree. Its shared application theme and category state
 are documented in `docs/features/compact-workspace.md`.
 Archive Browser's compact Select, Actions, and More Filters triggers retain their
 existing routing while rendering normal, hover, pressed/open-menu, focus, and

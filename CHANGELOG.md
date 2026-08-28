@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+- **Settings now keeps layout and theme together on Appearance.** The separate Layout page and Compact-only theme picker are gone: one **Layout** selector, one shared **Theme** selector, the restart notice, and pane-memory control now live with the other appearance controls. Changing layouts still takes effect only after restart, while theme changes remain live and apply to both Classic and Compact Workspace.
+- **Create New Item is now the single user-facing name of the item-authoring workflow.** Classic and Compact navigation, detachable-window titles, Model Library and Archive Browser handoffs, in-app help, export metadata, and current documentation now use the same label. The README gives Create New Item its own top-level section instead of nesting it beneath **What it does**.
+
 ### Fixed
 - **Compact Model Library no longer retains a hidden horizontal overflow range after another tool changes the process-wide UI font.** Its scroll area's content widget previously kept a wide minimum-size hint even though Compact hid the horizontal bar, leaving an 18 px unreachable range in combined application runs. Compact now lets that content shrink and wrap into the existing 256-300 px controls lane; Classic Workspace is unchanged.
 - **Mesh Editor no longer opens a Windows application-error dialog when two resident helper status updates overlap.** The .NET helper wrote `dotnet_status.json` in place, so a concurrent process or monitor could hold the destination long enough for an `IOException`; the fatal handler then retried the same unsafe write and let that second exception escape as `0xe0434352`. Status commits now serialize per destination across helper processes, stage a unique sibling and atomically replace the destination, while embedded and headless fatal reporting preserves the original error on stderr and exits nonzero even if status reporting itself is blocked.

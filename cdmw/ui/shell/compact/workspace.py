@@ -6,12 +6,7 @@ from PySide6.QtWidgets import QHBoxLayout, QTabWidget, QVBoxLayout, QWidget
 
 from cdmw.constants import DEFAULT_UI_THEME
 from cdmw.ui.shell.compact.activity import ActivityHistory, CompactStatusSnapshot, tool_log_adapter_for
-from cdmw.ui.shell.compact.config import (
-    COMPACT_SHELL_THEME_SETTING,
-    active_shell_theme_setting,
-    read_classic_theme_key,
-    theme_change_field,
-)
+from cdmw.ui.shell.compact.config import active_shell_theme_setting, theme_change_field
 from cdmw.ui.shell.compact.drawer import CompactActivityDrawer
 from cdmw.ui.shell.compact.rail import CompactWorkspaceRail
 from cdmw.ui.shell.compact.snapshots import compact_status_snapshot_for
@@ -171,14 +166,7 @@ def normalize_appearance_payload(
     theme_key: str,
     changed: tuple[str, ...],
 ) -> tuple[str, tuple[str, ...]]:
-    compact_theme_change = data.get("theme_target") == COMPACT_SHELL_THEME_SETTING
-    if getattr(owner, "is_compact_shell", False) and not compact_theme_change:
-        removed_classic_theme = "theme" in changed
-        changed = tuple(item for item in changed if item != "theme")
-        theme_key = owner.current_theme_key  # type: ignore[attr-defined]
-        if removed_classic_theme or data.get("requires_theme_apply", False):
-            data.pop("title", None)
-            data.pop("detail", None)
+    _ = owner
     data["requires_theme_apply"] = bool(
         data.get("requires_theme_apply", False)
         and any(item in {"theme", "ui_density"} for item in changed)
@@ -187,8 +175,6 @@ def normalize_appearance_payload(
 
 
 def settings_controls_theme_key(owner: object) -> str:
-    if getattr(owner, "is_compact_shell", False):
-        return read_classic_theme_key(owner.settings)  # type: ignore[attr-defined]
     return str(owner.current_theme_key)  # type: ignore[attr-defined]
 
 
@@ -199,10 +185,8 @@ def sync_settings_appearance_controls(owner: object) -> None:
 
 
 def theme_applied(owner: object) -> None:
-    if getattr(owner, "is_compact_shell", False):
-        owner.compact_shell_theme_key = owner.current_theme_key  # type: ignore[attr-defined]
-    else:
-        owner.classic_theme_key = owner.current_theme_key  # type: ignore[attr-defined]
+    owner.compact_shell_theme_key = owner.current_theme_key  # type: ignore[attr-defined]
+    owner.classic_theme_key = owner.current_theme_key  # type: ignore[attr-defined]
     workspace = getattr(owner, "compact_workspace", None)
     if isinstance(workspace, CompactWorkspace):
         workspace.refresh_palette()

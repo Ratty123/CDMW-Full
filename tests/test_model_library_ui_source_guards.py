@@ -376,7 +376,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("Downloaded {index:,} / {total:,}", source)
         self.assertIn("Downloaded {len(successes):,} file(s)", source)
         self.assertIn("Select at least one preferred file type", source)
-        self.assertIn("Download + New Item Studio", source)
+        self.assertIn("Download + Create New Item", source)
         self.assertIn("More Actions", source)
         self.assertIn("Delete Local", source)
         self.assertIn("Delete No-Texture Downloads", source)

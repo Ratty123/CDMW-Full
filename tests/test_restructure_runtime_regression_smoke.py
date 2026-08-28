@@ -88,7 +88,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         self.assertEqual(2, self.window.main_tabs.indexOf(self.window.placement_studio_tab))
         self.assertEqual(-1, self.window.assets_tabs.indexOf(self.window.mesh_editor_tab))
         self.assertEqual(
-            ["Archive Browser", "Model Library", "Icon Creator", "New Item Studio"],
+            ["Archive Browser", "Model Library", "Icon Creator", "Create New Item"],
             [
                 self.window.assets_tabs.tabText(index)
                 for index in range(self.window.assets_tabs.count())

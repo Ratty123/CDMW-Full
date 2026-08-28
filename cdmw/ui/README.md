@@ -7,7 +7,7 @@ modules such as `*_tab.py` stay compatibility wrappers while internals move.
 
 `shell/compact/` is an optional presentation around the same registered tool
 widgets and activation paths; Classic remains the default. `new_item/` owns the
-guided New Item Studio UI and its latest-wins preview/task controllers. Neither
+guided Create New Item UI and its latest-wins preview/task controllers. Neither
 package duplicates business rules, archive writers, or renderer ownership.
 
 Keep UI shell behavior in `shell/` and feature-specific behavior in the matching

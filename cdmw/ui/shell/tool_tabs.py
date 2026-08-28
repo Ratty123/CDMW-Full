@@ -425,7 +425,7 @@ class ShellToolTabsMixin:
         *,
         model_path: object | None = None,
     ) -> None:
-        """Show the New Item Studio, pointed at `template_key` when one is given."""
+        """Show Create New Item, pointed at `template_key` when one is given."""
 
         container = getattr(self, "new_item_studio_tab", None)
         if container is None:
@@ -446,7 +446,7 @@ class ShellToolTabsMixin:
         pump_startup_splash("Preparing settings...")
         self.settings_tab = SettingsTab(
             settings=self.settings,
-            theme_key=getattr(self, "classic_theme_key", self.current_theme_key),
+            theme_key=self.current_theme_key,
             asset_authoring_service=lambda: self.app_context.services.asset_authoring,
         )
         self.settings_tab.set_language_options(
@@ -483,7 +483,7 @@ class ShellToolTabsMixin:
             self.assets_tabs, "Icon Creator", "item_icons", self._create_item_icons_tab
         )
         self.new_item_studio_tab = self._add_lazy_shell_tool(
-            self.assets_tabs, "New Item Studio", "new_item_studio", self._create_new_item_studio_tab
+            self.assets_tabs, "Create New Item", "new_item_studio", self._create_new_item_studio_tab
         )
         self.replace_assistant_tab = self._add_lazy_shell_tool(
             self.texture_tabs,
@@ -549,7 +549,7 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("research", self.research_tab, "Texture Research")
         self._register_detachable_tool("text_search", self.text_search_tab, "Text Search")
         self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")
-        self._register_detachable_tool("new_item_studio", self.new_item_studio_tab, "New Item Studio")
+        self._register_detachable_tool("new_item_studio", self.new_item_studio_tab, "Create New Item")
         self._register_detachable_tool("mod_package_retrofit", self.mod_package_retrofit_tab, "Retrofit/Repackage")
         self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animation Studio")
         self._register_detachable_tool("settings", self.settings_tab, "Settings")

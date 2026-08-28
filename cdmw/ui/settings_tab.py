@@ -204,12 +204,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.appearance_page_layout = _add_settings_page(
             "appearance",
             "Appearance",
-            "Theme, language, fonts, preview colors, and 3D graphics defaults.",
-        )
-        self.layout_page_layout = _add_settings_page(
-            "layout",
-            "Layout",
-            "Window and pane layout memory.",
+            "Layout, theme, language, fonts, preview colors, and 3D graphics defaults.",
         )
         self.safety_page_layout = _add_settings_page(
             "safety",
@@ -219,15 +214,19 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.section_nav_list.currentRowChanged.connect(self.section_stack.setCurrentIndex)
         self.section_nav_list.setCurrentRow(0)
 
-        appearance_group = QGroupBox("Appearance")
-        appearance_layout = QFormLayout(appearance_group)
+        self.appearance_group = QGroupBox("Appearance")
+        appearance_layout = QFormLayout(self.appearance_group)
         appearance_layout.setContentsMargins(12, 14, 12, 12)
         appearance_layout.setHorizontalSpacing(12)
         appearance_layout.setVerticalSpacing(10)
+        self._build_compact_workspace_settings_ui(appearance_layout)
         self.theme_combo = QComboBox()
         for key, theme in UI_THEME_SCHEMES.items():
             self.theme_combo.addItem(theme["label"], key)
         appearance_layout.addRow("Theme", self.theme_combo)
+        appearance_layout.addRow("", self.application_layout_restart_label)
+        self.remember_splitters_checkbox = QCheckBox("Remember pane sizes and splitters")
+        appearance_layout.addRow("", self.remember_splitters_checkbox)
         language_controls = QWidget()
         language_controls_layout = QHBoxLayout(language_controls)
         language_controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -327,7 +326,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             "Shows timing, cache, and worker diagnostics in the Archive Scan Log. Leave this off for cleaner day-to-day browsing."
         )
         appearance_layout.addRow("", self.verbose_archive_logs_checkbox)
-        self.appearance_page_layout.addWidget(appearance_group)
+        self.appearance_page_layout.addWidget(self.appearance_group)
 
         startup_group = QGroupBox("Startup")
         startup_layout = QVBoxLayout(startup_group)
@@ -629,15 +628,6 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         )
         right_performance_column.addWidget(preview_cache_group)
         self.archive_performance_page_layout.addWidget(performance_grid_widget)
-        self._build_compact_workspace_settings_ui()
-
-        layout_group = QGroupBox("Layout")
-        layout_layout = QVBoxLayout(layout_group)
-        layout_layout.setContentsMargins(12, 14, 12, 12)
-        layout_layout.setSpacing(8)
-        self.remember_splitters_checkbox = QCheckBox("Remember pane sizes and splitters")
-        layout_layout.addWidget(self.remember_splitters_checkbox)
-        self.layout_page_layout.addWidget(layout_group)
         preview_group = QGroupBox("3D Preview / Graphics")
         preview_layout = QFormLayout(preview_group)
         preview_layout.setContentsMargins(12, 14, 12, 12)

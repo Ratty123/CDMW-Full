@@ -11,7 +11,7 @@ transforms, normals/tangents, rigging, Morph & Refit, UV-coordinate editing,
 history, original-vs-edited review, validation, and read-only textured display.
 Texture/material assignment, recolour/glow authoring, replacement/import-preview
 workflows, in-game swaps, and Texture Editor handoffs are not Mesh Editor
-features. Dedicated texture tools and New Item Studio own those jobs.
+features. Dedicated texture tools and Create New Item own those jobs.
 
 `tab.py` is the stable public Qt class. Bounded `tab_*.py` owners hold shell,
 native-preview, package, .NET protocol/process, report, session, state,
@@ -103,7 +103,7 @@ The Selection panel offers **Create Part from Selection**. It sends the existing
 `separate` command after current or provisional Brush selection authority has landed,
 requires Faces from exactly one source part, moves those faces into a uniquely named
 appended submesh, and retains the source part's vertex channels and material route. The
-new Parts row is selected and revealed with its moved-face count. New Item Studio opens
+new Parts row is selected and revealed with its moved-face count. Create New Item opens
 an imported source here with Faces as the target while keeping Orbit as the neutral
 initial tool, then accepts a stable resident revision back into its placement/build workflow.
 Normal tools include service-routed recalc, tangent generation, flip,

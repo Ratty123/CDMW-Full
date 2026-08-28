@@ -1,4 +1,4 @@
-"""New Item Studio: the tab that composes the seven panels around one controller.
+"""Create New Item: the tab that composes the seven panels around one controller.
 
 The tab is thin on purpose. It reads the archive list off the shell window, hands it
 to the controller for the one-time snapshot, mounts the panels once that snapshot is
@@ -112,7 +112,7 @@ class NewItemStudioTab(QWidget):
         self._current_step = 0
         self._syncing_step = False
 
-        self._status = QLabel("New Item Studio reads the item, string, store, group and language tables once, then plans a new item against them.")
+        self._status = QLabel("Create New Item reads the item, string, store, group and language tables once, then plans a new item against them.")
         self._status.setWordWrap(True)
         self._status.setAlignment(Qt.AlignCenter)
         self._progress = QProgressBar()

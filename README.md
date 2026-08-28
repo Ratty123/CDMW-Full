@@ -34,7 +34,8 @@ is smaller and safer to hand to someone who is not modding.
 ## Contents
 
 - [What it does](#what-it-does)
-  - [New Item Studio](#new-item-studio)
+- [Create New Item](#create-new-item)
+- [Placement & Animations](#placement--animations)
 - [File format decoding status](#file-format-decoding-status)
 - [Architecture](#architecture)
 - [Install](#install)
@@ -49,7 +50,7 @@ is smaller and safer to hand to someone who is not modding.
 
 ## What it does
 
-CDMW currently exposes 15 tools. **New Item Studio** is the end-to-end path for
+CDMW currently exposes 15 tools. **Create New Item** is the end-to-end path for
 creating a brand-new equipment item without overwriting its shipped template;
 Archive Browser, Mesh Editor, Placement & Animations, and the texture tools cover
 inspection and replacement work. In Classic Workspace, Mesh Editor and Placement
@@ -74,7 +75,7 @@ flowchart TD
     A --> A1["Archive Browser"]
     A --> A2["Model Library"]
     A --> A3["Icon Creator"]
-    A --> A4["New Item Studio"]
+    A --> A4["Create New Item"]
     T --> T1["Texture Workflow"]
     T --> T2["Texture Replacer"]
     T --> T3["Texture Recolor"]
@@ -95,9 +96,9 @@ not create a second set of services, workers, previews, or saved tool state.
 
 | Workspace | What you can do |
 |---|---|
-| **New Item Studio** | Create a new equipment identity through a guided seven-step workflow: choose and preview a shipped template, import and place a model, author its icon, stats, prices, perks and visual effect, choose distribution, review the exact file plan, then export a mod folder or use an explicit backed-up install route. The template is read as a baseline and is never silently overwritten. |
+| **Create New Item** | Create a new equipment identity through a guided seven-step workflow: choose and preview a shipped template, import and place a model, author its icon, stats, prices, perks and visual effect, choose distribution, review the exact file plan, then export a mod folder or use an explicit backed-up install route. The template is read as a baseline and is never silently overwritten. |
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
-| **Model Library** | Scan and preview local or importable models, then send a selected model directly into New Item Studio. |
+| **Model Library** | Scan and preview local or importable models, then send a selected model directly into Create New Item. |
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
 | **Mesh Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with the game's layered materials composited as layers, inspect referenced textures, and edit resident meshes through the native edit core: vertex/wire/face selection with brush, rectangle and lasso, persistent geometry layers with a mesh-internal clipboard, morph profiles with per-garment refit, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview. |
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
@@ -111,9 +112,9 @@ not create a second set of services, workers, previews, or saved tool state.
 | **Research** | Inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local research notes. |
 | **Text Search** | Search archive or loose text-like assets such as XML, JSON, CFG, and Lua with preview and export. |
 
-### New Item Studio
+## Create New Item
 
-New Item Studio creates a new equipment row from a shipped template; it never
+Create New Item creates a new equipment row from a shipped template; it never
 silently overwrites the template. Search covers the internal name, localized
 English name, numeric item key, and equipment type. Template and imported-model
 previews use the same resident D3D11 host and native Preview Core cache as the
@@ -135,7 +136,7 @@ write goes through `ArchiveMutationService` with preflight, backup or receipt,
 rollback, and restore. The part-prefab reader preserves both the original and
 Crimson Desert 2.00.00 layouts byte-for-byte.
 
-### Placement & Animations
+## Placement & Animations
 
 Where a weapon hangs, which socket it routes to, and which clip plays when it is
 drawn are all editable, and none of it requires decoding a Havok tagfile. Four

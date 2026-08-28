@@ -45,7 +45,6 @@ from cdmw.ui.shell.compact.drawer import CompactActivityDrawer
 from cdmw.ui.shell.compact.config import (
     COMPACT_SHELL_THEME_SETTING,
     COMPACT_SHELL_VARIANT,
-    DEFAULT_COMPACT_SHELL_THEME,
     LEGACY_SHELL_VARIANT,
     SHELL_VARIANT_SETTING,
     active_shell_theme_key,
@@ -116,21 +115,25 @@ class _CompactOwner(QMainWindow):
         self.requested_keys.append(key)
 
 
-def test_shell_setting_normalization_and_theme_independence(tmp_path: Path) -> None:
+def test_shell_setting_normalization_and_shared_theme(tmp_path: Path) -> None:
     settings = create_settings(settings_file_path=tmp_path / "compact-settings.cfg")
     settings.setValue(SHELL_VARIANT_SETTING, "future-shell")
     settings.setValue("appearance/theme", "graphite")
 
     assert normalize_shell_variant(None) == LEGACY_SHELL_VARIANT
     assert read_shell_variant(settings) == LEGACY_SHELL_VARIANT
-    assert read_compact_shell_theme_key(settings) == DEFAULT_COMPACT_SHELL_THEME
+    assert read_compact_shell_theme_key(settings) == "graphite"
     assert active_shell_theme_key(settings) == "graphite"
 
     settings.setValue(SHELL_VARIANT_SETTING, COMPACT_SHELL_VARIANT)
     settings.setValue(COMPACT_SHELL_THEME_SETTING, "crimson_desert")
-    assert active_shell_theme_key(settings) == "crimson_desert"
-    assert read_shell_startup_theme_key(settings) == "crimson_desert"
+    assert active_shell_theme_key(settings) == "graphite"
+    assert read_shell_startup_theme_key(settings) == "graphite"
     assert settings.value("appearance/theme") == "graphite"
+
+    settings.remove("appearance/theme")
+    assert read_compact_shell_theme_key(settings) == "crimson_desert"
+    assert active_shell_theme_key(settings, COMPACT_SHELL_VARIANT) == "crimson_desert"
 
 
 def test_compact_registry_has_the_stable_fifteen_tool_contract() -> None:
@@ -208,36 +211,24 @@ def test_compact_model_library_uses_a_scroll_safe_control_lane_and_adjacent_deta
         app.processEvents()
 
 
-def test_compact_theme_payload_applies_only_the_independent_compact_theme() -> None:
+def test_compact_theme_payload_applies_the_shared_application_theme() -> None:
     owner = type(
         "ThemeOwner",
         (),
         {"is_compact_shell": True, "current_theme_key": "crimson_desert"},
     )()
-    classic_payload = ThemeControllerMixin._normalize_appearance_change_payload(
+    payload = ThemeControllerMixin._normalize_appearance_change_payload(
         owner,
         {
             "theme_key": "graphite",
-            "changed": ("theme",),
-            "requires_theme_apply": True,
-        },
-    )
-    compact_payload = ThemeControllerMixin._normalize_appearance_change_payload(
-        owner,
-        {
-            "theme_key": "graphite",
-            "theme_target": COMPACT_SHELL_THEME_SETTING,
             "changed": ("theme",),
             "requires_theme_apply": True,
         },
     )
 
-    assert classic_payload["changed"] == ()
-    assert classic_payload["theme_key"] == "crimson_desert"
-    assert not classic_payload["requires_theme_apply"]
-    assert compact_payload["changed"] == ("theme",)
-    assert compact_payload["theme_key"] == "graphite"
-    assert compact_payload["requires_theme_apply"]
+    assert payload["changed"] == ("theme",)
+    assert payload["theme_key"] == "graphite"
+    assert payload["requires_theme_apply"]
 
 
 def test_activity_history_coalesces_and_caps_events() -> None:
@@ -595,7 +586,7 @@ def test_compact_drawer_follows_appearance_log_font_across_tool_switches(tmp_pat
         app.processEvents()
 
 
-def test_settings_layout_controls_are_exposed_and_persist_independently(tmp_path: Path) -> None:
+def test_settings_combines_layout_and_shared_theme_under_appearance(tmp_path: Path) -> None:
     app = _app()
     settings = create_settings(settings_file_path=tmp_path / "settings-tab.cfg")
     settings.setValue("appearance/theme", "graphite")
@@ -606,23 +597,33 @@ def test_settings_layout_controls_are_exposed_and_persist_independently(tmp_path
     )
     emitted: list[dict[str, object]] = []
     tab.appearance_changed.connect(emitted.append)
+    nav_keys = [
+        str(tab.section_nav_list.item(row).data(Qt.UserRole))
+        for row in range(tab.section_nav_list.count())
+    ]
+    assert "appearance" in nav_keys
+    assert "layout" not in nav_keys
+    appearance_form = tab.appearance_group.layout()
+    assert appearance_form.labelForField(tab.application_layout_combo).text() == "Layout"
+    assert appearance_form.labelForField(tab.theme_combo).text() == "Theme"
+    assert tab.application_layout_combo.parentWidget() is tab.theme_combo.parentWidget()
+    assert not hasattr(tab, "compact_shell_theme_combo")
     tab.application_layout_combo.setCurrentIndex(
         tab.application_layout_combo.findData(LEGACY_SHELL_VARIANT)
     )
     alternate_theme = next(key for key in UI_THEME_SCHEMES if key != "graphite")
-    index = tab.compact_shell_theme_combo.findData(alternate_theme)
-    tab.compact_shell_theme_combo.setCurrentIndex(index)
+    index = tab.theme_combo.findData(alternate_theme)
+    tab.theme_combo.setCurrentIndex(index)
+    tab.flush_settings_save()
     app.processEvents()
 
-    assert not tab.application_layout_group.isHidden()
+    assert not tab.application_layout_combo.isHidden()
     assert "Restart required" in tab.application_layout_restart_label.text()
     assert [payload["theme_key"] for payload in emitted] == [alternate_theme]
-    assert emitted[0]["theme_target"] == COMPACT_SHELL_THEME_SETTING
     assert emitted[0]["changed"] == ("theme",)
-    tab.flush_settings_save()
     assert settings.value(SHELL_VARIANT_SETTING) == LEGACY_SHELL_VARIANT
-    assert settings.value(COMPACT_SHELL_THEME_SETTING) == alternate_theme
-    assert settings.value("appearance/theme") == "graphite"
+    assert settings.value("appearance/theme") == alternate_theme
+    assert settings.value(COMPACT_SHELL_THEME_SETTING) is None
     tab.deleteLater()
     app.processEvents()
 
@@ -638,8 +639,8 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
     original_stylesheet = app.styleSheet()
     settings = create_settings(settings_file_path=tmp_path / "compact-main-window.cfg")
     settings.setValue(SHELL_VARIANT_SETTING, COMPACT_SHELL_VARIANT)
-    settings.setValue(COMPACT_SHELL_THEME_SETTING, "crimson_desert")
-    settings.setValue("appearance/theme", "graphite")
+    settings.setValue(COMPACT_SHELL_THEME_SETTING, "graphite")
+    settings.setValue("appearance/theme", "crimson_desert")
     context = AppContext(
         settings=settings,
         services=ServiceContainer.create_default(settings=settings),
@@ -687,8 +688,8 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
             for key in UI_THEME_SCHEMES
             if key not in {"crimson_desert", "graphite"}
         )
-        window.settings_tab.compact_shell_theme_combo.setCurrentIndex(
-            window.settings_tab.compact_shell_theme_combo.findData(compact_theme)
+        window.settings_tab.theme_combo.setCurrentIndex(
+            window.settings_tab.theme_combo.findData(compact_theme)
         )
         deadline = time.monotonic() + 4.0
         while (
@@ -701,8 +702,8 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
             QTest.qWait(40)
         assert window.current_theme_key == compact_theme
         assert window.compact_workspace.status_strip.progress_bar.height() == 10
-        assert settings.value(COMPACT_SHELL_THEME_SETTING) == compact_theme
-        assert settings.value("appearance/theme") == "graphite"
+        assert settings.value("appearance/theme") == compact_theme
+        assert settings.value(COMPACT_SHELL_THEME_SETTING) == "graphite"
 
         assert mesh_editor.theme_key == compact_theme
         assert mesh_editor.standalone_workspace.native_host_frame._theme_key == compact_theme

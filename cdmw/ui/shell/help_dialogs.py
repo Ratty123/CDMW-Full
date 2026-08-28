@@ -181,7 +181,7 @@ class QuickStartDialog(QDialog):
               <li><b>Texture Workflow</b>: scan loose DDS files, convert DDS to PNG when needed, optionally upscale, rebuild DDS, compare results, and export loose mod output.</li>
               <li><b>Texture Editor</b>: open images directly for layered visible-texture editing and send flattened output back into the rebuild flow.</li>
               <li><b>Texture Replacer</b>: take edited PNG/DDS files, match them to the original game DDS, rebuild corrected output, and prepare mod-ready folders.</li>
-              <li><b>Model Library</b>: scan and preview local/importable models, then use one in New Item Studio.</li>
+              <li><b>Model Library</b>: scan and preview local/importable models, then use one in Create New Item.</li>
               <li><b>Icon Creator</b>: manage icon source images and generate compatible item-icon packages from archive targets.</li>
               <li><b>Research</b>: inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local notes.</li>
               <li><b>Text Search</b>: search archive or loose text-like files such as <b>.xml</b>, <b>.json</b>, <b>.cfg</b>, and <b>.lua</b>.</li>
@@ -216,7 +216,7 @@ class QuickStartDialog(QDialog):
             <h3>Pick The Right Starting Path</h3>
             <ul>
               <li><b>I want to look inside the game files</b>: open <b>Archive Browser</b>, choose a package root, scan, filter, preview, and extract selected files.</li>
-              <li><b>I want to edit a game mesh</b>: use <b>Open in Mesh Editor</b> from Archive Browser. For a new model or asset, use <b>New Item Studio</b>.</li>
+              <li><b>I want to edit a game mesh</b>: use <b>Open in Mesh Editor</b> from Archive Browser. For a new model or asset, use <b>Create New Item</b>.</li>
               <li><b>I want to batch-process loose DDS files</b>: use <b>Texture Workflow</b> with a small folder first, then review in <b>Compare</b>.</li>
               <li><b>I already edited one texture</b>: use <b>Texture Replacer</b> so the original DDS controls format, dimensions, mips, and output path.</li>
               <li><b>I want to edit inside the app</b>: use <b>Texture Editor</b>, save a project if you need layers later, then export or send the flattened PNG onward.</li>
