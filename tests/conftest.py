@@ -2,10 +2,31 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 
 import pytest
+
+
+def _flush_qt_deferred_deletes() -> None:
+    qt_core = sys.modules.get("PySide6.QtCore")
+    if qt_core is None:
+        return
+    qcore_application = getattr(qt_core, "QCoreApplication", None)
+    qevent = getattr(qt_core, "QEvent", None)
+    if qcore_application is None or qevent is None or qcore_application.instance() is None:
+        return
+    try:
+        qcore_application.sendPostedEvents(None, qevent.Type.DeferredDelete)
+    except RuntimeError:
+        pass
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _clean_qt_deferred_deletes_after_each_module():
+    yield
+    _flush_qt_deferred_deletes()
 
 
 @pytest.fixture(autouse=True)
