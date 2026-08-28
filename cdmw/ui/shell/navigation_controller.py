@@ -370,7 +370,7 @@ class NavigationControllerMixin:
         if tab_widget is not None:
             self._select_tab_widget(tab_widget, widget)
         if isinstance(widget, LazyToolTab):
-            widget.ensure_widget()
+            widget.request_widget()
         self._handle_tool_activated(widget)
         self._update_window_menu_state()
 
@@ -382,6 +382,31 @@ class NavigationControllerMixin:
         return self._current_navigation_widget() is widget
 
     def _handle_tool_activated(self, widget: QWidget) -> None:
+        if isinstance(widget, LazyToolTab) and widget.widget_if_created() is None:
+            tool_key = self._tool_key_for_widget(widget)
+            pending = getattr(self, "_pending_lazy_tool_activation_keys", None)
+            if pending is None:
+                pending = self._pending_lazy_tool_activation_keys = set()
+            if tool_key not in pending:
+                pending.add(tool_key)
+
+                def finish_activation(
+                    _created: QWidget,
+                    *,
+                    container: LazyToolTab = widget,
+                    key: str = tool_key,
+                ) -> None:
+                    pending.discard(key)
+                    if self._is_tool_visible_or_current(container):
+                        self._handle_tool_activated(container)
+                        self._update_window_menu_state()
+
+                widget.when_created(finish_activation)
+            widget.request_widget()
+            from cdmw.ui.shell.compact.workspace import sync_compact_workspace_selection
+
+            sync_compact_workspace_selection(self, tool_key)
+            return
         if widget is self.workflow_tab:
             self._apply_workflow_content_tab_layout()
             self._queue_current_compare_preview_if_visible()

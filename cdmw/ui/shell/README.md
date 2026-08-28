@@ -5,11 +5,16 @@ toolbar, status bar, settings/theme/language wiring, startup/close controllers,
 activation handling, diagnostics, and app-level dialogs.
 
 `compact/` owns the restart-selected Compact Workspace presentation around the
-same authoritative tool widgets. Classic remains the default. Compact mode
+same authoritative tool widgets. Compact is the first-run default; an existing
+Classic or Compact choice remains authoritative. Compact mode
 hides the existing tab bars, routes its rail through the shared activation
 path, reuses the existing actions and status widgets, and never constructs a
 second tool/controller/worker tree. Its shared application theme and category state
 are documented in `docs/features/compact-workspace.md`.
+Lazy tools reveal an indeterminate progress bar immediately, preload their Python
+modules on a tracked low-priority thread, then construct and present the Qt widget
+in separate GUI turns. Tool-specific I/O remains in its owning workers, and shell
+shutdown retains both preload and feature threads until native teardown completes.
 Archive Browser's compact Select, Actions, and More Filters triggers retain their
 existing routing while rendering normal, hover, pressed/open-menu, focus, and
 disabled button states.

@@ -117,6 +117,11 @@ class _CompactOwner(QMainWindow):
 
 def test_shell_setting_normalization_and_shared_theme(tmp_path: Path) -> None:
     settings = create_settings(settings_file_path=tmp_path / "compact-settings.cfg")
+    assert read_shell_variant(settings) == COMPACT_SHELL_VARIANT
+
+    settings.setValue(SHELL_VARIANT_SETTING, LEGACY_SHELL_VARIANT)
+    assert read_shell_variant(settings) == LEGACY_SHELL_VARIANT
+
     settings.setValue(SHELL_VARIANT_SETTING, "future-shell")
     settings.setValue("appearance/theme", "graphite")
 
@@ -664,7 +669,10 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         assert window.compact_workspace.rail.tool_buttons["archive_browser"].isChecked()
 
         window._activate_tool_key("format_explorer")
-        app.processEvents()
+        deadline = time.monotonic() + 4.0
+        while window.format_explorer_tab.widget_if_created() is None and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.001)
         assert window._tool_key_for_widget(window._current_navigation_widget()) == "format_explorer"
         assert window.compact_workspace.rail.tool_buttons["format_explorer"].isChecked()
         format_panel = window.format_explorer_tab.widget_if_created()
@@ -678,7 +686,10 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         assert window.compact_workspace.rail.tool_buttons["archive_browser"].isChecked()
 
         window._activate_tool_key("mesh_editor")
-        app.processEvents()
+        deadline = time.monotonic() + 4.0
+        while window.mesh_editor_tab.widget_if_created() is None and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.001)
         mesh_editor = window.mesh_editor_tab.widget_if_created()
         assert mesh_editor is not None
         assert mesh_editor.standalone_workspace.native_host_frame._theme_key == "crimson_desert"

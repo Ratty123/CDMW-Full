@@ -26,6 +26,8 @@ WORKER_TAB_NAMES = (
     "recolor_variants_tab",
     "mod_package_retrofit_tab",
     "placement_studio_tab",
+    "format_explorer_tab",
+    "translation_studio_tab",
     "new_item_studio_tab",
     "settings_tab",
 )

@@ -3850,7 +3850,6 @@
     "Listed {value_0}/{value_1} package tables, {value_2} entries so far...": "パッケージテーブル {value_0}/{value_1} を列挙、ここまで {value_2} 件...",
     "Listing the archives under {value_0} ({value_1} package tables)...": "{value_0} 以下のアーカイブを列挙しています（パッケージテーブル {value_1} 件）...",
     "Listing the archives under {value_0}, then reading the tables...": "{value_0} 以下のアーカイブを列挙してからテーブルを読み込みます...",
-    "Listing the languages in the archives (first time only)...": "アーカイブ内の言語をリストする (初回のみ)...",
     "Lists / columns font size": "リスト/列のフォントサイズ",
     "Lists / columns font size (8-15 px)": "リスト/列のフォント サイズ (8 ～ 15 ピクセル)",
     "Lists / columns font size ({value_0}-{value_1} px)": "リスト/列のフォント サイズ ({value_0}-{value_1} px)",

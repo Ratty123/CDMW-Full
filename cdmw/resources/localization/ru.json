@@ -3850,7 +3850,6 @@
     "Listed {value_0}/{value_1} package tables, {value_2} entries so far...": "Перечислено таблиц пакетов: {value_0}/{value_1}, записей пока {value_2}...",
     "Listing the archives under {value_0} ({value_1} package tables)...": "Перечисление архивов в {value_0} ({value_1} таблиц пакетов)...",
     "Listing the archives under {value_0}, then reading the tables...": "Перечисление архивов в {value_0}, затем чтение таблиц...",
-    "Listing the languages in the archives (first time only)...": "Перечисление языков в архивах (только впервые)...",
     "Lists / columns font size": "Размер шрифта списков/столбцов",
     "Lists / columns font size (8-15 px)": "Размер шрифта списков/столбцов (8–15 пикселей)",
     "Lists / columns font size ({value_0}-{value_1} px)": "Размер шрифта списков/столбцов ({value_0}-{value_1} пикселей)",
