@@ -909,8 +909,10 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     sender = host_protocol.split("    def _send_dotnet_native_update(", maxsplit=1)[1].split(
         "    def _dotnet_screen_selection_payload", maxsplit=1
     )[0]
-    assert sender.index('"event": "preview_triangle_update"') < sender.index('"event": "selection_update"')
-    assert sender.index('"event": "selection_update"') < sender.index("standalone_dotnet_update_queue.enqueue")
+    assert "queue.enqueue_mutation_batch(batch)" in sender
+    assert "edit_packets = [batch.as_protocol_payload()]" in sender
+    assert '"event": "preview_triangle_update"' not in sender
+    assert '"event": "selection_update"' not in sender
 
 
 def test_dotnet_editor_starts_and_can_return_to_no_part_selection() -> None:

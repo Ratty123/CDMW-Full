@@ -185,6 +185,7 @@ class _MeshEditSession:
     base_mesh_is_original_parse: bool = False
     mode: str = "object"
     selection: MeshEditSelection = field(default_factory=MeshEditSelection)
+    selection_revision: int = 0
     object_transform: MeshObjectTransformState = field(default_factory=MeshObjectTransformState)
     geometry_layers: tuple[_MeshGeometryLayer, ...] = ()
     active_geometry_layer_id: str = "base"

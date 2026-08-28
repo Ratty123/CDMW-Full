@@ -4273,6 +4273,8 @@
     "Mesh Editor preview launch failed.": "Error al iniciar la vista previa del Editor de malla.",
     "Mesh Editor preview preparation failed.": "Error en la preparación de la vista previa del Editor de malla.",
     "Mesh Editor preview renderer is unavailable.": "El renderizador de vista previa del Editor de malla no está disponible.",
+    "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Mesh Editor se está sincronizando con el renderizador. La edición no está disponible temporalmente.",
+    "Mesh Editor renderer synchronization failed. Reload the session to continue editing.": "La sincronización de Mesh Editor con el renderizador falló. Vuelve a cargar la sesión para continuar editando.",
     "Mesh Editor resumed draft for {value_0}.": "Mesh Editor resumed draft for {value_0}.",
     "Mesh Editor selected {value_0} part(s){value_1}.": "El Editor de malla seleccionó las piezas {value_0}{value_1}.",
     "Mesh Editor selection dispatcher is stopping.": "Mesh Editor selection dispatcher is stopping.",

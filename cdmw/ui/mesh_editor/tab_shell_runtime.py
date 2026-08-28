@@ -215,6 +215,8 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_provenance_verified = False
         self.standalone_dotnet_lifecycle_session_id = ""
         self.standalone_dotnet_process_generation = 0
+        self.standalone_dotnet_pending_mutation_commits: dict[int, dict[str, object]] = {}
+        self.standalone_dotnet_recovery_failure_reported = False
         self.standalone_dotnet_morph_change_id = ""
         self.standalone_dotnet_morph_sent_state_revision = -1
         self.standalone_dotnet_morph_ack_state_revision = -1

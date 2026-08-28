@@ -235,8 +235,6 @@ def _mesh_edit_commit_split_result(_state, _callbacks, result: object) -> None:
     _state.source_geometry_revision["value"] = int(_state.source_geometry_revision.get("value", 0) or 0) + 1
     _callbacks._morph_slider_mark_topology_changed(_state._mesh_edit_topology_changed_status_helper("split_selection"))
     _callbacks._mesh_edit_clear_topology_selection()
-    if _state._alignment_d3d11_preview_active():
-        _state.alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()
     native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)
     _callbacks._mesh_edit_update_mesh_totals()
     if not native_update_applied:

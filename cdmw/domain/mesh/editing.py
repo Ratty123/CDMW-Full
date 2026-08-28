@@ -296,6 +296,7 @@ class MeshEditSessionView:
     history_entries: tuple[MeshEditHistoryEntry, ...] = ()
     history_cursor: int = 0
     object_transform: MeshObjectTransformState = field(default_factory=MeshObjectTransformState)
+    resident_revision: int = 1
 
 
 __all__ = [

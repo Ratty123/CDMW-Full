@@ -4273,6 +4273,8 @@
     "Mesh Editor preview launch failed.": "메시 편집기 미리보기 실행에 실패했습니다.",
     "Mesh Editor preview preparation failed.": "메시 편집기 미리보기 준비에 실패했습니다.",
     "Mesh Editor preview renderer is unavailable.": "메시 편집기 미리보기 렌더러를 사용할 수 없습니다.",
+    "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Mesh Editor가 렌더러와 동기화 중입니다. 편집을 일시적으로 사용할 수 없습니다.",
+    "Mesh Editor renderer synchronization failed. Reload the session to continue editing.": "Mesh Editor 렌더러 동기화에 실패했습니다. 편집을 계속하려면 세션을 다시 불러오세요.",
     "Mesh Editor resumed draft for {value_0}.": "Mesh Editor resumed draft for {value_0}.",
     "Mesh Editor selected {value_0} part(s){value_1}.": "메시 편집기가 {value_0} 부품{value_1}를 선택했습니다.",
     "Mesh Editor selection dispatcher is stopping.": "Mesh Editor selection dispatcher is stopping.",

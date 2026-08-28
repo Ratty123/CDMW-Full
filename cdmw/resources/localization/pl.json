@@ -4273,6 +4273,8 @@
     "Mesh Editor preview launch failed.": "Uruchomienie podglądu edytora siatki nie powiodło się.",
     "Mesh Editor preview preparation failed.": "Przygotowanie podglądu edytora siatki nie powiodło się.",
     "Mesh Editor preview renderer is unavailable.": "Renderowanie podglądu edytora siatki jest niedostępne.",
+    "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Mesh Editor synchronizuje się z modułem renderującym. Edycja jest tymczasowo niedostępna.",
+    "Mesh Editor renderer synchronization failed. Reload the session to continue editing.": "Synchronizacja Mesh Editor z modułem renderującym nie powiodła się. Wczytaj sesję ponownie, aby kontynuować edycję.",
     "Mesh Editor resumed draft for {value_0}.": "Mesh Editor resumed draft for {value_0}.",
     "Mesh Editor selected {value_0} part(s){value_1}.": "Wybrane części edytora siatki {value_0} {value_1}.",
     "Mesh Editor selection dispatcher is stopping.": "Mesh Editor selection dispatcher is stopping.",

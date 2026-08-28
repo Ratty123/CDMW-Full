@@ -98,7 +98,8 @@ class MeshEditorDotNetMaterialParameterMixin:
             (self.standalone_dotnet_pending_material_parameter_payload or {}).get("parameter_generation", 0) or 0
         )
         generation = max(self.standalone_dotnet_material_parameter_generation, pending_generation) + 1
-        revision = max(0, int(view.revision or 0))
+        mesh_revision = max(0, int(view.revision or 0))
+        revision = max(1, int(view.resident_revision or 0))
         self.standalone_dotnet_material_parameter_revision = revision
         self.standalone_dotnet_pending_material_parameter_payload = {
             "schema": "cdmw_mesh_material_parameters_v1",
@@ -111,6 +112,7 @@ class MeshEditorDotNetMaterialParameterMixin:
             "package_generation": self._dotnet_material_package_generation(),
             "protocol_version": 2,
             "edit_revision": revision,
+            "mesh_revision": mesh_revision,
             "parameter_generation": generation,
             "affected_submeshes": affected,
             "groups": normalized_groups,

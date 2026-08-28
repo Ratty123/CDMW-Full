@@ -22,6 +22,7 @@ internal sealed partial class ExperimentForm
         PreviewTriangleUpdatePlan? TopologyPlan,
         NetMaterialParameterUpdate? MaterialUpdate,
         ResidentMutationSelection? Selection,
+        JsonElement HistoryState,
         IReadOnlyList<int> AffectedSubmeshes,
         int? FinalSubmeshCount);
 
@@ -30,6 +31,7 @@ internal sealed partial class ExperimentForm
         NetMaterialSet Materials,
         NetSceneState Scene,
         ResidentMutationSelection? Selection,
+        JsonElement HistoryState,
         IReadOnlyDictionary<int, MeshVertexChannelChanges> VertexChanges,
         NetMaterialParameterUpdate? MaterialUpdate,
         int[] AffectedSubmeshes,
@@ -136,6 +138,35 @@ internal sealed partial class ExperimentForm
                 JsonIntSet(selectionRoot, "source_indices"));
         }
 
+        if (!root.TryGetProperty("history_state", out var historyState)
+            || historyState.ValueKind != JsonValueKind.Object
+            || !historyState.TryGetProperty("undo_count", out _)
+            || !historyState.TryGetProperty("redo_count", out _)
+            || !historyState.TryGetProperty("history_cursor", out _)
+            || !historyState.TryGetProperty("history_entries", out var historyEntries)
+            || historyEntries.ValueKind != JsonValueKind.Array
+            || JsonLongValue(historyState, "undo_count") < 0
+            || JsonLongValue(historyState, "redo_count") < 0
+            || JsonLongValue(historyState, "history_cursor") < 0
+            || JsonLongValue(historyState, "history_cursor") > historyEntries.GetArrayLength())
+        {
+            return false;
+        }
+        foreach (var historyEntry in historyEntries.EnumerateArray())
+        {
+            if (historyEntry.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+            var state = JsonString(historyEntry, "state").Trim().ToLowerInvariant();
+            if ((JsonString(historyEntry, "action").Trim().Length == 0
+                    && JsonString(historyEntry, "label").Trim().Length == 0)
+                || state is not ("applied" or "undone"))
+            {
+                return false;
+            }
+        }
+
         var finalSubmeshCount = root.TryGetProperty("final_submesh_count", out var finalSubmeshValue)
             && finalSubmeshValue.ValueKind == JsonValueKind.Number
             && finalSubmeshValue.TryGetInt32(out var parsedFinalSubmeshCount)
@@ -155,6 +186,7 @@ internal sealed partial class ExperimentForm
             topologyPlan,
             materialUpdate,
             selection,
+            historyState.Clone(),
             affected,
             finalSubmeshCount);
         return true;
@@ -355,6 +387,7 @@ internal sealed partial class ExperimentForm
             materials,
             scene,
             prepared.Selection,
+            prepared.HistoryState,
             vertexChanges,
             materialUpdate,
             affected.Order().ToArray(),
@@ -375,6 +408,7 @@ internal sealed partial class ExperimentForm
         var previousMaterials = _materials.CaptureState();
         var previousScene = _scene.CloneForResidentMutation();
         var previousSelection = _viewport.CaptureResidentMutationSelection();
+        var previousHistory = CaptureResidentMutationHistoryState();
         var previousEdited = new HashSet<int>(_editedSubmeshes);
         var previousTopologyDirty = _externalTopologyDirty;
         var previousRevision = _lastAppliedEditRevision;
@@ -422,6 +456,7 @@ internal sealed partial class ExperimentForm
                 _materialParameterAppliedCount = previousMaterialAppliedCount;
                 _viewport.ReplaceResidentPackage(_document, _materials, _textureSet, _scene);
                 _viewport.RestoreResidentMutationSelection(previousSelection);
+                RestoreResidentMutationHistoryState(previousHistory);
                 _viewport.SetAuthoritativeEditRevision(previousRevision);
             }
             catch (Exception)
@@ -438,6 +473,8 @@ internal sealed partial class ExperimentForm
         long requestId,
         long targetRevision)
     {
+        PendingMutationRequest? correlatedSelectionPending = null;
+        var correlatedSelection = false;
         if (staged.TopologyChanged)
         {
             _externalTopologyDirty = true;
@@ -471,12 +508,13 @@ internal sealed partial class ExperimentForm
         }
         if (staged.Selection is not null)
         {
-            PendingMutationRequest? pending = null;
-            var correlatedSelection = false;
             if (_pendingMutationRequests.TryGetValue(requestId, out var candidate)
                 && MutationMayReturnSelection(candidate))
             {
-                if (!TryPrepareCorrelatedSelectionUpdate(root, out pending, out _))
+                if (!TryPrepareCorrelatedSelectionUpdate(
+                        root,
+                        out correlatedSelectionPending,
+                        out _))
                 {
                     throw new InvalidOperationException("selection_correlation_rejected");
                 }
@@ -489,17 +527,18 @@ internal sealed partial class ExperimentForm
                     staged.Selection.Sources,
                     requestId,
                     targetRevision,
-                    correlatedSelection ? pending?.StrokeId ?? string.Empty : string.Empty,
-                    correlatedSelection ? pending?.StrokeSequence ?? -1 : -1,
-                    correlatedSelection ? pending?.Phase ?? string.Empty : string.Empty))
+                    correlatedSelection ? correlatedSelectionPending?.StrokeId ?? string.Empty : string.Empty,
+                    correlatedSelection ? correlatedSelectionPending?.StrokeSequence ?? -1 : -1,
+                    correlatedSelection ? correlatedSelectionPending?.Phase ?? string.Empty : string.Empty))
             {
                 throw new InvalidOperationException("selection_commit_rejected");
             }
-            if (correlatedSelection && pending is not null)
-            {
-                CompleteCorrelatedSelectionUpdate(pending);
-            }
             RefreshCreatePartFromSelectionButton();
+        }
+        ApplyHistoryState(staged.HistoryState);
+        if (correlatedSelection && correlatedSelectionPending is not null)
+        {
+            CompleteCorrelatedSelectionUpdate(correlatedSelectionPending);
         }
         if (staged.VertexChanges.Count > 0)
         {

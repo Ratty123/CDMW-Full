@@ -296,6 +296,25 @@ def test_atomic_batch_rejects_a_broken_revision_chain_without_sending() -> None:
     assert queue.metrics()["correlation_conflicts"] == 1
 
 
+def test_v2_degraded_mutation_fails_closed_and_releases_payload(tmp_path: Path) -> None:
+    sent: list[dict[str, object]] = []
+    owned = tmp_path / "positions.bin"
+    owned.write_bytes(b"positions")
+    queue = _correlated_queue(sent)
+    batch = _mutation_batch(
+        request_id=11,
+        base_revision=0,
+        target_revision=1,
+        owned_path=owned,
+    )
+
+    queue.fail_degraded_mutation(batch.as_protocol_payload())
+
+    assert not owned.exists()
+    assert queue.metrics()["degraded_mode"] is True
+    assert queue.metrics()["recovery_failed"] is True
+
+
 def test_independent_sparse_revisions_are_coalesced_without_losing_items() -> None:
     sent: list[dict[str, object]] = []
     queue = _correlated_queue(sent)

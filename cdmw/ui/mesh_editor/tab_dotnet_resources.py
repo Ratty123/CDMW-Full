@@ -633,6 +633,7 @@ class MeshEditorDotNetResourceProtocolMixin(
                 generation=generation,
                 role=str(role or "replacement"),
                 mesh_snapshot=immutable_inputs,
+                resident_revision=view.resident_revision,
                 affected_submeshes=tuple(int(value) for value in tuple(affected_submeshes or ())),
                 submesh_index_offset=max(0, int(submesh_index_offset)),
                 mirror_reference_submesh_offset=max(

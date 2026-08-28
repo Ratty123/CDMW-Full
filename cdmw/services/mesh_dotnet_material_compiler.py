@@ -53,6 +53,7 @@ class MeshDotNetMaterialCompileRequest:
     generation: int
     role: str
     mesh_snapshot: object
+    resident_revision: int = 0
     affected_submeshes: tuple[int, ...] = ()
     submesh_index_offset: int = 0
     mirror_reference_submesh_offset: int = 0
@@ -544,7 +545,11 @@ def _resident_payload_from_manifest(
         "version": 3,
         "event": "material_state_update",
         "session_id": str(request.session_id or ""),
-        "edit_revision": max(0, int(request.edit_revision)),
+        "edit_revision": max(
+            0,
+            int(request.resident_revision or request.edit_revision),
+        ),
+        "mesh_revision": max(0, int(request.edit_revision)),
         "generation": max(0, int(request.generation)),
         "role": str(request.role or "replacement"),
         "roles": roles,

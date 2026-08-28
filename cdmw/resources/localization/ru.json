@@ -4273,6 +4273,8 @@
     "Mesh Editor preview launch failed.": "Не удалось запустить предварительный просмотр редактора сеток.",
     "Mesh Editor preview preparation failed.": "Не удалось подготовить предварительный просмотр редактора сеток.",
     "Mesh Editor preview renderer is unavailable.": "рендеринг предварительного просмотра редактора сеток недоступен.",
+    "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Mesh Editor синхронизируется с модулем визуализации. Редактирование временно недоступно.",
+    "Mesh Editor renderer synchronization failed. Reload the session to continue editing.": "Не удалось синхронизировать Mesh Editor с модулем визуализации. Перезагрузите сеанс, чтобы продолжить редактирование.",
     "Mesh Editor resumed draft for {value_0}.": "Mesh Editor resumed draft for {value_0}.",
     "Mesh Editor selected {value_0} part(s){value_1}.": "Редактор сеток выбрал детали {value_0} {value_1}.",
     "Mesh Editor selection dispatcher is stopping.": "Mesh Editor selection dispatcher is stopping.",

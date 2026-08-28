@@ -130,8 +130,6 @@ def _mesh_edit_clear_topology_selection(_state, _callbacks, ) -> None:
     _state.mesh_edit_selected_edges_by_submesh.clear()
     _state.mesh_edit_selected_faces_by_submesh.clear()
     _state.mesh_edit_selected_source_indices.clear()
-    if _state._alignment_d3d11_preview_active():
-        _state.alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()
     for preview_widget in (_state.static_dialog_preview, _state.overlay_dialog_preview, _state.replacement_only_preview):
         if hasattr(preview_widget, "clear_mesh_edit_vertex_selection"):
             preview_widget.clear_mesh_edit_vertex_selection()

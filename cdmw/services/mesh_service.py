@@ -1197,6 +1197,7 @@ class MeshService(_MeshServiceSessionLayerCore):
             history_entries=_history_entries(session),
             history_cursor=len(session.undo_stack),
             object_transform=session.object_transform,
+            resident_revision=1 + session.revision + session.selection_revision,
         )
 
     def native_editor_mesh_dirty(self, session_id: str) -> bool:
@@ -1424,6 +1425,7 @@ class MeshService(_MeshServiceSessionLayerCore):
             label=label,
         )
         session.selection = selected
+        session.selection_revision += 1
         return self._result(
             session,
             "select",
@@ -1566,6 +1568,7 @@ class MeshService(_MeshServiceSessionLayerCore):
                 if selected is None:
                     return self._result(session, "select", status="error", diagnostics=diagnostics, metrics=metrics)
                 session.selection = selected
+                session.selection_revision += 1
                 session.selection_stroke_id = ""
                 session.selection_stroke_sequence = -1
                 session.selection_stroke_start = None
@@ -1607,6 +1610,7 @@ class MeshService(_MeshServiceSessionLayerCore):
                     label=_history_action_label("select", command),
                 )
             session.selection = selected
+            session.selection_revision += 1
             return self._result(
                 session,
                 "select",

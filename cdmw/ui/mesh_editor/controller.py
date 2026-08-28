@@ -66,7 +66,14 @@ class MeshEditorActionExecution:
 _NATIVE_ACTIONS_WITHOUT_PREVIEW_PAYLOAD = frozenset({"generate_tangents"})
 _LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangulate_display"})
 
-def apply_native_update_to_host(host: object, update: MeshEditorNativeUpdate) -> bool:
+def apply_native_update_to_host(
+    host: object,
+    update: MeshEditorNativeUpdate,
+    *,
+    authoritative: bool = True,
+) -> bool:
+    if authoritative:
+        return False
     if update.vertex_groups:
         sender = getattr(host, "update_mesh_edit_vertices", None)
         if not (callable(sender) and sender(update.vertex_groups)):

@@ -4273,6 +4273,8 @@
     "Mesh Editor preview launch failed.": "メッシュ エディタのプレビューの起動に失敗しました。",
     "Mesh Editor preview preparation failed.": "メッシュ エディタのプレビューの準備に失敗しました。",
     "Mesh Editor preview renderer is unavailable.": "メッシュ エディタのプレビュー レンダラが利用できません。",
+    "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Mesh Editor はレンダラーと同期しています。編集は一時的に利用できません。",
+    "Mesh Editor renderer synchronization failed. Reload the session to continue editing.": "Mesh Editor のレンダラー同期に失敗しました。編集を続行するにはセッションを再読み込みしてください。",
     "Mesh Editor resumed draft for {value_0}.": "Mesh Editor resumed draft for {value_0}.",
     "Mesh Editor selected {value_0} part(s){value_1}.": "メッシュ エディタが {value_0} パーツ {value_1} を選択しました。",
     "Mesh Editor selection dispatcher is stopping.": "Mesh Editor selection dispatcher is stopping.",

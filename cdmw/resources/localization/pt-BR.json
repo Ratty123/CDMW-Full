@@ -4273,6 +4273,8 @@
     "Mesh Editor preview launch failed.": "Falha na inicialização da visualização do Mesh Editor.",
     "Mesh Editor preview preparation failed.": "Falha na preparação da visualização do Mesh Editor.",
     "Mesh Editor preview renderer is unavailable.": "O renderizador de visualização do Mesh Editor não está disponível.",
+    "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "O Mesh Editor está sincronizando com o renderizador. A edição está temporariamente indisponível.",
+    "Mesh Editor renderer synchronization failed. Reload the session to continue editing.": "A sincronização do Mesh Editor com o renderizador falhou. Recarregue a sessão para continuar editando.",
     "Mesh Editor resumed draft for {value_0}.": "Mesh Editor resumed draft for {value_0}.",
     "Mesh Editor selected {value_0} part(s){value_1}.": "O Mesh Editor selecionou a(s) parte(s) {value_0} {value_1}.",
     "Mesh Editor selection dispatcher is stopping.": "Mesh Editor selection dispatcher is stopping.",

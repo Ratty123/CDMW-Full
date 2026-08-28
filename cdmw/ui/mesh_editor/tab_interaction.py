@@ -117,7 +117,7 @@ class MeshEditorInteractionMixin:
         update = controller.native_update_for_result(result)
         view = controller.session_view()
         self.update_editor_session_state(view, active_selection_mode=controller.active_selection_mode)
-        self._apply_standalone_native_update(update)
+        self._apply_standalone_native_update(update, result=result)
         if view.selection.is_empty():
             self.status_message_requested.emit("Mesh Editor UV region selection is empty.", False)
         else:
@@ -143,7 +143,7 @@ class MeshEditorInteractionMixin:
         update = controller.native_update_for_result(result)
         view = controller.session_view()
         self.update_editor_session_state(view, active_selection_mode=controller.active_selection_mode)
-        self._apply_standalone_native_update(update)
+        self._apply_standalone_native_update(update, result=result)
         if view.selection.is_empty():
             self.status_message_requested.emit("Mesh Editor UV lasso selection is empty.", False)
         else:
@@ -225,7 +225,7 @@ class MeshEditorInteractionMixin:
         self.standalone_last_action_metrics = {
             str(key): float(value) for key, value in dict(result.metrics).items()
         }
-        if not self._apply_standalone_native_update(native_update):
+        if not self._apply_standalone_native_update(native_update, result=result):
             return False
         if context_request:
             if float(dict(result.metrics).get("editor_select_source_pick_count", 0.0) or 0.0) <= 0.0:
@@ -337,7 +337,7 @@ class MeshEditorInteractionMixin:
                 str(key): float(value) for key, value in dict(result.metrics).items()
             }
         if has_native_delta:
-            if not self._apply_standalone_native_update(native_update):
+            if not self._apply_standalone_native_update(native_update, result=result):
                 return
             if phase != "update":
                 if phase == "end" and stroke_changed:

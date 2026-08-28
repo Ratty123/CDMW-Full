@@ -1325,7 +1325,7 @@ class MeshEditorControllerTests(unittest.TestCase):
             replace_all_triangles=True,
         )
 
-        ok = apply_native_update_to_host(host, update)
+        ok = apply_native_update_to_host(host, update, authoritative=False)
 
         self.assertTrue(ok)
         self.assertEqual(["vertices", "triangles", "material", "selection"], [name for name, _payload in host.calls])
@@ -1344,7 +1344,7 @@ class MeshEditorControllerTests(unittest.TestCase):
             material_override_groups=({"source_submesh_indices": [0], "roughness": 0.4},),
         )
 
-        ok = apply_native_update_to_host(host, update)
+        ok = apply_native_update_to_host(host, update, authoritative=False)
 
         self.assertFalse(ok)
         self.assertEqual(["vertices"], [name for name, _payload in host.calls])
@@ -1352,10 +1352,28 @@ class MeshEditorControllerTests(unittest.TestCase):
     def test_native_update_dispatcher_can_clear_selection_on_legacy_hosts(self) -> None:
         host = _SelectionClearOnlyHost()
 
-        ok = apply_native_update_to_host(host, MeshEditorNativeUpdate(refresh_selection=True))
+        ok = apply_native_update_to_host(
+            host,
+            MeshEditorNativeUpdate(refresh_selection=True),
+            authoritative=False,
+        )
 
         self.assertTrue(ok)
         self.assertEqual(["clear"], host.calls)
+
+    def test_native_update_dispatcher_blocks_authoritative_partial_publication_by_default(self) -> None:
+        host = _NativeUpdateHost()
+
+        ok = apply_native_update_to_host(
+            host,
+            MeshEditorNativeUpdate(
+                vertex_groups=({"source_submesh_index": 0, "source_vertex_indices": [0]},),
+                refresh_selection=True,
+            ),
+        )
+
+        self.assertFalse(ok)
+        self.assertEqual([], host.calls)
 
     def test_controller_requires_active_session(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "no active"):
@@ -1451,6 +1469,28 @@ class MeshEditorControllerTests(unittest.TestCase):
         self.assertNotIn("material_copy", mesh_editor_actions_by_key())
         self.assertEqual(0, controller.session_view().revision)
         self.assertEqual(before, tuple(controller.working_mesh().submeshes[0].vertices))
+
+    def test_resident_revision_starts_positive_and_tracks_selection_without_relabeling_geometry(self) -> None:
+        controller = MeshEditorController()
+        initial = controller.open_mesh(
+            build_synthetic_mesh(),
+            session_id="resident-revision-sequence",
+            mode="edit",
+        )
+
+        selection = controller.select(vertices_by_submesh={0: (0,)})
+        after_selection = controller.session_view()
+        moved = controller.apply_editor_action(
+            "transform_move",
+            translate=(0.0, 0.0, 0.25),
+        )
+        after_geometry = controller.session_view()
+
+        self.assertEqual((0, 1), (initial.revision, initial.resident_revision))
+        self.assertTrue(selection.ok)
+        self.assertEqual((0, 2), (after_selection.revision, after_selection.resident_revision))
+        self.assertTrue(moved.ok)
+        self.assertEqual((1, 3), (after_geometry.revision, after_geometry.resident_revision))
 
     def test_controller_action_palette_rotate_and_scale_have_operator_defaults(self) -> None:
         controller = MeshEditorController()

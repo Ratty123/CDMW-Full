@@ -147,21 +147,19 @@ def test_direct_selection_aliases_publish_once_without_derived_workspace_refresh
 ) -> None:
     bridge = _Bridge(_builder_recording_commits())
     bridge.standalone_dotnet_target_embedded = True
-    embedded_applies: list[object] = []
     workspace_refreshes: list[bool] = []
-    native_sends: list[object] = []
+    native_sends: list[tuple[object, dict[str, object]]] = []
     session_selection_flags: list[bool] = []
     update = MeshEditorNativeUpdate(
         selection_groups=({"source_submesh_index": 0, "face_indices": (0, 1)},),
         refresh_selection=True,
     )
     controller = SimpleNamespace(native_update_for_result=lambda _result: update)
-    bridge._apply_embedded_native_update = lambda payload: embedded_applies.append(payload) or True
     bridge._refresh_embedded_workspace_from_builder = (
         lambda *, include_derived=True, session_view=None: workspace_refreshes.append(bool(include_derived))
     )
     bridge._send_dotnet_native_update = (
-        lambda payload, **_kwargs: native_sends.append(payload) or True
+        lambda payload, **kwargs: native_sends.append((payload, dict(kwargs))) or True
     )
     bridge._send_dotnet_session_state = (
         lambda *, include_selection=True, session_view=None: session_selection_flags.append(bool(include_selection)) or True
@@ -180,13 +178,13 @@ def test_direct_selection_aliases_publish_once_without_derived_workspace_refresh
         request_payload={"request_id": 12},
     )
 
-    assert embedded_applies == []
-    assert len(bridge._builder.calls) == 1
-    assert bridge._builder.calls[0]["action_key"] == command_name
-    assert workspace_refreshes == [False]
-    assert native_sends == [update]
-    assert session_selection_flags == [False]
-    assert summary_refreshes == [True]
+    assert bridge._builder.calls == []
+    assert workspace_refreshes == []
+    assert len(native_sends) == 1
+    assert native_sends[0][0] is update
+    assert native_sends[0][1]["commit_embedded"] is True
+    assert session_selection_flags == []
+    assert summary_refreshes == []
 
 
 def test_direct_selection_alias_enqueue_failure_does_not_bypass_ordered_preview_updates() -> None:

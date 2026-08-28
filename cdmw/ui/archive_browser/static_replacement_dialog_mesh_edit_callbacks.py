@@ -20,7 +20,10 @@ from cdmw.ui.archive_browser.static_replacement_sparse_history import (
     release_mesh_history_snapshot,
     retain_mesh_history_snapshot,
 )
-from cdmw.ui.mesh_editor.controller import apply_native_update_to_host
+from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
+from cdmw.ui.mesh_editor.material_override_payloads import (
+    material_override_groups_for_native_triangle_groups,
+)
 from cdmw.ui.mesh_editor.native_preview_payloads import mesh_edit_selection_groups
 from cdmw.ui.mesh_editor.static_replacement_adapter import StaticReplacementMeshEditSession
 from cdmw.workers.mesh_editor_workers import MeshEditCommandWorker

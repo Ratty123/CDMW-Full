@@ -112,7 +112,7 @@ def _mesh_edit_clear_vertex_selection(_state, _callbacks, ) -> None:
     _state.mesh_edit_selected_faces_by_submesh.clear()
     _state.mesh_edit_selected_source_indices.clear()
     if _state._alignment_d3d11_preview_active():
-        _state.alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()
+        _callbacks._mesh_edit_sync_d3d11_selection()
         _callbacks._refresh_mesh_edit_controls()
         return
     for preview_widget in (_state.static_dialog_preview, _state.overlay_dialog_preview, _state.replacement_only_preview):
@@ -130,8 +130,12 @@ def _mesh_edit_current_selection(_state, _callbacks, ) -> _state.MeshEditSelecti
 def _mesh_edit_sync_d3d11_selection(_state, _callbacks, ) -> bool:
     if not _state._alignment_d3d11_preview_active():
         return False
-    group_sender = getattr(_state.alignment_d3d11_preview_host, "set_mesh_edit_selection_groups", None)
-    if not callable(group_sender) or _state._mesh_edit_state.replacement_mesh_for_mapping is None:
+    sender = getattr(
+        getattr(_state, "dialog", None),
+        "_mesh_editor_embedded_send_native_update",
+        None,
+    )
+    if not callable(sender) or _state._mesh_edit_state.replacement_mesh_for_mapping is None:
         _callbacks._record_mesh_edit_event("mesh_edit_selection_group_update_unavailable")
         return False
     selection = _callbacks._mesh_edit_current_selection()
@@ -146,7 +150,13 @@ def _mesh_edit_sync_d3d11_selection(_state, _callbacks, ) -> bool:
     if not groups and not selection.is_empty():
         _callbacks._record_mesh_edit_event("mesh_edit_selection_group_build_empty")
         return False
-    if group_sender(groups):
+    if sender(
+        _state.MeshEditorNativeUpdate(
+            selection_groups=tuple(groups),
+            refresh_selection=True,
+        ),
+        commit_embedded=False,
+    ):
         return True
     _callbacks._record_mesh_edit_event(
         "mesh_edit_selection_group_update_failed",

@@ -499,7 +499,7 @@ def exercise_assignment_and_mesh_edits(
         *,
         topology_generation_floor: int | None = None,
     ) -> bool:
-        expected_revision = int(state.controller.session_view().revision)
+        expected_revision = int(state.controller.session_view().resident_revision)
         before = state.tab.standalone_dotnet_update_queue.metrics()
         event_cursor = len(state.tab.standalone_dotnet_protocol_events)
         state.tab._send_dotnet_native_update(update)

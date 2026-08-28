@@ -193,7 +193,13 @@ class MeshEditorDotNetNamedCommandMixin(MeshEditorDotNetLifecycleMixin):
             )
             return False
         try:
-            ok = bool(runner(command, tuple(local_selection.source_indices)))
+            ok = bool(
+                runner(
+                    command,
+                    tuple(local_selection.source_indices),
+                    request_payload=payload,
+                )
+            )
         except Exception as exc:
             self._set_dotnet_status(f"Mesh .NET editor part action failed: {command}: {exc}", error=True)
             self._send_dotnet_command_result(
@@ -208,10 +214,9 @@ class MeshEditorDotNetNamedCommandMixin(MeshEditorDotNetLifecycleMixin):
         current_controller = self._dotnet_target_controller()
         if current_controller is not None:
             try:
-                revision = current_controller.session_view().revision
+                revision = current_controller.session_view().resident_revision
             except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
                 pass
-        self._refresh_embedded_workspace_from_builder()
         self._send_dotnet_command_result(
             command,
             ok=ok,
@@ -219,7 +224,6 @@ class MeshEditorDotNetNamedCommandMixin(MeshEditorDotNetLifecycleMixin):
             revision=revision,
             request_payload=payload,
         )
-        self._send_dotnet_session_state()
         return ok
 
     def _handle_dotnet_layer_command(

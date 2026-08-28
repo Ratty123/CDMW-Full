@@ -23,6 +23,11 @@ from tests.test_mesh_editor_action_bar import (
 
 
 _CAPABILITY = "resident_material_parameter_updates_v1"
+_MUTATION_CAPABILITIES = (
+    "mesh_edit_revision_ack_v1",
+    "resident_mutation_envelope_v2",
+    "resident_mutation_batch_v3",
+)
 
 
 @pytest.fixture
@@ -87,7 +92,8 @@ def test_embedded_hook_coalesces_latest_unsent_parameter_groups(
     app, tab, builder, process = resident_parameter_tab
     hook = getattr(builder, "_mesh_editor_embedded_apply_material_parameters")
     capability = getattr(builder, "_mesh_editor_embedded_resident_material_parameters_supported")
-    revision = builder.controller.session_view().revision
+    view = builder.controller.session_view()
+    revision = view.resident_revision
 
     assert callable(hook)
     assert capability()
@@ -114,6 +120,7 @@ def test_embedded_hook_coalesces_latest_unsent_parameter_groups(
         "package_generation": 0,
         "protocol_version": 2,
         "edit_revision": revision,
+        "mesh_revision": view.revision,
         "parameter_generation": 2,
         "affected_submeshes": [0, 1],
         "groups": [{
@@ -319,24 +326,33 @@ def test_package_swap_cancels_sent_parameters_and_tombstones_their_ack(
     )
 
 
-def test_native_material_override_update_uses_separate_parameter_event(
+def test_native_material_override_update_uses_atomic_mutation_batch(
     resident_parameter_tab: tuple[QApplication, MeshEditorTab, _EmbeddedMeshBuilder, _FakeProcess],
 ) -> None:
-    _app, tab, _builder, process = resident_parameter_tab
+    _app, tab, builder, process = resident_parameter_tab
+    view = builder.controller.session_view()
+    tab.standalone_dotnet_update_queue.set_context(
+        session_id=view.session_id,
+        process_generation=tab.standalone_dotnet_process_generation,
+        renderer_revision=0,
+    )
+    tab.standalone_dotnet_update_queue.observe_capabilities(
+        {"capabilities": _MUTATION_CAPABILITIES}
+    )
     update = MeshEditorNativeUpdate(material_override_groups=({
         "source_submesh_indices": [0],
         "emissive_intensity": 2.0,
         "emissive_color": [0.1, 0.3, 0.8],
     },))
 
-    tab._send_dotnet_native_update(update)
-    assert _flush_parameter_update(tab)
+    assert tab._send_dotnet_native_update(update)
 
     writes = [json.loads(raw.decode("utf-8")) for raw in process.stdin_writes]
-    assert [payload["event"] for payload in writes if payload["event"] == "material_parameter_update"] == [
-        "material_parameter_update"
-    ]
-    assert not any(payload["event"] == "preview_triangle_update" for payload in writes)
+    batches = [payload for payload in writes if payload["event"] == "resident_mutation_batch"]
+    assert len(batches) == 1
+    assert batches[0]["material_updates"][0]["emissive_intensity"] == 2.0
+    assert batches[0]["history_state"]
+    assert not any(payload["event"] == "material_parameter_update" for payload in writes)
 
 
 def test_material_state_can_target_affected_submeshes_and_snapshot(

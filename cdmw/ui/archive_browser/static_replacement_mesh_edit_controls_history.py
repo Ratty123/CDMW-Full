@@ -653,8 +653,6 @@ def _mesh_edit_full_reset_mesh(_state, _callbacks, ) -> None:
     _state._refresh_source_tree_selection_state()
     _state._refresh_source_assignment_columns()
     _callbacks._refresh_mesh_edit_controls()
-    if _state._alignment_d3d11_preview_active():
-        _state.alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()
     _callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(source_indices)
 
 

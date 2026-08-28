@@ -253,6 +253,9 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         deletes_parts: bool = False,
     ) -> str:
         normalized = str(action_key or "").strip().lower().replace("-", "_")
+        synchronization_blocker = self._resident_mutation_authoring_blocker()
+        if synchronization_blocker and normalized != "toggle_visibility":
+            return synchronization_blocker
         if not self._standalone_exact_output_required() and normalized != "toggle_visibility":
             return ""
         return mesh_editor_action_authoring_blocker(
@@ -261,6 +264,20 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
             mesh_format=self._standalone_mesh_format(),
             lod_index=PROVEN_AUTHORING_LOD,
         )
+
+    def _resident_mutation_authoring_blocker(self) -> str:
+        queue = getattr(self, "standalone_dotnet_update_queue", None)
+        metrics = queue.metrics() if queue is not None else {}
+        if bool(metrics.get("recovery_failed")):
+            return "Mesh Editor renderer synchronization failed. Reload the session to continue editing."
+        if bool(metrics.get("resync_active")):
+            return "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable."
+        if (
+            int(metrics.get("active_revision", 0) or 0) > 0
+            or int(metrics.get("pending_depth", 0) or 0) > 0
+        ):
+            return "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable."
+        return ""
     def _standalone_exact_output_required(self) -> bool:
         if isinstance(self._current_target_entry(), _tab.ArchiveEntry):
             return True
@@ -334,6 +351,14 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
                 session_text = f"Mode: standalone | Edit: {self.current_edit_mode} | Authoring: working mesh (non-exact)"
                 authoring_tooltip = (
                     "This imported working mesh is editable, but exact PAC/PAM/PAMLOD writeback is not claimed."
+                )
+            synchronization_blocker = self._resident_mutation_authoring_blocker()
+            if synchronization_blocker:
+                for action in mesh_editor_actions_by_key().values():
+                    if action.command != "set_mode":
+                        authoring_blockers[action.key] = synchronization_blocker
+                authoring_tooltip = " ".join(
+                    part for part in (authoring_tooltip, synchronization_blocker) if part
                 )
         if has_target and not has_standalone:
             session_text = (
@@ -558,25 +583,26 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         updater = getattr(workspace, updater_name, None) if updater_name else None
         if callable(updater):
             updater(current_selection)
-    def _apply_embedded_native_update(self, update: _tab.MeshEditorNativeUpdate) -> bool:
-        builder = self.active_builder()
-        sender = getattr(builder, "_mesh_editor_embedded_apply_native_update", None) if builder is not None else None
-        if callable(sender):
-            try:
-                return bool(sender(update))
-            except Exception as exc:
-                self._record_runtime_event("mesh_editor_embedded_native_update_failed", error=str(exc))
-                return False
-        return False
-    def _send_embedded_dotnet_native_update(self, update: _tab.MeshEditorNativeUpdate) -> bool:
+    def _send_embedded_dotnet_native_update(
+        self,
+        update: _tab.MeshEditorNativeUpdate,
+        *,
+        result: _tab.MeshEditResult | None = None,
+        request_payload: Mapping[str, object] | None = None,
+        commit_embedded: bool = False,
+    ) -> bool:
         if not (
             self.standalone_dotnet_target_embedded
             and self.standalone_dotnet_embedded_state == "ready"
             and self._standalone_dotnet_editor_process_running()
         ):
             return False
-        self._send_dotnet_native_update(update)
-        return True
+        return self._send_dotnet_native_update(
+            update,
+            result=result,
+            request_payload=request_payload,
+            commit_embedded=commit_embedded,
+        )
     def _send_dotnet_scene_state(
         self,
         *,

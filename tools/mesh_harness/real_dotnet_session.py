@@ -117,7 +117,7 @@ def _install_timing_probes(state: SimpleNamespace) -> None:
         setattr(state.tab, method_name, timed)
 
     for method_name in (
-        "_apply_embedded_native_update",
+        "_finalize_resident_mutation_ui_commit",
         "_refresh_embedded_workspace_from_builder",
         "_send_dotnet_native_update",
         "_send_dotnet_session_state",
