@@ -13,6 +13,9 @@ $Python = if (Test-Path -LiteralPath $VenvPython) { $VenvPython } else { "python
 $TestsByArea = @{
     smoke = @(
         "tests/test_runtime_dependency_smoke.py",
+        # Fast executable C# behavior, not a source-string contract. The helper
+        # is built below before pytest for both ordinary main pushes and mesh-unit.
+        "tests/test_dotnet_resident_mutation_batch_contract.py",
         # Generated-manifest freshness. Both of these are verified by
         # build_pyside6_app.ps1 before it compiles anything, so a stale one is a
         # failed release build. The localization manifest stores a line number
@@ -178,6 +181,7 @@ $TestsByArea = @{
         "tests/test_mesh_edit_display_mode_slot.py",
         "tests/test_transform_button_captions_not_squeezed.py",
         "tests/test_dotnet_helper_manifest_contract.py",
+        "tests/test_dotnet_resident_mutation_batch_contract.py",
         "tests/test_dotnet_ui_localization_protocol_source.py",
         "tests/test_dotnet_preview_shared_host.py",
         "tests/test_dotnet_preview_theme.py",
@@ -377,6 +381,17 @@ if ($MissingTests.Count -gt 0) {
 }
 
 Write-Host "Running $Area checks with $Python"
+$DotNetProject = $null
+$DotNetHelper = $null
+if ($Area -in @("smoke", "mesh-unit")) {
+    $DotNetProject = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
+    $DotNetHelper = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.exe"
+    Write-Host "Building the resident .NET Mesh Editor for fast executable protocol checks"
+    & dotnet build $DotNetProject -c Release --nologo --verbosity:minimal
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+}
 # The wall-clock responsiveness tests are excluded by default, because a shared
 # runner can deschedule the process for seconds and fail them for the machine
 # being busy rather than for the code blocking the UI. This area is where they
@@ -393,18 +408,10 @@ if ($PytestExitCode -ne 0) {
 }
 
 if ($Area -eq "mesh-unit") {
-    $DotNetProject = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
-    Write-Host "Building the resident .NET Mesh Editor for the Edit Mesh Tool Rail construction gate"
-    & dotnet build $DotNetProject -c Release --nologo --verbosity:minimal
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
-
     & (Join-Path $PSScriptRoot "test_dotnet_status_concurrency.ps1")
 
     $LayoutRunId = [Guid]::NewGuid().ToString("N")
     $LayoutReport = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-edit-mesh-layout-$LayoutRunId.json"
-    $DotNetHelper = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.exe"
     $LayoutProcess = Start-Process `
         -FilePath $DotNetHelper `
         -ArgumentList @("--headless-edit-mesh-layout-smoke", "--layout-report", $LayoutReport) `

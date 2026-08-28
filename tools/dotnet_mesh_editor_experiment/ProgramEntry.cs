@@ -61,6 +61,10 @@ internal static class Program
             {
                 return UiLocalizationContractSmoke.Run(args);
             }
+            if (ResidentMutationBatchContractSmoke.IsRequested(args))
+            {
+                return ResidentMutationBatchContractSmoke.Run(args);
+            }
             if (HeadlessGpuFramePacingSoak.IsRequested(args))
             {
                 ApplicationConfiguration.Initialize();

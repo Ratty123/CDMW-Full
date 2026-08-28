@@ -13,6 +13,7 @@ internal sealed partial class ExperimentForm
             or "preview_vertex_update"
             or "preview_triangle_update"
             or "resident_state_resync"
+            or "resident_mutation_batch"
             or "morph_state_update"
             or "command_result";
 
