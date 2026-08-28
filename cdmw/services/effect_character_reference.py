@@ -171,7 +171,7 @@ def unrotate_point(point: Sequence[float], rotation: Sequence[float]) -> Tuple[f
 def rotate_mesh(mesh: ParsedMesh, rotation: Sequence[float]) -> ParsedMesh:
     """`mesh` turned into the scene's frame, normals with it, bounds recomputed."""
 
-    from copy import replace as _replace
+    from dataclasses import replace as _replace
 
     from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
 
@@ -574,7 +574,7 @@ def hold_the_item(
     with :func:`rotate_mesh`, takes its rotation.
     """
 
-    from copy import replace as _replace
+    from dataclasses import replace as _replace
 
     from tools.placement_studio.skeleton import multiply
 

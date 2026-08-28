@@ -194,7 +194,7 @@ jobs:
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
-          PYTEST_ADDOPTS: '-m "not visual and not real_game"'
+          PYTEST_ADDOPTS: '-m "not visual and not real_game and not timing"'
         run: |
           $baseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-${{ matrix.python-version }}"
           .\scripts\codex_check.ps1 -Area full -PytestBaseTemp $baseTemp

@@ -608,7 +608,7 @@ def build_effect_placement_package(
 
     from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
 
-    from copy import replace as _dc_replace
+    from dataclasses import replace as _dc_replace
 
     radius = anchor_radius_for(item_mesh)
     anchor = anchor_mesh(radius)
