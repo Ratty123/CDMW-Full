@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from collections import deque
@@ -69,6 +71,46 @@ class _Settings:
 
     def value(self, key: str, default: object = None) -> object:
         return self._values.get(key, default)
+
+
+def _exercise_existing_styled_child_font_update() -> None:
+    app = QApplication.instance() or QApplication([])
+    previous_font = QFont(app.font())
+    previous_style_sheet = app.styleSheet()
+    parent = QWidget()
+    label = QLabel("Label")
+    button = QPushButton("Button")
+    list_widget = QListWidget()
+    layout = QVBoxLayout(parent)
+    layout.addWidget(label)
+    layout.addWidget(button)
+    layout.addWidget(list_widget)
+    try:
+        app.setStyleSheet(build_app_stylesheet("graphite"))
+        parent.show()
+        app.processEvents()
+        settings = _Settings(
+            {
+                "appearance/ui_font_family": previous_font.family(),
+                "appearance/ui_font_size": 15,
+                "appearance/data_font_size": 11,
+                "appearance/ui_density": "comfortable",
+            }
+        )
+        apply_app_fonts(app, settings, screen_width=4096, screen_height=2160)
+        app.processEvents()
+        assert label.font().pointSize() == 15
+        assert button.font().pointSize() == 15
+        assert list_widget.font().pointSize() == 11
+    finally:
+        parent.deleteLater()
+        app.setFont(previous_font)
+        for class_name in (
+            "QWidget", "QListView", "QListWidget", "QTreeView",
+            "QTreeWidget", "QTableView", "QTableWidget", "QHeaderView",
+        ):
+            app.setFont(previous_font, class_name)
+        app.setStyleSheet(previous_style_sheet)
 
 
 class ShellThemeControllerTests(unittest.TestCase):
@@ -610,51 +652,29 @@ class ShellThemeControllerTests(unittest.TestCase):
         parent.deleteLater()
 
     def test_apply_app_fonts_updates_existing_styled_child_controls(self) -> None:
-        app = QApplication.instance() or QApplication([])
-        previous_font = QFont(app.font())
-        previous_style_sheet = app.styleSheet()
-        parent = QWidget()
-        label = QLabel("Label")
-        button = QPushButton("Button")
-        list_widget = QListWidget()
-        layout = QVBoxLayout(parent)
-        layout.addWidget(label)
-        layout.addWidget(button)
-        layout.addWidget(list_widget)
-        try:
-            app.setStyleSheet(build_app_stylesheet("graphite"))
-            parent.show()
-            app.processEvents()
-
-            settings = _Settings(
-                {
-                    "appearance/ui_font_family": previous_font.family(),
-                    "appearance/ui_font_size": 15,
-                    "appearance/data_font_size": 11,
-                    "appearance/ui_density": "comfortable",
-                }
+        script = "\n".join(
+            (
+                "import os, sys",
+                "os.environ['QT_QPA_PLATFORM'] = 'offscreen'",
+                "from tests.test_shell_theme_controller import _exercise_existing_styled_child_font_update",
+                "_exercise_existing_styled_child_font_update()",
+                "sys.stdout.flush(); sys.stderr.flush(); os._exit(0)",
             )
-            apply_app_fonts(app, settings, screen_width=4096, screen_height=2160)
-            app.processEvents()
-
-            self.assertEqual(15, label.font().pointSize())
-            self.assertEqual(15, button.font().pointSize())
-            self.assertEqual(11, list_widget.font().pointSize())
-        finally:
-            parent.deleteLater()
-            app.setFont(previous_font)
-            for class_name in (
-                "QWidget",
-                "QListView",
-                "QListWidget",
-                "QTreeView",
-                "QTreeWidget",
-                "QTableView",
-                "QTableWidget",
-                "QHeaderView",
-            ):
-                app.setFont(previous_font, class_name)
-            app.setStyleSheet(previous_style_sheet)
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=ROOT,
+            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+        )
+        self.assertEqual(
+            0,
+            result.returncode,
+            f"App-font child-control probe failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+        )
 
     def test_compact_layout_keeps_each_configured_font_size_distinct(self) -> None:
         app = QApplication.instance() or QApplication([])
