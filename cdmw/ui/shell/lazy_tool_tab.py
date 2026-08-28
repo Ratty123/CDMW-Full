@@ -48,10 +48,12 @@ class LazyToolTab(QWidget):
         factory: Callable[[], QWidget],
         *,
         prepare: Callable[[], None] | None = None,
+        prepare_ui: Callable[[], None] | None = None,
     ) -> None:
         super().__init__()
         self._factory: Callable[[], QWidget] | None = factory
         self._prepare = prepare
+        self._prepare_ui = prepare_ui
         self._widget: QWidget | None = None
         self._pending_widget: QWidget | None = None
         self._created_callbacks: list[Callable[[QWidget], None]] = []
@@ -128,7 +130,7 @@ class LazyToolTab(QWidget):
         if self._widget is not None or self._pending_widget is not None or self._shutdown_requested:
             return
         if self._prepare is None:
-            QTimer.singleShot(0, self._construct_requested_widget)
+            self._schedule_ui_preparation()
             return
         owner_thread = self.thread()
         thread = QThread()
@@ -152,6 +154,22 @@ class LazyToolTab(QWidget):
     def _prepare_completed(self) -> None:
         if self._shutdown_requested or self._widget is not None or self._pending_widget is not None:
             return
+        self._schedule_ui_preparation()
+
+    def _schedule_ui_preparation(self) -> None:
+        if self._prepare_ui is None:
+            QTimer.singleShot(0, self._construct_requested_widget)
+            return
+        QTimer.singleShot(0, self._run_ui_preparation)
+
+    @Slot()
+    def _run_ui_preparation(self) -> None:
+        if self._shutdown_requested or self._widget is not None or self._pending_widget is not None:
+            return
+        prepare_ui = self._prepare_ui
+        self._prepare_ui = None
+        if prepare_ui is not None:
+            prepare_ui()
         QTimer.singleShot(0, self._construct_requested_widget)
 
     @Slot()

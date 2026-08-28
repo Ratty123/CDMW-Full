@@ -23936,7 +23936,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 522,
+          "line": 606,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -37066,7 +37066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 558,
+          "line": 642,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -40491,7 +40491,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 519,
+          "line": 603,
           "sink": "_add_lazy_shell_tool"
         },
         {
@@ -45711,12 +45711,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/lazy_tool_tab.py",
-          "line": 103,
+          "line": 105,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/ui/shell/lazy_tool_tab.py",
-          "line": 190,
+          "line": 208,
           "sink": "TypeError"
         }
       ]
@@ -45726,12 +45726,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/lazy_tool_tab.py",
-          "line": 97,
+          "line": 99,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/shell/lazy_tool_tab.py",
-          "line": 208,
+          "line": 226,
           "sink": "RuntimeError"
         }
       ]
@@ -50756,7 +50756,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 509,
+          "line": 593,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -53361,7 +53361,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 516,
+          "line": 600,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -67696,7 +67696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 551,
+          "line": 635,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -70026,7 +70026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 483,
+          "line": 567,
           "sink": "pump_startup_splash"
         }
       ]
@@ -76361,7 +76361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 508,
+          "line": 592,
           "sink": "pump_startup_splash"
         }
       ]
@@ -77736,7 +77736,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 570,
+          "line": 654,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -87031,7 +87031,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 505,
+          "line": 589,
           "sink": "addTab"
         },
         {
@@ -94856,7 +94856,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 573,
+          "line": 657,
           "sink": "_add_lazy_shell_tool"
         },
         {
@@ -95061,7 +95061,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 537,
+          "line": 621,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -95461,7 +95461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 531,
+          "line": 615,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -95511,7 +95511,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 525,
+          "line": 609,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -100026,7 +100026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 564,
+          "line": 648,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -122146,7 +122146,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 273,
+          "line": 357,
           "sink": "set_status_message"
         }
       ]
