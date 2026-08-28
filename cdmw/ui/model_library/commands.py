@@ -46,7 +46,7 @@ class ModelLibraryCommandsMixin:
     """Handle selection commands, downloads, deletion, and result context menus."""
 
     def _new_item_tool_name(self) -> str:
-        return "Create New Item" if bool(self.property("compactPresentation")) else "New Item Studio"
+        return "Create New Item"
 
     def show_selected_model_files(self) -> None:
         payloads = [payload for payload in self._batch_action_payloads() if payload.get("kind") == "mirror"]

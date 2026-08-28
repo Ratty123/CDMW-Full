@@ -8,6 +8,7 @@ table, which is the only arrangement every manager can load.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -196,6 +197,11 @@ class ModBaseTests(unittest.TestCase):
         written = {path.relative_to(folder).as_posix() for path in folder.rglob("*") if path.is_file()}
         self.assertIn("manifest.json", written)
         self.assertIn("modinfo.json", written)
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            manifest["generator"],
+            "Crimson Desert Mod Workbench - Create New Item",
+        )
         group = next(name.split("/")[0] for name in written if name.endswith("/0.pamt"))
         self.assertIn(f"{group}/0.paz", written)
         self.assertIn("meta/0.papgt", written)

@@ -1,6 +1,6 @@
-# New Item Studio
+# Create New Item
 
-Owns the New Item Studio tab: clone an equipment item into a brand-new one with
+Owns the Create New Item tab: clone an equipment item into a brand-new one with
 its own identity, model, icon, stats, shop placement and item groups, then write
 it as a loose mod or install it.
 

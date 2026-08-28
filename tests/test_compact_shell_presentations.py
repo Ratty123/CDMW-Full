@@ -315,11 +315,11 @@ class CompactShellPresentationTests(unittest.TestCase):
             tab.close()
             tab.deleteLater()
 
-    def test_compact_label_changes_do_not_change_internal_tool_key(self) -> None:
+    def test_shared_new_item_label_does_not_change_internal_tool_key(self) -> None:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        label = QLabel("Use in New Item Studio")
-        label.setToolTip("Open New Item Studio with this model.")
+        label = QLabel("Use in Create New Item")
+        label.setToolTip("Open Create New Item with this model.")
         layout.addWidget(label)
 
         self.assertTrue(

@@ -8,14 +8,14 @@ from typing import Dict, List, Tuple
 from cdmw.constants import APP_TITLE, APP_VERSION
 
 
-#: The New Item Studio's About section; spliced into the section list without growing it.
+#: The Create New Item About section; spliced into the section list without growing it.
 NEW_ITEM_STUDIO_SECTION = {
     "id": "new_item_studio",
-    "title": "Neuer-Gegenstand-Studio",
+    "title": "Neuen Gegenstand erstellen",
     "summary": "Einen Ausrüstungsgegenstand zu einem neuen klonen: Name, Werte, Modell, Symbol, Vorteile, Effekt, Laden.",
     "keywords": "neuer gegenstand klonen vorlage iteminfo stringinfo laden gruppe modell symbol loose mod installieren",
     "html": """
-    <p><b>Neuer-Gegenstand-Studio</b> (Assets) erstellt aus einer Vorlage einen neuen Gegenstand, statt einen vorhandenen zu ersetzen. Die Vorlage legt die Klasse fest (Ausrüstungstyp, Gegenstandstyp, Sockel, Animationen, Scheide und Wertestruktur); alles andere gehört dir.</p>
+    <p><b>Neuen Gegenstand erstellen</b> (Assets) erstellt aus einer Vorlage einen neuen Gegenstand, statt einen vorhandenen zu ersetzen. Die Vorlage legt die Klasse fest (Ausrüstungstyp, Gegenstandstyp, Sockel, Animationen, Scheide und Wertestruktur); alles andere gehört dir.</p>
     <ul>
       <li><b>Archive lesen</b> einmal pro Sitzung: die Tabellen für Gegenstände, Zeichenketten, Teil-Prefabs, Läden, Gruppen und Sprachen werden in eine Momentaufnahme gelesen; danach ist jede Prüfung ein Nachschlagen.</li>
       <li><b>Vorlage</b> aus dem Suchfeld oder über <b>Gegenstandssuche &gt; Als neuen Gegenstand klonen...</b>. <b>Identität</b>: interner Name, Namen und Beschreibungen je Sprache (Englisch ist Pflicht, die anderen fallen darauf zurück), ein Schlüssel aus dem reservierten Bereich und ein Modellstamm, beide automatisch vergeben, sofern du sie nicht setzt.</li>
@@ -75,7 +75,7 @@ class AboutDocumentationGermanMixin:
                   <li><b>Textur-Workflow</b>: Stapelverarbeitung loser DDS, optionales Upscaling, DDS-Neuaufbau, Vergleich und mod-fertiger Export.</li>
                   <li><b>Archiv-Browser</b>: Scannen, Filtern, Vorschau, Extraktion, Recherche, Abhaengigkeitsexport und ein <b>Im Mesh-Editor oeffnen</b> fuer Meshes.</li>
                   <li><b>Mesh-Editor</b>: direkte Bearbeitung von Geometrie, Topologie, Normalen, Rigging, Morph &amp; Refit, UV-Koordinaten und Objekttransformationen. Texturen sind in der Mesh-Ansicht schreibgeschuetzt.</li>
-                  <li><b>Modellbibliothek</b>: lokale/importierbare Modelle scannen und anzeigen oder an New Item Studio senden.</li>
+                  <li><b>Modellbibliothek</b>: lokale/importierbare Modelle scannen und anzeigen oder an <b>Neuen Gegenstand erstellen</b> senden.</li>
                   <li><b>Icon Creator</b>: Quellbilder vorbereiten und kompatible Item-Icon-Pakete erzeugen.</li>
                   <li><b>Textur-Editor</b>: Ebenenbasierte Bearbeitung sichtbarer Texturen mit direkter Workflow-Uebergabe.</li>
                   <li><b>Ersetzungsassistent</b>: Gefuehrte Ersetzungen fuer bearbeitete PNG/DDS-Dateien.</li>
@@ -447,7 +447,7 @@ class AboutDocumentationGermanMixin:
                     <p>Diese Mesh-Editor-Ausgaben patchen niemals ausgelieferte PAMT-/PAZ-Archive. Gleichquellen-Editierpakete koennen fuer externe Geometriearbeit exportiert und importiert werden.</p>
                     <h4>Neue Assets und Texturen</h4>
                     <ul>
-                      <li>In der Modellbibliothek oeffnet <b>In New Item Studio verwenden</b> das Modell im Modellschritt des Studios.</li>
+                      <li>In der Modellbibliothek oeffnet <b>In Neuen Gegenstand erstellen verwenden</b> das Modell im Modellschritt des Workflows.</li>
                       <li>Textur-Workflow, Textur-Ersetzer, Farbvarianten und Textur-Editor direkt fuer Texturarbeit verwenden. Diese eigenen Tabs bleiben unveraendert.</li>
                     </ul>
                     <h4>HKX-Platzierung und Sockets</h4>
@@ -487,14 +487,14 @@ class AboutDocumentationGermanMixin:
                       <li>Profile speichern keine geoeffneten Archive, aktiven Dokumente oder Projekt-Sitzungen pro Tab.</li>
                       <li><b>Diagnosen exportieren</b> enthaelt dasselbe Profil, Logs, Cache-Zusammenfassung, chaiNNer-Analyse, Crash-Kontext wenn vorhanden, README, Lizenz und Drittanbieterhinweise.</li>
                     </ul>
-                    <p>Einstellungen hat sieben Seiten in der linken Liste: <b>Setup</b>, <b>Start</b>, <b>Pfade</b>, <b>Leistung</b>, <b>Darstellung</b>, <b>Layout</b> und <b>Sicherheit</b>.</p>
+                    <p>Einstellungen hat sechs Seiten in der linken Liste: <b>Setup</b>, <b>Start</b>, <b>Pfade</b>, <b>Leistung</b>, <b>Darstellung</b> und <b>Sicherheit</b>.</p>
                     <ul>
                       <li><b>Einstellungen / Setup</b>: Workspace anlegen, externe Werkzeuge finden und Status der Authoring-Helfer.</li>
                       <li><b>Einstellungen / Start</b>: Archiv-Autoload, Cache-Praeferenz und Wiederherstellung des letzten Tabs. Archivfilter starten neutral.</li>
                       <li><b>Einstellungen / Pfade</b>: Workflow-Wurzeln, Archivorte, Spiel-/Paketwurzel und Extraktionswurzel.</li>
                       <li><b>Einstellungen / Leistung</b>: Workload-Preset, Batches der Archivliste, nativer Helfer, optionale Sidecar-Indexierung, Vorschau-Caches und .NET/Vortice-Paketcache.</li>
-                      <li><b>Einstellungen / Darstellung</b>: Themes, integriertes Spanisch/Deutsch, eigene Sprachdateien, Schrift, Dichte, Farben und 3D-Werte.</li>
-                      <li><b>Einstellungen / Layout und Sicherheit</b>: Speicher fuer Pane-Groessen, Aufraeum-Bestaetigungen und zusaetzlicher lokaler Diagnosekontext.</li>
+                      <li><b>Einstellungen / Darstellung</b>: Layout, gemeinsames Theme, Speicher fuer Pane-Groessen, integriertes Spanisch/Deutsch, eigene Sprachdateien, Schrift, Dichte, Farben und 3D-Werte.</li>
+                      <li><b>Einstellungen / Sicherheit</b>: Aufraeum-Bestaetigungen und zusaetzlicher lokaler Diagnosekontext.</li>
                     </ul>
                     <p>Sprachexport erzeugt JSON mit englischen Schluesseln. Schluessel unveraendert lassen und nur uebersetzte Werte bearbeiten.</p>
                     """,
@@ -510,7 +510,7 @@ class AboutDocumentationGermanMixin:
                       <li><b>Aktuelles Werkzeug abtrennen</b> verschiebt das aktuelle Werkzeug in ein neues Fenster und laesst einen Platzhalter zurueck.</li>
                       <li><b>Aktuelles Werkzeug wieder andocken</b> und <b>Alle Werkzeuge wieder andocken</b> bringen abgetrennte Werkzeuge in ihre urspruenglichen Tabgruppen zurueck.</li>
                       <li>Abgetrennte Geometrie wird unter <code>window/detached/&lt;tool&gt;/geometry</code> gespeichert; das Hauptfenster nutzt <code>window/geometry</code>.</li>
-                      <li><b>Einstellungen / Layout</b> steuert, ob Pane-Groessen und Splitter sitzungsuebergreifend gespeichert werden.</li>
+                      <li><b>Einstellungen / Darstellung</b> steuert, ob Pane-Groessen und Splitter sitzungsuebergreifend gespeichert werden.</li>
                       <li>Die untere Haelfte des Menues <b>Fenster</b> listet je Werkzeug einen Eintrag <b>&lt;Werkzeug&gt; anzeigen</b>: er waehlt den Tab aus oder holt das abgetrennte Fenster nach vorn.</li>
                     </ul>
                     """,

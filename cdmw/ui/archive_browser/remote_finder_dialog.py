@@ -269,7 +269,7 @@ class RemoteArchiveFinderDialog(QDialog):
         )
         self._clone_button = QPushButton("Clone as new item...")
         new_item_tool_name = (
-            "Create New Item" if bool(getattr(self._window, "is_compact_shell", False)) else "New Item Studio"
+            "Create New Item"
         )
         self._clone_button.setToolTip(
             f"Open {new_item_tool_name} with this item as the template: a brand-new item with its own name, "

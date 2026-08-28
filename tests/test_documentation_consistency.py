@@ -24,7 +24,7 @@ README_TOOL_NAMES_BY_KEY = {
     "archive_browser": "Archive Browser",
     "model_library": "Model Library",
     "item_icons": "Icon Creator",
-    "new_item_studio": "New Item Studio",
+    "new_item_studio": "Create New Item",
     "mesh_editor": "Mesh Editor",
     "placement_studio": "Placement & Animations",
     "texture_workflow": "Texture Workflow",
@@ -182,4 +182,6 @@ def test_readme_lists_the_exact_current_tool_inventory() -> None:
     for tool_name in README_TOOL_NAMES_BY_KEY.values():
         assert f"| **{tool_name}** |" in readme
     assert "| **Material Authority** |" not in readme
-    assert "- [New Item Studio](#new-item-studio)" in readme
+    assert "\n- [Create New Item](#create-new-item)\n" in readme
+    assert "\n## Create New Item\n" in readme
+    assert "\n## Placement & Animations\n" in readme

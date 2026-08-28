@@ -8,7 +8,7 @@ The resident v2 catalogue is the listing authority. Preview requests are
 request-correlated and latest-wins: a stale selection may be superseded but may
 not clear or replace the current scene. Archive Browser publishes the path,
 basename, extension, dependency, and native package indexes reused by Model
-Library, Mesh Editor, and New Item Studio.
+Library, Mesh Editor, and Create New Item.
 
 Browsing, preview, scan, extraction, and package preparation are read-only.
 Actions that can write route through service-owned confirmation and

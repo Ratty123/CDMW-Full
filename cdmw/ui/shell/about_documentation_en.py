@@ -9,18 +9,18 @@ from typing import Dict, List
 from cdmw.domain.textures.plan import describe_processing_path_kind
 
 
-#: The New Item Studio's About section; spliced into the section list without growing it.
+#: The Create New Item About section; spliced into the section list without growing it.
 NEW_ITEM_STUDIO_SECTION = {
     "id": "new_item_studio",
-    "title": "New Item Studio",
+    "title": "Create New Item",
     "summary": "Clone an equipment item into a brand-new one: name, stats, model, icon, perks, effect, shop.",
     "keywords": "new item studio clone template iteminfo stringinfo store shop item group model family icon perks socket gem effect element preset material pbr shader loose mod install",
     "html": """
-    <p><b>New Item Studio</b> (Assets) makes a brand-new item from a template instead of replacing a shipped one. The template fixes the class (equip type, item type, sockets, animations, sheath and stat shape); everything else is yours.</p>
+    <p><b>Create New Item</b> (Assets) makes a brand-new item from a template instead of replacing a shipped one. The template fixes the class (equip type, item type, sockets, animations, sheath and stat shape); everything else is yours.</p>
     <ul>
       <li><b>Read the archives</b> once per session: the item, string, part-prefab, store, group and language tables are read into a snapshot, then every check is a lookup.</li>
       <li><b>Template</b> from the search box, or from <b>Item Finder &gt; Clone as new item...</b>. <b>Identity</b>: internal name, per-language names and descriptions (English required, others fall back to it), an item key from the reserved range and a model stem, both allocated for you unless you set them.</li>
-      <li><b>Model and icon</b>: keep the template's model, or <b>Import a model file...</b>, which asks for a glTF, GLB, OBJ, DAE or zip from anywhere on disk, imports it through New Item Studio's own Model step without writing it over the template; it is re-pathed to the new item's own family. An imported model's materials are written for the game's plain PBR shaders by default (SkinnedMeshStandard: the source's albedo, normal and roughness/metal map, SkinnedMeshEmissive where the source glows), the way the shipped texture-driven weapons are; untick that to keep the imported material mapping as reviewed by the studio. The template is also the baseline the import inherits: its part prefabs decide which character parts the item occupies and what is drawn beside it (a helm's helmet hair), and the Template panel lists them; a helm imported over the Northern Fighter's Plate Helm keeps the face drawn, one over the Unyielding Warrior's or Canta helm hides the head. Where the model sits is the Model step's placement review: on the shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel); a helm wants manual placement (scale, no rotation, origin at the head). Keep the template's icon or generate one from an image or a folder, fitted to the template icon's DDS format.</li>
+      <li><b>Model and icon</b>: keep the template's model, or <b>Import a model file...</b>, which asks for a glTF, GLB, OBJ, DAE or zip from anywhere on disk, imports it through Create New Item's own Model step without writing it over the template; it is re-pathed to the new item's own family. An imported model's materials are written for the game's plain PBR shaders by default (SkinnedMeshStandard: the source's albedo, normal and roughness/metal map, SkinnedMeshEmissive where the source glows), the way the shipped texture-driven weapons are; untick that to keep the imported material mapping as reviewed by the studio. The template is also the baseline the import inherits: its part prefabs decide which character parts the item occupies and what is drawn beside it (a helm's helmet hair), and the Template panel lists them; a helm imported over the Northern Fighter's Plate Helm keeps the face drawn, one over the Unyielding Warrior's or Canta helm hides the head. Where the model sits is the Model step's placement review: on the shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel); a helm wants manual placement (scale, no rotation, origin at the head). Keep the template's icon or generate one from an image or a folder, fitted to the template icon's DDS format.</li>
       <li><b>Combat stats and prices</b>: the grid shows raw ItemInfo values, not a proven player-facing damage number. Select a cell to compare it with the template and the range used by the game's own equipment. Prices are identified separately; arbitrary stats, exact raw values, extra levels and separate enhancement rows stay under <b>Advanced / experimental</b>.</li>
       <li><b>Perks &amp; Effects</b>: gameplay perks are the Abyss Gear socket items built into the item. Keep the template list or customize it; four is the evidence-backed default, and five to eight requires an explicit experimental option. The Effects tab lists every shipped visual by a neutral label and its exact internal stem. Search and category filters narrow the list together; placement, colour and particle tuning remain staged until <b>Apply placement</b>. Effects are visual only, do not add damage or elemental status, and are available to weapons, armour, accessories and other equipment only when every prefab the new item will own passes the real structural graft preflight.</li>
       <li><b>Shop and item groups</b>: replace one entry of a shop (the form the game accepted) or add an entry (unproven); join the template's item groups or a list of your own.</li>
@@ -55,7 +55,7 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Texture Workflow</b>: batch loose DDS processing, optional upscaling, DDS rebuild, compare, and mod-ready loose export.</li>
                   <li><b>Archive Browser</b>: archive scanning, filtering, preview, extraction, research, dependency export, and one <b>Open in Mesh Editor</b> command for meshes.</li>
                   <li><b>Mesh Editor</b>: direct geometry, topology, normals, rigging, Morph &amp; Refit, UV-coordinate, transform, review, and mesh-only output work. Textures are read-only in Mesh View.</li>
-                  <li><b>Model Library</b>: scan and preview local/importable models, or send one to New Item Studio.</li>
+                  <li><b>Model Library</b>: scan and preview local/importable models, or send one to Create New Item.</li>
                   <li><b>Icon Creator</b>: prepare item-icon source images and package compatible icon replacements.</li>
                   <li><b>Texture Editor</b>: layered visible-texture editing and direct workflow handoff.</li>
                   <li><b>Texture Replacer</b>: guided one-off replacement packaging for edited PNG/DDS files.</li>
@@ -432,7 +432,7 @@ class AboutDocumentationEnglishMixin:
                 <p>Shipped PAMT/PAZ archives are never patched by these Mesh Editor outputs. Same-source editable-package export/import remains available for external geometry work; import must match the active source identity.</p>
                 <h4>New assets and textures</h4>
                 <ul>
-                  <li>From Model Library, <b>Use in New Item Studio</b> resolves or downloads the model and opens New Item Studio's Model step.</li>
+                  <li>From Model Library, <b>Use in Create New Item</b> resolves or downloads the model and opens Create New Item's Model step.</li>
                   <li>Use Texture Workflow, Texture Replacer, Recolor Variants, or Texture Editor directly for texture work. Those dedicated tabs are unchanged.</li>
                 </ul>
                 <h4>HKX placement and socket workflows</h4>
@@ -539,14 +539,14 @@ class AboutDocumentationEnglishMixin:
                   <li>Profiles do not save open archives, active documents, or per-tab project sessions.</li>
                   <li><b>Export Diagnostics</b> includes the same profile payload plus logs, cache summaries, chain analysis, crash context when available, a paste-ready issue summary, README, license, and third-party notices. Reports stay local until you export and share them.</li>
                 </ul>
-                <p>Settings has seven pages in its left-hand list: <b>Setup</b>, <b>Startup</b>, <b>Paths</b>, <b>Performance</b>, <b>Appearance</b>, <b>Layout</b>, and <b>Safety</b>.</p>
+                <p>Settings has six pages in its left-hand list: <b>Setup</b>, <b>Startup</b>, <b>Paths</b>, <b>Performance</b>, <b>Appearance</b>, and <b>Safety</b>.</p>
                 <ul>
                   <li><b>Settings / Setup</b> holds workspace initialization, external tool discovery, and asset-authoring helper status.</li>
                   <li><b>Settings / Startup</b> controls archive auto-load, cache preference, and last-tab restore. Archive filters start neutral after launch.</li>
                   <li><b>Settings / Paths</b> holds workflow roots, archive locations, game/package roots, and extraction roots.</li>
                   <li><b>Settings / Performance</b> controls workload presets, archive-list batching/native helper use, optional DDS related-file indexing, preview caches, and .NET/Vortice preview package caching.</li>
-                  <li><b>Settings / Appearance</b> controls themes, built-in Spanish/German/custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults.</li>
-                  <li><b>Settings / Layout and Safety</b> control pane-size memory, cleanup confirmations, and extra local diagnostic context.</li>
+                  <li><b>Settings / Appearance</b> controls layout, the shared theme, pane-size memory, built-in Spanish/German/custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults.</li>
+                  <li><b>Settings / Safety</b> controls cleanup confirmations and extra local diagnostic context.</li>
                 </ul>
                 <p>Language export writes a JSON file with English keys and translated values. Keep keys unchanged, edit only values, then import the file from Settings / Appearance.</p>
                 """,
@@ -562,7 +562,7 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Detach Current Tool</b> moves the current detachable tool into a separate window and leaves a placeholder behind.</li>
                   <li><b>Reattach Current Tool</b> and <b>Reattach All Tools</b> return detached tools to their original tab groups.</li>
                   <li>Detached windows remember their geometry under <code>window/detached/&lt;tool&gt;/geometry</code>. The main window stores <code>window/geometry</code>.</li>
-                  <li><b>Settings / Layout</b> controls whether pane sizes and splitters are remembered across sessions.</li>
+                  <li><b>Settings / Appearance</b> controls whether pane sizes and splitters are remembered across sessions.</li>
                   <li>Every tool can be detached: Texture Workflow, Texture Replacer, Recolor Variants, Texture Editor, Archive Browser, Mesh Editor, Model Library, Research, Text Search, Icon Creator, Retrofit/Repackage, and Settings. Each one can be restored from its placeholder or the Window menu.</li>
                   <li>The bottom half of the <b>Window</b> menu lists a <b>Show &lt;tool&gt;</b> entry per tool. It selects the tool's tab, or raises its window when the tool is detached.</li>
                 </ul>

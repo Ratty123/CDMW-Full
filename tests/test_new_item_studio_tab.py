@@ -1,4 +1,4 @@
-"""Gates for the New Item Studio tab: headless construction, the draft, and a plan through the panels."""
+"""Gates for Create New Item: headless construction, the draft, and a plan through the panels."""
 
 from __future__ import annotations
 
@@ -583,7 +583,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.app.setStyleSheet(build_app_stylesheet("graphite"))
         tab = self._tab()
         host = QTabWidget()
-        host.addTab(tab, "New Item Studio")
+        host.addTab(tab, "Create New Item")
         try:
             host.show()
             tab.prefill_template(TEMPLATE)
@@ -636,7 +636,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
 
         tab = self._tab()
         host = QTabWidget()
-        host.addTab(tab, "New Item Studio")
+        host.addTab(tab, "Create New Item")
         host.resize(1280, 720)
         host.show()
         tab.prefill_template(TEMPLATE)

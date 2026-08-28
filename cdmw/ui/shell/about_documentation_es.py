@@ -8,14 +8,14 @@ from typing import Dict, List, Tuple
 from cdmw.constants import APP_TITLE, APP_VERSION
 
 
-#: The New Item Studio's About section; spliced into the section list without growing it.
+#: The Create New Item About section; spliced into the section list without growing it.
 NEW_ITEM_STUDIO_SECTION = {
     "id": "new_item_studio",
-    "title": "Estudio de objetos nuevos",
+    "title": "Crear objeto nuevo",
     "summary": "Clonar un objeto de equipo en uno nuevo: nombre, estadísticas, modelo, icono, ventajas, efecto, tienda.",
     "keywords": "objeto nuevo clonar plantilla iteminfo stringinfo tienda grupo modelo icono mod suelto instalar",
     "html": """
-    <p><b>Estudio de objetos nuevos</b> (Recursos) crea un objeto nuevo a partir de una plantilla en lugar de sustituir uno del juego. La plantilla fija la clase (tipo de equipo, tipo de objeto, sockets, animaciones, vaina y forma de las estadísticas); todo lo demás es tuyo.</p>
+    <p><b>Crear objeto nuevo</b> (Recursos) crea un objeto nuevo a partir de una plantilla en lugar de sustituir uno del juego. La plantilla fija la clase (tipo de equipo, tipo de objeto, sockets, animaciones, vaina y forma de las estadísticas); todo lo demás es tuyo.</p>
     <ul>
       <li><b>Leer los archivos</b> una vez por sesión: las tablas de objetos, cadenas, prefabs de partes, tiendas, grupos e idiomas se leen en una instantánea; después cada comprobación es una consulta.</li>
       <li><b>Plantilla</b> desde el buscador o desde <b>Buscador de objetos &gt; Clonar como objeto nuevo...</b>. <b>Identidad</b>: nombre interno, nombres y descripciones por idioma (el inglés es obligatorio, los demás lo usan como respaldo), una clave del rango reservado y una raíz de modelo, ambas asignadas automáticamente salvo que las fijes.</li>
@@ -76,7 +76,7 @@ class AboutDocumentationSpanishMixin:
                   <li><b>Flujo de texturas</b>: proceso por lotes para DDS sueltos, escalado opcional, reconstruccion DDS, comparacion y exportacion mod-ready.</li>
                   <li><b>Explorador de archivos</b>: escaneo, filtro, vista previa, extraccion, investigacion, exportacion de dependencias y una accion <b>Abrir en el Editor de mallas</b>.</li>
                   <li><b>Editor de mallas</b>: edicion directa de geometria, topologia, normales, rigging, Morph &amp; Refit, coordenadas UV y transformacion del objeto. Las texturas son de solo lectura en Vista de malla.</li>
-                  <li><b>Biblioteca de modelos</b>: escaneo y vista previa de modelos locales/importables, o envio a New Item Studio.</li>
+                  <li><b>Biblioteca de modelos</b>: escaneo y vista previa de modelos locales/importables, o envio a <b>Crear objeto nuevo</b>.</li>
                   <li><b>Creador de iconos</b>: prepara imagenes fuente y paquetes compatibles para iconos de items.</li>
                   <li><b>Editor de texturas</b>: edicion por capas de texturas visibles y envio directo al flujo.</li>
                   <li><b>Asistente de reemplazo</b>: reemplazos guiados para PNG/DDS editados.</li>
@@ -448,7 +448,7 @@ class AboutDocumentationSpanishMixin:
                     <p>Estas salidas nunca parchean los archivos PAMT/PAZ distribuidos. La exportacion/importacion de paquetes editables del mismo origen sigue disponible para trabajo geometrico externo.</p>
                     <h4>Recursos nuevos y texturas</h4>
                     <ul>
-                      <li>En la Biblioteca de modelos, <b>Usar en New Item Studio</b> abre el modelo en el paso Modelo del estudio.</li>
+                      <li>En la Biblioteca de modelos, <b>Usar en Crear objeto nuevo</b> abre el modelo en el paso Modelo del flujo.</li>
                       <li>Usa directamente Flujo de texturas, Reemplazador de texturas, Variantes de color o Editor de texturas. Esas pestanas dedicadas no cambian.</li>
                     </ul>
                     <h4>Colocacion HKX y sockets</h4>
@@ -488,14 +488,14 @@ class AboutDocumentationSpanishMixin:
                       <li>Los perfiles no guardan archivos abiertos, documentos activos ni sesiones de proyecto por pestana.</li>
                       <li><b>Exportar diagnosticos</b> incluye el mismo perfil, logs, resumen de cache, analisis de chaiNNer, contexto de fallos si existe, README, licencia y avisos de terceros.</li>
                     </ul>
-                    <p>Configuracion tiene siete paginas en la lista de la izquierda: <b>Setup</b>, <b>Inicio</b>, <b>Rutas</b>, <b>Rendimiento</b>, <b>Apariencia</b>, <b>Layout</b> y <b>Seguridad</b>.</p>
+                    <p>Configuracion tiene seis paginas en la lista de la izquierda: <b>Setup</b>, <b>Inicio</b>, <b>Rutas</b>, <b>Rendimiento</b>, <b>Apariencia</b> y <b>Seguridad</b>.</p>
                     <ul>
                       <li><b>Configuracion / Setup</b>: creacion del workspace, deteccion de herramientas externas y estado de los ayudantes de autoria.</li>
                       <li><b>Configuracion / Inicio</b>: carga automatica del archivo, preferencia de cache y restauracion de la ultima pestana. Los filtros del explorador arrancan neutros.</li>
                       <li><b>Configuracion / Rutas</b>: raices del flujo, ubicaciones de archivos, raiz del juego/paquetes y raiz de extraccion.</li>
                       <li><b>Configuracion / Rendimiento</b>: preajuste de carga, lotes de la lista de archivos, ayudante nativo, indexacion opcional de sidecars, caches de vista previa y cache de paquetes .NET/Vortice.</li>
-                      <li><b>Configuracion / Apariencia</b>: temas, Espanol/Aleman integrados, idiomas personalizados, fuentes, densidad, colores y valores 3D.</li>
-                      <li><b>Configuracion / Layout y Seguridad</b>: memoria de tamanos de paneles, confirmaciones de limpieza y contexto extra de diagnostico local.</li>
+                      <li><b>Configuracion / Apariencia</b>: layout, tema compartido, memoria de tamanos de paneles, Espanol/Aleman integrados, idiomas personalizados, fuentes, densidad, colores y valores 3D.</li>
+                      <li><b>Configuracion / Seguridad</b>: confirmaciones de limpieza y contexto extra de diagnostico local.</li>
                     </ul>
                     <p>Exportar idioma crea JSON con claves en ingles. Manten las claves sin cambios y edita solo los valores traducidos.</p>
                     """,
@@ -511,7 +511,7 @@ class AboutDocumentationSpanishMixin:
                       <li><b>Separar herramienta actual</b> mueve la herramienta actual a una ventana nueva y deja un marcador en su lugar.</li>
                       <li><b>Volver a acoplar herramienta actual</b> y <b>Volver a acoplar todas las herramientas</b> devuelven herramientas separadas a sus grupos originales.</li>
                       <li>La geometria separada se guarda como <code>window/detached/&lt;tool&gt;/geometry</code>; la ventana principal usa <code>window/geometry</code>.</li>
-                      <li><b>Configuracion / Layout</b> controla si se recuerdan tamanos de paneles y splitters.</li>
+                      <li><b>Configuracion / Apariencia</b> controla si se recuerdan tamanos de paneles y splitters.</li>
                       <li>La parte inferior del menu <b>Ventana</b> lista una entrada <b>Mostrar &lt;herramienta&gt;</b> por herramienta: selecciona su pestana o trae al frente su ventana si esta separada.</li>
                     </ul>
                     """,

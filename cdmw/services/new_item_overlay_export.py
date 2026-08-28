@@ -86,7 +86,7 @@ def export_overlay_mod(
         "version": version,
         "author": author,
         "description": description or f"Adds {spec.internal_name} (item {spec.item_key}) cloned from item {spec.template_key}.",
-        "generator": "Crimson Desert Mod Workbench - New Item Studio",
+        "generator": "Crimson Desert Mod Workbench - Create New Item",
         "files_dir": ".",
         "manager_targets": ["dmm"],
         "manager_target_labels": ["Definitive Mod Manager"],

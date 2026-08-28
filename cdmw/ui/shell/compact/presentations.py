@@ -345,30 +345,7 @@ def _hide_presentation_attribute(
     target.setVisible(False)
 
 
-def _replace_new_item_label(text: str) -> str:
-    return str(text or "").replace("New Item Studio", "Create New Item")
-
-
 def _apply_compact_tool_labels(key: str, widget: QWidget) -> None:
-    if key in {"archive_browser", "model_library", "new_item_studio"}:
-        for button in widget.findChildren(QAbstractButton):
-            replaced = _replace_new_item_label(button.text())
-            if replaced != button.text():
-                button.setText(replaced)
-        for label in widget.findChildren(QLabel):
-            replaced = _replace_new_item_label(label.text())
-            if replaced != label.text():
-                label.setText(replaced)
-        for action in widget.findChildren(QAction):
-            replaced = _replace_new_item_label(action.text())
-            if replaced != action.text():
-                action.setText(replaced)
-        for child in (widget, *widget.findChildren(QWidget)):
-            tooltip = child.toolTip()
-            replaced = _replace_new_item_label(tooltip)
-            if replaced != tooltip:
-                child.setToolTip(replaced)
-
     compact_labels = _COMPACT_BUTTON_LABELS.get(key, {})
     if not compact_labels:
         return
