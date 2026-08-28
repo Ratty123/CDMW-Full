@@ -6,7 +6,7 @@
     "cdmw/core/archive_attachment_iteminfo.py::build_universal_twohand_sword_true_onehand_iteminfo_patch": 248,
     "cdmw/core/archive_binary_preview.py::_papr_candidate_gap_evidence": 178,
     "cdmw/core/archive_binary_preview.py::_papr_constraint_record_layout_summary": 249,
-    "cdmw/core/archive_filtering.py::filter_archive_entries": 187,
+    "cdmw/core/archive_filtering.py::filter_archive_entries": 185,
     "cdmw/core/archive_hkx_edit_gate_helpers_0.py::_hkx_add_shape_patch_entries": 156,
     "cdmw/core/archive_hkx_editable_xml_sections_0.py::_hkx_xml_add_converter_report": 155,
     "cdmw/core/archive_hkx_relationship_graph_0.py::_hkx_graph_add_constraints": 159,

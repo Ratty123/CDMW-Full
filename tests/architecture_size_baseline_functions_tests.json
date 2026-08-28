@@ -19,7 +19,7 @@
     "tests/test_hkx_preview.py::HkxPreviewTests.test_hkx_converter_corpus_report_summarizes_local_hkx_files": 223,
     "tests/test_hkx_preview.py::HkxPreviewTests.test_hkx_corpus_evidence_extracts_decoder_priorities_from_existing_report": 179,
     "tests/test_hkx_preview.py::HkxPreviewTests.test_modern_hkx_physics_system_exports_motor_float_slots": 151,
-    "tests/test_hkx_ui_source_guards.py::HkxUiSourceGuardTests.test_archive_browser_exposes_hkx_json_export_import_actions": 595,
+    "tests/test_hkx_ui_source_guards.py::HkxUiSourceGuardTests.test_archive_browser_exposes_hkx_json_export_import_actions": 594,
     "tests/test_isolated_d3d11_preview_package.py::IsolatedD3D11PreviewPackageTests.test_alignment_package_uses_archive_parity_material_policy_for_original_reference_only": 178,
     "tests/test_isolated_d3d11_preview_package.py::IsolatedD3D11PreviewPackageTests.test_alignment_worker_splices_native_archive_reference_batches": 166,
     "tests/test_isolated_d3d11_preview_package.py::IsolatedD3D11PreviewPackageTests.test_material_category_uses_standalone_tinted_metal_tokens": 178,
