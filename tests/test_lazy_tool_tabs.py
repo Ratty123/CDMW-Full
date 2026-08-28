@@ -11,6 +11,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QThread, QTimer
@@ -370,6 +372,7 @@ class LazyToolTabTests(unittest.TestCase):
             f"Lazy main-window integration failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
         )
 
+    @pytest.mark.timing
     def test_every_registered_tab_activation_keeps_the_qt_heartbeat_below_200_ms(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as temp_dir:

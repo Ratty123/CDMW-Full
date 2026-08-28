@@ -281,7 +281,7 @@ def test_windows_workflow_gates_packaging_on_both_headless_python_releases() -> 
     assert "codex_check.ps1 -Area full" in source
     assert "matrix.shard" not in source
     assert "-Shard" not in source
-    assert 'PYTEST_ADDOPTS: \'-m "not visual and not real_game"\'' in source
+    assert 'PYTEST_ADDOPTS: \'-m "not visual and not real_game and not timing"\'' in source
     assert "Build and startup-smoke onedir package" in source
     assert "Build and startup-smoke onefile package" in source
     assert "-Area mesh " not in source
