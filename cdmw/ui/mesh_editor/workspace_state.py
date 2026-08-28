@@ -195,6 +195,7 @@ class WorkspaceStateMixin:
         undo_count: int = 0,
         redo_count: int = 0,
         native_editor_available: bool = True,
+        authoring_blockers: Mapping[str, str] | None = None,
     ) -> None:
         self._has_editor_target = bool(has_target)
         self._native_editor_available = bool(native_editor_available)
@@ -202,6 +203,7 @@ class WorkspaceStateMixin:
         self._sync_combo(self.mode_combo, str(mode or "object"))
         self._sync_combo(self.selection_combo, str(active_selection_mode or "brush"))
         current_mode = str(mode or "").strip().lower()
+        blockers = dict(authoring_blockers or {})
         for action in self._actions_by_key.values():
             enabled = bool(has_target)
             if action.mode and action.category != "mode" and action.mode != current_mode:
@@ -214,9 +216,13 @@ class WorkspaceStateMixin:
                 enabled = False
             if action.command in NATIVE_EDITOR_SESSION_COMMANDS and not native_editor_available:
                 enabled = False
+            blocker = str(blockers.get(action.key, "") or "").strip()
+            if blocker:
+                enabled = False
             for button in (self.button_for_key(action.key), self._uv_action_buttons.get(action.key)):
                 if button is not None:
                     button.setEnabled(enabled)
+                    button.setToolTip(blocker or _workspace_action_tooltip(action))
         for name in ("uv_select_all_button", "uv_clear_selection_button"):
             button = getattr(self, name, None)
             if button is not None:

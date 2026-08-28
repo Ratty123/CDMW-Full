@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from cdmw.domain.mesh import MESH_EDIT_ACTIONS, MESH_EDIT_MODES
-from cdmw.domain.mesh.authoring_capability import action_authoring_capability
+from cdmw.domain.mesh.authoring_capability import (
+    PROVEN_AUTHORING_LOD,
+    action_authoring_capability,
+    geometry_authoring_capability,
+)
 
 _NON_NATIVE_EDITOR_SESSION_COMMANDS = frozenset(
     {"set_mode", "select", "triangulate_display", "quadrangulate_display"}
@@ -31,7 +35,13 @@ _UNAUTHORABLE_TOPOLOGY_ACTION_KEYS = frozenset(
 _USER_HIDDEN_ACTION_KEYS = LEGACY_PART_SELECTION_ACTION_KEYS | _UNAUTHORABLE_TOPOLOGY_ACTION_KEYS
 
 
-def mesh_editor_action_authoring_blocker(action_key: object, *, deletes_parts: bool = False) -> str:
+def mesh_editor_action_authoring_blocker(
+    action_key: object,
+    *,
+    deletes_parts: bool = False,
+    mesh_format: object = "pac",
+    lod_index: int = PROVEN_AUTHORING_LOD,
+) -> str:
     """Why a direct-authoring action cannot produce an exact Mesh Editor output."""
 
     key = str(action_key or "").strip().lower().replace("-", "_")
@@ -40,14 +50,25 @@ def mesh_editor_action_authoring_blocker(action_key: object, *, deletes_parts: b
         "subdivide_selection": "subdivide",
         "refine": "refine_smooth",
     }.get(key, key)
+    capability = action_authoring_capability(
+        key,
+        mesh_format=mesh_format,
+        lod_index=lod_index,
+    )
+    if capability is not None and not capability.authorable:
+        return " ".join(part for part in (capability.reason, capability.detail) if str(part).strip())
     if deletes_parts and key == "delete":
         return "Deleting whole parts changes the protected PAC submesh table and has no exact writeback route."
     if key == "toggle_visibility":
         return "Part visibility editing has no stored output authority in direct authoring."
-    capability = action_authoring_capability(key)
-    if capability is None or capability.authorable:
+    if capability is not None:
         return ""
-    return " ".join(part for part in (capability.reason, capability.detail) if str(part).strip())
+    geometry = geometry_authoring_capability(mesh_format, lod_index=lod_index)
+    if not geometry.authorable:
+        action = mesh_editor_actions_by_key().get(key)
+        if action is not None and action.command in NATIVE_EDITOR_SESSION_COMMANDS:
+            return " ".join(part for part in (geometry.reason, geometry.detail) if str(part).strip())
+    return ""
 
 
 @dataclass(frozen=True, slots=True)
