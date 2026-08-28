@@ -46,11 +46,14 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
             return False
         self._wire_shared_dotnet_controller(host)
         target = self._dotnet_target_controller()
+        renderer_revision = 0
         if target is not None:
             try:
+                target_view = target.session_view()
                 session_bound = bool(
-                    controller.set_authoritative_session_id(target.session_view().session_id)
+                    controller.set_authoritative_session_id(target_view.session_id)
                 )
+                renderer_revision = max(0, int(target_view.resident_revision or 0))
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 session_bound = False
             if not session_bound:
@@ -101,6 +104,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         self.standalone_dotnet_update_queue.set_context(
             session_id=self.standalone_dotnet_lifecycle_session_id,
             process_generation=self.standalone_dotnet_process_generation,
+            renderer_revision=renderer_revision,
         )
         self._record_mesh_dotnet_event(
             "mesh_dotnet_shared_host_load",
@@ -147,6 +151,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         self.standalone_dotnet_editor_process = None
         self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
+        self._reset_resident_mutation_ui_state()
         self.standalone_dotnet_update_queue.reset()
         self.standalone_pending_dotnet_live_stroke_outcome = None
         self._cancel_pending_dotnet_captures()
@@ -189,6 +194,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         self._cancel_dotnet_material_compile()
         self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
+        self._reset_resident_mutation_ui_state()
         self.standalone_dotnet_update_queue.reset()
         self.standalone_pending_dotnet_live_stroke_outcome = None
         self._cancel_pending_dotnet_captures()

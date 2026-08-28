@@ -225,7 +225,9 @@ class MeshEditorDotNetMaterialCompilationMixin(
             {
                 "reason": str(request.reason or "changed"),
                 "request_id": int(request.generation),
-                "base_revision": int(request.edit_revision),
+                "base_revision": int(
+                    request.resident_revision or request.edit_revision
+                ),
                 "process_generation": int(request.process_generation),
                 "package_generation": self._dotnet_material_package_generation(),
                 "protocol_version": 3,
@@ -330,7 +332,7 @@ class MeshEditorDotNetMaterialCompilationMixin(
                 request.role,
             ),
             generation=int(request.generation),
-            edit_revision=int(request.edit_revision),
+            edit_revision=int(request.resident_revision or request.edit_revision),
             material_signature=str(correlated.get("material_signature", "") or ""),
             affected_submesh_count=len(tuple(correlated.get("affected_submeshes", ()) or ())),
             compiler_cache_hit=bool(
@@ -404,7 +406,7 @@ class MeshEditorDotNetMaterialCompilationMixin(
             role=self._dotnet_material_role_key(request.role),
             roles=roles,
             generation=int(request.generation),
-            edit_revision=int(request.edit_revision),
+            edit_revision=int(request.resident_revision or request.edit_revision),
             process_generation=int(request.process_generation),
             request_reason=str(request.reason or "changed"),
             message=str(message),

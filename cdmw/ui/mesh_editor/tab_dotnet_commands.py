@@ -428,55 +428,16 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
         request_payloads: tuple,
         terminal_selection_stages: dict[str, float],
     ) -> bool:
-        """Publish an embedded stroke result, and say whether it was published.
+        """Defer embedded settlement until the renderer acknowledges the batch."""
 
-        The embedded builder owns the mesh the stroke edited, so a terminal
-        result has to reach it before the helper is told the stroke is done.
-        Returns what the caller records as `presentation_sent`.
-        """
-
-        presentation_sent = True
-        update = outcome.native_update
-        if self.standalone_dotnet_target_embedded:
-            commit_embedded = (
-                terminal_selection_presentation
-                or (not selection_outcome and outcome.phase == "end")
-            )
-            if commit_embedded:
-                # Only a finished stroke is worth recording; the update phases
-                # are provisional and are superseded by the one that lands.
-                stage_started = time.perf_counter()
-                self._commit_embedded_edit_result(
-                    outcome.result,
-                    command_name=str(outcome.result.action or "stroke"),
-                    request_payload=request_payloads[-1] if request_payloads else None,
-                    authoritative_selection=(
-                        update.session_view.selection
-                        if terminal_selection_presentation and update.session_view is not None
-                        else None
-                    ),
-                    resident_history=(
-                        outcome.source == "dotnet"
-                        and not selection_outcome
-                        and outcome.phase == "end"
-                    ),
-                )
-                if terminal_selection_presentation:
-                    terminal_selection_stages["builder_commit_ms"] = (
-                        time.perf_counter() - stage_started
-                    ) * 1000.0
-                stage_started = time.perf_counter()
-                self._refresh_embedded_workspace_from_builder(
-                    include_derived=not selection_outcome,
-                    session_view=(
-                        update.session_view if terminal_selection_presentation else None
-                    ),
-                )
-                if terminal_selection_presentation:
-                    terminal_selection_stages["workspace_refresh_ms"] = (
-                        time.perf_counter() - stage_started
-                    ) * 1000.0
-        return presentation_sent
+        _ = (
+            outcome,
+            selection_outcome,
+            terminal_selection_presentation,
+            request_payloads,
+            terminal_selection_stages,
+        )
+        return True
 
     def _handle_dotnet_live_stroke_completed(self, outcome: object) -> None:
         if not isinstance(outcome, _tab.MeshLiveStrokeOutcome) or outcome.source not in {"dotnet", "dotnet_morph", "dotnet_selection"}:
@@ -535,21 +496,6 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
             request_payloads=request_payloads,
             terminal_selection_stages=terminal_selection_stages,
         )
-        if not self.standalone_dotnet_target_embedded and (
-            not defer_selection_presentation
-            and (
-                update.vertex_groups
-                or update.triangle_groups
-                or update.triangle_source_submesh_indices
-                or update.selection_groups
-                or update.refresh_selection
-                or update.material_override_groups
-                or update.replace_all_triangles
-            )
-        ):
-            self._apply_standalone_native_update(update)
-            if outcome.phase != "update":
-                _tab.QTimer.singleShot(0, self._sync_state)
         for coalesced_payload in request_payloads[:-1]:
             self._send_dotnet_command_result(
                 outcome.result.action,
@@ -588,15 +534,25 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
                 update,
                 result=outcome.result,
                 request_payload=latest_request_payload,
+                commit_embedded=bool(
+                    self.standalone_dotnet_target_embedded
+                    and (
+                        terminal_selection_presentation
+                        or (not selection_outcome and outcome.phase == "end")
+                    )
+                ),
+                resident_history=bool(
+                    self.standalone_dotnet_target_embedded
+                    and outcome.source == "dotnet"
+                    and not selection_outcome
+                    and outcome.phase == "end"
+                ),
+                refresh_morph_state=outcome.source == "dotnet_morph",
             )
             if terminal_selection_presentation:
                 terminal_selection_stages["selection_publish_ms"] = (
                     time.perf_counter() - stage_started
                 ) * 1000.0
-        if outcome.source == "dotnet_morph":
-            self._send_dotnet_cached_morph_state(
-                request_payload=latest_request_payload,
-            )
         self._retire_completed_stroke(
             outcome,
             selection_outcome=selection_outcome,
@@ -633,18 +589,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
                 self.standalone_native_selection_stroke_id = ""
             else:
                 self.standalone_native_mesh_edit_stroke_id = ""
-            stage_started = time.perf_counter()
-            if presentation_sent:
-                self._send_dotnet_session_state(
-                    include_selection=not selection_outcome,
-                    session_view=(
-                        update.session_view if terminal_selection_presentation else None
-                    ),
-                )
             if terminal_selection_presentation and terminal_selection_started is not None:
-                terminal_selection_stages["session_state_ms"] = (
-                    time.perf_counter() - stage_started
-                ) * 1000.0
                 _record_interaction_decision(
                     self,
                     (
@@ -661,13 +606,6 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
                     derived_workspace_refresh=False,
                     session_state_selection=False,
                     **terminal_selection_stages,
-                )
-                self._refresh_embedded_active_selection_summary(
-                    selection=(
-                        update.session_view.selection
-                        if update.session_view is not None
-                        else None
-                    )
                 )
             if selection_outcome and not presentation_sent:
                 # The helper is about to be retired, so a deferred Finish must

@@ -24,6 +24,7 @@ class ResidentMutationBatch:
     topology_update: dict[str, object] | None = None
     material_updates: tuple[dict[str, object], ...] = ()
     selection_update: dict[str, object] | None = None
+    history_state: dict[str, object] | None = None
     final_submesh_count: int | None = None
     affected_submesh_indices: tuple[int, ...] = ()
     temporary_payloads: tuple[dict[str, object], ...] = ()
@@ -68,6 +69,11 @@ class ResidentMutationBatch:
         )
         object.__setattr__(
             self,
+            "history_state",
+            dict(self.history_state) if self.history_state is not None else None,
+        )
+        object.__setattr__(
+            self,
             "final_submesh_count",
             int(self.final_submesh_count) if self.final_submesh_count is not None else None,
         )
@@ -98,6 +104,8 @@ class ResidentMutationBatch:
             payload["topology_update"] = dict(self.topology_update)
         if self.selection_update is not None:
             payload["selection_update"] = dict(self.selection_update)
+        if self.history_state is not None:
+            payload["history_state"] = dict(self.history_state)
         if self.final_submesh_count is not None:
             payload["final_submesh_count"] = self.final_submesh_count
         return payload

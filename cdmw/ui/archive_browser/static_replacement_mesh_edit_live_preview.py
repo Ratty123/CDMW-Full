@@ -120,11 +120,39 @@ def _mesh_edit_replace_live_triangles(_state, _callbacks, source_indices: _state
             )
             return False
         if groups or requested_source_indices:
-            if _state.alignment_d3d11_preview_host.replace_mesh_edit_triangles(
-                groups,
-                replace_all=replace_all,
-                source_submesh_indices=requested_source_indices,
-            ):
+            sender = getattr(
+                getattr(_state, "dialog", None),
+                "_mesh_editor_embedded_send_native_update",
+                None,
+            )
+            selection = _callbacks._mesh_edit_current_selection()
+            try:
+                selection_groups = tuple(
+                    _state.mesh_edit_selection_groups(
+                        _state._mesh_edit_state.replacement_mesh_for_mapping,
+                        selection,
+                    )
+                )
+            except Exception as exc:
+                _callbacks._record_mesh_edit_event(
+                    "mesh_edit_live_triangle_selection_build_failed",
+                    message=str(exc),
+                )
+                return False
+            update = _state.MeshEditorNativeUpdate(
+                triangle_groups=tuple(groups),
+                triangle_source_submesh_indices=tuple(requested_source_indices),
+                material_override_groups=tuple(
+                    _state.material_override_groups_for_native_triangle_groups(groups)
+                ),
+                selection_groups=selection_groups,
+                refresh_selection=True,
+                replace_all_triangles=bool(replace_all),
+                final_submesh_count=len(
+                    _state._mesh_edit_state.replacement_mesh_for_mapping.submeshes
+                ),
+            )
+            if callable(sender) and sender(update, commit_embedded=False):
                 return True
             _callbacks._record_mesh_edit_event(
                 "mesh_edit_live_triangle_replace_failed",
@@ -168,7 +196,11 @@ def _mesh_editor_apply_native_update(_state, _callbacks, native_update: object) 
         return False
     _state.mesh_edit_live_update_timer.stop()
     _callbacks._flush_mesh_edit_live_vertex_updates()
-    return _state.apply_native_update_to_host(_state.alignment_d3d11_preview_host, native_update)
+    sender = getattr(_state.dialog, "_mesh_editor_embedded_send_native_update", None)
+    return bool(
+        callable(sender)
+        and sender(native_update, commit_embedded=False)
+    )
 
 def _mesh_editor_apply_result_native_update(_state, _callbacks, result: object) -> bool:
     native_update = getattr(result, "native_update", None)
@@ -187,7 +219,10 @@ def _mesh_editor_apply_result_native_update(_state, _callbacks, result: object) 
             )
             return False
         return False
-    applied = _callbacks._mesh_editor_apply_native_update(native_update)
+    applied = _callbacks._mesh_editor_send_embedded_dotnet_update(
+        native_update,
+        result=result,
+    )
     if not applied and _callbacks._mesh_editor_result_has_deferred_native_python_apply(result):
         _callbacks._mesh_editor_queue_native_preview_rebuild_from_working_mesh(
             "mesh_edit_topology",

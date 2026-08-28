@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import unittest
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -116,16 +117,31 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_process_generation = 7
+        view = replace(builder.controller.session_view(), revision=1)
         queued: list[tuple[int, tuple[dict[str, object], ...]]] = []
         timer_syncs: list[bool] = []
-        tab.standalone_dotnet_update_queue = SimpleNamespace(
-            enqueue=lambda revision, packets: queued.append((int(revision), tuple(packets))) or True
+        queue = DotNetRevisionUpdateQueue(
+            lambda payload: queued.append(
+                (int(payload.get("revision", 0) or 0), (dict(payload),))
+            )
+            or True
         )
+        queue.set_context(
+            session_id=view.session_id,
+            process_generation=7,
+            renderer_revision=0,
+        )
+        queue.observe_capabilities(
+            {"capabilities": [MESH_EDIT_REVISION_CAPABILITY, MESH_MUTATION_ENVELOPE_CAPABILITY]}
+        )
+        tab.standalone_dotnet_update_queue = queue
         tab._sync_dotnet_update_ack_timer = lambda: timer_syncs.append(True)  # type: ignore[method-assign]
 
         tab._send_dotnet_native_update(
             MeshEditorNativeUpdate(
                 triangle_groups=({"source_submesh_index": 0, "triangles": ()},),
+                session_view=view,
             )
         )
 
@@ -140,13 +156,21 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_process_generation = 7
+        view = replace(builder.controller.session_view(), revision=1)
         activity: list[tuple[str, object]] = []
-        tab.standalone_dotnet_update_queue = SimpleNamespace(
-            enqueue=lambda revision, packets: activity.append(
-                ("geometry", (int(revision), tuple(packets)))
-            )
-            or True
+        queue = DotNetRevisionUpdateQueue(
+            lambda payload: activity.append(("geometry", dict(payload))) or True
         )
+        queue.set_context(
+            session_id=view.session_id,
+            process_generation=7,
+            renderer_revision=0,
+        )
+        queue.observe_capabilities(
+            {"capabilities": [MESH_EDIT_REVISION_CAPABILITY, MESH_MUTATION_ENVELOPE_CAPABILITY]}
+        )
+        tab.standalone_dotnet_update_queue = queue
 
         with patch.object(
             tab,
@@ -162,6 +186,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
                             "positions": [0.0, 0.1, 0.0],
                         },
                     ),
+                    session_view=view,
                 ),
                 result=MeshEditResult(action="grab", status="ok", revision=1),
                 request_payload={
@@ -176,8 +201,8 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
 
         self.assertEqual(["geometry", "result"], [kind for kind, _payload in activity])
         queued = activity[0][1]
-        assert isinstance(queued, tuple)
-        self.assertEqual(42, queued[1][0]["request_id"])
+        assert isinstance(queued, dict)
+        self.assertEqual(42, queued["request_id"])
         command_result = activity[1][1]
         assert isinstance(command_result, dict)
         self.assertTrue(command_result["authoritative_geometry_pending"])
@@ -190,13 +215,21 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_process_generation = 7
+        view = replace(builder.controller.session_view(), revision=1)
         tab.standalone_dotnet_update_ack_start_timer.stop()
         recorded: list[tuple[str, dict[str, object]]] = []
         sent: list[dict[str, object]] = []
-        tab.standalone_dotnet_update_queue = SimpleNamespace(
-            enqueue=lambda _revision, _packets: False,
-            metrics=lambda: {"recovery_failed": True},
+        queue = DotNetRevisionUpdateQueue(lambda _payload: False)
+        queue.set_context(
+            session_id=view.session_id,
+            process_generation=7,
+            renderer_revision=0,
         )
+        queue.observe_capabilities(
+            {"capabilities": [MESH_EDIT_REVISION_CAPABILITY, MESH_MUTATION_ENVELOPE_CAPABILITY]}
+        )
+        tab.standalone_dotnet_update_queue = queue
         tab._record_mesh_dotnet_event = (  # type: ignore[method-assign]
             lambda event, **payload: recorded.append((event, dict(payload)))
         )
@@ -209,9 +242,9 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
             published = tab._send_dotnet_native_update(
                 MeshEditorNativeUpdate(
                     refresh_selection=True,
-                    session_view=builder.controller.session_view(),
+                    session_view=view,
                 ),
-                result=MeshEditResult(action="select", status="ok", revision=0),
+                result=MeshEditResult(action="select", status="ok", revision=1),
                 request_payload={
                     "event": "select_request",
                     "session_id": builder.controller.session_view().session_id,
@@ -224,13 +257,62 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
 
         self.assertFalse(published)
         self.assertFalse(tab.standalone_dotnet_update_ack_start_timer.isActive())
-        self.assertEqual("mesh_dotnet_native_update_enqueue_failed", recorded[0][0])
-        self.assertEqual(55, recorded[0][1]["request_id"])
+        enqueue_event = next(
+            payload
+            for event, payload in recorded
+            if event == "mesh_dotnet_native_update_enqueue_failed"
+        )
+        self.assertEqual(55, enqueue_event["request_id"])
         self.assertEqual(1, len(sent))
         self.assertEqual("command_result", sent[0]["event"])
         self.assertEqual("error", sent[0]["status"])
         self.assertFalse(sent[0]["ok"])
         self.assertEqual(55, sent[0]["request_id"])
+        tab.deleteLater()
+        builder.deleteLater()
+
+    def test_v2_multi_surface_mutation_enters_visible_fail_closed_degraded_mode(self) -> None:
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorV2DegradedMutation"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_process_generation = 7
+        initial_view = builder.controller.session_view()
+        result = builder.controller.select(source_indices=(0,), operation="replace")
+        assert result.session_view is not None
+        renderer_packets: list[dict[str, object]] = []
+        queue = DotNetRevisionUpdateQueue(
+            lambda payload: renderer_packets.append(dict(payload)) or True
+        )
+        queue.set_context(
+            session_id=initial_view.session_id,
+            process_generation=7,
+            renderer_revision=initial_view.resident_revision,
+        )
+        queue.observe_capabilities(
+            {"capabilities": [MESH_EDIT_REVISION_CAPABILITY, MESH_MUTATION_ENVELOPE_CAPABILITY]}
+        )
+        tab.standalone_dotnet_update_queue = queue
+
+        published = tab._send_dotnet_native_update(
+            MeshEditorNativeUpdate(
+                vertex_groups=(
+                    {
+                        "source_submesh_index": 0,
+                        "source_vertex_indices": [0],
+                        "positions": [0.0, 0.0, 0.0],
+                    },
+                ),
+                refresh_selection=True,
+                session_view=result.session_view,
+            )
+        )
+
+        self.assertFalse(published)
+        self.assertEqual([], renderer_packets)
+        self.assertTrue(queue.metrics()["degraded_mode"])
+        self.assertTrue(queue.metrics()["recovery_failed"])
+        self.assertIn("reload", tab._resident_mutation_authoring_blocker().lower())
         tab.deleteLater()
         builder.deleteLater()
 
@@ -249,7 +331,11 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.standalone_dotnet_target_controller = old_controller
         results: list[dict[str, object]] = []
 
-        def replace_controller(_command: str, _indices: tuple[int, ...]) -> bool:
+        def replace_controller(
+            _command: str,
+            _indices: tuple[int, ...],
+            **_kwargs: object,
+        ) -> bool:
             old_controller.close_active_session()
             tab.standalone_dotnet_target_controller = replacement
             return True
@@ -276,7 +362,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
 
         self.assertEqual("applied", results[-1]["status"])
         self.assertTrue(results[-1]["ok"])
-        self.assertEqual(replacement.session_view().revision, results[-1]["revision"])
+        self.assertEqual(replacement.session_view().resident_revision, results[-1]["revision"])
         replacement.close_active_session()
         tab.deleteLater()
 

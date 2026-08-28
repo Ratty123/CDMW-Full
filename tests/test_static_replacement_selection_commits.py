@@ -241,7 +241,7 @@ def test_topology_commit_adopts_the_authoritative_remapped_selection() -> None:
         _mesh_edit_clear_topology_selection=lambda: (_ for _ in ()).throw(
             AssertionError("topology discarded its authoritative selection")
         ),
-        _mesh_editor_send_embedded_dotnet_update=lambda _update: True,
+        _mesh_editor_send_embedded_dotnet_update=lambda _update, **_kwargs: True,
         _mesh_editor_apply_result_native_update=lambda _result: False,
         _mesh_edit_update_mesh_totals=lambda: None,
         _mesh_editor_sync_static_replacement_session_to_working_mesh=lambda _reason: False,

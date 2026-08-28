@@ -4273,6 +4273,8 @@
     "Mesh Editor preview launch failed.": "Mesh Düzenleyici önizlemesi başlatılamadı.",
     "Mesh Editor preview preparation failed.": "Mesh Düzenleyici önizleme hazırlığı başarısız oldu.",
     "Mesh Editor preview renderer is unavailable.": "Mesh Düzenleyici önizleme oluşturucusu kullanılamıyor.",
+    "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Mesh Editor işleyiciyle eşitleniyor. Düzenleme geçici olarak kullanılamıyor.",
+    "Mesh Editor renderer synchronization failed. Reload the session to continue editing.": "Mesh Editor işleyici eşitlemesi başarısız oldu. Düzenlemeye devam etmek için oturumu yeniden yükleyin.",
     "Mesh Editor resumed draft for {value_0}.": "Mesh Editor resumed draft for {value_0}.",
     "Mesh Editor selected {value_0} part(s){value_1}.": "Mesh Düzenleyici {value_0} parçasını/parçalarını seçti{value_1}.",
     "Mesh Editor selection dispatcher is stopping.": "Mesh Editor selection dispatcher is stopping.",

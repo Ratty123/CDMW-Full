@@ -261,7 +261,12 @@ class _EmbeddedMeshBuilder(QFrame):
         self.finalized_dotnet_imports.append(str(reason))
         return True
 
-    def _mesh_editor_embedded_run_part_action(self, action_key: str, source_indices: tuple[int, ...]) -> bool:
+    def _mesh_editor_embedded_run_part_action(
+        self,
+        action_key: str,
+        source_indices: tuple[int, ...],
+        **_kwargs: object,
+    ) -> bool:
         self.part_actions.append((str(action_key), tuple(int(index) for index in source_indices)))
         return True
 
@@ -3355,22 +3360,41 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.standalone_controller.select(vertices_by_submesh={0: (0, 1)})
         tab.update_editor_session_state(tab.standalone_controller.session_view(), active_selection_mode=tab.standalone_controller.active_selection_mode)
         host.calls.clear()
+        sent_updates: list[MeshEditorNativeUpdate] = []
+        tab._standalone_dotnet_editor_process_running = lambda: True  # type: ignore[method-assign]
+        tab._send_dotnet_native_update = (  # type: ignore[method-assign]
+            lambda update, **_kwargs: sent_updates.append(update) or True
+        )
 
         self.assertTrue(tab.action_bar.button_for_key("transform_rotate").isEnabled())
         tab.action_bar.button_for_key("transform_rotate").click()
-        self.assertTrue(_wait_for(app, lambda: len(host.calls) >= 1 and not tab._standalone_action_worker_active()))
+        self.assertTrue(_wait_for(app, lambda: len(sent_updates) >= 1 and not tab._standalone_action_worker_active()))
 
-        self.assertEqual(["vertices"], [name for name, _payload in host.calls])
-        self.assertEqual([0, 1], _i32_values(host.calls[0][1][0], "source_vertex_indices", "source_vertex_indices_binary"))
+        self.assertEqual([], host.calls)
+        self.assertEqual(
+            [0, 1],
+            _i32_values(
+                sent_updates[0].vertex_groups[0],
+                "source_vertex_indices",
+                "source_vertex_indices_binary",
+            ),
+        )
         self.assertNotEqual((-0.75, -0.75, 0.0), tab.standalone_controller.working_mesh().submeshes[0].vertices[0])
         self.assertIn("Revision: 1", tab.standalone_status_label.text())
         self.assertEqual(("Mesh Editor action applied: Rotate.", False), messages[-1])
         self.assertTrue(tab.action_bar.button_for_key("undo").isEnabled())
         tab.action_bar.button_for_key("undo").click()
-        self.assertTrue(_wait_for(app, lambda: len(host.calls) >= 3 and not tab._standalone_action_worker_active()))
+        self.assertTrue(_wait_for(app, lambda: len(sent_updates) >= 2 and not tab._standalone_action_worker_active()))
 
-        self.assertEqual(["vertices", "vertices", "selection"], [name for name, _payload in host.calls])
-        self.assertEqual([0, 1], _i32_values(host.calls[1][1][0], "source_vertex_indices", "source_vertex_indices_binary"))
+        self.assertEqual([], host.calls)
+        self.assertEqual(
+            [0, 1],
+            _i32_values(
+                sent_updates[1].vertex_groups[0],
+                "source_vertex_indices",
+                "source_vertex_indices_binary",
+            ),
+        )
         self.assertEqual((-0.75, -0.75, 0.0), tab.standalone_controller.working_mesh().submeshes[0].vertices[0])
         self.assertIn("Revision: 2", tab.standalone_status_label.text())
         app.processEvents()
@@ -3414,10 +3438,16 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 },
             ),
         )
+        sent_updates: list[MeshEditorNativeUpdate] = []
+        tab._standalone_dotnet_editor_process_running = lambda: True  # type: ignore[method-assign]
+        tab._send_dotnet_native_update = (  # type: ignore[method-assign]
+            lambda payload, **_kwargs: sent_updates.append(payload) or True
+        )
 
         self.assertTrue(tab._finish_standalone_action_execution(MeshEditorActionExecution(result, update), action_text="Brush"))
 
-        self.assertEqual(["vertices"], [name for name, _payload in host.calls])
+        self.assertEqual([], host.calls)
+        self.assertEqual([update], sent_updates)
         assert tab.standalone_last_action_result is not None
         self.assertEqual(1.25, tab.standalone_last_action_result.metrics["cpp_ms"])
         self.assertGreaterEqual(tab.standalone_last_action_result.metrics["d3d11_update_ms"], 0.0)
@@ -3438,7 +3468,9 @@ class MeshEditorActionBarTests(unittest.TestCase):
         update = MeshEditorNativeUpdate(vertex_groups=({"source_submesh_index": 0, "source_vertex_start": 0, "source_vertex_count": 1},))
 
         with patch.object(tab, "_refresh_standalone_preview", side_effect=AssertionError("python preview fallback")):
-            self.assertFalse(tab._apply_standalone_native_update(update))
+            self.assertFalse(
+                tab._apply_standalone_native_update(update, authoritative=False)
+            )
 
         self.assertEqual(["vertices"], [name for name, _payload in host.calls])
         self.assertIs(tab.standalone_native_host_frame, tab.standalone_preview_stack.currentWidget())
@@ -3772,7 +3804,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.standalone_dotnet_target_controller = builder.controller
         tab.standalone_dotnet_target_embedded = True
         sent_payloads: list[dict[str, object]] = []
-        native_updates: list[object] = []
+        native_updates: list[tuple[object, dict[str, object]]] = []
         command = MeshEditCommand(
             "select",
             selection=MeshEditSelection(),
@@ -3795,7 +3827,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 patch.object(
                     tab,
                     "_send_dotnet_native_update",
-                    side_effect=lambda update, **_kwargs: native_updates.append(update) or True,
+                    side_effect=lambda update, **kwargs: native_updates.append(
+                        (update, dict(kwargs))
+                    )
+                    or True,
                 ),
                 patch.object(
                     tab,
@@ -3826,9 +3861,9 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 if str(payload.get("event", "") or "") == "session_state"
             ]
             self.assertEqual(1, len(native_updates))
-            self.assertEqual(1, len(session_states))
-            self.assertNotIn("selection", session_states[0])
-            self.assertNotIn("geometry_layers", session_states[0])
+            self.assertEqual(0, len(session_states))
+            self.assertTrue(native_updates[0][1]["commit_embedded"])
+            self.assertIsNotNone(native_updates[0][0].session_view)
             self.assertEqual(
                 builder.controller.session_view().face_count,
                 sum(

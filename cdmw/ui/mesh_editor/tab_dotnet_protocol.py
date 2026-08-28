@@ -127,9 +127,117 @@ class MeshEditorDotNetProtocolMixin(
             kind="host_decision",
         )
 
+    def _reset_resident_mutation_ui_state(self) -> None:
+        self.standalone_dotnet_pending_mutation_commits.clear()
+        self.standalone_dotnet_recovery_failure_reported = False
+
+    def _finalize_resident_mutation_ui_commit(self, payload: Mapping[str, object]) -> None:
+        try:
+            request_id = int(payload.get("request_id", 0) or 0)
+        except (TypeError, ValueError, OverflowError):
+            return
+        pending = self.standalone_dotnet_pending_mutation_commits.get(request_id)
+        if pending is None:
+            return
+        metrics = self.standalone_dotnet_update_queue.metrics()
+        target_revision = int(pending.get("target_revision", 0) or 0)
+        status = str(payload.get("status", "") or "").strip().lower()
+        if (
+            status not in {"applied", "already_applied"}
+            or int(metrics.get("last_acked_revision", 0) or 0) < target_revision
+        ):
+            return
+        self.standalone_dotnet_pending_mutation_commits.pop(request_id, None)
+        result = pending.get("result")
+        update = pending.get("update")
+        if not isinstance(result, _tab.MeshEditResult) or not isinstance(update, _tab.MeshEditorNativeUpdate):
+            return
+        selection_result = str(result.action or "").strip().lower() in {
+            "select",
+            "clear_selection",
+        }
+        if bool(pending.get("commit_embedded")):
+            committed = self._commit_embedded_edit_result(
+                result,
+                command_name=str(pending.get("command_name", result.action) or result.action),
+                request_payload=pending.get("request_payload"),
+                authoritative_selection=(
+                    update.session_view.selection
+                    if selection_result and update.session_view is not None
+                    else None
+                ),
+                resident_history=bool(pending.get("resident_history")),
+            )
+            if not committed:
+                message = "Mesh Editor renderer synchronization failed. Reload the session to continue editing."
+                self._set_dotnet_status(message, error=True)
+                self.status_message_requested.emit(message, True)
+                self._request_or_stop_blocked_embedded_dotnet(
+                    "mesh_dotnet_embedded_commit_settlement_failed"
+                )
+                return
+            self._refresh_embedded_workspace_from_builder(
+                include_derived=not selection_result,
+                session_view=update.session_view if selection_result else None,
+            )
+            if selection_result:
+                self._refresh_embedded_active_selection_summary(
+                    selection=(
+                        update.session_view.selection
+                        if update.session_view is not None
+                        else None
+                    )
+                )
+        controller = self._dotnet_target_controller()
+        view = update.session_view
+        if view is None and controller is not None:
+            try:
+                view = controller.session_view()
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                view = None
+        if view is not None:
+            self.update_editor_session_state(
+                view,
+                active_selection_mode=str(
+                    getattr(controller, "active_selection_mode", "") or self.current_selection_mode
+                ),
+            )
+        if bool(pending.get("refresh_morph_state")):
+            self._send_dotnet_cached_morph_state(
+                request_payload=pending.get("request_payload")
+            )
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_resident_mutation_committed",
+            request_id=request_id,
+            edit_revision=target_revision,
+            command=str(result.action or "command"),
+        )
+
+    def _sync_resident_mutation_recovery_state(self) -> None:
+        metrics = self.standalone_dotnet_update_queue.metrics()
+        if bool(metrics.get("recovery_failed")):
+            if not self.standalone_dotnet_recovery_failure_reported:
+                self.standalone_dotnet_recovery_failure_reported = True
+                message = "Mesh Editor renderer synchronization failed. Reload the session to continue editing."
+                self._set_dotnet_status(message, error=True)
+                self.status_message_requested.emit(message, True)
+                self._record_mesh_dotnet_event(
+                    "mesh_dotnet_resident_mutation_recovery_failed",
+                    queue_metrics=metrics,
+                )
+        elif bool(metrics.get("resync_active")):
+            self.standalone_dotnet_recovery_failure_reported = False
+            self._set_dotnet_status(
+                "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable."
+            )
+        else:
+            self.standalone_dotnet_recovery_failure_reported = False
+        self._sync_state()
+
     def _connect_dotnet_protocol(self, process: _tab.QProcess) -> None:
         self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
+        self._reset_resident_mutation_ui_state()
         self.standalone_dotnet_update_queue.reset()
         self.standalone_dotnet_material_parameter_timer.stop()
         self.standalone_dotnet_pending_material_parameter_payload = None
@@ -234,6 +342,7 @@ class MeshEditorDotNetProtocolMixin(
             return
         self._record_mesh_dotnet_event("mesh_dotnet_update_ack_timeout", edit_revision=revision)
         self._sync_dotnet_update_ack_timer()
+        self._sync_resident_mutation_recovery_state()
     def _handle_dotnet_protocol_event(self, payload: Mapping[str, object]) -> bool:
         event = str(payload.get("event", payload.get("type", "")) or "").strip().lower()
         if not event:
@@ -256,10 +365,14 @@ class MeshEditorDotNetProtocolMixin(
             "preview_vertex_update_ack",
             "preview_triangle_update_ack",
             "resident_state_resync_ack",
+            "resident_mutation_batch_ack",
         }:
             self._append_dotnet_protocol_event(payload)
             handled = self.standalone_dotnet_update_queue.acknowledge(event, payload)
             self._sync_dotnet_update_ack_timer()
+            if event == "resident_mutation_batch_ack":
+                self._finalize_resident_mutation_ui_commit(payload)
+            self._sync_resident_mutation_recovery_state()
             if handled:
                 self._flush_pending_dotnet_live_stroke_presentation()
             return handled

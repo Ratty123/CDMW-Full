@@ -48,7 +48,7 @@ class MeshEditorActionsMixin:
             return False
         view = controller.session_view()
         self.update_editor_session_state(view, active_selection_mode=controller.active_selection_mode)
-        self._apply_standalone_native_update(update)
+        self._apply_standalone_native_update(update, result=result)
         summary = controller.workspace_summary()
         selected_names = ", ".join(part.name for part in summary.parts if part.selected)
         self.status_message_requested.emit(
@@ -88,7 +88,10 @@ class MeshEditorActionsMixin:
             return False
         self.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
         if execution.edit_result.ok:
-            self._apply_standalone_native_update(execution.native_update)
+            self._apply_standalone_native_update(
+                execution.native_update,
+                result=execution.edit_result,
+            )
             self._update_standalone_status()
             self.status_message_requested.emit(f"Mesh Editor part action applied: {normalized}.", False)
             return True
@@ -116,7 +119,10 @@ class MeshEditorActionsMixin:
                 controller.session_view(),
                 active_selection_mode=controller.active_selection_mode,
             )
-            self._apply_standalone_native_update(controller.native_update_for_result(result))
+            self._apply_standalone_native_update(
+                controller.native_update_for_result(result),
+                result=result,
+            )
             selected_sources = {clicked_index}
         return _tab.MeshEditSelection.from_maps(source_indices=selected_sources)
     def _run_standalone_action(self, action: object) -> bool:
@@ -195,7 +201,10 @@ class MeshEditorActionsMixin:
             native_host_was_available = self.standalone_native_host is not None
             native_update_has_payload = _native_update_has_payload(native_update)
             preview_started = time.perf_counter()
-            preview_updated = self._apply_standalone_native_update(native_update)
+            preview_updated = self._apply_standalone_native_update(
+                native_update,
+                result=edit_result if isinstance(edit_result, _tab.MeshEditResult) else None,
+            )
             preview_elapsed_ms = (time.perf_counter() - preview_started) * 1000.0
             if native_host_was_available:
                 metric_name = "d3d11_update_ms" if preview_updated else "d3d11_update_failed_ms"
@@ -255,10 +264,18 @@ class MeshEditorActionsMixin:
             return dict(tuple(getattr(action, "params", ()) or ()))
         except (TypeError, ValueError):
             return {}
-    def _apply_standalone_native_update(self, update: _tab.MeshEditorNativeUpdate) -> bool:
+    def _apply_standalone_native_update(
+        self,
+        update: _tab.MeshEditorNativeUpdate,
+        *,
+        result: _tab.MeshEditResult | None = None,
+        authoritative: bool = True,
+    ) -> bool:
+        if authoritative and self._standalone_dotnet_editor_process_running():
+            return self._send_dotnet_native_update(update, result=result)
         host = self.standalone_native_host
-        if host is not None:
-            if _tab.apply_native_update_to_host(host, update):
+        if not authoritative and host is not None:
+            if _tab.apply_native_update_to_host(host, update, authoritative=False):
                 if host is getattr(self, "standalone_native_host_frame", None):
                     self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
                 return True

@@ -671,6 +671,31 @@ def test_direct_result_update_invalidates_the_previous_revision_validation() -> 
     ):
         assert tab._apply_dotnet_result_update(controller, result, command_name="transform_move")
 
+    assert tab.standalone_last_export_validation_report is not None
+    update = controller.native_update_for_result(result)
+    resident_revision = controller.session_view().resident_revision
+    tab.standalone_dotnet_update_queue.set_context(
+        session_id=controller.active_session_id,
+        process_generation=1,
+        renderer_revision=resident_revision,
+    )
+    tab.standalone_dotnet_pending_mutation_commits[17] = {
+        "result": result,
+        "update": update,
+        "command_name": "transform_move",
+        "request_payload": {},
+        "commit_embedded": False,
+        "resident_history": False,
+        "target_revision": resident_revision,
+    }
+    tab._finalize_resident_mutation_ui_commit(
+        {
+            "request_id": 17,
+            "status": "applied",
+            "target_revision": resident_revision,
+        }
+    )
+
     assert tab.standalone_last_export_validation_report is None
     assert tab.standalone_export_validation_revision is None
     assert not tab._standalone_export_validation_ok()

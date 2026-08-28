@@ -40,7 +40,7 @@ from cdmw.ui.archive_browser.static_replacement_source_parts_state import (
     source_part_edit_undo_label,
     source_part_include_exclude_pending_reason,
 )
-from cdmw.ui.mesh_editor.controller import MeshEditorController
+from cdmw.ui.mesh_editor.controller import MeshEditorController, MeshEditorNativeUpdate
 from cdmw.ui.mesh_editor.static_replacement_adapter import StaticReplacementMeshEditSession
 from cdmw.ui.mesh_editor.tab_state import MeshEditorStateMixin
 from tools.mesh_editor_dev_harness import _build_two_part_synthetic_mesh
@@ -136,7 +136,7 @@ def test_resident_delete_commit_remaps_source_state_through_prompt_bridge() -> N
         _mesh_editor_store_result_mesh=lambda _result: None,
         _morph_slider_mark_topology_changed=lambda _reason: None,
         _mesh_edit_clear_topology_selection=lambda: None,
-        _mesh_editor_send_embedded_dotnet_update=lambda _update: True,
+        _mesh_editor_send_embedded_dotnet_update=lambda _update, **_kwargs: True,
         _mesh_editor_apply_result_native_update=lambda _result: False,
         _mesh_edit_update_mesh_totals=lambda: None,
         _mesh_editor_sync_static_replacement_session_to_working_mesh=lambda _reason: True,
@@ -454,7 +454,7 @@ def test_multi_duplicate_sync_preserves_part_metadata_routes_and_selection() -> 
     )
     actions = create_actions_callbacks(state, SimpleNamespace())
 
-    actions._mesh_editor_sync_new_source_part(
+    material_groups = actions._mesh_editor_sync_new_source_part(
         SimpleNamespace(new_submesh_source_indices=((2, 0), (3, 1)))
     )
 
@@ -471,13 +471,13 @@ def test_multi_duplicate_sync_preserves_part_metadata_routes_and_selection() -> 
     assert highlights == transforms == {2, 3}
     assert rebuilt == [((2, 3), 2)]
     assert embedded_selections == [(2, 3)]
-    assert len(resident_groups) == 1
-    assert [group["source_submesh_indices"] for group in resident_groups[0]] == [[2], [3]]
-    assert resident_groups[0][0]["material_role"] == "glow"
-    assert resident_groups[0][0]["emissive_intensity"] == 2.5
-    assert resident_groups[0][1]["material_role"] == "cloth"
-    assert resident_groups[0][1]["emissive_intensity"] is None
-    assert resident_groups[0][1]["visible"] is True
+    assert resident_groups == []
+    assert [group["source_submesh_indices"] for group in material_groups] == [[2], [3]]
+    assert material_groups[0]["material_role"] == "glow"
+    assert material_groups[0]["emissive_intensity"] == 2.5
+    assert material_groups[1]["material_role"] == "cloth"
+    assert material_groups[1]["emissive_intensity"] is None
+    assert material_groups[1]["visible"] is True
 
 
 def test_resident_part_commit_does_not_touch_hidden_legacy_preview() -> None:
@@ -492,7 +492,7 @@ def test_resident_part_commit_does_not_touch_hidden_legacy_preview() -> None:
         _mesh_editor_action_result_changed=lambda _result: True,
         _mesh_editor_action_result_within_allowed_scope=lambda _result: True,
         _mesh_editor_store_result_mesh=lambda _result: None,
-        _mesh_editor_send_embedded_dotnet_update=lambda _update: calls.append("resident") or True,
+        _mesh_editor_send_embedded_dotnet_update=lambda _update, **_kwargs: calls.append("resident") or True,
         _mesh_editor_apply_result_native_update=lambda _result: calls.append("legacy") or True,
         _mesh_edit_update_mesh_totals=lambda: None,
         _mesh_edit_commit_geometry_preview_state=lambda: None,
@@ -513,23 +513,116 @@ def test_resident_part_commit_does_not_touch_hidden_legacy_preview() -> None:
     assert calls == ["resident"]
 
 
+def test_static_builder_sender_unwraps_the_authoritative_service_result() -> None:
+    sent: list[tuple[object, dict[str, object]]] = []
+    inner_result = SimpleNamespace(action="duplicate")
+    state = SimpleNamespace(
+        dialog=SimpleNamespace(
+            _mesh_editor_embedded_send_native_update=lambda update, **kwargs: (
+                sent.append((update, dict(kwargs))),
+                True,
+            )[-1]
+        )
+    )
+    actions = create_actions_callbacks(state, SimpleNamespace())
+
+    assert actions._mesh_editor_send_embedded_dotnet_update(
+        "native-update",
+        result=SimpleNamespace(edit_result=inner_result),
+        request_payload={"request_id": 77},
+    )
+
+    assert sent[0][0] == "native-update"
+    assert sent[0][1]["result"] is None
+    assert sent[0][1]["request_payload"] == {
+        "request_id": 77,
+        "command": "duplicate",
+    }
+    assert sent[0][1]["commit_embedded"] is False
+
+
+def test_new_part_material_state_is_folded_into_the_topology_transaction() -> None:
+    order: list[str] = []
+    published: list[MeshEditorNativeUpdate] = []
+    state = SimpleNamespace(
+        context={},
+        self=SimpleNamespace(set_status_message=lambda *_args, **_kwargs: None),
+        mesh_edit_revision={"value": 0},
+        _mesh_edit_topology_changed_status_helper=lambda _action: "topology changed",
+        _morph_slider_topology_changed_reason_text_helper=lambda: "topology changed",
+        _refresh_source_tree_selection_state=lambda: None,
+        _refresh_source_assignment_columns=lambda: None,
+    )
+    copied_material = {
+        "source_submesh_indices": [1],
+        "editor_role": "replacement_preview",
+        "roughness": 0.35,
+    }
+    callbacks = SimpleNamespace(
+        _mesh_editor_action_result_changed=lambda _result: True,
+        _mesh_editor_action_result_within_allowed_scope=lambda _result: True,
+        _mesh_editor_store_result_mesh=lambda _result: None,
+        _morph_slider_mark_topology_changed=lambda _reason: None,
+        _mesh_edit_clear_topology_selection=lambda: None,
+        _mesh_editor_sync_static_replacement_session_to_working_mesh=lambda _reason: True,
+        _mesh_editor_sync_new_source_part=lambda _result: (
+            order.append("metadata"),
+            (copied_material,),
+        )[-1],
+        _mesh_editor_send_embedded_dotnet_update=lambda update, **_kwargs: (
+            order.append("transaction"),
+            published.append(update),
+            True,
+        )[-1],
+        _mesh_editor_apply_result_native_update=lambda _result: False,
+        _mesh_edit_update_mesh_totals=lambda: None,
+        _mesh_edit_refresh_replacement_preview_model=lambda **_kwargs: None,
+        _mesh_edit_commit_geometry_preview_state=lambda: None,
+        _refresh_mesh_edit_controls=lambda: None,
+        _mesh_edit_replace_live_triangles_or_queue_rebuild=lambda _indices: None,
+    )
+    actions = create_actions_callbacks(state, callbacks)
+    update = MeshEditorNativeUpdate(
+        triangle_groups=({"source_submesh_index": 1, "indices": [0, 1, 2]},),
+        triangle_source_submesh_indices=(1,),
+    )
+
+    assert actions._mesh_editor_commit_action_bar_service_result(
+        SimpleNamespace(
+            edit_result=SimpleNamespace(topology_changed=True, submesh_count_delta=1),
+            native_update=update,
+            affected_submesh_indices=(1,),
+        ),
+        action_key="duplicate",
+        action_text="Clone Part",
+        topology_action=True,
+    )
+
+    assert order == ["metadata", "transaction"]
+    assert published[0].material_override_groups == (copied_material,)
+
+
 def test_embedded_list_selection_replaces_resident_viewport_selection_exactly() -> None:
     controller = MeshEditorController()
     controller.open_mesh(_build_two_part_synthetic_mesh(), session_id="embedded-list-sync", mode="edit")
     updates: list[object] = []
-    refreshes: list[bool] = []
+    send_arguments: list[dict[str, object]] = []
     owner = SimpleNamespace(
         _embedded_builder_controller=lambda: controller,
-        _apply_embedded_native_update=lambda update: updates.append(update) or True,
-        _send_embedded_dotnet_native_update=lambda update: updates.append(update) or True,
-        _refresh_embedded_workspace_from_builder=lambda: refreshes.append(True),
+        _send_embedded_dotnet_native_update=lambda update, **kwargs: (
+            updates.append(update),
+            send_arguments.append(dict(kwargs)),
+            True,
+        )[-1],
+        _standalone_dotnet_editor_process_running=lambda: True,
     )
     try:
         assert MeshEditorStateMixin._set_embedded_part_selection(owner, (1, 0, 1))
         assert controller.session_view().selection.source_indices == (0, 1)
-        assert len(updates) == 2
+        assert len(updates) == 1
         assert all(update.refresh_selection for update in updates)
-        assert refreshes == [True]
+        assert send_arguments[0]["result"].action == "select"
+        assert send_arguments[0]["commit_embedded"] is True
     finally:
         controller.close_active_session()
 

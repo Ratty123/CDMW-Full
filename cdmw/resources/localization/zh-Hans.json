@@ -4273,6 +4273,8 @@
     "Mesh Editor preview launch failed.": "网格体编辑器预览启动失败。",
     "Mesh Editor preview preparation failed.": "网格体编辑器预览准备失败。",
     "Mesh Editor preview renderer is unavailable.": "网格体编辑器预览渲染器不可用。",
+    "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Mesh Editor 正在与渲染器同步。编辑暂时不可用。",
+    "Mesh Editor renderer synchronization failed. Reload the session to continue editing.": "Mesh Editor 渲染器同步失败。请重新加载会话以继续编辑。",
     "Mesh Editor resumed draft for {value_0}.": "Mesh Editor resumed draft for {value_0}.",
     "Mesh Editor selected {value_0} part(s){value_1}.": "网格体编辑器选择了 {value_0} 零件{value_1}。",
     "Mesh Editor selection dispatcher is stopping.": "Mesh Editor selection dispatcher is stopping.",

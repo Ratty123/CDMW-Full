@@ -271,6 +271,7 @@ class DotNetRevisionUpdateQueue:
         self._capable = False
         self._correlated = False
         self._atomic_batch = False
+        self._degraded_mode = False
         self._session_id = ""
         self._process_generation = 0
         self._request_sequence = 0
@@ -328,6 +329,7 @@ class DotNetRevisionUpdateQueue:
         self._capable = False
         self._correlated = False
         self._atomic_batch = False
+        self._degraded_mode = False
         self._active_revision = 0
         self._active_request_id = 0
         self._active_acks.clear()
@@ -365,6 +367,14 @@ class DotNetRevisionUpdateQueue:
     def last_acked_revision(self) -> int:
         return self._last_acked_revision
 
+    @property
+    def next_base_revision(self) -> int:
+        if self._pending:
+            return self._pending[-1].revision
+        if self._active_revision > 0:
+            return self._active_revision
+        return self._last_acked_revision
+
     def reserve_request_id(self, preferred: int = 0) -> int:
         requested = max(0, int(preferred))
         if requested > 0:
@@ -392,6 +402,11 @@ class DotNetRevisionUpdateQueue:
             self._correlation_conflicts += 1
             return False
         return self.enqueue(batch.target_revision, (batch.as_protocol_payload(),))
+
+    def fail_degraded_mutation(self, payload: Mapping[str, object]) -> None:
+        _remove_paths(_owned_payload_paths(payload))
+        self._degraded_mode = True
+        self._recovery_failed = True
 
     @staticmethod
     def _packets(revision: int, packets: Sequence[Mapping[str, object]]) -> tuple[dict[str, object], ...]:
@@ -726,6 +741,7 @@ class DotNetRevisionUpdateQueue:
             "revision_ack_capable": self._capable,
             "correlated_ack_capable": self._correlated,
             "mutation_batch_capable": self._atomic_batch,
+            "degraded_mode": self._degraded_mode,
             "active_revision": self._active_revision,
             "active_request_id": self._active_request_id,
             "pending_depth": len(self._pending),

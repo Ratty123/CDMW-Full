@@ -4,6 +4,52 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class ExperimentForm
 {
+    private sealed record ResidentMutationHistoryUiState(
+        bool? UndoEnabled,
+        bool? RedoEnabled,
+        string[] Items,
+        int TopIndex);
+
+    private ResidentMutationHistoryUiState CaptureResidentMutationHistoryState()
+    {
+        return new ResidentMutationHistoryUiState(
+            _undoButton?.Enabled,
+            _redoButton?.Enabled,
+            _actionHistoryList.Items.Cast<object>()
+                .Select(item => item?.ToString() ?? string.Empty)
+                .ToArray(),
+            _actionHistoryList.TopIndex);
+    }
+
+    private void RestoreResidentMutationHistoryState(ResidentMutationHistoryUiState state)
+    {
+        if (_undoButton is not null && state.UndoEnabled.HasValue)
+        {
+            _undoButton.Enabled = state.UndoEnabled.Value;
+        }
+        if (_redoButton is not null && state.RedoEnabled.HasValue)
+        {
+            _redoButton.Enabled = state.RedoEnabled.Value;
+        }
+        _actionHistoryList.BeginUpdate();
+        try
+        {
+            _actionHistoryList.Items.Clear();
+            _actionHistoryList.Items.AddRange(state.Items.Cast<object>().ToArray());
+            if (_actionHistoryList.Items.Count > 0)
+            {
+                _actionHistoryList.TopIndex = Math.Clamp(
+                    state.TopIndex,
+                    0,
+                    _actionHistoryList.Items.Count - 1);
+            }
+        }
+        finally
+        {
+            _actionHistoryList.EndUpdate();
+        }
+    }
+
     private void ApplyHistoryState(JsonElement root)
     {
         var undoCount = Math.Max(0, JsonLongValue(root, "undo_count"));

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import replace
 from functools import partial
 from types import SimpleNamespace
 
 from cdmw.ui.archive_browser.static_replacement_dotnet_material_bridge import (
-    send_resident_material_parameters,
     source_part_material_parameter_groups_for_mesh,
 )
 
@@ -209,14 +210,18 @@ def _mesh_editor_action_result_within_allowed_scope(_state, _callbacks, result: 
     }
     return not unsafe_indices
 
-def _mesh_editor_sync_new_source_part(_state, _callbacks, result: object) -> None:
+def _mesh_editor_sync_new_source_part(
+    _state,
+    _callbacks,
+    result: object,
+) -> tuple[dict[str, object], ...]:
     pairs = tuple(getattr(result, "new_submesh_source_indices", ()) or ())
     if not pairs:
         new_index = int(getattr(result, "new_submesh_index", -1) or -1)
         source_index = int(getattr(result, "source_submesh_index", -1) or -1)
         pairs = ((new_index, source_index),) if new_index >= 0 else ()
     if not pairs:
-        return
+        return ()
     adjustments = _state.context.get("source_part_adjustments") or {}
     role_overrides = _state.context.get("source_role_overrides") or {}
     display_overrides = _state.context.get("source_display_overrides") or {}
@@ -255,11 +260,11 @@ def _mesh_editor_sync_new_source_part(_state, _callbacks, result: object) -> Non
                 )
     new_indices = tuple(new_index for new_index, _source_index in pairs)
     mesh = getattr(getattr(_state, '_mesh_edit_state', None), 'replacement_mesh_for_mapping', None)
+    resident_material_groups: tuple[dict[str, object], ...] = ()
     if mesh is not None:
-        groups = source_part_material_parameter_groups_for_mesh(
+        resident_material_groups = source_part_material_parameter_groups_for_mesh(
             mesh, adjustments, _state.StaticSourcePartAdjustment, source_indices=new_indices
         )
-        send_resident_material_parameters(getattr(_state, 'dialog', None), groups)
     _state.selected_source_part["index"] = new_indices[0]
     for name in ("selected_source_highlight_indices", "transform_source_indices"):
         values = _state.context.get(name)
@@ -278,10 +283,31 @@ def _mesh_editor_sync_new_source_part(_state, _callbacks, result: object) -> Non
     )
     if callable(set_embedded_selection):
         set_embedded_selection(new_indices)
+    return resident_material_groups
 
-def _mesh_editor_send_embedded_dotnet_update(_state, _callbacks, update: object) -> bool:
+def _mesh_editor_send_embedded_dotnet_update(
+    _state,
+    _callbacks,
+    update: object,
+    *,
+    result: object | None = None,
+    request_payload: object | None = None,
+) -> bool:
     sender = getattr(_state.dialog, "_mesh_editor_embedded_send_native_update", None)
-    return bool(callable(sender) and sender(update))
+    edit_result = getattr(result, "edit_result", result)
+    correlated = dict(request_payload) if isinstance(request_payload, Mapping) else {}
+    action = str(getattr(edit_result, "action", "") or "").strip()
+    if action and "command" not in correlated:
+        correlated["command"] = action
+    return bool(
+        callable(sender)
+        and sender(
+            update,
+            result=None,
+            request_payload=correlated,
+            commit_embedded=False,
+        )
+    )
 
 def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
         result: object,
@@ -290,6 +316,7 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
         action_text: str,
         topology_action: bool,
         native_update_already_applied: bool = False,
+        request_payload: object | None = None,
         undo_snapshot_recorded: bool = True,
         geometry_snapshot_recorded: bool = True,
     ) -> bool:
@@ -325,19 +352,7 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
             _callbacks._mesh_edit_set_selection_state(authoritative_selection)
         else:
             _callbacks._mesh_edit_clear_topology_selection()
-    # A command the editor itself raised has already had its preview payload
-    # pushed on the way back through the protocol; sending it again would only
-    # repaint what is already on screen.
-    native_update_applied = bool(native_update_already_applied)
-    if not native_update_applied:
-        native_update_applied = _callbacks._mesh_editor_send_embedded_dotnet_update(
-            getattr(result, "native_update", None)
-        )
-    if not native_update_applied:
-        native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)
-    _callbacks._mesh_edit_update_mesh_totals()
-    if not native_update_applied:
-        _callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)
+    additional_material_groups: tuple[dict[str, object], ...] = ()
     _state.mesh_edit_revision["value"] = int(_state.mesh_edit_revision.get("value", 0) or 0) + 1
     if actual_topology_action and _callbacks._mesh_editor_sync_static_replacement_session_to_working_mesh(
         f"mesh_edit.{action_key}"
@@ -353,8 +368,38 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
                     previous_source_count=int(getattr(result, "previous_submesh_count", 0) or 0),
                 )
         else:
-            _callbacks._mesh_editor_sync_new_source_part(result)
+            additional_material_groups = tuple(
+                _callbacks._mesh_editor_sync_new_source_part(result) or ()
+            )
         _callbacks._mesh_edit_update_mesh_totals()
+    native_update = getattr(result, "native_update", None)
+    if native_update is not None and additional_material_groups:
+        try:
+            native_update = replace(
+                native_update,
+                material_override_groups=(
+                    tuple(getattr(native_update, "material_override_groups", ()) or ())
+                    + additional_material_groups
+                ),
+            )
+        except TypeError:
+            pass
+    # A command the editor itself raised has already had its transaction pushed
+    # on the way back through the protocol; sending it again would duplicate the
+    # same request. Host-originated actions publish only after their new-part
+    # material state has been folded into that one transaction.
+    native_update_applied = bool(native_update_already_applied)
+    if not native_update_applied:
+        native_update_applied = _callbacks._mesh_editor_send_embedded_dotnet_update(
+            native_update,
+            result=result,
+            request_payload=request_payload,
+        )
+    if not native_update_applied:
+        native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)
+    _callbacks._mesh_edit_update_mesh_totals()
+    if not native_update_applied:
+        _callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)
     _callbacks._mesh_edit_commit_geometry_preview_state()
     _state._refresh_source_tree_selection_state()
     _state._refresh_source_assignment_columns()
@@ -495,7 +540,14 @@ def _mesh_editor_embedded_set_skeleton_bone(_state, _callbacks, bone_index: obje
     except (TypeError, ValueError, RuntimeError):
         return False
 
-def _mesh_editor_embedded_run_part_action(_state, _callbacks, action_key: str, source_indices: object) -> bool:
+def _mesh_editor_embedded_run_part_action(
+    _state,
+    _callbacks,
+    action_key: str,
+    source_indices: object,
+    *,
+    request_payload: object | None = None,
+) -> bool:
     normalized = str(action_key or "").strip().lower()
     if normalized in {"undo", "redo"}:
         history_action = getattr(_callbacks, f"_mesh_edit_{normalized}", None)
@@ -551,6 +603,7 @@ def _mesh_editor_embedded_run_part_action(_state, _callbacks, action_key: str, s
         action_key=normalized,
         action_text=action_text,
         topology_action=normalized in {"delete", "duplicate"},
+        request_payload=request_payload,
     )
 
 

@@ -3,8 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Mapping, Sequence
 
-from PySide6.QtCore import QTimer
-
+from cdmw.domain.mesh.resident_mutation import ResidentMutationBatch
 from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_dotnet_material_parameters import (
@@ -39,6 +38,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "process_generation": self.standalone_dotnet_process_generation,
             "mode": view.mode,
             "revision": view.revision,
+            "edit_revision": view.resident_revision,
             # Two keys because they are two things. `selection_mode` is the drag
             # gesture the helper whitelists as brush/lasso/rectangle; an element
             # kind arriving here was silently ignored by it and reset the
@@ -97,7 +97,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "session_id": state.session_id or view.session_id,
             "process_generation": self.standalone_dotnet_process_generation,
             "revision": view.revision,
-            "edit_revision": view.revision,
+            "edit_revision": view.resident_revision,
             "native_edit_revision": state.edit_revision,
             "state_revision": state.state_revision,
             "change_id": state.change_id,
@@ -325,8 +325,17 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         if authoritative_geometry_pending:
             payload["authoritative_geometry_pending"] = True
         if revision is not None:
-            payload["revision"] = int(revision)
-            payload["edit_revision"] = int(revision)
+            protocol_revision = max(0, int(revision))
+            if request_payload is not None:
+                try:
+                    protocol_revision = max(
+                        protocol_revision,
+                        int(request_payload.get("base_revision", 0) or 0),
+                    )
+                except (TypeError, ValueError, OverflowError):
+                    pass
+            payload["revision"] = protocol_revision
+            payload["edit_revision"] = protocol_revision
         if request_payload is not None:
             for key in (
                 "session_id",
@@ -345,40 +354,110 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 diagnostics=tuple(str(item) for item in diagnostics),
             )
         return self._send_dotnet_protocol_message(payload)
-    def _send_dotnet_native_update(
+    def _resident_mutation_batch_for_update(
         self,
         update: _tab.MeshEditorNativeUpdate,
         *,
         result: _tab.MeshEditResult | None = None,
         request_payload: Mapping[str, object] | None = None,
-    ) -> bool:
+    ) -> ResidentMutationBatch | None:
         controller = self._dotnet_target_controller()
-        session_id = ""
-        revision = None
-        selection: _tab.MeshEditSelection | None = None
-        if controller is not None:
-            view = update.session_view
-            if view is None:
-                try:
-                    view = controller.session_view()
-                except (AttributeError, RuntimeError, TypeError, ValueError):
-                    view = None
-            if view is not None:
-                session_id = view.session_id
-                revision = view.revision
-                selection = view.selection
-        base: dict[str, object] = {}
-        if session_id:
-            base["session_id"] = session_id
-        if revision is not None:
-            base["edit_revision"] = int(revision)
-            base["revision"] = int(revision)
+        if controller is None:
+            return None
+        view = update.session_view
+        if view is None:
+            try:
+                view = controller.session_view()
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                return None
+        session_id = str(view.session_id or "").strip()
+        process_generation = max(0, int(self.standalone_dotnet_process_generation or 0))
+        target_revision = max(0, int(view.resident_revision or 0))
+        if not session_id or process_generation <= 0 or target_revision <= 0:
+            return None
+        queue = self.standalone_dotnet_update_queue
+        preferred_request_id = 0
         if request_payload is not None:
-            for key in ("request_id", "base_revision", "process_generation", "protocol_version"):
-                if key in request_payload:
-                    base[key] = request_payload[key]
-        if update.material_override_groups:
-            self.apply_resident_material_parameters(update.material_override_groups)
+            try:
+                preferred_request_id = max(0, int(request_payload.get("request_id", 0) or 0))
+            except (TypeError, ValueError, OverflowError):
+                preferred_request_id = 0
+        request_id = queue.reserve_request_id(preferred_request_id)
+        base_revision = queue.next_base_revision
+        if target_revision <= base_revision:
+            return None
+        topology_update = None
+        if update.triangle_groups or update.triangle_source_submesh_indices or update.replace_all_triangles:
+            topology_update = {
+                "triangle_groups": [dict(group) for group in update.triangle_groups],
+                "triangle_source_submesh_indices": list(update.triangle_source_submesh_indices),
+                "replace_all_triangles": bool(update.replace_all_triangles),
+                "final_submesh_count": update.final_submesh_count,
+            }
+        material_updates, material_affected = self._normalized_dotnet_material_parameter_groups(
+            update.material_override_groups
+        )
+        selection_update = (
+            self._dotnet_selection_payload(view.selection)
+            if update.refresh_selection
+            else None
+        )
+        affected: set[int] = set(material_affected)
+        if result is not None:
+            affected.update(int(index) for index in tuple(result.affected_submesh_indices or ()) if int(index) >= 0)
+        for group in update.vertex_groups:
+            try:
+                affected.add(int(group.get("source_submesh_index", -1)))
+            except (TypeError, ValueError, OverflowError):
+                continue
+        affected.update(int(index) for index in update.triangle_source_submesh_indices if int(index) >= 0)
+        affected.discard(-1)
+        action = str(getattr(result, "action", "") or "").strip()
+        if not action and request_payload is not None:
+            action = str(
+                request_payload.get("command", request_payload.get("event", "")) or ""
+            ).strip()
+        return ResidentMutationBatch(
+            session_id=session_id,
+            process_generation=process_generation,
+            request_id=request_id,
+            base_revision=base_revision,
+            target_revision=target_revision,
+            action=action or "native_update",
+            vertex_updates=tuple(dict(group) for group in update.vertex_groups),
+            topology_update=topology_update,
+            material_updates=tuple(material_updates),
+            selection_update=selection_update,
+            history_state={
+                "undo_count": view.undo_count,
+                "redo_count": view.redo_count,
+                "history_cursor": view.history_cursor,
+                "history_entries": [
+                    {
+                        "action": entry.action,
+                        "label": entry.label,
+                        "state": entry.state,
+                    }
+                    for entry in view.history_entries
+                ],
+            },
+            final_submesh_count=update.final_submesh_count,
+            affected_submesh_indices=tuple(affected),
+        )
+
+    def _legacy_dotnet_native_update_packets(
+        self,
+        update: _tab.MeshEditorNativeUpdate,
+        batch: ResidentMutationBatch,
+    ) -> list[dict[str, object]]:
+        base: dict[str, object] = {}
+        base["session_id"] = batch.session_id
+        base["edit_revision"] = batch.target_revision
+        base["revision"] = batch.target_revision
+        base["request_id"] = batch.request_id
+        base["base_revision"] = batch.base_revision
+        base["process_generation"] = batch.process_generation
+        base["protocol_version"] = 2
         edit_packets: list[dict[str, object]] = []
         if update.vertex_groups:
             edit_packets.append({
@@ -400,16 +479,88 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             edit_packets.append({
                 **base,
                 "event": "selection_update",
-                "selection": self._dotnet_selection_payload(selection or _tab.MeshEditSelection()),
+                "selection": dict(batch.selection_update or {}),
                 "selection_groups": update.selection_groups,
             })
-        queued = self.standalone_dotnet_update_queue.enqueue(
-            int(revision or 0),
-            edit_packets,
+        return edit_packets
+
+    def _send_dotnet_native_update(
+        self,
+        update: _tab.MeshEditorNativeUpdate,
+        *,
+        result: _tab.MeshEditResult | None = None,
+        request_payload: Mapping[str, object] | None = None,
+        commit_embedded: bool = False,
+        resident_history: bool = False,
+        refresh_morph_state: bool = False,
+    ) -> bool:
+        batch = self._resident_mutation_batch_for_update(
+            update,
+            result=result,
+            request_payload=request_payload,
         )
+        has_payload = bool(
+            update.vertex_groups
+            or update.triangle_groups
+            or update.triangle_source_submesh_indices
+            or update.material_override_groups
+            or update.refresh_selection
+            or update.replace_all_triangles
+        )
+        if batch is None:
+            if has_payload:
+                return False
+            if result is not None:
+                return self._send_dotnet_command_result(
+                    result.action,
+                    ok=str(result.status or "").strip().lower() != "error",
+                    status=str(result.status or ""),
+                    revision=result.revision,
+                    diagnostics=result.diagnostics,
+                    request_payload=request_payload,
+                )
+            return True
+        queue = self.standalone_dotnet_update_queue
+        edit_packets: list[dict[str, object]]
+        if queue.mutation_batch_capable:
+            edit_packets = [batch.as_protocol_payload()]
+            queued = queue.enqueue_mutation_batch(batch)
+        else:
+            edit_packets = self._legacy_dotnet_native_update_packets(update, batch)
+            safe_v2_single_surface = (
+                len(edit_packets) == 1
+                and edit_packets[0].get("event")
+                in {
+                    "preview_vertex_update",
+                    "preview_triangle_update",
+                    "selection_update",
+                }
+                and not update.material_override_groups
+                and not refresh_morph_state
+            )
+            if not safe_v2_single_surface:
+                queue.fail_degraded_mutation(batch.as_protocol_payload())
+                queued = False
+            else:
+                queued = queue.enqueue(batch.target_revision, edit_packets)
         if queued:
             self.standalone_dotnet_update_ack_start_timer.start(0)
-        elif result is not None and edit_packets:
+            if result is not None and queue.mutation_batch_capable:
+                self.standalone_dotnet_pending_mutation_commits[batch.request_id] = {
+                    "result": result,
+                    "update": update,
+                    "command_name": str(result.action or "command"),
+                    "request_payload": dict(request_payload or {}),
+                    "commit_embedded": bool(commit_embedded),
+                    "resident_history": bool(resident_history),
+                    "refresh_morph_state": bool(refresh_morph_state),
+                    "target_revision": batch.target_revision,
+                }
+            self._sync_resident_mutation_recovery_state()
+        elif edit_packets:
+            self._sync_resident_mutation_recovery_state()
+            if result is None:
+                return False
             failure_code = "mesh_dotnet_native_update_enqueue_failed"
             diagnostics = (
                 f"Mesh .NET editor command failed: {failure_code}",
@@ -417,8 +568,8 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_native_update_enqueue_failed",
                 command=str(result.action or "command"),
-                request_id=int((request_payload or {}).get("request_id", 0) or 0),
-                revision=int(revision or 0),
+                request_id=batch.request_id,
+                revision=batch.target_revision,
                 packet_events=tuple(
                     str(packet.get("event", "") or "") for packet in edit_packets
                 ),
@@ -428,7 +579,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 result.action,
                 ok=False,
                 status="error",
-                revision=result.revision,
+                revision=batch.target_revision,
                 diagnostics=diagnostics,
                 request_payload=request_payload,
             )
@@ -441,7 +592,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 result.action,
                 ok=str(result.status or "").strip().lower() != "error",
                 status=str(result.status or ""),
-                revision=result.revision,
+                revision=batch.target_revision,
                 diagnostics=result.diagnostics,
                 request_payload=request_payload,
                 authoritative_geometry_pending=(
@@ -543,9 +694,16 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "select",
             "clear_selection",
         }
-        if self.standalone_dotnet_target_embedded:
-            if not selection_result:
-                self._apply_embedded_native_update(update)
+        has_update_payload = bool(
+            update.vertex_groups
+            or update.triangle_groups
+            or update.triangle_source_submesh_indices
+            or update.selection_groups
+            or update.refresh_selection
+            or update.material_override_groups
+            or update.replace_all_triangles
+        )
+        if self.standalone_dotnet_target_embedded and not has_update_payload:
             self._commit_embedded_edit_result(
                 result,
                 command_name=command_name,
@@ -560,23 +718,16 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 include_derived=not selection_result,
                 session_view=update.session_view if selection_result else None,
             )
-        elif (
-            update.vertex_groups
-            or update.triangle_groups
-            or update.triangle_source_submesh_indices
-            or update.selection_groups
-            or update.refresh_selection
-            or update.material_override_groups
-            or update.replace_all_triangles
-        ):
-            if not selection_result:
-                self._refresh_standalone_export_validation(update.session_view)
-            self._apply_standalone_native_update(update)
-            QTimer.singleShot(0, self._sync_state)
         presentation_sent = self._send_dotnet_native_update(
             update,
             result=result,
             request_payload=request_payload,
+            commit_embedded=bool(self.standalone_dotnet_target_embedded and has_update_payload),
+            refresh_morph_state=(
+                (command_name or result.action).strip().lower().startswith("morph_")
+                or (command_name or result.action).strip().lower() in {"undo", "redo"}
+                or result.topology_changed
+            ),
         )
         if not presentation_sent:
             failure_code = "mesh_dotnet_native_update_publish_failed"
@@ -591,19 +742,17 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             else:
                 self._stop_standalone_dotnet_editor_process(embedded_state="failed")
             return False
-        self._send_dotnet_session_state(
-            include_selection=not selection_result,
-            session_view=update.session_view if selection_result else None,
-        )
-        if selection_result and self.standalone_dotnet_target_embedded:
-            self._refresh_embedded_active_selection_summary(
-                selection=(
-                    update.session_view.selection
-                    if update.session_view is not None
-                    else None
-                )
-            )
         normalized_command = (command_name or result.action).strip().lower()
-        if normalized_command.startswith("morph_") or normalized_command in {"undo", "redo"} or result.topology_changed:
+        refresh_morph_state = (
+            normalized_command.startswith("morph_")
+            or normalized_command in {"undo", "redo"}
+            or result.topology_changed
+        )
+        if not has_update_payload:
+            self._send_dotnet_session_state(
+                include_selection=not selection_result,
+                session_view=update.session_view if selection_result else None,
+            )
+        if refresh_morph_state and not has_update_payload:
             self._send_dotnet_cached_morph_state(request_payload=request_payload)
         return str(result.status or "").strip().lower() != "error"

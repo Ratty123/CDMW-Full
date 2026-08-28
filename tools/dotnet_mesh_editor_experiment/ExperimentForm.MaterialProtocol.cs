@@ -459,6 +459,8 @@ internal sealed partial class ExperimentForm
             _residentSessionProvisional = provisional;
             _residentSessionReleased = false;
             _lastObservedSessionRevision = ProtocolEditRevision(root);
+            _lastAppliedEditRevision = _lastObservedSessionRevision;
+            _viewport.SetAuthoritativeEditRevision(_lastAppliedEditRevision);
             ResetSelectionGestureDefaultsForSession();
             // A textured mode picked before this session existed is owed now.
             ReplayPendingResidentDisplayRequest();
@@ -489,6 +491,8 @@ internal sealed partial class ExperimentForm
             // Neither a placeholder's history nor the released session's belongs
             // to anything the arriving session did.
             _lastObservedSessionRevision = ProtocolEditRevision(root);
+            _lastAppliedEditRevision = _lastObservedSessionRevision;
+            _viewport.SetAuthoritativeEditRevision(_lastAppliedEditRevision);
             WriteProtocolEvent("session_rebound", new Dictionary<string, object?>
             {
                 ["session_id"] = sessionId,
@@ -501,6 +505,11 @@ internal sealed partial class ExperimentForm
         if (!provisional)
         {
             // The same id promoted from placeholder to authoritative.
+            if (_residentSessionProvisional)
+            {
+                _lastAppliedEditRevision = ProtocolEditRevision(root);
+                _viewport.SetAuthoritativeEditRevision(_lastAppliedEditRevision);
+            }
             _residentSessionProvisional = false;
         }
         // The owner came back for its own helper, so its release is withdrawn.

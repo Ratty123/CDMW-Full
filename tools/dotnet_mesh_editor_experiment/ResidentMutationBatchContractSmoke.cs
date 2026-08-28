@@ -35,7 +35,8 @@ internal static class ResidentMutationBatchContractSmoke
             && preparedVertex is not null
             && preparedVertex.VertexGroups.Count == 1
             && preparedVertex.MaterialUpdate is not null
-            && preparedVertex.Selection is not null;
+            && preparedVertex.Selection is not null
+            && preparedVertex.HistoryState.GetProperty("undo_count").GetInt32() == 1;
 
         var live = TriangleDocument();
         var before = Fingerprint(live);
@@ -281,6 +282,21 @@ internal static class ResidentMutationBatchContractSmoke
             ["protocol_version"] = 3,
             ["action"] = topology.Length > 0 ? "topology" : "transform",
             ["affected_submesh_indices"] = new[] { 0 },
+            ["history_state"] = new Dictionary<string, object?>
+            {
+                ["undo_count"] = 1,
+                ["redo_count"] = 0,
+                ["history_cursor"] = 1,
+                ["history_entries"] = new object[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["action"] = "transform",
+                        ["label"] = "Move",
+                        ["state"] = "applied",
+                    },
+                },
+            },
             ["vertex_updates"] = vertex
                 ? new object[]
                 {

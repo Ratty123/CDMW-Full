@@ -70,6 +70,9 @@ def remember_sent_material_resources(
         staged = {
             "session_id": str(payload.get("session_id", "") or ""),
             "edit_revision": int(payload.get("edit_revision", 0) or 0),
+            "mesh_revision": int(
+                payload.get("mesh_revision", payload.get("edit_revision", 0)) or 0
+            ),
             "generation": int(payload.get("generation", 0) or 0),
             "bindings": tuple(dict(binding) for binding in bindings if isinstance(binding, Mapping)),
             "parameter_groups": tuple(
@@ -138,7 +141,9 @@ def commit_acknowledged_material_resources(tab: object, payload: Mapping[str, ob
                 parameter_groups=tuple(staged.get("parameter_groups", ()) or ()),
                 material_authority_fingerprint=staged_fingerprint,
                 material_authority_revision=int(staged.get("material_authority_revision", 0) or 0),
-                expected_mesh_revision=int(staged.get("edit_revision", 0) or 0),
+                expected_mesh_revision=int(
+                    staged.get("mesh_revision", staged.get("edit_revision", 0)) or 0
+                ),
             )
         else:
             if tuple(staged.get("parameter_groups", ()) or ()) or staged_fingerprint:
@@ -146,7 +151,9 @@ def commit_acknowledged_material_resources(tab: object, payload: Mapping[str, ob
             commit_resources(
                 str(staged.get("session_id", "") or ""),
                 tuple(staged.get("bindings", ()) or ()),
-                expected_mesh_revision=int(staged.get("edit_revision", 0) or 0),
+                expected_mesh_revision=int(
+                    staged.get("mesh_revision", staged.get("edit_revision", 0)) or 0
+                ),
             )
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         tab.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
@@ -175,7 +182,9 @@ def commit_acknowledged_material_parameters(tab: object, payload: Mapping[str, o
         commit(
             str(staged.get("session_id", "") or ""),
             tuple(staged.get("groups", ()) or ()),
-            expected_mesh_revision=int(staged.get("edit_revision", 0) or 0),
+            expected_mesh_revision=int(
+                staged.get("mesh_revision", staged.get("edit_revision", 0)) or 0
+            ),
         )
     except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
         tab.standalone_dotnet_lifecycle_counts["material_parameter_failed_count"] += 1

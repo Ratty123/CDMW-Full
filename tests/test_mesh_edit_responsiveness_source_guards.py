@@ -328,9 +328,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("self._refresh_standalone_preview()", update_body)
         stroke_start = tab_source.index("def _apply_standalone_native_mesh_edit_stroke(")
         stroke_body = tab_source[stroke_start: tab_source.index("def _standalone_native_mesh_edit_stroke_command(", stroke_start)]
-        self.assertIn("if not self._apply_standalone_native_update(native_update):", stroke_body)
+        self.assertIn("if not self._apply_standalone_native_update(native_update, result=result):", stroke_body)
         failure_branch = stroke_body[
-            stroke_body.index("if not self._apply_standalone_native_update(native_update):"):
+            stroke_body.index("if not self._apply_standalone_native_update(native_update, result=result):"):
         ]
         self.assertIn("\n                return\n", failure_branch)
 
@@ -1701,7 +1701,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('lower_copy(json_string_field(group, "preview_backend")) == "cdmw_mesh_core"', preview_native_source)
         self.assertIn("source_to_preview_position_for_batch(batch, position)", preview_native_source)
         self.assertIn("mesh_edit_source_world_transform_for_batch(batch)", preview_native_source)
-        self.assertIn("if _state.alignment_d3d11_preview_host.update_mesh_edit_vertices(groups):", main_source)
+        self.assertIn('_state.MeshEditorNativeUpdate(vertex_groups=tuple(groups))', main_source)
+        self.assertNotIn("alignment_d3d11_preview_host.update_mesh_edit_vertices(groups)", main_source)
         self.assertIn("def _mesh_edit_source_indices_from_groups(_state, _callbacks, groups: _state.Iterable[_state.Mapping[str, object]]) -> tuple[int, ...]:", main_source)
         self.assertIn('"mesh_edit_live_vertex_update_failed"', main_source)
         self.assertIn("if source_indices and _callbacks._mesh_edit_replace_live_triangles(source_indices):", main_source)
@@ -2639,11 +2640,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         replace_triangles_body = _function_source(main_source, "_mesh_edit_replace_live_triangles")
         self.assertIn("requested_source_indices = _state._mesh_edit_requested_source_indices_helper(", replace_triangles_body)
         self.assertIn("if groups or requested_source_indices:", replace_triangles_body)
-        self.assertIn("if _state.alignment_d3d11_preview_host.replace_mesh_edit_triangles(", replace_triangles_body)
+        self.assertIn("update = _state.MeshEditorNativeUpdate(", replace_triangles_body)
+        self.assertIn("if callable(sender) and sender(update, commit_embedded=False):", replace_triangles_body)
+        self.assertNotIn("alignment_d3d11_preview_host.replace_mesh_edit_triangles(", replace_triangles_body)
         self.assertIn('"mesh_edit_live_triangle_replace_failed"', replace_triangles_body)
         self.assertLess(
             replace_triangles_body.index("if groups or requested_source_indices:"),
-            replace_triangles_body.index("if _state.alignment_d3d11_preview_host.replace_mesh_edit_triangles("),
+            replace_triangles_body.index("if callable(sender) and sender(update, commit_embedded=False):"),
         )
         self.assertIn("def _mesh_edit_replace_live_triangles_or_queue_rebuild(_state, _callbacks, source_indices: _state.Iterable[int], *, replace_all: bool = False) -> None:", main_source)
         helper_body = _function_source(main_source, "_mesh_edit_replace_live_triangles_or_queue_rebuild")
@@ -3020,7 +3023,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             source,
         )
         self.assertIn("transformed_sources_by_index = _callbacks._mesh_edit_transformed_sources_for_live_preview", source)
-        self.assertIn("alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", source)
+        self.assertNotIn("alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", source)
+        self.assertIn("_callbacks._mesh_edit_sync_d3d11_selection()", source)
         self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(source_indices)", source)
 
     def test_action_bar_sculpt_tools_select_live_brush_and_move_stays_selection_drag(self) -> None:
@@ -6140,7 +6144,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn(".NET/Vortice mesh edit preview produced no vertex update payload; preview is stale.", flush_body)
         self.assertLess(
             flush_body.index("if not groups:"),
-            flush_body.index("_state.alignment_d3d11_preview_host.update_mesh_edit_vertices(groups)"),
+            flush_body.index('sender = getattr('),
         )
         self.assertIn(
             "if changed_vertices_by_submesh and not immediate and _state._alignment_d3d11_preview_active():",
@@ -6316,7 +6320,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("source_indices=selected_sources", source)
         self.assertIn("for _state.element_only_control in (", source)
         self.assertIn("_state.element_only_control.setVisible(False)", source)
-        self.assertIn("from cdmw.ui.mesh_editor.controller import apply_native_update_to_host", source)
+        self.assertNotIn("from cdmw.ui.mesh_editor.controller import apply_native_update_to_host", source)
         self.assertIn("from cdmw.ui.mesh_editor.static_replacement_adapter import StaticReplacementMeshEditSession", source)
         self.assertNotIn("mesh_editor_apply_static_replacement_edit = context.get", source)
         self.assertNotIn("return apply_static_replacement_edit(mesh, action, **params)", source)
@@ -6324,7 +6328,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("active static Mesh Editor edit requires a native session", source)
         self.assertIn("def _mesh_editor_apply_static_replacement_edit(_state, _callbacks, mesh, action: str, **params: object):", source)
         self.assertIn("def _mesh_editor_apply_native_update(_state, _callbacks, native_update: object) -> bool:", source)
-        self.assertIn("return _state.apply_native_update_to_host(_state.alignment_d3d11_preview_host, native_update)", source)
+        self.assertIn('sender = getattr(_state.dialog, "_mesh_editor_embedded_send_native_update", None)', source)
+        self.assertIn("and sender(native_update, commit_embedded=False)", source)
+        self.assertNotIn("apply_native_update_to_host(\n        _state.alignment_d3d11_preview_host", source)
         self.assertIn("mesh_editor_static_replacement_session_state", source)
         self.assertIn("_mesh_editor_embedded_session_id", source)
         self.assertIn('session_id = f"static-replacement-{uuid4().hex}"', source)
@@ -6415,13 +6421,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)", split_commit_body)
         self.assertIn("if not native_update_applied:", split_commit_body)
         self.assertIn("_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild((source_index, new_source_index))", split_commit_body)
-        self.assertIn("_state.alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", split_commit_body)
+        self.assertIn("_callbacks._mesh_edit_clear_topology_selection()", split_commit_body)
+        self.assertNotIn("alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", split_commit_body)
         self.assertIn("_state.appended_source_indices.add(new_source_index)", split_commit_body)
         self.assertIn('_state.selected_source_part["index"] = new_source_index', split_commit_body)
         self.assertNotIn("source_part_adjustments[new_source_index]", split_commit_body)
         self.assertNotIn("deepcopy(source_adjustment)", split_commit_body)
         self.assertLess(
-            split_commit_body.index("if _state._alignment_d3d11_preview_active():"),
+            split_commit_body.index("_callbacks._mesh_edit_clear_topology_selection()"),
             split_commit_body.index("_callbacks._mesh_editor_apply_result_native_update(result)"),
         )
         self.assertLess(
@@ -6491,7 +6498,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _mesh_edit_current_selection(_state, _callbacks, ) -> _state.MeshEditSelection:", source)
         self.assertIn("def _mesh_edit_sync_d3d11_selection(_state, _callbacks, ) -> bool:", source)
         selection_sync_body = _function_source(source, "_mesh_edit_sync_d3d11_selection")
-        self.assertIn('getattr(_state.alignment_d3d11_preview_host, "set_mesh_edit_selection_groups", None)', selection_sync_body)
+        self.assertIn('"_mesh_editor_embedded_send_native_update"', selection_sync_body)
+        self.assertIn("_state.MeshEditorNativeUpdate(", selection_sync_body)
         self.assertIn("selection = _callbacks._mesh_edit_current_selection()", selection_sync_body)
         self.assertIn("groups = _state.mesh_edit_selection_groups(", selection_sync_body)
         self.assertIn("selection,", selection_sync_body)

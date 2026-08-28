@@ -19,10 +19,15 @@ class MeshEditorEmbeddedPartsMixin(MeshEditorDotNetPresentationMixin):
             update = controller.native_update_for_result(result)
         except (TypeError, ValueError, RuntimeError):
             return False
-        self._apply_embedded_native_update(update)
-        self._send_embedded_dotnet_native_update(update)
-        self._refresh_embedded_workspace_from_builder()
-        return True
+        published = self._send_embedded_dotnet_native_update(
+            update,
+            result=result,
+            commit_embedded=True,
+        )
+        if not published and not self._standalone_dotnet_editor_process_running():
+            self._refresh_embedded_workspace_from_builder()
+            return True
+        return published
 
     def _handle_embedded_part_selection(self, part_index: int, operation: str = "toggle") -> bool:
         controller = self._embedded_builder_controller()
@@ -49,9 +54,16 @@ class MeshEditorEmbeddedPartsMixin(MeshEditorDotNetPresentationMixin):
         except Exception as exc:
             self.status_message_requested.emit(f"Embedded Mesh Editor part selection failed: {exc}", True)
             return False
-        self._apply_embedded_native_update(update)
-        self._send_embedded_dotnet_native_update(update)
-        self._refresh_embedded_workspace_from_builder()
+        published = self._send_embedded_dotnet_native_update(
+            update,
+            result=result,
+            commit_embedded=True,
+        )
+        if not published and not self._standalone_dotnet_editor_process_running():
+            self._refresh_embedded_workspace_from_builder()
+            published = True
+        if not published:
+            return False
         selected_names = ", ".join(part.name for part in controller.workspace_summary().parts if part.selected)
         self.status_message_requested.emit(
             f"Embedded Mesh Editor selected {len(controller.session_view().selection.source_indices)} part(s){': ' + selected_names if selected_names else ''}.",
@@ -74,10 +86,17 @@ class MeshEditorEmbeddedPartsMixin(MeshEditorDotNetPresentationMixin):
         if clicked_index not in selected_sources:
             result = controller.select(source_indices=(clicked_index,), operation="replace")
             update = controller.native_update_for_result(result)
-            self._apply_embedded_native_update(update)
-            self._send_embedded_dotnet_native_update(update)
+            published = self._send_embedded_dotnet_native_update(
+                update,
+                result=result,
+                commit_embedded=True,
+            )
+            if not published and not self._standalone_dotnet_editor_process_running():
+                self._refresh_embedded_workspace_from_builder()
+                published = True
+            if not published:
+                return None
             selected_sources = {clicked_index}
-            self._refresh_embedded_workspace_from_builder()
         return _tab.MeshEditSelection.from_maps(source_indices=selected_sources)
 
     def _handle_embedded_part_context_action(self, action_key: str, part_index: int) -> bool:
@@ -156,9 +175,15 @@ class MeshEditorEmbeddedPartsMixin(MeshEditorDotNetPresentationMixin):
                 True,
             )
             return False
-        self._apply_embedded_native_update(controller.native_update_for_result(result))
-        self._refresh_embedded_workspace_from_builder()
-        return True
+        published = self._send_embedded_dotnet_native_update(
+            controller.native_update_for_result(result),
+            result=result,
+            commit_embedded=True,
+        )
+        if not published and not self._standalone_dotnet_editor_process_running():
+            self._refresh_embedded_workspace_from_builder()
+            return True
+        return published
     def _handle_embedded_uv_lasso_selection(self, points: tuple, operation: str) -> bool:
         controller = self._embedded_builder_controller()
         if controller is None:
@@ -175,9 +200,15 @@ class MeshEditorEmbeddedPartsMixin(MeshEditorDotNetPresentationMixin):
                 True,
             )
             return False
-        self._apply_embedded_native_update(controller.native_update_for_result(result))
-        self._refresh_embedded_workspace_from_builder()
-        return True
+        published = self._send_embedded_dotnet_native_update(
+            controller.native_update_for_result(result),
+            result=result,
+            commit_embedded=True,
+        )
+        if not published and not self._standalone_dotnet_editor_process_running():
+            self._refresh_embedded_workspace_from_builder()
+            return True
+        return published
     def _handle_embedded_native_part_selected(self, part_index: int) -> bool:
         return self._handle_embedded_part_selection(part_index, "toggle")
     def _show_embedded_part_context_menu(self, part_index: int, global_pos: object | None = None) -> bool:

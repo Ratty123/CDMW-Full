@@ -462,7 +462,15 @@ def _flush_mesh_edit_live_vertex_updates(_state, _callbacks, ) -> None:
                 source_indices=pending_source_indices,
             )
             return
-        if _state.alignment_d3d11_preview_host.update_mesh_edit_vertices(groups):
+        sender = getattr(
+            getattr(_state, "dialog", None),
+            "_mesh_editor_embedded_send_native_update",
+            None,
+        )
+        if callable(sender) and sender(
+            _state.MeshEditorNativeUpdate(vertex_groups=tuple(groups)),
+            commit_embedded=False,
+        ):
             return
         source_indices = _callbacks._mesh_edit_source_indices_from_groups(groups)
         _callbacks._record_mesh_edit_event(

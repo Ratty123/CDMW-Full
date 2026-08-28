@@ -88,8 +88,7 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.standalone_pending_dotnet_topology_request = None
         self.standalone_pending_dotnet_live_stroke_outcome = None
         self.standalone_dotnet_update_queue = _QueueState()
-        self.applied_revisions: list[int] = []
-        self.applied_update_count = 0
+        self.direct_apply_count = 0
         self.committed_revisions: list[int] = []
         self.sent_revisions: list[int] = []
         self.sent_request_ids: list[int] = []
@@ -103,6 +102,7 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.forwarded_session_views: list[MeshEditSessionView | None] = []
         self.forwarded_selections: list[MeshEditSelection | None] = []
         self.resident_history_commits: list[bool] = []
+        self.deferred_commit_flags: list[tuple[bool, bool]] = []
 
     def _dotnet_target_controller(self):
         return self.controller
@@ -137,14 +137,8 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
     def _apply_dotnet_result_update(self, controller, result, *, command_name: str = "") -> bool:
         del command_name
         update = controller.native_update_for_result(result)
-        self._apply_embedded_native_update(update)
         self._send_dotnet_native_update(update, result=result)
         return result.status != "error"
-
-    def _apply_embedded_native_update(self, update: MeshEditorNativeUpdate) -> bool:
-        self.applied_update_count += 1
-        self.applied_revisions.extend(int(group["revision"]) for group in update.vertex_groups)
-        return True
 
     def _commit_embedded_edit_result(
         self,
@@ -172,8 +166,20 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.workspace_refreshes.append(bool(include_derived))
         self.forwarded_session_views.append(session_view)
 
-    def _send_dotnet_native_update(self, _update, *, result=None, request_payload=None) -> bool:
+    def _send_dotnet_native_update(
+        self,
+        _update,
+        *,
+        result=None,
+        request_payload=None,
+        commit_embedded=False,
+        resident_history=False,
+        refresh_morph_state=False,
+    ) -> bool:
         self.sent_update_count += 1
+        self.deferred_commit_flags.append(
+            (bool(commit_embedded), bool(resident_history))
+        )
         if result is not None:
             self.sent_revisions.append(int(result.revision))
             self.sent_request_ids.append(int((request_payload or {}).get("request_id", 0)))
@@ -610,11 +616,12 @@ def test_dotnet_stroke_updates_return_quickly_coalesce_and_apply_final_revision(
         # The correlated queue is the sole helper geometry route. Applying the
         # same native update directly used a fresh request id and was rejected
         # whenever a provisional stroke was active.
-        assert harness.applied_revisions == []
+        assert harness.direct_apply_count == 0
         assert harness.sent_revisions == [1, 2, 3, 4]
         assert harness.sent_request_ids == [1, 2, 4, 5]
-        assert harness.committed_revisions == [4]
-        assert harness.resident_history_commits == [True]
+        assert harness.committed_revisions == []
+        assert harness.deferred_commit_flags[-1] == (True, True)
+        assert harness.resident_history_commits == []
         assert harness.command_results == [("transform", "coalesced")]
         assert harness.standalone_native_mesh_edit_stroke_id == ""
         # Every completed dispatch persists the apply's own timing breakdown to
@@ -727,7 +734,7 @@ def test_selection_updates_defer_full_ui_payload_until_terminal_authority(termin
         )
         harness._handle_dotnet_live_stroke_completed(intermediate)
 
-        assert harness.applied_update_count == 0
+        assert harness.direct_apply_count == 0
         assert harness.sent_update_count == 0
         assert harness.command_results == [
             ("select", "coalesced"),
@@ -749,16 +756,17 @@ def test_selection_updates_defer_full_ui_payload_until_terminal_authority(termin
         # embedded host is the same helper process, so applying it directly as
         # well would serialize and parse the full selection twice on the UI
         # threads after mouse-up.
-        assert harness.applied_update_count == 0
+        assert harness.direct_apply_count == 0
         assert harness.sent_update_count == 1
         assert harness.sent_revisions == [2]
         assert harness.sent_request_ids == [42]
-        assert harness.committed_revisions == [2]
-        assert harness.workspace_refreshes == [False]
-        assert harness.session_state_selection_flags == [False]
-        assert harness.selection_summary_refreshes == 1
-        assert harness.forwarded_session_views == [authority_view, authority_view]
-        assert harness.forwarded_selections == [authority, authority]
+        assert harness.committed_revisions == []
+        assert harness.deferred_commit_flags[-1] == (True, False)
+        assert harness.workspace_refreshes == []
+        assert harness.session_state_selection_flags == []
+        assert harness.selection_summary_refreshes == 0
+        assert harness.forwarded_session_views == []
+        assert harness.forwarded_selections == []
         assert harness.standalone_native_selection_stroke_id == ""
         completion = [
             payload

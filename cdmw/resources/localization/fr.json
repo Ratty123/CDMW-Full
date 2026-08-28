@@ -4273,6 +4273,8 @@
     "Mesh Editor preview launch failed.": "Le lancement de l'aperçu de l'éditeur de maillage a échoué.",
     "Mesh Editor preview preparation failed.": "La préparation de l'aperçu de l'éditeur de maillage a échoué.",
     "Mesh Editor preview renderer is unavailable.": "Le moteur de rendu d'aperçu de l'éditeur de maillage n'est pas disponible.",
+    "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Mesh Editor se synchronise avec le moteur de rendu. La modification est temporairement indisponible.",
+    "Mesh Editor renderer synchronization failed. Reload the session to continue editing.": "La synchronisation de Mesh Editor avec le moteur de rendu a échoué. Rechargez la session pour continuer les modifications.",
     "Mesh Editor resumed draft for {value_0}.": "Mesh Editor resumed draft for {value_0}.",
     "Mesh Editor selected {value_0} part(s){value_1}.": "L'éditeur de maillage a sélectionné une ou plusieurs pièces {value_0}{value_1}.",
     "Mesh Editor selection dispatcher is stopping.": "Mesh Editor selection dispatcher is stopping.",
