@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -292,12 +291,10 @@ class ArchiveFilterStateMixin:
         extension_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
         extension_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         extension_tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        count_brush = QBrush(QColor("#48fbbf24"))
-        group_brush = QBrush(QColor("#4893c5fd"))
         all_count = sum(int(count) for count in extension_counts.values())
         all_item = QTreeWidgetItem(extension_tree, ["All files", f"{all_count:,}", "All"])
         all_item.setData(0, Qt.UserRole, "*")
-        all_item.setBackground(1, count_brush)
+        self._style_archive_role_columns(all_item, "Other", 0, 1, 2)
 
         grouped: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
         for extension, count in sorted(extension_counts.items(), key=lambda item: (-item[1], item[0])):
@@ -322,16 +319,12 @@ class ArchiveFilterStateMixin:
             group_total = sum(count for _extension, count in values)
             group_item = QTreeWidgetItem(extension_tree, [group_name, f"{group_total:,}", group_name])
             group_item.setData(0, Qt.UserRole, "")
-            group_item.setBackground(0, group_brush)
-            group_item.setBackground(1, count_brush)
+            self._style_archive_role_columns(group_item, group_name, 0, 1, 2)
             group_item.setExpanded(True)
             for extension, count in values:
                 child = QTreeWidgetItem(group_item, [extension, f"{count:,}", group_name])
                 child.setData(0, Qt.UserRole, extension)
-                role_tint = self._archive_role_color(group_name)
-                role_tint.setAlpha(72)
-                child.setBackground(0, QBrush(role_tint))
-                child.setBackground(1, count_brush)
+                self._style_archive_role_columns(child, group_name, 0, 1, 2)
                 if extension == current_value:
                     selected_item = child
         if selected_item is not None:

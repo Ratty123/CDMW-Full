@@ -43,7 +43,7 @@ PROVIDER_SOURCE_HASHES = {
     'cdmw/ui/archive_browser/files_panel.py': '7a3200e9962105826a149daecec16fcaa5deec4623c7363c03016a4e0a513cd4',
     'cdmw/ui/archive_browser/filter_controls.py': '068121e472235c1f2dd62e0b067cef26732bd575caaac20c614dbc7927e6e5bc',
     'cdmw/ui/archive_browser/filter_workers.py': 'a69590c7b83f10d92414f5a4ef67a64a3a5cd2c89cba4a88f6aaf31fc21d46d9',
-    'cdmw/ui/archive_browser/filters.py': '31dd40c386c21eeaea9556f9bd73b0d742ac098a00a232f6dbfb0d202a276b7c',
+    'cdmw/ui/archive_browser/filters.py': '88df596a1dc0a624c0d45f3eb14cca347219fb2ff169ba119a9c143d6b1c88a5',
     'cdmw/ui/archive_browser/header.py': 'ffa9b6932a7b4dfed0639e0372cd95568a693e509bacf9bbf1d501e93108cbfa',
     'cdmw/ui/archive_browser/hkx_document_actions.py': '0fb1a4e992dc42fa55eaa7ab5542d8fe34d9460a7cde1333217191de5a264724',
     'cdmw/ui/archive_browser/hkx_editor_dialog.py': 'b1ffb23b954b846d94c49db15bbbc18cba29af21023126ba343366a24082be99',

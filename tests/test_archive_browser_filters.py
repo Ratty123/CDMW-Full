@@ -5,11 +5,12 @@ import os
 import threading
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QComboBox, QPushButton, QToolButton
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QPushButton, QToolButton, QTreeWidget, QWidget
 
 from cdmw.domain.archives.catalogue import ArchiveFacet, ArchiveFacetsResult
 from cdmw.domain.archives.filters import (
@@ -27,6 +28,7 @@ from cdmw.ui.archive_browser.filters import (
 from cdmw.ui.archive_browser.filter_controls import ArchiveFilterControlsMixin
 from cdmw.ui.archive_browser.filter_workers import _record_archive_filter_worker_lifecycle
 from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge
+from cdmw.ui.archive_browser.ui_formatting import ArchiveUiFormattingMixin
 from cdmw.ui.archive_browser.workers import _record_archive_worker_lifecycle
 from cdmw.ui.texture_workflow.workflow_profiles_panel import TextureWorkflowProfilesPanelMixin
 
@@ -108,6 +110,57 @@ class ArchiveBrowserFilterTests(unittest.TestCase):
         self.assertEqual(".pac", host._combo_value(host.archive_extension_filter_combo))
         self.assertEqual(".pac (12,962)", host.archive_extension_filter_combo.currentText())
         self.assertIs(app, QApplication.instance())
+
+    def test_extension_picker_uses_one_distinct_group_tint_across_every_column(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        host_type = type(
+            "ArchiveExtensionPickerHost",
+            (
+                ArchiveFilterStateMixin,
+                ArchiveUiFormattingMixin,
+                TextureWorkflowProfilesPanelMixin,
+                QWidget,
+            ),
+            {},
+        )
+        host = host_type()
+        host.archive_entries_by_extension = {}
+        host.archive_extension_counts = Counter({".pac": 12, ".dds": 4, ".prefab": 2})
+        host.archive_entries = []
+        host.archive_extension_filter_combo = QComboBox()
+        host._add_combo_choice(host.archive_extension_filter_combo, ".dds", ".dds")
+
+        try:
+            with patch.object(QDialog, "exec", return_value=QDialog.Rejected):
+                host._open_archive_extension_picker()
+
+            dialog = host.findChild(QDialog)
+            self.assertIsNotNone(dialog)
+            extension_tree = dialog.findChild(QTreeWidget)
+            self.assertIsNotNone(extension_tree)
+
+            group_rows = {
+                extension_tree.topLevelItem(index).text(0): extension_tree.topLevelItem(index)
+                for index in range(1, extension_tree.topLevelItemCount())
+            }
+            expected_groups = ("Model / Mesh / Physics", "Texture / Image", "Material / Metadata")
+            self.assertEqual(set(expected_groups), set(group_rows))
+
+            group_colors: list[int] = []
+            for group_name in expected_groups:
+                group_item = group_rows[group_name]
+                child_item = group_item.child(0)
+                group_backgrounds = tuple(group_item.background(column).color().rgba() for column in range(3))
+                child_backgrounds = tuple(child_item.background(column).color().rgba() for column in range(3))
+                self.assertEqual(1, len(set(group_backgrounds)))
+                self.assertEqual(group_backgrounds, child_backgrounds)
+                group_colors.append(group_backgrounds[0])
+
+            self.assertEqual(len(expected_groups), len(set(group_colors)))
+            self.assertIs(app, QApplication.instance())
+        finally:
+            host.deleteLater()
+            app.processEvents()
 
     def test_archive_browser_entry_category_uses_asset_extension_and_path(self) -> None:
         self.assertEqual("Texture", archive_browser_entry_category(_entry("texture/foo.dds")))

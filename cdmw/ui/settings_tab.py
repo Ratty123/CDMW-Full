@@ -142,6 +142,13 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         settings_workspace_layout.setSpacing(0)
         root_layout.addWidget(settings_workspace, stretch=1)
 
+        self.section_nav_panel = QWidget()
+        self.section_nav_panel.setObjectName("SettingsSectionNavPanel")
+        self.section_nav_panel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        section_nav_layout = QVBoxLayout(self.section_nav_panel)
+        section_nav_layout.setContentsMargins(0, 0, 0, 0)
+        section_nav_layout.setSpacing(0)
+
         self.section_nav_list = QListWidget()
         self.section_nav_list.setObjectName("SettingsSectionNav")
         self.section_nav_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -149,7 +156,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.section_nav_list.setAlternatingRowColors(False)
         self.section_nav_list.setSpacing(1)
         self.section_nav_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        settings_workspace_layout.addWidget(self.section_nav_list, 0, Qt.AlignTop)
+        section_nav_layout.addWidget(self.section_nav_list, 0, Qt.AlignTop)
+        settings_workspace_layout.addWidget(self.section_nav_panel)
 
         self.section_stack = QStackedWidget()
         settings_workspace_layout.addWidget(self.section_stack, stretch=1)
@@ -1120,6 +1128,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             + (self.section_nav_list.count() * row_height)
             + (max(0, self.section_nav_list.count() - 1) * self.section_nav_list.spacing())
         )
+        self.section_nav_panel.setFixedWidth(nav_width)
         self.section_nav_list.setFixedWidth(nav_width)
         self.section_nav_list.setFixedHeight(nav_height)
         for row in range(self.section_nav_list.count()):

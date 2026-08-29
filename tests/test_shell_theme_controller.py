@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
 from cdmw.ui.settings_tab import SettingsTab
 from cdmw.ui.app_icon import resolve_app_icon_path
 from cdmw.services.settings_service import create_settings
-from cdmw.ui.shell.compact.config import COMPACT_SHELL_VARIANT, SHELL_VARIANT_SETTING
+from cdmw.ui.shell.compact.config import COMPACT_SHELL_VARIANT, LEGACY_SHELL_VARIANT, SHELL_VARIANT_SETTING
 from cdmw.ui.shell.theme_controller import (
     ThemeChangeBusyOverlay,
     ThemeControllerMixin,
@@ -294,6 +294,44 @@ class ShellThemeControllerTests(unittest.TestCase):
                     UI_THEME_SCHEMES["crimson_desert"]["surface_alt"],
                     tab.section_nav_list.palette().color(QPalette.Base).name(),
                 )
+                self.assertGreater(tab.section_nav_panel.height(), tab.section_nav_list.height())
+                self.assertEqual(
+                    UI_THEME_SCHEMES["crimson_desert"]["surface_alt"],
+                    tab.section_nav_panel.palette().color(QPalette.Window).name(),
+                )
+            finally:
+                tab.deleteLater()
+                app.processEvents()
+                app.setStyleSheet(previous_style_sheet)
+                app.setPalette(previous_palette)
+
+    @_isolated_qt_test
+    def test_settings_navigation_panel_matches_the_list_background_in_every_classic_theme(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        previous_palette = QPalette(app.palette())
+        previous_style_sheet = app.styleSheet()
+        with tempfile.TemporaryDirectory(prefix="cdmw-settings-theme-") as temp_dir:
+            settings = create_settings(settings_file_path=Path(temp_dir) / "settings.cfg")
+            settings.setValue(SHELL_VARIANT_SETTING, LEGACY_SHELL_VARIANT)
+            tab = SettingsTab(settings=settings, theme_key="graphite")
+            try:
+                tab.resize(900, 700)
+                tab.show()
+                for theme_key, theme in UI_THEME_SCHEMES.items():
+                    with self.subTest(theme=theme_key):
+                        app.setPalette(build_app_palette(theme_key))
+                        app.setStyleSheet(build_app_stylesheet(theme_key))
+                        app.processEvents()
+
+                        self.assertGreater(tab.section_nav_panel.height(), tab.section_nav_list.height())
+                        self.assertEqual(
+                            theme["field"],
+                            tab.section_nav_list.palette().color(QPalette.Base).name(),
+                        )
+                        self.assertEqual(
+                            theme["field"],
+                            tab.section_nav_panel.palette().color(QPalette.Window).name(),
+                        )
             finally:
                 tab.deleteLater()
                 app.processEvents()

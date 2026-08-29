@@ -150,6 +150,9 @@ def build_app_palette(theme_key: str) -> QPalette:
 
 def _settings_navigation_stylesheet(theme: Dict[str, str]) -> str:
     return f"""
+    QWidget#SettingsSectionNavPanel {{
+        background: {theme["field"]};
+    }}
     QListWidget#SettingsSectionNav {{
         background: {theme["field"]};
         border: 1px solid {theme["border_strong"]};

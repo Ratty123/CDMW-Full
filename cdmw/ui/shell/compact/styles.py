@@ -256,6 +256,9 @@ def _compact_workspace_stylesheet(theme: Dict[str, str]) -> str:
         padding: 4px 8px 5px 8px;
         min-height: 16px;
     }}
+    QWidget[compactPresentation="true"] QWidget#SettingsSectionNavPanel {{
+        background: {theme["surface_alt"]};
+    }}
     QWidget[compactPresentation="true"] QListWidget#SettingsSectionNav {{
         background: {theme["surface_alt"]};
         border: none;
