@@ -1,4 +1,4 @@
-"""Regenerate explicit whole-repository size-ratchet baselines."""
+"""Regenerate the whole-repository oversized-function ratchet baselines."""
 
 from __future__ import annotations
 
@@ -14,9 +14,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tests.test_architecture_size_ratchets import (  # noqa: E402
-    FILE_LINE_LIMIT,
     FUNCTION_LINE_LIMIT,
-    _current_size_data,
+    _current_oversized_functions,
 )
 
 
@@ -66,28 +65,23 @@ def _partition_functions(functions: dict[str, int]) -> dict[str, dict[str, int]]
 
 
 def main() -> int:
-    current = _current_size_data()
+    functions = _current_oversized_functions()
     baseline_root = ROOT / "tests"
     _write_json_atomic(
         baseline_root / "architecture_size_baseline.json",
         {
-            "files": {},
             "functions": {},
-            "limits": {"file_lines": FILE_LINE_LIMIT, "function_lines": FUNCTION_LINE_LIMIT},
+            "limits": {"function_lines": FUNCTION_LINE_LIMIT},
             "schema": 1,
         },
     )
-    _write_json_atomic(
-        baseline_root / "architecture_size_baseline_files.json",
-        {"files": current["files"]},
-    )
-    partitions = _partition_functions(current["functions"])
-    for name, functions in partitions.items():
+    partitions = _partition_functions(functions)
+    for name, partition_functions in partitions.items():
         _write_json_atomic(
             baseline_root / f"architecture_size_baseline_functions_{name}.json",
-            {"functions": functions},
+            {"functions": partition_functions},
         )
-    print(f"Recorded {len(current['files'])} oversized files and {len(current['functions'])} oversized functions.")
+    print(f"Recorded {len(functions)} oversized functions.")
     return 0
 
 

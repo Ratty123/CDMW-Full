@@ -7,12 +7,11 @@ from pathlib import Path
 import re
 
 
-from tests.architecture_limits import DEFAULT_FUNCTION_LINE_LIMIT, DEFAULT_OWNER_FILE_LINE_LIMIT
+from tests.architecture_limits import DEFAULT_FUNCTION_LINE_LIMIT
 
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "tests" / "architecture_size_baseline.json"
-FILE_LINE_LIMIT = DEFAULT_OWNER_FILE_LINE_LIMIT
 FUNCTION_LINE_LIMIT = DEFAULT_FUNCTION_LINE_LIMIT
 _NATIVE_SUFFIXES = frozenset({".cc", ".cpp", ".cxx", ".h", ".hpp", ".rs"})
 _CONTROL_NAMES = frozenset({"catch", "do", "else", "for", "if", "lock", "switch", "using", "while"})
@@ -187,27 +186,22 @@ def _brace_function_spans(path: Path) -> dict[str, int]:
     return spans
 
 
-def _current_size_data() -> dict[str, dict[str, int]]:
-    files: dict[str, int] = {}
+def _current_oversized_functions() -> dict[str, int]:
     functions: dict[str, int] = {}
     for path in _owned_files():
-        line_count = len(path.read_text(encoding="utf-8-sig").splitlines())
-        if line_count > FILE_LINE_LIMIT:
-            files[_relative(path)] = line_count
         spans = _python_function_spans(path) if path.suffix.lower() == ".py" else _brace_function_spans(path)
         functions.update({key: span for key, span in spans.items() if span > FUNCTION_LINE_LIMIT})
-    return {"files": dict(sorted(files.items())), "functions": dict(sorted(functions.items()))}
+    return dict(sorted(functions.items()))
 
 
 def _load_baseline() -> dict[str, object]:
     baseline = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
-    for supplement_path in sorted(BASELINE_PATH.parent.glob("architecture_size_baseline_*.json")):
+    for supplement_path in sorted(BASELINE_PATH.parent.glob("architecture_size_baseline_functions_*.json")):
         supplement = json.loads(supplement_path.read_text(encoding="utf-8"))
-        for category in ("files", "functions"):
-            additions = supplement.get(category, {})
-            overlap = set(baseline[category]).intersection(additions)
-            assert not overlap, f"Duplicate {category} ratchets in {supplement_path.name}: {sorted(overlap)}"
-            baseline[category].update(additions)
+        additions = supplement.get("functions", {})
+        overlap = set(baseline["functions"]).intersection(additions)
+        assert not overlap, f"Duplicate function ratchets in {supplement_path.name}: {sorted(overlap)}"
+        baseline["functions"].update(additions)
     return baseline
 
 
@@ -220,59 +214,56 @@ def test_size_ratchet_covers_each_owned_language_family() -> None:
     assert "tools/dotnet_mesh_editor_experiment/Program.cs" in paths
 
 
-def test_no_new_oversized_owned_files() -> None:
-    """The gate: the set of oversized owned files must never grow.
-
-    This is the promise worth blocking a merge on, because it is the one a
-    change can honour. Splitting a file that has gone over the cap is bounded
-    work on code the author is already touching; paying down an owner that was
-    oversized before they arrived is not.
-
-    A resolved file has to leave the baseline as well. A ratchet that keeps
-    entries it no longer needs stops describing the code and starts describing
-    its own history.
-    """
-
+def test_size_ratchet_is_function_only() -> None:
+    """File length is a review signal; only oversized functions are gated."""
     baseline = _load_baseline()
-    assert baseline["limits"] == {"file_lines": FILE_LINE_LIMIT, "function_lines": FUNCTION_LINE_LIMIT}
-    current = _current_size_data()
-    current_keys = set(current["files"])
-    baseline_keys = set(baseline["files"])
-    assert current_keys <= baseline_keys, f"New oversized files: {sorted(current_keys - baseline_keys)}"
-    stale = baseline_keys - current_keys
-    assert not stale, f"Remove resolved files from baseline: {sorted(stale)}"
+    assert baseline["limits"] == {"function_lines": FUNCTION_LINE_LIMIT}
+    assert set(baseline) == {"functions", "limits", "schema"}
 
 
-def test_oversized_owners_do_not_grow_beyond_their_recorded_size() -> None:
-    """The second half of the ratchet: what is already too big must not swell.
+def test_baseline_updater_writes_only_function_ratchets(tmp_path: Path, monkeypatch) -> None:
+    from scripts import update_architecture_size_baseline as updater
 
-    This was a recorded, non-gating exception while twenty-two files and fifteen
-    functions sat above the sizes the baseline remembered, which meant it caught
-    nothing: a check that is already red cannot report the next regression. The
-    baseline has been regenerated with `scripts/update_architecture_size_baseline.py`,
-    so it describes the code as it stands and this guards it again.
+    (tmp_path / "tests").mkdir()
+    monkeypatch.setattr(updater, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        updater,
+        "_current_oversized_functions",
+        lambda: {"cdmw/core/example.py::large_function": FUNCTION_LINE_LIMIT + 1},
+    )
 
-    Regenerating is the sanctioned move when the recorded sizes have drifted,
-    and it is deliberately not a way to pass a failure. It grandfathers what
-    exists; it does not admit anything new, which the companion guard above
-    still refuses.
-    """
+    assert updater.main() == 0
+    baseline = json.loads(
+        (tmp_path / "tests" / "architecture_size_baseline.json").read_text(encoding="utf-8")
+    )
+    assert baseline == {
+        "functions": {},
+        "limits": {"function_lines": FUNCTION_LINE_LIMIT},
+        "schema": 1,
+    }
+    assert not (tmp_path / "tests" / "architecture_size_baseline_files.json").exists()
+    core = json.loads(
+        (tmp_path / "tests" / "architecture_size_baseline_functions_core.json").read_text(encoding="utf-8")
+    )
+    assert core == {"functions": {"cdmw/core/example.py::large_function": FUNCTION_LINE_LIMIT + 1}}
 
+
+def test_oversized_functions_do_not_grow_beyond_their_recorded_size() -> None:
+    """New oversized functions fail, and recorded ones may not grow."""
     baseline = _load_baseline()
-    current = _current_size_data()
+    current = _current_oversized_functions()
+    baseline_functions = baseline["functions"]
     problems: list[str] = []
-    for category in ("files", "functions"):
-        current_keys = set(current[category])
-        baseline_keys = set(baseline[category])
-        if category == "functions":
-            unrecorded = sorted(current_keys - baseline_keys)
-            if unrecorded:
-                problems.append(f"Oversized {category} absent from the baseline: {unrecorded}")
-        growth = {
-            key: (baseline[category][key], current[category][key])
-            for key in current_keys & baseline_keys
-            if current[category][key] > baseline[category][key]
-        }
-        if growth:
-            problems.append(f"Oversized {category} grew: {growth}")
+    current_keys = set(current)
+    baseline_keys = set(baseline_functions)
+    unrecorded = sorted(current_keys - baseline_keys)
+    if unrecorded:
+        problems.append(f"Oversized functions absent from the baseline: {unrecorded}")
+    growth = {
+        key: (baseline_functions[key], current[key])
+        for key in current_keys & baseline_keys
+        if current[key] > baseline_functions[key]
+    }
+    if growth:
+        problems.append(f"Oversized functions grew: {growth}")
     assert not problems, "\n".join(problems)

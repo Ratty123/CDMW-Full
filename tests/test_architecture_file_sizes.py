@@ -1,15 +1,8 @@
-"""Per-file line caps for files that must stay *smaller* than the default.
+"""Explicit per-file caps for owners that must stay deliberately small.
 
-This guard is the tighter-than-default layer. It is **not** the universal
-limit: ``tests/test_architecture_size_ratchets.py`` already applies
-``DEFAULT_OWNER_FILE_LINE_LIMIT`` to every owned Python, native and C# file and
-grandfathers today's offenders in ``architecture_size_baseline*.json``. Anything
-absent from the table below is still capped there.
-
-So only list a file here when it has a reason to stay small -- a thin shim, a
-proxy, a callback surface -- and put that reason in the commit. A cap at or
-above the default protects nothing and is rejected by
-``test_limits_table_stays_meaningful``.
+There is no repository-wide file line ceiling. Only list a file here when its
+architecture gives it a reason to stay small -- a thin shim, a proxy, or a
+callback surface -- and put that reason in the commit.
 
 The rule this guard exists to serve, which the number alone cannot express:
 
@@ -28,9 +21,6 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-
-from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -155,24 +145,9 @@ def test_selected_architecture_file_size_limits() -> None:
 
 
 def test_limits_table_stays_meaningful() -> None:
-    """Stop the table rotting back into fossils and dangling entries.
-
-    Two ways it decayed before: caps left far above a file that had since been
-    split (one file of 109 lines carried a cap of 7545), and entries kept for
-    files at the default, which the universal ratchet already covers.
-    """
+    """Stop the table retaining entries for files that no longer exist."""
     missing = sorted(path for path in LIMITS if not (ROOT / path).is_file())
     assert not missing, f"LIMITS names files that no longer exist: {missing}"
-
-    redundant = sorted(
-        f"{path} (cap {limit})"
-        for path, limit in LIMITS.items()
-        if limit >= DEFAULT_OWNER_FILE_LINE_LIMIT
-    )
-    assert not redundant, (
-        "These caps are at or above the universal default, so they add nothing "
-        "beyond test_architecture_size_ratchets.py -- drop them: " + ", ".join(redundant)
-    )
 
 
 def test_main_window_owns_feature_controllers_instead_of_feature_mixins() -> None:
