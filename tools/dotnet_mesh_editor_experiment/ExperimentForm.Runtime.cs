@@ -37,7 +37,7 @@ internal sealed partial class ExperimentForm
         // per second of protocol traffic on a multi-part model, which overruns
         // the host's read buffer and takes the editor down mid-stroke. Only the
         // newest intermediate sample carries the projection state, while the
-        // compact screen path keeps every sculpt segment that was coalesced;
+        // bounded screen path preserves endpoints, turns, and spaced samples;
         // the phases that carry meaning are always written through.
         if (string.Equals(eventName, "stroke_update", StringComparison.OrdinalIgnoreCase))
         {
@@ -138,8 +138,48 @@ internal sealed partial class ExperimentForm
             }
             path.Add(point);
         }
-        merged["screen_path"] = path;
+        merged["screen_path"] = BoundedProtocolStrokePath(path);
         return merged;
+    }
+
+    internal static List<Dictionary<string, object?>> BoundedProtocolStrokePath(
+        IReadOnlyList<Dictionary<string, object?>> path)
+    {
+        var samples = new StrokeSampleBuffer();
+        for (var index = 0; index < path.Count; index += 1)
+        {
+            try
+            {
+                var x = Convert.ToDouble(path[index].GetValueOrDefault("x"));
+                var y = Convert.ToDouble(path[index].GetValueOrDefault("y"));
+                if (double.IsFinite(x) && double.IsFinite(y))
+                {
+                    samples.Add(
+                        new Point((int)Math.Round(x), (int)Math.Round(y)),
+                        index);
+                }
+            }
+            catch (FormatException)
+            {
+                // The protocol parser reports malformed coordinates. They
+                // must not bypass this size bound by failing simplification.
+            }
+            catch (InvalidCastException)
+            {
+                // The protocol parser reports malformed coordinates. They
+                // must not bypass this size bound by failing simplification.
+            }
+            catch (OverflowException)
+            {
+                // The protocol parser will report malformed coordinates. They
+                // must not bypass this size bound by failing simplification.
+            }
+        }
+        return samples.Select(point => new Dictionary<string, object?>
+        {
+            ["x"] = (double)point.X,
+            ["y"] = (double)point.Y,
+        }).ToList();
     }
 
     private static List<Dictionary<string, object?>> StrokeSamplePath(

@@ -65,6 +65,10 @@ internal static class Program
             {
                 return ResidentMutationBatchContractSmoke.Run(args);
             }
+            if (StrokeSampleBufferContractSmoke.IsRequested(args))
+            {
+                return StrokeSampleBufferContractSmoke.Run(args);
+            }
             if (HeadlessGpuFramePacingSoak.IsRequested(args))
             {
                 ApplicationConfiguration.Initialize();

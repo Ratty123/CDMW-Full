@@ -3197,7 +3197,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             'EditorEventRequested?.Invoke(cancelled ? "stroke_cancel" : "stroke_end"',
             input_source,
         )
-        self.assertIn("previous_stroke_id != newest_stroke_id", dispatcher_source)
+        self.assertIn("_request_stream_id(previous) == _request_stream_id(newest)", dispatcher_source)
         return
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py")
         remaining_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py")
