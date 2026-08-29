@@ -7,6 +7,7 @@ from typing import Mapping
 from PySide6.QtCore import QThread, QTimer, Qt
 from PySide6.QtWidgets import QProgressDialog
 
+from cdmw.domain.mesh.panel_state import MeshPanelStatus
 from cdmw.ui.shell.settings_bridge import read_bool_setting
 from cdmw.services.archive_extraction_service import find_available_output_path
 from cdmw.services.new_item_service import game_is_running
@@ -47,16 +48,25 @@ class MeshEditorReportsMixin:
             return
         self.standalone_validation_request_id += 1
         request_id = self.standalone_validation_request_id
-        self.standalone_last_export_validation_report = None
-        self.standalone_export_validation_revision = None
-        self.standalone_validation_started_revision = None
-        self.standalone_workspace.update_export_validation(None)
         revision = self._standalone_session_revision()
         if revision is None:
             self.status_message_requested.emit("Mesh validation could not identify the current session revision.", True)
             return
+        session_id = str(controller.active_session_id)
+        state = self._standalone_panel_state("standalone_validation_panel_state").begin_refresh(
+            session_id=session_id,
+            revision=revision,
+        )
+        self._publish_standalone_panel_state(
+            "standalone_validation_panel_state",
+            "update_export_validation_state",
+            "update_export_validation",
+            state,
+        )
+        self.standalone_validation_started_session_id = session_id
         self.standalone_validation_started_revision = revision
-        worker = _tab.MeshExportValidationWorker(request_id, controller.mesh_service, controller.active_session_id)
+        self.standalone_validation_started_generation = state.generation
+        worker = _tab.MeshExportValidationWorker(request_id, controller.mesh_service, session_id)
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
@@ -80,19 +90,37 @@ class MeshEditorReportsMixin:
     def _handle_standalone_export_validation_completed(self, request_id: int, report: object, elapsed_ms: float) -> None:
         if int(request_id) != int(self.standalone_validation_request_id):
             return
+        started_session_id = self.standalone_validation_started_session_id
         started_revision = self.standalone_validation_started_revision
+        started_generation = self.standalone_validation_started_generation
+        controller = self.standalone_controller
+        current_session_id = str(getattr(controller, "active_session_id", "") or "")
         current_revision = self._standalone_session_revision()
-        if started_revision is None or current_revision != started_revision:
-            self.standalone_last_export_validation_report = None
-            self.standalone_export_validation_revision = None
-            self.standalone_workspace.update_export_validation(None)
+        state = self._standalone_panel_state("standalone_validation_panel_state")
+        if (
+            not started_session_id
+            or started_revision is None
+            or current_session_id != started_session_id
+            or current_revision != started_revision
+            or state.status is not MeshPanelStatus.PENDING
+            or not state.matches_request(
+                session_id=started_session_id,
+                revision=started_revision,
+                generation=started_generation,
+            )
+        ):
             text = "Validation result ignored because the mesh changed; run validation again."
             self.standalone_status_label.setText(text)
             self.status_message_requested.emit(text, True)
             return
         self.standalone_last_export_validation_report = report
         self.standalone_export_validation_revision = current_revision
-        self.standalone_workspace.update_export_validation(report)
+        self._publish_standalone_panel_state(
+            "standalone_validation_panel_state",
+            "update_export_validation_state",
+            "update_export_validation",
+            state.publish_ready(report),
+        )
         self.standalone_workspace._focus_right_panel("Checks")
         blocker_count = len(tuple(getattr(report, "blockers", ()) or ()))
         warning_count = len(tuple(getattr(report, "warnings", ()) or ()))
@@ -107,9 +135,19 @@ class MeshEditorReportsMixin:
     def _handle_standalone_export_validation_error(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.standalone_validation_request_id):
             return
-        self.standalone_last_export_validation_report = None
-        self.standalone_export_validation_revision = None
         text = f"Validation failed: {message}"
+        state = self._standalone_panel_state("standalone_validation_panel_state")
+        if state.matches_request(
+            session_id=self.standalone_validation_started_session_id,
+            revision=int(self.standalone_validation_started_revision or 0),
+            generation=self.standalone_validation_started_generation,
+        ) and state.status is MeshPanelStatus.PENDING:
+            self._publish_standalone_panel_state(
+                "standalone_validation_panel_state",
+                "update_export_validation_state",
+                "update_export_validation",
+                state.publish_error(error_code="validation_worker_failed", message=text),
+            )
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, True)
     def _cleanup_standalone_export_validation_worker(
@@ -117,11 +155,15 @@ class MeshEditorReportsMixin:
         thread: QThread,
         worker: _tab.MeshExportValidationWorker,
     ) -> None:
-        if self.standalone_validation_thread is thread:
+        owns_current = self.standalone_validation_thread is thread
+        if owns_current:
             self.standalone_validation_thread = None
         if self.standalone_validation_worker is worker:
             self.standalone_validation_worker = None
-        self.standalone_validation_started_revision = None
+        if owns_current:
+            self.standalone_validation_started_session_id = ""
+            self.standalone_validation_started_revision = None
+            self.standalone_validation_started_generation = 0
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
     def _cancel_standalone_export_validation_worker(self) -> None:
         worker = self.standalone_validation_worker
@@ -129,7 +171,9 @@ class MeshEditorReportsMixin:
         if worker is None and thread is None:
             return
         self.standalone_validation_request_id += 1
+        self.standalone_validation_started_session_id = ""
         self.standalone_validation_started_revision = None
+        self.standalone_validation_started_generation = 0
         if worker is not None:
             try:
                 worker.stop()
@@ -163,12 +207,17 @@ class MeshEditorReportsMixin:
             self.status_message_requested.emit("Wait for the current Mesh Editor task to finish, or cancel it first.", True)
             return
         output_path_text = str(output_path or "").strip()
+        revision = self._standalone_session_revision()
+        if revision is None:
+            self.status_message_requested.emit("Mesh rebuild could not identify the current session revision.", True)
+            return
+        session_id = str(controller.active_session_id)
         self.standalone_rebuild_report_request_id += 1
         request_id = self.standalone_rebuild_report_request_id
         worker = _tab.MeshRebuildReportWorker(
             request_id,
             controller.mesh_service,
-            controller.active_session_id,
+            session_id,
             action_text=action_text,
             output_path=output_path_text,
             developer_override=bool(developer_override and output_path_text),
@@ -201,10 +250,19 @@ class MeshEditorReportsMixin:
         self.standalone_rebuild_report_thread = thread
         self.standalone_rebuild_report_worker = worker
         self.standalone_rebuild_report_progress = progress
-        self.standalone_last_rebuild_report = None
-        self.standalone_rebuild_report_revision = None
-        self.standalone_last_rebuilt_asset_path = None
-        self.standalone_workspace.update_rebuild_report(None)
+        state = self._standalone_panel_state("standalone_rebuild_panel_state").begin_refresh(
+            session_id=session_id,
+            revision=revision,
+        )
+        self.standalone_rebuild_started_session_id = session_id
+        self.standalone_rebuild_started_revision = revision
+        self.standalone_rebuild_started_generation = state.generation
+        self._publish_standalone_panel_state(
+            "standalone_rebuild_panel_state",
+            "update_rebuild_report_state",
+            "update_rebuild_report",
+            state,
+        )
         self._set_rebuild_report_button_enabled(False)
         self._set_rebuild_asset_button_enabled(False)
         self._set_save_rebuild_report_button_enabled(False)
@@ -243,9 +301,32 @@ class MeshEditorReportsMixin:
     def _handle_standalone_rebuild_report_completed(self, request_id: int, report: object) -> None:
         if int(request_id) != int(self.standalone_rebuild_report_request_id):
             return
+        state = self._standalone_panel_state("standalone_rebuild_panel_state")
+        current_session_id = str(getattr(self.standalone_controller, "active_session_id", "") or "")
+        current_revision = self._standalone_session_revision()
+        if (
+            current_session_id != self.standalone_rebuild_started_session_id
+            or current_revision != self.standalone_rebuild_started_revision
+            or self.standalone_rebuild_started_revision is None
+            or state.status is not MeshPanelStatus.PENDING
+            or not state.matches_request(
+                session_id=self.standalone_rebuild_started_session_id,
+                revision=self.standalone_rebuild_started_revision,
+                generation=self.standalone_rebuild_started_generation,
+            )
+        ):
+            text = "Rebuild result ignored because the mesh changed; run the report again."
+            self.standalone_status_label.setText(text)
+            self.status_message_requested.emit(text, True)
+            return
         self.standalone_last_rebuild_report = report
-        self.standalone_rebuild_report_revision = self._standalone_session_revision()
-        self.standalone_workspace.update_rebuild_report(report)
+        self.standalone_rebuild_report_revision = current_revision
+        self._publish_standalone_panel_state(
+            "standalone_rebuild_panel_state",
+            "update_rebuild_report_state",
+            "update_rebuild_report",
+            state.publish_ready(report),
+        )
         self.standalone_workspace._focus_right_panel("Rebuild")
         output_path = str(getattr(report, "output_path", "") or "").strip()
         self.standalone_last_rebuilt_asset_path = Path(output_path) if output_path else None
@@ -256,15 +337,20 @@ class MeshEditorReportsMixin:
         if int(request_id) != int(self.standalone_rebuild_report_request_id):
             return
         text = str(message or "Rebuild report cancelled.")
+        self._publish_standalone_rebuild_failure_state("rebuild_cancelled", text)
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, False)
     def _handle_standalone_rebuild_report_error(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.standalone_rebuild_report_request_id):
             return
         text = str(message or "Rebuild report failed.")
+        self._publish_standalone_rebuild_failure_state("rebuild_worker_failed", text)
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, True)
     def _standalone_rebuilt_asset_handoff_payload(self, *, action: str) -> tuple[_tab.ArchiveEntry, Path] | None:
+        if not self._standalone_rebuild_report_current():
+            self.status_message_requested.emit(f"Rebuild a patched asset before {action} it.", True)
+            return None
         target = self._current_target_entry()
         if not isinstance(target, _tab.ArchiveEntry):
             self.status_message_requested.emit(
@@ -297,7 +383,8 @@ class MeshEditorReportsMixin:
         thread: QThread,
         worker: _tab.MeshRebuildReportWorker,
     ) -> None:
-        if self.standalone_rebuild_report_thread is thread:
+        owns_current = self.standalone_rebuild_report_thread is thread
+        if owns_current:
             self.standalone_rebuild_report_thread = None
         if self.standalone_rebuild_report_worker is worker:
             self.standalone_rebuild_report_worker = None
@@ -306,20 +393,35 @@ class MeshEditorReportsMixin:
             progress.close()
             progress.deleteLater()
             self.standalone_rebuild_report_progress = None
+        if owns_current:
+            self.standalone_rebuild_started_session_id = ""
+            self.standalone_rebuild_started_revision = None
+            self.standalone_rebuild_started_generation = 0
         self._set_rebuild_report_button_enabled(self.has_active_standalone_session())
         self._set_rebuild_asset_button_enabled(self.has_active_standalone_session() and self._standalone_export_validation_ok())
         has_archive_target = isinstance(self._current_target_entry(), _tab.ArchiveEntry)
         self._set_preview_rebuilt_asset_button_enabled(
-            has_archive_target and self.has_active_standalone_session() and self._standalone_export_validation_ok()
+            has_archive_target
+            and self.has_active_standalone_session()
+            and self._standalone_export_validation_ok()
+            and self._standalone_rebuild_report_current()
         )
         self._set_package_rebuilt_asset_button_enabled(
-            has_archive_target and self.has_active_standalone_session() and self._standalone_export_validation_ok()
+            has_archive_target
+            and self.has_active_standalone_session()
+            and self._standalone_export_validation_ok()
+            and self._standalone_rebuild_report_current()
         )
     def _cancel_standalone_rebuild_report_worker(self) -> None:
         worker = self.standalone_rebuild_report_worker
         thread = self.standalone_rebuild_report_thread
         if worker is None and thread is None:
             return
+        text = "Rebuild report cancelled."
+        self._publish_standalone_rebuild_failure_state("rebuild_cancelled", text)
+        self.standalone_rebuild_report_request_id += 1
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, False)
         if worker is not None:
             try:
                 worker.stop()
@@ -352,10 +454,53 @@ class MeshEditorReportsMixin:
         )
     def _standalone_export_validation_current(self) -> bool:
         revision = self._standalone_session_revision()
-        return (
+        controller = self.standalone_controller
+        session_id = str(getattr(controller, "active_session_id", "") or "")
+        state = self._standalone_panel_state("standalone_validation_panel_state")
+        legacy_current = (
             revision is not None
             and self.standalone_export_validation_revision == revision
             and self.standalone_last_export_validation_report is not None
+        )
+        if legacy_current and state.value is not self.standalone_last_export_validation_report:
+            return True
+        if state.generation > 0:
+            return revision is not None and bool(session_id) and state.is_current(
+                session_id=session_id,
+                revision=revision,
+            )
+        return legacy_current
+
+    def _standalone_rebuild_report_current(self) -> bool:
+        revision = self._standalone_session_revision()
+        controller = self.standalone_controller
+        session_id = str(getattr(controller, "active_session_id", "") or "")
+        state = self._standalone_panel_state("standalone_rebuild_panel_state")
+        if state.generation > 0:
+            return revision is not None and bool(session_id) and state.is_current(
+                session_id=session_id,
+                revision=revision,
+            )
+        return (
+            revision is not None
+            and self.standalone_rebuild_report_revision == revision
+            and self.standalone_last_rebuild_report is not None
+        )
+
+    def _publish_standalone_rebuild_failure_state(self, code: str, message: str) -> None:
+        state = self._standalone_panel_state("standalone_rebuild_panel_state")
+        revision = self.standalone_rebuild_started_revision
+        if revision is None or not state.matches_request(
+            session_id=self.standalone_rebuild_started_session_id,
+            revision=revision,
+            generation=self.standalone_rebuild_started_generation,
+        ) or state.status is not MeshPanelStatus.PENDING:
+            return
+        self._publish_standalone_panel_state(
+            "standalone_rebuild_panel_state",
+            "update_rebuild_report_state",
+            "update_rebuild_report",
+            state.publish_error(error_code=code, message=message),
         )
     def _standalone_rebuild_allowed(self) -> bool:
         return self._standalone_export_validation_ok() or self._standalone_developer_rebuild_override_allowed()

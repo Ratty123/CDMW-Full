@@ -5,6 +5,7 @@ from typing import Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QPushButton, QTabWidget, QWidget
 
+from cdmw.domain.mesh import MeshPanelSnapshot
 from cdmw.services.mesh_edit_session_state import MeshEditSessionMachine
 from cdmw.services.mesh_material_publication import MaterialPublicationCoordinator
 from cdmw.ui.mesh_editor.dotnet_update_queue import DotNetRevisionUpdateQueue
@@ -271,11 +272,22 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_last_export_validation_report: object | None = None
         self.standalone_export_validation_revision: int | None = None
         self.standalone_validation_started_revision: int | None = None
+        self.standalone_validation_started_session_id = ""
+        self.standalone_validation_started_generation = 0
         self.standalone_last_rebuild_report: object | None = None
         # The session revision the rebuild report describes. Only a geometry command
         # bumps `session.revision`, so this is what tells a stale report from one that
         # is merely being looked at from a different selection.
         self.standalone_rebuild_report_revision: int | None = None
+        self.standalone_rebuild_started_session_id = ""
+        self.standalone_rebuild_started_revision: int | None = None
+        self.standalone_rebuild_started_generation = 0
+        self.standalone_workspace_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
+        self.standalone_uv_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
+        self.standalone_skeleton_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
+        self.standalone_compare_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
+        self.standalone_validation_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
+        self.standalone_rebuild_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
         self.standalone_last_rebuilt_asset_path: _tab.Path | None = None
         self.standalone_last_action_result: _tab.MeshEditResult | None = None
         self.standalone_last_action_metrics: dict[str, float] = {}

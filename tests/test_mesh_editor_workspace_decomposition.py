@@ -22,10 +22,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_workspace_facade_reuses_owner_methods_and_view() -> None:
     owners = (
         (WorkspaceStateMixin, "update_workspace_summary"),
+        (WorkspaceStateMixin, "update_workspace_panel_state"),
+        (WorkspaceStateMixin, "update_uv_panel_state"),
         (WorkspaceSkeletonStateMixin, "update_skeleton_summary"),
+        (WorkspaceSkeletonStateMixin, "update_skeleton_panel_state"),
         (WorkspaceShellBuilderMixin, "_build_preview_area"),
         (WorkspacePanelBuilderMixin, "_build_skeleton_panel"),
         (WorkspaceReportMixin, "update_export_validation"),
+        (WorkspaceReportMixin, "update_compare_panel_state"),
+        (WorkspaceReportMixin, "update_export_validation_state"),
+        (WorkspaceReportMixin, "update_rebuild_report_state"),
         (WorkspaceInteractionMixin, "_sync_skeleton_pose_controls"),
     )
     for owner, name in owners:

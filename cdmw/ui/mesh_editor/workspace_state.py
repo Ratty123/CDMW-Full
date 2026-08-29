@@ -35,6 +35,7 @@ from cdmw.domain.mesh import (
     MeshEditSelection,
     MeshEditSessionView,
     MeshObjectTransformState,
+    MeshPanelSnapshot,
     MeshExportValidationReport,
     MeshSkeletonSummary,
     MeshUvSummary,
@@ -47,6 +48,7 @@ from cdmw.ui.mesh_editor.actions import (
     mesh_editor_actions_by_key,
 )
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
+from cdmw.ui.localization import translate_active_ui_text
 from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 from cdmw.ui.native_preview_panel import NativePreviewPanel
 
@@ -308,6 +310,29 @@ class WorkspaceStateMixin:
         else:
             self.history_list.addItem("No edit actions yet")
 
+    @staticmethod
+    def _append_panel_status(tree: QTreeWidget, state: MeshPanelSnapshot[object]) -> None:
+        columns = max(1, tree.columnCount())
+        status_text = translate_active_ui_text(state.status.value)
+        message = translate_active_ui_text(state.message)
+        values = [translate_active_ui_text("Status"), status_text]
+        if columns >= 3:
+            values.append(message)
+        elif message:
+            values[1] = f"{values[1]}: {message}"
+        values.extend("" for _ in range(columns - len(values)))
+        item = QTreeWidgetItem(tuple(values[:columns]))
+        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+        tree.addTopLevelItem(item)
+
+    def update_workspace_panel_state(
+        self,
+        state: MeshPanelSnapshot[MeshWorkspaceSummary],
+    ) -> None:
+        self._workspace_panel_state = state
+        self.update_workspace_summary(state.value)
+        self._append_panel_status(self.outliner, state)
+
     def update_workspace_summary(self, summary: MeshWorkspaceSummary | None) -> None:
         self._workspace_summary = summary
         if summary is None:
@@ -391,13 +416,24 @@ class WorkspaceStateMixin:
             )
             for part in summary.parts
         )
-        self.update_workspace_summary(
-            replace(
-                summary,
-                selected_part_count=sum(1 for part in parts if part.selected),
-                parts=parts,
-            )
+        updated = replace(
+            summary,
+            selected_part_count=sum(1 for part in parts if part.selected),
+            parts=parts,
         )
+        state = getattr(self, "_workspace_panel_state", None)
+        if isinstance(state, MeshPanelSnapshot) and state.value is summary:
+            self.update_workspace_panel_state(state.replace_value(updated))
+        else:
+            self.update_workspace_summary(updated)
+
+    def update_uv_panel_state(
+        self,
+        state: MeshPanelSnapshot[MeshUvSummary],
+    ) -> None:
+        self._uv_panel_state = state
+        self.update_uv_summary(state.value)
+        self._append_panel_status(self.uv_tree, state)
 
     def update_uv_summary(self, summary: MeshUvSummary | None) -> None:
         self._uv_summary = summary
@@ -464,13 +500,16 @@ class WorkspaceStateMixin:
                 )
             )
         islands = tuple(islands)
-        self.update_uv_summary(
-            replace(
-                summary,
-                selected_island_count=sum(1 for island in islands if island.selected),
-                islands=islands,
-            )
+        updated = replace(
+            summary,
+            selected_island_count=sum(1 for island in islands if island.selected),
+            islands=islands,
         )
+        state = getattr(self, "_uv_panel_state", None)
+        if isinstance(state, MeshPanelSnapshot) and state.value is summary:
+            self.update_uv_panel_state(state.replace_value(updated))
+        else:
+            self.update_uv_summary(updated)
 
     def _sync_uv_summary_label(self, summary: MeshUvSummary | None) -> None:
         label = getattr(self, "uv_summary_label", None)

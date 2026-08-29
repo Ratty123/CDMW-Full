@@ -34,6 +34,7 @@ from cdmw.domain.mesh import (
     MeshEditSelection,
     MeshEditSessionView,
     MeshObjectTransformState,
+    MeshPanelSnapshot,
     MeshExportValidationReport,
     MeshSkeletonSummary,
     MeshUvSummary,
@@ -161,6 +162,12 @@ class MeshEditorWorkspace(
         self._workspace_summary: MeshWorkspaceSummary | None = None
         self._uv_summary: MeshUvSummary | None = None
         self._skeleton_summary: MeshSkeletonSummary | None = None
+        self._workspace_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
+        self._uv_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
+        self._skeleton_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
+        self._compare_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
+        self._export_validation_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
+        self._rebuild_panel_state: MeshPanelSnapshot[object] = MeshPanelSnapshot.unavailable()
         self._selection_state = MeshEditSelection()
         self._has_export_validation_report = False
         self._export_validation_ok = False

@@ -140,8 +140,8 @@ rollback result so provisional selection cannot remain stranded.
 `MeshEditorController.export_validation_report()` exposes the service-backed
 pre-export validator for the active session. The visible **Run validation**
 action executes it in a background worker. Its report is stamped to the checked
-geometry revision; a later edit clears the report and all validation-gated
-outputs until validation is run again.
+geometry revision; a later edit retires its output authority until validation is
+run again while keeping the previous report visible as last-known-good context.
 `MeshEditorController.workspace_summary()` exposes the service-backed part,
 material route, UV channel, and skinning summary for panel rendering. Whole-part
 selection belongs to the explicit Parts/PARTS lists: clicking a row toggles it
@@ -152,6 +152,15 @@ action is exposed.
 `MeshEditorController.compare_summary()` exposes source-vs-edited topology,
 bounds, scale, orientation, material, texture, and UV mismatch data for the
 workspace Compare panel.
+Parts, UV Map, Rig, Compare, validation, and rebuild presentation all use
+`MeshPanelSnapshot`: `ready`, `pending`, `error`, or `unavailable`, with the
+requested session/revision kept separate from the revision that produced any
+retained value. Only a matching session, geometry revision, request, and
+generation may publish a worker result. Selection-only resident revisions do
+not invalidate geometry reports, while an acknowledged geometry revision does;
+expected native-snapshot gaps remain unavailable instead of hydrating stale
+Python geometry, and unexpected exceptions remain visible and enter the runtime
+diagnostic trail.
 Native D3D11 viewport part-pick and part-context events are compatibility no-ops.
 They cannot change a PARTS selection or open its menu. The historical
 `select_parts` action key is retained for settings/dynamic callers but presents

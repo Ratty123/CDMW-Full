@@ -198,8 +198,8 @@ def test_a_finished_rebuild_report_survives_an_unrelated_selection_refresh() -> 
     assert tab.standalone_last_rebuild_report is report
 
     tab.update_editor_session_state(_view(5))
-    assert tab.standalone_last_rebuild_report is None
-    assert tab.standalone_rebuild_report_revision is None
+    assert tab.standalone_last_rebuild_report is report
+    assert tab.standalone_rebuild_report_revision == 4
 
     # A session that has gone away clears it too.
     tab.standalone_last_rebuild_report = report

@@ -24,15 +24,11 @@ from cdmw.domain.mesh import (
     MeshEditResult,
     MeshEditSelection,
     MeshEditSessionView,
-    MeshObjectTransformState,
-    MeshCompareSummary,
-    MeshExportValidationReport,
-    MeshPartSummary,
-    MeshSkeletonSummary,
-    MeshTextureEditTarget,
-    MeshUvIslandSummary,
-    MeshUvSummary,
-    MeshWorkspaceSummary,
+    MeshObjectTransformState, MeshPanelUnavailableError,
+    MeshCompareSummary, MeshExportValidationReport,
+    MeshPartSummary, MeshSkeletonSummary,
+    MeshTextureEditTarget, MeshUvIslandSummary,
+    MeshUvSummary, MeshWorkspaceSummary,
     compare_meshes,
     mesh_pose_deformed_vertices,
     sample_mesh_animation_pose,
@@ -1298,7 +1294,7 @@ class MeshService(_MeshServiceSessionLayerCore):
                 mesh_format=session.working_mesh.format,
             )
             if native_summary is None:
-                raise RuntimeError("native mesh editor workspace summary failed; Python mesh state is stale")
+                raise MeshPanelUnavailableError("native_workspace_snapshot_unavailable", "native mesh editor workspace summary failed; Python mesh state is stale")
             return native_summary
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
         return summarize_mesh_workspace(session.working_mesh, session.selection)
@@ -1306,13 +1302,13 @@ class MeshService(_MeshServiceSessionLayerCore):
     def compare_summary(self, session_id: str) -> MeshCompareSummary:
         session = self._session(session_id)
         if session.native_editor_mesh_dirty:
-            raise RuntimeError("native mesh editor compare summary unavailable; Python mesh state is stale")
+            raise MeshPanelUnavailableError("native_compare_snapshot_unavailable", "native mesh editor compare summary unavailable; Python mesh state is stale")
         return compare_meshes(session.base_mesh, session.working_mesh)
 
     def uv_summary(self, session_id: str) -> MeshUvSummary:
         session = self._session(session_id)
         if session.native_editor_mesh_dirty:
-            raise RuntimeError("native mesh editor UV summary unavailable; Python mesh state is stale")
+            raise MeshPanelUnavailableError("native_uv_snapshot_unavailable", "native mesh editor UV summary unavailable; Python mesh state is stale")
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
         native_summary = summarize_native_mesh_uvs(session.working_mesh, session.selection)
         parsed_native_summary = _mesh_uv_summary_from_native(native_summary)

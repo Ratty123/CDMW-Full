@@ -2121,7 +2121,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         assert combo is not None
         tab.standalone_compare_mode = "edited"
         rows = [(compare.topLevelItem(index).text(0), compare.topLevelItem(index).text(2)) for index in range(compare.topLevelItemCount())]
-        self.assertEqual([("Info", "")], rows)
+        self.assertEqual([("Info", ""), ("Status", "")], rows)
 
         self.assertEqual("edited", tab.standalone_compare_mode)
         self.assertTrue(tab.standalone_controller.native_editor_mesh_dirty())
@@ -2164,7 +2164,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         validator = tab.standalone_workspace.findChild(QTreeWidget, "MeshEditorValidatorPanel")
         assert validator is not None
         codes = [validator.topLevelItem(index).text(1) for index in range(validator.topLevelItemCount())]
-        self.assertEqual(["not_run"], codes)
+        self.assertEqual(["not_run", "unavailable"], codes)
         tab._start_standalone_export_validation_requested()
         self.assertTrue(_wait_for(app, lambda: tab.standalone_validation_thread is None))
         codes = [validator.topLevelItem(index).text(1) for index in range(validator.topLevelItemCount())]
