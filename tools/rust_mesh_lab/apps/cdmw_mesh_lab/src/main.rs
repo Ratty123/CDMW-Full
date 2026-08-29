@@ -8,13 +8,16 @@ use anyhow::{Context, Result};
 use camera::{OrbitCamera, StandardView};
 use cdmw_archive::ArchiveCatalog;
 use cdmw_formats::MeshDocument;
-use cdmw_interaction::{OperatorController, SelectionDomain, SelectionOperation};
+use cdmw_interaction::{
+    OperatorController, SelectionDomain, SelectionOperation, SelectionQueryStats,
+};
 use cdmw_mesh::{History, Selection, VertexHandle, WorkingMesh};
 use cdmw_render_wgpu::{ViewMode, WindowRenderer};
 use cdmw_texture::{DdsMetadata, TextureRole};
 use egui::{Color32, RichText, Stroke};
 use glam::{Quat, Vec2, Vec3};
 use loader::{LoadEvent, Loader};
+use std::collections::VecDeque;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -29,6 +32,8 @@ use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
+
+const LATENCY_SAMPLE_WINDOW: usize = 256;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -115,6 +120,9 @@ struct LabApplication {
     projection: Option<ViewportProjection>,
     last_selection_ms: Option<f64>,
     last_edit_ms: Option<f64>,
+    last_selection_stats: Option<SelectionQueryStats>,
+    selection_latency_ms: VecDeque<f64>,
+    edit_latency_ms: VecDeque<f64>,
     pointer_events: PointerEventQueue,
     raw_pointer_position: Option<Vec2>,
     raw_primary_captured: bool,
@@ -179,6 +187,9 @@ impl LabApplication {
             projection: None,
             last_selection_ms: None,
             last_edit_ms: None,
+            last_selection_stats: None,
+            selection_latency_ms: VecDeque::new(),
+            edit_latency_ms: VecDeque::new(),
             pointer_events: PointerEventQueue::default(),
             raw_pointer_position: None,
             raw_primary_captured: false,
@@ -254,6 +265,11 @@ impl LabApplication {
                             }
                             self.history = History::new(512 * 1024 * 1024);
                             self.operator = OperatorController::default();
+                            self.last_selection_ms = None;
+                            self.last_edit_ms = None;
+                            self.last_selection_stats = None;
+                            self.selection_latency_ms.clear();
+                            self.edit_latency_ms.clear();
                             self.document = Some(loaded.document);
                             self.mesh = Some(loaded.mesh);
                             self.texture_label =
@@ -684,11 +700,27 @@ impl LabApplication {
                     }
                 });
                 if self.last_selection_ms.is_some() || self.last_edit_ms.is_some() {
+                    let selection_p95 = percentile95(&self.selection_latency_ms);
+                    let edit_p95 = percentile95(&self.edit_latency_ms);
+                    let candidates = self.last_selection_stats.map_or_else(
+                        || "—".to_owned(),
+                        |stats| {
+                            format!(
+                                "{}/{}",
+                                stats.candidates_inspected, stats.total_elements
+                            )
+                        },
+                    );
                     ui.label(format!(
-                        "Last CPU query/operator: selection {} · edit {}",
+                        "CPU selection: last {} · p95 {} · indexed candidates {}\nCPU edit operator: last {} · p95 {}",
                         self.last_selection_ms
                             .map_or_else(|| "—".to_owned(), |value| format!("{value:.2} ms")),
+                        selection_p95
+                            .map_or_else(|| "—".to_owned(), |value| format!("{value:.2} ms")),
+                        candidates,
                         self.last_edit_ms
+                            .map_or_else(|| "—".to_owned(), |value| format!("{value:.2} ms")),
+                        edit_p95
                             .map_or_else(|| "—".to_owned(), |value| format!("{value:.2} ms"))
                     ));
                 }
@@ -1131,7 +1163,10 @@ impl LabApplication {
                 Err(cdmw_interaction::InteractionError::InvalidTransition),
                 |projection| gesture.update(mesh, &projection.interaction, point),
             );
-            self.last_selection_ms = Some(started.elapsed().as_secs_f64() * 1_000.0);
+            let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+            self.last_selection_ms = Some(elapsed_ms);
+            self.last_selection_stats = gesture.last_query_stats();
+            push_latency_sample(&mut self.selection_latency_ms, elapsed_ms);
             match result {
                 Ok(()) => {
                     self.selection_gesture = Some(gesture);
@@ -1235,7 +1270,10 @@ impl LabApplication {
                     _ => Err(cdmw_interaction::InteractionError::InvalidTransition),
                 }
             };
-            self.last_selection_ms = Some(started.elapsed().as_secs_f64() * 1_000.0);
+            let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+            self.last_selection_ms = Some(elapsed_ms);
+            self.last_selection_stats = gesture.last_query_stats();
+            push_latency_sample(&mut self.selection_latency_ms, elapsed_ms);
             if let Err(error) = result {
                 if let Some(mesh) = &mut self.mesh {
                     gesture.cancel(mesh);
@@ -1375,7 +1413,9 @@ impl LabApplication {
                 ViewportTool::Select => Err(cdmw_interaction::InteractionError::InvalidTransition),
             }
         })();
-        self.last_edit_ms = Some(started.elapsed().as_secs_f64() * 1_000.0);
+        let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        self.last_edit_ms = Some(elapsed_ms);
+        push_latency_sample(&mut self.edit_latency_ms, elapsed_ms);
         match result {
             Ok(()) => {
                 gesture.last_pointer = point;
@@ -1748,6 +1788,32 @@ fn path_is_within(path: &std::path::Path, root: &std::path::Path) -> bool {
     path_text == root_text || path_text.starts_with(format!("{root_text}/").as_str())
 }
 
+fn push_latency_sample(samples: &mut VecDeque<f64>, value: f64) {
+    if !value.is_finite() || value < 0.0 {
+        return;
+    }
+    if samples.len() == LATENCY_SAMPLE_WINDOW {
+        samples.pop_front();
+    }
+    samples.push_back(value);
+}
+
+fn percentile95(samples: &VecDeque<f64>) -> Option<f64> {
+    let mut ordered = samples
+        .iter()
+        .copied()
+        .filter(|value| value.is_finite() && *value >= 0.0)
+        .collect::<Vec<_>>();
+    if ordered.is_empty() {
+        return None;
+    }
+    ordered.sort_by(f64::total_cmp);
+    let index = ((ordered.len() as f64 * 0.95).ceil() as usize)
+        .saturating_sub(1)
+        .min(ordered.len() - 1);
+    ordered.get(index).copied()
+}
+
 fn center_of_handles(
     mesh: &WorkingMesh,
     handles: &std::collections::HashSet<VertexHandle>,
@@ -1949,5 +2015,16 @@ mod tests {
     fn quarter_circle_gizmo_drag_produces_a_quarter_turn() {
         let angle = signed_screen_angle(Vec2::new(0.0, -10.0), Vec2::new(10.0, 0.0));
         assert!((angle - std::f32::consts::FRAC_PI_2).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn latency_window_is_bounded_and_reports_nearest_rank_p95() {
+        let mut samples = VecDeque::new();
+        for value in 1..=300 {
+            push_latency_sample(&mut samples, f64::from(value));
+        }
+        assert_eq!(samples.len(), LATENCY_SAMPLE_WINDOW);
+        assert_eq!(samples.front(), Some(&45.0));
+        assert_eq!(percentile95(&samples), Some(288.0));
     }
 }

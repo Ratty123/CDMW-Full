@@ -3,8 +3,8 @@
 use crate::camera::OrbitCamera;
 use cdmw_interaction::{
     InteractionError, InteractionSnapshot, ProjectedElement, ProjectedHandle, SculptTool,
-    SelectionDomain, SelectionOperation, SelectionQuery, SelectionShape, query_selection,
-    selection_after_operation,
+    SelectionDomain, SelectionOperation, SelectionQuery, SelectionQueryStats, SelectionShape,
+    query_selection, query_selection_with_stats, selection_after_operation,
 };
 use cdmw_mesh::{History, MeshError, Selection, VertexHandle, WorkingMesh};
 use egui::Rect;
@@ -14,6 +14,7 @@ use std::collections::{HashMap, HashSet};
 
 const MAX_LASSO_POINTS: usize = 4_096;
 const MAX_POINTER_EVENTS: usize = 4_096;
+const LASSO_MIN_SAMPLE_DISTANCE_SQUARED: f32 = 4.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ViewportPointerEvent {
@@ -238,14 +239,14 @@ impl ViewportProjection {
         }
         Self {
             rectangle,
-            interaction: InteractionSnapshot {
-                geometry_revision: mesh.geometry_revision,
-                topology_generation: mesh.topology_generation,
-                camera_revision: camera.revision(),
+            interaction: InteractionSnapshot::new(
+                mesh.geometry_revision,
+                mesh.topology_generation,
+                camera.revision(),
                 viewport_revision,
-                viewport_size: Vec2::new(rectangle.width(), rectangle.height()),
+                Vec2::new(rectangle.width(), rectangle.height()),
                 elements,
-            },
+            ),
             vertices,
         }
     }
@@ -278,6 +279,7 @@ pub struct SelectionGesture {
     pub radius: f32,
     before: WorkingMesh,
     accumulated: Selection,
+    last_query_stats: Option<SelectionQueryStats>,
 }
 
 #[derive(Debug, Clone)]
@@ -313,6 +315,7 @@ impl SelectionGesture {
             radius,
             before: mesh.clone(),
             accumulated: Selection::default(),
+            last_query_stats: None,
         }
     }
 
@@ -336,7 +339,8 @@ impl SelectionGesture {
             camera_revision: snapshot.camera_revision,
             viewport_revision: snapshot.viewport_revision,
         };
-        let incoming = query_selection(snapshot, &query)?;
+        let (incoming, stats) = query_selection_with_stats(snapshot, &query)?;
+        self.last_query_stats = Some(stats);
         if self.tool == SelectionTool::Brush {
             union_selection(&mut self.accumulated, &incoming);
         } else {
@@ -350,15 +354,26 @@ impl SelectionGesture {
 
     pub fn record_point(&mut self, point: Vec2) {
         self.current = point;
-        if self.tool == SelectionTool::Lasso
-            && self.points.len() < MAX_LASSO_POINTS
-            && self
-                .points
-                .last()
-                .is_none_or(|previous| previous.distance_squared(point) >= 4.0)
-        {
-            self.points.push(point);
+        if self.tool == SelectionTool::Lasso {
+            let should_append = !point.is_finite()
+                || self.points.len() <= 1
+                || self.points.last().is_none_or(|previous| {
+                    previous.distance_squared(point) >= LASSO_MIN_SAMPLE_DISTANCE_SQUARED
+                });
+            if should_append {
+                self.points.push(point);
+            } else if let Some(previous) = self.points.last_mut() {
+                *previous = point;
+            }
+            if self.points.len() > MAX_LASSO_POINTS {
+                compact_lasso_points(&mut self.points);
+            }
         }
+    }
+
+    #[must_use]
+    pub fn last_query_stats(&self) -> Option<SelectionQueryStats> {
+        self.last_query_stats
     }
 
     pub fn commit(self, mesh: &WorkingMesh, history: &mut History) -> Result<bool, MeshError> {
@@ -397,6 +412,19 @@ impl SelectionGesture {
             }),
         }
     }
+}
+
+fn compact_lasso_points(points: &mut Vec<Vec2>) {
+    let point_count = points.len();
+    let mut compacted = Vec::with_capacity(point_count / 2 + 1);
+    for (index, point) in points.iter().copied().enumerate() {
+        if (index == 0 || index % 2 == 0 || index + 1 == point_count)
+            && compacted.last().copied() != Some(point)
+        {
+            compacted.push(point);
+        }
+    }
+    *points = compacted;
 }
 
 fn union_selection(target: &mut Selection, incoming: &Selection) {
@@ -489,6 +517,70 @@ mod tests {
             8.0,
         );
         assert!(gesture.shape().is_none());
+    }
+
+    #[test]
+    fn long_lasso_stays_bounded_and_retains_the_release_point() {
+        let mesh = triangle();
+        let mut gesture = SelectionGesture::new(
+            &mesh,
+            SelectionTool::Lasso,
+            SelectionDomain::Vertex,
+            SelectionOperation::Replace,
+            false,
+            Vec2::ZERO,
+            8.0,
+        );
+        let final_point = Vec2::new(20_000.0, 24.0);
+        for index in 1..10_000 {
+            gesture.record_point(Vec2::new(index as f32 * 2.0, (index % 7) as f32 * 4.0));
+        }
+        gesture.record_point(final_point);
+        assert!(gesture.points.len() <= MAX_LASSO_POINTS);
+        assert_eq!(gesture.points.first(), Some(&Vec2::ZERO));
+        assert_eq!(gesture.points.last(), Some(&final_point));
+    }
+
+    #[test]
+    fn lasso_retains_a_sub_threshold_release_without_losing_its_press() {
+        let mesh = triangle();
+        let mut gesture = SelectionGesture::new(
+            &mesh,
+            SelectionTool::Lasso,
+            SelectionDomain::Vertex,
+            SelectionOperation::Replace,
+            false,
+            Vec2::ZERO,
+            8.0,
+        );
+        gesture.record_point(Vec2::new(3.0, 0.0));
+        let release = Vec2::new(3.5, 0.0);
+        gesture.record_point(release);
+        assert_eq!(gesture.points.first(), Some(&Vec2::ZERO));
+        assert_eq!(gesture.points.last(), Some(&release));
+    }
+
+    #[test]
+    fn non_finite_lasso_sample_is_rejected_by_the_shared_query() {
+        let mut mesh = triangle();
+        let camera = OrbitCamera::default();
+        let rectangle = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
+        let projection = ViewportProjection::build(&mesh, &camera, rectangle, 1);
+        let mut gesture = SelectionGesture::new(
+            &mesh,
+            SelectionTool::Lasso,
+            SelectionDomain::Vertex,
+            SelectionOperation::Replace,
+            false,
+            Vec2::ZERO,
+            8.0,
+        );
+        gesture.record_point(Vec2::new(3.0, 0.0));
+        gesture.record_point(Vec2::new(0.0, 3.0));
+        assert!(matches!(
+            gesture.update(&mut mesh, &projection.interaction, Vec2::splat(f32::NAN)),
+            Err(InteractionError::InvalidShape)
+        ));
     }
 
     #[test]

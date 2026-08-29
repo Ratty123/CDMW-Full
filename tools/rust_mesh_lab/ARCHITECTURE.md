@@ -55,11 +55,13 @@ One `OperatorController` owns one gesture. Begin snapshots the working mesh. Pro
 
 `OrbitCamera` is the single camera owner shared by renderer submission and interaction projection. Mesh vertices remain in working-document coordinates. Orbit, pan, zoom, framing, standard views, and viewport aspect changes increment the camera or viewport generation so stale selection snapshots cannot apply. Resizing recreates the depth target but never rescales mesh axes independently.
 
+Each immutable interaction snapshot constructs a 32-pixel screen-space grid once for its geometry/camera/viewport generation. Click and brush queries visit only cells intersecting their shape; larger rectangle and lasso queries use the same index and fall back to iterating occupied cells when a coordinate range would be pathological. Candidate indices are restored to stable source order before predicates run. Query statistics expose inspected and total element counts without changing selection semantics.
+
 The renderer builds unique edge indices beside the triangle index buffer and selects among Textured, Solid Faces, Solid + Wire, Wireframe, Vertices, Wire + Vertices, and X-Ray pipelines without rebuilding the working mesh. Geometry/topology revisions suppress unchanged GPU mesh uploads; camera-only changes update the uniform buffer.
 
 ## UI and worker ownership
 
-The application event thread owns winit, egui, dialogs, current UI state, camera, renderer submission, and immutable result adoption. A bounded raw-pointer queue preserves press, intermediate movement, and release across redraw coalescing. One selection or edit gesture owns that stream; high-rate mesh changes publish one final GPU snapshot per drained event batch. A named worker thread owns archive discovery, index parsing, payload reads, mesh decode, working-document construction, and archive filtering.
+The application event thread owns winit, egui, dialogs, current UI state, camera, renderer submission, and immutable result adoption. A bounded raw-pointer queue preserves press, intermediate movement, and release across redraw coalescing. Lasso input starts with a 2-pixel sample threshold and deterministically halves retained intermediate points at the 4,096-point ceiling while preserving the first and newest point. One selection or edit gesture owns that stream; high-rate mesh changes publish one final GPU snapshot per drained event batch. Rolling CPU timing windows retain at most 256 samples. A named worker thread owns archive discovery, index parsing, payload reads, mesh decode, working-document construction, and archive filtering.
 
 Requests use:
 

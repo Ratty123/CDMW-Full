@@ -21,9 +21,9 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Generational vertex/edge/face handles and topology generation.
 - Interactive Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch plus face Delete, Subdivide, Duplicate, Undo, and Redo.
 - One modal gesture owner and one committed history entry per confirmed gesture.
-- Deterministic click/brush/rectangle/lasso query predicates and stale-snapshot rejection in the interaction crate.
+- Deterministic click/brush/rectangle/lasso query predicates, stale-snapshot rejection, and a persistent 32-pixel screen grid that bounds local candidate inspection in the interaction crate.
 - Viewport-aligned Vertex/Edge/Face Click, Brush, Rectangle, and Lasso selection with visible X-Ray overlays and Replace/Add/Subtract/Toggle operations.
-- Bounded raw pointer sampling that retains press, intermediate movement, and release when Windows coalesces redraws; one completed gesture creates one history entry and Esc/resize/focus loss restores the pre-gesture mesh.
+- Bounded raw pointer sampling that retains press, intermediate movement, and release when Windows coalesces redraws; long lassos compact deterministically while retaining their final release point, one completed gesture creates one history entry, and Esc/resize/focus loss restores the pre-gesture mesh.
 - Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots.
 - Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh buffers, and Textured/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes.
 - egui archive/assets, viewport, inspector, selection/edit, and status surfaces.
@@ -47,8 +47,8 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 | Lab project | Incomplete | Camera/tool/history persistence is not published yet |
 | Neutral export | OBJ/MTL implemented | GLB, skinning/material preservation, and private corpus re-import parity remain incomplete |
 | Persistent cache | Incomplete | No cold/warm cache timing |
-| Interaction stress | Partial | 100 lasso variants, 100 cancellations, 1,000 mixed events, and bounded fast-pointer retention pass; per-tool long high-rate/focus-loss/resize and bounded-memory soaks remain unrun |
-| Performance targets | Not measured | No latency/FPS claim |
+| Interaction stress | Partial | 100 lasso variants, 100 cancellations, 1,000 mixed events, bounded fast-pointer retention, 10,000-point lasso compaction, and a 100,000-element local-query candidate bound pass; per-tool long high-rate/focus-loss/resize and bounded-memory soaks remain unrun |
+| Performance targets | Partial instrumentation | The live inspector now reports last/p95 CPU query and operator cost plus indexed candidates inspected, but no representative PAC latency, FPS, GPU, or memory claim has been measured |
 | Fuzzing | Not run | Parser robustness proof incomplete |
 | `cargo deny` / `cargo audit` | Not run yet | License/advisory gate unproven |
 

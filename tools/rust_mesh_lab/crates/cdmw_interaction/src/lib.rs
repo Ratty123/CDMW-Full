@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 const MAX_LASSO_POINTS: usize = 4_096;
+const SCREEN_GRID_CELL_SIZE: f32 = 32.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperatorState {
@@ -66,6 +67,93 @@ pub struct InteractionSnapshot {
     pub viewport_revision: u64,
     pub viewport_size: Vec2,
     pub elements: Vec<ProjectedElement>,
+    spatial_index: ScreenSpaceIndex,
+}
+
+impl InteractionSnapshot {
+    #[must_use]
+    pub fn new(
+        geometry_revision: u64,
+        topology_generation: u64,
+        camera_revision: u64,
+        viewport_revision: u64,
+        viewport_size: Vec2,
+        elements: Vec<ProjectedElement>,
+    ) -> Self {
+        let spatial_index = ScreenSpaceIndex::build(&elements);
+        Self {
+            geometry_revision,
+            topology_generation,
+            camera_revision,
+            viewport_revision,
+            viewport_size,
+            elements,
+            spatial_index,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectionQueryStats {
+    pub candidates_inspected: usize,
+    pub total_elements: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ScreenSpaceIndex {
+    cells: HashMap<(i32, i32), Vec<usize>>,
+}
+
+impl ScreenSpaceIndex {
+    fn build(elements: &[ProjectedElement]) -> Self {
+        let mut cells = HashMap::<(i32, i32), Vec<usize>>::new();
+        for (index, element) in elements.iter().enumerate() {
+            if element.position.is_finite() {
+                cells
+                    .entry(cell_for(element.position))
+                    .or_default()
+                    .push(index);
+            }
+        }
+        Self { cells }
+    }
+
+    fn candidate_indices(&self, shape: &SelectionShape) -> Vec<usize> {
+        let Some((minimum, maximum)) = shape_bounds(shape) else {
+            return Vec::new();
+        };
+        let low = cell_for(minimum.min(maximum));
+        let high = cell_for(minimum.max(maximum));
+        let width = i64::from(high.0)
+            .saturating_sub(i64::from(low.0))
+            .saturating_add(1);
+        let height = i64::from(high.1)
+            .saturating_sub(i64::from(low.1))
+            .saturating_add(1);
+        let cell_area = width.saturating_mul(height);
+        let direct_lookup_limit = i64::try_from(self.cells.len())
+            .unwrap_or(i64::MAX)
+            .saturating_mul(4)
+            .max(64);
+        let mut indices = Vec::new();
+        if cell_area <= direct_lookup_limit {
+            for y in low.1..=high.1 {
+                for x in low.0..=high.0 {
+                    if let Some(cell) = self.cells.get(&(x, y)) {
+                        indices.extend(cell);
+                    }
+                }
+            }
+        } else {
+            for (&(x, y), cell) in &self.cells {
+                if x >= low.0 && x <= high.0 && y >= low.1 && y <= high.1 {
+                    indices.extend(cell);
+                }
+            }
+        }
+        indices.sort_unstable();
+        indices
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -108,6 +196,13 @@ pub fn query_selection(
     snapshot: &InteractionSnapshot,
     query: &SelectionQuery,
 ) -> Result<Selection, InteractionError> {
+    query_selection_with_stats(snapshot, query).map(|(selection, _)| selection)
+}
+
+pub fn query_selection_with_stats(
+    snapshot: &InteractionSnapshot,
+    query: &SelectionQuery,
+) -> Result<(Selection, SelectionQueryStats), InteractionError> {
     if snapshot.geometry_revision != query.geometry_revision
         || snapshot.topology_generation != query.topology_generation
         || snapshot.camera_revision != query.camera_revision
@@ -117,12 +212,20 @@ pub fn query_selection(
     }
     validate_shape(&query.shape)?;
     let mut selection = Selection::default();
-    let candidates = snapshot.elements.iter().filter(|element| {
-        (!query.visible_only || element.visible)
-            && element.position.is_finite()
-            && shape_contains(&query.shape, element.position)
-            && handle_matches_domain(element.handle, query.domain)
-    });
+    let candidate_indices = snapshot.spatial_index.candidate_indices(&query.shape);
+    let stats = SelectionQueryStats {
+        candidates_inspected: candidate_indices.len(),
+        total_elements: snapshot.elements.len(),
+    };
+    let candidates = candidate_indices
+        .into_iter()
+        .filter_map(|index| snapshot.elements.get(index))
+        .filter(|element| {
+            (!query.visible_only || element.visible)
+                && element.position.is_finite()
+                && shape_contains(&query.shape, element.position)
+                && handle_matches_domain(element.handle, query.domain)
+        });
     if let SelectionShape::Click { point, .. } = &query.shape {
         if let Some(candidate) = candidates.min_by(|first, second| {
             first
@@ -133,12 +236,12 @@ pub fn query_selection(
         }) {
             insert_candidate(&mut selection, candidate.handle);
         }
-        return Ok(selection);
+        return Ok((selection, stats));
     }
     for candidate in candidates {
         insert_candidate(&mut selection, candidate.handle);
     }
-    Ok(selection)
+    Ok((selection, stats))
 }
 
 fn handle_matches_domain(handle: ProjectedHandle, domain: SelectionDomain) -> bool {
@@ -247,6 +350,34 @@ fn validate_shape(shape: &SelectionShape) -> Result<(), InteractionError> {
     } else {
         Err(InteractionError::InvalidShape)
     }
+}
+
+fn shape_bounds(shape: &SelectionShape) -> Option<(Vec2, Vec2)> {
+    match shape {
+        SelectionShape::Click { point, radius } | SelectionShape::Brush { point, radius } => {
+            let extent = Vec2::splat(*radius);
+            Some((*point - extent, *point + extent))
+        }
+        SelectionShape::Rectangle { minimum, maximum } => Some((*minimum, *maximum)),
+        SelectionShape::Lasso { points } => {
+            let first = points.first().copied()?;
+            Some(
+                points
+                    .iter()
+                    .copied()
+                    .fold((first, first), |(low, high), point| {
+                        (low.min(point), high.max(point))
+                    }),
+            )
+        }
+    }
+}
+
+fn cell_for(point: Vec2) -> (i32, i32) {
+    (
+        (point.x / SCREEN_GRID_CELL_SIZE).floor() as i32,
+        (point.y / SCREEN_GRID_CELL_SIZE).floor() as i32,
+    )
 }
 
 fn shape_contains(shape: &SelectionShape, point: Vec2) -> bool {
@@ -523,14 +654,7 @@ mod tests {
 
     #[test]
     fn stale_snapshot_is_rejected_before_selection() {
-        let snapshot = InteractionSnapshot {
-            geometry_revision: 2,
-            topology_generation: 1,
-            camera_revision: 1,
-            viewport_revision: 1,
-            viewport_size: Vec2::splat(100.0),
-            elements: Vec::new(),
-        };
+        let snapshot = InteractionSnapshot::new(2, 1, 1, 1, Vec2::splat(100.0), Vec::new());
         let query = SelectionQuery {
             domain: SelectionDomain::Vertex,
             operation: SelectionOperation::Replace,
@@ -561,13 +685,13 @@ mod tests {
             .vertices()
             .map(|(handle, _)| handle)
             .collect::<Vec<_>>();
-        let snapshot = InteractionSnapshot {
-            geometry_revision: mesh.geometry_revision,
-            topology_generation: mesh.topology_generation,
-            camera_revision: 1,
-            viewport_revision: 1,
-            viewport_size: Vec2::splat(100.0),
-            elements: vec![
+        let snapshot = InteractionSnapshot::new(
+            mesh.geometry_revision,
+            mesh.topology_generation,
+            1,
+            1,
+            Vec2::splat(100.0),
+            vec![
                 ProjectedElement {
                     handle: ProjectedHandle::Vertex(handles[0]),
                     position: Vec2::new(2.0, 0.0),
@@ -581,7 +705,7 @@ mod tests {
                     visible: true,
                 },
             ],
-        };
+        );
         let query = SelectionQuery {
             domain: SelectionDomain::Vertex,
             operation: SelectionOperation::Replace,
@@ -597,6 +721,55 @@ mod tests {
         };
         let selected = query_selection(&snapshot, &query)?;
         assert_eq!(selected.vertices, HashSet::from([handles[0]]));
+        Ok(())
+    }
+
+    #[test]
+    fn local_query_uses_a_bounded_screen_grid_candidate_set()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let document = decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
+            MeshFormat::Pam,
+        )?;
+        let mesh = WorkingMesh::from_document(&document)?;
+        let handle = mesh
+            .vertices()
+            .next()
+            .map(|(handle, _)| handle)
+            .ok_or("missing synthetic vertex")?;
+        let elements = (0..100_000)
+            .map(|index| ProjectedElement {
+                handle: ProjectedHandle::Vertex(handle),
+                position: Vec2::new((index % 1_000) as f32 * 8.0, (index / 1_000) as f32 * 8.0),
+                depth: 0.5,
+                visible: true,
+            })
+            .collect::<Vec<_>>();
+        let snapshot = InteractionSnapshot::new(
+            mesh.geometry_revision,
+            mesh.topology_generation,
+            1,
+            1,
+            Vec2::new(8_000.0, 800.0),
+            elements,
+        );
+        let query = SelectionQuery {
+            domain: SelectionDomain::Vertex,
+            operation: SelectionOperation::Replace,
+            visible_only: false,
+            shape: SelectionShape::Click {
+                point: Vec2::new(4_000.0, 400.0),
+                radius: 4.0,
+            },
+            geometry_revision: mesh.geometry_revision,
+            topology_generation: mesh.topology_generation,
+            camera_revision: 1,
+            viewport_revision: 1,
+        };
+        let (selected, stats) = query_selection_with_stats(&snapshot, &query)?;
+        assert_eq!(stats.total_elements, 100_000);
+        assert!(stats.candidates_inspected <= 64, "{stats:?}");
+        assert_eq!(selected.vertices, HashSet::from([handle]));
         Ok(())
     }
 
