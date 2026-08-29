@@ -197,11 +197,12 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             try:
                 self.assertIs(window.main_tabs.currentWidget(), window.assets_tabs)
                 self.assertIs(window.assets_tabs.currentWidget(), window.archive_browser_tab)
-                self.assertEqual("archive_browser", settings.value("ui/active_tool_key"))
+                self.assertEqual("archive_browser", window._tool_key_for_widget(window._current_navigation_widget()))
             finally:
                 window._finalize_close()
                 window.deleteLater()
                 _app().processEvents()
+            self.assertEqual("archive_browser", settings.value("ui/active_tool_key"))
 
     def test_startup_archive_autoload_reaches_scan_after_root_preflight(self) -> None:
         class ScanReached(RuntimeError):

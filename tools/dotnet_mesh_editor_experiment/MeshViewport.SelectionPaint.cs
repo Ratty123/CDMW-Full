@@ -8,9 +8,9 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class MeshViewport
 {
-    private void BeginSelectionStroke()
+    private void BeginSelectionStroke(string gestureId)
     {
-        _selectionStrokeId = Guid.NewGuid().ToString("N");
+        _selectionStrokeId = gestureId;
         _selectionStrokeSequence = 0;
         EmitSelectionRequest(
             new Dictionary<string, object?>

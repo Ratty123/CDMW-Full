@@ -48,6 +48,7 @@ internal sealed partial class D3D11MaterialViewport
     private readonly List<Vector3> _gridMinorVertices = new(80);
     private readonly List<Vector3> _gridMajorVertices = new(24);
     private readonly List<Vector3> _referenceOverlayVertices = new(InitialOverlayVertexCapacity);
+    private readonly List<int> _vertexOverlayRemovalScratch = new();
     private readonly D3D11WireOverlayCache _comparisonWireOverlayCache = new();
     private readonly D3D11WireOverlayCache _referenceWireOverlayCache = new();
     private readonly D3D11WireOverlayCache _editableWireOverlayCache = new();
@@ -136,27 +137,8 @@ internal sealed partial class D3D11MaterialViewport
                 _retainedOverlayBufferDisposeCount++;
                 _retainedWireOverlayBufferDisposeCount++;
             }
+            cache.Capacity = 0;
             cache.Valid = false;
-        }
-    }
-
-    private unsafe ID3D11Buffer? CreateRetainedOverlayBuffer(IReadOnlyList<Vector3> positions)
-    {
-        if (_device is null || positions.Count == 0)
-        {
-            return null;
-        }
-        var vertices = positions.ToArray();
-        fixed (Vector3* vertexPointer = vertices)
-        {
-            var buffer = _device.CreateBuffer(
-                new BufferDescription(
-                    checked((uint)(vertices.Length * (long)OverlayVertexStride)),
-                    BindFlags.VertexBuffer),
-                new SubresourceData((IntPtr)vertexPointer));
-            _retainedOverlayBufferCreateCount++;
-            _retainedWireOverlayBufferCreateCount++;
-            return buffer;
         }
     }
 
@@ -406,13 +388,7 @@ internal sealed partial class D3D11MaterialViewport
         var generation = OverlayGeometryGenerationKey();
         if (!cache.Valid || cache.Generation != generation)
         {
-            if (cache.VertexBuffer is not null)
-            {
-                cache.VertexBuffer.Dispose();
-                cache.VertexBuffer = null;
-                _retainedOverlayBufferDisposeCount++;
-                _retainedWireOverlayBufferDisposeCount++;
-            }
+            var previousCount = cache.Lines.Count;
             cache.Lines.Clear();
             var edges = _overlayTopology.Edges;
             for (var edgeIndex = 0; edgeIndex < edges.Count; edgeIndex++)
@@ -427,7 +403,13 @@ internal sealed partial class D3D11MaterialViewport
                 }
                 AddEdgeLineVertices(edge, cache.Lines);
             }
-            cache.VertexBuffer = CreateRetainedOverlayBuffer(cache.Lines);
+            UpdateRetainedOverlayBuffer(
+                ref cache.VertexBuffer,
+                ref cache.Capacity,
+                cache.Lines,
+                previousCount,
+                rewrite: true,
+                wire: true);
             cache.Generation = generation;
             cache.Valid = true;
             _retainedOverlayRebuildCount++;
@@ -914,7 +896,8 @@ internal readonly record struct D3D11OverlayGeometryGenerationKey(
 internal sealed class D3D11WireOverlayCache
 {
     public List<Vector3> Lines { get; } = new(4096);
-    public ID3D11Buffer? VertexBuffer { get; set; }
+    public ID3D11Buffer? VertexBuffer;
+    public int Capacity;
     public D3D11OverlayGeometryGenerationKey Generation { get; set; }
     public bool Valid { get; set; }
 }

@@ -427,14 +427,15 @@ static bool material_sidecar_matches_mesh_source(const TextureBinding& binding, 
 }
 
 static bool material_binding_matches_mesh_source(const TextureBinding& binding, const NativeSubmesh& mesh) {
-    if (!material_sidecar_matches_mesh_source(binding, mesh)) return false;
+    const bool exact_shared_material = binding_texture_family_is_mesh_material(binding, mesh);
+    if (!material_sidecar_matches_mesh_source(binding, mesh) && !exact_shared_material) return false;
     if (binding.source_authority != "embedded_mesh" || binding.linked_mesh_path.empty() || mesh.source_model_path.empty()) {
         return true;
     }
     const std::string binding_key = material_component_key_from_path(binding.linked_mesh_path);
     const std::string mesh_source_key = material_component_key_from_path(mesh.source_model_path);
     if (binding_key.empty() || mesh_source_key.empty()) return true;
-    return binding_key == mesh_source_key || material_keys_overlap(binding_key, mesh_source_key);
+    return binding_key == mesh_source_key || material_keys_overlap(binding_key, mesh_source_key) || exact_shared_material;
 }
 
 static int material_identity_text_match_score(const TextureBinding& binding, const NativeSubmesh& mesh) {

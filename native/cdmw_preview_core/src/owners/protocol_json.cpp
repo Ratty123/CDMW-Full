@@ -1,6 +1,6 @@
 constexpr int kNativePackageSchemaVersion = 8;
 constexpr int kNativeMaterialGraphVersion = 3;
-constexpr int kNativeMaterialSemanticsVersion = 8;
+constexpr int kNativeMaterialSemanticsVersion = 9;
 constexpr int kNativeDdsExtractionVersion = 2;
 
 std::string json_escape(const std::string& value) {
@@ -388,6 +388,14 @@ struct ArchiveEntryRef {
     }
 };
 
+struct PreviewContextComponentRef {
+    ArchiveEntryRef entry;
+    std::string slot, label, authority, appearance_path;
+    float scale = 1.0f;
+    fs::path presentation_geometry_path;
+    std::string presentation_geometry_source;
+};
+
 struct EntryJob {
     std::string path;
     std::string extension;
@@ -408,6 +416,7 @@ struct EntryJob {
     bool archive_dependency_entries_complete = false;
     std::vector<std::string> enabled_prefab_component_paths;
     std::map<std::string, int> model_property_indices;
+    std::vector<PreviewContextComponentRef> preview_context_components;
     fs::path presentation_geometry_path;
     std::string presentation_geometry_source;
     bool use_textures = true;
@@ -495,6 +504,26 @@ ArchiveEntryRef parse_archive_entry_ref(const std::string& object) {
     return entry;
 }
 
+static PreviewContextComponentRef parse_preview_context_component_ref(const std::string& object) {
+    PreviewContextComponentRef component;
+    component.entry = parse_archive_entry_ref(find_object_value(object, "entry"));
+    component.slot = lower_copy(find_string_value(object, "slot"));
+    component.label = find_string_value(object, "label");
+    component.authority = lower_copy(find_string_value(object, "authority"));
+    component.appearance_path = find_string_value(object, "appearance_path");
+    component.scale = std::clamp(find_float_value(object, "scale", 1.0f), 0.01f, 100.0f);
+    component.presentation_geometry_path = fs::path(find_string_value(object, "context_presentation_geometry_path"));
+    component.presentation_geometry_source = find_string_value(object, "context_presentation_geometry_source");
+    if (component.entry.path.empty()) throw std::runtime_error("preview context component is missing its archive entry");
+    if (component.slot != "face" && component.slot != "hair"
+        && component.slot != "body" && component.slot != "gear") {
+        throw std::runtime_error("preview context component has an unsupported slot");
+    }
+    if (component.authority != "authored" && component.authority != "compatible")
+        throw std::runtime_error("preview context component has an unsupported authority");
+    return component;
+}
+
 struct Vec2 {
     float x = 0.0f;
     float y = 0.0f;
@@ -538,6 +567,7 @@ struct NativeSubmesh {
     int source_local_submesh_index = -1;
     int source_component_index = 0;
     bool source_prefab_component = false;
+    bool source_context_component = false;
     std::string vertex_layout_name;
     int vertex_stride = 40;
     int uv_offset = 8;
@@ -741,6 +771,8 @@ struct NativePackage {
     bool presentation_geometry_applied = false;
     int presentation_geometry_vertex_count = 0;
     std::string presentation_geometry_source;
+    int context_presentation_component_count = 0;
+    int context_presentation_vertex_count = 0;
     std::string material_index = "none";
     std::string material_graph_status = "not_started";
     std::string material_graph_cache_path;
@@ -896,6 +928,13 @@ EntryJob parse_job(const fs::path& job_path) {
     }
     if (model_property_indices_truncated) {
         throw std::runtime_error("model property selections exceeded the 32-entry safety bound");
+    }
+    bool context_components_truncated = false;
+    for (const std::string& component_object : find_object_array_values(text, "preview_context_components", 32, context_components_truncated)) {
+        job.preview_context_components.push_back(parse_preview_context_component_ref(component_object));
+    }
+    if (context_components_truncated) {
+        throw std::runtime_error("preview context components exceeded the 32-entry safety bound");
     }
     job.presentation_geometry_path = fs::path(find_string_value(text, "presentation_geometry_path"));
     job.presentation_geometry_source = find_string_value(text, "presentation_geometry_source");

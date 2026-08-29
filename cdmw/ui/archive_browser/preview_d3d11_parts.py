@@ -86,6 +86,11 @@ class ArchivePreviewD3D11PartsMixin:
                 shown_count += 1
             else:
                 hidden.extend(int(index) for index in source_indices if int(index) >= 0)
+        hidden.extend(
+            int(index)
+            for index in tuple(getattr(self, "archive_character_context_pending_hidden_indices", ()) or ())
+            if int(index) >= 0
+        )
         total_count = len(groups)
         self.archive_d3d11_part_visibility_button.setText(
             f"Parts {shown_count}/{total_count}" if total_count else "Parts"
@@ -94,6 +99,8 @@ class ArchivePreviewD3D11PartsMixin:
 
     def _populate_archive_d3d11_part_visibility_menu(self, package_dir: Path) -> None:
         self._clear_archive_d3d11_part_visibility_menu()
+        self.archive_character_context_pending_hidden_indices = ()
+        self.archive_character_context_loaded_indices = ()
         manifest_path = Path(package_dir) / "manifest.json"
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -102,7 +109,11 @@ class ArchivePreviewD3D11PartsMixin:
         batches = manifest.get("batches")
         if not isinstance(batches, list):
             return
+        current_entry_getter = getattr(self, "_current_archive_entry", None)
+        current_entry = current_entry_getter() if callable(current_entry_getter) else None
+        self._sync_archive_character_context_source(current_entry)
         rows: Dict[str, Dict[str, object]] = {}
+        context_indices: List[int] = []
         asset_family = manifest.get("asset_family")
         member_rows = asset_family.get("member_rows") if isinstance(asset_family, Mapping) else ()
         if isinstance(member_rows, list):
@@ -142,7 +153,10 @@ class ArchivePreviewD3D11PartsMixin:
                 or f"Batch {source_index}"
             )
             model_path = str(identity.get("source_model_path") or "")
-            prefab_component = bool(identity.get("prefab_component", False))
+            context_component = bool(identity.get("context_component", False))
+            prefab_component = bool(identity.get("prefab_component", False)) and not context_component
+            if context_component:
+                context_indices.append(source_index)
             component_index = identity.get("source_component_index", "")
             path_key = self._archive_d3d11_prefab_component_path_key(model_path)
             group_key = (
@@ -162,6 +176,7 @@ class ArchivePreviewD3D11PartsMixin:
             source_indices = row.get("source_indices")
             if isinstance(source_indices, list) and source_index not in source_indices:
                 source_indices.append(source_index)
+        self.archive_character_context_loaded_indices = tuple(sorted(set(context_indices)))
         if len(rows) <= 1:
             return
         menu = self.archive_d3d11_part_visibility_menu
@@ -289,3 +304,29 @@ class ArchivePreviewD3D11PartsMixin:
                 else "Removing prefab components from preview..."
             )
         refresh(force=True)
+
+    def _sync_archive_character_context_source(self, entry: object | None) -> None:
+        panel = getattr(self, "archive_character_context_panel", None)
+        button = getattr(self, "archive_character_context_button", None)
+        if panel is None or button is None:
+            return
+        button.setChecked(False)
+        button.setEnabled(False)
+        button.setVisible(False)
+        panel.setVisible(False)
+
+    def _archive_character_context_selection_applied(self, source_entry: object, _components: object) -> None:
+        current_entry_getter = getattr(self, "_current_archive_entry", None)
+        current_entry = current_entry_getter() if callable(current_entry_getter) else None
+        if current_entry is None or getattr(current_entry, "identity", None) != getattr(source_entry, "identity", None):
+            return
+        self.archive_character_context_pending_hidden_indices = tuple(
+            getattr(self, "archive_character_context_loaded_indices", ()) or ()
+        )
+        self._set_archive_d3d11_hidden_parts_from_menu()
+        refresh = getattr(self, "_refresh_current_model_preview_assets", None)
+        if callable(refresh):
+            status = getattr(self, "set_status_message", None)
+            if callable(status):
+                status("Updating Character Context preview...")
+            refresh(force=True)

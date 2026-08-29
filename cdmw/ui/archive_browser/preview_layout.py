@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QTimer, Qt
@@ -63,6 +64,7 @@ class ArchivePreviewLayoutMixin:
         archive_preview_main_layout = QVBoxLayout(archive_preview_main_widget)
         archive_preview_main_layout.setContentsMargins(0, 0, 0, 0)
         archive_preview_main_layout.setSpacing(4)
+        self.character_context_service = None
 
         archive_preview_header = QVBoxLayout()
         archive_preview_header.setSpacing(3)
@@ -131,6 +133,13 @@ class ArchivePreviewLayoutMixin:
         ] = {}
         self.archive_d3d11_prefab_component_selections: Dict[str, set[str]] = {}
         self.archive_d3d11_part_visibility_bulk_update = False
+        self.archive_character_context_button = QPushButton("Character Context")
+        self.archive_character_context_button.setCheckable(True)
+        self.archive_character_context_button.setToolTip(
+            "Show exact authored face pieces and optional compatible hair/body context beside the preview."
+        )
+        self.archive_character_context_button.setVisible(False)
+        self.archive_character_context_button.setEnabled(False)
         self.archive_model_preview_reset_overrides_button = QPushButton("Reset")
         self.archive_model_preview_reset_overrides_button.setToolTip(
             "Clear the temporary Flip Base V and Disable Support Maps preview overrides."
@@ -471,6 +480,10 @@ class ArchivePreviewLayoutMixin:
         self.archive_d3d11_part_visibility_button.setMinimumHeight(24)
         self.archive_d3d11_part_visibility_button.setMaximumHeight(26)
         self.archive_d3d11_part_visibility_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self.archive_character_context_button.setMinimumWidth(126)
+        self.archive_character_context_button.setMinimumHeight(24)
+        self.archive_character_context_button.setMaximumHeight(26)
+        self.archive_character_context_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         archive_view_controls_layout.addWidget(self.archive_preview_zoom_out_button)
         archive_view_controls_layout.addWidget(self.archive_preview_zoom_fit_button)
         archive_view_controls_layout.addWidget(self.archive_preview_zoom_100_button)
@@ -480,6 +493,7 @@ class ArchivePreviewLayoutMixin:
         archive_view_controls_layout.addWidget(self.archive_model_preview_refresh_button)
         archive_view_controls_layout.addWidget(self.archive_isolated_renderer_button)
         archive_view_controls_layout.addWidget(self.archive_d3d11_part_visibility_button)
+        archive_view_controls_layout.addWidget(self.archive_character_context_button)
         archive_view_controls_layout.addWidget(self.archive_model_preview_reset_overrides_button)
         archive_view_controls_layout.addWidget(self.archive_model_preview_flip_v_checkbox)
         archive_view_controls_layout.addWidget(self.archive_model_preview_disable_support_checkbox)
@@ -626,15 +640,21 @@ class ArchivePreviewLayoutMixin:
         self.archive_preview_stack.currentChanged.connect(self._update_archive_preview_text_tools_visibility)
         self._update_archive_preview_text_tools_visibility()
         archive_preview_main_layout.addWidget(self.archive_preview_tabs, stretch=1)
+        self.archive_character_context_panel = QFrame(self.archive_preview_group)
+        self.archive_character_context_panel.setVisible(False)
         self.archive_preview_content_splitter = QSplitter(Qt.Horizontal)
         self.archive_preview_content_splitter.setChildrenCollapsible(True)
         self.archive_preview_content_splitter.setHandleWidth(8)
         self.archive_preview_content_splitter.addWidget(archive_preview_main_widget)
         self.archive_preview_content_splitter.addWidget(self.archive_texture_refs_group)
+        self.archive_preview_content_splitter.addWidget(self.archive_character_context_panel)
         self.archive_preview_content_splitter.setCollapsible(0, False)
         self.archive_preview_content_splitter.setCollapsible(1, True)
+        self.archive_preview_content_splitter.setCollapsible(2, True)
         self.archive_preview_content_splitter.setStretchFactor(0, 1)
         self.archive_preview_content_splitter.setStretchFactor(1, 1)
-        self.archive_preview_content_splitter.setSizes([920, 600])
+        self.archive_preview_content_splitter.setStretchFactor(2, 0)
+        self.archive_preview_content_splitter.setSizes([920, 600, 0])
+
         archive_preview_container_layout.addWidget(self.archive_preview_content_splitter, stretch=1)
         self.archive_splitter.addWidget(archive_preview_group)

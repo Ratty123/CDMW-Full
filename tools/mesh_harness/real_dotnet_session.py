@@ -17,6 +17,10 @@ from tools.mesh_harness.real_dotnet_evidence import (
     _base_error,
     _wait_protocol_event,
 )
+from tools.mesh_harness.win32_input import (
+    _desktop_input_snapshot,
+    _show_window_without_activation,
+)
 
 
 def _proof_screen(app: object) -> object:
@@ -25,8 +29,9 @@ def _proof_screen(app: object) -> object:
     The primary screen by default, which is what every existing run used.
     ``CDMW_HARNESS_SCREEN`` names another one, by Qt screen name such as
     ``\\\\.\\DISPLAY1`` or by index, so a run can be kept off a display someone
-    is working on. The gate shows a real window, takes foreground ownership, and
-    moves the cursor, so where it lands is not cosmetic.
+    is working on. The gate shows a real window without activating it; input is
+    posted only to the verified viewport HWND and never moves the user's global
+    cursor.
     """
     requested = str(os.environ.get("CDMW_HARNESS_SCREEN", "") or "").strip()
     primary = app.primaryScreen()
@@ -86,18 +91,65 @@ def _install_timing_probes(state: SimpleNamespace) -> None:
     # only ever called directly, never connected to a signal.
     original_send_protocol = state.tab._send_dotnet_protocol_message
     state.sent_material_states = []
+    state.sent_mutation_batches = []
 
     def record_protocol_send(payload: object, *args: object, **kwargs: object) -> bool:
         sent = bool(original_send_protocol(payload, *args, **kwargs))
-        if (
-            sent
-            and isinstance(payload, Mapping)
-            and str(payload.get("event", "") or "") == "material_state_update"
-        ):
-            state.sent_material_states.append(dict(payload))
+        if sent and isinstance(payload, Mapping):
+            event = str(payload.get("event", "") or "")
+            if event == "material_state_update":
+                state.sent_material_states.append(dict(payload))
+            elif event == "resident_mutation_batch":
+                vertex_updates = payload.get("vertex_updates", ())
+                vertex_updates = (
+                    tuple(vertex_updates)
+                    if isinstance(vertex_updates, (list, tuple))
+                    else ()
+                )
+                state.sent_mutation_batches.append(
+                    {
+                        "request_id": int(payload.get("request_id", 0) or 0),
+                        "base_revision": int(payload.get("base_revision", 0) or 0),
+                        "target_revision": int(payload.get("target_revision", 0) or 0),
+                        "action": str(payload.get("action", "") or ""),
+                        "vertex_updates": [
+                            {
+                                "source_submesh_index": group.get("source_submesh_index"),
+                                "keys": sorted(str(key) for key in group),
+                                "source_vertex_index_count": len(
+                                    tuple(group.get("source_vertex_indices", ()) or ())
+                                ),
+                                "position_value_count": len(
+                                    tuple(group.get("positions", ()) or ())
+                                ),
+                                "normal_value_count": len(
+                                    tuple(group.get("normals", ()) or ())
+                                ),
+                                "uv_value_count": len(tuple(group.get("uvs", ()) or ())),
+                            }
+                            for group in vertex_updates
+                            if isinstance(group, Mapping)
+                        ],
+                        "selection_update_keys": sorted(
+                            str(key) for key in payload.get("selection_update", {})
+                        )
+                        if isinstance(payload.get("selection_update"), Mapping)
+                        else [],
+                        "history_state": dict(payload.get("history_state", {}))
+                        if isinstance(payload.get("history_state"), Mapping)
+                        else {},
+                        "affected_submesh_indices": list(
+                            tuple(payload.get("affected_submesh_indices", ()) or ())
+                        ),
+                    }
+                )
         return sent
 
     state.tab._send_dotnet_protocol_message = record_protocol_send
+    # The revision queue captured the original bound method during tab
+    # construction. Point its egress at the same recorder so selection and edit
+    # batches are evidenced at the actual production queue boundary too.
+    state.tab.standalone_dotnet_update_queue._send = record_protocol_send
 
     def record_completion_stage(method_name: str) -> None:
         original = getattr(state.tab, method_name)
@@ -184,6 +236,49 @@ def _start_embedded_editor(
     state.host.setObjectName("AlignmentDotNetVorticePreviewHost")
     state.host.setMinimumSize(300, 280)
     layout.addWidget(state.host)
+    state.builder_commit_evidence = []
+
+    def commit_builder_authority(
+        edit_result: object,
+        *,
+        selection: object = None,
+        **_kwargs: object,
+    ) -> bool:
+        current_view = state.controller.session_view()
+        result_view = getattr(edit_result, "session_view", None)
+        target_revision = int(
+            getattr(result_view, "resident_revision", getattr(edit_result, "revision", -1))
+            or 0
+        )
+        current_revision = int(current_view.resident_revision or 0)
+        expected_selection = getattr(result_view, "selection", None)
+        selection_matches = bool(
+            selection is None
+            or expected_selection is None
+            or selection == expected_selection
+        )
+        accepted = bool(
+            target_revision >= 0
+            and current_revision >= target_revision
+            and selection_matches
+        )
+        state.builder_commit_evidence.append(
+            {
+                "adapter": "production_builder_commit_contract_readback",
+                "action": str(getattr(edit_result, "action", "") or ""),
+                "target_revision": target_revision,
+                "current_revision": current_revision,
+                "selection_matches_result_authority": selection_matches,
+                "accepted": accepted,
+            }
+        )
+        return accepted
+
+    setattr(
+        state.builder,
+        "_mesh_editor_commit_dotnet_edit_result",
+        commit_builder_authority,
+    )
     state.dotnet_ready_callback = False
     state.dotnet_failed = ""
     # Several production failures (a material compile that fails before it
@@ -217,12 +312,20 @@ def _start_embedded_editor(
         lambda reason="", diagnostics="": setattr(state, "dotnet_failed", f"{reason}: {diagnostics}".strip(": ")),
     )
     state.tab.mount_embedded_builder(state.builder)
-    screen = _proof_screen(state.app).availableGeometry()
+    proof_screen = _proof_screen(state.app)
+    screen = proof_screen.availableGeometry()
+    full_screen = proof_screen.geometry()
+    state.harness_screen_bounds = (
+        int(full_screen.x()),
+        int(full_screen.y()),
+        int(full_screen.x() + full_screen.width()),
+        int(full_screen.y() + full_screen.height()),
+    )
     state.tab.setGeometry(screen.x() + 24, screen.y() + 24, max(960, min(1400, screen.width() - 48)), max(640, min(900, screen.height() - 48)))
+    state.tab.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
     state.tab.show()
-    state.tab.raise_()
-    state.tab.activateWindow()
     state.app.processEvents()
+    _show_window_without_activation(int(state.tab.winId()))
     state.qt_host_hwnd = int(state.host.winId())
     _install_timing_probes(state)
     state.heartbeat_started = time.perf_counter()
@@ -233,6 +336,15 @@ def _start_embedded_editor(
         lambda: state.heartbeat_ms.append((time.perf_counter() - state.heartbeat_started) * 1000.0)
     )
     state.heartbeat_timer.start()
+    state.desktop_input_timer = QTimer(state.tab)
+    state.desktop_input_timer.setInterval(25)
+
+    def sample_desktop_input() -> None:
+        if len(state.desktop_input_observations) < 8192:
+            state.desktop_input_observations.append(_desktop_input_snapshot())
+
+    state.desktop_input_timer.timeout.connect(sample_desktop_input)
+    state.desktop_input_timer.start()
     start = getattr(state.builder, "_mesh_editor_embedded_start_dotnet", None)
     if not callable(start):
         return _base_error(state, "Production embedded .NET start callback was not installed.")

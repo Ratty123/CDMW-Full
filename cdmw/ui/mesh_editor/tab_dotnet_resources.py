@@ -473,7 +473,10 @@ class MeshEditorDotNetResourceProtocolMixin(
             dotnet_state=str(self.standalone_dotnet_embedded_state or ""),
             **self._dotnet_process_event_payload(self.standalone_dotnet_editor_process),
         )
-        self._stop_standalone_dotnet_editor_process(embedded_state="failed")
+        self._stop_standalone_dotnet_editor_process(
+            embedded_state="failed",
+            reason=str(reason or "blocked"),
+        )
 
     def _handle_dotnet_ready_timeout(self) -> None:
         if not self._standalone_dotnet_editor_process_running():

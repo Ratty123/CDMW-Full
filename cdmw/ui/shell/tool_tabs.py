@@ -231,6 +231,7 @@ class ShellToolTabsMixin:
             ),
             get_archive_mutation_service=_archive_mutations,
             get_archive_material_preview_model=_archive_material_preview_model,
+            character_context_service=getattr(self, "character_context_service", None),
         )
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(
@@ -244,6 +245,7 @@ class ShellToolTabsMixin:
             )
         tab.open_archive_session_requested.connect(self._launch_archive_mesh_editor_for_entry)
         tab.open_archive_target_requested.connect(self._mesh_editor_show_archive_target_requested)
+        tab.replace_from_archive_requested.connect(self._mesh_editor_replace_from_archive_requested)
         tab.mesh_action_requested.connect(self._mesh_editor_action_requested)
         current_entry = self._current_archive_entry()
         tab.set_archive_selection(

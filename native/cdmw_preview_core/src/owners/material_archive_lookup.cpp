@@ -605,6 +605,34 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
             }
         }
     }
+    for (const PreviewContextComponentRef& context : job.preview_context_components) {
+        const std::string component_stem = stem_from_path(context.entry.path);
+        const std::string component_dir = dirname_from_path(context.entry.path);
+        std::vector<std::string> component_basenames{
+            component_stem + ".material",
+            component_stem + ".technique",
+            component_stem + ".meshinfo",
+        };
+        if (context.entry.extension == ".pac") {
+            component_basenames.push_back(component_stem + ".pac_xml");
+            component_basenames.push_back(component_stem + ".prefabdata_xml");
+        } else if (context.entry.extension == ".pam") {
+            component_basenames.push_back(component_stem + ".pami");
+            component_basenames.push_back(component_stem + ".pam_xml");
+        } else if (context.entry.extension == ".pamlod") {
+            component_basenames.push_back(component_stem + ".pamlod_xml");
+            component_basenames.push_back(component_stem + ".pami");
+        }
+        for (const std::string& base : component_basenames) {
+            const size_t before_component = candidates.size();
+            add_sidecar_basename_candidates(candidates, seen, index, base, component_dir);
+            if (candidates.size() == before_component) {
+                for (const ArchiveEntryRef& ref : lookup_basename_candidates_across_package(job, index, base, 24)) {
+                    add_sidecar_candidate(candidates, seen, ref);
+                }
+            }
+        }
+    }
     if ((job.extension == ".pam" || job.extension == ".pamlod") && !candidates.empty()) {
         return candidates;
     }

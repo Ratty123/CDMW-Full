@@ -567,6 +567,7 @@ def adapt_native_dotnet_preview_package(
                 "source_component_index": _safe_int(identity.get("source_component_index"), 0),
                 "source_component_label": str(identity.get("source_component_label", "") or ""),
                 "prefab_component": bool(identity.get("prefab_component", False)),
+                "context_component": bool(identity.get("context_component", False)),
                 "role": "archive_model",
                 "name": f"batch_{index:03d}",
                 "material": material,

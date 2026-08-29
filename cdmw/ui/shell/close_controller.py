@@ -154,6 +154,16 @@ class CloseControllerMixin:
                 )
             except RuntimeError:
                 pass
+        character_context = getattr(self, "character_context_service", None)
+        iter_character_context_workers = getattr(character_context, "iter_shutdown_workers", None)
+        if callable(iter_character_context_workers):
+            try:
+                tracked.extend(
+                    (f"character_context.{name}", thread, worker)
+                    for name, thread, worker in tuple(iter_character_context_workers())
+                )
+            except RuntimeError:
+                pass
 
         def _record_tab_worker_error(tab_name: str, message: str) -> None:
             self._record_close_event(
@@ -254,6 +264,13 @@ class CloseControllerMixin:
         if callable(request_catalogue_shutdown):
             try:
                 request_catalogue_shutdown()
+            except (AttributeError, RuntimeError):
+                pass
+        character_context = getattr(self, "character_context_service", None)
+        request_character_context_shutdown = getattr(character_context, "request_shutdown", None)
+        if callable(request_character_context_shutdown):
+            try:
+                request_character_context_shutdown()
             except (AttributeError, RuntimeError):
                 pass
         self._request_tab_shutdowns()
@@ -497,6 +514,13 @@ class CloseControllerMixin:
         if callable(request_catalogue_shutdown):
             try:
                 request_catalogue_shutdown()
+            except (AttributeError, RuntimeError):
+                pass
+        character_context = getattr(self, "character_context_service", None)
+        request_character_context_shutdown = getattr(character_context, "request_shutdown", None)
+        if callable(request_character_context_shutdown):
+            try:
+                request_character_context_shutdown()
             except (AttributeError, RuntimeError):
                 pass
         self._close_worker_wait_timer.stop()

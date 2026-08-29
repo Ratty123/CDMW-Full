@@ -147,6 +147,43 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         self.assertEqual("mesh-session", sent[-1]["session_id"])
         self.assertEqual(1, queue.metrics()["active_revision"])
 
+    def test_same_process_empty_lifecycle_signal_preserves_acked_revision(self) -> None:
+        queue = DotNetRevisionUpdateQueue(lambda _payload: True)
+        queue.set_context(
+            session_id="mesh-session",
+            process_generation=2,
+            renderer_revision=5,
+        )
+        process = object()
+        harness = SimpleNamespace(
+            standalone_dotnet_editor_process=process,
+            standalone_dotnet_process_generation=2,
+            standalone_dotnet_lifecycle_session_id="",
+            standalone_dotnet_update_queue=queue,
+            standalone_dotnet_lifecycle_counts={
+                "renderer_process_start_count": 1,
+                "process_restart_count": 0,
+            },
+            _record_mesh_dotnet_event=lambda *args, **kwargs: None,
+            _dotnet_process_event_payload=lambda current: {},
+        )
+        controller = SimpleNamespace(
+            process=process,
+            process_generation=2,
+            capabilities=(
+                MESH_EDIT_REVISION_CAPABILITY,
+                MESH_MUTATION_ENVELOPE_CAPABILITY,
+            ),
+        )
+
+        MeshEditorTabShellMixin._sync_shared_dotnet_process_identity(
+            harness,
+            controller,
+        )
+
+        self.assertEqual(5, queue.metrics()["last_acked_revision"])
+        self.assertTrue(queue.metrics()["revision_ack_capable"])
+
     def test_protocol_routes_applied_resync_ack_back_to_update_queue(self) -> None:
         tab = MeshEditorTab(
             settings=QSettings("CDMWTests", "MeshEditorResyncAckRouting")

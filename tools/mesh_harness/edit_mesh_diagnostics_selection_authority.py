@@ -98,6 +98,7 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
     from cdmw.ui.mesh_editor.dotnet_update_queue import (
         DotNetRevisionUpdateQueue,
         MESH_EDIT_REVISION_CAPABILITY,
+        MESH_MUTATION_BATCH_CAPABILITY,
         MESH_MUTATION_ENVELOPE_CAPABILITY,
     )
     from cdmw.ui.mesh_editor.static_replacement_adapter import (
@@ -210,6 +211,7 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
                 "capabilities": [
                     MESH_EDIT_REVISION_CAPABILITY,
                     MESH_MUTATION_ENVELOPE_CAPABILITY,
+                    MESH_MUTATION_BATCH_CAPABILITY,
                 ]
             }
         )
@@ -285,7 +287,8 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
         nonterminal_selection_updates = [
             payload
             for payload in nonterminal_payloads
-            if str(payload.get("event", "") or "") == "selection_update"
+            if str(payload.get("event", "") or "")
+            in {"selection_update", "resident_mutation_batch"}
         ]
         # Reproduce the escaped packaged-app race: a geometry frame is still
         # awaiting its renderer acknowledgement when the terminal Select result
@@ -321,7 +324,8 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
         selection_waited_for_geometry = bool(
             active_geometry_ok
             and not any(
-                str(payload.get("event", "") or "") == "selection_update"
+                str(payload.get("event", "") or "")
+                in {"selection_update", "resident_mutation_batch"}
                 for payload in sent_payloads[terminal_protocol_start:]
             )
             and int(tab.standalone_dotnet_update_queue.metrics().get("pending_depth", 0) or 0)
@@ -340,8 +344,44 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
                     "capabilities": [
                         MESH_EDIT_REVISION_CAPABILITY,
                         MESH_MUTATION_ENVELOPE_CAPABILITY,
+                        MESH_MUTATION_BATCH_CAPABILITY,
                     ],
                 },
+            )
+        )
+        terminal_batch = next(
+            (
+                payload
+                for payload in sent_payloads[terminal_protocol_start:]
+                if str(payload.get("event", "") or "")
+                == "resident_mutation_batch"
+            ),
+            {},
+        )
+        terminal_batch_acknowledged = bool(
+            terminal_batch
+            and tab._handle_dotnet_protocol_event(
+                {
+                    "event": "resident_mutation_batch_ack",
+                    "session_id": terminal_batch.get("session_id", ""),
+                    "process_generation": terminal_batch.get(
+                        "process_generation", 0
+                    ),
+                    "request_id": terminal_batch.get("request_id", 0),
+                    "base_revision": terminal_batch.get("base_revision", 0),
+                    "target_revision": terminal_batch.get("target_revision", 0),
+                    "edit_revision": terminal_batch.get("target_revision", 0),
+                    "applied_renderer_revision": terminal_batch.get(
+                        "target_revision", 0
+                    ),
+                    "protocol_version": 3,
+                    "status": "applied",
+                    "capabilities": [
+                        MESH_EDIT_REVISION_CAPABILITY,
+                        MESH_MUTATION_ENVELOPE_CAPABILITY,
+                        MESH_MUTATION_BATCH_CAPABILITY,
+                    ],
+                }
             )
         )
         app.processEvents()
@@ -362,6 +402,39 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
         second_end_ok = submit("end", 1, screen=True)
         second_end_request_id = request_id
         second_end_idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
+        second_batch = next(
+            (
+                payload
+                for payload in sent_payloads[second_terminal_protocol_start:]
+                if str(payload.get("event", "") or "")
+                == "resident_mutation_batch"
+            ),
+            {},
+        )
+        second_batch_acknowledged = bool(
+            second_batch
+            and tab._handle_dotnet_protocol_event(
+                {
+                    "event": "resident_mutation_batch_ack",
+                    "session_id": second_batch.get("session_id", ""),
+                    "process_generation": second_batch.get("process_generation", 0),
+                    "request_id": second_batch.get("request_id", 0),
+                    "base_revision": second_batch.get("base_revision", 0),
+                    "target_revision": second_batch.get("target_revision", 0),
+                    "edit_revision": second_batch.get("target_revision", 0),
+                    "applied_renderer_revision": second_batch.get(
+                        "target_revision", 0
+                    ),
+                    "protocol_version": 3,
+                    "status": "applied",
+                    "capabilities": [
+                        MESH_EDIT_REVISION_CAPABILITY,
+                        MESH_MUTATION_ENVELOPE_CAPABILITY,
+                        MESH_MUTATION_BATCH_CAPABILITY,
+                    ],
+                }
+            )
+        )
         second_terminal_elapsed_ms = (
             time.perf_counter() - second_terminal_started
         ) * 1000.0
@@ -382,7 +455,9 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
         terminal_selection_updates = [
             payload
             for payload in terminal_payloads
-            if str(payload.get("event", "") or "") == "selection_update"
+            if str(payload.get("event", "") or "")
+            == "resident_mutation_batch"
+            and isinstance(payload.get("selection_update"), Mapping)
         ]
         terminal_session_states = [
             payload
@@ -400,7 +475,9 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
         second_terminal_selection_updates = [
             payload
             for payload in second_terminal_payloads
-            if str(payload.get("event", "") or "") == "selection_update"
+            if str(payload.get("event", "") or "")
+            == "resident_mutation_batch"
+            and isinstance(payload.get("selection_update"), Mapping)
         ]
         second_completion_events = [
             payload
@@ -460,11 +537,7 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
             and pre_terminal_heartbeat < terminal_started
             and any(sample >= terminal_finished for sample in heartbeat_times)
         )
-        compact_session_state = bool(
-            len(terminal_session_states) == 1
-            and "selection" not in terminal_session_states[0]
-            and "geometry_layers" not in terminal_session_states[0]
-        )
+        compact_session_state = not terminal_session_states
         final_queue_metrics = dict(tab.standalone_dotnet_update_queue.metrics())
         return {
             "ok": bool(
@@ -478,10 +551,12 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
                 and end_idle
                 and selection_waited_for_geometry
                 and geometry_acknowledged
+                and terminal_batch_acknowledged
                 and second_begin_ok
                 and second_begin_idle
                 and second_end_ok
                 and second_end_idle
+                and second_batch_acknowledged
                 and len(second_terminal_selection_updates) == 1
                 and second_correlated
                 and len(second_completion_events) == 1
@@ -529,6 +604,7 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
             "terminal_selection_update_correlated": correlated,
             "selection_waited_for_inflight_geometry": selection_waited_for_geometry,
             "inflight_geometry_acknowledged": geometry_acknowledged,
+            "terminal_mutation_batch_acknowledged": terminal_batch_acknowledged,
             "inflight_geometry_request_id": active_geometry_request_id,
             "second_selection_succeeded": bool(
                 second_begin_ok
@@ -540,6 +616,7 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
             "second_selection_request_id": second_end_request_id,
             "second_selection_elapsed_ms": second_terminal_elapsed_ms,
             "second_selection_update_count": len(second_terminal_selection_updates),
+            "second_mutation_batch_acknowledged": second_batch_acknowledged,
             "terminal_session_state_compact": compact_session_state,
             "terminal_direct_embedded_apply_count": len(native_applies) - terminal_native_apply_start,
             "builder_snapshot_count": len(snapshots),

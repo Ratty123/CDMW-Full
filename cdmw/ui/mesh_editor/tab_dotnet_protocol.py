@@ -265,7 +265,7 @@ class MeshEditorDotNetProtocolMixin(
         self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
         self._reset_resident_mutation_ui_state()
-        self.standalone_dotnet_update_queue.reset()
+        self.standalone_dotnet_update_queue.reset(reason="protocol_connected")
         self.standalone_dotnet_material_parameter_timer.stop()
         self.standalone_dotnet_pending_material_parameter_payload = None
         _material_commit.remember_sent_material_parameters(self, None)
@@ -388,6 +388,25 @@ class MeshEditorDotNetProtocolMixin(
                 return bool(handler(float(payload.get("ratio", 0.5) or 0.5)))
             except (TypeError, ValueError, AttributeError, RuntimeError):
                 return False
+        if event == "interaction_failed":
+            if not self._dotnet_session_matches(payload):
+                return False
+            self._append_dotnet_protocol_event(payload)
+            code = str(payload.get("diagnostic_code", "viewport_input_failed") or "viewport_input_failed")
+            boundary = str(payload.get("boundary", "input") or "input")
+            message = str(payload.get("message", "Mesh Editor input recovered after a failure.") or "")
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_interaction_failed",
+                diagnostic_code=code,
+                boundary=boundary,
+                tool=str(payload.get("tool", "") or ""),
+                exception_type=str(payload.get("exception_type", "") or ""),
+            )
+            self._set_dotnet_status(
+                f"Mesh Editor recovered {boundary}: {code}. {message}".strip(),
+                error=True,
+            )
+            return True
         if event in {
             "preview_vertex_update_ack",
             "preview_triangle_update_ack",
@@ -396,6 +415,10 @@ class MeshEditorDotNetProtocolMixin(
         }:
             self._append_dotnet_protocol_event(payload)
             handled = self.standalone_dotnet_update_queue.acknowledge(event, payload)
+            if self.standalone_dotnet_protocol_events:
+                self.standalone_dotnet_protocol_events[-1]["queue_metrics_after_ack"] = dict(
+                    self.standalone_dotnet_update_queue.metrics()
+                )
             self._sync_dotnet_update_ack_timer()
             if event == "resident_mutation_batch_ack":
                 self._finalize_resident_mutation_ui_commit(payload)

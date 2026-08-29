@@ -7,7 +7,7 @@
     "native/cdmw_full_archive_core/src/pamt_index.cpp::defined#1": 573,
     "native/common/native_diagnostics.h::comment#1": 182,
     "tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.TextureRegions.cs::TryApplyTextureRegionImmediate#1": 177,
-    "tools/dotnet_mesh_editor_experiment/D3D11TexturedMetalReadabilityProof.cs::Run#1": 356,
+    "tools/dotnet_mesh_editor_experiment/D3D11TexturedMetalReadabilityProof.cs::Run#1": 361,
     "tools/dotnet_mesh_editor_experiment/EditMeshLayoutSmoke.cs::RunGate#1": 414,
     "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshToolDiagnostics.cs::RunEditMeshControlSurfaceDiagnostics#1": 264,
     "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs::HandleParsedProtocolMessage#1": 173,

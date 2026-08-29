@@ -77,6 +77,8 @@ static std::string package_manifest_json(const PackageWriteState& state) {
         << "\"presentation_geometry_applied\":" << (state.package.presentation_geometry_applied ? "true" : "false") << ","
         << "\"presentation_geometry_vertex_count\":" << state.package.presentation_geometry_vertex_count << ","
         << "\"presentation_geometry_source\":\"" << json_escape(state.package.presentation_geometry_source) << "\","
+        << "\"context_presentation_component_count\":" << state.package.context_presentation_component_count << ","
+        << "\"context_presentation_vertex_count\":" << state.package.context_presentation_vertex_count << ","
         << "\"normalization_center\":[" << state.geometry.center.x << "," << state.geometry.center.y << "," << state.geometry.center.z << "],"
         << "\"normalization_scale\":" << state.geometry.scale << ","
         << "\"orbit_sensitivity\":" << state.job.orbit_sensitivity << ","

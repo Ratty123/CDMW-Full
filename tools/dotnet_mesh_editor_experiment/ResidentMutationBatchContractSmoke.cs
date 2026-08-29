@@ -65,6 +65,8 @@ internal static class ResidentMutationBatchContractSmoke
                 preparedVertex.Selection,
                 live,
                 editableSubmeshCount: 1);
+        gates["v3_target_revision_drives_correlation"] =
+            ExperimentForm.MutationCorrelationRevision(TargetRevisionOnlyPayload()) == 5;
         gates["positive_request_bypasses_protocol_coalescing"] =
             ExperimentForm.PositiveRequestBypassesProtocolCoalescing(
                 vertexPayload,
@@ -217,8 +219,8 @@ internal static class ResidentMutationBatchContractSmoke
     private static void TestIdempotency(Dictionary<string, bool> gates)
     {
         var ledger = new ResidentMutationResultLedger(2);
-        var accepted = new ResidentMutationResult("applied", "", 4, 5, 5, 1, "accepted");
-        var rejected = new ResidentMutationResult("rejected", "invalid_payload", 5, 6, 5, 0, "rejected");
+        var accepted = new ResidentMutationResult("applied", "", 4, 5, 5, 1, "accepted", "");
+        var rejected = new ResidentMutationResult("rejected", "invalid_payload", 5, 6, 5, 0, "rejected", "");
         ledger.Remember("mesh-session|7|11", accepted);
         ledger.Remember("mesh-session|7|11", rejected);
         gates["duplicate_accepted_request_is_idempotent"] = ledger.TryGet("mesh-session|7|11", out var first)
@@ -368,6 +370,18 @@ internal static class ResidentMutationBatchContractSmoke
         }
         return JsonSerializer.SerializeToElement(payload);
     }
+
+    private static JsonElement TargetRevisionOnlyPayload() =>
+        JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+        {
+            ["session_id"] = "mesh-session",
+            ["process_generation"] = 7,
+            ["request_id"] = 11,
+            ["base_revision"] = 4,
+            ["target_revision"] = 5,
+            ["protocol_version"] = 3,
+            ["action"] = "selection",
+        });
 
     private static ObjDocument TriangleDocument()
     {

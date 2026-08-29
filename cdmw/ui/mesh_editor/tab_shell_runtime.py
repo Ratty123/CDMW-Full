@@ -48,6 +48,11 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_archive_material_preview_model: object | None = None
         self.archive_material_context_companion_entry: _tab.ArchiveEntry | None = None
         self.archive_material_context_package_path = ""
+        self.character_context_native_package_path = ""
+        self.character_context_loaded_source_indices = ()
+        self.character_context_next_source_indices = ()
+        self.character_context_visibility_restore_pending = False
+        self.character_context_resident_swap_pending = False
         self.archive_material_context_package_lease: object | None = None
         self.archive_material_context_thread: _tab.QThread | None = None
         self.archive_material_context_worker: _tab.MeshArchiveMaterialContextWorker | None = None

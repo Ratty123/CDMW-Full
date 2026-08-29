@@ -134,6 +134,7 @@ class MeshEditorWorkspace(
     uv_region_selected = Signal(tuple, tuple, str)
     uv_lasso_selected = Signal(tuple, str)
     rebuild_report_requested = Signal()
+    replace_from_archive_requested = Signal()
     export_mesh_file_requested = Signal()
     build_mod_requested = Signal()
     install_overlay_requested = Signal()

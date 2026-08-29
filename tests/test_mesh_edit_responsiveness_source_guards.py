@@ -2270,7 +2270,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
 
         self.assertIn('string.Equals(ActiveTool, "select", StringComparison.OrdinalIgnoreCase)', input_source)
-        self.assertIn("BeginSelectionDrag(e.Location, targetMode)", input_source)
+        self.assertIn("BeginSelectionDrag(input.Location, targetMode)", input_source)
         self.assertIn('["operation"] = CurrentSelectionOperation()', source)
         self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', source)
         return
@@ -3763,7 +3763,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('"session.working_mesh_clone"', working_clone_body)
         self.assertNotIn("clone_mesh_for_editing(mesh) if clone else mesh", working_clone_body)
         base_clone_start = service_source.index("    def base_mesh(")
-        base_clone_body = service_source[base_clone_start: service_source.index("    def workspace_summary(", base_clone_start)]
+        base_clone_body = service_source[base_clone_start: service_source.index("    def apply_command(", base_clone_start)]
         self.assertIn("_clone_mesh_for_service_native_snapshot(", base_clone_body)
         self.assertIn('"session.base_mesh_clone"', base_clone_body)
         self.assertNotIn("clone_mesh_for_editing(mesh) if clone else mesh", base_clone_body)
@@ -4764,29 +4764,30 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('"selected_face_count"', uv_summary_native_body)
         self.assertIn('if (command == "uv-summary-json") return uv_summary_json_command(job_path, report_path);', native_core_source)
         service_source = _read("cdmw/services/mesh_service.py")
-        self.assertIn("select_native_mesh_uv_vertices", service_source)
-        self.assertIn("summarize_native_mesh_uvs", service_source)
-        workspace_summary_start = service_source.index("def workspace_summary(")
-        workspace_summary_body = service_source[
-            workspace_summary_start: service_source.index("def compare_summary(", workspace_summary_start)
+        service_uv_source = _read("cdmw/services/mesh_service_uv.py")
+        self.assertIn("select_native_mesh_uv_vertices", service_uv_source)
+        self.assertIn("summarize_native_mesh_uvs", service_uv_source)
+        workspace_summary_start = service_uv_source.index("def workspace_summary(")
+        workspace_summary_body = service_uv_source[
+            workspace_summary_start: service_uv_source.index("def compare_summary(", workspace_summary_start)
         ]
         self.assertIn("summarize_native_mesh_editor_session(session.session_id)", workspace_summary_body)
-        self.assertIn("_mesh_workspace_summary_from_native(", service_source)
+        self.assertIn("_mesh_workspace_summary_from_native(", service_uv_source)
         self.assertIn("native mesh editor workspace summary failed; Python mesh state is stale", workspace_summary_body)
         self.assertLess(
             workspace_summary_body.index("if session.native_editor_mesh_dirty:"),
             workspace_summary_body.index("_prune_selection_to_mesh(session.working_mesh, session.selection)"),
         )
-        compare_summary_start = service_source.index("def compare_summary(")
-        compare_summary_body = service_source[
-            compare_summary_start: service_source.index("def uv_summary(", compare_summary_start)
+        compare_summary_start = service_uv_source.index("def compare_summary(")
+        compare_summary_body = service_uv_source[
+            compare_summary_start: service_uv_source.index("def uv_summary(", compare_summary_start)
         ]
         self.assertIn("if session.native_editor_mesh_dirty:", compare_summary_body)
         self.assertIn("native mesh editor compare summary unavailable; Python mesh state is stale", compare_summary_body)
         self.assertNotIn("_sync_native_editor_session_to_working_mesh(", compare_summary_body)
-        service_uv_summary_start = service_source.index("def uv_summary(")
-        service_uv_summary_body = service_source[
-            service_uv_summary_start: service_source.index("def select_uv_region(", service_uv_summary_start)
+        service_uv_summary_start = service_uv_source.index("def uv_summary(")
+        service_uv_summary_body = service_uv_source[
+            service_uv_summary_start: service_uv_source.index("def select_uv_region(", service_uv_summary_start)
         ]
         self.assertIn("if session.native_editor_mesh_dirty:", service_uv_summary_body)
         self.assertIn("native mesh editor UV summary unavailable; Python mesh state is stale", service_uv_summary_body)
@@ -4802,8 +4803,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn(',\\"uv_count\\":', native_core_source)
         self.assertIn(',\\"selected_vertex_count\\":', native_core_source)
         self.assertIn(',\\"has_skinning\\":', native_core_source)
-        uv_region_start = service_source.index("def select_uv_region(")
-        uv_region_body = service_source[uv_region_start: service_source.index("def select_uv_lasso(", uv_region_start)]
+        uv_region_start = service_uv_source.index("def select_uv_region(")
+        uv_region_body = service_uv_source[uv_region_start: service_uv_source.index("def select_uv_lasso(", uv_region_start)]
         self.assertIn("native_vertices = select_native_mesh_uv_vertices(", uv_region_body)
         self.assertIn("_record_blocked_python_selection_fallback(", uv_region_body)
         self.assertIn("return self._select_native_uv_vertices(", uv_region_body)
@@ -4811,8 +4812,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("mesh_uv_region_selection(", uv_region_body)
         self.assertNotIn("_allow_python_selection_fallback(", uv_region_body)
         self.assertNotIn("_apply_selection_operation_to_mesh(", uv_region_body)
-        uv_lasso_start = service_source.index("def select_uv_lasso(")
-        uv_lasso_body = service_source[uv_lasso_start: service_source.index("def apply_command(", uv_lasso_start)]
+        uv_lasso_start = service_uv_source.index("def select_uv_lasso(")
+        uv_lasso_body = service_uv_source[uv_lasso_start: service_uv_source.index("__all__", uv_lasso_start)]
         self.assertIn("native_vertices = select_native_mesh_uv_vertices(", uv_lasso_body)
         self.assertIn("_record_blocked_python_selection_fallback(", uv_lasso_body)
         self.assertIn("return self._select_native_uv_vertices(", uv_lasso_body)

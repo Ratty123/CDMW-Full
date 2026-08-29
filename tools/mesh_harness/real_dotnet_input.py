@@ -4,19 +4,21 @@ from collections.abc import Mapping
 import time
 from types import SimpleNamespace
 
+from tools.mesh_harness.constants import (
+    _MK_LBUTTON,
+    _WM_LBUTTONDOWN,
+    _WM_LBUTTONUP,
+    _WM_MOUSEMOVE,
+)
 from tools.mesh_harness.win32_input import (
-    _activate_window_for_input,
-    _foreground_window_matches,
     _host_window_rect,
-    _screen_cursor_position,
-    _send_left_button_input,
-    _set_screen_cursor_position,
-    _window_at_screen_point,
-    _window_is_same_or_child,
+    _scoped_input_target_matches,
+    _send_mouse_message,
+    _show_window_without_activation,
     _window_process_id,
 )
 from tools.mesh_harness.real_dotnet_zoom_input import (
-    _foreground_root_hwnd,
+    _harness_root_hwnd,
     exercise_side_by_side_wheel_zoom,
 )
 
@@ -31,7 +33,7 @@ def drive_viewport_selection(
 
     The result intentionally records the helper's emitted ``select_request``
     packets.  The caller must then ask the helper for ``tool_state_applied`` and
-    verify the authoritative vertex map; that round trip proves the physical
+    verify the authoritative vertex map; that round trip proves the normalized
     gesture, native selection, and PARTS isolation together.
     """
 
@@ -53,7 +55,6 @@ def drive_viewport_selection(
         if "screen_y" in state.viewport
         else int(viewport_rect[1]) if viewport_rect else 0
     )
-    original_cursor = _screen_cursor_position()
     button_down = False
     moved = False
     down_sent = False
@@ -62,73 +63,130 @@ def drive_viewport_selection(
     target_pid = 0
     request_cursor = len(state.tab.standalone_dotnet_protocol_events)
     settled = False
+    authority_ack: dict[str, object] = {}
+    selection_settlement: dict[str, object] = {}
     try:
-        activated = _activate_window_for_input(
-            state.viewport_hwnd,
-            root_hwnd=_foreground_root_hwnd(state),
-        )
-        if activated:
+        target_visible = _show_window_without_activation(state.viewport_hwnd)
+        if target_visible:
             pump_for(state, 0.05)
-            moved = _set_screen_cursor_position(screen_x + start[0], screen_y + start[1])
+            moved = _send_mouse_message(
+                state.viewport_hwnd,
+                _WM_MOUSEMOVE,
+                *start,
+            )
             pump_for(state, 0.03)
-            target_hwnd = _window_at_screen_point(screen_x + start[0], screen_y + start[1])
+            target_hwnd = int(state.viewport_hwnd)
             target_pid = _window_process_id(target_hwnd)
         target_safe = bool(
-            activated
+            target_visible
             and moved
-            and _foreground_window_matches(_foreground_root_hwnd(state))
-            and target_pid == state.production_process_pid
-            and _window_is_same_or_child(state.viewport_hwnd, target_hwnd)
+            and _scoped_input_target_matches(
+                state.viewport_hwnd, state.production_process_pid
+            )
+            and target_hwnd == int(state.viewport_hwnd)
         )
         if target_safe:
-            down_sent = _send_left_button_input(down=True)
+            down_sent = _send_mouse_message(
+                state.viewport_hwnd,
+                _WM_LBUTTONDOWN,
+                *start,
+                wparam=_MK_LBUTTON,
+            )
             button_down = down_sent
         if down_sent:
             for offset in (2, 4, 6):
                 moved = bool(
                     moved
-                    and _set_screen_cursor_position(screen_x + start[0] + offset, screen_y + start[1])
+                    and _send_mouse_message(
+                        state.viewport_hwnd,
+                        _WM_MOUSEMOVE,
+                        start[0] + offset,
+                        start[1],
+                        wparam=_MK_LBUTTON,
+                    )
                 )
                 pump_for(state, 0.035)
             # Release two pixels beyond the last sampled point without another
-            # cadence wait. The queued MouseMove is too close to become a new
-            # sample, so MouseUp emits the mandatory paint_final request instead
-            # of mistaking the last intermediate dab for a completed gesture.
-            moved = bool(
-                moved
-                and _set_screen_cursor_position(screen_x + end[0], screen_y + end[1])
+            # cadence wait. The current selection protocol owns the terminal as
+            # phase=end; paint_final remains accepted only for older helpers.
+            up_sent = _send_mouse_message(
+                state.viewport_hwnd,
+                _WM_LBUTTONUP,
+                *end,
             )
-            up_sent = _send_left_button_input(down=False)
             button_down = False
             final_request_seen = pump_until(
                 state,
                 lambda: any(
                     str(event.get("event", "") or "") == "select_request"
-                    and event.get("paint_final") is True
+                    and (
+                        str(event.get("phase", "") or "").lower() == "end"
+                        or event.get("paint_final") is True
+                    )
                     for event in tuple(state.tab.standalone_dotnet_protocol_events)[request_cursor:]
                 ),
                 2.0,
             )
-            settled = bool(
+            action_settled = bool(
                 final_request_seen
-                and pump_until(
-                    state,
-                    lambda: not state.tab._standalone_action_worker_active(),
-                    5.0,
-                )
+                and pump_until(state, lambda: not state.tab._standalone_action_worker_active(), 5.0)
             )
+            terminal_requests = [
+                dict(event)
+                for event in tuple(state.tab.standalone_dotnet_protocol_events)[request_cursor:]
+                if str(event.get("event", "") or "") == "select_request"
+                and (
+                    str(event.get("phase", "") or "").lower() == "end"
+                    or event.get("paint_final") is True
+                )
+            ]
+            terminal_request_id = int(
+                terminal_requests[-1].get("request_id", 0) or 0
+            ) if terminal_requests else 0
+
+            def authoritative_selection_settled() -> bool:
+                nonlocal authority_ack
+                for event in tuple(state.tab.standalone_dotnet_protocol_events)[request_cursor:]:
+                    if (
+                        str(event.get("event", "") or "") == "resident_mutation_batch_ack"
+                        and int(event.get("request_id", 0) or 0) == terminal_request_id
+                        and str(event.get("status", "") or "") in {"applied", "already_applied"}
+                    ):
+                        authority_ack = dict(event)
+                        metrics = state.tab.standalone_dotnet_update_queue.metrics()
+                        return bool(
+                            int(metrics.get("active_revision", 0) or 0) == 0
+                            and int(metrics.get("pending_depth", 0) or 0) == 0
+                        )
+                return False
+
+            settled = bool(
+                terminal_request_id > 0
+                and pump_until(state, authoritative_selection_settled, 15.0)
+            )
+            selection_settlement = {
+                "terminal_request_id": terminal_request_id,
+                "action_settled_before_ack_wait": action_settled,
+                "action_worker_active_after_wait": bool(
+                    state.tab._standalone_action_worker_active()
+                ),
+                "live_stroke_dispatcher": (
+                    dict(state.tab.standalone_live_stroke_dispatcher.metrics())
+                    if getattr(state.tab, "standalone_live_stroke_dispatcher", None) is not None
+                    else {}
+                ),
+                "update_queue": dict(state.tab.standalone_dotnet_update_queue.metrics()),
+            }
     finally:
         if button_down:
-            _send_left_button_input(down=False)
-        if original_cursor is not None:
-            _set_screen_cursor_position(*original_cursor)
+            _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONUP, *end)
     requests = [
         dict(event)
         for event in tuple(state.tab.standalone_dotnet_protocol_events)[request_cursor:]
         if str(event.get("event", "") or "") == "select_request"
     ]
     return {
-        "backend": "win32_physical_cursor",
+        "backend": "scoped_hwnd_messages_normalized_input",
         "start": list(start),
         "end": list(end),
         "screen_origin": [int(screen_x), int(screen_y)],
@@ -142,6 +200,8 @@ def drive_viewport_selection(
         "mouse_up_sent": bool(up_sent),
         "select_request_count": len(requests),
         "select_requests": requests,
+        "authority_acknowledgement": authority_ack,
+        "authority_settlement": selection_settlement,
         "authority_settled": bool(settled),
         "ok": bool(down_sent and moved and up_sent and requests and settled),
     }
@@ -198,7 +258,7 @@ def _prepare_viewport_stroke(
     return start, screen_x, screen_y, heartbeat_index, heartbeat_origin
 
 
-def _drive_physical_viewport_stroke(
+def _drive_scoped_viewport_stroke(
     state: SimpleNamespace,
     *,
     start: tuple[int, int],
@@ -208,60 +268,109 @@ def _drive_physical_viewport_stroke(
     wait_protocol_event,
 ) -> str:
     input_error = ""
-    original_cursor = _screen_cursor_position()
     button_down = False
     try:
-        state.input_window_activated = _activate_window_for_input(
-            state.viewport_hwnd,
-            root_hwnd=_foreground_root_hwnd(state),
+        state.input_window_verified = bool(
+            _show_window_without_activation(state.viewport_hwnd)
+            and _scoped_input_target_matches(
+                state.viewport_hwnd, state.production_process_pid
+            )
         )
-        if not state.input_window_activated:
-            input_error = "The .NET viewport could not be made the foreground input target."
+        if not state.input_window_verified:
+            input_error = "The .NET viewport was not an owned scoped input target with a live rectangle."
         else:
             pump_for(state, 0.05)
-            state.mouse_move_sent = _set_screen_cursor_position(screen_x + start[0], screen_y + start[1])
+            state.mouse_move_sent = _send_mouse_message(
+                state.viewport_hwnd,
+                _WM_MOUSEMOVE,
+                *start,
+            )
             pump_for(state, 0.03)
-            state.input_target_hwnd = _window_at_screen_point(screen_x + start[0], screen_y + start[1])
+            state.input_target_hwnd = int(state.viewport_hwnd)
             state.input_target_pid = _window_process_id(state.input_target_hwnd)
             target_safe = bool(
-                _foreground_window_matches(_foreground_root_hwnd(state))
-                and state.input_target_pid == state.production_process_pid
-                and _window_is_same_or_child(state.viewport_hwnd, state.input_target_hwnd)
+                _scoped_input_target_matches(
+                    state.viewport_hwnd, state.production_process_pid
+                )
+                and state.input_target_hwnd == int(state.viewport_hwnd)
             )
             if not target_safe:
-                input_error = "The .NET viewport was not the foreground visible input target."
+                input_error = "The .NET viewport lost scoped input ownership."
         if not input_error:
-            cursor = len(state.tab.standalone_dotnet_protocol_events)
-            state.mouse_down_sent = _send_left_button_input(down=True)
+            gesture_cursor = len(state.tab.standalone_dotnet_protocol_events)
+            state.mouse_down_sent = _send_mouse_message(
+                state.viewport_hwnd,
+                _WM_LBUTTONDOWN,
+                *start,
+                wparam=_MK_LBUTTON,
+            )
             button_down = state.mouse_down_sent
-            state.stroke_started = wait_protocol_event(state, "stroke_begin", cursor, 2.0)
+            state.stroke_started = wait_protocol_event(
+                state, "stroke_begin", gesture_cursor, 2.0
+            )
             if not state.stroke_started:
-                input_error = "The .NET viewport did not begin the physical mouse stroke."
+                input_error = "The .NET viewport did not begin the scoped input stroke."
 
         update_cursor = len(state.tab.standalone_dotnet_protocol_events)
         for x, y in state.mouse_drag_points:
             if input_error:
                 break
             state.mouse_move_sent = bool(
-                state.mouse_move_sent and _set_screen_cursor_position(screen_x + x, screen_y + y)
+                state.mouse_move_sent
+                and _send_mouse_message(
+                    state.viewport_hwnd,
+                    _WM_MOUSEMOVE,
+                    x,
+                    y,
+                    wparam=_MK_LBUTTON,
+                )
             )
-            # Authoritative packets are bounded to the protocol cadence. Keep
-            # the physical path moving and let the terminal packet prove that
-            # coalescing retained the full cursor travel.
-            pump_for(state, 0.004)
+            # The production viewport checkpoints authority at 16 ms. Pace the
+            # posted points like a human drag so the gate proves at least one
+            # bounded update instead of delivering a sub-frame synthetic burst
+            # that only the terminal packet can observe.
+            pump_for(state, 0.020)
         pump_for(state, 0.02)
-        state.mouse_drag_actual_screen_end = _screen_cursor_position()
+        state.mouse_drag_injected_client_end = state.mouse_drag_end
+        state.mouse_drag_target_screen_end = (
+            screen_x + state.mouse_drag_end[0],
+            screen_y + state.mouse_drag_end[1],
+        )
         state.viewport_rect_at_release = _host_window_rect(state.viewport_hwnd)
         state.mouse_drag_effective_end = state.mouse_drag_end
-        if state.mouse_drag_actual_screen_end is not None and state.viewport_rect_at_release is not None:
-            state.mouse_drag_effective_end = (
-                int(state.mouse_drag_actual_screen_end[0]) - int(state.viewport_rect_at_release[0]),
-                int(state.mouse_drag_actual_screen_end[1]) - int(state.viewport_rect_at_release[1]),
+        terminal_cursor = len(state.tab.standalone_dotnet_protocol_events)
+        state.mouse_up_sent = (
+            _send_mouse_message(
+                state.viewport_hwnd,
+                _WM_LBUTTONUP,
+                *state.mouse_drag_end,
             )
-        cursor = len(state.tab.standalone_dotnet_protocol_events)
-        state.mouse_up_sent = _send_left_button_input(down=False) if button_down else False
+            if button_down
+            else False
+        )
         button_down = False
-        state.stroke_finished = wait_protocol_event(state, "stroke_end", cursor, 2.0)
+        state.stroke_finished = wait_protocol_event(
+            state, "stroke_end", terminal_cursor, 2.0
+        )
+        if not state.stroke_finished and state.stroke_started:
+            # Win32 may report loss of the logical left-button state on the
+            # final queued move before the posted button-up is dispatched. In
+            # that case the production viewport has already emitted the exact
+            # terminal event. Accept only the terminal carrying this gesture's
+            # stroke identity; an earlier or unrelated stroke cannot satisfy
+            # the gate.
+            stroke_id = str(state.stroke_started.get("stroke_id", "") or "")
+            state.stroke_finished = next(
+                (
+                    dict(event)
+                    for event in reversed(
+                        tuple(state.tab.standalone_dotnet_protocol_events)[gesture_cursor:]
+                    )
+                    if str(event.get("event", "") or "") == "stroke_end"
+                    and str(event.get("stroke_id", "") or "") == stroke_id
+                ),
+                {},
+            )
         state.stroke_updates = [
             dict(event)
             for event in tuple(state.tab.standalone_dotnet_protocol_events)[update_cursor:]
@@ -269,9 +378,11 @@ def _drive_physical_viewport_stroke(
         ]
     finally:
         if button_down:
-            _send_left_button_input(down=False)
-        if original_cursor is not None:
-            _set_screen_cursor_position(*original_cursor)
+            _send_mouse_message(
+                state.viewport_hwnd,
+                _WM_LBUTTONUP,
+                *state.mouse_drag_end,
+            )
     return input_error
 
 
@@ -321,7 +432,7 @@ def _validate_viewport_stroke(state: SimpleNamespace, input_error: str, base_err
     if input_error:
         return base_error(state, input_error)
     if not state.mouse_move_sent or not state.mouse_up_sent or not state.stroke_finished:
-        return base_error(state, "The .NET viewport did not complete the physical mouse stroke.")
+        return base_error(state, "The .NET viewport did not complete the scoped input stroke.")
     terminal_drag = state.stroke_finished.get("screen_drag", {})
     terminal_drag = terminal_drag if isinstance(terminal_drag, Mapping) else {}
     state.stroke_terminal_coverage = {
@@ -331,9 +442,8 @@ def _validate_viewport_stroke(state: SimpleNamespace, input_error: str, base_err
             int(terminal_drag.get("end_x", -1)),
             int(terminal_drag.get("end_y", -1)),
         ],
-        "actual_screen_end": list(state.mouse_drag_actual_screen_end)
-        if state.mouse_drag_actual_screen_end is not None
-        else None,
+        "injected_client_end": list(state.mouse_drag_injected_client_end),
+        "target_screen_end": list(state.mouse_drag_target_screen_end),
         "viewport_rect_at_release": list(state.viewport_rect_at_release)
         if state.viewport_rect_at_release is not None
         else None,
@@ -342,14 +452,14 @@ def _validate_viewport_stroke(state: SimpleNamespace, input_error: str, base_err
             and state.viewport_rect_before == state.viewport_rect_at_release
         ),
         "protocol_update_count": len(state.stroke_updates),
-        "physical_point_count": len(state.mouse_drag_points),
+        "input_point_count": len(state.mouse_drag_points),
     }
     state.stroke_terminal_coverage["ok"] = bool(
         state.stroke_terminal_coverage["reported_end"]
         == state.stroke_terminal_coverage["expected_end"]
     )
     if not state.stroke_updates:
-        return base_error(state, "The .NET viewport published no bounded update during the physical mouse stroke.")
+        return base_error(state, "The .NET viewport published no bounded update during the scoped input stroke.")
     if not state.stroke_terminal_coverage["ok"]:
         return base_error(state, "The .NET viewport coalesced away terminal cursor travel.")
     return None
@@ -368,7 +478,7 @@ def drive_viewport_stroke(
     if isinstance(prepared, str):
         return base_error(state, prepared)
     start, screen_x, screen_y, heartbeat_index, heartbeat_origin = prepared
-    input_error = _drive_physical_viewport_stroke(
+    input_error = _drive_scoped_viewport_stroke(
         state,
         start=start,
         screen_x=screen_x,

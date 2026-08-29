@@ -74,9 +74,12 @@ class MeshEditorTabShellPackageStateMixin(MeshEditorTabShellNativeStateMixin):
         package_path: str,
         generation: int,
     ) -> None:
-        del package_path
         if controller is not self._active_shared_dotnet_controller():
             return
+        context_applied = getattr(self, "_handle_mesh_character_context_resident_package_applied", None)
+        if callable(context_applied):
+            context_applied()
+        del package_path
         token = (
             int(getattr(controller, "process_generation", 0) or 0),
             int(generation or 0),

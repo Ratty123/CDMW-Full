@@ -27,7 +27,6 @@ from .scene_material_audit import (
 )
 
 logger = get_logger("core.scene_importer")
-
 LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS = {".pac", ".pam", ".pamlod"}
 SCENE_TEXTURE_SOURCE_EXTENSIONS = {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"}
 SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS = {".ktx", ".ktx2"}
@@ -40,6 +39,7 @@ SCENE_SIDECAR_SOURCE_EXTENSIONS = {
     ".app_xml",
     ".prefabdata_xml",
 }
+SCENE_AUTODISCOVER_SIDECAR_SOURCE_EXTENSIONS = SCENE_SIDECAR_SOURCE_EXTENSIONS - {".app_xml"}  # explicit only
 SCENE_COMPANION_SOURCE_EXTENSIONS = {
     ".pab",
     ".pabc",
@@ -795,13 +795,15 @@ def _discover_local_mesh_sidecars(source_path: Path) -> tuple[Path, ...]:
 
     discovered: list[Path] = []
     for candidate in direct_candidates:
-        if candidate.is_file() and candidate.suffix.lower() in SCENE_SIDECAR_SOURCE_EXTENSIONS:
+        if candidate.is_file() and candidate.suffix.lower() in SCENE_AUTODISCOVER_SIDECAR_SOURCE_EXTENSIONS:
             discovered.append(candidate)
 
     stem_key = source_path.stem.lower()
     try:
         for candidate in source_path.parent.iterdir():
-            if not candidate.is_file() or candidate.suffix.lower() not in SCENE_SIDECAR_SOURCE_EXTENSIONS:
+            if not candidate.is_file() or (
+                candidate.suffix.lower() not in SCENE_AUTODISCOVER_SIDECAR_SOURCE_EXTENSIONS
+            ):
                 continue
             candidate_name = candidate.name.lower()
             candidate_stem = candidate.stem.lower()

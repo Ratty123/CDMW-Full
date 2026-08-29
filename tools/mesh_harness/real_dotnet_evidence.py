@@ -59,6 +59,10 @@ from tools.mesh_harness.real_dotnet_input import (
     drive_viewport_stroke,
     exercise_side_by_side_wheel_zoom,
 )
+from tools.mesh_harness.win32_input import (
+    _desktop_input_isolation_evidence,
+    _desktop_input_snapshot,
+)
 
 
 _DOTNET_RENDERER_BACKEND = "d3d11_vortice_shader"
@@ -72,6 +76,22 @@ def _revision_ack_tail(state: SimpleNamespace) -> list[dict[str, object]]:
     return [dict(event) for event in events if str(event.get("event", "")) in names][-32:]
 
 def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
+    desktop_after = _desktop_input_snapshot()
+    desktop_observations = list(
+        getattr(state, "desktop_input_observations", ()) or ()
+    )
+    desktop_observations.append(desktop_after)
+    desktop_isolation = _desktop_input_isolation_evidence(
+        desktop_observations,
+        forbidden_hwnds=(
+            int(getattr(getattr(state, "tab", None), "winId", lambda: 0)()),
+            int(getattr(state, "form_hwnd", 0) or 0),
+            int(getattr(state, "viewport_hwnd", 0) or 0),
+        ),
+        harness_screen_bounds=tuple(
+            getattr(state, "harness_screen_bounds", (0, 0, 0, 0))
+        ),
+    )
     before = dict(getattr(state, "archive_content_fingerprints_before", {}) or {})
     after = _archive_content_fingerprints(getattr(state, "fingerprint_paths", ())) if before else {}
     metadata_before = dict(getattr(state, "archive_sources_before", {}) or {})
@@ -112,9 +132,12 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         "real_texture_provenance_ok": real_texture_provenance_ok,
         "no_synthetic_fallback": no_synthetic_fallback,
         "error": str(message),
+        "desktop_input": desktop_isolation,
         "production_flow": list(getattr(state, "production_flow", ()) or ()),
         "geometry_display": dict(getattr(state, "geometry_display_evidence", {}) or {}),
         "builder_presentation": dict(getattr(state, "builder_presentation_evidence", {}) or {}),
+        "builder_commit_evidence": list(getattr(state, "builder_commit_evidence", ()) or ()),
+        "sent_mutation_batches": list(getattr(state, "sent_mutation_batches", ()) or ()),
         "camera_zoom": dict(getattr(state, "camera_zoom_evidence", {}) or {}),
         "source_texture_export": dict(getattr(state, "source_texture_export_evidence", {}) or {}),
         "lifecycle_counts": dict(
@@ -135,7 +158,7 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         "last_apply_update": dict(getattr(state, "last_apply_update_evidence", {}) or {}),
         "input_evidence": {
             "physical_select": dict(getattr(state, "physical_select_gesture", {}) or {}),
-            "physical_selection_anchor": dict(getattr(state, "physical_selection_anchor", {}) or {}),
+            "input_selection_anchor": dict(getattr(state, "input_selection_anchor", {}) or {}),
             "projection_probe": {
                 "mode": str(getattr(state, "projection_probe_mode", "") or ""),
                 "authority_settled": bool(
@@ -154,12 +177,19 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
                 "surface_reconciliation": dict(
                     getattr(state, "projection_surface_reconciliation", {}) or {}
                 ),
+                "update_queue": dict(
+                    getattr(state, "projection_probe_update_queue", {}) or {}
+                ),
+                "clear_update": dict(
+                    getattr(state, "projection_clear_update", {}) or {}
+                ),
             },
             "selection_tool_state": dict(getattr(state, "selection_tool_state_event", {}) or {}),
             "post_selection_tool_state": dict(getattr(state, "tool_state_event", {}) or {}),
             "requested_end": list(getattr(state, "mouse_drag_end", ()) or ()),
             "effective_end": list(getattr(state, "mouse_drag_effective_end", ()) or ()),
-            "actual_screen_end": list(getattr(state, "mouse_drag_actual_screen_end", ()) or ()),
+            "injected_client_end": list(getattr(state, "mouse_drag_injected_client_end", ()) or ()),
+            "target_screen_end": list(getattr(state, "mouse_drag_target_screen_end", ()) or ()),
             "viewport_rect_before": list(getattr(state, "viewport_rect_before", ()) or ()),
             "viewport_rect_at_release": list(getattr(state, "viewport_rect_at_release", ()) or ()),
             "terminal_coverage": dict(getattr(state, "stroke_terminal_coverage", {}) or {}),
@@ -406,6 +436,9 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
             state.form_rect_before
             and state.form_rect_before == state.form_rect_after
             and state.viewport_rect_before == state.viewport_rect_after
+        ),
+        "desktop_input_isolated": bool(
+            getattr(state, "desktop_input_isolation", {}).get("ok")
         ),
         "live_stroke_frame_budget_ok": bool(
             state.stroke_handler_timings and state.handler_p95_ms < 1000.0 / 60.0

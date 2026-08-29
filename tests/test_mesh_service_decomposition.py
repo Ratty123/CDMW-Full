@@ -10,6 +10,7 @@ import cdmw.services.mesh_service as facade
 from cdmw.services import mesh_service_history, mesh_service_kernel, mesh_service_payloads, mesh_service_reports
 from cdmw.services.mesh_service_rebuild import MeshRebuildServiceMixin
 from cdmw.services.mesh_service_rigging import MeshRiggingServiceMixin
+from cdmw.services.mesh_service_uv import MeshUvServiceMixin
 from tests.architecture_limits import DECOMPOSED_OWNER_FILE_LINE_LIMIT
 
 
@@ -22,6 +23,7 @@ OWNER_PATHS = (
     ROOT / "cdmw/services/mesh_service_kernel.py",
     ROOT / "cdmw/services/mesh_service_rigging.py",
     ROOT / "cdmw/services/mesh_service_rebuild.py",
+    ROOT / "cdmw/services/mesh_service_uv.py",
 )
 
 
@@ -37,6 +39,7 @@ class MeshServiceDecompositionTests(unittest.TestCase):
         self.assertIs(facade.MeshService.skeleton_summary, MeshRiggingServiceMixin.skeleton_summary)
         self.assertIs(facade.MeshService.rebuild_asset, MeshRebuildServiceMixin.rebuild_asset)
         self.assertIs(facade.MeshService.undo, mesh_service_history.MeshHistoryServiceMixin.undo)
+        self.assertIs(facade.MeshService.uv_summary, MeshUvServiceMixin.uv_summary)
 
     def test_new_owners_and_service_class_obey_size_ceiling(self) -> None:
         for path in OWNER_PATHS:

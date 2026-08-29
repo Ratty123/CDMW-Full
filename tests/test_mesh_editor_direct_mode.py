@@ -578,6 +578,7 @@ def test_direct_resident_editor_does_not_disable_qt_owned_output_controls(tmp_pa
         tab.update_editor_action_state(publish_native=False)
 
         assert tab.standalone_run_validation_report_button.isEnabled()
+        assert tab.standalone_replace_from_archive_button.isEnabled()
         assert tab.standalone_export_mesh_file_button.isEnabled()
         assert tab.standalone_build_mod_button.isEnabled()
         assert tab.standalone_install_overlay_button.isEnabled()
@@ -602,6 +603,7 @@ def test_file_only_session_keeps_archive_outputs_disabled_after_current_validati
     tab.update_editor_action_state(publish_native=False)
 
     assert tab.standalone_run_validation_report_button.isEnabled()
+    assert not tab.standalone_replace_from_archive_button.isEnabled()
     assert tab.standalone_export_mesh_file_button.isEnabled()
     assert not tab.standalone_build_mod_button.isEnabled()
     assert not tab.standalone_install_overlay_button.isEnabled()
@@ -907,6 +909,7 @@ def test_direct_output_button_clicks_reach_each_tab_handler() -> None:
     messages: list[tuple[str, bool]] = []
     controls = (
         ("run_validation_report_button", "validation_report_requested", "validation"),
+        ("replace_from_archive_button", "replace_from_archive_requested", "replace_from_archive"),
         ("export_mesh_file_button", "export_mesh_file_requested", "export_mesh"),
         ("build_mod_button", "build_mod_requested", "build_mod"),
         ("install_overlay_button", "install_overlay_requested", "install_overlay"),
@@ -923,9 +926,17 @@ def test_direct_output_button_clicks_reach_each_tab_handler() -> None:
         button.setEnabled(True)
         button.click()
 
-    assert emitted == ["validation", "export_mesh", "build_mod", "install_overlay", "restore_overlay"]
+    assert emitted == [
+        "validation",
+        "replace_from_archive",
+        "export_mesh",
+        "build_mod",
+        "install_overlay",
+        "restore_overlay",
+    ]
     assert messages == [
         ("Open a mesh session before running validation.", True),
+        ("Select a supported archive mesh first.", True),
         ("Run validation successfully before rebuilding a patched asset.", True),
         ("Open an archive mesh before creating a Mesh Editor output.", True),
         ("Open an archive mesh before creating a Mesh Editor output.", True),

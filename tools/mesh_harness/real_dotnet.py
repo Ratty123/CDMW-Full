@@ -37,7 +37,12 @@ from tools.mesh_harness.native_projection import (
     _projected_face_cluster_for_drag,
     _timing_summary,
 )
-from tools.mesh_harness.win32_input import _host_window_rect, _send_mouse_message
+from tools.mesh_harness.win32_input import (
+    _desktop_input_isolation_evidence,
+    _desktop_input_snapshot,
+    _host_window_rect,
+    _send_mouse_message,
+)
 from tools.mesh_harness.png_evidence import _write_real_archive_visual_edit_proof
 from tools.mesh_harness.performance_contract import (
     PERFORMANCE_HARNESS_EVIDENCE_SCHEMA,
@@ -192,6 +197,7 @@ def _prepare_selection_projection(
     client_x = int(state.viewport.get("client_x", 0) or 0)
     client_y = int(state.viewport.get("client_y", 0) or 0)
     probe = (client_x + max(1, width // 2), client_y + max(1, height // 2))
+    probe_queue_before = dict(state.tab.standalone_dotnet_update_queue.metrics())
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.probe_down_sent = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONDOWN, *probe, wparam=_MK_LBUTTON)
     state.probe_started = _wait_protocol_event(state, "select_request", cursor, 2.0)
@@ -200,13 +206,56 @@ def _prepare_selection_projection(
     state.probe_finished = _wait_protocol_event(
         state, "select_request", cursor, 2.0
     )
-    state.projection_probe_authority_settled = bool(
+    probe_action_settled = bool(
         state.probe_finished
         and _pump_until(
             state,
             lambda: not state.tab._standalone_action_worker_active(),
             5.0,
         )
+    )
+    probe_expected_revision = int(state.controller.session_view().resident_revision)
+    probe_request_id = int(dict(state.probe_finished).get("request_id", 0) or 0)
+    probe_acknowledgement: dict[str, object] = {}
+
+    def probe_acknowledged() -> bool:
+        nonlocal probe_acknowledgement
+        for event in tuple(state.tab.standalone_dotnet_protocol_events)[cursor:]:
+            if (
+                str(event.get("event", "") or "") == "resident_mutation_batch_ack"
+                and int(event.get("request_id", 0) or 0) == probe_request_id
+                and str(event.get("status", "") or "") in {"applied", "already_applied"}
+            ):
+                probe_acknowledgement = dict(event)
+                return True
+        return False
+
+    probe_queue_settled = bool(
+        probe_action_settled
+        and _pump_until(
+            state,
+            lambda: bool(
+                int(state.tab.standalone_dotnet_update_queue.metrics().get("active_revision", 0) or 0) == 0
+                and int(state.tab.standalone_dotnet_update_queue.metrics().get("pending_depth", 0) or 0) == 0
+                and probe_acknowledged()
+            ),
+            5.0,
+        )
+    )
+    probe_queue_after = dict(state.tab.standalone_dotnet_update_queue.metrics())
+    state.projection_probe_update_queue = {
+        "expected_revision": probe_expected_revision,
+        "request_id": probe_request_id,
+        "acknowledgement": probe_acknowledgement,
+        "before": probe_queue_before,
+        "after": probe_queue_after,
+        "action_settled": probe_action_settled,
+        "queue_settled": probe_queue_settled,
+    }
+    state.projection_probe_authority_settled = bool(
+        probe_queue_settled
+        and int(probe_queue_after.get("rejected_updates", 0) or 0)
+        == int(probe_queue_before.get("rejected_updates", 0) or 0)
     )
     screen_brush = (
         state.probe_finished.get("screen_brush", {})
@@ -313,6 +362,11 @@ def _drive_projected_vertex_selection(
     initial_vertex_indices: list[int],
     matrix: tuple[object, ...],
 ) -> dict[str, object] | None:
+    if not state.projection_probe_authority_settled:
+        return _base_error(
+            state,
+            "The projection probe did not reach acknowledged v3 renderer authority before selection clear.",
+        )
     selected_faces = _projected_face_cluster_for_drag(
         state.submesh,
         matrix,
@@ -342,14 +396,63 @@ def _drive_projected_vertex_selection(
         viewport_width=state.projection_viewport_width,
         viewport_height=state.projection_viewport_height,
     ) if matrix else None
-    state.physical_selection_anchor = {
+    state.input_selection_anchor = {
         "face_index": int(selection_anchor[0]),
         "vertex_index": int(selection_anchor[1]),
         "point": [float(selection_anchor[2][0]), float(selection_anchor[2][1])],
     } if selection_anchor is not None else {}
     projected_anchor_center = selection_anchor[2] if selection_anchor is not None else None
+    clear_queue_before = dict(state.tab.standalone_dotnet_update_queue.metrics())
+    clear_cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.select_result = state.controller.select(operation="replace")
-    state.tab._send_dotnet_session_state()
+    clear_update = state.controller.native_update_for_result(state.select_result)
+    clear_expected_revision = int(state.controller.session_view().resident_revision)
+    clear_sent = bool(
+        state.tab._send_dotnet_native_update(
+            clear_update,
+            result=state.select_result,
+        )
+    )
+    clear_acknowledgement: dict[str, object] = {}
+
+    def clear_acknowledged() -> bool:
+        nonlocal clear_acknowledgement
+        for event in tuple(state.tab.standalone_dotnet_protocol_events)[clear_cursor:]:
+            if (
+                str(event.get("event", "") or "") == "resident_mutation_batch_ack"
+                and int(event.get("target_revision", 0) or 0) == clear_expected_revision
+                and str(event.get("status", "") or "") in {"applied", "already_applied"}
+            ):
+                clear_acknowledgement = dict(event)
+                metrics = state.tab.standalone_dotnet_update_queue.metrics()
+                return bool(
+                    int(metrics.get("active_revision", 0) or 0) == 0
+                    and int(metrics.get("pending_depth", 0) or 0) == 0
+                )
+        return False
+
+    clear_settled = bool(
+        clear_sent
+        and _pump_until(state, clear_acknowledged, 10.0)
+    )
+    clear_queue_after = dict(state.tab.standalone_dotnet_update_queue.metrics())
+    state.projection_clear_update = {
+        "sent": clear_sent,
+        "expected_revision": clear_expected_revision,
+        "acknowledgement": clear_acknowledgement,
+        "before": clear_queue_before,
+        "after": clear_queue_after,
+        "settled": clear_settled,
+    }
+    if (
+        not clear_settled
+        or int(clear_queue_after.get("rejected_updates", 0) or 0)
+        != int(clear_queue_before.get("rejected_updates", 0) or 0)
+    ):
+        return _base_error(
+            state,
+            "The projection seed selection did not clear through the production v3 update lane.",
+        )
     select_tool_cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.selection_tool_state_sent = state.tab._send_dotnet_protocol_message(
         {
@@ -652,6 +755,8 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
         return prepared
     state = prepared
     state.tab = state.controller = state.heartbeat_timer = state.process = None
+    state.desktop_input_before = _desktop_input_snapshot()
+    state.desktop_input_observations = [dict(state.desktop_input_before)]
     state.output_dir = Path(output_dir)
     state.topology_rebuild_evidence = {}
     state.topology_rebuild_ok = False
@@ -790,6 +895,8 @@ def run_real_archive_mesh_editor_dotnet_zoom_smoke(
         return prepared
     state = prepared
     state.tab = state.controller = state.heartbeat_timer = state.process = None
+    state.desktop_input_before = _desktop_input_snapshot()
+    state.desktop_input_observations = [dict(state.desktop_input_before)]
     try:
         error = _start_embedded_editor(state, side_by_side_camera=True)
         if error is not None:
@@ -815,6 +922,20 @@ def run_real_archive_mesh_editor_dotnet_zoom_smoke(
             sha256(_read_archive_payload(state.model_entry)).hexdigest()
             == state.source_payload_sha256
         )
+        desktop_timer = getattr(state, "desktop_input_timer", None)
+        if desktop_timer is not None:
+            desktop_timer.stop()
+        state.desktop_input_after = _desktop_input_snapshot()
+        state.desktop_input_observations.append(dict(state.desktop_input_after))
+        state.desktop_input_isolation = _desktop_input_isolation_evidence(
+            state.desktop_input_observations,
+            forbidden_hwnds=(
+                int(state.tab.winId()),
+                int(getattr(state, "form_hwnd", 0) or 0),
+                int(getattr(state, "viewport_hwnd", 0) or 0),
+            ),
+            harness_screen_bounds=tuple(state.harness_screen_bounds),
+        )
         gates = {
             "camera_zoom": bool(state.camera_zoom_evidence.get("ok")),
             "renderer_backend": state.renderer_backend == _DOTNET_RENDERER_BACKEND,
@@ -823,6 +944,7 @@ def run_real_archive_mesh_editor_dotnet_zoom_smoke(
                 and state.archive_source_content_unchanged
                 and state.source_payload_unchanged
             ),
+            "desktop_input_isolated": bool(state.desktop_input_isolation.get("ok")),
         }
         return {
             "ok": all(gates.values()),
@@ -837,6 +959,7 @@ def run_real_archive_mesh_editor_dotnet_zoom_smoke(
             "archive_content_fingerprints_after": state.archive_content_fingerprints_after,
             "source_payload_unchanged": state.source_payload_unchanged,
             "source_archives_unchanged": gates["source_archives_unchanged"],
+            "desktop_input": dict(state.desktop_input_isolation),
             "gates": gates,
         }
     except Exception as exc:

@@ -407,7 +407,7 @@ class AboutDocumentationEnglishMixin:
                 "id": "mesh_media_guides",
                 "title": "Mesh Editor, Audio & Media Guides",
                 "summary": "Direct mesh editing and safe output, plus audio, video, and sidecar files.",
-                "keywords": "mesh editor direct authoring pam pamlod pac object transform solid textured overlay export audio wem bnk video bk2 sidecar",
+                "keywords": "mesh editor direct authoring replace from archive pam pamlod pac object transform solid textured overlay export audio wem bnk video bk2 sidecar app xml pac xml",
                 "html": """
                 <h4>Open and edit a mesh</h4>
                 <ol>
@@ -424,12 +424,14 @@ class AboutDocumentationEnglishMixin:
                 <h4>Save and build</h4>
                 <table>
                   <tr><th>Action</th><th>Result</th><th>Archive safety</th></tr>
+                  <tr><td>Replace from Archive</td><td>Chooses another PAC, PAM, or PAMLOD already in the loaded archives, reviews proven companion mappings and reused game textures, then writes a separate loose replacement mod. Character pairs require an explicit identity mode.</td><td>Uses exact archive payloads, never opens an external mesh, never changes the current edit session, and never writes shipped PAMT/PAZ archives.</td></tr>
                   <tr><td>Export Mesh File</td><td>Atomically writes the rebuilt mesh and report.</td><td>Never overwrites the source asset.</td></tr>
                   <tr><td>Build Mod</td><td>Writes either a loose mesh-only folder or a DMM archive-group overlay package.</td><td>Source textures and material sidecars remain inherited.</td></tr>
                   <tr><td>Install as Overlay</td><td>Shows the exact mesh path, overlay directory, mount lists, carry-forward set, and backup targets before confirmation.</td><td>Rechecks that the game is closed, backs up, publishes the mount list last, and rolls back on cancellation or failure.</td></tr>
                   <tr><td>Restore Last Overlay Install</td><td>Uses the install receipt to restore the prior mount/overlay state.</td><td>Removes only files created by that installation.</td></tr>
                 </table>
-                <p>Shipped PAMT/PAZ archives are never patched by these Mesh Editor outputs. Same-source editable-package export/import remains available for external geometry work; import must match the active source identity.</p>
+                <p>Shipped PAMT/PAZ archives are never patched by these Mesh Editor outputs. Replace from Archive does not include current geometry edits; it leaves the session open and unchanged. Same-source editable-package export/import remains available for external geometry work; import must match the active source identity.</p>
+                <p>A same-stem <code>.app_xml</code> appearance descriptor is never added automatically to an ordinary mesh package. It remains available through manual Supplemental Files selection and the explicit character identity choices. Same-stem <code>.pac_xml</code>, <code>.pami</code>, <code>.pam_xml</code>, and <code>.pamlod_xml</code> material sidecars remain automatic.</p>
                 <h4>New assets and textures</h4>
                 <ul>
                   <li>From Model Library, <b>Use in Create New Item</b> resolves or downloads the model and opens Create New Item's Model step.</li>

@@ -38,6 +38,97 @@ from test_new_item_service import OTHER, TEMPLATE, _read, build_package, synthet
 
 
 class _TabAuthoringMixin:
+    def test_template_preview_composes_every_prefab_model_and_enables_native_components(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        primary = tab.controller.template_entries()[0]
+        component = replace(
+            primary,
+            path=primary.path.replace(".pac", "_lower.pac"),
+            offset=primary.offset + primary.comp_size,
+        )
+        prefab = replace(
+            primary,
+            path=primary.path.replace(".pac", ".prefab"),
+            offset=component.offset + component.comp_size,
+        )
+        upper = ParsedMesh(
+            path=primary.path,
+            format="pac",
+            submeshes=[SubMesh(name="upper", vertices=[(0.0, 0.0, 0.0)] * 3, faces=[(0, 1, 2)])],
+        )
+        lower = ParsedMesh(
+            path=component.path,
+            format="pac",
+            submeshes=[SubMesh(name="lower", vertices=[(0.0, 1.0, 0.0)] * 3, faces=[(0, 1, 2)])],
+        )
+        output = self.root / "composite-native-output"
+        native_package = output / "native-package"
+        attempt = SimpleNamespace(succeeded=True, package_path=str(native_package))
+        package = SimpleNamespace(package_dir=native_package)
+
+        with patch.object(
+            tab.controller,
+            "template_entries",
+            return_value=(primary, component),
+        ), patch.object(
+            tab.controller,
+            "template_prefab_entries",
+            return_value=(prefab,),
+            create=True,
+        ), patch(
+            "cdmw.services.new_item_snapshot.NewItemSnapshot.payload",
+            autospec=True,
+            side_effect=lambda _snapshot, path: path.encode("utf-8"),
+        ), patch(
+            "cdmw.services.mesh_workflow_service.parse_pac",
+            side_effect=(upper, lower),
+        ):
+            _token, source = tab.controller.item_preview_source()
+            geometry = source.geometry(threading.Event())
+
+        self.assertEqual([mesh.name for mesh in geometry.submeshes], ["upper", "lower"])
+
+        with patch.object(
+            tab.controller,
+            "template_entries",
+            return_value=(primary, component),
+        ), patch.object(
+            tab.controller,
+            "template_prefab_entries",
+            return_value=(prefab,),
+            create=True,
+        ), patch(
+            "cdmw.workers.archive_preview_native.native_preview_model_property_indices",
+            return_value={primary.path.casefold(): 1},
+        ) as model_property_indices, patch(
+            "cdmw.services.preview_rendering_service.run_native_preview_core_preview_job",
+            return_value=attempt,
+        ) as run_native, patch(
+            "cdmw.services.mesh_dotnet_preview_package.build_or_lookup_dotnet_preview_package",
+            return_value=package,
+        ) as build_package:
+            _token, source = tab.controller.item_preview_source()
+            result = source.materials(
+                threading.Event(),
+                output_root=output,
+                native_preview_core_cache_root=self.root / "native-cache",
+            )
+
+        self.assertEqual(result, native_package)
+        native_kwargs = run_native.call_args.kwargs
+        self.assertEqual(native_kwargs["enabled_prefab_component_paths"], (component.path,))
+        self.assertEqual(native_kwargs["dependency_entries"], (primary, component, prefab))
+        self.assertEqual(native_kwargs["model_property_indices"], {primary.path.casefold(): 1})
+        model_property_indices.assert_called_once()
+        archive_identity = build_package.call_args.kwargs["archive_identity"]
+        self.assertIn(f":template={TEMPLATE}:", archive_identity)
+        self.assertIn(prefab.path, archive_identity)
+        tab.close()
+        tab.deleteLater()
+
     def test_the_import_brings_its_own_dependency_context(self) -> None:
         """The headless build over the template's mesh takes the archive maps the
         Builder's import wants; the studio builds them from its own listing (the whole

@@ -973,7 +973,7 @@ class NativePreviewCoreTests(unittest.TestCase):
     def test_native_preview_core_treats_eye_cover_as_alpha_eye_surface(self) -> None:
         source = preview_core_source()
 
-        self.assertIn("kNativeMaterialSemanticsVersion = 8", source)
+        self.assertIn("kNativeMaterialSemanticsVersion = 9", source)
         self.assertIn("evidence_contains_eye_surface_token", source)
         self.assertIn("evidence_contains_eye_cutout_surface_token", source)
         self.assertIn('lower.find("eyecover")', source)
@@ -1201,9 +1201,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("material_identity_match_score(binding, mesh) < threshold", source)
         self.assertIn("support_binding_rejected_before_scoring", dispatch)
         self.assertIn("decoded_surface_promotes_metal", dispatch)
-        self.assertIn("cd_phw_00_eyecovermaterial_0001_sp.dds", dispatch)
-        self.assertIn("0028 skin selected the eye-cover response map", dispatch)
-        self.assertIn("0028 eye-cover lost its own response map", dispatch)
+        self.assertIn("run_head_eye_cover_identity_contract_self_test();", dispatch)
+        self.assertIn("cd_phw_00_eyecovermaterial_0001_sp.dds", source)
+        self.assertIn("0028 skin selected the eye-cover response map", source)
+        self.assertIn("0028 eye-cover lost its own response map", source)
         self.assertIn("run_material_contract_self_test();", dispatch)
         self.assertIn('\\"material_contracts\\":true', dispatch)
 

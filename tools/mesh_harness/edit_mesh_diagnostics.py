@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from cdmw.modding import mesh_native_core
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
 from cdmw.services.mesh_interaction_diagnostics import (
     flush_mesh_interaction_events,
     mesh_interaction_diagnostics_snapshot,
@@ -504,7 +505,7 @@ def _run_dotnet_stroke(
     )
 
 
-def _run_native_edit_authority() -> dict[str, object]:
+def _run_native_edit_authority(output_dir: Path) -> dict[str, object]:
     if not mesh_native_core.native_mesh_core_available():
         return {"ok": False, "reason": "native mesh core binary not available"}
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -527,6 +528,10 @@ def _run_native_edit_authority() -> dict[str, object]:
         controller = tab.standalone_controller
         if controller is None:
             return {"ok": False, "reason": "standalone controller unavailable"}
+        controller.configure_output_policy(
+            MeshOutputPolicy.FREE_EDIT,
+            output_destination=output_dir / f"free-edit-output-{uuid4().hex}",
+        )
         tab.standalone_dotnet_target_controller = controller
         selections: list[dict[str, object]] = []
         for target in ("vertex", "edge", "face"):
@@ -878,7 +883,10 @@ def run_headless_edit_mesh_diagnostics(output_dir: Path) -> dict[str, object]:
 
     texture_factory = phase("original_texture_factory", _original_texture_factory_contract)
     dotnet = phase("hidden_dotnet_renderer", lambda: _run_hidden_dotnet_suite(output_dir))
-    native_edit = phase("python_native_edit_authority", _run_native_edit_authority)
+    native_edit = phase(
+        "python_native_edit_authority",
+        lambda: _run_native_edit_authority(output_dir),
+    )
     # Imported here rather than at module scope: the scenario module reads
     # this module's screen-payload helpers, and a module-level import back
     # would close the cycle.

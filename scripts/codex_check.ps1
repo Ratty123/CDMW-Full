@@ -18,6 +18,8 @@ $TestsByArea = @{
         "tests/test_dotnet_resident_mutation_batch_contract.py",
         "tests/test_dotnet_stroke_sample_buffer_contract.py",
         "tests/test_dotnet_selection_geometry_contract.py",
+        "tests/test_dotnet_provisional_brush_parity.py",
+        "tests/test_dotnet_mesh_edit_operator_contract.py",
         # Exact, Free Edit, and Read Only policy routing plus atomic non-exact
         # output. These fail at user-command time if session filtering drifts.
         "tests/test_mesh_output_policy.py",
@@ -32,6 +34,7 @@ $TestsByArea = @{
         "tests/test_window_feature_controller.py",
         "tests/test_localization_catalog_contracts.py",
         "tests/test_localization_runtime_owner.py",
+        "tests/test_character_context.py",
         "tests/test_compact_shell.py",
         "tests/test_compact_shell_presentations.py",
         "tests/test_compact_shell_visual_harness.py",
@@ -69,6 +72,7 @@ $TestsByArea = @{
     )
     responsiveness = @(
         "tests/test_attachment_async_io.py",
+        "tests/test_character_context.py",
         "tests/test_lazy_tool_tabs.py",
         "tests/test_translation_studio.py",
         "tests/test_ui_responsiveness_source_guards.py",
@@ -196,6 +200,8 @@ $TestsByArea = @{
         "tests/test_dotnet_resident_mutation_batch_contract.py",
         "tests/test_dotnet_stroke_sample_buffer_contract.py",
         "tests/test_dotnet_selection_geometry_contract.py",
+        "tests/test_dotnet_provisional_brush_parity.py",
+        "tests/test_dotnet_mesh_edit_operator_contract.py",
         "tests/test_dotnet_ui_localization_protocol_source.py",
         "tests/test_dotnet_preview_shared_host.py",
         "tests/test_dotnet_preview_theme.py",
@@ -212,6 +218,7 @@ $TestsByArea = @{
         "tests/test_native_preview_material_authority_protocol.py",
         "tests/test_native_preview_core.py",
         "tests/test_native_preview_character_appearance.py",
+        "tests/test_character_context.py",
         "tests/test_dotnet_icon_capture_protocol.py",
         # The viewport's icon capture is the view on screen at any yaw, pitch and
         # pan: the helper's GPU-free proof over the real capture camera, which
@@ -225,6 +232,11 @@ $TestsByArea = @{
         "tests/test_mesh_editor_actions.py",
         "tests/test_mesh_editor_action_bar.py",
         "tests/test_mesh_editor_direct_mode.py",
+        # Replace from Archive planning/export, paged picker lifecycle, and the
+        # adjacent APP XML regression that escaped through local mesh discovery.
+        "tests/test_replace_from_archive_service.py",
+        "tests/test_replace_from_archive_dialog.py",
+        "tests/test_scene_importer_gltf.py",
         "tests/test_mesh_editor_warm_reopen.py",
         "tests/test_mesh_editor_builder_interaction_defaults.py",
         "tests/test_mesh_builder_runtime_wiring.py",

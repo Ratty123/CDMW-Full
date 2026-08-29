@@ -215,6 +215,8 @@ class ArchivePreviewNativeMixin:
         if entry is None or str(getattr(entry, "extension", "") or "").casefold() != ".pac":
             return b"", "", ()
         context_entries = tuple(getattr(self, "native_preview_dependency_entries", ()) or ())
+        path_index = getattr(self, "texture_entries_by_normalized_path", {}) or {}
+        basename_index = getattr(self, "texture_entries_by_basename", {}) or {}
 
         try:
             from cdmw.core.archive_extraction import read_archive_entry_data
@@ -228,8 +230,8 @@ class ArchivePreviewNativeMixin:
             resolution = resolve_skeleton_descriptor_for_model(
                 entry,
                 context_entries,
-                archive_entries_by_normalized_path=self.texture_entries_by_normalized_path,
-                archive_entries_by_basename=self.texture_entries_by_basename,
+                archive_entries_by_normalized_path=path_index,
+                archive_entries_by_basename=basename_index,
                 read_entry_data=read_payload,
             )
             if resolution.skeleton_variation_entry is None:
@@ -240,8 +242,8 @@ class ArchivePreviewNativeMixin:
                 entry,
                 parsed_mesh,
                 pac_data,
-                self.texture_entries_by_normalized_path,
-                self.texture_entries_by_basename,
+                path_index,
+                basename_index,
                 context_entries,
                 self.stop_event,
             )

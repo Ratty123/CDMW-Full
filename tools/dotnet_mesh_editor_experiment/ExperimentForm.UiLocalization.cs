@@ -220,6 +220,7 @@ internal sealed partial class UiLocalizationOwner : IDisposable
         "Merge has no exact protected-record writeback route.",
         "Mesh Edit Session",
         "Mesh Edit Session, Editable view",
+        "Mesh Editor gesture blocked: {value_0}.",
         "Mesh geometry layers",
         "Minimum percent",
         "Minimum percent must be lower than maximum percent.",

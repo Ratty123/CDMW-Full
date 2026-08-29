@@ -294,6 +294,8 @@ class DotNetRevisionUpdateQueue:
         self._resync_active = False
         self._recovery_failed = False
         self._correlation_conflicts = 0
+        self._reset_count = 0
+        self._last_reset_reason = ""
 
     def set_context(
         self,
@@ -308,7 +310,7 @@ class DotNetRevisionUpdateQueue:
         if (normalized, generation) == (self._session_id, self._process_generation):
             self._last_acked_revision = max(self._last_acked_revision, revision)
             return
-        self.reset()
+        self.reset(reason="context_changed")
         self._session_id = normalized
         self._process_generation = generation
         self._last_acked_revision = revision
@@ -319,7 +321,9 @@ class DotNetRevisionUpdateQueue:
     ) -> None:
         self._resync_packets = factory
 
-    def reset(self) -> None:
+    def reset(self, *, reason: str = "explicit") -> None:
+        self._reset_count += 1
+        self._last_reset_reason = str(reason or "explicit")
         _remove_paths(self._active_paths)
         _remove_paths(self._uncertain_paths)
         for pending in self._pending:
@@ -366,6 +370,14 @@ class DotNetRevisionUpdateQueue:
     @property
     def last_acked_revision(self) -> int:
         return self._last_acked_revision
+
+    @property
+    def context_session_id(self) -> str:
+        return self._session_id
+
+    @property
+    def context_process_generation(self) -> int:
+        return self._process_generation
 
     @property
     def next_base_revision(self) -> int:
@@ -738,6 +750,10 @@ class DotNetRevisionUpdateQueue:
 
     def metrics(self) -> dict[str, object]:
         return {
+            "context_session_id": self._session_id,
+            "context_process_generation": self._process_generation,
+            "reset_count": self._reset_count,
+            "last_reset_reason": self._last_reset_reason,
             "revision_ack_capable": self._capable,
             "correlated_ack_capable": self._correlated,
             "mutation_batch_capable": self._atomic_batch,

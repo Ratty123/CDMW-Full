@@ -112,6 +112,8 @@ struct LabApplication {
     viewport_revision: u64,
     camera: OrbitCamera,
     view_mode: ViewMode,
+    show_normals: bool,
+    show_bounds: bool,
     viewport_tool: ViewportTool,
     selection_tool: SelectionTool,
     brush_radius: f32,
@@ -180,6 +182,8 @@ impl LabApplication {
             viewport_revision: 1,
             camera: OrbitCamera::default(),
             view_mode: ViewMode::TexturedSolid,
+            show_normals: false,
+            show_bounds: false,
             viewport_tool: ViewportTool::Select,
             selection_tool: SelectionTool::Click,
             brush_radius: 48.0,
@@ -511,6 +515,18 @@ impl LabApplication {
                             ui.selectable_value(&mut self.view_mode, mode, mode.label());
                         }
                     });
+                ui.horizontal_wrapped(|ui| {
+                    ui.checkbox(&mut self.show_normals, "Normals");
+                    ui.checkbox(&mut self.show_bounds, "Bounds");
+                    let mut show_bones = false;
+                    ui.add_enabled(
+                        false,
+                        egui::Checkbox::new(&mut show_bones, "Bones"),
+                    )
+                    .on_disabled_hover_text(
+                        "Bone overlay requires a decoded skeleton; PAB/PAC binding is not implemented yet",
+                    );
+                });
                 ui.horizontal_wrapped(|ui| {
                     if ui.button("Frame All").clicked() {
                         actions.push(UiAction::FrameAll);
@@ -1755,8 +1771,11 @@ impl LabApplication {
             .viewport_rect
             .map(|rectangle| self.camera.view_projection(rectangle));
         let view_mode = self.view_mode;
+        let show_normals = self.show_normals;
+        let show_bounds = self.show_bounds;
         let render_error = if let Some(renderer) = &mut self.renderer {
             renderer.set_view_mode(view_mode);
+            renderer.set_overlays(show_normals, show_bounds);
             if let Some(camera_matrix) = camera_matrix {
                 renderer.set_camera(camera_matrix);
             }

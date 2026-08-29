@@ -21,6 +21,7 @@ from cdmw.core.archive import (
 )
 from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
 from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.character_context import NativePreviewContextComponent
 from cdmw.models import (
     PREVIEW_MESH_IMAGE_FIELD_NAMES,
     ArchiveEntry,
@@ -100,6 +101,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         native_preview_dependency_entries: Sequence[ArchiveEntry] = (),
         native_preview_dependency_entries_complete: bool = False,
         enabled_prefab_component_paths: Sequence[str] = (),
+        preview_context_components: Sequence[NativePreviewContextComponent] = (),
         native_preview_package_cache_key: str = "",
         native_preview_package_cache_mode: str = "off",
         native_preview_package_cache_max_bytes: int = 0,
@@ -150,6 +152,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             for path in enabled_prefab_component_paths
             if str(path or "").strip()
         )
+        self.preview_context_components = tuple(preview_context_components)
         self.native_preview_package_cache_key = str(native_preview_package_cache_key or "").strip()
         self.native_preview_package_cache_mode = str(native_preview_package_cache_mode or "off").strip().lower()
         self.native_preview_package_cache_max_bytes = max(0, int(native_preview_package_cache_max_bytes or 0))

@@ -8,6 +8,8 @@ _WM_LBUTTONDOWN = 0x0201
 
 _WM_LBUTTONUP = 0x0202
 
+_WM_MOUSEWHEEL = 0x020A
+
 _MK_LBUTTON = 0x0001
 
 _REAL_MESH_EDITOR_DOTNET_SCENARIO = "real-archive-mesh-editor-dotnet-edit-smoke"

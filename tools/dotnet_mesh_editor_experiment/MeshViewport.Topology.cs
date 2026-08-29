@@ -332,6 +332,20 @@ internal sealed partial class MeshViewport
         {
             SyncSelectedPartFocus();
         }
+        var terminalPhase = (selectionStrokePhase ?? string.Empty)
+            .Trim()
+            .ToLowerInvariant();
+        if (terminalPhase == "end"
+            && _editOperators.Active is { Tool: "select" } activeOperator)
+        {
+            var gestureId = string.IsNullOrWhiteSpace(selectionStrokeId)
+                ? activeOperator.GestureId
+                : selectionStrokeId;
+            if (_editOperators.ApplyAuthoritativeResult(gestureId))
+            {
+                _editOperators.CompleteRenderer(gestureId);
+            }
+        }
         UpdateGpuViewport();
         return true;
     }

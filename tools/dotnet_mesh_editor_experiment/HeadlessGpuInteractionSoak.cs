@@ -195,7 +195,7 @@ internal static class HeadlessGpuInteractionSoak
 
     private static Dictionary<string, object?> CaptureShortFaceBrushProof(MeshViewport viewport)
     {
-        const int gestureCount = 12;
+        const int gestureCount = 100;
         var previousHandler = viewport.EditorEventRequested;
         var probe = new InteractionProtocolProbe();
         var inputSamples = new List<double>(gestureCount);
@@ -346,15 +346,18 @@ internal static class HeadlessGpuInteractionSoak
             viewport,
             createsAfterRebuild,
             disposalsAfterRebuild);
+        var inputFailureRecovery = CaptureLassoInputFailureRecovery(viewport);
         return new Dictionary<string, object?>
         {
             ["ok"] = open.GetValueOrDefault("ok") is true
                 && closed.GetValueOrDefault("ok") is true
                 && clearRebuildOk
-                && mismatchReconciliation.GetValueOrDefault("ok") is true,
+                && mismatchReconciliation.GetValueOrDefault("ok") is true
+                && inputFailureRecovery.GetValueOrDefault("ok") is true,
             ["open_release"] = open,
             ["closed_release"] = closed,
             ["terminal_mismatch_reconciliation"] = mismatchReconciliation,
+            ["input_failure_recovery"] = inputFailureRecovery,
             ["retained_overlay_clear_rebuild_ok"] = clearRebuildOk,
             ["retained_overlay_buffer_creates_before"] = createsBefore,
             ["retained_overlay_buffer_creates_after_open"] = createsAfterOpen,
@@ -364,6 +367,55 @@ internal static class HeadlessGpuInteractionSoak
             ["retained_overlay_buffer_disposals_after_open"] = disposalsAfterOpen,
             ["retained_overlay_buffer_disposals_after_clear"] = disposalsAfterClear,
             ["retained_overlay_buffer_disposals_after_rebuild"] = disposalsAfterRebuild,
+        };
+    }
+
+    private static Dictionary<string, object?> CaptureLassoInputFailureRecovery(
+        MeshViewport viewport)
+    {
+        const int recoveryCycles = 100;
+        var probe = new InteractionProtocolProbe();
+        viewport.EditorEventRequested = probe.Accept;
+        var start = viewport.InteractionSoakMeshAnchor();
+        var recovered = true;
+        var rendererAlive = true;
+        var rendererError = string.Empty;
+        for (var cycle = 0; cycle < recoveryCycles; cycle++)
+        {
+            var firstEnd = new Point(
+                start.X + 18 + cycle % 3,
+                start.Y + 12 + cycle % 5);
+            viewport.BeginInteractionSoak("select_lasso_face", start);
+            viewport.StepInteractionSoak(new Point(start.X + 20, start.Y));
+            viewport.StepInteractionSoak(firstEnd);
+            recovered = viewport.FinishLassoInteractionSoakWithInjectedInputFailure(firstEnd)
+                && recovered;
+            if (!viewport.TryRunHeadlessRendererFrame(out _, out _, out var cycleError))
+            {
+                rendererAlive = false;
+                rendererError = cycleError;
+                break;
+            }
+        }
+        var secondEnd = new Point(start.X - 14, start.Y + 20);
+        viewport.BeginInteractionSoak("select_lasso_face", start);
+        viewport.StepInteractionSoak(new Point(start.X + 16, start.Y));
+        var second = viewport.FinishInteractionSoak(secondEnd);
+        probe.CompleteAll();
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = recovered
+                && rendererAlive
+                && probe.InputFailureEvents == recoveryCycles
+                && second.FinalAuthorityMatches
+                && second.ProvisionalCleared
+                && viewport.SelectionInteractionSoakStateClean,
+            ["failure_event_count"] = probe.InputFailureEvents,
+            ["recovery_cycles"] = recoveryCycles,
+            ["renderer_alive"] = rendererAlive,
+            ["renderer_error"] = rendererError,
+            ["second_gesture_authority_matches"] = second.FinalAuthorityMatches,
+            ["second_gesture_provisional_cleared"] = second.ProvisionalCleared,
         };
     }
 
@@ -697,11 +749,17 @@ internal static class HeadlessGpuInteractionSoak
         public long CoalescedUpdates { get; private set; }
         public int MaximumPendingDepth { get; private set; }
         public int TerminalStrokeEvents { get; private set; }
+        public int InputFailureEvents { get; private set; }
         public string TerminalSelectionMode { get; private set; } = string.Empty;
         public Point[] TerminalSelectionPoints { get; private set; } = Array.Empty<Point>();
 
         public void Accept(string eventName, Dictionary<string, object?> payload)
         {
+            if (eventName == "interaction_failed")
+            {
+                InputFailureEvents++;
+                return;
+            }
             if (eventName is not ("select_request" or "selection_request" or "stroke_begin" or "stroke_update" or "stroke_end" or "stroke_cancel"))
             {
                 return;

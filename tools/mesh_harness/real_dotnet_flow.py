@@ -76,7 +76,9 @@ def production_flow_gates(state: SimpleNamespace) -> dict[str, bool]:
         "export_source_asset_hash_matches": bool(export.get("source_asset_hash_matches")),
         "complete_output_reparse": export.get("output_reparse_status") == "passed",
         "export_artifact_hashes_present": bool(export.get("artifact_hashes_present")),
-        "source_texture_exported": bool(export.get("source_textures_exported")),
+        "texture_export_contract_complete": bool(
+            export.get("texture_export_contract_complete")
+        ),
         "exact_topology_rebuild": bool(getattr(state, "topology_rebuild_ok", False)),
         # Reads the aggregate, so one admitted operation reaching the generic
         # path fails this even when the other two did not.
@@ -717,10 +719,27 @@ def exercise_coherent_export(
         and all(row.get("status") == "passed" for row in dds_readback)
         and texture_artifact_keys <= binding_keys
     )
+    texture_resources = tuple(report.get("texture_resources", ()) or ())
+    has_committed_textures = bool(
+        texture_revisions
+        or texture_resources
+        or texture_artifacts
+        or bindings
+        or dds_readback
+    )
+    texture_export_contract_complete = bool(
+        source_textures_exported
+        if has_committed_textures
+        else not texture_revisions
+        and not texture_resources
+        and not texture_artifacts
+        and not bindings
+        and not dds_readback
+    )
     coherent = bool(
         str(report.get("session_id", "")) == current.session_id
         and int(report.get("mesh_revision", -1) or 0) == current.revision
-        and texture_artifact_keys
+        and texture_export_contract_complete
         and all(
             texture_revisions.get(
                 (str(row.get("resource_id", "")), str(row.get("channel", ""))),
@@ -756,10 +775,8 @@ def exercise_coherent_export(
         and reparse.get("reference_metadata_readback") == "passed"
         and int(reparse.get("glb_submesh_count", 0) or 0) > 0
         and int(reparse.get("obj_submesh_count", 0) or 0) > 0
-        and dds_readback
-        and all(row.get("status") == "passed" for row in dds_readback)
-        and {"mesh_glb", "mesh_obj", "mesh_material", "texture_dds"} <= artifact_roles
-        and source_textures_exported
+        and {"mesh_glb", "mesh_obj", "mesh_material"} <= artifact_roles
+        and texture_export_contract_complete
     )
     state.source_texture_export_evidence = {
         "texture_revisions": list(report.get("texture_revisions", ()) or ()),
@@ -787,6 +804,8 @@ def exercise_coherent_export(
         "expected_source_asset_hash": expected_source_asset_hash,
         "source_asset_hash_matches": source_asset_hash_matches,
         "source_textures_exported": source_textures_exported,
+        "has_committed_textures": has_committed_textures,
+        "texture_export_contract_complete": texture_export_contract_complete,
         "texture_artifacts": texture_artifacts,
     }
     record_flow_step(state, "export", report_path=str(report_path))

@@ -122,6 +122,13 @@ internal sealed partial class MeshViewport
         _provisionalSelectionStrokeId = string.Empty;
         _provisionalSelectionStrokeSequence = -1;
         _selectionStrokeBase = null;
+        if (_editOperators.Active is { Tool: "select" } activeOperator)
+        {
+            _editOperators.Reject(
+                activeOperator.GestureId,
+                "selection_rejected",
+                "The authoritative selection was rejected.");
+        }
         return true;
     }
 
@@ -134,6 +141,10 @@ internal sealed partial class MeshViewport
         _provisionalSelectionStrokeId = string.Empty;
         _provisionalSelectionStrokeSequence = -1;
         _selectionStrokeBase = null;
+        if (_editOperators.Active is { Tool: "select" } activeOperator)
+        {
+            _editOperators.Cancel(activeOperator.GestureId);
+        }
     }
 
     private bool CanAcceptAuthoritativeSelection(long requestId, long revision)

@@ -45,6 +45,7 @@ def test_resident_mutation_batch_contract_executes_csharp_behavior() -> None:
     assert all(payload["gates"].values())
     assert {
         "vertex_material_selection_prepared",
+        "v3_target_revision_drives_correlation",
         "topology_append_staged",
         "topology_shrink_staged",
         "topology_material_selection_prepared",

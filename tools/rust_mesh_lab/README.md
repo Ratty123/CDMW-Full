@@ -50,7 +50,7 @@ The application shows the actual executable path before launch. It does not requ
 ## User interface
 
 - **Archive / Assets** opens an archive root or extracted mesh, searches virtual paths off the UI thread, and virtualizes the displayed rows.
-- **Viewport** uses `wgpu` with Direct3D 12 on Windows, an aspect-aware shared camera matrix, and a depth target. An explicit decoded DDS reference is uploaded directly when its supported 2D layout is unambiguous; the shader remains an explicit material approximation and currently binds one texture.
+- **Viewport** uses `wgpu` with Direct3D 12 on Windows, an aspect-aware shared camera matrix, and a depth target. Persistent GPU line buffers provide optional cyan vertex normals and an always-readable amber mesh-bounds box. An explicit decoded DDS reference is uploaded directly when its supported 2D layout is unambiguous; the shader remains an explicit material approximation and currently binds one texture.
 - **Inspector** reports format, LOD, counts, parser, warnings, archive flags, and entry sizes.
 - **Selection** routes Click, Brush, Rectangle, and Lasso gestures through the same revision-stamped projection for Vertex, Edge, and Face domains. **Visible** depth-tests candidates against a projected-triangle BVH while **X-Ray** includes occluded candidates; both use a persistent 32-pixel screen grid so local queries inspect bounded cells instead of rescanning every projected element. Replace, Add, Subtract, and Toggle apply once to the complete gesture, including fast drags retained by the bounded raw-input queue; pathological long lassos are deterministically compacted while preserving the press and release points.
 - **Interactive Edit / Sculpt** provides Move, Rotate, and Scale gizmos plus Grab, Smooth, Inflate, and Pinch brushes. Each drag previews locally, mouse release commits one undo entry, and Esc, resize, or focus loss rolls the gesture back. Face deletion, midpoint subdivision, and duplication validate a private working draft before replacing the live mesh; subdivision and duplication select their generated faces. Undo and Redo remain one-shot commands. Disabled controls state why they are unavailable.
@@ -63,7 +63,7 @@ The application shows the actual executable path before launch. It does not requ
 - Use the **mouse wheel** to zoom.
 - Press **F** to frame the selection, or the complete mesh when nothing is selected.
 - Use **Frame All**, **Frame Selected**, or Front/Back/Left/Right/Top/Bottom for exact camera placement.
-- Choose Textured, Solid Faces, Solid + Wire, Wireframe, Vertices, Wire + Vertices, or X-Ray from **Preview mode**.
+- Choose Textured, Solid Faces, Solid + Wire, Wireframe, Vertices, Wire + Vertices, or X-Ray from **Preview mode**, then independently toggle **Normals** and **Bounds**. **Bones** remains visibly disabled with its missing-skeleton reason until PAB/PAC binding is decoded.
 - Choose Click, Brush, Rectangle, or Lasso, then drag in the viewport. Brush radius and sculpt strength are adjustable in the inspector.
 - **Visible** is the default and rejects candidates behind the nearest projected triangle at their representative point; choose **X-Ray** to include occluded candidates. Sculpt brushes always use the visible-only route so a surface stroke does not also modify the back side.
 - Select Move, Rotate, or Scale and drag the visible axis/ring/center gizmo. Select Grab, Smooth, Inflate, or Pinch and drag over eligible vertices.

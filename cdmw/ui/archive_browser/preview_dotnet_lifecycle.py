@@ -199,6 +199,9 @@ class ArchivePreviewDotNetLifecycleMixin:
 
     def _handle_archive_resident_package_applied(self, package_path: str, generation: int) -> None:
         if not bool(getattr(self, "_archive_texture_request_loading", False)):
+            self.archive_isolated_renderer_active_package = Path(package_path)
+            self.archive_isolated_renderer_package_source = "dotnet-canonical"
+            self._populate_archive_d3d11_part_visibility_menu(Path(package_path))
             return
         if int(generation or 0) != int(getattr(self, "_archive_texture_package_generation", 0) or 0):
             return
@@ -207,6 +210,7 @@ class ArchivePreviewDotNetLifecycleMixin:
             return
         self.archive_isolated_renderer_active_package = Path(package_path)
         self.archive_isolated_renderer_package_source = "dotnet-canonical"
+        self._populate_archive_d3d11_part_visibility_menu(Path(package_path))
         render_settings = getattr(self, "_archive_texture_render_settings", None)
         host = getattr(self, "archive_d3d11_preview_host", None)
         automatic_request = bool(getattr(self, "_archive_texture_request_automatic", False))

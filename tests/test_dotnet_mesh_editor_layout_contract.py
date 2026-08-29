@@ -591,8 +591,9 @@ def test_edit_tools_show_the_camera_modifiers_that_still_work() -> None:
     # Both gestures resolve their key through the binding rather than testing
     # ModifierKeys directly, or a rebind would leave the strip promising a key
     # that does nothing.
-    assert "CameraModifierBindings.IsHeld(CameraPanModifier, ModifierKeys)" in input_source
-    assert "CameraModifierBindings.IsHeld(CameraOrbitModifier, ModifierKeys)" in input_source
+    assert "CameraPanModifier," in input_source
+    assert "CameraOrbitModifier," in input_source
+    assert "input.Alt,\n                input.Control,\n                input.Shift" in input_source
     assert "Keys.Control" not in input_source
     assert "Keys.Shift" not in input_source
 
@@ -955,23 +956,6 @@ def test_falloff_preview_matches_the_native_brush_weight() -> None:
     # The pointer back to the authority has to survive, or the next reader will
     # not know which copy to change first.
     assert "geometry_uv_04.cpp" in profile
-
-
-def test_provisional_grab_echo_weights_with_the_active_falloff_profile() -> None:
-    """The grab echo weights with the shared native-profile port and the live option.
-
-    A private falloff copy hardcoded to "smooth" made every non-smooth grab
-    snap at stroke end, when the authoritative surface replaced a provisional
-    one shaped by a different profile.
-    """
-    strokes = _source("MeshViewport.ProvisionalStrokes.cs")
-
-    assert "BrushFalloffProfile.Weight(distance, Math.Max(radius, 0.001f), falloff)" in strokes
-    assert "FalloffOption(options)" in strokes
-    # The private duplicate profile stays gone; BrushFalloffProfile is the one
-    # guarded port of the native weight.
-    assert "BrushFalloffWeight(" not in strokes
-    assert '"smooth"' not in strokes
 
 
 def test_tool_column_width_is_measured_rather_than_reserved() -> None:

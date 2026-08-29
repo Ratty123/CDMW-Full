@@ -149,6 +149,7 @@ def test_v3_selection_commit_remains_provisional_until_the_correlated_batch_ack(
     tab, builder = _embedded_tab("MeshEditorMutationBatchCommitAck")
     controller = builder.controller
     initial_view = controller.session_view()
+    tab.standalone_dotnet_lifecycle_session_id = initial_view.session_id
     tab.standalone_dotnet_process_generation = 7
     sent: list[dict[str, object]] = []
     tab._send_dotnet_protocol_message = (  # type: ignore[method-assign]
@@ -193,6 +194,33 @@ def test_v3_selection_commit_remains_provisional_until_the_correlated_batch_ack(
     assert batch["selection_update"]
     assert batch["history_state"]["undo_count"] == update.session_view.undo_count
     assert commits == []
+
+    stopped: list[str] = []
+    tab._stop_standalone_dotnet_editor_process = (  # type: ignore[method-assign]
+        lambda **_kwargs: stopped.append("stopped")
+    )
+    assert tab._send_dotnet_native_update(
+        update,
+        result=result,
+        request_payload={"event": "selection_request", "request_id": 43},
+        commit_embedded=True,
+    )
+    assert len([payload for payload in sent if payload.get("event") == "resident_mutation_batch"]) == 1
+    assert stopped == []
+
+    stale_selection_update = type(update)(
+        selection_groups=update.selection_groups,
+        refresh_selection=True,
+        session_view=initial_view,
+    )
+    assert tab._send_dotnet_native_update(
+        stale_selection_update,
+        result=result,
+        request_payload={"event": "selection_request", "request_id": 44},
+        commit_embedded=True,
+    )
+    assert len([payload for payload in sent if payload.get("event") == "resident_mutation_batch"]) == 1
+    assert stopped == []
 
     assert tab._handle_dotnet_protocol_event(
         {

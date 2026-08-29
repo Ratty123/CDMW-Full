@@ -63,13 +63,25 @@ internal static class CameraModifierBindings
 
     public static bool IsHeld(string binding, Keys modifiers)
     {
+        return IsHeld(
+            binding,
+            alt: (modifiers & Keys.Alt) == Keys.Alt,
+            control: (modifiers & Keys.Control) == Keys.Control,
+            shift: (modifiers & Keys.Shift) == Keys.Shift);
+    }
+
+    public static bool IsHeld(
+        string binding,
+        bool alt,
+        bool control,
+        bool shift)
+    {
         return binding switch
         {
-            Alt => (modifiers & Keys.Alt) == Keys.Alt,
-            Ctrl => (modifiers & Keys.Control) == Keys.Control,
-            Shift => (modifiers & Keys.Shift) == Keys.Shift,
-            AltOrCtrl => (modifiers & Keys.Alt) == Keys.Alt
-                || (modifiers & Keys.Control) == Keys.Control,
+            Alt => alt,
+            Ctrl => control,
+            Shift => shift,
+            AltOrCtrl => alt || control,
             _ => false,
         };
     }

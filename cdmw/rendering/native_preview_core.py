@@ -22,6 +22,7 @@ from cdmw.core.common import (
     run_process_with_cancellation,
     start_bounded_text_stream_drain,
 )
+from cdmw.domain.character_context import NativePreviewContextComponent
 from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
 from cdmw.rendering.native_preview_package_cache import (
     mark_native_preview_package_path_recent,
@@ -41,7 +42,9 @@ NATIVE_PREVIEW_CORE_MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION = 2
 NATIVE_PREVIEW_CORE_TEXTURE_QUALITY_SCHEMA_VERSION = 1
 NATIVE_PREVIEW_CORE_MAX_DEPENDENCY_ENTRIES = 4096
 NATIVE_PREVIEW_CORE_MAX_PREFAB_COMPONENTS = 32
+NATIVE_PREVIEW_CORE_MAX_CONTEXT_COMPONENTS = 32
 NATIVE_PREVIEW_CORE_MAX_MODEL_PROPERTY_INDICES = 32
+_NATIVE_CONTEXT_PRESENTATION_TOTAL_BYTE_LIMIT = 512 * 1024 * 1024
 
 
 def _repo_root() -> Path:
@@ -832,6 +835,63 @@ def _validated_model_property_indices(
     return tuple(normalized)
 
 
+def _validated_preview_context_components(
+    components: Sequence[NativePreviewContextComponent],
+) -> tuple[NativePreviewContextComponent, ...]:
+    validated: list[NativePreviewContextComponent] = []
+    seen: set[str] = set()
+    presentation_bytes = 0
+    for component in components:
+        if not isinstance(component, NativePreviewContextComponent):
+            raise TypeError("Native preview context components must use NativePreviewContextComponent.")
+        entry = component.entry
+        if not isinstance(entry, ArchiveEntry) or not str(entry.path or "").strip():
+            raise ValueError("Native preview context components require an exact archive entry.")
+        slot = str(component.slot or "").strip().casefold()
+        if slot not in {"face", "hair", "body", "gear"}:
+            raise ValueError(f"Unsupported native preview context slot: {slot or 'empty'}")
+        authority = str(component.authority or "").strip().casefold()
+        if authority not in {"authored", "compatible"}:
+            raise ValueError(f"Unsupported native preview context authority: {authority or 'empty'}")
+        scale = float(component.scale)
+        if not (0.01 <= scale <= 100.0):
+            raise ValueError("Native preview context scale must be between 0.01 and 100.0.")
+        component_payload_bytes = len(bytes(component.presentation_geometry_payload or b""))
+        presentation_bytes += component_payload_bytes
+        if presentation_bytes > _NATIVE_CONTEXT_PRESENTATION_TOTAL_BYTE_LIMIT:
+            raise ValueError("Native preview Character Context presentation geometry exceeds 512 MiB.")
+        if component_payload_bytes and not str(component.presentation_geometry_source or "").strip():
+            raise ValueError("Native preview context presentation geometry requires a source identity.")
+        key = (
+            f"{str(entry.pamt_path or '').casefold()}|"
+            f"{str(entry.path or '').replace(chr(92), '/').casefold()}|{int(entry.offset or 0)}"
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        validated.append(component)
+        if len(validated) > NATIVE_PREVIEW_CORE_MAX_CONTEXT_COMPONENTS:
+            raise ValueError("Native preview Character Context is limited to 32 components.")
+    return tuple(validated)
+
+
+def _native_preview_context_component_dict(
+    component: NativePreviewContextComponent,
+    *,
+    presentation_geometry_path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    return {
+        "entry": archive_entry_to_native_preview_core_dict(component.entry),
+        "slot": str(component.slot or "").strip().casefold(),
+        "label": str(component.label or component.entry.basename or component.entry.path).strip()[:240],
+        "authority": str(component.authority or "").strip().casefold(),
+        "scale": float(component.scale),
+        "appearance_path": str(component.appearance_path or "").replace("\\", "/").strip(),
+        "context_presentation_geometry_path": str(presentation_geometry_path or ""),
+        "context_presentation_geometry_source": str(component.presentation_geometry_source or "").replace("\\", "/").strip(),
+    }
+
+
 def build_native_preview_core_job(
     entry: ArchiveEntry,
     *,
@@ -843,6 +903,8 @@ def build_native_preview_core_job(
     dependency_entries_complete: bool = False,
     enabled_prefab_component_paths: Sequence[str] = (),
     model_property_indices: Optional[Mapping[str, int]] = None,
+    preview_context_components: Sequence[NativePreviewContextComponent] = (),
+    preview_context_presentation_paths: Sequence[Optional[Path]] = (),
     package_root: Optional[Path] = None,
     presentation_geometry_path: Optional[Path] = None,
     presentation_geometry_source: str = "",
@@ -859,6 +921,10 @@ def build_native_preview_core_job(
     model_property_indices = dict(
         _validated_model_property_indices(model_property_indices or {})
     )
+    preview_context_components = _validated_preview_context_components(preview_context_components)
+    context_presentation_paths = tuple(preview_context_presentation_paths)
+    if context_presentation_paths and len(context_presentation_paths) != len(preview_context_components):
+        raise ValueError("Native preview context presentation paths must match the component count.")
     return {
         "version": 1,
         "backend": NATIVE_PREVIEW_CORE_BACKEND_ID,
@@ -879,6 +945,13 @@ def build_native_preview_core_job(
         "model_property_indices": [
             {"path": path, "index": index}
             for path, index in model_property_indices.items()
+        ],
+        "preview_context_components": [
+            _native_preview_context_component_dict(
+                component,
+                presentation_geometry_path=(context_presentation_paths[index] if context_presentation_paths else None),
+            )
+            for index, component in enumerate(preview_context_components)
         ],
         "presentation_geometry_path": str(presentation_geometry_path or ""),
         "presentation_geometry_source": str(presentation_geometry_source or "").strip(),
@@ -905,6 +978,7 @@ def run_native_preview_core_preview_job(
     dependency_entries_complete: bool = False,
     enabled_prefab_component_paths: Sequence[str] = (),
     model_property_indices: Optional[Mapping[str, int]] = None,
+    preview_context_components: Sequence[NativePreviewContextComponent] = (),
     package_root: Optional[Path] = None,
     output_root: Optional[Path] = None,
     timeout_seconds: float = 3.0,
@@ -925,6 +999,7 @@ def run_native_preview_core_preview_job(
     model_property_indices = dict(
         _validated_model_property_indices(model_property_indices or {})
     )
+    preview_context_components = _validated_preview_context_components(preview_context_components)
     binary = find_native_preview_core_binary()
     if binary is None:
         return NativePreviewCoreAttempt(
@@ -938,6 +1013,15 @@ def run_native_preview_core_preview_job(
     presentation_geometry_path = job_root / "presentation_geometry.bin" if presentation_geometry_payload else None
     if presentation_geometry_path is not None:
         presentation_geometry_path.write_bytes(presentation_geometry_payload)
+    context_presentation_paths: list[Optional[Path]] = []
+    for index, component in enumerate(preview_context_components):
+        payload = bytes(component.presentation_geometry_payload or b"")
+        if not payload:
+            context_presentation_paths.append(None)
+            continue
+        context_path = job_root / f"context_presentation_{index:02d}.bin"
+        context_path.write_bytes(payload)
+        context_presentation_paths.append(context_path)
     job = build_native_preview_core_job(
         entry,
         cache_root=cache_root,
@@ -948,6 +1032,8 @@ def run_native_preview_core_preview_job(
         dependency_entries_complete=dependency_entries_complete,
         enabled_prefab_component_paths=enabled_prefab_component_paths,
         model_property_indices=model_property_indices,
+        preview_context_components=preview_context_components,
+        preview_context_presentation_paths=context_presentation_paths,
         package_root=package_root,
         presentation_geometry_path=presentation_geometry_path,
         presentation_geometry_source=presentation_geometry_source,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, replace
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Iterable
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QTimer, Signal
@@ -30,6 +30,14 @@ from cdmw.ui.archive_browser.remote_preview_dependencies import (
     ArchiveRemotePreviewDependencyProvider,
 )
 from cdmw.ui.archive_browser.remote_query import archive_query_from_browser_state
+from cdmw.ui.archive_browser.remote_window_identity import (
+    base_index_identity_key as _base_index_identity_key,
+    dto_identity_key as _dto_identity_key,
+    legacy_identity as _legacy_identity,
+    legacy_identity_key as _legacy_identity_key,
+    structure_sort_key as _structure_sort_key,
+    workflow_path as _workflow_path,
+)
 
 
 MAX_REMOTE_EXPORT_ENTRY_IDS = 4096
@@ -954,62 +962,6 @@ def compare_archive_shadow_page(
         compared,
         tuple(mismatches),
     )
-
-
-def _legacy_identity(entry: ArchiveEntry | None) -> ArchiveDurableIdentity | None:
-    if entry is None:
-        return None
-    identity = entry.identity
-    return ArchiveDurableIdentity(
-        identity.normalized_path,
-        identity.source_pamt,
-        identity.paz_index,
-        identity.entry_offset,
-    )
-
-
-def _legacy_identity_key(entry: ArchiveEntry) -> tuple[object, ...]:
-    identity = entry.identity
-    return (
-        _normalized(identity.normalized_path),
-        _normalized(identity.source_pamt),
-        int(identity.paz_index),
-        int(identity.entry_offset),
-    )
-
-
-def _base_index_identity_key(entry: ArchiveEntry) -> tuple[object, ...]:
-    identity = entry.identity
-    return (
-        _normalized(identity.normalized_path),
-        str(identity.source_pamt).replace("\\", "/"),
-        int(identity.entry_offset),
-    )
-
-
-def _dto_identity_key(entry: ArchiveEntryDto) -> tuple[object, ...]:
-    identity = entry.identity
-    return (
-        _normalized(identity.normalized_path),
-        _normalized(identity.source_pamt),
-        int(identity.paz_index),
-        int(identity.archive_offset),
-    )
-
-
-def _normalized(value: object) -> str:
-    return str(value or "").replace("\\", "/").strip("/").casefold()
-
-
-def _structure_sort_key(value: str) -> tuple[int, int, str]:
-    leaf = value.rsplit("/", 1)[-1]
-    return (0, int(leaf), leaf) if leaf.isdigit() else (1, 0, leaf)
-
-
-def _workflow_path(entry: ArchiveEntryDto) -> str:
-    package_root = PurePosixPath(entry.source_pamt.replace("\\", "/")).parent.name.strip() or "package"
-    normalized_path = entry.path.replace("\\", "/").lstrip("/")
-    return f"{package_root}/{normalized_path}"
 
 
 __all__ = [

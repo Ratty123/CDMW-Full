@@ -147,6 +147,7 @@ class MeshEditorStatePresentationMixin:
         rebuild_allowed = self._standalone_rebuild_allowed()
         for button_name in (
             "standalone_run_validation_report_button",
+            "standalone_replace_from_archive_button",
             "standalone_export_mesh_file_button",
             "standalone_build_mod_button",
             "standalone_install_overlay_button",
@@ -159,6 +160,9 @@ class MeshEditorStatePresentationMixin:
             if button is None:
                 continue
             enabled = has_standalone and not output_task_active
+            if button_name == "standalone_replace_from_archive_button":
+                button.setEnabled(enabled and has_archive_target)
+                continue
             if button_name != "standalone_open_editable_package_folder_button":
                 enabled = enabled and exact_session
             if button_name in {

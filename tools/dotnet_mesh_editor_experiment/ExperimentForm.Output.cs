@@ -35,6 +35,14 @@ internal sealed partial class ExperimentForm
             }
             RegisterOutgoingMutation(eventName, message);
         }
+        else if (string.Equals(eventName, "interaction_failed", StringComparison.OrdinalIgnoreCase))
+        {
+            message["session_id"] = _residentMaterialSessionId;
+            message["request_id"] = ++_outgoingMutationRequestSequence;
+            message["base_revision"] = Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision);
+            message["process_generation"] = _residentProcessGeneration;
+            message["protocol_version"] = 2;
+        }
         _diagnosticProtocolObserver?.Invoke(eventName, message);
         if (string.Equals(eventName, "metrics", StringComparison.OrdinalIgnoreCase))
         {

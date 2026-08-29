@@ -830,7 +830,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         )
         self.assertIn("self.section_nav_list = QListWidget()", settings_source)
         self.assertIn('self.section_nav_list.setObjectName("SettingsSectionNav")', settings_source)
-        self.assertIn("settings_workspace_layout.addWidget(self.section_nav_list, 0, Qt.AlignTop)", settings_source)
+        self.assertIn("section_nav_layout.addWidget(self.section_nav_list, 0, Qt.AlignTop)\n        settings_workspace_layout.addWidget(self.section_nav_panel)", settings_source)
         self.assertIn("nav_font_size = self.current_data_font_size()", settings_source)
         self.assertIn("self.section_nav_list.setFixedWidth(nav_width)", settings_source)
         self.assertIn("self.section_nav_list.setFixedHeight(nav_height)", settings_source)

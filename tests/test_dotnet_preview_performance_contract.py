@@ -105,26 +105,32 @@ def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> 
     assert "UpdateProvisionalEditorStroke(point)" in probe
     assert "FinishSelectionGesture(point, cancelled: false)" in probe
     assert "OnMouseMove(new MouseEventArgs(MouseButtons.None" in probe
-    assert "FinishSelectionGesture(e.Location, cancelled: false)" in input_source
+    assert "FinishSelectionGesture(input.Location, cancelled: false)" in input_source
     assert "CommitInteractionSoakGeometry" in probe
     assert "CompleteProvisionalAuthoritativeUpdate" in probe
     assert "ApplyInteractionSoakAuthoritativeGeometry" in tool_diagnostics
     assert "ApplyPreviewVertexUpdate(" in tool_diagnostics
     assert "authoritative_geometry_pending" in tool_diagnostics
     assert 'normalizedTool is "move" or "grab"' in strokes
-    assert "var candidates = localGeometryPreview" in strokes
+    assert 'normalizedTool is "move" or "grab" or "smooth" or "inflate" or "pinch"' in strokes
+    assert "var candidates = new ProvisionalStrokeSubmesh[scope.Length];" in strokes
     assert "SpatialBuckets" not in strokes
-    assert "GrabIndices" in strokes
+    assert "BrushIndices" in strokes
     assert "VertexBuckets" in picking
     assert "FaceBuckets" in picking
     assert "LargeFaceCandidates" in picking
     assert "PaintProjectionFaceUsesLargeCandidateList" in picking
     assert "RoutePaintProjectionFaceCandidate" in picking
     assert "release_only_lasso_commits_exact_polygon" in soak
+    assert "const int recoveryCycles = 100;" in soak
+    assert "const int gestureCount = 100;" in soak
     assert "retained_overlay_clear_rebuild_is_discard_safe" in soak
     assert "terminal_depth_mismatch_discards_provisional_overlay_once" in soak
     assert "oversized_face_projection_uses_bounded_candidate_list" in soak
     assert "wire_overlay_gpu_buffer_retained" in soak
+    overlay_selection = _source("D3D11MaterialViewport.OverlaySelection.cs")
+    assert "_vertexOverlayRemovalScratch" in overlay_selection
+    assert ".Where(submeshIndex => !selectedVertices.ContainsKey(submeshIndex))" not in overlay_selection
     assert "DrawRetainedOverlayPrimitive(\n                PrimitiveTopology.PointList" in _source("D3D11MaterialViewport.Overlay.cs")
     assert "PrimitiveTopology.PointList when command.LineWidthPixels > 0.0f" in _source("D3D11MaterialViewport.Overlay.cs")
     provisional = _source("D3D11MaterialViewport.ProvisionalGeometry.cs")

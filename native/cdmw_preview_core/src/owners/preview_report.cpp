@@ -176,6 +176,108 @@ static int model_property_index_for_path(const EntryJob& job, std::string path) 
     return found == job.model_property_indices.end() ? 0 : found->second;
 }
 
+static void merge_preview_context_component_meshes(
+    const EntryJob& job,
+    NativePackage& package,
+    NativeMeshParseResult& parsed) {
+    int next_component_index = 1;
+    for (const NativeSubmesh& mesh : parsed.meshes) {
+        next_component_index = std::max(next_component_index, mesh.source_component_index + 1);
+    }
+    int component_models_added = 0;
+    int component_batches_added = 0;
+    for (const PreviewContextComponentRef& context : job.preview_context_components) {
+        try {
+            const std::vector<char> component_data = read_archive_ref_decoded_bytes(context.entry);
+            NativeMeshParseResult component_parse;
+            if (context.entry.extension == ".pac") {
+                component_parse.meshes = parse_pac_submeshes(component_data);
+                component_parse.parser = "native_pac_par_sections";
+            } else if (context.entry.extension == ".pam") {
+                component_parse = parse_pam_submeshes(component_data);
+            } else if (context.entry.extension == ".pamlod") {
+                component_parse = parse_pamlod_submeshes(component_data);
+            } else {
+                throw std::runtime_error("unsupported Character Context model extension");
+            }
+            if (component_parse.meshes.empty()) {
+                throw std::runtime_error("no renderable geometry");
+            }
+            if (!context.presentation_geometry_path.empty()) {
+                const size_t presentation_vertices = apply_presentation_geometry_bytes(
+                    read_binary_file(context.presentation_geometry_path),
+                    component_parse.meshes);
+                ++package.context_presentation_component_count;
+                package.context_presentation_vertex_count += static_cast<int>(presentation_vertices);
+                package.notes.push_back(
+                    "native Character Context presentation geometry applied: "
+                    + context.entry.path
+                    + (context.presentation_geometry_source.empty()
+                        ? std::string()
+                        : ": " + context.presentation_geometry_source));
+            }
+            const int component_index = next_component_index++;
+            const int global_submesh_offset = static_cast<int>(parsed.meshes.size());
+            const std::string label = context.label.empty()
+                ? (context.entry.basename.empty() ? basename_from_path(context.entry.path) : context.entry.basename)
+                : context.label;
+            for (size_t mesh_index = 0; mesh_index < component_parse.meshes.size(); ++mesh_index) {
+                NativeSubmesh& mesh = component_parse.meshes[mesh_index];
+                for (Vec3& position : mesh.positions) {
+                    position.x *= context.scale;
+                    position.y *= context.scale;
+                    position.z *= context.scale;
+                }
+                mesh.source_model_path = context.entry.path;
+                mesh.source_component_label = label;
+                mesh.source_component_index = component_index;
+                mesh.source_prefab_component = true;
+                mesh.source_context_component = true;
+                if (mesh.source_local_submesh_index < 0) mesh.source_local_submesh_index = mesh.source_submesh_index;
+                mesh.source_submesh_index = global_submesh_offset + static_cast<int>(mesh_index);
+            }
+            component_batches_added += static_cast<int>(component_parse.meshes.size());
+            parsed.meshes.insert(
+                parsed.meshes.end(),
+                std::make_move_iterator(component_parse.meshes.begin()),
+                std::make_move_iterator(component_parse.meshes.end()));
+            add_asset_family_row(package, NativeAssetFamilyRow{
+                "Character Context",
+                context.slot,
+                label,
+                context.entry.path,
+                "Loaded",
+                context.authority,
+                context.authority,
+                "preview-only",
+                "Read-only Character Context component; excluded from edit, export, and archive mutation authority.",
+                "model",
+                "Character Context",
+                "",
+                "",
+                "",
+                package_label_for_ref(context.entry),
+                context.entry.extension,
+                "",
+                "",
+                "",
+                ""
+            });
+            ++component_models_added;
+        } catch (const std::exception& exc) {
+            package.notes.push_back(
+                "native Character Context component skipped:" + context.entry.path + ":" + exc.what());
+        }
+    }
+    if (component_models_added > 0) {
+        parsed.parser += "+character_context";
+        package.notes.push_back(
+            "native Character Context: added " + std::to_string(component_models_added)
+            + " preview-only model component(s), " + std::to_string(component_batches_added)
+            + " batch(es)");
+    }
+}
+
 static NativePackage try_generate_native_package(const EntryJob& job, const std::vector<char>& data) {
     NativePackage package;
     NativeMeshParseResult parsed;
@@ -218,6 +320,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     } else {
         throw std::runtime_error("native preview-core package generation only supports .pac, .pam, .pamlod, and .pat");
     }
+    merge_preview_context_component_meshes(job, package, parsed);
     if (parsed.meshes.empty()) {
         throw std::runtime_error("native model parser found no renderable geometry");
     }
@@ -315,9 +418,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
     const auto started = std::chrono::steady_clock::now();
     reset_preview_dependency_report();
     EntryJob job = parse_job(job_path);
-    std::string status = "unsupported";
-    std::string fallback_reason;
-    std::string message, format_fourcc;
+    std::string status = "unsupported", fallback_reason, message, format_fourcc;
     std::uint64_t bytes_read = 0;
     const int compression_type = static_cast<int>(job.flags & 0x0F);
     bool raw_read_ok = false;
@@ -376,6 +477,8 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"presentation_geometry_applied\":" << (package.presentation_geometry_applied ? "true" : "false") << ","
         << "\"presentation_geometry_vertex_count\":" << package.presentation_geometry_vertex_count << ","
         << "\"presentation_geometry_source\":\"" << json_escape(package.presentation_geometry_source) << "\","
+        << "\"context_presentation_component_count\":" << package.context_presentation_component_count << ","
+        << "\"context_presentation_vertex_count\":" << package.context_presentation_vertex_count << ","
         << "\"native_material_index\":\"" << json_escape(package.material_index.empty() ? "pending" : package.material_index) << "\","
         << "\"native_material_graph_status\":\"" << json_escape(package.material_graph_status) << "\","
         << "\"native_material_graph_cache_hit\":" << (package.material_graph_cache_hit ? "true" : "false") << ","

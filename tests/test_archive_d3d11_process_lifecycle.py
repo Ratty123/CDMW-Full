@@ -100,6 +100,7 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
         self.current_archive_preview_result = None
         self.details_refresh_count = 0
         self.settings_changes: list[ModelPreviewRenderSettings] = []
+        self.populated_packages: list[Path] = []
 
     def _current_archive_entry(self) -> object:
         return self.entry
@@ -122,6 +123,9 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
 
     def _mesh_replacement_builder_active(self) -> bool:
         return False
+
+    def _populate_archive_d3d11_part_visibility_menu(self, package: Path) -> None:
+        self.populated_packages.append(Path(package))
 
 
 class _NoOpWidget:
@@ -342,6 +346,21 @@ def test_resident_texture_apply_commits_latest_generation_once(tmp_path: Path) -
     assert harness._archive_texture_request_loading is False
     assert len(harness.archive_d3d11_preview_host.tuning) == 1
     assert harness.archive_d3d11_preview_host.viewport_modes == ["textured"]
+    assert harness.populated_packages == [package]
+
+
+def test_resident_package_apply_syncs_parts_and_character_context_without_texture_request(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "geometry"
+    package.mkdir()
+    harness = _LifecycleHarness()
+
+    harness._handle_archive_resident_package_applied(str(package), 1)
+
+    assert harness.archive_isolated_renderer_active_package == package
+    assert harness.archive_isolated_renderer_package_source == "dotnet-canonical"
+    assert harness.populated_packages == [package]
 
 
 def test_unchecked_preference_keeps_late_automatic_texture_result_hidden(tmp_path: Path) -> None:

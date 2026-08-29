@@ -4,13 +4,14 @@ from importlib import import_module as _import_module
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence
 
-from PySide6.QtCore import QSettings, Signal
+from PySide6.QtCore import QSettings, Signal, Qt
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
+    QSplitter,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -41,6 +42,8 @@ from cdmw.ui.mesh_editor.tab_ui_state import MeshEditorUiStateMixin
 from cdmw.ui.mesh_editor.tab_interaction import MeshEditorInteractionMixin
 from cdmw.ui.mesh_editor.tab_actions import MeshEditorActionsMixin
 from cdmw.ui.mesh_editor.tab_output_policy import MeshEditorOutputPolicyMixin
+from cdmw.ui.mesh_editor.character_context import MeshEditorCharacterContextMixin
+from cdmw.ui.character_context_panel import CharacterContextPanel
 
 
 _LAZY_EXPORT_GROUPS = (
@@ -187,13 +190,14 @@ def __dir__() -> list[str]:
     return sorted((*globals(), *_LAZY_EXPORTS))
 
 
-class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshEditorPackageMixin, MeshEditorDotNetLaunchMixin, MeshEditorDotNetProtocolMixin, MeshEditorDotNetCommandMixin, MeshEditorDotNetProcessMixin, MeshEditorOutputPolicyMixin, MeshEditorReportsMixin, MeshEditorSessionMixin, MeshEditorUiStateMixin, MeshEditorStateMixin, MeshEditorInteractionMixin, MeshEditorActionsMixin, QWidget):
+class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshEditorPackageMixin, MeshEditorDotNetLaunchMixin, MeshEditorDotNetProtocolMixin, MeshEditorDotNetCommandMixin, MeshEditorDotNetProcessMixin, MeshEditorOutputPolicyMixin, MeshEditorReportsMixin, MeshEditorSessionMixin, MeshEditorUiStateMixin, MeshEditorStateMixin, MeshEditorInteractionMixin, MeshEditorActionsMixin, QWidget):
     """Direct resident mesh-authoring workspace host."""
 
     status_message_requested = Signal(str, bool)
     runtime_event_requested = Signal(str, dict)
     open_archive_session_requested = Signal(object)
     open_archive_target_requested = Signal(object)
+    replace_from_archive_requested = Signal(object)
     mesh_action_requested = Signal(object)
 
     def __init__(
@@ -208,12 +212,20 @@ class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshE
         ensure_archive_texture_indexes: Callable[[], bool] | None = None,
         get_archive_mutation_service: Callable[[], object | None] | None = None,
         get_archive_material_preview_model: Callable[[], object | None] | None = None,
+        character_context_service: object | None = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
+        character_context_service = None
         self.settings = settings
         self.get_archive_mutation_service = get_archive_mutation_service
         self.get_archive_material_preview_model = get_archive_material_preview_model
+        self.character_context_service = character_context_service
+        self.character_context_repackage_generation = 0
+        self.character_context_loaded_source_indices: tuple[int, ...] = ()
+        self.character_context_next_source_indices: tuple[int, ...] = ()
+        self.character_context_visibility_restore_pending = False
+        self.character_context_resident_swap_pending = False
         settings_path = Path(str(settings.fileName() or "settings.ini")).expanduser()
         self.mesh_editor_draft_root = workspace_paths(settings_path.parent)[
             "modify_original_sessions_root"
@@ -234,6 +246,22 @@ class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshE
         self.action_bar = MeshEditorActionBar(parent=self)
         self.action_bar.action_requested.connect(self._handle_action_requested)
         root.addWidget(self.action_bar)
+
+        self.character_context_toolbar = QFrame(self)
+        self.character_context_toolbar.setObjectName("MeshEditorCharacterContextToolbar")
+        character_context_toolbar_layout = QHBoxLayout(self.character_context_toolbar)
+        character_context_toolbar_layout.setContentsMargins(8, 3, 8, 3)
+        character_context_toolbar_layout.addStretch(1)
+        self.character_context_toggle_button = QPushButton("Character Context")
+        self.character_context_toggle_button.setCheckable(True)
+        self.character_context_toggle_button.setToolTip(
+            "Show preview-only authored face pieces and optional compatible hair/body context."
+        )
+        self.character_context_toggle_button.setVisible(False)
+        self.character_context_toggle_button.setEnabled(False)
+        character_context_toolbar_layout.addWidget(self.character_context_toggle_button)
+        self.character_context_toolbar.setVisible(character_context_service is not None)
+        root.addWidget(self.character_context_toolbar)
 
         self.draft_banner = QFrame(self)
         self.draft_banner.setObjectName("MeshEditorDraftRecoveryBanner")
@@ -267,7 +295,46 @@ class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshE
         self.workspace_stack.addWidget(self.empty_state)
         self.workspace_stack.addWidget(self.standalone_workspace)
         self.workspace_stack.addWidget(self.embedded_builder_host)
-        root.addWidget(self.workspace_stack, 1)
+        self.character_context_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.character_context_splitter.setChildrenCollapsible(True)
+        self.character_context_splitter.setHandleWidth(8)
+        self.character_context_splitter.addWidget(self.workspace_stack)
+        self.character_context_panel = (
+            CharacterContextPanel(
+                character_context_service,
+                surface_label="Mesh Editor",
+                parent=self.character_context_splitter,
+            )
+            if character_context_service is not None
+            else QFrame(self.character_context_splitter)
+        )
+        self.character_context_panel.setVisible(False)
+        self.character_context_splitter.addWidget(self.character_context_panel)
+        self.character_context_splitter.setCollapsible(0, False)
+        self.character_context_splitter.setCollapsible(1, True)
+        self.character_context_splitter.setStretchFactor(0, 1)
+        self.character_context_splitter.setStretchFactor(1, 0)
+        self.character_context_splitter.setSizes([920, 0])
+        root.addWidget(self.character_context_splitter, 1)
+        self.character_context_toggle_button.toggled.connect(
+            self._toggle_mesh_editor_character_context
+        )
+        if character_context_service is not None:
+            self.character_context_panel.panel_hidden.connect(
+                lambda: self.character_context_toggle_button.setChecked(False)
+            )
+            character_context_service.selection_changed.connect(
+                self._handle_mesh_character_context_selection
+            )
+            character_context_service.package_started.connect(
+                self._handle_mesh_character_context_package_started
+            )
+            character_context_service.package_ready.connect(
+                self._handle_mesh_character_context_package_ready
+            )
+            character_context_service.package_failed.connect(
+                self._handle_mesh_character_context_package_failed
+            )
 
         self._sync_state()
         install_mesh_editor_destroyed_worker_guard(self)

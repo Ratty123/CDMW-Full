@@ -214,7 +214,8 @@ internal sealed partial class ExperimentForm
                         Math.Max(0, JsonLongValue(root, "target_revision")),
                         _lastAppliedEditRevision,
                         0,
-                        ResidentMutationPayloadSignature(root)),
+                        ResidentMutationPayloadSignature(root),
+                        string.Empty),
                     duplicate: false);
                 return;
             }
@@ -435,13 +436,15 @@ internal sealed partial class ExperimentForm
                 targetRevision,
                 targetRevision,
                 staged.AffectedSubmeshes.Length,
-                ResidentMutationPayloadSignature(root));
+                ResidentMutationPayloadSignature(root),
+                string.Empty);
             _residentMutationLedger.Remember(cacheKey, result);
             WriteResidentMutationBatchAck(root, result, duplicate: false);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             var rollbackReason = "final_commit_failed";
+            var diagnostic = $"{ex.GetType().Name}: {ex.Message}";
             try
             {
                 CopyResidentMutationDocument(_document, previousDocument);
@@ -459,11 +462,12 @@ internal sealed partial class ExperimentForm
                 RestoreResidentMutationHistoryState(previousHistory);
                 _viewport.SetAuthoritativeEditRevision(previousRevision);
             }
-            catch (Exception)
+            catch (Exception rollbackException)
             {
                 rollbackReason = "rollback_failed";
+                diagnostic += $"; rollback {rollbackException.GetType().Name}: {rollbackException.Message}";
             }
-            RejectResidentMutation(root, cacheKey, rollbackReason);
+            RejectResidentMutation(root, cacheKey, rollbackReason, diagnostic);
         }
     }
 
@@ -516,7 +520,19 @@ internal sealed partial class ExperimentForm
                         out correlatedSelectionPending,
                         out _))
                 {
-                    throw new InvalidOperationException("selection_correlation_rejected");
+                    throw new InvalidOperationException(
+                        "selection_correlation_rejected"
+                        + $" request_id={requestId}"
+                        + $" event={candidate.EventName}"
+                        + $" command={candidate.Command}"
+                        + $" root_session={JsonString(root, "session_id").Trim()}"
+                        + $" pending_session={candidate.SessionId}"
+                        + $" current_session={_residentMaterialSessionId}"
+                        + $" root_process={JsonLongValue(root, "process_generation")}"
+                        + $" pending_process={candidate.ProcessGeneration}"
+                        + $" current_process={_residentProcessGeneration}"
+                        + $" correlation_revision={MutationCorrelationRevision(root)}"
+                        + $" acknowledged_selection_revision={_viewport.AcknowledgedSelectionRevision}");
                 }
                 correlatedSelection = true;
             }
@@ -546,7 +562,11 @@ internal sealed partial class ExperimentForm
         }
     }
 
-    private void RejectResidentMutation(JsonElement root, string cacheKey, string reason)
+    private void RejectResidentMutation(
+        JsonElement root,
+        string cacheKey,
+        string reason,
+        string diagnostic = "")
     {
         var result = new ResidentMutationResult(
             "rejected",
@@ -555,7 +575,8 @@ internal sealed partial class ExperimentForm
             Math.Max(0, JsonLongValue(root, "target_revision")),
             _lastAppliedEditRevision,
             0,
-            ResidentMutationPayloadSignature(root));
+            ResidentMutationPayloadSignature(root),
+            diagnostic);
         _residentMutationLedger.Remember(cacheKey, result);
         WriteResidentMutationBatchAck(root, result, duplicate: false);
     }
@@ -586,6 +607,10 @@ internal sealed partial class ExperimentForm
                 ResidentMutationBatchCapability,
             },
         };
+        if (!string.IsNullOrWhiteSpace(result.Diagnostic))
+        {
+            payload["diagnostic"] = result.Diagnostic;
+        }
         WriteProtocolEvent("resident_mutation_batch_ack", payload);
     }
 
@@ -789,7 +814,8 @@ internal sealed record ResidentMutationResult(
     long TargetRevision,
     long AppliedRevision,
     int ChangedItems,
-    string PayloadSignature);
+    string PayloadSignature,
+    string Diagnostic);
 
 internal sealed class ResidentMutationResultLedger
 {

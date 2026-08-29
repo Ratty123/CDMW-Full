@@ -112,6 +112,63 @@ def test_real_dotnet_harness_waits_for_geometry_before_resident_materials() -> N
         "state.offscreen_capture_evidence = exercise_deterministic_offscreen_capture("
     )
     assert material_update < offscreen_capture
+    session_source = (
+        root / "tools" / "mesh_harness" / "real_dotnet_session.py"
+    ).read_text(encoding="utf-8")
+    assert '"_mesh_editor_commit_dotnet_edit_result"' in session_source
+    assert '"production_builder_commit_contract_readback"' in session_source
+    assert "selection_matches_result_authority" in session_source
+
+
+def test_real_dotnet_projection_probe_waits_for_v3_renderer_authority() -> None:
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "tools" / "mesh_harness" / "real_dotnet.py").read_text(
+        encoding="utf-8"
+    )
+
+    probe = source.split("def _prepare_selection_projection(", 1)[1].split(
+        "def _arm_move_and_read_applied_selection", 1
+    )[0]
+    assert "probe_expected_revision" in probe
+    assert "probe_request_id" in probe
+    assert '== "resident_mutation_batch_ack"' in probe
+    assert '{"applied", "already_applied"}' in probe
+    assert 'get("active_revision", 0)' in probe
+    assert 'get("pending_depth", 0)' in probe
+    assert 'get("rejected_updates", 0)' in probe
+    assert probe.index("probe_queue_settled") < probe.index(
+        "state.projection_probe_authority_settled"
+    )
+    selection = source.split("def _drive_projected_vertex_selection(", 1)[1].split(
+        "def _capture_selected_projection_state", 1
+    )[0]
+    assert "if not state.projection_probe_authority_settled:" in selection
+    assert "clear_update = state.controller.native_update_for_result(state.select_result)" in selection
+    assert "clear_update," in selection
+    assert "result=state.select_result" in selection
+    assert "_send_dotnet_session_state()" not in selection
+
+
+def test_real_skin_surface_gate_rejects_wet_highlights(tmp_path: Path) -> None:
+    from PIL import Image
+    from tools.mesh_harness.real_dotnet_display import _skin_surface_response
+
+    semantics = [{"shader_family": "skin"}]
+    matte = Image.new("RGB", (128, 128), (120, 103, 98))
+    wet = matte.copy()
+    for y in range(32, 96):
+        for x in range(32, 96):
+            if (x + y) % 5 == 0:
+                wet.putpixel((x, y), (210, 185, 178))
+    matte_path = tmp_path / "matte.png"
+    wet_path = tmp_path / "wet.png"
+    matte.save(matte_path)
+    wet.save(wet_path)
+
+    assert _skin_surface_response(matte_path, semantics)["ok"] is True
+    wet_evidence = _skin_surface_response(wet_path, semantics)
+    assert wet_evidence["ok"] is False
+    assert wet_evidence["gates"]["skin_hot_highlight_fraction_bounded"] is False
 
 
 def test_real_dotnet_capture_rejects_an_unowned_visible_window(tmp_path: Path) -> None:
@@ -127,18 +184,20 @@ def test_real_dotnet_capture_rejects_an_unowned_visible_window(tmp_path: Path) -
     output = tmp_path / "capture.png"
     with (
         patch("tools.mesh_harness.real_dotnet_capture._host_window_rect", return_value=(0, 0, 128, 128)),
-        patch("tools.mesh_harness.real_dotnet_capture._activate_window_for_input", return_value=False),
+        patch("tools.mesh_harness.real_dotnet_capture._show_window_without_activation", return_value=False),
+        patch("tools.mesh_harness.real_dotnet_capture._restore_window_z_order"),
         patch("tools.mesh_harness.real_dotnet_capture._window_at_screen_point", return_value=99),
         patch("tools.mesh_harness.real_dotnet_capture._window_process_id", return_value=100),
     ):
         result = capture_dotnet_viewport(state, output)
 
     assert result["ok"] is False
-    assert "foreground visible capture target" in str(result["error"])
+    assert "visible owned capture target" in str(result["error"])
+    assert result["foreground_activated"] is False
     assert not output.exists()
 
 
-def test_real_dotnet_stroke_never_sends_global_input_without_foreground_ownership(tmp_path: Path) -> None:
+def test_real_dotnet_stroke_never_sends_scoped_input_without_visible_process_ownership(tmp_path: Path) -> None:
     from tools.mesh_harness.real_dotnet import _drive_viewport_stroke
 
     state = SimpleNamespace(
@@ -157,10 +216,9 @@ def test_real_dotnet_stroke_never_sends_global_input_without_foreground_ownershi
     )
     with (
         patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(0, 0, 100, 100)),
-        patch("tools.mesh_harness.real_dotnet_input._activate_window_for_input", return_value=False),
-        patch("tools.mesh_harness.real_dotnet_input._screen_cursor_position", return_value=None),
-        patch("tools.mesh_harness.real_dotnet_input._set_screen_cursor_position") as set_cursor,
-        patch("tools.mesh_harness.real_dotnet_input._send_left_button_input") as send_button,
+        patch("tools.mesh_harness.real_dotnet_input._show_window_without_activation", return_value=False),
+        patch("tools.mesh_harness.real_dotnet_input._scoped_input_target_matches", return_value=False),
+        patch("tools.mesh_harness.real_dotnet_input._send_mouse_message") as send_message,
         # _drive_viewport_stroke and the helpers it resolves now live in
         # real_dotnet_evidence; patching them on real_dotnet would no longer
         # intercept, and the stroke would run for real.
@@ -174,9 +232,10 @@ def test_real_dotnet_stroke_never_sends_global_input_without_foreground_ownershi
     ):
         result = _drive_viewport_stroke(state)
 
-    assert result == {"error": "The .NET viewport could not be made the foreground input target."}
-    set_cursor.assert_not_called()
-    send_button.assert_not_called()
+    assert result == {
+        "error": "The .NET viewport was not an owned scoped input target with a live rectangle."
+    }
+    send_message.assert_not_called()
 
 
 def test_real_dotnet_stroke_accepts_bounded_updates_and_requires_terminal_coverage(
@@ -204,13 +263,14 @@ def test_real_dotnet_stroke_accepts_bounded_updates_and_requires_terminal_covera
         ),
         after_capture_path=tmp_path / "after.png",
     )
-    cursor_calls = 0
+    move_calls = 0
 
-    def set_cursor(_x: int, _y: int) -> bool:
-        nonlocal cursor_calls
-        cursor_calls += 1
-        if cursor_calls in {10, 25}:
-            events.append({"event": "stroke_update", "request_id": cursor_calls})
+    def send_message(_hwnd: int, message: int, _x: int, _y: int, *, wparam: int = 0) -> bool:
+        nonlocal move_calls
+        if message == 0x0200:
+            move_calls += 1
+        if move_calls in {10, 25} and message == 0x0200:
+            events.append({"event": "stroke_update", "request_id": move_calls})
         return True
 
     def wait_event(
@@ -230,14 +290,10 @@ def test_real_dotnet_stroke_accepts_bounded_updates_and_requires_terminal_covera
 
     with (
         patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(0, 0, 100, 100)),
-        patch("tools.mesh_harness.real_dotnet_input._activate_window_for_input", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._foreground_window_matches", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._screen_cursor_position", return_value=None),
-        patch("tools.mesh_harness.real_dotnet_input._set_screen_cursor_position", side_effect=set_cursor),
-        patch("tools.mesh_harness.real_dotnet_input._window_at_screen_point", return_value=10),
+        patch("tools.mesh_harness.real_dotnet_input._show_window_without_activation", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_input._scoped_input_target_matches", return_value=True),
         patch("tools.mesh_harness.real_dotnet_input._window_process_id", return_value=42),
-        patch("tools.mesh_harness.real_dotnet_input._window_is_same_or_child", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._send_left_button_input", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_input._send_mouse_message", side_effect=send_message),
     ):
         result = drive_viewport_stroke(
             state,
@@ -255,11 +311,12 @@ def test_real_dotnet_stroke_accepts_bounded_updates_and_requires_terminal_covera
         "requested_end": [60, 20],
         "expected_end": [60, 20],
         "reported_end": [60, 20],
-        "actual_screen_end": None,
+        "injected_client_end": [60, 20],
+        "target_screen_end": [60, 20],
         "viewport_rect_at_release": [0, 0, 100, 100],
         "viewport_stationary_to_release": True,
         "protocol_update_count": 2,
-        "physical_point_count": 40,
+        "input_point_count": 40,
         "ok": True,
     }
 
@@ -418,21 +475,39 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
     }
     select_calls: list[dict[str, object]] = []
     physical_points: list[tuple[float, float]] = []
+    standalone_events: list[dict[str, object]] = []
     state = SimpleNamespace(
         submesh=submesh,
         submesh_index=0,
-        controller=SimpleNamespace(
-            select=lambda **kwargs: select_calls.append(dict(kwargs)) or SimpleNamespace(ok=True),
-            working_mesh=lambda *, clone: SimpleNamespace(
-                submeshes=[submesh, frontmost_submesh]
-            ),
+            controller=SimpleNamespace(
+                select=lambda **kwargs: select_calls.append(dict(kwargs)) or SimpleNamespace(ok=True),
+                native_update_for_result=lambda result: result,
+                session_view=lambda: SimpleNamespace(resident_revision=1),
+                working_mesh=lambda *, clone: SimpleNamespace(
+                    submeshes=[submesh, frontmost_submesh]
+                ),
         ),
         tab=SimpleNamespace(
-            standalone_dotnet_protocol_events=[],
+            standalone_dotnet_protocol_events=standalone_events,
             _send_dotnet_session_state=lambda: None,
-            _send_dotnet_protocol_message=lambda _payload: True,
-            _standalone_action_worker_active=lambda: False,
-        ),
+                _send_dotnet_native_update=lambda _update, **_kwargs: standalone_events.append(
+                    {
+                        "event": "resident_mutation_batch_ack",
+                        "target_revision": 1,
+                        "status": "applied",
+                    }
+                ) or True,
+                _send_dotnet_protocol_message=lambda _payload: True,
+                _standalone_action_worker_active=lambda: False,
+                standalone_dotnet_update_queue=SimpleNamespace(
+                    metrics=lambda: {
+                        "active_revision": 0,
+                        "pending_depth": 0,
+                        "last_acked_revision": 1,
+                        "rejected_updates": 0,
+                    }
+                ),
+            ),
         viewport={
             "width": 100,
             "height": 100,
@@ -493,7 +568,7 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
     assert state.viewport_mesh_selection_armed is True
 
 
-def test_physical_selection_anchor_targets_an_exact_front_facing_vertex() -> None:
+def test_input_selection_anchor_targets_an_exact_front_facing_vertex() -> None:
     from tools.mesh_harness.real_dotnet import _front_facing_vertex_selection_anchor
 
     submesh = SimpleNamespace(
@@ -517,7 +592,70 @@ def test_physical_selection_anchor_targets_an_exact_front_facing_vertex() -> Non
     assert anchor == (0, 0, (25.0, 75.0))
 
 
-def test_physical_select_gesture_emits_helper_selection_and_waits_for_authority() -> None:
+def test_real_dotnet_harness_selects_requested_monitor_without_cursor_input(
+    monkeypatch,
+) -> None:
+    from tools.mesh_harness.real_dotnet_session import _proof_screen
+
+    screens = [
+        SimpleNamespace(name=lambda: "Primary"),
+        SimpleNamespace(name=lambda: "Monitor 1"),
+    ]
+    app = SimpleNamespace(primaryScreen=lambda: screens[0], screens=lambda: screens)
+    monkeypatch.setenv("CDMW_HARNESS_SCREEN", "1")
+
+    assert _proof_screen(app) is screens[1]
+
+
+def test_desktop_input_gate_allows_user_activity_only_outside_the_harness_screen(
+    monkeypatch,
+) -> None:
+    import tools.mesh_harness.win32_input as win32_input
+
+    monkeypatch.setattr(
+        win32_input,
+        "os",
+        SimpleNamespace(name="posix"),
+    )
+    safe = win32_input._desktop_input_isolation_evidence(
+        [
+            {"available": True, "foreground_hwnd": 41, "cursor": [120, 340]},
+            {"available": True, "foreground_hwnd": 42, "cursor": [121, 340]},
+        ],
+        forbidden_hwnds=(101, 102),
+        harness_screen_bounds=(-1920, 0, 0, 1080),
+    )
+    cursor_violation = win32_input._desktop_input_isolation_evidence(
+        [{"available": True, "foreground_hwnd": 41, "cursor": [-400, 340]}],
+        forbidden_hwnds=(101, 102),
+        harness_screen_bounds=(-1920, 0, 0, 1080),
+    )
+
+    assert safe["ok"] is True
+    assert safe["observation_count"] == 2
+    assert cursor_violation["ok"] is False
+    assert cursor_violation["cursor_on_harness_screen_count"] == 1
+
+
+def test_harness_has_no_global_mouse_or_focus_mutation_api() -> None:
+    source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (Path("tools/mesh_harness")).glob("*.py")
+    )
+
+    for forbidden in (
+        "SetCursorPos",
+        "SendInput",
+        "mouse_event",
+        "SetForegroundWindow",
+        "SetActiveWindow",
+        "SetFocus",
+        "BringWindowToTop",
+    ):
+        assert forbidden not in source
+
+
+def test_scoped_select_gesture_emits_helper_selection_and_waits_for_authority() -> None:
     from tools.mesh_harness.real_dotnet_input import drive_viewport_selection
 
     button = {"down": False}
@@ -529,15 +667,40 @@ def test_physical_select_gesture_emits_helper_selection_and_waits_for_authority(
         tab=SimpleNamespace(
             standalone_dotnet_protocol_events=[],
             _standalone_action_worker_active=lambda: False,
+            standalone_dotnet_update_queue=SimpleNamespace(
+                metrics=lambda: {"active_revision": 0, "pending_depth": 0}
+            ),
         ),
     )
 
-    def send_button(*, down: bool) -> bool:
+    def send_message(
+        _hwnd: int,
+        message: int,
+        _x: int,
+        _y: int,
+        *,
+        wparam: int = 0,
+    ) -> bool:
         was_down = button["down"]
-        button["down"] = down
-        if was_down and not down:
+        if message == 0x0201:
+            button["down"] = True
+        elif message == 0x0202:
+            button["down"] = False
+        if was_down and message == 0x0202:
             state.tab.standalone_dotnet_protocol_events.append(
-                {"event": "select_request", "target_mode": "vertex", "paint_final": True}
+                {
+                    "event": "select_request",
+                    "target_mode": "vertex",
+                    "phase": "end",
+                    "request_id": 9,
+                }
+            )
+            state.tab.standalone_dotnet_protocol_events.append(
+                {
+                    "event": "resident_mutation_batch_ack",
+                    "request_id": 9,
+                    "status": "applied",
+                }
             )
         return True
 
@@ -549,14 +712,10 @@ def test_physical_select_gesture_emits_helper_selection_and_waits_for_authority(
 
     with (
         patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(10, 20, 110, 120)),
-        patch("tools.mesh_harness.real_dotnet_input._screen_cursor_position", return_value=(5, 6)),
-        patch("tools.mesh_harness.real_dotnet_input._activate_window_for_input", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._set_screen_cursor_position", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._window_at_screen_point", return_value=101),
+        patch("tools.mesh_harness.real_dotnet_input._show_window_without_activation", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_input._scoped_input_target_matches", return_value=True),
         patch("tools.mesh_harness.real_dotnet_input._window_process_id", return_value=77),
-        patch("tools.mesh_harness.real_dotnet_input._foreground_window_matches", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._window_is_same_or_child", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._send_left_button_input", side_effect=send_button),
+        patch("tools.mesh_harness.real_dotnet_input._send_mouse_message", side_effect=send_message),
     ):
         result = drive_viewport_selection(
             state,
@@ -566,8 +725,9 @@ def test_physical_select_gesture_emits_helper_selection_and_waits_for_authority(
         )
 
     assert result["ok"] is True
-    assert result["backend"] == "win32_physical_cursor"
+    assert result["backend"] == "scoped_hwnd_messages_normalized_input"
     assert result["start"] == [50, 50]
     assert result["end"] == [58, 50]
     assert result["select_request_count"] == 2
+    assert result["authority_acknowledgement"]["request_id"] == 9
     assert result["authority_settled"] is True

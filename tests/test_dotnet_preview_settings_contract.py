@@ -107,11 +107,14 @@ def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer(
         for token in tokens:
             assert token in renderer, f"{field}: {token}"
 
-    # The two rebindable modifiers must not decay into a hardcoded key test: the
-    # navigation strip promises whatever they are bound to, so a literal
-    # ModifierKeys check in the gesture path would make the strip lie.
-    assert "CameraModifierBindings.IsHeld(CameraPanModifier, ModifierKeys)" in renderer
-    assert "CameraModifierBindings.IsHeld(CameraOrbitModifier, ModifierKeys)" in renderer
+    # The platform adapter normalizes modifier state once; both rebindable camera
+    # gestures must consume those booleans instead of reading WinForms globals.
+    assert "CameraModifierBindings.IsHeld(" in renderer
+    assert "CameraPanModifier," in renderer
+    assert "CameraOrbitModifier," in renderer
+    assert "input.Alt" in renderer
+    assert "input.Control" in renderer
+    assert "input.Shift" in renderer
     assert "(ModifierKeys & Keys.Shift) == Keys.Shift" not in renderer
     assert "(ModifierKeys & Keys.Control) == Keys.Control" not in renderer
     for token in ("Keys.Alt", "Keys.Control", "Keys.Shift"):
@@ -301,6 +304,7 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "float categoryRoughnessFloor = hasSourceRoughnessMap" in shader
     assert "? 0.0f" in shader
     assert "float categoryEnvironmentScale = categoryMetal" in shader
+    assert "if (!categoryMetal && hasSourceRoughnessMap && !categorySkin)" in shader
     assert "parameters.RoughnessHint ?? 0.0f" in viewport
     assert "parameters.MetalnessHint ?? 0.0f" in viewport
     assert "parameters.SpecularHint ?? 0.0f" in viewport
@@ -424,6 +428,7 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     # A bound roughness map lets the dielectric lobe be lit on its own terms;
     # the per-category scales remain only as the no-map fallback.
     assert "float nonmetalDirectSpecularScale = hasSourceRoughnessMap" in shader
+    assert "? (categorySkin ? 0.055f : 0.32f)" in shader
     assert "conservativeNonmetal ? 0.025f : 0.08f" in shader
     assert "float3 sourceStableF0 = lerp(" in shader
     assert "float3 PreviewEnvironmentRadiance(float3 reflectedView, float roughness)" in shader

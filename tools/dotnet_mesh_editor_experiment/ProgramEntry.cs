@@ -73,6 +73,15 @@ internal static class Program
             {
                 return SelectionGeometryContractSmoke.Run(args);
             }
+            if (ProvisionalBrushParityContractSmoke.IsRequested(args))
+            {
+                ApplicationConfiguration.Initialize();
+                return ProvisionalBrushParityContractSmoke.Run(args);
+            }
+            if (MeshEditOperatorContractSmoke.IsRequested(args))
+            {
+                return MeshEditOperatorContractSmoke.Run(args);
+            }
             if (HeadlessGpuFramePacingSoak.IsRequested(args))
             {
                 ApplicationConfiguration.Initialize();
@@ -167,6 +176,8 @@ internal static class Program
             || string.Equals(arg, "--headless-capture-camera-parity", StringComparison.OrdinalIgnoreCase)
             || string.Equals(arg, "--headless-gpu-frame-pacing-soak", StringComparison.OrdinalIgnoreCase)
             || string.Equals(arg, "--headless-gpu-interaction-soak", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-provisional-brush-parity", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--headless-mesh-edit-operator-contract", StringComparison.OrdinalIgnoreCase)
             || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)
             || string.Equals(arg, "--headless-material-authority-parity", StringComparison.OrdinalIgnoreCase)
             || string.Equals(arg, "--capture-package", StringComparison.OrdinalIgnoreCase)
@@ -202,6 +213,11 @@ internal static class Program
             ReportFatalException(options, threadEvent.Exception, embedded);
         AppDomain.CurrentDomain.UnhandledException += (_, domainEvent) =>
             ReportFatalException(options, domainEvent.ExceptionObject as Exception, embedded, terminating: true);
+        TaskScheduler.UnobservedTaskException += (_, taskEvent) =>
+        {
+            taskEvent.SetObserved();
+            ReportFatalException(options, taskEvent.Exception, embedded);
+        };
     }
 
     private static void ReportFatalException(

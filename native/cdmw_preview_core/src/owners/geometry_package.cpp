@@ -31,10 +31,9 @@ static float read_presentation_float(const std::vector<char>& data, size_t offse
     return value;
 }
 
-static void apply_presentation_geometry_bytes(
+static size_t apply_presentation_geometry_bytes(
     const std::vector<char>& data,
-    std::vector<NativeSubmesh>& meshes,
-    NativePackage& package
+    std::vector<NativeSubmesh>& meshes
 ) {
     static constexpr std::array<char, 8> magic{{'C', 'D', 'M', 'W', 'P', 'G', '1', '\0'}};
     if (data.size() < 16 || !std::equal(magic.begin(), magic.end(), data.begin())) {
@@ -88,8 +87,7 @@ static void apply_presentation_geometry_bytes(
     if (offset != data.size() || actual_total != expected_total) {
         throw std::runtime_error("presentation geometry payload length or total is invalid");
     }
-    package.presentation_geometry_applied = true;
-    package.presentation_geometry_vertex_count = static_cast<int>(actual_total);
+    return actual_total;
 }
 
 static void apply_presentation_geometry_override(
@@ -98,7 +96,10 @@ static void apply_presentation_geometry_override(
     NativePackage& package
 ) {
     if (job.presentation_geometry_path.empty()) return;
-    apply_presentation_geometry_bytes(read_binary_file(job.presentation_geometry_path), meshes, package);
+    const size_t vertex_count = apply_presentation_geometry_bytes(
+        read_binary_file(job.presentation_geometry_path), meshes);
+    package.presentation_geometry_applied = true;
+    package.presentation_geometry_vertex_count = static_cast<int>(vertex_count);
     package.presentation_geometry_source = job.presentation_geometry_source;
     package.notes.push_back(
         "native character presentation geometry applied"
@@ -119,7 +120,9 @@ static void run_presentation_geometry_contract_self_test() {
         append_float(payload, value);
     }
     NativePackage package;
-    apply_presentation_geometry_bytes(payload, meshes, package);
+    package.presentation_geometry_vertex_count = static_cast<int>(
+        apply_presentation_geometry_bytes(payload, meshes));
+    package.presentation_geometry_applied = true;
     if (!package.presentation_geometry_applied || package.presentation_geometry_vertex_count != 2
         || std::abs(meshes[0].positions[1].z - 7.0f) > 1.0e-6f
         || std::abs(meshes[0].normals[0].z - 1.0f) > 1.0e-6f) {

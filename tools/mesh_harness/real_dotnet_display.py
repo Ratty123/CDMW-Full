@@ -129,6 +129,73 @@ def _image_color_metrics(path: Path) -> dict[str, object]:
     }
 
 
+def _skin_surface_response(
+    path: Path,
+    material_semantics: object,
+) -> dict[str, object]:
+    """Measure the fixed real-PAC skin fixture for plastic/wet highlights."""
+
+    from PIL import Image
+
+    semantics = tuple(material_semantics) if isinstance(material_semantics, (list, tuple)) else ()
+    skin_materials = [
+        row
+        for row in semantics
+        if isinstance(row, Mapping)
+        and str(row.get("shader_family", "") or "").strip().casefold() == "skin"
+    ]
+    with Image.open(path) as source:
+        image = source.convert("RGB")
+        pixels = image.load()
+        skin_luma: list[float] = []
+        for y in range(image.height):
+            for x in range(image.width):
+                red, green, blue = pixels[x, y]
+                if red <= 70 or red <= green * 1.04 or green <= blue * 0.9:
+                    continue
+                skin_luma.append(0.2126 * red + 0.7152 * green + 0.0722 * blue)
+    ordered = sorted(skin_luma)
+    mean = sum(ordered) / len(ordered) if ordered else 0.0
+    deviation = (
+        (sum((value - mean) ** 2 for value in ordered) / len(ordered)) ** 0.5
+        if ordered
+        else 0.0
+    )
+    percentile_95 = (
+        ordered[min(len(ordered) - 1, int((len(ordered) - 1) * 0.95))]
+        if ordered
+        else 0.0
+    )
+    high_highlight_fraction = (
+        sum(value > 160.0 for value in ordered) / len(ordered) if ordered else 1.0
+    )
+    gates = {
+        "source_skin_family_confirmed": bool(skin_materials),
+        "skin_pixel_sample_sufficient": len(ordered) >= 10_000,
+        "skin_highlight_p95_bounded": percentile_95 <= 145.0,
+        "skin_high_frequency_contrast_bounded": deviation <= 13.5,
+        "skin_hot_highlight_fraction_bounded": high_highlight_fraction <= 0.005,
+    }
+    return {
+        "schema": "cdmw_real_pac_skin_surface_response_v1",
+        "capture_path": str(path),
+        "skin_material_count": len(skin_materials),
+        "skin_pixel_samples": len(ordered),
+        "mean_luma": mean,
+        "luma_standard_deviation": deviation,
+        "luma_percentile_95": percentile_95,
+        "luma_over_160_fraction": high_highlight_fraction,
+        "limits": {
+            "minimum_skin_pixels": 10_000,
+            "maximum_luma_standard_deviation": 13.5,
+            "maximum_luma_percentile_95": 145.0,
+            "maximum_luma_over_160_fraction": 0.005,
+        },
+        "gates": gates,
+        "ok": all(gates.values()),
+    }
+
+
 def _renderer_from_event(event: Mapping[str, object]) -> dict[str, object]:
     renderer = event.get("renderer")
     return dict(renderer) if isinstance(renderer, Mapping) else {}
@@ -309,6 +376,10 @@ def exercise_builder_presentation_controls(
     process_after = int(state.tab.standalone_dotnet_editor_process.processId())
     baseline_renderer = _renderer_from_event(rows[0]["acknowledgement"])
     restored_renderer = _renderer_from_event(rows[2]["acknowledgement"])
+    skin_surface = _skin_surface_response(
+        Path(str(rows[0]["capture_path"])),
+        baseline_renderer.get("material_semantics", ()),
+    )
     baseline_resources = renderer_resource_metrics(baseline_renderer)
     restored_resources = renderer_resource_metrics(restored_renderer)
     stable_resource_keys = (
@@ -340,6 +411,7 @@ def exercise_builder_presentation_controls(
         "resident_resources_unchanged": all(
             baseline_resources.get(key) == restored_resources.get(key) for key in stable_resource_keys
         ),
+        "real_skin_surface_response_not_wet": bool(skin_surface.get("ok")),
     }
     state.builder_presentation_evidence = {
         "schema": "cdmw_real_pac_builder_presentation_v1",
@@ -352,6 +424,7 @@ def exercise_builder_presentation_controls(
         "process_after": process_after,
         "baseline_resource_metrics": baseline_resources,
         "restored_resource_metrics": restored_resources,
+        "skin_surface_response": skin_surface,
         "gates": gates,
         "ok": all(gates.values()),
     }

@@ -324,14 +324,8 @@ class ShellThemeControllerTests(unittest.TestCase):
                         app.processEvents()
 
                         self.assertGreater(tab.section_nav_panel.height(), tab.section_nav_list.height())
-                        self.assertEqual(
-                            theme["field"],
-                            tab.section_nav_list.palette().color(QPalette.Base).name(),
-                        )
-                        self.assertEqual(
-                            theme["field"],
-                            tab.section_nav_panel.palette().color(QPalette.Window).name(),
-                        )
+                        self.assertEqual(theme["field"], tab.section_nav_list.palette().color(QPalette.Base).name())
+                        self.assertEqual(theme["field"], tab.section_nav_panel.palette().color(QPalette.Window).name())
             finally:
                 tab.deleteLater()
                 app.processEvents()

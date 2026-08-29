@@ -185,7 +185,8 @@ internal sealed partial class D3D11MaterialViewport
         ref int capacity,
         IReadOnlyList<Vector3> vertices,
         int previousCount,
-        bool rewrite)
+        bool rewrite,
+        bool wire = false)
     {
         if (vertices.Count == 0)
         {
@@ -194,6 +195,10 @@ internal sealed partial class D3D11MaterialViewport
                 buffer.Dispose();
                 buffer = null;
                 _retainedOverlayBufferDisposeCount++;
+                if (wire)
+                {
+                    _retainedWireOverlayBufferDisposeCount++;
+                }
             }
             capacity = 0;
             return;
@@ -225,12 +230,20 @@ internal sealed partial class D3D11MaterialViewport
             {
                 buffer.Dispose();
                 _retainedOverlayBufferDisposeCount++;
+                if (wire)
+                {
+                    _retainedWireOverlayBufferDisposeCount++;
+                }
             }
             buffer = replacement;
             capacity = nextCapacity;
             previousCount = 0;
             rewrite = true;
             _retainedOverlayBufferCreateCount++;
+            if (wire)
+            {
+                _retainedWireOverlayBufferCreateCount++;
+            }
         }
         var firstVertex = rewrite ? 0 : previousCount;
         if (firstVertex >= vertices.Count)
@@ -365,9 +378,15 @@ internal sealed partial class D3D11MaterialViewport
         {
             DisposeVertexOverlayCache(cache);
         }
-        foreach (var submeshIndex in cache.Submeshes.Keys
-            .Where(submeshIndex => !selectedVertices.ContainsKey(submeshIndex))
-            .ToArray())
+        _vertexOverlayRemovalScratch.Clear();
+        foreach (var submeshIndex in cache.Submeshes.Keys)
+        {
+            if (!selectedVertices.ContainsKey(submeshIndex))
+            {
+                _vertexOverlayRemovalScratch.Add(submeshIndex);
+            }
+        }
+        foreach (var submeshIndex in _vertexOverlayRemovalScratch)
         {
             DisposeVertexOverlaySubmesh(cache.Submeshes[submeshIndex]);
             cache.Submeshes.Remove(submeshIndex);

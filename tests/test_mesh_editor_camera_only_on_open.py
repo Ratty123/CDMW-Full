@@ -131,11 +131,11 @@ def test_viewport_only_begins_a_source_drag_behind_the_part_pick_gate() -> None:
     """
     source = MESH_VIEWPORT_INPUT.read_text(encoding="utf-8")
     gate = source.index("if (PartPickEnabled)")
-    drag = source.index('BeginSelectionDrag(e.Location, "source")', gate)
+    drag = source.index('BeginSelectionDrag(input.Location, "source")', gate)
     between = source[gate:drag]
 
     assert "\n        }" not in between, (
         'BeginSelectionDrag(..., "source") is no longer directly inside the '
         "PartPickEnabled gate"
     )
-    assert source.count('BeginSelectionDrag(e.Location, "source")') == 1
+    assert source.count('BeginSelectionDrag(input.Location, "source")') == 1

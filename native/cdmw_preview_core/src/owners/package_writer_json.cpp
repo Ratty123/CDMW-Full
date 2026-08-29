@@ -156,6 +156,7 @@ static void append_package_batch_json_head(PackageWriteState& state, const Packa
         << ",\"source_model_path\":\"" << json_escape(mesh.source_model_path) << "\""
         << ",\"source_component_label\":\"" << json_escape(mesh.source_component_label) << "\""
         << ",\"prefab_component\":" << (mesh.source_prefab_component ? "true" : "false")
+        << ",\"context_component\":" << (mesh.source_context_component ? "true" : "false")
         << ",\"part_label\":\"" << json_escape(mesh.source_component_label.empty() ? mesh.material : mesh.source_component_label) << "\""
         << ",\"identity_file\":\"" << json_escape(batch.identity_path.lexically_relative(state.package_dir).generic_string()) << "\"},"
         << "\"base_color\":[" << batch.color[0] << "," << batch.color[1] << "," << batch.color[2] << "],"

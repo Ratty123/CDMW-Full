@@ -3,7 +3,7 @@
 use bytemuck::{Pod, Zeroable};
 use cdmw_mesh::DrawSnapshot;
 use cdmw_texture::{DdsFormat, TextureRole, plan_2d_upload};
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use std::collections::HashSet;
 use std::sync::Arc;
 use thiserror::Error;
@@ -65,6 +65,16 @@ fn fs_point(_input: VertexOut) -> @location(0) vec4<f32> {
 @fragment
 fn fs_xray(_input: VertexOut) -> @location(0) vec4<f32> {
     return vec4<f32>(0.20, 0.55, 0.92, 0.24);
+}
+
+@fragment
+fn fs_normal(_input: VertexOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(0.15, 0.90, 0.75, 1.0);
+}
+
+@fragment
+fn fs_bounds(_input: VertexOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(1.0, 0.70, 0.15, 1.0);
 }
 "#;
 
@@ -133,6 +143,14 @@ impl GpuVertex {
             attributes: &Self::ATTRIBUTES,
         }
     }
+
+    fn overlay(position: Vec3) -> Self {
+        Self {
+            position: position.to_array(),
+            normal: Vec3::Y.to_array(),
+            uv: [0.0, 0.0],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -166,9 +184,13 @@ pub struct GpuMeshBuffers {
     vertex: wgpu::Buffer,
     triangle_index: wgpu::Buffer,
     wire_index: wgpu::Buffer,
+    normal_lines: wgpu::Buffer,
+    bounds_lines: wgpu::Buffer,
     triangle_index_count: u32,
     wire_index_count: u32,
     vertex_count: u32,
+    normal_line_vertex_count: u32,
+    bounds_line_vertex_count: u32,
     pub draw_revision: u64,
     pub topology_generation: u64,
 }
@@ -209,15 +231,33 @@ impl GpuMeshBuffers {
             contents: bytemuck::cast_slice(&wire_indices),
             usage: wgpu::BufferUsages::INDEX,
         });
+        let normal_line_vertices = normal_line_vertices(snapshot);
+        let normal_lines = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CDMW Rust Mesh Lab normal lines"),
+            contents: bytemuck::cast_slice(&normal_line_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let bounds_line_vertices = bounds_line_vertices(&snapshot.positions);
+        let bounds_lines = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CDMW Rust Mesh Lab bounds lines"),
+            contents: bytemuck::cast_slice(&bounds_line_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
         Ok(Self {
             vertex,
             triangle_index,
             wire_index,
+            normal_lines,
+            bounds_lines,
             triangle_index_count: u32::try_from(snapshot.indices.len())
                 .map_err(|_| RenderError::ResourceLimit)?,
             wire_index_count: u32::try_from(wire_indices.len())
                 .map_err(|_| RenderError::ResourceLimit)?,
             vertex_count: u32::try_from(vertices.len()).map_err(|_| RenderError::ResourceLimit)?,
+            normal_line_vertex_count: u32::try_from(normal_line_vertices.len())
+                .map_err(|_| RenderError::ResourceLimit)?,
+            bounds_line_vertex_count: u32::try_from(bounds_line_vertices.len())
+                .map_err(|_| RenderError::ResourceLimit)?,
             draw_revision: snapshot.draw_revision,
             topology_generation: snapshot.topology_generation,
         })
@@ -240,6 +280,8 @@ pub struct WindowRenderer {
     wire_pipeline: wgpu::RenderPipeline,
     point_pipeline: wgpu::RenderPipeline,
     xray_pipeline: wgpu::RenderPipeline,
+    normal_pipeline: wgpu::RenderPipeline,
+    bounds_pipeline: wgpu::RenderPipeline,
     mesh: Option<GpuMeshBuffers>,
     egui_renderer: egui_wgpu::Renderer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
@@ -251,6 +293,8 @@ pub struct WindowRenderer {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     view_mode: ViewMode,
+    show_normals: bool,
+    show_bounds: bool,
 }
 
 impl WindowRenderer {
@@ -365,6 +409,8 @@ impl WindowRenderer {
             wire_pipeline: pipelines.wire,
             point_pipeline: pipelines.point,
             xray_pipeline: pipelines.xray,
+            normal_pipeline: pipelines.normal,
+            bounds_pipeline: pipelines.bounds,
             mesh: None,
             egui_renderer,
             texture_bind_group_layout,
@@ -376,6 +422,8 @@ impl WindowRenderer {
             camera_buffer,
             camera_bind_group,
             view_mode: ViewMode::TexturedSolid,
+            show_normals: false,
+            show_bounds: false,
         })
     }
 
@@ -422,6 +470,11 @@ impl WindowRenderer {
             0,
             bytemuck::bytes_of(&self.camera_uniform),
         );
+    }
+
+    pub fn set_overlays(&mut self, show_normals: bool, show_bounds: bool) {
+        self.show_normals = show_normals;
+        self.show_bounds = show_bounds;
     }
 
     pub fn set_dds_texture(&mut self, bytes: &[u8], role: TextureRole) -> Result<(), RenderError> {
@@ -646,6 +699,22 @@ impl WindowRenderer {
                         draw_wire(&mut pass, mesh, &self.wire_pipeline);
                     }
                 }
+                if self.show_normals {
+                    draw_overlay_lines(
+                        &mut pass,
+                        &mesh.normal_lines,
+                        mesh.normal_line_vertex_count,
+                        &self.normal_pipeline,
+                    );
+                }
+                if self.show_bounds {
+                    draw_overlay_lines(
+                        &mut pass,
+                        &mesh.bounds_lines,
+                        mesh.bounds_line_vertex_count,
+                        &self.bounds_pipeline,
+                    );
+                }
             }
         }
         if let Some(descriptor) = &screen_descriptor {
@@ -685,6 +754,8 @@ struct Pipelines {
     wire: wgpu::RenderPipeline,
     point: wgpu::RenderPipeline,
     xray: wgpu::RenderPipeline,
+    normal: wgpu::RenderPipeline,
+    bounds: wgpu::RenderPipeline,
 }
 
 fn create_pipelines(
@@ -747,6 +818,30 @@ fn create_pipelines(
             "xray",
             wgpu::PrimitiveTopology::TriangleList,
             "fs_xray",
+            None,
+            false,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+        ),
+        normal: create_pipeline(
+            device,
+            format,
+            &layout,
+            &shader,
+            "normal overlay",
+            wgpu::PrimitiveTopology::LineList,
+            "fs_normal",
+            None,
+            true,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+        ),
+        bounds: create_pipeline(
+            device,
+            format,
+            &layout,
+            &shader,
+            "bounds overlay",
+            wgpu::PrimitiveTopology::LineList,
+            "fs_bounds",
             None,
             false,
             Some(wgpu::BlendState::ALPHA_BLENDING),
@@ -874,6 +969,96 @@ fn draw_points<'a>(
 ) {
     pass.set_pipeline(pipeline);
     pass.draw(0..mesh.vertex_count, 0..1);
+}
+
+fn draw_overlay_lines<'a>(
+    pass: &mut wgpu::RenderPass<'a>,
+    vertices: &'a wgpu::Buffer,
+    vertex_count: u32,
+    pipeline: &'a wgpu::RenderPipeline,
+) {
+    if vertex_count == 0 {
+        return;
+    }
+    pass.set_pipeline(pipeline);
+    pass.set_vertex_buffer(0, vertices.slice(..));
+    pass.draw(0..vertex_count, 0..1);
+}
+
+fn normal_line_vertices(snapshot: &DrawSnapshot) -> Vec<GpuVertex> {
+    let Some((minimum, maximum)) = mesh_bounds(&snapshot.positions) else {
+        return Vec::new();
+    };
+    let normal_length = (maximum - minimum).length().max(1.0e-3) * 0.015;
+    let mut lines = Vec::with_capacity(snapshot.positions.len().saturating_mul(2));
+    for (index, position) in snapshot.positions.iter().copied().enumerate() {
+        let origin = Vec3::from_array(position);
+        if !origin.is_finite() {
+            continue;
+        }
+        let normal = snapshot
+            .normals
+            .get(index)
+            .copied()
+            .map(Vec3::from_array)
+            .filter(|normal| normal.is_finite())
+            .and_then(Vec3::try_normalize)
+            .unwrap_or(Vec3::Y);
+        lines.push(GpuVertex::overlay(origin));
+        lines.push(GpuVertex::overlay(origin + normal * normal_length));
+    }
+    lines
+}
+
+fn bounds_line_vertices(positions: &[[f32; 3]]) -> Vec<GpuVertex> {
+    let Some((minimum, maximum)) = mesh_bounds(positions) else {
+        return Vec::new();
+    };
+    let corners = [
+        Vec3::new(minimum.x, minimum.y, minimum.z),
+        Vec3::new(maximum.x, minimum.y, minimum.z),
+        Vec3::new(maximum.x, maximum.y, minimum.z),
+        Vec3::new(minimum.x, maximum.y, minimum.z),
+        Vec3::new(minimum.x, minimum.y, maximum.z),
+        Vec3::new(maximum.x, minimum.y, maximum.z),
+        Vec3::new(maximum.x, maximum.y, maximum.z),
+        Vec3::new(minimum.x, maximum.y, maximum.z),
+    ];
+    let edges = [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0),
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (7, 4),
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7),
+    ];
+    edges
+        .into_iter()
+        .flat_map(|(first, second)| {
+            [
+                GpuVertex::overlay(corners[first]),
+                GpuVertex::overlay(corners[second]),
+            ]
+        })
+        .collect()
+}
+
+fn mesh_bounds(positions: &[[f32; 3]]) -> Option<(Vec3, Vec3)> {
+    let mut finite = positions
+        .iter()
+        .copied()
+        .map(Vec3::from_array)
+        .filter(|position| position.is_finite());
+    let first = finite.next()?;
+    Some(finite.fold((first, first), |(minimum, maximum), position| {
+        (minimum.min(position), maximum.max(position))
+    }))
 }
 
 fn unique_wire_indices(indices: &[u32]) -> Vec<u32> {
@@ -1070,5 +1255,37 @@ mod tests {
         .into_iter()
         .collect::<HashSet<_>>();
         assert_eq!(labels.len(), 7);
+    }
+
+    #[test]
+    fn normal_and_bounds_overlays_build_persistent_line_vertices() {
+        let snapshot = DrawSnapshot {
+            draw_revision: 1,
+            topology_generation: 1,
+            positions: vec![[0.0, 0.0, 0.0], [2.0, 4.0, 6.0]],
+            normals: vec![[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
+            uvs: vec![[0.0, 0.0]; 2],
+            indices: Vec::new(),
+            selected_vertices: Vec::new(),
+            fingerprint: String::new(),
+        };
+        let normals = normal_line_vertices(&snapshot);
+        assert_eq!(normals.len(), 4);
+        assert_eq!(normals[0].position, snapshot.positions[0]);
+        assert!(normals[1].position[1] > normals[0].position[1]);
+        assert!(normals[3].position[0] > normals[2].position[0]);
+
+        let bounds = bounds_line_vertices(&snapshot.positions);
+        assert_eq!(bounds.len(), 24);
+        assert!(
+            bounds
+                .iter()
+                .any(|vertex| vertex.position == [0.0, 0.0, 0.0])
+        );
+        assert!(
+            bounds
+                .iter()
+                .any(|vertex| vertex.position == [2.0, 4.0, 6.0])
+        );
     }
 }

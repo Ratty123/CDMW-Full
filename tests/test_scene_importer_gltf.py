@@ -11,6 +11,7 @@ from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.scene_importer import (
     SCENE_COMPANION_SOURCE_EXTENSIONS,
     SCENE_IMPORT_EXTENSIONS,
+    SCENE_SIDECAR_SOURCE_EXTENSIONS,
     discover_scene_texture_files,
     discover_local_mesh_supplemental_files,
     import_scene_mesh,
@@ -1598,6 +1599,25 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIn(prefab_path.resolve(), discovered)
             self.assertIn(animation_meta.resolve(), discovered)
             self.assertIn(skeleton_path.resolve(), discovered)
+
+    def test_local_archive_mesh_autodiscovers_material_sidecar_but_not_app_xml(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mesh_path = root / "cd_phw_damian_00000.pac"
+            material_path = root / "cd_phw_damian_00000.pac_xml"
+            appearance_path = root / "cd_phw_damian_00000.app_xml"
+            mesh_path.write_bytes(b"not parsed in this discovery test")
+            material_path.write_text("<Material />", encoding="utf-8")
+            appearance_path.write_text("<Appearance />", encoding="utf-8")
+
+            with appearance_path.open("rb"):
+                discovered_while_open = discover_local_mesh_supplemental_files(mesh_path)
+            discovered_while_closed = discover_local_mesh_supplemental_files(mesh_path)
+
+            for discovered in (discovered_while_open, discovered_while_closed):
+                self.assertIn(material_path.resolve(), discovered)
+                self.assertNotIn(appearance_path.resolve(), discovered)
+            self.assertIn(".app_xml", SCENE_SIDECAR_SOURCE_EXTENSIONS)
 
 
 if __name__ == "__main__":

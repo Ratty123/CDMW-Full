@@ -55,6 +55,7 @@ class MeshEditorStateMixin(
         return str(getattr(entry, "basename", "") or Path(self._entry_path(entry)).name or self._entry_path(entry) or "mesh").strip()
     def set_archive_selection(self, entry: Optional[_tab.ArchiveEntry]) -> None:
         self.current_archive_selection = entry
+        self._set_mesh_editor_character_context_source(entry)
         if self.has_active_builder():
             self._sync_state()
             return

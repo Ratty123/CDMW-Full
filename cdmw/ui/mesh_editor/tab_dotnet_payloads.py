@@ -597,11 +597,6 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         resident_history: bool = False,
         refresh_morph_state: bool = False,
     ) -> bool:
-        batch = self._resident_mutation_batch_for_update(
-            update,
-            result=result,
-            request_payload=request_payload,
-        )
         has_payload = bool(
             update.vertex_groups
             or update.triangle_groups
@@ -610,8 +605,46 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             or update.refresh_selection
             or update.replace_all_triangles
         )
+        if not has_payload:
+            if result is None:
+                return True
+            return self._send_dotnet_command_result(
+                result.action,
+                ok=str(result.status or "").strip().lower() != "error",
+                status=str(result.status or ""),
+                revision=result.revision,
+                diagnostics=result.diagnostics,
+                request_payload=request_payload,
+            )
+        batch = self._resident_mutation_batch_for_update(
+            update,
+            result=result,
+            request_payload=request_payload,
+        )
         if batch is None:
-            if has_payload:
+            queue = self.standalone_dotnet_update_queue
+            view = update.session_view
+            selection_snapshot_only = bool(
+                update.refresh_selection
+                and not update.vertex_groups
+                and not update.triangle_groups
+                and not update.triangle_source_submesh_indices
+                and not update.material_override_groups
+                and not update.replace_all_triangles
+            )
+            selection_authority_already_covered = bool(
+                selection_snapshot_only
+                and queue.mutation_batch_capable
+                and view is not None
+                and str(view.session_id or "").strip()
+                == queue.context_session_id
+                and int(self.standalone_dotnet_process_generation or 0)
+                == queue.context_process_generation
+                and queue.context_process_generation > 0
+                and int(view.resident_revision or 0) > 0
+                and int(view.resident_revision or 0) <= queue.next_base_revision
+            )
+            if not selection_authority_already_covered:
                 return False
             if result is not None:
                 return self._send_dotnet_command_result(
@@ -665,9 +698,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             if result is None:
                 return False
             failure_code = "mesh_dotnet_native_update_enqueue_failed"
-            diagnostics = (
-                f"Mesh .NET editor command failed: {failure_code}",
-            )
+            diagnostics = (f"Mesh .NET editor command failed: {failure_code}",)
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_native_update_enqueue_failed",
                 command=str(result.action or "command"),

@@ -86,6 +86,60 @@ static void run_color_blending_palette_contract_self_test() {
         "masked apparel tint escaped into the reliable base texture");
 }
 
+static void run_shared_hair_identity_contract_self_test() {
+    NativeSubmesh hair_uptail;
+    hair_uptail.name = "CD_PHW_00_Hair_Uptail_00_0006_02";
+    hair_uptail.material = "CD_PHM_00_Hair_0003";
+    hair_uptail.source_model_path = "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_uptail_00_0006_02.pac";
+    hair_uptail.source_local_submesh_index = 0;
+    TextureBinding shared_hair_base;
+    shared_hair_base.role = "base";
+    shared_hair_base.source_path = "cd_phm_00_hair_0003.dds";
+    shared_hair_base.archive_path = "character/texture/cd_phm_00_hair_0003.dds";
+    shared_hair_base.texture_name = "cd_phm_00_hair_0003.dds";
+    shared_hair_base.material_name = "CD_PHM_00_Hair_0003";
+    shared_hair_base.sidecar_path = "character/modelproperty/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0006_02.pac_xml";
+    shared_hair_base.source_authority = "exact_sidecar";
+    shared_hair_base.material_wrapper_order_authoritative = true;
+    shared_hair_base.material_wrapper_index = 2;
+    require_material_contract(
+        material_identity_match_score(shared_hair_base, hair_uptail) > 0,
+        "exact shared hair material did not cross its authored sibling wrapper");
+}
+
+static void run_head_eye_cover_identity_contract_self_test() {
+    NativeSubmesh eye_cover;
+    eye_cover.name = "CD_PHW_00_Head_00_0028_EyeCover";
+    eye_cover.material = "cd_phw_00_head_00_0028_eyecover";
+    eye_cover.source_local_submesh_index = 0;
+    NativeSubmesh skin;
+    skin.name = "CD_PHW_00_Head_00_0028";
+    skin.material = "CD_PHW_00_Head_00_0028";
+    skin.source_local_submesh_index = 1;
+    TextureBinding eye_surface;
+    eye_surface.role = "material";
+    eye_surface.source_path = "cd_phw_00_eyecovermaterial_0001_sp.dds";
+    eye_surface.archive_path = "character/texture/cd_phw_00_eyecovermaterial_0001_sp.dds";
+    eye_surface.texture_name = "cd_phw_00_eyecovermaterial_0001_sp.dds";
+    eye_surface.material_name = "cd_phw_00_head_00_0028_eyecover";
+    eye_surface.material_wrapper_order_authoritative = true;
+    eye_surface.material_wrapper_index = 0;
+    const std::vector<NativeSubmesh> parts{eye_cover, skin};
+    const std::vector<TextureBinding> bindings{eye_surface};
+    require_material_contract(
+        material_identity_match_score(bindings.front(), skin) == 0,
+        "0028 eye-cover response matched the skin wrapper");
+    require_material_contract(
+        best_binding_for_role(bindings, skin, "material") == nullptr,
+        "0028 skin selected the eye-cover response map");
+    require_material_contract(
+        relevant_bindings_for_mesh(bindings, parts, skin, {}).empty(),
+        "0028 skin retained the eye-cover response binding");
+    require_material_contract(
+        best_binding_for_role(bindings, eye_cover, "material") == &bindings.front(),
+        "0028 eye-cover lost its own response map");
+}
+
 static void run_material_contract_self_test() {
     EntryJob bounded_job;
     bounded_job.archive_dependency_entries_complete = true;
@@ -170,41 +224,8 @@ static void run_material_contract_self_test() {
         right_shared_bindings.size() == many_shared_bindings.size(),
         "shared material disappeared above the small-binding threshold");
 
-    NativeSubmesh head_0028_eye_cover;
-    head_0028_eye_cover.name = "CD_PHW_00_Head_00_0028_EyeCover";
-    head_0028_eye_cover.material = "cd_phw_00_head_00_0028_eyecover";
-    head_0028_eye_cover.source_local_submesh_index = 0;
-    NativeSubmesh head_0028_skin;
-    head_0028_skin.name = "CD_PHW_00_Head_00_0028";
-    head_0028_skin.material = "CD_PHW_00_Head_00_0028";
-    head_0028_skin.source_local_submesh_index = 1;
-    TextureBinding head_0028_eye_surface;
-    head_0028_eye_surface.role = "material";
-    head_0028_eye_surface.source_path = "cd_phw_00_eyecovermaterial_0001_sp.dds";
-    head_0028_eye_surface.archive_path = "character/texture/cd_phw_00_eyecovermaterial_0001_sp.dds";
-    head_0028_eye_surface.texture_name = "cd_phw_00_eyecovermaterial_0001_sp.dds";
-    head_0028_eye_surface.material_name = "cd_phw_00_head_00_0028_eyecover";
-    head_0028_eye_surface.material_wrapper_order_authoritative = true;
-    head_0028_eye_surface.material_wrapper_index = 0;
-    const std::vector<NativeSubmesh> head_0028_parts{head_0028_eye_cover, head_0028_skin};
-    const std::vector<TextureBinding> head_0028_bindings{head_0028_eye_surface};
-    require_material_contract(
-        material_identity_match_score(head_0028_bindings.front(), head_0028_skin) == 0,
-        "0028 eye-cover response matched the skin wrapper");
-    require_material_contract(
-        best_binding_for_role(head_0028_bindings, head_0028_skin, "material") == nullptr,
-        "0028 skin selected the eye-cover response map");
-    const auto head_0028_skin_bindings = relevant_bindings_for_mesh(
-        head_0028_bindings,
-        head_0028_parts,
-        head_0028_skin,
-        {});
-    require_material_contract(
-        head_0028_skin_bindings.empty(),
-        "0028 skin retained the eye-cover response binding");
-    require_material_contract(
-        best_binding_for_role(head_0028_bindings, head_0028_eye_cover, "material") == &head_0028_bindings.front(),
-        "0028 eye-cover lost its own response map");
+    run_shared_hair_identity_contract_self_test();
+    run_head_eye_cover_identity_contract_self_test();
 
     TextureBinding layer_height;
     layer_height.role = "height";

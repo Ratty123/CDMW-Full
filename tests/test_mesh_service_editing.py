@@ -2104,9 +2104,9 @@ class MeshServiceEditingTests(unittest.TestCase):
         }
 
         with (
-            patch("cdmw.services.mesh_service.summarize_native_mesh_editor_session", return_value=native_report) as native_summary,
-            patch("cdmw.services.mesh_service._prune_selection_to_mesh", side_effect=AssertionError("python selection prune")),
-            patch("cdmw.services.mesh_service.summarize_mesh_workspace", side_effect=AssertionError("python workspace summary")),
+            patch("cdmw.services.mesh_service_uv.summarize_native_mesh_editor_session", return_value=native_report) as native_summary,
+            patch("cdmw.services.mesh_service_uv._prune_selection_to_mesh", side_effect=AssertionError("python selection prune")),
+            patch("cdmw.services.mesh_service_uv.summarize_mesh_workspace", side_effect=AssertionError("python workspace summary")),
         ):
             summary = service.workspace_summary(view.session_id)
 
@@ -4104,8 +4104,8 @@ class MeshServiceEditingTests(unittest.TestCase):
 
         with (
             patch("cdmw.services.mesh_service.prune_native_mesh_selection", return_value=None),
-            patch("cdmw.services.mesh_service.summarize_native_mesh_uvs", return_value=native_report) as native_summary,
-            patch("cdmw.services.mesh_service.summarize_mesh_uvs") as python_summary,
+            patch("cdmw.services.mesh_service_uv.summarize_native_mesh_uvs", return_value=native_report) as native_summary,
+            patch("cdmw.services.mesh_service_uv.summarize_mesh_uvs") as python_summary,
         ):
             summary = service.uv_summary(view.session_id)
 
@@ -4129,9 +4129,9 @@ class MeshServiceEditingTests(unittest.TestCase):
         session.native_editor_mesh_dirty_counts = ((6, 2),)
 
         with (
-            patch("cdmw.services.mesh_service._prune_selection_to_mesh", side_effect=AssertionError("python selection prune")),
-            patch("cdmw.services.mesh_service.summarize_native_mesh_uvs", side_effect=AssertionError("stale native uv summary")),
-            patch("cdmw.services.mesh_service.summarize_mesh_uvs", side_effect=AssertionError("python uv summary")),
+            patch("cdmw.services.mesh_service_uv._prune_selection_to_mesh", side_effect=AssertionError("python selection prune")),
+            patch("cdmw.services.mesh_service_uv.summarize_native_mesh_uvs", side_effect=AssertionError("stale native uv summary")),
+            patch("cdmw.services.mesh_service_uv.summarize_mesh_uvs", side_effect=AssertionError("python uv summary")),
         ):
             with self.assertRaisesRegex(RuntimeError, "Python mesh state is stale"):
                 service.uv_summary(view.session_id)
@@ -14283,8 +14283,8 @@ class MeshServiceEditingTests(unittest.TestCase):
         selected = MeshEditSelection.from_maps(vertices_by_submesh={0: (0, 2)})
 
         with (
-            patch("cdmw.services.mesh_service.select_native_mesh_uv_vertices", return_value={0: {0, 2}}),
-            patch("cdmw.services.mesh_service._apply_native_editor_session_selection_operation", return_value=(selected, (), (), {})),
+            patch("cdmw.services.mesh_service_uv.select_native_mesh_uv_vertices", return_value={0: {0, 2}}),
+            patch("cdmw.services.mesh_service_uv._apply_native_editor_session_selection_operation", return_value=(selected, (), (), {})),
         ):
             result = service.select_uv_region(view.session_id, (0.0, 0.0), (0.1, 1.0))
 
@@ -14302,8 +14302,8 @@ class MeshServiceEditingTests(unittest.TestCase):
         selected = MeshEditSelection.from_maps(vertices_by_submesh={0: (0, 2)})
 
         with (
-            patch("cdmw.services.mesh_service.select_native_mesh_uv_vertices", return_value={0: {0, 2}}),
-            patch("cdmw.services.mesh_service._apply_native_editor_session_selection_operation", return_value=(selected, (), (), {})),
+            patch("cdmw.services.mesh_service_uv.select_native_mesh_uv_vertices", return_value={0: {0, 2}}),
+            patch("cdmw.services.mesh_service_uv._apply_native_editor_session_selection_operation", return_value=(selected, (), (), {})),
         ):
             result = service.select_uv_lasso(
                 view.session_id,
@@ -14322,9 +14322,9 @@ class MeshServiceEditingTests(unittest.TestCase):
         selected = MeshEditSelection.from_maps(vertices_by_submesh={0: (1, 3)})
 
         with (
-            patch("cdmw.services.mesh_service.select_native_mesh_uv_vertices", return_value={0: {1, 3}}) as native_select,
+            patch("cdmw.services.mesh_service_uv.select_native_mesh_uv_vertices", return_value={0: {1, 3}}) as native_select,
             patch(
-                "cdmw.services.mesh_service._apply_native_editor_session_selection_operation",
+                "cdmw.services.mesh_service_uv._apply_native_editor_session_selection_operation",
                 return_value=(selected, (), (), {}),
             ) as native_resident_select,
         ):
@@ -14347,9 +14347,9 @@ class MeshServiceEditingTests(unittest.TestCase):
         selected = MeshEditSelection.from_maps(vertices_by_submesh={0: (0, 2)})
 
         with (
-            patch("cdmw.services.mesh_service.select_native_mesh_uv_vertices", return_value={0: {0, 2}}) as native_select,
+            patch("cdmw.services.mesh_service_uv.select_native_mesh_uv_vertices", return_value={0: {0, 2}}) as native_select,
             patch(
-                "cdmw.services.mesh_service._apply_native_editor_session_selection_operation",
+                "cdmw.services.mesh_service_uv._apply_native_editor_session_selection_operation",
                 return_value=(selected, (), (), {}),
             ) as native_resident_select,
         ):
@@ -14383,7 +14383,7 @@ class MeshServiceEditingTests(unittest.TestCase):
                     view = service.open_edit_session(_quad_mesh(), session_id=f"strict-{operation}", mode="edit")
                     with (
                         patch("cdmw.services.mesh_service.prune_native_mesh_selection", return_value={}),
-                        patch("cdmw.services.mesh_service.select_native_mesh_uv_vertices", return_value=None),
+                        patch("cdmw.services.mesh_service_uv.select_native_mesh_uv_vertices", return_value=None),
                     ):
                         result = getattr(service, method_name)(view.session_id, *args)
 

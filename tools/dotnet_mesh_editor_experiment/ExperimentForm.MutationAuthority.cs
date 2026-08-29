@@ -264,9 +264,7 @@ internal sealed partial class ExperimentForm
         {
             return false;
         }
-        revision = Math.Max(
-            Math.Max(0, JsonLongValue(root, "base_revision")),
-            Math.Max(JsonLongValue(root, "revision"), JsonLongValue(root, "edit_revision")));
+        revision = MutationCorrelationRevision(root);
         if (revision < candidate.BaseRevision)
         {
             return false;
@@ -274,6 +272,14 @@ internal sealed partial class ExperimentForm
         pending = candidate;
         return true;
     }
+
+    internal static long MutationCorrelationRevision(JsonElement root) => Math.Max(
+        Math.Max(0, JsonLongValue(root, "base_revision")),
+        Math.Max(
+            JsonLongValue(root, "target_revision"),
+            Math.Max(
+                JsonLongValue(root, "revision"),
+                JsonLongValue(root, "edit_revision"))));
 
     private static bool IsProvisionalSelectionRequest(string eventName) =>
         eventName is "select_request" or "selection_request";

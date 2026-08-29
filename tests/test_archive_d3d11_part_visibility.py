@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable
 
+from cdmw.domain.character_context import NativePreviewContextComponent
+from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
 from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
 
@@ -272,6 +274,56 @@ def test_archive_preview_reapplies_default_prefab_visibility_after_first_rendere
     assert harness.archive_d3d11_part_visibility_button.text == "Parts 2/2"
 
 
+def test_character_context_batches_hide_immediately_then_rebuild_as_reference_parts(tmp_path: Path) -> None:
+    package_dir = tmp_path / "context-preview"
+    package_dir.mkdir()
+    (package_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "batches": [
+                    {
+                        "index": 0,
+                        "editor_identity": {
+                            "source_submesh_index": 0,
+                            "source_component_index": 0,
+                            "source_model_path": "character/body.pac",
+                            "part_label": "Head",
+                            "prefab_component": False,
+                            "context_component": False,
+                        },
+                    },
+                    {
+                        "index": 1,
+                        "editor_identity": {
+                            "source_submesh_index": 1,
+                            "source_component_index": 1,
+                            "source_model_path": "character/hair.pac",
+                            "part_label": "Authored Hair",
+                            "prefab_component": True,
+                            "context_component": True,
+                        },
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    harness = _PartVisibilityHarness()
+
+    harness._populate_archive_d3d11_part_visibility_menu(package_dir)
+
+    context_group = next(
+        group
+        for group in harness.archive_d3d11_part_visibility_groups.values()
+        if group[3] == "character/hair.pac"
+    )
+    assert context_group[2] is False
+    assert context_group[0].isChecked() is True
+    harness._archive_character_context_selection_applied(harness.current_entry, ())
+    assert harness.archive_d3d11_preview_host.hidden_source_submeshes[-1] == [1]
+    assert harness.refresh_calls == [True]
+
+
 def test_archive_preview_cache_identity_includes_enabled_prefab_paths(tmp_path: Path) -> None:
     class CacheHarness(ArchivePreviewD3D11PartsMixin, ArchivePreviewCacheMixin):
         archive_sidecar_generation = 0
@@ -319,3 +371,34 @@ def test_archive_preview_cache_identity_includes_enabled_prefab_paths(tmp_path: 
 
     assert base_key != selected_key
     assert "prefabs:character/underwear.pac" in selected_key
+
+    hair_entry = ArchiveEntry(
+        "character/model/1_pc/2_phw/head/hair/hair.pac",
+        tmp_path / "archive.pamt",
+        tmp_path / "archive.paz",
+        256,
+        64,
+        128,
+        0,
+        0,
+    )
+    context_component = NativePreviewContextComponent(
+        hair_entry,
+        "hair",
+        "Authored Hair",
+        "authored",
+    )
+    harness.character_context_service = SimpleNamespace(
+        selected_native_components=lambda _entry: (context_component,)
+    )
+    context_key = harness._archive_preview_cache_key(harness.entry, ())
+
+    assert context_key == selected_key
+    explicit_context_key = harness._archive_preview_cache_key(
+        harness.entry,
+        (),
+        preview_context_components=(context_component,),
+    )
+    assert explicit_context_key != selected_key
+    assert "character-context:" in explicit_context_key
+    assert "hair.pac" in explicit_context_key

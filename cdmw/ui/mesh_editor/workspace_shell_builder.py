@@ -209,6 +209,7 @@ class WorkspaceShellBuilderMixin:
         controls = self.preview_controls_layout
         direct_buttons = (
             self.run_validation_report_button,
+            self.replace_from_archive_button,
             self.export_mesh_file_button,
             self.build_mod_button,
             self.install_overlay_button,

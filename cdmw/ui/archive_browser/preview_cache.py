@@ -103,6 +103,7 @@ class ArchivePreviewCacheMixin:
         quality_tier: str = "full",
         dependency_entries: Sequence[ArchiveEntry] = (),
         enabled_prefab_component_paths: Optional[Sequence[str]] = None,
+        preview_context_components: Optional[Sequence[object]] = None,
     ) -> str:
         if entry is None:
             return ""
@@ -141,6 +142,20 @@ class ArchivePreviewCacheMixin:
                     if str(path or "").strip()
                 )
             )
+        if preview_context_components is None:
+            preview_context_components = ()
+        context_signatures = tuple(
+            sorted(
+                (
+                    str(getattr(getattr(component, "entry", None), "path", "") or "").replace("\\", "/").casefold(),
+                    int(getattr(getattr(component, "entry", None), "offset", 0) or 0),
+                    str(getattr(component, "slot", "") or "").casefold(),
+                    str(getattr(component, "authority", "") or "").casefold(),
+                    round(float(getattr(component, "scale", 1.0) or 1.0), 6),
+                )
+                for component in tuple(preview_context_components or ())
+            )
+        )
         support_slots_key = ",".join(self._archive_preview_support_texture_slots(preview_settings))
         renderer_backend_key = str(self._archive_model_renderer_backend() or "").strip().lower()
         pamt_stamp = self._archive_file_stamp_for_cache(getattr(entry, "pamt_path", None))
@@ -176,6 +191,7 @@ class ArchivePreviewCacheMixin:
                 "tex" if preview_settings.use_textures_by_default else "flat",
                 "archive",
                 "prefabs:" + ",".join(enabled_prefab_paths),
+                "character-context:" + json.dumps(context_signatures, separators=(",", ":")),
             ]
         if dependency_digest:
             key_parts.append(f"dependencies:{dependency_digest}")
@@ -251,6 +267,7 @@ class ArchivePreviewCacheMixin:
         include_loose_preview_assets: bool = False,
         dependency_entries: Sequence[ArchiveEntry] = (),
         enabled_prefab_component_paths: Optional[Sequence[str]] = None,
+        preview_context_components: Optional[Sequence[object]] = None,
     ) -> str:
         if entry is None:
             return ""
@@ -275,6 +292,23 @@ class ArchivePreviewCacheMixin:
                     if str(path or "").strip()
                 )
             )
+        if preview_context_components is None:
+            preview_context_components = ()
+        context_signatures = tuple(
+            sorted(
+                (
+                    json.dumps(
+                        self._archive_entry_native_cache_signature(getattr(component, "entry", None)),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    str(getattr(component, "slot", "") or "").casefold(),
+                    str(getattr(component, "authority", "") or "").casefold(),
+                    round(float(getattr(component, "scale", 1.0) or 1.0), 6),
+                )
+                for component in tuple(preview_context_components or ())
+            )
+        )
         base_key = self._archive_preview_cache_key(
             entry,
             loose_search_roots,
@@ -283,6 +317,7 @@ class ArchivePreviewCacheMixin:
             quality_tier="full",
             dependency_entries=dependency_entries,
             enabled_prefab_component_paths=enabled_prefab_paths,
+            preview_context_components=preview_context_components,
         )
         if not base_key:
             return ""
@@ -301,6 +336,7 @@ class ArchivePreviewCacheMixin:
                 for dependency in dependency_entries
             ),
             "enabled_prefab_component_paths": enabled_prefab_paths,
+            "preview_context_components": context_signatures,
             "render_settings": render_settings_to_native_preview_core_dict(self._current_model_preview_render_settings()),
             "support_slots": self._archive_preview_support_texture_slots(self._current_model_preview_render_settings()),
             "renderer_backend": str(self._archive_model_renderer_backend() or "").strip().lower(),

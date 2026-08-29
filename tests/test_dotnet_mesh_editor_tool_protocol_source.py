@@ -63,6 +63,10 @@ def test_split_panes_track_the_render_surface_and_release_pointer_capture() -> N
         "protected override void OnMouseUp",
         maxsplit=1,
     )[1].split("protected override void OnMouseMove", maxsplit=1)[0]
+    forced_terminal = input_source.split(
+        "private void ForceInputGestureTerminalState()",
+        maxsplit=1,
+    )[1].split("private Dictionary<string, object?> StrokePointerPayload", maxsplit=1)[0]
 
     assert "EffectivePaneSurfaceSize(" in split_view_source
     assert "surface?.ClientSize ?? Size.Empty" in split_view_source
@@ -70,8 +74,9 @@ def test_split_panes_track_the_render_surface_and_release_pointer_capture() -> N
     assert "Math.Max(1, Width)" not in role_bounds
     assert "SetRenderSurfaceCapture(true);" in input_source
     assert "finally" in mouse_up
-    assert "SetRenderSurfaceCapture(false);" in mouse_up
-    assert "_capturedInputPane = string.Empty;" in mouse_up
+    assert "ForceInputGestureTerminalState();" in mouse_up
+    assert "SetRenderSurfaceCapture(false);" in forced_terminal
+    assert "_capturedInputPane = string.Empty;" in forced_terminal
     assert "pane_geometry_tracks_current_render_surface" in scene_proofs
 
 
@@ -117,18 +122,21 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert "NotifyLocalSelectionChanged();" not in committed_selection
     assert "_strokePrevious" in input_source
     assert "_strokeStart" not in input_source
-    # The move handler is the only place an in-flight stroke reports a sample;
-    # begin, end and cancel are owned by the stroke lifecycle helpers.
+    # The move handler owns checkpoint publication and advances local sculpt
+    # feedback only on that same checkpoint; begin/end/cancel own the terminals.
     active_stroke_move = input_source.split(
         "protected override void OnMouseMove", maxsplit=1
     )[1].split("if (_editorStrokeActive)", maxsplit=1)[1].split("else if (_rotating)", maxsplit=1)[0]
-    assert "(e.Button & MouseButtons.Left) == MouseButtons.Left" in active_stroke_move
-    assert active_stroke_move.index("MouseButtons.Left") < active_stroke_move.index("MaybeEmitEditorStrokeUpdate(e.Location)") < active_stroke_move.index("_strokePrevious = e.Location")
+    assert "input.IsHeld(MeshPointerButtons.Left)" in active_stroke_move
+    assert active_stroke_move.index("MeshPointerButtons.Left") < active_stroke_move.index("MaybeEmitEditorStrokeUpdate(input.Location)") < active_stroke_move.index("UpdateProvisionalEditorStroke(input.Location)") < active_stroke_move.index("_strokePrevious = input.Location")
+    assert "IsCheckpointedSculptTool(_strokeTool) || checkpointEmitted" in active_stroke_move
     throttled_stroke_publish = input_source.split(
-        "private void MaybeEmitEditorStrokeUpdate", maxsplit=1
+        "private bool MaybeEmitEditorStrokeUpdate", maxsplit=1
     )[1].split("private void EndEditorStroke", maxsplit=1)[0]
     assert "EditorStrokeProtocolIntervalMs" in throttled_stroke_publish
+    assert "return false;" in throttled_stroke_publish
     assert 'Invoke("stroke_update"' in throttled_stroke_publish
+    assert "return true;" in throttled_stroke_publish
     assert "_strokeProtocolPrevious = location" in throttled_stroke_publish
     assert "_viewport.RefreshVertexGeometry(changed" in protocol_source
     assert "RefreshVertexGeometry(IReadOnlyDictionary<int, IReadOnlyCollection<int>> changedVertices)" in d3d_source
@@ -248,10 +256,11 @@ def test_dotnet_mesh_edit_history_and_selection_navigation_are_visible_and_short
     assert 'WriteCommandRequest("undo")' in controls_source
     assert 'WriteCommandRequest("redo")' in controls_source
     assert "Ctrl+Shift+Z" in controls_source
-    assert "IsOrbitOverrideGesture(e)" in input_source
+    assert "IsOrbitOverrideGesture(input)" in input_source
     # The orbit override is rebindable, so the gesture reads the binding rather
     # than naming a key. Undo/redo stay hardwired to Ctrl.
-    assert "CameraModifierBindings.IsHeld(CameraOrbitModifier, ModifierKeys)" in input_source
+    assert "CameraModifierBindings.IsHeld(" in input_source
+    assert "input.Alt" in input_source
     assert 'Name = "ResidentViewportControlsHint"' in presentation_source
 
 
@@ -672,10 +681,10 @@ def test_dotnet_input_precedence_depth_passes_and_mode_controls_are_explicit() -
     )
 
     placement = input_source.split(
-        'if (e.Button == MouseButtons.Left\n            && !string.Equals(_scene.InteractionMode, "mesh_edit"',
+        'if (input.Changed(MeshPointerButtons.Left)\n            && !string.Equals(_scene.InteractionMode, "mesh_edit"',
         1,
     )[1].split(
-        'if (e.Button == MouseButtons.Left && !string.Equals(ActiveTool, "orbit"',
+        'if (input.Changed(MeshPointerButtons.Left) && !string.Equals(ActiveTool, "orbit"',
         1,
     )[0]
     assert placement.index("TryBeginPlacementGizmoDrag") < placement.index("PartPickEnabled")
@@ -897,7 +906,7 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert '_selectionTarget.SelectedItem = "Part";' not in program_source
     assert "RefreshSubmeshList();" in protocol_source
     assert material_source.count("RefreshSubmeshList();") >= 2
-    assert "ApplyWheelZoomToPane(paneId, e.Delta)" in input_source
+    assert "ApplyWheelZoomToPane(paneId, input.WheelDelta)" in input_source
     assert "CameraZoomPolicy.ApplyWheelDelta(" in split_view_source
     assert "Math.Clamp(_zoom, 1.0f, 500000.0f)" not in input_source
     assert topology_source.count("var viewCenter = _center;") == 2
@@ -1035,9 +1044,17 @@ def test_codex_mesh_checks_use_real_game_pac_and_keep_unit_runs_non_visual() -> 
     mesh_unit_end = source.index("    )", mesh_unit_start)
     assert "test_mesh_editor_dev_harness.py" not in source[mesh_unit_start:mesh_unit_end]
     assert "--ignore=tests/test_mesh_editor_dev_harness.py" not in source
-    assert '"mouse_input_backend": "win32_physical_cursor"' in real_proof_source
-    assert "_send_left_button_input(down=True)" in real_input_source
-    assert "if not state.input_window_activated:" in real_input_source
+    assert '"mouse_input_backend": "scoped_hwnd_messages_normalized_input"' in real_proof_source
+    assert "_send_mouse_message(" in real_input_source
+    assert "_set_screen_cursor_position" not in real_input_source
+    assert "if not state.input_window_verified:" in real_input_source
+    assert "_show_window_without_activation" in real_input_source
+    assert "SetForegroundWindow" not in real_input_source
+    real_session_source = (
+        ROOT / "tools" / "mesh_harness" / "real_dotnet_session.py"
+    ).read_text(encoding="utf-8")
+    assert "WA_ShowWithoutActivating" in real_session_source
+    assert ".activateWindow()" not in real_session_source
     pytest_config = (ROOT / "pytest.ini").read_text(encoding="utf-8")
     assert 'visual: opens a window' in pytest_config
     assert 'real_game: reads locally installed game assets' in pytest_config
@@ -1065,8 +1082,10 @@ def test_real_dotnet_harness_has_dedicated_resident_side_by_side_zoom_proof() ->
     assert 'lambda: "side_by_side" if side_by_side_camera else "replacement_only"' in session_source
     assert 'lambda: "placement" if side_by_side_camera else "mesh_edit"' in session_source
     assert "exercise_side_by_side_wheel_zoom(" in source
-    assert "_send_mouse_wheel_input(-1)" in input_source
-    assert "_send_mouse_wheel_input(1)" in input_source
+    assert "_send_scoped_mouse_wheel(" in input_source
+    assert "-120" in input_source
+    assert "120" in input_source
+    assert "_set_screen_cursor_position" not in input_source
     assert '"non_target_camera_unchanged"' in input_source
     assert '"inverse_camera_restored_exactly"' in input_source
 

@@ -26,7 +26,7 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Viewport-aligned Vertex/Edge/Face Click, Brush, Rectangle, and Lasso selection with visible overlays in either depth mode and Replace/Add/Subtract/Toggle operations.
 - Bounded raw pointer sampling that retains press, intermediate movement, and release when Windows coalesces redraws; long lassos compact deterministically while retaining their final release point, one completed gesture creates one history entry, and Esc/resize/focus loss restores the pre-gesture mesh.
 - Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots.
-- Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh buffers, and Textured/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes.
+- Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh/normal/bounds buffers, Textured/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes, and independent Normals/Bounds overlays. Bones is visibly disabled until skeleton context exists.
 - egui archive/assets, viewport, inspector, selection/edit, and status surfaces.
 - Bounded cancellable latest-wins loader/search worker with stale-result rejection.
 - Versioned neutral binary package and manifest comparison.

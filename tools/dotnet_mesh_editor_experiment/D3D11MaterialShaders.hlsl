@@ -736,7 +736,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
                                     : (categoryHair ? 0.08f
                                         : (categoryStone ? 0.04f
                                             : (categoryTooth ? 0.08f : 0.08f))))))))));
-    if (!categoryMetal && hasSourceRoughnessMap)
+    if (!categoryMetal && hasSourceRoughnessMap && !categorySkin)
     {
         // Same reasoning as the direct lobe: the per-category environment
         // constants existed to divide out an inflated F0.  With a real roughness
@@ -1029,7 +1029,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         // rough cloth stays matte because its roughness says so, not because a
         // category table suppressed it.
         float nonmetalDirectSpecularScale = hasSourceRoughnessMap
-            ? 0.32f
+            ? (categorySkin ? 0.055f : 0.32f)
             : (glossyNonmetal ? 0.18f : (conservativeNonmetal ? 0.025f : 0.08f));
         // Hair is not a smooth surface: its highlight runs as a band across the
         // strands, not as a round blob on the surface normal. Crimson ships the

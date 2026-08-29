@@ -50,6 +50,46 @@ _APP = QApplication.instance() or QApplication([])
 
 
 class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
+    def test_viewport_input_failure_is_correlated_and_visible_without_process_retirement(self) -> None:
+        settings = QSettings("CDMWTests", "MeshEditorViewportInputFailure")
+        settings.clear()
+        tab = MeshEditorTab(settings=settings)
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        session_id = builder.controller.active_session_id
+        tab.standalone_dotnet_lifecycle_session_id = session_id
+        tab.standalone_dotnet_process_generation = 7
+        tab.standalone_dotnet_capabilities.add(MESH_MUTATION_ENVELOPE_CAPABILITY)
+        messages: list[tuple[str, bool]] = []
+        tab.status_message_requested.connect(
+            lambda message, error: messages.append((str(message), bool(error)))
+        )
+
+        handled = tab._handle_dotnet_protocol_event(
+            {
+                "event": "interaction_failed",
+                "session_id": session_id,
+                "request_id": 41,
+                "process_generation": 7,
+                "diagnostic_code": "viewport_input_failed",
+                "boundary": "mouse_up",
+                "tool": "select",
+                "exception_type": "System.InvalidOperationException",
+                "message": "Injected lasso failure.",
+            }
+        )
+
+        self.assertTrue(handled)
+        self.assertTrue(messages)
+        self.assertTrue(messages[-1][1])
+        self.assertIn("viewport_input_failed", messages[-1][0])
+        self.assertIn("mouse_up", messages[-1][0])
+        self.assertIsNone(tab.standalone_dotnet_editor_process)
+        tab.deleteLater()
+        builder.deleteLater()
+        _APP.processEvents()
+
     def test_embedded_finish_timeout_keeps_edit_mesh_open_and_reports_the_request(self) -> None:
         settings = QSettings("CDMWTests", "MeshEditorResidentFinishTimeout")
         settings.clear()
@@ -268,6 +308,60 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         self.assertEqual("error", sent[0]["status"])
         self.assertFalse(sent[0]["ok"])
         self.assertEqual(55, sent[0]["request_id"])
+        tab.deleteLater()
+        builder.deleteLater()
+
+    def test_no_surface_change_sends_result_without_empty_mutation_batch(self) -> None:
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNoSurfaceMutation"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_process_generation = 7
+        view = replace(builder.controller.session_view(), revision=1)
+        renderer_packets: list[dict[str, object]] = []
+        sent: list[dict[str, object]] = []
+        queue = DotNetRevisionUpdateQueue(
+            lambda payload: renderer_packets.append(dict(payload)) or True
+        )
+        queue.set_context(
+            session_id=view.session_id,
+            process_generation=7,
+            renderer_revision=0,
+        )
+        queue.observe_capabilities(
+            {"capabilities": [MESH_EDIT_REVISION_CAPABILITY, MESH_MUTATION_ENVELOPE_CAPABILITY]}
+        )
+        tab.standalone_dotnet_update_queue = queue
+
+        with patch.object(
+            tab,
+            "_send_dotnet_protocol_message",
+            side_effect=lambda payload: sent.append(dict(payload)) or True,
+        ):
+            published = tab._send_dotnet_native_update(
+                MeshEditorNativeUpdate(session_view=view),
+                result=MeshEditResult(
+                    action="transform",
+                    status="ok",
+                    revision=view.revision,
+                    session_view=view,
+                ),
+                request_payload={
+                    "event": "stroke_begin",
+                    "session_id": view.session_id,
+                    "request_id": 61,
+                    "base_revision": 0,
+                    "process_generation": 7,
+                    "protocol_version": 3,
+                },
+            )
+
+        self.assertTrue(published)
+        self.assertEqual([], renderer_packets)
+        self.assertEqual(1, len(sent))
+        self.assertEqual("command_result", sent[0]["event"])
+        self.assertEqual(61, sent[0]["request_id"])
+        self.assertNotIn("authoritative_geometry_pending", sent[0])
         tab.deleteLater()
         builder.deleteLater()
 

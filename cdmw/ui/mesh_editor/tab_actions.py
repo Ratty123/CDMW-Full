@@ -423,6 +423,10 @@ class MeshEditorActionsMixin:
             self.status_message_requested.emit("Select a supported archive mesh first.", True)
             return
         signal.emit(target)
+
+    def _emit_replace_from_archive_requested(self) -> None:
+        self._emit_target(self.replace_from_archive_requested)
+
     def _emit_open_archive_target(self) -> None:
         target = self._current_target_entry()
         if target is None:

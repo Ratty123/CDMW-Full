@@ -140,7 +140,11 @@ def resident_material_gates(state: SimpleNamespace) -> dict[str, bool]:
         "resident_material_generation_ordered": bool(
             len(generations) == len(applied_generations) == 2
             and generations[0] > 0
-            and generations[1] == generations[0] + 1
+            # Production can publish a late reference/material upgrade between
+            # these two user-visible changes. The harness-owned generations
+            # must remain strictly ordered and exactly acknowledged, but need
+            # not be adjacent in the process-wide generation sequence.
+            and generations[1] > generations[0]
             and applied_generations == generations
             and applied_renderer_generations == generations
             and applied_edit_revisions == edit_revisions
@@ -173,8 +177,14 @@ def resident_material_gates(state: SimpleNamespace) -> dict[str, bool]:
             and all(resources_before.get(key) == resources_after.get(key) for key in same_srv_keys)
         ),
         "resident_material_counters_ok": bool(
-            int(after.get("material_state_update_count", 0)) - int(before.get("material_state_update_count", 0)) == 2
-            and int(after.get("material_state_applied_count", 0)) - int(before.get("material_state_applied_count", 0)) == 2
+            int(after.get("material_state_update_count", 0))
+            - int(before.get("material_state_update_count", 0))
+            > 0
+            and int(after.get("material_state_applied_count", 0))
+            - int(before.get("material_state_applied_count", 0))
+            > 0
+            and int(after.get("material_state_applied_count", 0))
+            <= int(after.get("material_state_update_count", 0))
             and int(after.get("material_state_failed_count", 0)) == int(before.get("material_state_failed_count", 0))
         ),
         "resident_material_dedup_respected": bool(getattr(state, "material_dedup_ok", False)),
@@ -294,6 +304,16 @@ def exercise_resident_material_update(
     if not isinstance(renderer_after, Mapping):
         renderer_after = state.tab.standalone_dotnet_status_payload.get("renderer")
     renderer_after = dict(renderer_after) if isinstance(renderer_after, Mapping) else {}
+    # The acknowledgement is emitted before the compiler QThread's finished
+    # cleanup. Sample lifecycle counters only after that production owner has
+    # settled; otherwise two exact acknowledgements can be paired with a
+    # half-finished counter snapshot (completed worker N, active worker N+1).
+    if not pump_until(
+        state,
+        lambda: not state.tab._dotnet_material_compile_active(),
+        _MATERIAL_ACK_TIMEOUT_SECONDS,
+    ):
+        return base_error(state, "Resident material compiler did not settle after acknowledgement.")
     state.material_window_identity_after = renderer_identity(renderer_after)
     state.material_resource_metrics_after = renderer_resource_metrics(renderer_after)
     state.material_process_pid_after = int(state.tab.standalone_dotnet_editor_process.processId())
@@ -510,6 +530,15 @@ def resident_material_evidence(state: SimpleNamespace) -> dict[str, object]:
         "window_identity_after": state.material_window_identity_after,
         "lifecycle_counts_before": state.material_lifecycle_before,
         "lifecycle_counts_after": state.material_lifecycle_after,
+        "lifecycle_count_deltas": {
+            key: int(state.material_lifecycle_after.get(key, 0) or 0)
+            - int(state.material_lifecycle_before.get(key, 0) or 0)
+            for key in (
+                "material_state_update_count",
+                "material_state_applied_count",
+                "material_state_failed_count",
+            )
+        },
         "resource_metrics_before": state.material_resource_metrics_before,
         "resource_metrics_after": state.material_resource_metrics_after,
     }

@@ -18,6 +18,7 @@ from cdmw.services.mesh_workflow_service import SceneImportResult
 from cdmw.services.preview_rendering_service import (
     acquire_dotnet_preview_package_cache_lease_for_path,
 )
+from cdmw.ui.mesh_editor.replace_from_archive_flow import ReplaceFromArchiveFlowController
 from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
 
 
@@ -298,13 +299,19 @@ class MeshEditorShellBridgeMixin:
         self._start_archive_mesh_patch(entry, preset_setup=setup)
 
     def _mesh_editor_in_game_swap_requested(self, entry: object) -> None:
+        """Compatibility entry point for the retired target-arming swap surface."""
+
+        self._mesh_editor_replace_from_archive_requested(entry)
+
+    def _mesh_editor_replace_from_archive_requested(self, entry: object) -> None:
         if not isinstance(entry, ArchiveEntry):
             self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
             return
-        self._handle_archive_in_game_mesh_swap_entry(entry)
-        if self.pending_in_game_mesh_swap_target is not None:
-            # Armed, not fired: the source is picked in Archive Browser.
-            self._show_archive_browser_from_texture_editor(entry.path)
+        controller = getattr(self, "_replace_from_archive_flow_controller", None)
+        if not isinstance(controller, ReplaceFromArchiveFlowController):
+            controller = ReplaceFromArchiveFlowController(self)
+            self._replace_from_archive_flow_controller = controller
+        controller.start(entry)
 
     def _mesh_editor_show_archive_target_requested(self, entry: object) -> None:
         if not isinstance(entry, ArchiveEntry):

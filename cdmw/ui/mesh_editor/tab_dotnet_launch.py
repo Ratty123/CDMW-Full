@@ -512,7 +512,8 @@ class MeshEditorDotNetLaunchMixin:
 
     def _dotnet_reference_native_package_for_package(self, *, embedded: bool) -> Path | None:
         if not embedded:
-            return None
+            value = str(getattr(self, "character_context_native_package_path", "") or "").strip()
+            return Path(value) if value else None
         getter = getattr(
             self.active_builder(),
             "_mesh_editor_embedded_reference_native_package",
@@ -645,6 +646,9 @@ class MeshEditorDotNetLaunchMixin:
                 False,
             )
         else:
+            context_failed = getattr(self, "_handle_mesh_character_context_repackage_failed", None)
+            if callable(context_failed):
+                context_failed()
             self._set_embedded_dotnet_preview_loading(
                 False,
                 "Mesh Editor preview launch failed.",
@@ -652,6 +656,9 @@ class MeshEditorDotNetLaunchMixin:
     def _handle_standalone_dotnet_package_error(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.standalone_dotnet_package_request_id):
             return
+        context_failed = getattr(self, "_handle_mesh_character_context_repackage_failed", None)
+        if callable(context_failed):
+            context_failed()
         text = f"Mesh .NET editor experiment package failed: {message}"
         self._record_mesh_dotnet_event(
             "mesh_dotnet_package_error",

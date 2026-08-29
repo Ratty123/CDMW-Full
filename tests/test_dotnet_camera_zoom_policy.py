@@ -91,7 +91,9 @@ def test_dotnet_wheel_zoom_is_reversible_and_uses_fit_relative_bounds() -> None:
         "internal string CameraOrbitModifier",
     )
     assert "InteractionMode" not in wheel_handler
-    assert "ApplyWheelZoomToPane(paneId, e.Delta)" in wheel_handler
+    assert "HandleMouseWheelCore(" in wheel_handler
+    assert "_inputAdapter.NormalizeWheel(" in wheel_handler
+    assert "ApplyWheelZoomToPane(paneId, input.WheelDelta)" in wheel_handler
     assert "FocusPresentationPane(" not in wheel_handler
     assert "PaneMouseEvent(" not in wheel_handler
     assert wheel_handler.count("UpdateGpuViewport();") == 1

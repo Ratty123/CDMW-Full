@@ -287,6 +287,9 @@ std::map<int, double> screen_brush_swept_exposures_native(
         return exposures;
     }
     const std::string phase = lower_ascii(string_or(edit.get("stroke_phase"), ""));
+    if (phase == "end" && !bool_or(edit.get("apply_terminal_sample"), true)) {
+        return exposures;
+    }
     std::vector<std::array<double, 2>> screen_path;
     const JsonValue* raw_path = edit.get("screen_path");
     if (raw_path != nullptr && raw_path->type == JsonValue::Type::Array) {
@@ -491,6 +494,9 @@ static std::map<int, double> brush_direct_weights(
             center = center_found->second;
         }
     } else if (tool == "smooth" || tool == "inflate" || tool == "pinch") {
+        if (stroke_phase == "end" && !bool_or(edit.get("apply_terminal_sample"), true)) {
+            return direct_weights;
+        }
         direct_weights = screen_brush_swept_exposures_native(
             item,
             vertices,

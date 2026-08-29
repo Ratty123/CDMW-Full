@@ -133,7 +133,12 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
     def _standalone_dotnet_editor_process_running(self) -> bool:
         controller = self._active_shared_dotnet_controller()
         return bool(controller is not None and getattr(controller, "is_running", False))
-    def _stop_standalone_dotnet_editor_process(self, *, embedded_state: str = "closed") -> None:
+    def _stop_standalone_dotnet_editor_process(
+        self,
+        *,
+        embedded_state: str = "closed",
+        reason: str = "unspecified",
+    ) -> None:
         self._cancel_dotnet_material_compile()
         self.standalone_dotnet_ready_timer.stop()
         self.standalone_dotnet_deactivate_timer.stop()
@@ -152,7 +157,9 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
         self._reset_resident_mutation_ui_state()
-        self.standalone_dotnet_update_queue.reset()
+        self.standalone_dotnet_update_queue.reset(
+            reason=f"process_stopped:{str(reason or 'unspecified')}"
+        )
         self.standalone_pending_dotnet_live_stroke_outcome = None
         self._cancel_pending_dotnet_captures()
         self.standalone_dotnet_scene_request_id += 1
@@ -195,7 +202,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
         self._reset_resident_mutation_ui_state()
-        self.standalone_dotnet_update_queue.reset()
+        self.standalone_dotnet_update_queue.reset(reason="process_finished")
         self.standalone_pending_dotnet_live_stroke_outcome = None
         self._cancel_pending_dotnet_captures()
         self.standalone_dotnet_scene_request_id += 1

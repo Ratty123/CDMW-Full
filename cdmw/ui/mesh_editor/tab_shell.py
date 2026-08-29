@@ -160,6 +160,7 @@ class MeshEditorTabShellMixin(
         page.validation_report_requested.connect(self._start_standalone_export_validation_requested)
         page.copy_validation_report_requested.connect(self._copy_standalone_validation_report_requested)
         page.rebuild_report_requested.connect(self._start_standalone_rebuild_report_requested)
+        page.replace_from_archive_requested.connect(self._emit_replace_from_archive_requested)
         page.export_mesh_file_requested.connect(self._start_standalone_rebuild_asset_requested)
         page.build_mod_requested.connect(self._start_mesh_mod_build_requested)
         page.install_overlay_requested.connect(self._start_mesh_overlay_prepare_requested)
@@ -174,6 +175,7 @@ class MeshEditorTabShellMixin(
         self._wire_standalone_native_part_events(self.standalone_native_host)
         self.standalone_native_preview_button = page.native_preview_button
         self.standalone_run_validation_report_button = page.run_validation_report_button
+        self.standalone_replace_from_archive_button = page.replace_from_archive_button
         self.standalone_export_mesh_file_button = page.export_mesh_file_button
         self.standalone_build_mod_button = page.build_mod_button
         self.standalone_install_overlay_button = page.install_overlay_button
@@ -703,12 +705,17 @@ class MeshEditorTabShellMixin(
             )
         update_queue = getattr(self, "standalone_dotnet_update_queue", None)
         if update_queue is not None:
-            update_queue.set_context(
-                session_id=str(
-                    getattr(self, "standalone_dotnet_lifecycle_session_id", "") or ""
-                ),
-                process_generation=generation,
-            )
+            lifecycle_session_id = str(
+                getattr(self, "standalone_dotnet_lifecycle_session_id", "") or ""
+            ).strip()
+            # A same-process controller signal can arrive between lifecycle
+            # callbacks with no session id. It is not a session handoff and must
+            # not erase the correlated revision the resident queue just acked.
+            if lifecycle_session_id or generation != previous:
+                update_queue.set_context(
+                    session_id=lifecycle_session_id,
+                    process_generation=generation,
+                )
             update_queue.observe_capabilities(
                 {
                     "capabilities": tuple(

@@ -85,12 +85,17 @@ internal sealed partial class MeshViewport
         _scene.SetInteractionMode("mesh_edit");
         if (_interactionSoakSelectionShape.Length > 0)
         {
-            _ = UpdateSelection(
+            var selectionRevision = _authoritativeEditRevision + 1L;
+            if (!UpdateSelection(
                 new Dictionary<int, HashSet<int>>(),
                 new Dictionary<int, HashSet<int>>(),
                 new Dictionary<int, HashSet<(int A, int B)>>(),
                 new HashSet<int>(),
-                revision: _authoritativeEditRevision);
+                revision: selectionRevision))
+            {
+                throw new InvalidOperationException("Could not reset the interaction-soak selection authority.");
+            }
+            SetAuthoritativeEditRevision(selectionRevision);
             ActiveTool = "select";
             SetSelectionDragMode(_interactionSoakSelectionShape);
             BeginSelectionDrag(start, _interactionSoakSelectionTarget);
@@ -107,12 +112,17 @@ internal sealed partial class MeshViewport
                 ? Enumerable.Range(0, selectedVertexCount).ToHashSet()
                 : Enumerable.Range(0, _document.Submeshes[0].Vertices.Count).ToHashSet(),
         };
-        _ = UpdateSelection(
+        var strokeSelectionRevision = _authoritativeEditRevision + 1L;
+        if (!UpdateSelection(
             selectedVertices,
             new Dictionary<int, HashSet<int>>(),
             new Dictionary<int, HashSet<(int A, int B)>>(),
             new HashSet<int>(),
-            revision: _authoritativeEditRevision);
+            revision: strokeSelectionRevision))
+        {
+            throw new InvalidOperationException("Could not establish the interaction-soak stroke selection.");
+        }
+        SetAuthoritativeEditRevision(strokeSelectionRevision);
         ActiveTool = _interactionSoakMode;
         BeginEditorStroke(start);
         if (!_editorStrokeActive)
@@ -160,8 +170,11 @@ internal sealed partial class MeshViewport
         }
         else
         {
-            UpdateProvisionalEditorStroke(point);
-            MaybeEmitEditorStrokeUpdate(point);
+            var checkpointEmitted = MaybeEmitEditorStrokeUpdate(point);
+            if (!IsCheckpointedSculptTool(_strokeTool) || checkpointEmitted)
+            {
+                UpdateProvisionalEditorStroke(point);
+            }
             _strokePrevious = point;
         }
         _interactionSoakPrevious = point;
@@ -174,6 +187,33 @@ internal sealed partial class MeshViewport
             throw new InvalidOperationException("The release-only diagnostic requires a lasso selection gesture.");
         }
         FinishSelectionGesture(point, cancelled: false);
+        CompleteSelectionOperatorForInteractionSoak();
+    }
+
+    internal bool FinishLassoInteractionSoakWithInjectedInputFailure(Point point)
+    {
+        if (_interactionSoakSelectionShape != "lasso")
+        {
+            throw new InvalidOperationException("The failure diagnostic requires a lasso selection gesture.");
+        }
+        InputBoundaryFaultInjector = boundary =>
+        {
+            if (boundary == "finish_selection")
+            {
+                throw new InvalidOperationException("Injected lasso input-boundary failure.");
+            }
+        };
+        try
+        {
+            OnMouseUp(new MouseEventArgs(MouseButtons.Left, 1, point.X, point.Y, 0));
+        }
+        finally
+        {
+            InputBoundaryFaultInjector = null;
+        }
+        return SelectionInteractionSoakStateClean
+            && !_editorStrokeActive
+            && !HasProvisionalStroke;
     }
 
     internal void FinishSelectionInteractionSoakAfterLostMouseUp(Point point)
@@ -183,6 +223,19 @@ internal sealed partial class MeshViewport
             throw new InvalidOperationException("The lost-release diagnostic requires a selection gesture.");
         }
         OnMouseMove(new MouseEventArgs(MouseButtons.None, 0, point.X, point.Y, 0));
+        CompleteSelectionOperatorForInteractionSoak();
+    }
+
+    private void CompleteSelectionOperatorForInteractionSoak()
+    {
+        if (_editOperators.Active is not { Tool: "select" } active)
+        {
+            return;
+        }
+        if (_editOperators.ApplyAuthoritativeResult(active.GestureId))
+        {
+            _editOperators.CompleteRenderer(active.GestureId);
+        }
     }
 
     internal bool SelectionInteractionSoakStateClean =>
@@ -195,7 +248,8 @@ internal sealed partial class MeshViewport
         && _selectionPaintToggleTouchedVertices.Count == 0
         && _selectionPaintToggleTouchedFaces.Count == 0
         && _selectionPaintToggleTouchedEdges.Count == 0
-        && _pendingPaintSample is null;
+        && _pendingPaintSample is null
+        && _editOperators.State == MeshEditOperatorState.Idle;
 
     internal MeshInteractionSoakResult FinishInteractionSoak(
         Point point,
@@ -204,6 +258,7 @@ internal sealed partial class MeshViewport
         StepInteractionSoak(point);
         if (_interactionSoakSelectionShape.Length > 0)
         {
+            var gestureId = _editOperators.Active?.GestureId ?? string.Empty;
             FinishSelectionGesture(point, cancelled: false);
             var expectedVertices = CloneSelectionMap(_provisionalSelectedVertices);
             var expectedFaces = CloneSelectionMap(_provisionalSelectedFaces);
@@ -224,7 +279,10 @@ internal sealed partial class MeshViewport
                 expectedEdges,
                 new HashSet<int>(),
                 selectionRequestId,
-                _authoritativeEditRevision + 1L);
+                _authoritativeEditRevision + 1L,
+                selectionStrokeId: gestureId,
+                selectionStrokeSequence: long.MaxValue,
+                selectionStrokePhase: "end");
             var matches = accepted && SelectionMapsMatch(expectedVertices, _selectedVertices)
                 && SelectionMapsMatch(expectedFaces, _selectedFaces)
                 && expectedEdges.Sum(pair => pair.Value.Count) == _selectedEdges.Count;

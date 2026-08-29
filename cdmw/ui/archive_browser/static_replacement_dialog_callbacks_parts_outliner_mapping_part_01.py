@@ -747,7 +747,13 @@ def _parts_outliner_mapping_step_028(_state):
             return
         _state._mapping_table_build_mark_requested_started_helper(_state.mapping_table_build_requested)
         _state.mapping_progress_label.setText(_state._mapping_table_loading_progress_text_helper(0, len(_state.mapping_targets)))
-        _state.QTimer.singleShot(_state._mapping_table_build_start_delay_ms_helper(), _state.mapping_table_build_timer.start)
+        def _start_if_dialog_is_live() -> None:
+            if (
+                _state._alignment_dialog_widgets_live()
+                and not _state._mapping_table_build_complete_helper(_state.mapping_table_build_state)
+            ):
+                _state.mapping_table_build_timer.start()
+        _state.QTimer.singleShot(_state._mapping_table_build_start_delay_ms_helper(), _start_if_dialog_is_live)
     _state._ensure_mapping_table_building = _ensure_mapping_table_building
 
 STEPS = (

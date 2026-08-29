@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import ctypes
 import hashlib
 import time
 from pathlib import Path
 from types import SimpleNamespace
 
 from tools.mesh_harness.win32_input import (
-    _activate_window_for_input,
-    _foreground_window_matches,
     _host_window_rect,
+    _restore_window_z_order,
+    _show_window_without_activation,
     _window_at_screen_point,
     _window_is_same_or_child,
     _window_process_id,
@@ -28,93 +27,91 @@ def capture_dotnet_viewport(state: SimpleNamespace, path: Path) -> dict[str, obj
     if width < 32 or height < 32:
         return {"ok": False, "error": "Invalid .NET viewport capture geometry."}
     expected_pid = int(state.production_process_pid)
-    foreground_root_hwnd = int(state.tab.winId())
-    activated = False
+    harness_root_hwnd = int(state.tab.winId())
+    shown_without_activation = _show_window_without_activation(
+        int(state.viewport_hwnd),
+        topmost=True,
+    )
     visible_hwnd = 0
     visible_pid = 0
     ownership_ok = False
-    # A busy desktop can deny SetForegroundWindow or transiently overlap the
-    # viewport; retry with growing waits before declaring the capture target
-    # lost. The ownership checks themselves stay strict: the capture must
-    # still prove the real helper viewport is what lands in the screenshot.
-    for attempt in range(10):
-        state.tab.raise_()
-        state.tab.activateWindow()
-        try:
-            ctypes.windll.user32.SetForegroundWindow(ctypes.c_void_p(int(state.tab.winId())))
-        except Exception:
-            pass
-        activated = _activate_window_for_input(
-            int(state.viewport_hwnd),
-            root_hwnd=foreground_root_hwnd,
-        )
-        state.app.processEvents()
-        time.sleep(0.08)
-        visible_hwnd = _window_at_screen_point(x + width // 2, y + height // 2)
-        visible_pid = _window_process_id(visible_hwnd)
-        ownership_ok = bool(
-            activated
-            and _foreground_window_matches(foreground_root_hwnd)
-            and visible_pid == expected_pid
-            and _window_is_same_or_child(int(state.viewport_hwnd), visible_hwnd)
-        )
-        if ownership_ok:
-            break
-        time.sleep(min(0.4, 0.08 * (attempt + 1)))
-    if not ownership_ok:
-        # Name the specific condition: "not the foreground visible target" reads the
-        # same whether activation was refused, another process is in front, or the
-        # point lands on a sibling window, and those need different responses.
-        reasons = []
-        if not activated:
-            reasons.append("the viewport window refused activation")
-        if not _foreground_window_matches(foreground_root_hwnd):
-            reasons.append(f"the foreground window is not the harness root {foreground_root_hwnd}")
-        if visible_pid != expected_pid:
-            reasons.append(f"the window at the capture point belongs to pid {visible_pid}, not {expected_pid}")
-        elif not _window_is_same_or_child(int(state.viewport_hwnd), visible_hwnd):
-            reasons.append(f"the window at the capture point ({visible_hwnd}) is not the viewport or its child")
+    try:
+        # The window is briefly topmost on its assigned monitor, but SWP_NOACTIVATE
+        # preserves the user's foreground app. Ownership still has to prove that
+        # the pixels at the capture point belong to the production helper.
+        for attempt in range(10):
+            state.app.processEvents()
+            time.sleep(0.08)
+            visible_hwnd = _window_at_screen_point(x + width // 2, y + height // 2)
+            visible_pid = _window_process_id(visible_hwnd)
+            ownership_ok = bool(
+                shown_without_activation
+                and visible_pid == expected_pid
+                and _window_is_same_or_child(int(state.viewport_hwnd), visible_hwnd)
+            )
+            if ownership_ok:
+                break
+            shown_without_activation = _show_window_without_activation(
+                int(state.viewport_hwnd),
+                topmost=True,
+            )
+            time.sleep(min(0.4, 0.08 * (attempt + 1)))
+        if not ownership_ok:
+            reasons = []
+            if not shown_without_activation:
+                reasons.append("the harness window could not be shown without activation")
+            if visible_pid != expected_pid:
+                reasons.append(
+                    f"the window at the capture point belongs to pid {visible_pid}, not {expected_pid}"
+                )
+            elif not _window_is_same_or_child(int(state.viewport_hwnd), visible_hwnd):
+                reasons.append(
+                    f"the window at the capture point ({visible_hwnd}) is not the viewport or its child"
+                )
+            return {
+                "ok": False,
+                "error": (
+                    "The .NET viewport was not the visible owned capture target: "
+                    + ("; ".join(reasons) if reasons else "ownership was lost before the grab")
+                ),
+                "foreground_activated": False,
+                "window_shown_without_activation": bool(shown_without_activation),
+                "visible_hwnd": visible_hwnd,
+                "visible_pid": visible_pid,
+                "expected_pid": expected_pid,
+            }
+        # A newly revealed D3D11 surface may need more than one presentation.
+        summary: dict[str, object] = {}
+        attempts = 0
+        for attempt in range(12):
+            attempts = attempt + 1
+            try:
+                image = ImageGrab.grab(
+                    bbox=(x, y, x + width, y + height),
+                    all_screens=True,
+                )
+                path.parent.mkdir(parents=True, exist_ok=True)
+                image.save(path, format="PNG")
+            except Exception as exc:
+                return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+            summary = _png_capture_summary(path)
+            if summary.get("ok"):
+                break
+            state.app.processEvents()
+            time.sleep(min(0.5, 0.1 * (attempt + 1)))
         return {
-            "ok": False,
-            "error": (
-                "The .NET viewport was not the foreground visible capture target: "
-                + ("; ".join(reasons) if reasons else "ownership was lost between the check and the grab")
-            ),
-            "foreground_activated": bool(activated),
+            **summary,
+            "hwnd": int(state.viewport_hwnd),
+            "screen_rect": list(rect),
+            "foreground_activated": False,
+            "window_shown_without_activation": bool(shown_without_activation),
+            "capture_attempts": attempts,
             "visible_hwnd": visible_hwnd,
             "visible_pid": visible_pid,
             "expected_pid": expected_pid,
         }
-    # A D3D11 surface that has been revealed but has not yet presented reads back
-    # as one flat colour, so grabbing the instant ownership is granted photographs
-    # an empty window and calls it a failed capture. Wait for the surface to draw
-    # something instead of for a fixed delay: if it never does, this still fails,
-    # and now with the reason the summary computed.
-    summary: dict[str, object] = {}
-    attempts = 0
-    for attempt in range(12):
-        attempts = attempt + 1
-        try:
-            image = ImageGrab.grab(bbox=(x, y, x + width, y + height), all_screens=True)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            image.save(path, format="PNG")
-        except Exception as exc:
-            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-        summary = _png_capture_summary(path)
-        if summary.get("ok"):
-            break
-        state.app.processEvents()
-        time.sleep(min(0.5, 0.1 * (attempt + 1)))
-    return {
-        **summary,
-        "hwnd": int(state.viewport_hwnd),
-        "screen_rect": list(rect),
-        "foreground_activated": True,
-        "capture_attempts": attempts,
-        "visible_hwnd": visible_hwnd,
-        "visible_pid": visible_pid,
-        "expected_pid": expected_pid,
-    }
+    finally:
+        _restore_window_z_order(int(state.viewport_hwnd))
 
 
 def exercise_deterministic_offscreen_capture(

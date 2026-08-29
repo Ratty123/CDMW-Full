@@ -31,6 +31,7 @@ from cdmw.core.archive_relationships import (
 from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance_for_preview
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.model_preview import _build_model_preview
+from cdmw.domain.character_context import appearance_model_body_family, appearance_model_slot
 from cdmw.models import (
     ArchiveEntry,
     ArchiveEntryIdentity,
@@ -594,32 +595,6 @@ def _component_model_entries(component: AppearanceCompositeComponent) -> Tuple[A
     return tuple(entry for entry in component.resolved_model_entries if str(entry.extension or "").lower() in _MODEL_EXTENSIONS)
 
 
-def appearance_model_body_family(path: str) -> str:
-    parts = _path_parts(path)
-    for index, part in enumerate(parts[:-1]):
-        if part == "1_pc" and index + 1 < len(parts):
-            family = parts[index + 1]
-            match = re.match(r"^0*(\d+)_([a-z0-9]+)$", family)
-            if match:
-                return f"{int(match.group(1))}_{match.group(2)}"
-            return family
-    return ""
-
-
-def appearance_model_slot(path: str) -> str:
-    parts = _path_parts(path)
-    for marker in ("armor", "weapon"):
-        if marker in parts:
-            index = parts.index(marker)
-            if index + 1 < len(parts):
-                return f"{marker}/{parts[index + 1]}" if marker == "weapon" else parts[index + 1]
-            return marker
-    for marker in ("nude", "body", "head", "hair", "beard", "face"):
-        if marker in parts:
-            return marker
-    return ""
-
-
 def appearance_model_sidecar_path(model_path: str) -> str:
     normalized = _normalize_archive_path(model_path)
     extension = PurePosixPath(normalized).suffix.lower()
@@ -706,6 +681,49 @@ def _resolve_sidecar_texture_entries(
         else:
             missing.append(raw_path)
     return _dedupe_entries(entries), tuple(dict.fromkeys(missing))
+
+
+def resolve_appearance_model_component(
+    model_entry: ArchiveEntry,
+    *,
+    path_index: Mapping[str, Sequence[ArchiveEntry]],
+    basename_index: Mapping[str, Sequence[ArchiveEntry]],
+) -> AppearanceCompositeComponent:
+    """Resolve one model's read-only appearance context without a UI caller."""
+
+    return _resolve_standalone_component(
+        model_entry,
+        path_index=path_index,
+        basename_index=basename_index,
+    )
+
+
+def appearance_model_dependency_entries(
+    model_entry: ArchiveEntry,
+    component: AppearanceCompositeComponent,
+    *,
+    path_index: Mapping[str, Sequence[ArchiveEntry]],
+    basename_index: Mapping[str, Sequence[ArchiveEntry]],
+) -> Tuple[Tuple[ArchiveEntry, ...], Tuple[str, ...]]:
+    """Return the bounded model/material/context snapshot used by previews."""
+
+    sidecar = _resolve_model_sidecar_entry(
+        model_entry,
+        path_index=path_index,
+        basename_index=basename_index,
+    )
+    textures, missing = _resolve_sidecar_texture_entries(
+        sidecar,
+        path_index=path_index,
+        basename_index=basename_index,
+    )
+    entries: List[ArchiveEntry] = [model_entry]
+    entries.extend(component.resolved_prefab_entries)
+    entries.extend(component.resolved_context_entries)
+    if sidecar is not None:
+        entries.append(sidecar)
+    entries.extend(textures)
+    return _dedupe_entries(entries), missing
 
 
 def _model_entry_in_candidates(entry: ArchiveEntry, candidates: Sequence[ArchiveEntry]) -> bool:

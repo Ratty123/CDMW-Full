@@ -58,6 +58,10 @@ from tools.mesh_harness.real_dotnet_material import (
     resident_material_evidence,
     resident_material_gates,
 )
+from tools.mesh_harness.win32_input import (
+    _desktop_input_isolation_evidence,
+    _desktop_input_snapshot,
+)
 from tools.mesh_harness.service_summary import _command_summary
 
 #: A full-mesh selection would otherwise bury the trail it is meant to make
@@ -316,6 +320,20 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
     state.archive_sources_unchanged = state.archive_sources_before == state.archive_sources_after
     state.archive_source_content_unchanged = state.archive_content_fingerprints_before == state.archive_content_fingerprints_after
     state.source_payload_unchanged = sha256(_read_archive_payload(state.model_entry)).hexdigest() == state.source_payload_sha256
+    desktop_timer = getattr(state, "desktop_input_timer", None)
+    if desktop_timer is not None:
+        desktop_timer.stop()
+    state.desktop_input_after = _desktop_input_snapshot()
+    state.desktop_input_observations.append(dict(state.desktop_input_after))
+    state.desktop_input_isolation = _desktop_input_isolation_evidence(
+        state.desktop_input_observations,
+        forbidden_hwnds=(
+            int(state.tab.winId()),
+            int(getattr(state, "form_hwnd", 0) or 0),
+            int(getattr(state, "viewport_hwnd", 0) or 0),
+        ),
+        harness_screen_bounds=tuple(state.harness_screen_bounds),
+    )
     gates = _result_gates(state)
     ok = bool(all(gates.values()) and state.mouse_down_sent and state.mouse_move_sent and state.mouse_up_sent)
     last_result = state.stroke_results[-1] if state.stroke_results else None
@@ -334,6 +352,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "archive_provenance": _archive_entry_provenance(state.model_entry),
         "source_payload_sha256": state.source_payload_sha256,
         "source_payload_unchanged": state.source_payload_unchanged,
+        "desktop_input": dict(state.desktop_input_isolation),
         "archive_sources_unchanged": state.archive_sources_unchanged,
         "archive_source_content_unchanged": state.archive_source_content_unchanged,
         "archive_content_fingerprints_before": state.archive_content_fingerprints_before,
@@ -346,6 +365,8 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "resident_material_parameter_update": material_parameter_evidence(state),
         "geometry_display": dict(state.geometry_display_evidence),
         "builder_presentation": dict(state.builder_presentation_evidence),
+        "builder_commit_evidence": list(getattr(state, "builder_commit_evidence", ()) or ()),
+        "sent_mutation_batches": list(getattr(state, "sent_mutation_batches", ()) or ()),
         "camera_zoom": dict(getattr(state, "camera_zoom_evidence", {}) or {}),
         "production_flow": list(state.production_flow),
         "source_texture_export": dict(getattr(state, "source_texture_export_evidence", {}) or {}),
@@ -426,8 +447,14 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
             "projection_surface_reconciliation": dict(
                 state.projection_surface_reconciliation
             ),
-            "physical_selection_anchor": dict(
-                state.physical_selection_anchor
+            "projection_probe_update_queue": dict(
+                getattr(state, "projection_probe_update_queue", {}) or {}
+            ),
+            "projection_clear_update": dict(
+                getattr(state, "projection_clear_update", {}) or {}
+            ),
+            "input_selection_anchor": dict(
+                state.input_selection_anchor
             ),
             "resident_selection_inputs": dict(
                 getattr(state, "resident_selection_inputs", {}) or {}
@@ -444,9 +471,9 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "mouse_drag_points": [list(point) for point in state.mouse_drag_points],
         "mouse_drag_end": list(state.mouse_drag_end),
         "mouse_drag_effective_end": list(state.mouse_drag_effective_end),
-        "mouse_input_backend": "win32_physical_cursor",
-        "input_window_activated": bool(getattr(state, "input_window_activated", False)),
-        "physical_viewport_origin": [
+        "mouse_input_backend": "scoped_hwnd_messages_normalized_input",
+        "input_window_verified": bool(getattr(state, "input_window_verified", False)),
+        "input_viewport_screen_origin": [
             int(state.viewport_rect_before[0]),
             int(state.viewport_rect_before[1]),
         ] if state.viewport_rect_before else None,

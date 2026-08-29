@@ -694,6 +694,8 @@ class ArchivePreviewWorkerMixin:
             else self._current_model_preview_render_settings()
         )
         enabled_prefab_component_paths = self._archive_d3d11_enabled_prefab_component_paths(entry)
+        # Character Context is intentionally dormant in the shipped application.
+        preview_context_components: tuple[object, ...] = ()
         native_cache_mode = self._native_preview_package_cache_mode()
         native_cache_max_bytes, native_cache_target_bytes = self._native_preview_package_cache_budget()
         native_package_cache_key = ""
@@ -710,6 +712,7 @@ class ArchivePreviewWorkerMixin:
                 loose_search_roots,
                 include_loose_preview_assets=include_loose_preview_assets,
                 dependency_entries=native_preview_dependency_entries,
+                preview_context_components=preview_context_components,
             )
         self._record_runtime_event(
             "archive_preview_worker_start",
@@ -721,6 +724,7 @@ class ArchivePreviewWorkerMixin:
             native_preview_cache_mode=native_cache_mode,
             native_preview_package_cache_key=native_package_cache_key,
             enabled_prefab_component_count=len(enabled_prefab_component_paths),
+            preview_context_component_count=len(preview_context_components),
         )
         worker = ArchivePreviewWorker(
             request_id,
@@ -755,6 +759,7 @@ class ArchivePreviewWorkerMixin:
             native_preview_dependency_entries=native_preview_dependency_entries,
             native_preview_dependency_entries_complete=native_preview_dependency_entries_complete,
             enabled_prefab_component_paths=enabled_prefab_component_paths,
+            preview_context_components=preview_context_components,
             native_preview_package_cache_key=native_package_cache_key,
             native_preview_package_cache_mode=native_cache_mode,
             native_preview_package_cache_max_bytes=native_cache_max_bytes,

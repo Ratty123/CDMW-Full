@@ -62,7 +62,11 @@ def _native_reference_batch(batch: Mapping[str, object]) -> bool:
     identity = batch.get("editor_identity")
     identity = identity if isinstance(identity, Mapping) else {}
     component_index = _index(identity.get("source_component_index", 0), 0)
-    return bool(identity.get("prefab_component", False)) or component_index != 0
+    return (
+        bool(identity.get("context_component", False))
+        or bool(identity.get("prefab_component", False))
+        or component_index != 0
+    )
 
 
 def _load_native_manifest(package_path: Path | str | None) -> tuple[Path, Mapping[str, object]] | None:
@@ -235,6 +239,7 @@ def _decode_native_reference_submesh(
     setattr(submesh, "cdmw_native_source_component_index", component_index)
     setattr(submesh, "cdmw_native_source_component_label", component_label)
     setattr(submesh, "cdmw_native_prefab_component", bool(identity.get("prefab_component", False)))
+    setattr(submesh, "cdmw_native_context_component", bool(identity.get("context_component", False)))
     setattr(submesh, "cdmw_native_editor_identity", copy.deepcopy(dict(identity)))
     apply_dotnet_native_material_batch_binding(submesh, batch)
     return submesh

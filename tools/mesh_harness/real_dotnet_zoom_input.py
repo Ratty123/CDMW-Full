@@ -6,19 +6,36 @@ from pathlib import Path
 import time
 from types import SimpleNamespace
 
+from tools.mesh_harness.constants import (
+    _MK_LBUTTON,
+    _WM_LBUTTONDOWN,
+    _WM_LBUTTONUP,
+    _WM_MOUSEWHEEL,
+)
 from tools.mesh_harness.real_dotnet_material import request_full_renderer_status
 from tools.mesh_harness.win32_input import (
-    _activate_window_for_input,
-    _foreground_window_matches,
     _host_window_rect,
-    _screen_cursor_position,
-    _send_left_button_input,
-    _send_mouse_wheel_input,
-    _set_screen_cursor_position,
-    _window_at_screen_point,
-    _window_is_same_or_child,
+    _scoped_input_target_matches,
+    _send_mouse_message,
+    _show_window_without_activation,
     _window_process_id,
 )
+
+
+def _send_scoped_mouse_wheel(
+    hwnd: int,
+    screen_x: int,
+    screen_y: int,
+    delta: int,
+) -> bool:
+    wheel_wparam = (int(delta) & 0xFFFF) << 16
+    return _send_mouse_message(
+        hwnd,
+        _WM_MOUSEWHEEL,
+        screen_x,
+        screen_y,
+        wparam=wheel_wparam,
+    )
 
 
 def _renderer_after_metrics(
@@ -137,7 +154,7 @@ def _camera_preserves_native_zoom_anchor(
     )
 
 
-def _foreground_root_hwnd(state: SimpleNamespace) -> int:
+def _harness_root_hwnd(state: SimpleNamespace) -> int:
     win_id = getattr(getattr(state, "tab", None), "winId", None)
     if callable(win_id):
         try:
@@ -303,7 +320,7 @@ def _activate_side_by_side_divider(
     state: SimpleNamespace,
     viewport_rect,
     rectangles: Mapping[str, object],
-    foreground_root_hwnd: int,
+    harness_root_hwnd: int,
     pump_for,
 ) -> tuple[dict[str, object], bool]:
     """Click the pane divider so both panes own input, reporting whether it took."""
@@ -316,35 +333,61 @@ def _activate_side_by_side_divider(
         reference_rectangle.get("width", 0) or 0
     )
     editable_left = int(editable_rectangle.get("x", 0) or 0)
-    divider_x = int(viewport_rect[0]) + (reference_right + editable_left) // 2
-    divider_y = int(viewport_rect[1]) + min(
+    divider_client_x = (reference_right + editable_left) // 2
+    divider_client_y = min(
         24, max(1, int(reference_rectangle.get("height", 0) or 0) // 2)
     )
-    moved_to_divider = _set_screen_cursor_position(divider_x, divider_y)
+    divider_x = int(viewport_rect[0]) + divider_client_x
+    divider_y = int(viewport_rect[1]) + divider_client_y
+    target_visible = _show_window_without_activation(state.viewport_hwnd)
     pump_for(state, 0.04)
-    divider_hwnd = _window_at_screen_point(divider_x, divider_y)
+    divider_hwnd = int(state.viewport_hwnd)
     divider_pid = _window_process_id(divider_hwnd)
     divider_owned = bool(
-        moved_to_divider
-        and divider_pid == state.production_process_pid
-        and _window_is_same_or_child(state.viewport_hwnd, divider_hwnd)
+        target_visible
+        and _scoped_input_target_matches(
+            state.viewport_hwnd, state.production_process_pid
+        )
+        and divider_hwnd == int(state.viewport_hwnd)
     )
-    divider_down = bool(divider_owned and _send_left_button_input(down=True))
-    divider_up = bool(divider_down and _send_left_button_input(down=False))
+    divider_down = bool(
+        divider_owned
+        and _send_mouse_message(
+            state.viewport_hwnd,
+            _WM_LBUTTONDOWN,
+            divider_client_x,
+            divider_client_y,
+            wparam=_MK_LBUTTON,
+        )
+    )
+    divider_up = bool(
+        divider_down
+        and _send_mouse_message(
+            state.viewport_hwnd,
+            _WM_LBUTTONUP,
+            divider_client_x,
+            divider_client_y,
+        )
+    )
     pump_for(state, 0.1)
     activation = {
         "screen_position": [divider_x, divider_y],
+        "client_position": [divider_client_x, divider_client_y],
         "target_hwnd": divider_hwnd,
         "target_pid": divider_pid,
         "viewport_owned_before_click": divider_owned,
         "button_down_sent": divider_down,
         "button_up_sent": divider_up,
-        "foreground_after_click": _foreground_window_matches(foreground_root_hwnd),
+        "scoped_target_after_click": _scoped_input_target_matches(
+            state.viewport_hwnd, state.production_process_pid
+        ),
         "ok": bool(
             divider_owned
             and divider_down
             and divider_up
-            and _foreground_window_matches(foreground_root_hwnd)
+            and _scoped_input_target_matches(
+                state.viewport_hwnd, state.production_process_pid
+            )
         ),
     }
     return activation, bool(divider_down and not divider_up)
@@ -352,30 +395,30 @@ def _activate_side_by_side_divider(
 
 def _point_at_pane(
     state: SimpleNamespace,
-    screen_x: int,
-    screen_y: int,
-    foreground_root_hwnd: int,
+    client_x: int,
+    client_y: int,
+    harness_root_hwnd: int,
     pump_for,
 ) -> tuple[bool, int, int]:
-    """Focus the viewport and park the cursor on a pane, reporting input ownership.
+    """Reveal the viewport without activation and prove its scoped input target.
 
     The wheel-out and wheel-back halves of a zoom cycle need the identical
     sequence, and a wheel delivered without ownership silently does nothing --
     so both halves must prove it the same way rather than approximately.
     """
 
-    activated = _activate_window_for_input(state.viewport_hwnd, root_hwnd=foreground_root_hwnd)
+    target_visible = _show_window_without_activation(state.viewport_hwnd)
     pump_for(state, 0.04)
-    moved = _set_screen_cursor_position(screen_x, screen_y)
-    pump_for(state, 0.04)
-    target_hwnd = _window_at_screen_point(screen_x, screen_y)
+    target_hwnd = int(state.viewport_hwnd)
     target_pid = _window_process_id(target_hwnd)
     ownership_ok = bool(
-        activated
-        and moved
-        and _foreground_window_matches(foreground_root_hwnd)
-        and target_pid == state.production_process_pid
-        and _window_is_same_or_child(state.viewport_hwnd, target_hwnd)
+        target_visible
+        and _scoped_input_target_matches(
+            state.viewport_hwnd, state.production_process_pid
+        )
+        and target_hwnd == int(state.viewport_hwnd)
+        and client_x >= 0
+        and client_y >= 0
     )
     return ownership_ok, target_hwnd, target_pid
 
@@ -456,8 +499,7 @@ def _run_wheel_zoom_for_role(
     initial_cameras: Mapping[str, dict[str, object]],
     fitted_panes: Mapping[str, object],
     viewport_rect,
-    foreground_root_hwnd: int,
-    away_point,
+    harness_root_hwnd: int,
     capture_settled,
     captures: dict[str, dict[str, object]],
     pump_for,
@@ -465,38 +507,54 @@ def _run_wheel_zoom_for_role(
 ) -> dict[str, object]:
     """Wheel one role pane out and back, returning that role's evidence row."""
 
-    screen_x = int(viewport_rect[0]) + int(rectangle.get("x", 0) or 0) + max(
+    client_x = int(rectangle.get("x", 0) or 0) + max(
         1, int(rectangle.get("width", 0) or 0) // 2
     )
-    screen_y = int(viewport_rect[1]) + int(rectangle.get("y", 0) or 0) + max(
+    client_y = int(rectangle.get("y", 0) or 0) + max(
         1, int(rectangle.get("height", 0) or 0) // 2
     )
+    screen_x = int(viewport_rect[0]) + client_x
+    screen_y = int(viewport_rect[1]) + client_y
     ownership_ok, target_hwnd, target_pid = _point_at_pane(
-        state, screen_x, screen_y, foreground_root_hwnd, pump_for
+        state, client_x, client_y, harness_root_hwnd, pump_for
     )
     metrics_cursor = len(state.tab.standalone_dotnet_protocol_events)
-    wheel_out_sent = bool(ownership_ok and _send_mouse_wheel_input(-1))
+    wheel_out_sent = bool(
+        ownership_ok
+        and _send_scoped_mouse_wheel(
+            state.viewport_hwnd,
+            screen_x,
+            screen_y,
+            -120,
+        )
+    )
     zoomed_presentation, zoomed_cameras = (
         _latest_view_state_presentation(state, metrics_cursor, pump_until)
         if wheel_out_sent
         else ({}, {})
     )
-    _set_screen_cursor_position(*away_point)
     zoomed_path = state.output_dir / f"real_archive_dotnet_{role}_zoomed_out.png"
     zoomed_capture = capture_settled(zoomed_path)
     captures[f"{role}_zoomed_out"] = zoomed_capture
 
     restore_ownership_ok, _restore_target_hwnd, _restore_target_pid = _point_at_pane(
-        state, screen_x, screen_y, foreground_root_hwnd, pump_for
+        state, client_x, client_y, harness_root_hwnd, pump_for
     )
     restore_cursor = len(state.tab.standalone_dotnet_protocol_events)
-    wheel_restore_sent = bool(restore_ownership_ok and _send_mouse_wheel_input(1))
+    wheel_restore_sent = bool(
+        restore_ownership_ok
+        and _send_scoped_mouse_wheel(
+            state.viewport_hwnd,
+            screen_x,
+            screen_y,
+            120,
+        )
+    )
     restored_presentation, restored_cameras = (
         _latest_view_state_presentation(state, restore_cursor, pump_until)
         if wheel_restore_sent
         else ({}, {})
     )
-    _set_screen_cursor_position(*away_point)
     restored_path = state.output_dir / f"real_archive_dotnet_{role}_zoom_restored.png"
     restored_capture = capture_settled(restored_path)
     captures[f"{role}_restored"] = restored_capture
@@ -552,6 +610,7 @@ def _run_wheel_zoom_for_role(
     )
     return {
         "role": role,
+        "pointer_client_position": [client_x, client_y],
         "pointer_screen_position": [screen_x, screen_y],
         "target_hwnd": target_hwnd,
         "target_pid": target_pid,
@@ -585,7 +644,7 @@ def exercise_side_by_side_wheel_zoom(
     pump_until,
     capture_viewport,
 ) -> dict[str, object]:
-    """Physically wheel each resident role pane and prove exact inverse restoration."""
+    """Wheel each resident role pane through scoped input and prove exact inverse restoration."""
 
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     initial_presentation, initial_cameras, rectangles = _resolve_side_by_side_presentation(
@@ -604,12 +663,10 @@ def exercise_side_by_side_wheel_zoom(
         )
 
     fitted_path = state.output_dir / "real_archive_dotnet_zoom_fitted.png"
-    original_cursor = _screen_cursor_position()
     viewport_rect = _host_window_rect(state.viewport_hwnd)
     if viewport_rect is None:
         return {"ok": False, "error": "The .NET viewport has no visible wheel-test rectangle."}
-    away_point = (max(0, int(viewport_rect[0]) - 8), max(0, int(viewport_rect[1]) - 8))
-    foreground_root_hwnd = _foreground_root_hwnd(state)
+    harness_root_hwnd = _harness_root_hwnd(state)
     divider_activation: dict[str, object] = {}
     divider_button_down = False
     rows: list[dict[str, object]] = []
@@ -619,10 +676,9 @@ def exercise_side_by_side_wheel_zoom(
             state,
             viewport_rect,
             rectangles,
-            foreground_root_hwnd,
+            harness_root_hwnd,
             pump_for,
         )
-        _set_screen_cursor_position(*away_point)
         fitted_capture = capture_settled(fitted_path)
         captures["fitted"] = fitted_capture
         if not fitted_capture.get("ok"):
@@ -651,8 +707,7 @@ def exercise_side_by_side_wheel_zoom(
                     initial_cameras=initial_cameras,
                     fitted_panes=fitted_panes,
                     viewport_rect=viewport_rect,
-                    foreground_root_hwnd=foreground_root_hwnd,
-                    away_point=away_point,
+                    harness_root_hwnd=harness_root_hwnd,
                     capture_settled=capture_settled,
                     captures=captures,
                     pump_for=pump_for,
@@ -661,13 +716,17 @@ def exercise_side_by_side_wheel_zoom(
             )
     finally:
         if divider_button_down:
-            _send_left_button_input(down=False)
-        if original_cursor is not None:
-            _set_screen_cursor_position(*original_cursor)
+            client_position = tuple(divider_activation.get("client_position", (1, 1)))
+            _send_mouse_message(
+                state.viewport_hwnd,
+                _WM_LBUTTONUP,
+                int(client_position[0]),
+                int(client_position[1]),
+            )
     gates = {
         "production_d3d11_backend": dict(getattr(state, "renderer", {}) or {}).get("backend") == "d3d11_vortice_shader",
         "simultaneous_role_panes": initial_presentation.get("simultaneous_role_panes") is True,
-        "physical_divider_activation_owned": divider_activation.get("ok") is True,
+        "scoped_divider_activation_owned": divider_activation.get("ok") is True,
         "correct_viewport_ownership": bool(rows and all(row["gates"]["viewport_input_owned"] for row in rows)),
         "each_pane_zoomed_independently": bool(rows and all(row["ok"] for row in rows)),
         "models_remained_visible_and_panned_anchor_locked": bool(
@@ -689,6 +748,7 @@ def exercise_side_by_side_wheel_zoom(
     }
     return {
         "schema": "cdmw_real_pac_side_by_side_wheel_zoom_v1",
+        "input_backend": "scoped_hwnd_messages_normalized_input",
         "renderer_backend": str(dict(getattr(state, "renderer", {}) or {}).get("backend", "") or ""),
         "process_pid": int(state.production_process_pid),
         "window_identity": {

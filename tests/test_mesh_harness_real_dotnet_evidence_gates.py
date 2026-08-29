@@ -39,13 +39,13 @@ def test_dotnet_real_game_resident_material_gates_require_reuse_and_one_process(
     }
     after_counts = dict(
         before_counts,
-        material_state_update_count=2,
-        material_state_applied_count=2,
+        material_state_update_count=3,
+        material_state_applied_count=3,
     )
     resources = {"texture_srv_creates": 3, "texture_srv_disposals": 0, "texture_srv_reuses": 0, "live_texture_srvs": 3}
     payloads = (
         {"generation": 1, "edit_revision": 7, "material_signature": "sig", "resources": [{"resource_id": "r"}]},
-        {"generation": 2, "edit_revision": 7, "material_signature": "sig", "resources": [{"resource_id": "r"}]},
+        {"generation": 3, "edit_revision": 7, "material_signature": "sig", "resources": [{"resource_id": "r"}]},
     )
     applied_events = (
         {
@@ -56,15 +56,15 @@ def test_dotnet_real_game_resident_material_gates_require_reuse_and_one_process(
         },
         {
             "event": "material_state_applied",
-            "generation": 2,
+            "generation": 3,
             "edit_revision": 7,
             "material_signature": "sig",
             "decoded_resources": 0,
             "reused_resources": 1,
             "renderer": {
-                "material_generation": 2,
-                "last_requested_material_generation": 2,
-                "last_applied_material_generation": 2,
+                "material_generation": 3,
+                "last_requested_material_generation": 3,
+                "last_applied_material_generation": 3,
             },
         },
     )
@@ -314,6 +314,7 @@ def test_production_flow_is_ordered_and_gated_by_real_lifecycle_evidence() -> No
             "output_reparse_status": "passed",
             "artifact_hashes_present": True,
             "source_textures_exported": True,
+            "texture_export_contract_complete": True,
         },
         edit_flow_evidence={"affected_only_updates": True},
         edit_flow_ok=True,
@@ -324,8 +325,8 @@ def test_production_flow_is_ordered_and_gated_by_real_lifecycle_evidence() -> No
         record_flow_step(state, step)
 
     assert all(production_flow_gates(state).values())
-    state.export_flow_evidence["source_textures_exported"] = False
-    assert production_flow_gates(state)["source_texture_exported"] is False
+    state.export_flow_evidence["texture_export_contract_complete"] = False
+    assert production_flow_gates(state)["texture_export_contract_complete"] is False
 
 
 def test_production_flow_rejects_skips_and_evidence_preserves_new_sections() -> None:

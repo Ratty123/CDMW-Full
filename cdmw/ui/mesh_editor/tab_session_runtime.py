@@ -80,6 +80,7 @@ class MeshEditorSessionMixin:
         self.archive_material_context_package_path = str(material_package_path or "").strip()
         self._replace_archive_material_context_package_lease(material_package_lease)
         self.current_archive_selection = entry
+        self._set_mesh_editor_character_context_source(entry)
         self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
         self.standalone_mesh_label = str(entry.path)
         self.workspace_stack.setCurrentWidget(self.standalone_workspace)
@@ -109,6 +110,7 @@ class MeshEditorSessionMixin:
         self.standalone_archive_material_preview_model = self.archive_session_load_material_model
         view = self.standalone_controller.attach_session(result.view.session_id)
         self._show_standalone_session(view, mesh=result.mesh, target_entry=entry)
+        self._restore_cached_mesh_character_context(entry)
         if not self._archive_material_preview_model_ready(
             self.standalone_archive_material_preview_model
         ):
@@ -405,6 +407,7 @@ class MeshEditorSessionMixin:
         self.standalone_archive_material_preview_model = None
         self.archive_material_context_companion_entry = None
         self.archive_material_context_package_path = ""
+        self._reset_mesh_character_context_session()
         self.standalone_animation_timer.stop()
         self.standalone_animation_last_tick = 0.0
         # The next mesh opens its own Edit Mesh session. Carrying this one's

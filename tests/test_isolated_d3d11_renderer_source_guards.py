@@ -41,7 +41,7 @@ class RetiredNativeRendererSourceGuardTests(unittest.TestCase):
     def test_only_shared_dotnet_host_owns_visible_preview_processes(self) -> None:
         shared = _read("cdmw/ui/preview/dotnet_session.py")
         archive = _read("cdmw/ui/archive_browser/preview_layout.py")
-        model_library = _read("cdmw/ui/model_library/panels.py")
+        model_library = _read("cdmw/ui/model_library/preview.py")
         mesh_workspace = _read("cdmw/ui/mesh_editor/workspace_shell_builder.py")
 
         self.assertIn("class DotNetPreviewSessionController(", shared)
