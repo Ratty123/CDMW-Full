@@ -19,7 +19,7 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Exact/relative/unambiguous asset relation resolver.
 - Immutable decoded source document and separate editable working document.
 - Generational vertex/edge/face handles and topology generation.
-- Interactive Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch plus face Delete, Subdivide, Duplicate, Undo, and Redo.
+- Interactive Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch plus atomic face Delete, Subdivide, Duplicate, Undo, and Redo; topology failures leave the complete working state unchanged and generated subdivision/duplicate faces become the deterministic selection.
 - One modal gesture owner and one committed history entry per confirmed gesture.
 - Deterministic click/brush/rectangle/lasso query predicates, stale-snapshot rejection, and a persistent 32-pixel screen grid that bounds local candidate inspection in the interaction crate.
 - Viewport-aligned Vertex/Edge/Face Click, Brush, Rectangle, and Lasso selection with visible X-Ray overlays and Replace/Add/Subtract/Toggle operations.

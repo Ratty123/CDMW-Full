@@ -47,7 +47,7 @@ The current editable model is an explicit triangular face/edge graph. Every oper
 
 ## Modal transactions and history
 
-One `OperatorController` owns one gesture. Begin snapshots the working mesh. Provisional calls use the same transform/sculpt algorithms committed by Confirm. Cancel restores the exact snapshot and creates no history. Confirm validates invariants and contributes one history entry. Topology commands similarly stage a pre-operation clone, validate, and commit once.
+One `OperatorController` owns one gesture. Begin snapshots the working mesh. Provisional calls use the same transform/sculpt algorithms committed by Confirm. Cancel restores the exact snapshot and creates no history. Confirm validates invariants and contributes one history entry. Topology commands mutate a private pre-operation clone, swap it into the live session only after invariant validation, and commit once; failure leaves geometry, topology, selection, revisions, and operation sequence unchanged. Subdivision and duplication select their generated faces deterministically.
 
 ## Renderer ownership
 

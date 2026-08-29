@@ -371,15 +371,21 @@ impl WorkingMesh {
         if handles.is_empty() {
             return Err(MeshError::EmptyOperation);
         }
-        for handle in handles {
-            if self.faces.remove(*handle).is_none() {
+        let mut draft = self.clone();
+        let mut ordered_handles = handles.iter().copied().collect::<Vec<_>>();
+        ordered_handles.sort_by_key(|handle| handle.data().as_ffi());
+        for handle in ordered_handles {
+            if draft.faces.remove(handle).is_none() {
                 return Err(MeshError::StaleHandle);
             }
         }
-        self.selection
+        draft
+            .selection
             .faces
-            .retain(|handle| self.faces.contains_key(*handle));
-        self.finish_topology_operation()
+            .retain(|handle| draft.faces.contains_key(*handle));
+        draft.finish_topology_operation()?;
+        *self = draft;
+        Ok(())
     }
 
     pub fn duplicate_faces(
@@ -389,12 +395,16 @@ impl WorkingMesh {
         if handles.is_empty() {
             return Err(MeshError::EmptyOperation);
         }
-        let operation = self.next_operation();
-        let originals = handles
-            .iter()
+        let mut draft = self.clone();
+        let operation = draft.next_operation();
+        let mut ordered_handles = handles.iter().copied().collect::<Vec<_>>();
+        ordered_handles.sort_by_key(|handle| handle.data().as_ffi());
+        let originals = ordered_handles
+            .into_iter()
             .map(|handle| {
-                self.faces
-                    .get(*handle)
+                draft
+                    .faces
+                    .get(handle)
                     .cloned()
                     .ok_or(MeshError::StaleHandle)
             })
@@ -403,27 +413,32 @@ impl WorkingMesh {
         for face in originals {
             let mut vertices = Vec::with_capacity(3);
             for source_handle in face.vertices {
-                let mut vertex = self
+                let mut vertex = draft
                     .vertices
                     .get(source_handle)
                     .cloned()
                     .ok_or(MeshError::StaleHandle)?;
                 vertex.provenance = Provenance::Generated { operation };
-                vertices.push(self.vertices.insert(vertex));
+                vertices.push(draft.vertices.insert(vertex));
             }
             let triangle = [
                 *vertices.first().ok_or(MeshError::InvalidSource)?,
                 *vertices.get(1).ok_or(MeshError::InvalidSource)?,
                 *vertices.get(2).ok_or(MeshError::InvalidSource)?,
             ];
-            duplicated.insert(self.faces.insert(Face {
+            duplicated.insert(draft.faces.insert(Face {
                 vertices: triangle,
                 submesh: face.submesh,
                 material: face.material,
                 provenance: Provenance::Generated { operation },
             }));
         }
-        self.finish_topology_operation()?;
+        draft.selection = Selection {
+            faces: duplicated.clone(),
+            ..Selection::default()
+        };
+        draft.finish_topology_operation()?;
+        *self = draft;
         Ok(duplicated)
     }
 
@@ -434,14 +449,18 @@ impl WorkingMesh {
         if handles.is_empty() {
             return Err(MeshError::EmptyOperation);
         }
-        let operation = self.next_operation();
-        let originals = handles
-            .iter()
+        let mut draft = self.clone();
+        let operation = draft.next_operation();
+        let mut ordered_handles = handles.iter().copied().collect::<Vec<_>>();
+        ordered_handles.sort_by_key(|handle| handle.data().as_ffi());
+        let originals = ordered_handles
+            .into_iter()
             .map(|handle| {
-                self.faces
-                    .get(*handle)
+                draft
+                    .faces
+                    .get(handle)
                     .cloned()
-                    .map(|face| (*handle, face))
+                    .map(|face| (handle, face))
                     .ok_or(MeshError::StaleHandle)
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -451,12 +470,12 @@ impl WorkingMesh {
             let a = face.vertices[0];
             let b = face.vertices[1];
             let c = face.vertices[2];
-            let ab = self.midpoint(a, b, operation, &mut midpoint_by_edge)?;
-            let bc = self.midpoint(b, c, operation, &mut midpoint_by_edge)?;
-            let ca = self.midpoint(c, a, operation, &mut midpoint_by_edge)?;
-            let _ = self.faces.remove(handle).ok_or(MeshError::StaleHandle)?;
+            let ab = draft.midpoint(a, b, operation, &mut midpoint_by_edge)?;
+            let bc = draft.midpoint(b, c, operation, &mut midpoint_by_edge)?;
+            let ca = draft.midpoint(c, a, operation, &mut midpoint_by_edge)?;
+            let _ = draft.faces.remove(handle).ok_or(MeshError::StaleHandle)?;
             for vertices in [[a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]] {
-                created.insert(self.faces.insert(Face {
+                created.insert(draft.faces.insert(Face {
                     vertices,
                     submesh: face.submesh,
                     material: face.material,
@@ -464,8 +483,12 @@ impl WorkingMesh {
                 }));
             }
         }
-        self.selection.faces = created.clone();
-        self.finish_topology_operation()?;
+        draft.selection = Selection {
+            faces: created.clone(),
+            ..Selection::default()
+        };
+        draft.finish_topology_operation()?;
+        *self = draft;
         Ok(created)
     }
 
@@ -847,6 +870,27 @@ mod tests {
         mesh
     }
 
+    fn assert_exact_working_state(actual: &WorkingMesh, expected: &WorkingMesh) {
+        assert_eq!(actual.vertices.len(), expected.vertices.len());
+        assert_eq!(actual.faces.len(), expected.faces.len());
+        assert_eq!(actual.edges.len(), expected.edges.len());
+        for (handle, vertex) in &expected.vertices {
+            assert_eq!(actual.vertices.get(handle), Some(vertex));
+        }
+        for (handle, face) in &expected.faces {
+            assert_eq!(actual.faces.get(handle), Some(face));
+        }
+        for (handle, edge) in &expected.edges {
+            assert_eq!(actual.edges.get(handle), Some(edge));
+        }
+        assert_eq!(actual.edge_by_pair, expected.edge_by_pair);
+        assert_eq!(actual.selection, expected.selection);
+        assert_eq!(actual.topology_generation, expected.topology_generation);
+        assert_eq!(actual.geometry_revision, expected.geometry_revision);
+        assert_eq!(actual.selection_revision, expected.selection_revision);
+        assert_eq!(actual.operation_sequence, expected.operation_sequence);
+    }
+
     #[test]
     fn subdivide_is_atomic_and_produces_four_faces() -> Result<(), MeshError> {
         let mut mesh = triangle();
@@ -855,7 +899,83 @@ mod tests {
         assert_eq!(created.len(), 4);
         assert_eq!(mesh.faces.len(), 4);
         assert_eq!(mesh.vertices.len(), 6);
+        assert_eq!(mesh.selection.faces, created);
         mesh.validate()
+    }
+
+    #[test]
+    fn duplicate_selects_new_faces_and_preserves_source_assignments() -> Result<(), MeshError> {
+        let mut mesh = triangle();
+        let original = mesh.faces.keys().next().ok_or(MeshError::InvalidSource)?;
+        let original_face = mesh
+            .face(original)
+            .cloned()
+            .ok_or(MeshError::InvalidSource)?;
+        let duplicated = mesh.duplicate_faces(&HashSet::from([original]))?;
+        assert_eq!(duplicated.len(), 1);
+        assert_eq!(mesh.selection.faces, duplicated);
+        let duplicate = duplicated
+            .iter()
+            .next()
+            .copied()
+            .ok_or(MeshError::InvalidSource)?;
+        let duplicate_face = mesh.face(duplicate).ok_or(MeshError::InvalidSource)?;
+        assert_eq!(duplicate_face.submesh, original_face.submesh);
+        assert_eq!(duplicate_face.material, original_face.material);
+        mesh.validate()
+    }
+
+    #[test]
+    fn failed_topology_operations_leave_the_exact_working_state() -> Result<(), MeshError> {
+        let mut duplicate_mesh = triangle();
+        let duplicate_face = duplicate_mesh
+            .faces
+            .keys()
+            .next()
+            .ok_or(MeshError::InvalidSource)?;
+        let repeated_vertex = duplicate_mesh
+            .face(duplicate_face)
+            .ok_or(MeshError::InvalidSource)?
+            .vertices[0];
+        duplicate_mesh
+            .faces
+            .get_mut(duplicate_face)
+            .ok_or(MeshError::InvalidSource)?
+            .vertices[1] = repeated_vertex;
+        let duplicate_before = duplicate_mesh.clone();
+        assert!(matches!(
+            duplicate_mesh.duplicate_faces(&HashSet::from([duplicate_face])),
+            Err(MeshError::Invariant(_))
+        ));
+        assert_exact_working_state(&duplicate_mesh, &duplicate_before);
+
+        let mut subdivide_mesh = duplicate_before.clone();
+        let subdivide_before = subdivide_mesh.clone();
+        assert!(matches!(
+            subdivide_mesh.subdivide_faces(&HashSet::from([duplicate_face])),
+            Err(MeshError::Invariant(_))
+        ));
+        assert_exact_working_state(&subdivide_mesh, &subdivide_before);
+
+        let mut delete_mesh = triangle();
+        let valid_face = delete_mesh
+            .faces
+            .keys()
+            .next()
+            .ok_or(MeshError::InvalidSource)?;
+        let mut invalid_face = delete_mesh
+            .face(valid_face)
+            .cloned()
+            .ok_or(MeshError::InvalidSource)?;
+        invalid_face.vertices[1] = invalid_face.vertices[0];
+        delete_mesh.faces.insert(invalid_face);
+        let delete_before = delete_mesh.clone();
+        assert!(matches!(
+            delete_mesh.delete_faces(&HashSet::from([valid_face])),
+            Err(MeshError::Invariant(_))
+        ));
+        assert_exact_working_state(&delete_mesh, &delete_before);
+        Ok(())
     }
 
     #[test]
