@@ -46,7 +46,16 @@ def test_overlay_appearance_controls_persist_colors_and_bounded_sizes() -> None:
     assert proof["save_load"] is True
     assert proof["v1_migration"] is True
     assert proof["v2_migration"] is True
-    assert proof["controls"] == {
+    controls = proof["controls"]
+    assert controls["colors_single_line"] is True
+    assert controls["maximum_color_button_height"] < 40
+    assert {key: controls[key] for key in (
+        "control_count",
+        "wire_width",
+        "vertex_size",
+        "selection_color",
+        "live_selection_color",
+    )} == {
         "control_count": 7,
         "wire_width": 2.25,
         "vertex_size": 11.5,

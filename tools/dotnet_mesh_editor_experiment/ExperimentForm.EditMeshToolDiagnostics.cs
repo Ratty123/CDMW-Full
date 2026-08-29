@@ -102,7 +102,7 @@ internal sealed partial class ExperimentForm
         };
         var requiredDynamicButtonPrefixes = new[]
         {
-            "Background\n", "Grid\n", "Wire\n", "Vertices\n", "Selected\n", "Live\n",
+            "Background", "Grid", "Wire", "Vertices", "Selected", "Live",
         };
         var knownPlacementButtons = new[]
         {

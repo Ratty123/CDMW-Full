@@ -91,8 +91,6 @@ internal sealed partial class ExperimentForm
     {
         var button = StyledButton(label);
         button.AutoSize = false;
-        button.Height = 40;
-        button.MinimumSize = new Size(0, 40);
         button.Padding = new Padding(2, 0, 2, 0);
         button.Font = new Font(button.Font.FontFamily, 8f);
         button.Name = role switch
@@ -167,6 +165,10 @@ internal sealed partial class ExperimentForm
         return new Dictionary<string, object?>
         {
             ["control_count"] = requiredNames.Length,
+            ["colors_single_line"] = new[] { wire, vertex, selection, liveSelection }
+                .All(button => !button.Text.Contains('\n')),
+            ["maximum_color_button_height"] = new[] { wire, vertex, selection, liveSelection }
+                .Max(button => button.Height),
             ["wire_width"] = (float)wireWidth.Value,
             ["vertex_size"] = (float)vertexSize.Value,
             ["selection_color"] = MeshOverlayColors.Hex(selection.BackColor),
@@ -204,8 +206,6 @@ internal sealed partial class ExperimentForm
     {
         var button = StyledButton(label);
         button.AutoSize = false;
-        button.Height = 40;
-        button.MinimumSize = new Size(0, 40);
         button.Padding = new Padding(2, 0, 2, 0);
         button.Font = new Font(button.Font.FontFamily, 8f);
         button.Name = background ? "ViewportBackgroundColorButton" : "ViewportGridColorButton";
@@ -361,13 +361,14 @@ internal sealed partial class ExperimentForm
     {
         var normalized = Color.FromArgb(color.R, color.G, color.B);
         var lightText = RelativeLuminance(normalized) < 0.44;
-        button.Text = $"{label}\n{MeshOverlayColors.Hex(normalized)}";
+        button.Text = label;
         button.BackColor = normalized;
         button.ForeColor = lightText ? Color.White : Color.Black;
         button.FlatAppearance.MouseOverBackColor = BlendColor(normalized, Color.White, 0.16f);
         button.FlatAppearance.MouseDownBackColor = BlendColor(normalized, Color.Black, 0.16f);
-        button.Height = 42;
-        button.MinimumSize = new Size(0, 42);
+        var compactHeight = SingleLineControlHeight(button, 26);
+        button.Height = compactHeight;
+        button.MinimumSize = new Size(0, compactHeight);
         button.Invalidate();
     }
 

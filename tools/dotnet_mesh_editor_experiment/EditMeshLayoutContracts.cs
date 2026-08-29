@@ -137,12 +137,15 @@ internal static class EditMeshLayoutContracts
             return;
         }
 
-        var panelTwoMinimum = Math.Min(
-            Math.Max(0, requestedPanelTwoMinimum),
-            available);
         var panelOneMinimum = Math.Min(
             Math.Max(0, requestedPanelOneMinimum),
-            available - panelTwoMinimum);
+            available);
+        // Panel one owns the live viewport in the production three-pane layout.
+        // At a very narrow host, keep that working surface usable before giving
+        // the inspector its full preferred minimum.
+        var panelTwoMinimum = Math.Min(
+            Math.Max(0, requestedPanelTwoMinimum),
+            available - panelOneMinimum);
         split.SplitterDistance = Math.Clamp(
             available - Math.Max(0, panelTwoSize),
             panelOneMinimum,

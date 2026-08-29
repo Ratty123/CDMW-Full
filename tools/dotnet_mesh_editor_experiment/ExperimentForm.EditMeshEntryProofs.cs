@@ -311,12 +311,19 @@ internal sealed partial class ExperimentForm
 
         var afterEntry = SceneInspectorSectionBounds();
         var columnWidthOnEntry = _sceneInspectorColumn?.ClientSize.Width ?? 0;
-        var viewportOnLeft = _leftToolSplit?.Panel1Collapsed is true
+        var inspector = _sceneInspectorColumn?.Parent?.Parent;
+        var threePaneOrder = _leftToolSplit is { } leftSplit
+            && !leftSplit.Panel1Collapsed
             && _rightToolSplit is { } rightSplit
             && !rightSplit.Panel2Collapsed
-            && rightSplit.Panel1.Left < rightSplit.Panel2.Left
-            && _rightEditControlsSplit is { } controlsSplit
-            && OwnVisibleState(controlsSplit);
+            && _toolDock is { } toolDock
+            && OwnVisibleState(toolDock)
+            && inspector is not null
+            && OwnVisibleState(inspector)
+            && ReferenceEquals(toolDock.Parent, _leftToolModeHost)
+            && ReferenceEquals(rightSplit.Parent, leftSplit.Panel2)
+            && ReferenceEquals(inspector.Parent, _rightToolModeHost)
+            && ReferenceEquals(_presentationViewportRegion?.Parent, _viewportWorkspaceSplit?.Panel1);
         var overflowingOnEntry = SceneInspectorSections()
             .Where(section => section.Right > columnWidthOnEntry)
             .Select(section => section.Name)
@@ -335,6 +342,10 @@ internal sealed partial class ExperimentForm
             && afterEntry.Keys.All(name =>
                 afterResize.TryGetValue(name, out var resized)
                 && string.Equals(afterEntry[name], resized, StringComparison.Ordinal));
+        var compactViewportWidths = CompactViewportWidthsByPage();
+        var minimumViewportWidth = ScaleToolPanelWidth(MinimumViewportWidth);
+        var viewportVisibleForAllPages = compactViewportWidths.Count == Enum.GetValues<ToolRailPage>().Length
+            && compactViewportWidths.Values.All(width => width >= minimumViewportWidth);
         return new Dictionary<string, object?>
         {
             // Entering must already be what a resize would produce, and the
@@ -345,15 +356,59 @@ internal sealed partial class ExperimentForm
                 && overflowingOnEntry.Length == 0
                 && afterEntry.Count > 0
                 && columnWidthOnEntry > 0
-                && viewportOnLeft,
+                && threePaneOrder
+                && viewportVisibleForAllPages,
             ["settled_on_entry"] = settled,
-            ["viewport_on_left"] = viewportOnLeft,
+            ["three_pane_order"] = threePaneOrder,
+            ["viewport_visible_for_all_pages"] = viewportVisibleForAllPages,
+            ["minimum_viewport_width"] = minimumViewportWidth,
+            ["compact_viewport_widths_by_page"] = compactViewportWidths,
             ["column_width"] = columnWidthOnEntry,
             ["diagnostic"] = SceneInspectorDiagnostic(),
             ["sections_overflowing_column"] = overflowingOnEntry,
             ["bounds_after_entry"] = afterEntry,
             ["bounds_after_resize"] = afterResize,
         };
+    }
+
+    /// <summary>
+    /// At the compact width represented by the reported embedded failure, every
+    /// tool page must leave the resident viewport present and usable between the
+    /// two side columns. A zero records a hidden or re-parented viewport.
+    /// </summary>
+    private Dictionary<string, int> CompactViewportWidthsByPage()
+    {
+        var widths = new Dictionary<string, int>(StringComparer.Ordinal);
+        if (_rightToolSplit is null
+            || _viewportWorkspaceSplit is null
+            || _presentationViewportRegion is null)
+        {
+            return widths;
+        }
+
+        var originalSize = Size;
+        var originalPage = _selectedToolRailPage;
+        try
+        {
+            Size = new Size(900, 900);
+            PerformLayout();
+            foreach (var page in Enum.GetValues<ToolRailPage>())
+            {
+                ShowToolRailPage(page);
+                PerformLayout();
+                widths[page.ToString()] = OwnVisibleState(_presentationViewportRegion)
+                    && ReferenceEquals(_presentationViewportRegion.Parent, _viewportWorkspaceSplit.Panel1)
+                    ? _rightToolSplit.Panel1.ClientSize.Width
+                    : 0;
+            }
+        }
+        finally
+        {
+            ShowToolRailPage(originalPage);
+            Size = originalSize;
+            PerformLayout();
+        }
+        return widths;
     }
 
     /// <summary>
@@ -381,7 +436,7 @@ internal sealed partial class ExperimentForm
             ["column_row_count"] = column?.RowCount,
             ["inspector_panel_bounds"] = _rightToolSplit?.Panel2.Bounds.ToString(),
             ["viewport_panel_bounds"] = _rightToolSplit?.Panel1.Bounds.ToString(),
-            ["placement_left_flank_collapsed"] = _leftToolSplit?.Panel1Collapsed,
+            ["tool_flank_collapsed"] = _leftToolSplit?.Panel1Collapsed,
             ["sections"] = SceneInspectorSections().Select(section => new Dictionary<string, object?>
             {
                 ["name"] = section.Name,

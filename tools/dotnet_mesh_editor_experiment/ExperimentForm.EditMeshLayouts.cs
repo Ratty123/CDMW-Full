@@ -32,7 +32,6 @@ internal sealed partial class ExperimentForm
     private Panel? _compactSessionFinishHost;
     private Panel? _leftToolModeHost;
     private Panel? _rightToolModeHost;
-    private SplitContainer? _rightEditControlsSplit;
     private TableLayoutPanel? _toolDock;
     private TableLayoutPanel? _railSelectionStack;
     private TableLayoutPanel? _sceneInspectorColumn;
@@ -184,8 +183,9 @@ internal sealed partial class ExperimentForm
                 "The permanent Edit Mesh tool hosts require the placement tool panels.");
         }
 
-        // Placement keeps its left flank. Edit Mesh collapses that flank so the
-        // resident viewport is the leftmost working surface.
+        // The left flank swaps the placement panel for the Edit Mesh tools.
+        // Keeping tools here leaves the resident viewport between the two
+        // control columns instead of stacking every control on its right.
         _leftToolModeHost = new MeshEditorCompositedPanel
         {
             Name = "DotNetMeshEditorLeftToolModeHost",
@@ -196,10 +196,14 @@ internal sealed partial class ExperimentForm
         };
         _leftToolPanel.Visible = true;
         _leftToolModeHost.Controls.Add(_leftToolPanel);
+        var toolDock = BuildToolDock();
+        toolDock.Visible = false;
+        _leftToolModeHost.Controls.Add(toolDock);
         _leftToolSplit.Panel1.Controls.Add(_leftToolModeHost);
 
-        // All Edit Mesh controls occupy one stable right column. Switching a
-        // tool can reflow this column without moving or resizing the viewport.
+        // The right flank swaps the placement panel for the nonmodal scene
+        // inspector. Parts, Layers and Action History never compete vertically
+        // with the tool that is open on the other side of the viewport.
         _rightToolModeHost = new MeshEditorCompositedPanel
         {
             Name = "DotNetMeshEditorRightToolModeHost",
@@ -210,20 +214,9 @@ internal sealed partial class ExperimentForm
         };
         _rightToolPanel.Visible = true;
         _rightToolModeHost.Controls.Add(_rightToolPanel);
-        _rightEditControlsSplit = CreateCompactSplit(
-            "EditMeshRightControlsSplit",
-            Orientation.Horizontal,
-            FixedPanel.Panel2);
-        _rightEditControlsSplit.Panel1.BackColor = ThemePanelBackground;
-        _rightEditControlsSplit.Panel2.BackColor = ThemePanelBackground;
-        _rightEditControlsSplit.Visible = false;
-        var toolDock = BuildToolDock();
-        toolDock.Visible = true;
-        _rightEditControlsSplit.Panel1.Controls.Add(toolDock);
         var inspector = BuildSceneInspector();
-        inspector.Visible = true;
-        _rightEditControlsSplit.Panel2.Controls.Add(inspector);
-        _rightToolModeHost.Controls.Add(_rightEditControlsSplit);
+        inspector.Visible = false;
+        _rightToolModeHost.Controls.Add(inspector);
         _rightToolSplit.Panel2.Controls.Add(_rightToolModeHost);
     }
 
@@ -512,14 +505,9 @@ internal sealed partial class ExperimentForm
             _rightToolPanel.Visible = false;
             _toolDock.Visible = true;
             _toolDock.BringToFront();
-            if (_rightEditControlsSplit is not null)
-            {
-                _rightEditControlsSplit.Visible = true;
-                _rightEditControlsSplit.BringToFront();
-            }
             _sceneInspectorColumn.Parent!.Parent!.Visible = true;
             _sceneInspectorColumn.Parent!.Parent!.BringToFront();
-            _leftToolSplit.Panel1Collapsed = true;
+            _leftToolSplit.Panel1Collapsed = false;
             _rightToolSplit.Panel2Collapsed = false;
             _viewportWorkspaceSplit.Panel2Collapsed = true;
             _toolRailLayoutActive = true;
@@ -576,10 +564,6 @@ internal sealed partial class ExperimentForm
             if (_toolDock is not null)
             {
                 _toolDock.Visible = false;
-            }
-            if (_rightEditControlsSplit is not null)
-            {
-                _rightEditControlsSplit.Visible = false;
             }
             if (_sceneInspectorColumn?.Parent?.Parent is { } inspector)
             {
@@ -913,12 +897,13 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
-        // One fixed controls width keeps the viewport's left-hand surface and
-        // selection projection stable across every tool/page click.
-        var inspectorWidth = MeasureInspectorWidth();
+        // Both side columns measure once and keep the live viewport between
+        // them. The tool request is capped: an unusually wide page scrolls in
+        // its own left column instead of taking the viewport off screen.
+        var inspectorWidth = ScaleToolPanelWidth(MeasureInspectorWidth());
         var toolDockWidth = ScaleToolPanelWidth(
-            Math.Max(
-                inspectorWidth,
+            Math.Min(
+                EditMeshToolColumnMetrics.ExpandedCeiling,
                 Enum.GetValues<ToolRailPage>()
                     .Select(page => MeasureColumnWidthFor(page))
                     .DefaultIfEmpty(EditMeshToolColumnMetrics.ExpandedFloor)
@@ -946,29 +931,30 @@ internal sealed partial class ExperimentForm
             _leftToolSplit.PerformLayout();
             _rightToolSplit.PerformLayout();
 
-            _leftToolSplit.Panel1Collapsed = true;
+            _leftToolSplit.Panel1Collapsed = false;
+            _rightToolSplit.Panel2Collapsed = false;
+            var splitterWidth = ScaleToolPanelWidth(ToolPanelSplitterWidth);
+            _leftToolSplit.SplitterWidth = splitterWidth;
+            _rightToolSplit.SplitterWidth = splitterWidth;
+            ApplySplitterDistance(
+                _leftToolSplit,
+                toolDockWidth,
+                ScaleToolPanelWidth(EditMeshToolColumnMetrics.ExpandedFloor),
+                ScaleToolPanelWidth(
+                    MinimumViewportWidth + EditMeshToolColumnMetrics.InspectorFloor)
+                    + splitterWidth,
+                prioritizePanelOne: false);
+            _leftToolSplit.PerformLayout();
             EditMeshLayoutContracts.ApplyPanelTwoSize(
                 _rightToolSplit,
-                toolDockWidth,
+                inspectorWidth,
                 ScaleToolPanelWidth(MinimumViewportWidth),
                 ScaleToolPanelWidth(EditMeshToolColumnMetrics.InspectorFloor));
-            if (_rightEditControlsSplit is not null)
-            {
-                var controlsHeight = Math.Max(1, _rightEditControlsSplit.ClientSize.Height);
-                var inspectorHeight = Math.Clamp(
-                    controlsHeight * 2 / 5,
-                    ScaleToolPanelWidth(180),
-                    Math.Max(ScaleToolPanelWidth(180), controlsHeight - ScaleToolPanelWidth(220)));
-                EditMeshLayoutContracts.ApplyPanelTwoSize(
-                    _rightEditControlsSplit,
-                    inspectorHeight,
-                    ScaleToolPanelWidth(220),
-                    ScaleToolPanelWidth(180));
-            }
-            // The collapsed placement flank can retain an old background after
-            // the controls move right; invalidate it without resizing the live
-            // viewport or its swap chain.
+            // Both placement panels can retain their old background after the
+            // mode hosts swap children; repaint the flanks without touching the
+            // resident viewport's parent or native handle.
             _leftToolSplit.Panel1.Invalidate(invalidateChildren: true);
+            _rightToolSplit.Panel2.Invalidate(invalidateChildren: true);
             _appliedToolDockWidth = toolDockWidth;
             _appliedInspectorWidth = inspectorWidth;
             _appliedLayoutDpi = DeviceDpi;

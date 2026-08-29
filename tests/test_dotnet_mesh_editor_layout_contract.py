@@ -42,7 +42,7 @@ def _section_stack(program_source: str, title: str) -> str:
     return match.group(1)
 
 
-def test_edit_mesh_keeps_viewport_left_of_one_stable_controls_column() -> None:
+def test_edit_mesh_keeps_tools_left_viewport_center_and_scene_inspector_right() -> None:
     program = _source("Program.cs")
     controls = _source("ExperimentForm.Controls.cs")
     layout = _source("ExperimentForm.EditMeshLayouts.cs")
@@ -62,10 +62,10 @@ def test_edit_mesh_keeps_viewport_left_of_one_stable_controls_column() -> None:
     assert "BuildPermanentToolModeHosts();" in layout
     assert "_viewportWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);" in layout
     assert "_leftToolModeHost.Controls.Add(_leftToolPanel);" in layout
+    assert "_leftToolModeHost.Controls.Add(toolDock);" in layout
     assert "_rightToolModeHost.Controls.Add(_rightToolPanel);" in layout
-    assert '_rightEditControlsSplit = CreateCompactSplit(' in layout
-    assert '_rightEditControlsSplit.Panel1.Controls.Add(toolDock);' in layout
-    assert '_rightEditControlsSplit.Panel2.Controls.Add(inspector);' in layout
+    assert "_rightToolModeHost.Controls.Add(inspector);" in layout
+    assert "_rightEditControlsSplit" not in layout
     assert layout.count("Controls.Add(_presentationViewportRegion)") == 1
     assert layout.index(
         "_rightToolSplit.Panel1.Controls.Add(_viewportWorkspaceSplit);"
@@ -224,13 +224,20 @@ def test_edit_mesh_side_controls_use_compact_density_values() -> None:
     controls = _source("ExperimentForm.Controls.cs")
     layout = _source("ExperimentForm.EditMeshLayouts.cs")
     tool_list = _source("ExperimentForm.ToolList.cs")
+    diagnostics = _source("ExperimentForm.EditMeshToolDiagnostics.cs")
 
     assert "private static int SingleLineControlHeight(Control control, int minimum = 24)" in controls
     assert 'private static Button StyledButton(string text, int height = 26)' in controls
     assert 'Padding = new Padding(8, 20, 8, 7)' in controls
     assert 'Margin = new Padding(0, 0, 0, 6)' in controls
-    assert controls.count('button.Height = 40;') == 2
+    assert "button.Text = label;" in controls
+    assert "var compactHeight = SingleLineControlHeight(button, 26);" in controls
+    assert "button.Height = compactHeight;" in controls
+    assert "button.Height = 40;" not in controls
+    assert "button.Height = 42;" not in controls
     assert controls.count('button.Font = new Font(button.Font.FontFamily, 8f);') == 2
+    assert '"Background", "Grid", "Wire", "Vertices", "Selected", "Live"' in diagnostics
+    assert '"Background\\n"' not in diagnostics
     assert '_submeshList.Height = 96;' in program
     assert '_actionHistoryList.Height = 96;' in program
     assert 'private const int ToolListRowHeight = 30;' in tool_list
@@ -467,11 +474,11 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
     assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);" in activate
     assert "AddRailSection(_sceneInspectorColumn, _viewportSection" not in activate
 
-    # The placement flank collapses in Edit Mesh. The permanent viewport is
-    # therefore the leftmost surface and every control stays in one right lane.
-    assert "_leftToolSplit.Panel1Collapsed = true;" in activate
+    # Edit Mesh uses three lanes: tools, the permanent viewport, and scene data.
+    assert "_leftToolSplit.Panel1Collapsed = false;" in activate
     assert "_rightToolSplit.Panel2Collapsed = false;" in activate
-    assert "_rightEditControlsSplit.Visible = true;" in activate
+    assert "_toolDock.Visible = true;" in activate
+    assert "_sceneInspectorColumn.Parent!.Parent!.Visible = true;" in activate
     assert "_viewportWorkspaceSplit.Panel2Collapsed = true;" in activate
     assert '_viewport.ActivatePresentationView("editable");' in layout
     assert "_presentationViewSelector.Visible = !compactEditableOnly;" in layout
@@ -764,6 +771,8 @@ def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
     assert "same_viewport_instance" in smoke
     assert "same_viewport_handle" in smoke
     assert "stable_viewport_parent" in smoke
+    assert 'construction["colors_single_line"]' in smoke
+    assert 'construction["maximum_color_button_height"]' in smoke
     assert "MoveControl(viewport," not in smoke
     assert 'MoveControl(viewportSection, pages["Viewport"]' in smoke
     assert "zero_size_splitter_construction" in smoke

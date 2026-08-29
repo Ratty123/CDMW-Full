@@ -915,6 +915,8 @@ internal static partial class EditMeshLayoutSmoke
             var construction = ExperimentForm.OverlayAppearanceConstructionProof();
             Require(
                 Convert.ToInt32(construction["control_count"]) == 7
+                    && Convert.ToBoolean(construction["colors_single_line"])
+                    && Convert.ToInt32(construction["maximum_color_button_height"]) < 40
                     && Math.Abs(Convert.ToSingle(construction["wire_width"]) - 2.25f) < 0.001f
                     && Math.Abs(Convert.ToSingle(construction["vertex_size"]) - 11.5f) < 0.001f
                     && string.Equals(Convert.ToString(construction["selection_color"]), "#708090", StringComparison.Ordinal)
