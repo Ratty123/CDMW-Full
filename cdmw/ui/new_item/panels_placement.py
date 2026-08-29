@@ -102,7 +102,7 @@ class PlacementPanel(QGroupBox):
         self.group_list.setMinimumHeight(96)
         self.group_list.setMaximumHeight(260)
         self._group_list_default_maximum = self.group_list.maximumHeight()
-        self._group_list_compact = None
+        self._group_list_compact, self._group_item_pool = None, []
         self.group_list.itemChanged.connect(self._group_toggled)
         groups_layout.addWidget(self.group_list)
         layout.addWidget(groups)
@@ -281,16 +281,21 @@ class PlacementPanel(QGroupBox):
         self._controller.invalidate_plan()
 
     def _refresh_groups(self, *_args) -> None:
+        groups = self._controller.item_groups(self.group_filter.text())
         chosen = set(self._controller.draft.explicit_item_groups)
         self.group_list.blockSignals(True)
         try:
-            self.group_list.clear()
-            for key, name in self._controller.item_groups(self.group_filter.text()):
-                item = QListWidgetItem(name)
+            while self.group_list.count() > len(groups):
+                self._group_item_pool.append(self.group_list.takeItem(self.group_list.count() - 1))
+            while self.group_list.count() < len(groups):
+                item = self._group_item_pool.pop() if self._group_item_pool else QListWidgetItem()
+                self.group_list.addItem(item)
+            for row, (key, name) in enumerate(groups):
+                item = self.group_list.item(row)
+                item.setText(name)
                 item.setData(Qt.UserRole, key)
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                 item.setCheckState(Qt.Checked if key in chosen else Qt.Unchecked)
-                self.group_list.addItem(item)
         finally:
             self.group_list.blockSignals(False)
 

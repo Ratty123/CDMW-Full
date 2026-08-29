@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import os
 import sys
 import tempfile
@@ -516,6 +517,32 @@ class _TabLifecycleMixin:
         self.assertEqual(taken, [OTHER], "a deliberate click does not wait for the navigation timer")
         self.assertFalse(panel._pick_timer.isActive())
         self.assertIsNone(panel._pending_key)
+        tab.close()
+        tab.deleteLater()
+
+    def test_rapid_template_switches_retain_group_picker_items(self) -> None:
+        """Template churn must not release Qt-owned group-item wrappers."""
+
+        tab = self._tab(window=None)
+        tab.prefill_template(TEMPLATE)
+        group_list = tab.placement_panel.group_list
+        original_items = tuple(group_list.item(row) for row in range(group_list.count()))
+        self.assertTrue(original_items)
+
+        for template_key in (OTHER, TEMPLATE) * 8:
+            tab.controller.set_template(template_key)
+            gc.collect()
+
+        tab.placement_panel.group_filter.setText("__no_group_matches__")
+        self.assertEqual(group_list.count(), 0)
+        gc.collect()
+        tab.placement_panel.group_filter.clear()
+        gc.collect()
+
+        self.assertEqual(group_list.count(), len(original_items))
+        for row, item in enumerate(original_items):
+            self.assertIs(group_list.item(row), item)
+
         tab.close()
         tab.deleteLater()
 
