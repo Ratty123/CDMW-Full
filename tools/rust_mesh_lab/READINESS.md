@@ -6,7 +6,7 @@
 
 The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12 adapter, renders validated geometry and a supported explicit 2D DDS reference through `wgpu`, opens archive roots read-only, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD candidates, and supports camera navigation plus pointer-driven selection, transform, sculpt, and history workflows on an in-memory generational mesh.
 
-It is not LAB READY because private real-game parity, complete texture reconstruction/material composition, PAC skinning/appearance, depth-aware visible-only picking, representative stress/performance evidence, cache, versioned lab projects, fuzzing, and source fingerprint sessions remain incomplete.
+It is not LAB READY because private real-game parity, complete texture reconstruction/material composition, PAC skinning/appearance, representative stress/performance evidence, cache, versioned lab projects, fuzzing, and source fingerprint sessions remain incomplete.
 
 ## Implemented and locally proven
 
@@ -22,7 +22,8 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Interactive Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch plus atomic face Delete, Subdivide, Duplicate, Undo, and Redo; topology failures leave the complete working state unchanged and generated subdivision/duplicate faces become the deterministic selection.
 - One modal gesture owner and one committed history entry per confirmed gesture.
 - Deterministic click/brush/rectangle/lasso query predicates, stale-snapshot rejection, and a persistent 32-pixel screen grid that bounds local candidate inspection in the interaction crate.
-- Viewport-aligned Vertex/Edge/Face Click, Brush, Rectangle, and Lasso selection with visible X-Ray overlays and Replace/Add/Subtract/Toggle operations.
+- User-selectable depth-aware Visible and X-Ray selection. Visible candidates query a projected-triangle BVH with interpolated depth; sculpt brushes always use that surface-only route, and no synchronous GPU readback is used.
+- Viewport-aligned Vertex/Edge/Face Click, Brush, Rectangle, and Lasso selection with visible overlays in either depth mode and Replace/Add/Subtract/Toggle operations.
 - Bounded raw pointer sampling that retains press, intermediate movement, and release when Windows coalesces redraws; long lassos compact deterministically while retaining their final release point, one completed gesture creates one history entry, and Esc/resize/focus loss restores the pre-gesture mesh.
 - Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots.
 - Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh buffers, and Textured/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes.
@@ -43,7 +44,6 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 | Native texture/material binding | Partial | One explicit supported 2D DDS can render; multi-material binding, arrays/cubes, reconstruction, and fallback transcode remain incomplete |
 | PAC skin palette/PAB/PABC/morph | Incomplete | Character appearance parity not proven |
 | LOD1+ PAC editing | Unsupported | LOD0 diagnostic slice only |
-| Visible-only GPU ID readback | Incomplete | No asynchronous depth-aware picking proof |
 | Lab project | Incomplete | Camera/tool/history persistence is not published yet |
 | Neutral export | OBJ/MTL implemented | GLB, skinning/material preservation, and private corpus re-import parity remain incomplete |
 | Persistent cache | Incomplete | No cold/warm cache timing |
@@ -77,8 +77,9 @@ Brush drag, selected a face with Rectangle, displayed and applied the Move and
 Rotate gizmos, applied Grab sculpting, and restored a Move through Undo. Window
 resize kept equal world-space X/Y spans equal in screen pixels; the automated
 projection test covers both wide and tall viewport shapes. This is synthetic
-interaction proof, not real-PAC usability, representative latency/FPS, or
-depth-aware visible-only selection proof.
+interaction proof, not real-PAC usability or representative latency/FPS. The
+depth-aware Visible route has deterministic synthetic unit proof but was added
+after this live capture and has not yet been exercised through the visible Windows path.
 
 ## Production boundary
 

@@ -8,6 +8,8 @@ use thiserror::Error;
 
 const MAX_LASSO_POINTS: usize = 4_096;
 const SCREEN_GRID_CELL_SIZE: f32 = 32.0;
+const DEPTH_VISIBILITY_EPSILON: f32 = 1.0e-4;
+const TRIANGLE_BVH_LEAF_SIZE: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperatorState {
@@ -60,6 +62,12 @@ pub struct ProjectedElement {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ProjectedTriangle {
+    pub positions: [Vec2; 3],
+    pub depths: [f32; 3],
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct InteractionSnapshot {
     pub geometry_revision: u64,
     pub topology_generation: u64,
@@ -67,7 +75,9 @@ pub struct InteractionSnapshot {
     pub viewport_revision: u64,
     pub viewport_size: Vec2,
     pub elements: Vec<ProjectedElement>,
+    pub depth_triangles: Vec<ProjectedTriangle>,
     spatial_index: ScreenSpaceIndex,
+    depth_index: TriangleBvh,
 }
 
 impl InteractionSnapshot {
@@ -79,8 +89,10 @@ impl InteractionSnapshot {
         viewport_revision: u64,
         viewport_size: Vec2,
         elements: Vec<ProjectedElement>,
+        depth_triangles: Vec<ProjectedTriangle>,
     ) -> Self {
         let spatial_index = ScreenSpaceIndex::build(&elements);
+        let depth_index = TriangleBvh::build(&depth_triangles);
         Self {
             geometry_revision,
             topology_generation,
@@ -88,8 +100,25 @@ impl InteractionSnapshot {
             viewport_revision,
             viewport_size,
             elements,
+            depth_triangles,
             spatial_index,
+            depth_index,
         }
+    }
+
+    fn depth_visible(&self, element: &ProjectedElement) -> (bool, usize) {
+        if !element.visible || !element.depth.is_finite() {
+            return (false, 0);
+        }
+        let candidate_indices = self.depth_index.candidate_indices(element.position);
+        let inspected = candidate_indices.len();
+        let nearest = candidate_indices
+            .into_iter()
+            .filter_map(|index| self.depth_triangles.get(index))
+            .filter_map(|triangle| interpolated_depth(triangle, element.position))
+            .min_by(f32::total_cmp);
+        let visible = nearest.is_none_or(|depth| element.depth <= depth + DEPTH_VISIBILITY_EPSILON);
+        (visible, inspected)
     }
 }
 
@@ -97,6 +126,7 @@ impl InteractionSnapshot {
 pub struct SelectionQueryStats {
     pub candidates_inspected: usize,
     pub total_elements: usize,
+    pub depth_triangles_inspected: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -150,6 +180,99 @@ impl ScreenSpaceIndex {
                     indices.extend(cell);
                 }
             }
+        }
+        indices.sort_unstable();
+        indices
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+struct TriangleBvh {
+    nodes: Vec<TriangleBvhNode>,
+    root: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct TriangleBvhNode {
+    minimum: Vec2,
+    maximum: Vec2,
+    left: Option<usize>,
+    right: Option<usize>,
+    triangles: Vec<usize>,
+}
+
+impl TriangleBvh {
+    fn build(triangles: &[ProjectedTriangle]) -> Self {
+        let indices = triangles
+            .iter()
+            .enumerate()
+            .filter_map(|(index, triangle)| triangle_is_finite(triangle).then_some(index))
+            .collect::<Vec<_>>();
+        if indices.is_empty() {
+            return Self::default();
+        }
+        let mut nodes = Vec::new();
+        let root = Some(Self::append_node(triangles, indices, &mut nodes));
+        Self { nodes, root }
+    }
+
+    fn append_node(
+        triangles: &[ProjectedTriangle],
+        mut indices: Vec<usize>,
+        nodes: &mut Vec<TriangleBvhNode>,
+    ) -> usize {
+        let (minimum, maximum) = triangle_set_bounds(triangles, &indices);
+        if indices.len() <= TRIANGLE_BVH_LEAF_SIZE {
+            let index = nodes.len();
+            nodes.push(TriangleBvhNode {
+                minimum,
+                maximum,
+                left: None,
+                right: None,
+                triangles: indices,
+            });
+            return index;
+        }
+        let axis = usize::from((maximum.y - minimum.y) > (maximum.x - minimum.x));
+        indices.sort_by(|first, second| {
+            triangle_centroid(&triangles[*first])[axis]
+                .total_cmp(&triangle_centroid(&triangles[*second])[axis])
+                .then_with(|| first.cmp(second))
+        });
+        let right_indices = indices.split_off(indices.len() / 2);
+        let left = Self::append_node(triangles, indices, nodes);
+        let right = Self::append_node(triangles, right_indices, nodes);
+        let index = nodes.len();
+        nodes.push(TriangleBvhNode {
+            minimum,
+            maximum,
+            left: Some(left),
+            right: Some(right),
+            triangles: Vec::new(),
+        });
+        index
+    }
+
+    fn candidate_indices(&self, point: Vec2) -> Vec<usize> {
+        let Some(root) = self.root else {
+            return Vec::new();
+        };
+        let mut stack = vec![root];
+        let mut indices = Vec::new();
+        while let Some(node_index) = stack.pop() {
+            let Some(node) = self.nodes.get(node_index) else {
+                continue;
+            };
+            if !point_in_bounds(point, node.minimum, node.maximum) {
+                continue;
+            }
+            if let Some(left) = node.left {
+                stack.push(left);
+            }
+            if let Some(right) = node.right {
+                stack.push(right);
+            }
+            indices.extend(&node.triangles);
         }
         indices.sort_unstable();
         indices
@@ -213,21 +336,35 @@ pub fn query_selection_with_stats(
     validate_shape(&query.shape)?;
     let mut selection = Selection::default();
     let candidate_indices = snapshot.spatial_index.candidate_indices(&query.shape);
-    let stats = SelectionQueryStats {
+    let mut stats = SelectionQueryStats {
         candidates_inspected: candidate_indices.len(),
         total_elements: snapshot.elements.len(),
+        depth_triangles_inspected: 0,
     };
-    let candidates = candidate_indices
-        .into_iter()
-        .filter_map(|index| snapshot.elements.get(index))
-        .filter(|element| {
-            (!query.visible_only || element.visible)
-                && element.position.is_finite()
-                && shape_contains(&query.shape, element.position)
-                && handle_matches_domain(element.handle, query.domain)
-        });
+    let mut candidates = Vec::new();
+    for candidate_index in candidate_indices {
+        let Some(element) = snapshot.elements.get(candidate_index) else {
+            continue;
+        };
+        if !element.position.is_finite()
+            || !shape_contains(&query.shape, element.position)
+            || !handle_matches_domain(element.handle, query.domain)
+        {
+            continue;
+        }
+        if query.visible_only {
+            let (visible, depth_triangles_inspected) = snapshot.depth_visible(element);
+            stats.depth_triangles_inspected = stats
+                .depth_triangles_inspected
+                .saturating_add(depth_triangles_inspected);
+            if !visible {
+                continue;
+            }
+        }
+        candidates.push(element);
+    }
     if let SelectionShape::Click { point, .. } = &query.shape {
-        if let Some(candidate) = candidates.min_by(|first, second| {
+        if let Some(candidate) = candidates.into_iter().min_by(|first, second| {
             first
                 .position
                 .distance_squared(*point)
@@ -378,6 +515,58 @@ fn cell_for(point: Vec2) -> (i32, i32) {
         (point.x / SCREEN_GRID_CELL_SIZE).floor() as i32,
         (point.y / SCREEN_GRID_CELL_SIZE).floor() as i32,
     )
+}
+
+fn triangle_is_finite(triangle: &ProjectedTriangle) -> bool {
+    triangle.positions.iter().all(|point| point.is_finite())
+        && triangle.depths.iter().all(|depth| depth.is_finite())
+}
+
+fn triangle_bounds(triangle: &ProjectedTriangle) -> (Vec2, Vec2) {
+    triangle.positions.iter().copied().fold(
+        (Vec2::splat(f32::INFINITY), Vec2::splat(f32::NEG_INFINITY)),
+        |(minimum, maximum), point| (minimum.min(point), maximum.max(point)),
+    )
+}
+
+fn triangle_set_bounds(triangles: &[ProjectedTriangle], indices: &[usize]) -> (Vec2, Vec2) {
+    indices.iter().fold(
+        (Vec2::splat(f32::INFINITY), Vec2::splat(f32::NEG_INFINITY)),
+        |(minimum, maximum), index| {
+            let (triangle_minimum, triangle_maximum) = triangle_bounds(&triangles[*index]);
+            (minimum.min(triangle_minimum), maximum.max(triangle_maximum))
+        },
+    )
+}
+
+fn triangle_centroid(triangle: &ProjectedTriangle) -> Vec2 {
+    (triangle.positions[0] + triangle.positions[1] + triangle.positions[2]) / 3.0
+}
+
+fn point_in_bounds(point: Vec2, minimum: Vec2, maximum: Vec2) -> bool {
+    let tolerance = Vec2::splat(1.0e-3);
+    point.cmpge(minimum - tolerance).all() && point.cmple(maximum + tolerance).all()
+}
+
+fn interpolated_depth(triangle: &ProjectedTriangle, point: Vec2) -> Option<f32> {
+    let [a, b, c] = triangle.positions;
+    let denominator = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+    if !denominator.is_finite() || denominator.abs() <= f32::EPSILON {
+        return None;
+    }
+    let first = ((b.y - c.y) * (point.x - c.x) + (c.x - b.x) * (point.y - c.y)) / denominator;
+    let second = ((c.y - a.y) * (point.x - c.x) + (a.x - c.x) * (point.y - c.y)) / denominator;
+    let third = 1.0 - first - second;
+    let barycentric_tolerance = -1.0e-5;
+    if first < barycentric_tolerance
+        || second < barycentric_tolerance
+        || third < barycentric_tolerance
+    {
+        return None;
+    }
+    let depth =
+        triangle.depths[0] * first + triangle.depths[1] * second + triangle.depths[2] * third;
+    depth.is_finite().then_some(depth)
 }
 
 fn shape_contains(shape: &SelectionShape, point: Vec2) -> bool {
@@ -654,7 +843,8 @@ mod tests {
 
     #[test]
     fn stale_snapshot_is_rejected_before_selection() {
-        let snapshot = InteractionSnapshot::new(2, 1, 1, 1, Vec2::splat(100.0), Vec::new());
+        let snapshot =
+            InteractionSnapshot::new(2, 1, 1, 1, Vec2::splat(100.0), Vec::new(), Vec::new());
         let query = SelectionQuery {
             domain: SelectionDomain::Vertex,
             operation: SelectionOperation::Replace,
@@ -705,6 +895,7 @@ mod tests {
                     visible: true,
                 },
             ],
+            Vec::new(),
         );
         let query = SelectionQuery {
             domain: SelectionDomain::Vertex,
@@ -721,6 +912,125 @@ mod tests {
         };
         let selected = query_selection(&snapshot, &query)?;
         assert_eq!(selected.vertices, HashSet::from([handles[0]]));
+        Ok(())
+    }
+
+    #[test]
+    fn visible_only_rejects_an_element_behind_the_depth_surface()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let document = decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
+            MeshFormat::Pam,
+        )?;
+        let mesh = WorkingMesh::from_document(&document)?;
+        let handles = mesh
+            .vertices()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        let snapshot = InteractionSnapshot::new(
+            mesh.geometry_revision,
+            mesh.topology_generation,
+            1,
+            1,
+            Vec2::splat(100.0),
+            vec![
+                ProjectedElement {
+                    handle: ProjectedHandle::Vertex(handles[0]),
+                    position: Vec2::ZERO,
+                    depth: 0.2,
+                    visible: true,
+                },
+                ProjectedElement {
+                    handle: ProjectedHandle::Vertex(handles[1]),
+                    position: Vec2::ZERO,
+                    depth: 0.8,
+                    visible: true,
+                },
+            ],
+            vec![ProjectedTriangle {
+                positions: [
+                    Vec2::new(-10.0, -10.0),
+                    Vec2::new(10.0, -10.0),
+                    Vec2::new(0.0, 10.0),
+                ],
+                depths: [0.2; 3],
+            }],
+        );
+        let mut query = SelectionQuery {
+            domain: SelectionDomain::Vertex,
+            operation: SelectionOperation::Replace,
+            visible_only: false,
+            shape: SelectionShape::Brush {
+                point: Vec2::ZERO,
+                radius: 2.0,
+            },
+            geometry_revision: mesh.geometry_revision,
+            topology_generation: mesh.topology_generation,
+            camera_revision: 1,
+            viewport_revision: 1,
+        };
+        let xray = query_selection(&snapshot, &query)?;
+        assert_eq!(xray.vertices, HashSet::from([handles[0], handles[1]]));
+        query.visible_only = true;
+        let (visible, stats) = query_selection_with_stats(&snapshot, &query)?;
+        assert_eq!(visible.vertices, HashSet::from([handles[0]]));
+        assert_eq!(stats.depth_triangles_inspected, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn depth_bvh_bounds_local_visibility_candidates() -> Result<(), Box<dyn std::error::Error>> {
+        let document = decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
+            MeshFormat::Pam,
+        )?;
+        let mesh = WorkingMesh::from_document(&document)?;
+        let handle = mesh
+            .vertices()
+            .next()
+            .map(|(handle, _)| handle)
+            .ok_or("missing synthetic vertex")?;
+        let depth_triangles = (0..16_384)
+            .map(|index| {
+                let origin = Vec2::new((index % 128) as f32 * 8.0, (index / 128) as f32 * 8.0);
+                ProjectedTriangle {
+                    positions: [
+                        origin,
+                        origin + Vec2::new(3.0, 0.0),
+                        origin + Vec2::new(0.0, 3.0),
+                    ],
+                    depths: [0.3; 3],
+                }
+            })
+            .collect::<Vec<_>>();
+        let point = Vec2::new(64.0 * 8.0 + 1.0, 64.0 * 8.0 + 1.0);
+        let snapshot = InteractionSnapshot::new(
+            mesh.geometry_revision,
+            mesh.topology_generation,
+            1,
+            1,
+            Vec2::splat(1_024.0),
+            vec![ProjectedElement {
+                handle: ProjectedHandle::Vertex(handle),
+                position: point,
+                depth: 0.3,
+                visible: true,
+            }],
+            depth_triangles,
+        );
+        let query = SelectionQuery {
+            domain: SelectionDomain::Vertex,
+            operation: SelectionOperation::Replace,
+            visible_only: true,
+            shape: SelectionShape::Click { point, radius: 2.0 },
+            geometry_revision: mesh.geometry_revision,
+            topology_generation: mesh.topology_generation,
+            camera_revision: 1,
+            viewport_revision: 1,
+        };
+        let (selection, stats) = query_selection_with_stats(&snapshot, &query)?;
+        assert_eq!(selection.vertices, HashSet::from([handle]));
+        assert!(stats.depth_triangles_inspected <= 32, "{stats:?}");
         Ok(())
     }
 
@@ -752,6 +1062,7 @@ mod tests {
             1,
             Vec2::new(8_000.0, 800.0),
             elements,
+            Vec::new(),
         );
         let query = SelectionQuery {
             domain: SelectionDomain::Vertex,

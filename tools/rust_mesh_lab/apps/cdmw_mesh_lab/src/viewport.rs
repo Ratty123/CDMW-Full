@@ -2,9 +2,9 @@
 
 use crate::camera::OrbitCamera;
 use cdmw_interaction::{
-    InteractionError, InteractionSnapshot, ProjectedElement, ProjectedHandle, SculptTool,
-    SelectionDomain, SelectionOperation, SelectionQuery, SelectionQueryStats, SelectionShape,
-    query_selection, query_selection_with_stats, selection_after_operation,
+    InteractionError, InteractionSnapshot, ProjectedElement, ProjectedHandle, ProjectedTriangle,
+    SculptTool, SelectionDomain, SelectionOperation, SelectionQuery, SelectionQueryStats,
+    SelectionShape, query_selection, query_selection_with_stats, selection_after_operation,
 };
 use cdmw_mesh::{History, MeshError, Selection, VertexHandle, WorkingMesh};
 use egui::Rect;
@@ -199,6 +199,7 @@ impl ViewportProjection {
                 .saturating_add(mesh.edges().count())
                 .saturating_add(mesh.faces().count()),
         );
+        let mut depth_triangles = Vec::with_capacity(mesh.faces().count());
         elements.extend(mesh.vertices().filter_map(|(handle, _)| {
             vertices.get(&handle).map(|projected| ProjectedElement {
                 handle: ProjectedHandle::Vertex(handle),
@@ -229,6 +230,10 @@ impl ViewportProjection {
                 .filter_map(|vertex| vertices.get(vertex))
                 .collect::<Vec<_>>();
             if points.len() == 3 {
+                depth_triangles.push(ProjectedTriangle {
+                    positions: [points[0].screen, points[1].screen, points[2].screen],
+                    depths: [points[0].depth, points[1].depth, points[2].depth],
+                });
                 elements.push(ProjectedElement {
                     handle: ProjectedHandle::Face(handle),
                     position: (points[0].screen + points[1].screen + points[2].screen) / 3.0,
@@ -246,6 +251,7 @@ impl ViewportProjection {
                 viewport_revision,
                 Vec2::new(rectangle.width(), rectangle.height()),
                 elements,
+                depth_triangles,
             ),
             vertices,
         }
@@ -439,11 +445,12 @@ pub fn brush_vertex_scope(
     snapshot: &InteractionSnapshot,
     point: Vec2,
     radius: f32,
+    visible_only: bool,
 ) -> Result<HashSet<VertexHandle>, InteractionError> {
     let query = SelectionQuery {
         domain: SelectionDomain::Vertex,
         operation: SelectionOperation::Replace,
-        visible_only: false,
+        visible_only,
         shape: SelectionShape::Brush { point, radius },
         geometry_revision: snapshot.geometry_revision,
         topology_generation: snapshot.topology_generation,

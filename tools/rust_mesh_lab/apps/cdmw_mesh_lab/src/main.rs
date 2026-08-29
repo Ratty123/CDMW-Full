@@ -107,6 +107,7 @@ struct LabApplication {
     operator: OperatorController,
     selection_domain: SelectionDomain,
     selection_operation: SelectionOperation,
+    selection_visible_only: bool,
     viewport_rect: Option<egui::Rect>,
     viewport_revision: u64,
     camera: OrbitCamera,
@@ -174,6 +175,7 @@ impl LabApplication {
             operator: OperatorController::default(),
             selection_domain: SelectionDomain::Vertex,
             selection_operation: SelectionOperation::Replace,
+            selection_visible_only: true,
             viewport_rect: None,
             viewport_revision: 1,
             camera: OrbitCamera::default(),
@@ -575,7 +577,16 @@ impl LabApplication {
                         }
                     }
                 });
-                ui.label("Selection currently uses the X-Ray CPU projection snapshot.");
+                ui.horizontal(|ui| {
+                    ui.label("Depth mode");
+                    ui.selectable_value(&mut self.selection_visible_only, true, "Visible");
+                    ui.selectable_value(&mut self.selection_visible_only, false, "X-Ray");
+                });
+                ui.label(if self.selection_visible_only {
+                    "Visible uses depth-tested triangle BVH queries."
+                } else {
+                    "X-Ray includes occluded element candidates."
+                });
                 ui.horizontal(|ui| {
                     if ui
                         .add_enabled(has_mesh, egui::Button::new("All Vertices"))
@@ -706,8 +717,10 @@ impl LabApplication {
                         || "—".to_owned(),
                         |stats| {
                             format!(
-                                "{}/{}",
-                                stats.candidates_inspected, stats.total_elements
+                                "{}/{} · depth triangles {}",
+                                stats.candidates_inspected,
+                                stats.total_elements,
+                                stats.depth_triangles_inspected
                             )
                         },
                     );
@@ -1155,7 +1168,7 @@ impl LabApplication {
                 self.selection_tool,
                 self.selection_domain,
                 self.selection_operation,
-                false,
+                self.selection_visible_only,
                 point,
                 self.brush_radius,
             );
@@ -1208,7 +1221,14 @@ impl LabApplication {
                 .projection
                 .as_ref()
                 .and_then(|projection| {
-                    brush_vertex_scope(mesh, &projection.interaction, point, self.brush_radius).ok()
+                    brush_vertex_scope(
+                        mesh,
+                        &projection.interaction,
+                        point,
+                        self.brush_radius,
+                        true,
+                    )
+                    .ok()
                 })
                 .unwrap_or_default();
             if handles.is_empty() {
@@ -1384,6 +1404,7 @@ impl LabApplication {
                             &projection.interaction,
                             point,
                             self.brush_radius,
+                            true,
                         )?;
                     }
                     gesture.pivot = center_of_handles(mesh, &gesture.handles)
