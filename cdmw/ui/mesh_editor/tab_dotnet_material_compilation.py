@@ -233,80 +233,11 @@ class MeshEditorDotNetMaterialCompilationMixin(
                 "protocol_version": 3,
             }
         )
-        resources = tuple(
-            resource
-            for resource in tuple(correlated.get("resources", ()) or ())
-            if isinstance(resource, Mapping)
+        resources, resource_file_count, resource_bytes, missing_resources = (
+            self._compiled_material_resource_stats(correlated)
         )
-        resource_file_count = 0
-        resource_bytes = 0
-        missing_resources: list[dict[str, str]] = []
-        for resource in resources:
-            path_text = str(resource.get("path", "") or "").strip()
-            try:
-                path = Path(path_text)
-                if path_text and path.is_file():
-                    resource_file_count += 1
-                    resource_bytes += max(0, int(path.stat().st_size))
-                    continue
-            except OSError:
-                pass
-            if len(missing_resources) < 8:
-                missing_resources.append(
-                    {
-                        "resource_id": str(resource.get("resource_id", "") or ""),
-                        "path": path_text,
-                    }
-                )
         if not self._send_dotnet_protocol_message(correlated):
-            self._record_dotnet_material_publication(
-                self.standalone_dotnet_material_publications.complete_active(
-                    request.generation,
-                    status=MaterialPublicationStatus.FAILED,
-                    reason="material_payload_send_failed",
-                    detail="compiled material payload could not be sent",
-                )
-            )
-            self.standalone_dotnet_pending_paired_material_upgrade = None
-            self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
-            self.standalone_dotnet_completed_material_generation = max(
-                self.standalone_dotnet_completed_material_generation,
-                int(request.generation),
-            )
-            roles = self._dotnet_material_roles_for_generation(
-                request.generation,
-                request.role,
-            )
-            role = roles[0]
-            for applied_role in roles:
-                self.standalone_dotnet_completed_material_generation_by_role[
-                    applied_role
-                ] = max(
-                    int(
-                        self.standalone_dotnet_completed_material_generation_by_role.get(
-                            applied_role, 0
-                        )
-                        or 0
-                    ),
-                    int(request.generation),
-                )
-                self.standalone_dotnet_material_error_by_role[
-                    applied_role
-                ] = "Compiled material payload could not be sent."
-            self._notify_dotnet_material_resources_finished(
-                request.generation,
-                False,
-                self.standalone_dotnet_material_update_active_resources,
-            )
-            self._set_dotnet_status(
-                f"Could not send the compiled {self._dotnet_material_role_label(role)} pane material payload.",
-                error=True,
-            )
-            self._finish_pending_textured_view(
-                success=False,
-                reason="material_payload_send_failed",
-                status_text=f"Could not send the compiled {self._dotnet_material_role_label(role)} pane material payload.",
-            )
+            self._handle_compiled_material_send_failure(request)
             return
         # The payload is with the renderer but the pane is not textured yet, so
         # the role stays outstanding until its acknowledgement lands. The
@@ -351,6 +282,85 @@ class MeshEditorDotNetMaterialCompilationMixin(
             missing_resource_count=max(0, len(resources) - resource_file_count),
             missing_resource_sample=missing_resources,
             compile_elapsed_ms=max(0.0, float(elapsed_ms)),
+        )
+
+    @staticmethod
+    def _compiled_material_resource_stats(
+        correlated: Mapping[str, object],
+    ) -> tuple[tuple[Mapping[str, object], ...], int, int, list[dict[str, str]]]:
+        resources = tuple(
+            resource
+            for resource in tuple(correlated.get("resources", ()) or ())
+            if isinstance(resource, Mapping)
+        )
+        file_count = 0
+        resource_bytes = 0
+        missing: list[dict[str, str]] = []
+        for resource in resources:
+            path_text = str(resource.get("path", "") or "").strip()
+            try:
+                path = Path(path_text)
+                if path_text and path.is_file():
+                    file_count += 1
+                    resource_bytes += max(0, int(path.stat().st_size))
+                    continue
+            except OSError:
+                pass
+            if len(missing) < 8:
+                missing.append(
+                    {
+                        "resource_id": str(resource.get("resource_id", "") or ""),
+                        "path": path_text,
+                    }
+                )
+        return resources, file_count, resource_bytes, missing
+
+    def _handle_compiled_material_send_failure(
+        self,
+        request: MeshDotNetMaterialCompileRequest,
+    ) -> None:
+        self._record_dotnet_material_publication(
+            self.standalone_dotnet_material_publications.complete_active(
+                request.generation,
+                status=MaterialPublicationStatus.FAILED,
+                reason="material_payload_send_failed",
+                detail="compiled material payload could not be sent",
+            )
+        )
+        self.standalone_dotnet_pending_paired_material_upgrade = None
+        self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
+        self.standalone_dotnet_completed_material_generation = max(
+            self.standalone_dotnet_completed_material_generation,
+            int(request.generation),
+        )
+        roles = self._dotnet_material_roles_for_generation(request.generation, request.role)
+        role = roles[0]
+        for applied_role in roles:
+            self.standalone_dotnet_completed_material_generation_by_role[applied_role] = max(
+                int(
+                    self.standalone_dotnet_completed_material_generation_by_role.get(
+                        applied_role, 0
+                    )
+                    or 0
+                ),
+                int(request.generation),
+            )
+            self.standalone_dotnet_material_error_by_role[
+                applied_role
+            ] = "Compiled material payload could not be sent."
+        self._notify_dotnet_material_resources_finished(
+            request.generation,
+            False,
+            self.standalone_dotnet_material_update_active_resources,
+        )
+        status = (
+            f"Could not send the compiled {self._dotnet_material_role_label(role)} pane material payload."
+        )
+        self._set_dotnet_status(status, error=True)
+        self._finish_pending_textured_view(
+            success=False,
+            reason="material_payload_send_failed",
+            status_text=status,
         )
 
     def _handle_dotnet_material_compile_error(

@@ -49,6 +49,50 @@ internal sealed partial class ExperimentForm
         return button;
     }
 
+    private void BuildOutputPolicyTopologySection(TableLayoutPanel leftStack)
+    {
+        var subdivideButton = CommandButton("Subdivide", "subdivide");
+        var refineButton = CommandButton("Refine Smooth", "refine_smooth");
+        var deleteSelectionButton = CommandButton("Delete Selection", "delete");
+        var duplicateSelectionButton = CommandButton("Duplicate Selection", "duplicate");
+        var extrudeButton = FreeEditTopologyButton("Extrude", "extrude");
+        var insetButton = FreeEditTopologyButton("Inset", "inset");
+        var loopCutButton = FreeEditTopologyButton("Loop Cut", "loop_cut");
+        var edgeSplitButton = FreeEditTopologyButton("Edge Split", "edge_split");
+        var bridgeButton = FreeEditTopologyButton("Bridge", "bridge");
+        var mergeButton = FreeEditTopologyButton("Merge", "merge");
+        var weldButton = FreeEditTopologyButton("Weld", "weld");
+        var fillButton = FreeEditTopologyButton("Fill", "fill");
+        BlockDirectAuthoringButton(
+            subdivideButton,
+            "Subdivide is unavailable because derived PAC vertices cannot preserve protected bytes.");
+        BlockDirectAuthoringButton(
+            refineButton,
+            "Refine Smooth is unavailable because derived PAC vertices cannot preserve protected bytes.");
+        BlockDirectAuthoringButton(
+            duplicateSelectionButton,
+            "Duplicate Selection is unavailable because the exact PAC writer cannot add protected geometry records.");
+        RegisterTopologyMutationButton(subdivideButton);
+        RegisterTopologyMutationButton(refineButton);
+        RegisterTopologyMutationButton(deleteSelectionButton);
+        RegisterTopologyMutationButton(duplicateSelectionButton);
+        var topologySection = AddHelpSection(
+            leftStack,
+            "Topology",
+            "Acts on the viewport mesh selection or the explicit PARTS selection. "
+                + "Exact mode shows exact-safe commands; Free Edit reveals proven non-exact topology tools only after an OBJ output folder is chosen.",
+            out _,
+            ButtonRow(deleteSelectionButton, duplicateSelectionButton),
+            ButtonRow(subdivideButton, refineButton),
+            ButtonRow(extrudeButton, insetButton),
+            ButtonRow(loopCutButton, edgeSplitButton),
+            ButtonRow(bridgeButton, fillButton),
+            ButtonRow(mergeButton, weldButton));
+        topologySection.Name = "CompactTopologySection";
+        _topologySection = topologySection;
+        _meshEditOnlySections.Add(topologySection);
+    }
+
     private void ApplyOutputPolicyState(JsonElement root)
     {
         _meshFormat = JsonString(root, "mesh_format").Trim().ToUpperInvariant();
@@ -109,6 +153,58 @@ internal sealed partial class ExperimentForm
         _availableActionKeys.UnionWith(_freeEditOnlyButtons.Keys);
         ApplyDirectAuthoringOutputContract(policy == "exact_game_asset");
         ApplyOutputPolicyControls();
+    }
+
+    private Dictionary<string, object?> RunOutputPolicyControlDiagnostic(
+        bool restrictedControlsVisible)
+    {
+        ResetMorphStateAuthority();
+        ApplyDiagnosticOutputPolicyState(
+            "free_edit_rebuild",
+            destinationReady: true,
+            authoringEnabled: true);
+        ShowToolRailPage(ToolRailPage.Topology);
+        var importedModelControlsVisible = _directAuthoringBlockedButtons.All(OwnVisibleState);
+        var importedLayerCopyEnabled = _layerCopyButton?.Enabled is true;
+        var freeEditControlsVisible = _freeEditOnlyButtons.Values.All(OwnVisibleState);
+        var freeEditControlsEnabled = _freeEditOnlyButtons.Values.All(OwnEnabledState);
+        var freeEditExportEnabled = _exportFreeEditButton?.Enabled is true;
+        var importedTopologyHelp = (
+            _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Topology)?.AccessibleDescription
+            ?? string.Empty).Contains("Subdivide", StringComparison.Ordinal);
+        ApplyDiagnosticOutputPolicyState(
+            "exact_game_asset",
+            destinationReady: false,
+            authoringEnabled: true);
+        var exactFreeEditControlsHidden = _freeEditOnlyButtons.Values.All(button => !OwnVisibleState(button));
+        var exactTopologyHelp = (
+            _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Topology)?.AccessibleDescription
+            ?? string.Empty).Contains("Subdivide is unavailable", StringComparison.Ordinal);
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = !_options.DirectAuthoring
+                || (_directAuthoringBlockedButtons.Count == 9
+                    && restrictedControlsVisible
+                    && importedModelControlsVisible
+                    && importedLayerCopyEnabled
+                    && freeEditControlsVisible
+                    && freeEditControlsEnabled
+                    && freeEditExportEnabled
+                    && exactFreeEditControlsHidden
+                    && importedTopologyHelp
+                    && exactTopologyHelp),
+            ["blocked_control_count"] = _directAuthoringBlockedButtons.Count,
+            ["all_visible"] = _directAuthoringBlockedButtons.All(OwnVisibleState),
+            ["all_disabled"] = _directAuthoringBlockedButtons.All(button => !button.Enabled),
+            ["imported_model_controls_visible"] = importedModelControlsVisible,
+            ["imported_layer_copy_enabled"] = importedLayerCopyEnabled,
+            ["free_edit_controls_visible"] = freeEditControlsVisible,
+            ["free_edit_controls_enabled"] = freeEditControlsEnabled,
+            ["free_edit_export_enabled"] = freeEditExportEnabled,
+            ["exact_free_edit_controls_hidden"] = exactFreeEditControlsHidden,
+            ["imported_topology_help"] = importedTopologyHelp,
+            ["exact_topology_help"] = exactTopologyHelp,
+        };
     }
 
     private void ApplyOutputPolicyControls()

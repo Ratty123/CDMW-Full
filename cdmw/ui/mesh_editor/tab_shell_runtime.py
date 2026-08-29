@@ -23,6 +23,7 @@ class MeshEditorTabShellRuntimeMixin:
         get_archive_sidecar_entries_by_texture_basename: object,
         ensure_archive_texture_indexes: object = None,
     ) -> None:
+        self._initialize_mesh_editor_ui_state()
         self.current_request: Optional[_tab.MeshEditorSessionRequest] = None
         self.current_archive_selection: Optional[_tab.ArchiveEntry] = None
         self.current_edit_mode = "object"

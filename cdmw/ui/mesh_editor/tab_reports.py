@@ -115,6 +115,12 @@ class MeshEditorReportsMixin:
             return
         self.standalone_last_export_validation_report = report
         self.standalone_export_validation_revision = current_revision
+        self._record_mesh_editor_report_state(
+            "validation",
+            session_id=current_session_id,
+            revision=current_revision,
+            ok=bool(getattr(report, "ok", False)),
+        )
         self._publish_standalone_panel_state(
             "standalone_validation_panel_state",
             "update_export_validation_state",
@@ -321,6 +327,11 @@ class MeshEditorReportsMixin:
             return
         self.standalone_last_rebuild_report = report
         self.standalone_rebuild_report_revision = current_revision
+        self._record_mesh_editor_report_state(
+            "rebuild",
+            session_id=current_session_id,
+            revision=current_revision,
+        )
         self._publish_standalone_panel_state(
             "standalone_rebuild_panel_state",
             "update_rebuild_report_state",
@@ -397,21 +408,7 @@ class MeshEditorReportsMixin:
             self.standalone_rebuild_started_session_id = ""
             self.standalone_rebuild_started_revision = None
             self.standalone_rebuild_started_generation = 0
-        self._set_rebuild_report_button_enabled(self.has_active_standalone_session())
-        self._set_rebuild_asset_button_enabled(self.has_active_standalone_session() and self._standalone_export_validation_ok())
-        has_archive_target = isinstance(self._current_target_entry(), _tab.ArchiveEntry)
-        self._set_preview_rebuilt_asset_button_enabled(
-            has_archive_target
-            and self.has_active_standalone_session()
-            and self._standalone_export_validation_ok()
-            and self._standalone_rebuild_report_current()
-        )
-        self._set_package_rebuilt_asset_button_enabled(
-            has_archive_target
-            and self.has_active_standalone_session()
-            and self._standalone_export_validation_ok()
-            and self._standalone_rebuild_report_current()
-        )
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
     def _cancel_standalone_rebuild_report_worker(self) -> None:
         worker = self.standalone_rebuild_report_worker
         thread = self.standalone_rebuild_report_thread
@@ -449,10 +446,28 @@ class MeshEditorReportsMixin:
         if button is not None:
             button.setEnabled(bool(enabled))
     def _standalone_export_validation_ok(self) -> bool:
+        refresh_ui_state = getattr(self, "_refresh_mesh_editor_ui_state", None)
+        if callable(refresh_ui_state):
+            refresh_ui_state()
+        ui_state = getattr(self, "mesh_editor_ui_state", None)
+        if ui_state is not None and ui_state.session_id:
+            return bool(
+                ui_state.validation_gated_output_enabled
+                and getattr(self.standalone_last_export_validation_report, "ok", False)
+            )
         return self._standalone_export_validation_current() and bool(
             getattr(self.standalone_last_export_validation_report, "ok", False)
         )
     def _standalone_export_validation_current(self) -> bool:
+        refresh_ui_state = getattr(self, "_refresh_mesh_editor_ui_state", None)
+        if callable(refresh_ui_state):
+            refresh_ui_state()
+        ui_state = getattr(self, "mesh_editor_ui_state", None)
+        if ui_state is not None and ui_state.session_id:
+            return bool(
+                ui_state.validation_revision is not None
+                and ui_state.validation_revision == ui_state.geometry_revision
+            )
         revision = self._standalone_session_revision()
         controller = self.standalone_controller
         session_id = str(getattr(controller, "active_session_id", "") or "")
@@ -472,6 +487,15 @@ class MeshEditorReportsMixin:
         return legacy_current
 
     def _standalone_rebuild_report_current(self) -> bool:
+        refresh_ui_state = getattr(self, "_refresh_mesh_editor_ui_state", None)
+        if callable(refresh_ui_state):
+            refresh_ui_state()
+        ui_state = getattr(self, "mesh_editor_ui_state", None)
+        if ui_state is not None and ui_state.session_id:
+            return bool(
+                ui_state.rebuild_report_revision is not None
+                and ui_state.rebuild_report_revision == ui_state.geometry_revision
+            )
         revision = self._standalone_session_revision()
         controller = self.standalone_controller
         session_id = str(getattr(controller, "active_session_id", "") or "")

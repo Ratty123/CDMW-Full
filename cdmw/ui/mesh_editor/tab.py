@@ -21,6 +21,7 @@ from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.mesh_editor.tab_support import (
     STANDALONE_NATIVE_TOOL_STATE as _STANDALONE_NATIVE_TOOL_STATE,
 )
+from cdmw.ui.mesh_editor.tab_lifetime import install_mesh_editor_destroyed_worker_guard
 
 _LEGACY_SCREEN_CAMERA_FIELDS = frozenset(
     {"camera_world", "yaw_degrees", "pitch_degrees", "distance", "vertical_fov_degrees", "pan"}
@@ -36,6 +37,7 @@ from cdmw.ui.mesh_editor.tab_dotnet_process import MeshEditorDotNetProcessMixin
 from cdmw.ui.mesh_editor.tab_reports import MeshEditorReportsMixin
 from cdmw.ui.mesh_editor.tab_session_runtime import MeshEditorSessionMixin
 from cdmw.ui.mesh_editor.tab_state import MeshEditorStateMixin
+from cdmw.ui.mesh_editor.tab_ui_state import MeshEditorUiStateMixin
 from cdmw.ui.mesh_editor.tab_interaction import MeshEditorInteractionMixin
 from cdmw.ui.mesh_editor.tab_actions import MeshEditorActionsMixin
 from cdmw.ui.mesh_editor.tab_output_policy import MeshEditorOutputPolicyMixin
@@ -185,7 +187,7 @@ def __dir__() -> list[str]:
     return sorted((*globals(), *_LAZY_EXPORTS))
 
 
-class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshEditorPackageMixin, MeshEditorDotNetLaunchMixin, MeshEditorDotNetProtocolMixin, MeshEditorDotNetCommandMixin, MeshEditorDotNetProcessMixin, MeshEditorOutputPolicyMixin, MeshEditorReportsMixin, MeshEditorSessionMixin, MeshEditorStateMixin, MeshEditorInteractionMixin, MeshEditorActionsMixin, QWidget):
+class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshEditorPackageMixin, MeshEditorDotNetLaunchMixin, MeshEditorDotNetProtocolMixin, MeshEditorDotNetCommandMixin, MeshEditorDotNetProcessMixin, MeshEditorOutputPolicyMixin, MeshEditorReportsMixin, MeshEditorSessionMixin, MeshEditorUiStateMixin, MeshEditorStateMixin, MeshEditorInteractionMixin, MeshEditorActionsMixin, QWidget):
     """Direct resident mesh-authoring workspace host."""
 
     status_message_requested = Signal(str, bool)
@@ -268,6 +270,7 @@ class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshE
         root.addWidget(self.workspace_stack, 1)
 
         self._sync_state()
+        install_mesh_editor_destroyed_worker_guard(self)
 
 
 __all__ = sorted(name for name in (*globals(), *_LAZY_EXPORTS) if not name.startswith("_"))

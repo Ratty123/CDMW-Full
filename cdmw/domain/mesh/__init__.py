@@ -163,6 +163,18 @@ from .skeleton import (
 )
 from .stroke_samples import StrokeSample, StrokeSampleBuffer, StrokeSampleConfig
 from .textures import MeshTextureEditTarget, selected_mesh_texture_edit_target
+from .ui_state import (
+    MeshEditorRecoveryStatus,
+    MeshEditorSelectionSummary,
+    MeshEditorSynchronizationStatus,
+    MeshEditorUiEvent,
+    MeshEditorUiEventKind,
+    MeshEditorUiInvariantError,
+    MeshEditorUiState,
+    assert_mesh_editor_ui_invariants,
+    mesh_editor_ui_invariant_errors,
+)
+from .ui_state_reducer import reduce_mesh_editor_ui_state, replay_mesh_editor_ui_events
 from .uv import MeshUvIslandSummary, MeshUvSummary, mesh_uv_lasso_selection, mesh_uv_region_selection, summarize_mesh_uvs
 
 __all__ = [
@@ -248,6 +260,13 @@ __all__ = [
     "MeshPanelSnapshot",
     "MeshPanelStatus",
     "MeshPanelUnavailableError",
+    "MeshEditorRecoveryStatus",
+    "MeshEditorSelectionSummary",
+    "MeshEditorSynchronizationStatus",
+    "MeshEditorUiEvent",
+    "MeshEditorUiEventKind",
+    "MeshEditorUiInvariantError",
+    "MeshEditorUiState",
     "MeshPartCompareSummary",
     "MeshAnimationClip",
     "MeshAnimationKeyframe",
@@ -276,6 +295,10 @@ __all__ = [
     "BLOCKED_MESH_EDIT_OPERATIONS",
     "compare_meshes",
     "selected_mesh_texture_edit_target",
+    "assert_mesh_editor_ui_invariants",
+    "mesh_editor_ui_invariant_errors",
+    "reduce_mesh_editor_ui_state",
+    "replay_mesh_editor_ui_events",
     "mesh_uv_lasso_selection",
     "mesh_uv_region_selection",
     "sample_mesh_animation_pose",

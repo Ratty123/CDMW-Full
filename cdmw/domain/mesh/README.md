@@ -39,6 +39,20 @@ unproven rather than silently falling back. Imported OBJ/FBX/DAE/glTF sessions
 stay blocked until a new non-exact output folder is selected, while MeshInfo and
 unknown formats retain selection and inspection without mutation.
 
+## Authoritative UI lifecycle state
+
+`ui_state.py` defines the immutable `MeshEditorUiState` and its 15 safety
+invariants; `ui_state_reducer.py` owns the pure session, process, service,
+renderer, interaction, report, and recovery transitions. The model separates
+resident service revision, renderer revision and last acknowledgement, while a
+separate geometry revision preserves report authority across selection-only
+changes. It binds pending request authority to one session and process
+generation, and derives authoring and validation-gated output only after the
+matching revision equalities. Strict callers raise
+on an impossible transition; production reduction enters sticky fail-closed
+recovery with a bounded invariant report. Replaying the same event sequence
+produces the same state.
+
 ## Body region segmentation
 
 `body_regions.py` turns a skinned body's own skin weights plus the bone names

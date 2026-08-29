@@ -21,6 +21,8 @@ $TestsByArea = @{
         # Exact, Free Edit, and Read Only policy routing plus atomic non-exact
         # output. These fail at user-command time if session filtering drifts.
         "tests/test_mesh_output_policy.py",
+        "tests/test_mesh_editor_ui_state.py",
+        "tests/test_mesh_editor_ui_state_bridge.py",
         # Generated-manifest freshness. Both of these are verified by
         # build_pyside6_app.ps1 before it compiles anything, so a stale one is a
         # failed release build. The localization manifest stores a line number
@@ -289,6 +291,8 @@ $TestsByArea = @{
         "tests/test_full_replacement_texture_payload.py",
         "tests/test_mesh_authoring_capability.py",
         "tests/test_mesh_output_policy.py",
+        "tests/test_mesh_editor_ui_state.py",
+        "tests/test_mesh_editor_ui_state_bridge.py",
         "tests/test_fbx_support_contract.py",
         "tests/test_mesh_editor_mixin_composition.py",
         "tests/test_mesh_editor_camera_is_not_reset.py",

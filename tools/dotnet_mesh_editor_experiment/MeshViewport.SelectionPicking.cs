@@ -293,137 +293,203 @@ internal sealed partial class MeshViewport
         var cache = EnsurePaintProjectionCache(CurrentCamera());
         if (cache is null)
         {
-            // The authoritative region request still carries the polygon to
-            // native selection. Local echo waits for the correlated cache build
-            // instead of touching a partially built projection from input.
             return;
         }
         if (_selectionDragTargetMode == "edge")
         {
-            foreach (var edge in _edgeTopology.Edges)
-            {
-                if (!cache.Points.TryGetValue(edge.SubmeshIndex, out var points)
-                    || !cache.PartBounds.TryGetValue(edge.SubmeshIndex, out var partBounds)
-                    || !partBounds.IntersectsWith(bounds)
-                    || edge.VertexA < 0
-                    || edge.VertexA >= points.Length
-                    || edge.VertexB < 0
-                    || edge.VertexB >= points.Length
-                    || !SelectionGeometry.PolygonIntersectsSegment(
-                        polygon,
-                        points[edge.VertexA],
-                        points[edge.VertexB]))
-                {
-                    continue;
-                }
-                var edgeDepths = cache.Depths[edge.SubmeshIndex];
-                if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
-                    && !PaintSegmentVisible(
-                        cache,
-                        points[edge.VertexA],
-                        edgeDepths[edge.VertexA],
-                        points[edge.VertexB],
-                        edgeDepths[edge.VertexB]))
-                {
-                    continue;
-                }
-                ApplyProvisionalHit(_provisionalSelectedEdges, edge.Id, operation, _selectionPaintToggleTouchedEdges);
-            }
+            UpdateProvisionalEdgeRegionHits(cache, polygon, bounds, operation);
         }
         else
         {
-            foreach (var pair in cache.Points)
-            {
-                var submeshIndex = pair.Key;
-                var points = pair.Value;
-                if (!cache.PartBounds.TryGetValue(submeshIndex, out var partBounds)
-                    || !partBounds.IntersectsWith(bounds))
-                {
-                    continue;
-                }
-                var depths = cache.Depths[submeshIndex];
-                if (_selectionDragTargetMode == "face")
-                {
-                    var submesh = _document.Submeshes[submeshIndex];
-                    if (!_provisionalSelectedFaces.TryGetValue(submeshIndex, out var selectedFaces))
-                    {
-                        selectedFaces = new HashSet<int>();
-                        if (operation != "subtract")
-                        {
-                            _provisionalSelectedFaces[submeshIndex] = selectedFaces;
-                        }
-                    }
-                    for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
-                    {
-                        var face = submesh.Faces[faceIndex];
-                        if (face.Corners.Length != 3)
-                        {
-                            continue;
-                        }
-                        var a = face.Corners[0].VertexIndex;
-                        var b = face.Corners[1].VertexIndex;
-                        var c = face.Corners[2].VertexIndex;
-                        if (a < 0 || b < 0 || c < 0 || a >= points.Length || b >= points.Length || c >= points.Length
-                            || !SelectionGeometry.PolygonIntersectsTriangle(
-                                polygon,
-                                points[a],
-                                points[b],
-                                points[c]))
-                        {
-                            continue;
-                        }
-                        if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
-                            && !PaintTriangleVisible(cache, points[a], depths[a], points[b], depths[b], points[c], depths[c]))
-                        {
-                            continue;
-                        }
-                        ApplyProvisionalHit(
-                            selectedFaces,
-                            faceIndex,
-                            operation,
-                            _selectionPaintToggleTouchedFaces,
-                            (submeshIndex, faceIndex));
-                    }
-                    if (selectedFaces.Count == 0)
-                    {
-                        _provisionalSelectedFaces.Remove(submeshIndex);
-                    }
-                    continue;
-                }
-                if (!_provisionalSelectedVertices.TryGetValue(submeshIndex, out var selectedVertices))
-                {
-                    selectedVertices = new HashSet<int>();
-                    if (operation != "subtract")
-                    {
-                        _provisionalSelectedVertices[submeshIndex] = selectedVertices;
-                    }
-                }
-                for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
-                {
-                    if (!SelectionGeometry.PointInPolygon(points[vertexIndex], polygon)
-                        || (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
-                            && !PaintPointVisible(cache, points[vertexIndex].X, points[vertexIndex].Y, depths[vertexIndex])))
-                    {
-                        continue;
-                    }
-                    ApplyProvisionalHit(
-                        selectedVertices,
-                        vertexIndex,
-                        operation,
-                        _selectionPaintToggleTouchedVertices,
-                        (submeshIndex, vertexIndex));
-                }
-                if (selectedVertices.Count == 0)
-                {
-                    _provisionalSelectedVertices.Remove(submeshIndex);
-                }
-            }
+            UpdateProvisionalPointRegionHits(cache, polygon, bounds, operation);
         }
         _provisionalPartSelectionActive = false;
         UpdateGpuViewport();
         Invalidate();
     }
 
+    private void UpdateProvisionalEdgeRegionHits(
+        PaintProjectionCache cache,
+        IReadOnlyList<Point> polygon,
+        RectangleF bounds,
+        string operation)
+    {
+        foreach (var edge in _edgeTopology.Edges)
+        {
+            if (!cache.Points.TryGetValue(edge.SubmeshIndex, out var points)
+                || !cache.PartBounds.TryGetValue(edge.SubmeshIndex, out var partBounds)
+                || !partBounds.IntersectsWith(bounds)
+                || edge.VertexA < 0
+                || edge.VertexA >= points.Length
+                || edge.VertexB < 0
+                || edge.VertexB >= points.Length
+                || !SelectionGeometry.PolygonIntersectsSegment(
+                    polygon,
+                    points[edge.VertexA],
+                    points[edge.VertexB]))
+            {
+                continue;
+            }
+            var edgeDepths = cache.Depths[edge.SubmeshIndex];
+            if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
+                && !PaintSegmentVisible(
+                    cache,
+                    points[edge.VertexA],
+                    edgeDepths[edge.VertexA],
+                    points[edge.VertexB],
+                    edgeDepths[edge.VertexB]))
+            {
+                continue;
+            }
+            ApplyProvisionalHit(
+                _provisionalSelectedEdges,
+                edge.Id,
+                operation,
+                _selectionPaintToggleTouchedEdges);
+        }
+    }
+
+    private void UpdateProvisionalPointRegionHits(
+        PaintProjectionCache cache,
+        IReadOnlyList<Point> polygon,
+        RectangleF bounds,
+        string operation)
+    {
+        foreach (var pair in cache.Points)
+        {
+            var submeshIndex = pair.Key;
+            var points = pair.Value;
+            if (!cache.PartBounds.TryGetValue(submeshIndex, out var partBounds)
+                || !partBounds.IntersectsWith(bounds))
+            {
+                continue;
+            }
+            var depths = cache.Depths[submeshIndex];
+            if (_selectionDragTargetMode == "face")
+            {
+                UpdateProvisionalFaceRegionHits(
+                    cache,
+                    polygon,
+                    submeshIndex,
+                    points,
+                    depths,
+                    operation);
+            }
+            else
+            {
+                UpdateProvisionalVertexRegionHits(
+                    cache,
+                    polygon,
+                    submeshIndex,
+                    points,
+                    depths,
+                    operation);
+            }
+        }
+    }
+
+    private void UpdateProvisionalFaceRegionHits(
+        PaintProjectionCache cache,
+        IReadOnlyList<Point> polygon,
+        int submeshIndex,
+        PointF[] points,
+        float[] depths,
+        string operation)
+    {
+        var submesh = _document.Submeshes[submeshIndex];
+        if (!_provisionalSelectedFaces.TryGetValue(submeshIndex, out var selectedFaces))
+        {
+            selectedFaces = new HashSet<int>();
+            if (operation != "subtract")
+            {
+                _provisionalSelectedFaces[submeshIndex] = selectedFaces;
+            }
+        }
+        for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
+        {
+            var face = submesh.Faces[faceIndex];
+            if (face.Corners.Length != 3)
+            {
+                continue;
+            }
+            var a = face.Corners[0].VertexIndex;
+            var b = face.Corners[1].VertexIndex;
+            var c = face.Corners[2].VertexIndex;
+            if (a < 0 || b < 0 || c < 0
+                || a >= points.Length || b >= points.Length || c >= points.Length
+                || !SelectionGeometry.PolygonIntersectsTriangle(
+                    polygon,
+                    points[a],
+                    points[b],
+                    points[c]))
+            {
+                continue;
+            }
+            if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
+                && !PaintTriangleVisible(
+                    cache,
+                    points[a],
+                    depths[a],
+                    points[b],
+                    depths[b],
+                    points[c],
+                    depths[c]))
+            {
+                continue;
+            }
+            ApplyProvisionalHit(
+                selectedFaces,
+                faceIndex,
+                operation,
+                _selectionPaintToggleTouchedFaces,
+                (submeshIndex, faceIndex));
+        }
+        if (selectedFaces.Count == 0)
+        {
+            _provisionalSelectedFaces.Remove(submeshIndex);
+        }
+    }
+
+    private void UpdateProvisionalVertexRegionHits(
+        PaintProjectionCache cache,
+        IReadOnlyList<Point> polygon,
+        int submeshIndex,
+        PointF[] points,
+        float[] depths,
+        string operation)
+    {
+        if (!_provisionalSelectedVertices.TryGetValue(submeshIndex, out var selectedVertices))
+        {
+            selectedVertices = new HashSet<int>();
+            if (operation != "subtract")
+            {
+                _provisionalSelectedVertices[submeshIndex] = selectedVertices;
+            }
+        }
+        for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
+        {
+            if (!SelectionGeometry.PointInPolygon(points[vertexIndex], polygon)
+                || (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
+                    && !PaintPointVisible(
+                        cache,
+                        points[vertexIndex].X,
+                        points[vertexIndex].Y,
+                        depths[vertexIndex])))
+            {
+                continue;
+            }
+            ApplyProvisionalHit(
+                selectedVertices,
+                vertexIndex,
+                operation,
+                _selectionPaintToggleTouchedVertices,
+                (submeshIndex, vertexIndex));
+        }
+        if (selectedVertices.Count == 0)
+        {
+            _provisionalSelectedVertices.Remove(submeshIndex);
+        }
+    }
     private Rectangle EdgeDragRectangle()
     {
         var left = Math.Min(_edgeDragStart.X, _edgeDragCurrent.X);

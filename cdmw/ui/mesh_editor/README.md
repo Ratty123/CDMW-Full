@@ -72,6 +72,12 @@ active revision is then published atomically as a validated OBJ/MTL package with
 provenance, never over the source asset. MeshInfo and unknown formats remain
 read-only for selection, inspection, comparison, and safe export. The Python
 host and resident C# form reject the same unavailable command before mutation.
+`tab_ui_state.py` is the effect bridge into the domain reducer. Existing mixins
+still send protocol messages, run workers, load packages and record diagnostics,
+but action visibility, blocker reasons, report/output authority and the resident
+session payload are projected from `MeshEditorUiState`. Serious synchronization
+failures record its bounded snapshot with session, process generation, request,
+base/target/service/renderer revisions and the stable recovery error code.
 The resident strip keeps **Close** at its far edge. It remains available while
 session work is active, confirms before discarding edits, and returns Mesh Editor
 to its empty state through the same nonblocking worker and renderer teardown path.

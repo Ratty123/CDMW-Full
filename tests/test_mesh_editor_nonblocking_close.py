@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 from unittest.mock import patch
 
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QSettings, QThread, Qt, Signal, Slot
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QToolButton
 
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_shell import _MeshEditorSaveAwareDialog
+from cdmw.ui.mesh_editor.tab_lifetime import _stop_destroyed_mesh_editor_workers
 from cdmw.ui.mesh_editor.tab import MeshEditorTab
 
 
@@ -35,6 +37,49 @@ class _RetiringDispatcher:
 
     def retire_controller(self, controller: object) -> None:
         self.retired.append(controller)
+
+
+class _StopAwareWorker(QObject):
+    finished = Signal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.stop_event = threading.Event()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+    @Slot()
+    def run(self) -> None:
+        self.stop_event.wait(5.0)
+        self.finished.emit()
+
+
+def test_destroyed_worker_guard_accepts_shutdown_protocol_test_doubles() -> None:
+    class ThreadStub:
+        def __init__(self) -> None:
+            self.interrupted = False
+            self.quit_requested = False
+
+        def requestInterruption(self) -> None:
+            self.interrupted = True
+
+        def quit(self) -> None:
+            self.quit_requested = True
+
+    worker = _StopAwareWorker()
+    thread = ThreadStub()
+    tab = type(
+        "TabStub",
+        (),
+        {"iter_shutdown_workers": lambda self: (("test", thread, worker),)},
+    )()
+
+    _stop_destroyed_mesh_editor_workers(tab)
+
+    assert worker.stop_event.is_set()
+    assert thread.interrupted
+    assert thread.quit_requested
 
 
 def test_close_standalone_session_detaches_slow_controller_without_waiting() -> None:
@@ -99,6 +144,32 @@ def test_close_session_button_confirms_edits_and_returns_to_empty_state_without_
     tab.standalone_live_stroke_dispatcher = None
     tab.deleteLater()
     app.processEvents()
+
+
+def test_delete_later_stops_owned_worker_before_qt_destroys_its_thread() -> None:
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings("CDMWTests", "MeshEditorDestroyedWorkerGuard")
+    settings.clear()
+    tab = MeshEditorTab(settings=settings)
+    worker = _StopAwareWorker()
+    thread = QThread(tab)
+    worker.moveToThread(thread)
+    thread.started.connect(worker.run)
+    worker.finished.connect(thread.quit, Qt.DirectConnection)
+    tab.standalone_action_worker = worker
+    tab.standalone_action_thread = thread
+    thread.start()
+    assert thread.isRunning()
+
+    tab.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    app.processEvents()
+
+    assert worker.stop_event.is_set()
+    try:
+        assert not thread.isRunning() or thread.parent() is None
+    except RuntimeError:
+        pass
 
 
 def test_geometry_layer_close_defers_dialog_disposal_until_background_save_finishes() -> None:
