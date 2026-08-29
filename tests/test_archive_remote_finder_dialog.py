@@ -71,10 +71,16 @@ class _Bridge:
     def __init__(self) -> None:
         self.current_session = ArchiveSessionHandle("session-a", "C:/Game", "fingerprint-a", 20, 3, True)
         self.controller = _Controller()
-        self.scopes: list[tuple[tuple[int, ...], str]] = []
+        self.scopes: list[tuple[tuple[int, ...], str, tuple[str, ...]]] = []
 
-    def apply_entry_id_scope(self, entry_ids: object, *, label: str) -> bool:
-        self.scopes.append((tuple(entry_ids), label))
+    def apply_entry_id_scope(
+        self,
+        entry_ids: object,
+        *,
+        label: str,
+        preferred_prefab_stems: object = (),
+    ) -> bool:
+        self.scopes.append((tuple(entry_ids), label, tuple(preferred_prefab_stems)))
         return True
 
 
@@ -242,7 +248,9 @@ def test_full_finder_search_is_latest_wins_and_scope_uses_entry_ids() -> None:
         ItemCatalogScopeResult("session-a", (3, 8), 1, 1, False),
     )
     _drain()
-    assert window.archive_remote_bridge.scopes == [((3, 8), "Item Finder: Item 7")]
+    assert window.archive_remote_bridge.scopes == [
+        ((3, 8), "Item Finder: Item 7", ("item_7",))
+    ]
     dialog.close()
 
 

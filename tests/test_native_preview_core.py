@@ -937,6 +937,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("compile_color_blending_seed_layers", source)
         self.assertIn('layer.layer_role = "color_seed";', source)
         self.assertIn('layer.blend_order = "pac_rgb_selector_palette";', source)
+        self.assertIn("binding.color_blending_tints[channel] = tint_for_layer", source)
+        self.assertIn("palette_owner->color_blending_tints[channel]", source)
+        self.assertNotIn("palette_sources", source)
         self.assertIn("layers.insert(layers.end(), color_seed_layers.begin(), color_seed_layers.end());", layer_source)
         self.assertIn("material_layers_have_color_seed", source)
         self.assertIn("color blending palette did not publish three selector channels", source)
@@ -970,7 +973,7 @@ class NativePreviewCoreTests(unittest.TestCase):
     def test_native_preview_core_treats_eye_cover_as_alpha_eye_surface(self) -> None:
         source = preview_core_source()
 
-        self.assertIn("kNativeMaterialSemanticsVersion = 7", source)
+        self.assertIn("kNativeMaterialSemanticsVersion = 8", source)
         self.assertIn("evidence_contains_eye_surface_token", source)
         self.assertIn("evidence_contains_eye_cutout_surface_token", source)
         self.assertIn('lower.find("eyecover")', source)
@@ -1352,7 +1355,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         source = preview_core_source()
 
         self.assertIn("score_material_wrapper_block_for_preview", source)
-        self.assertIn('collect_xml_tag_blocks(text, "SkinnedMeshMaterialWrapper")', source)
+        self.assertIn("material_sidecar_scope_for_model_property", source)
+        self.assertIn('collect_xml_tag_blocks(scope, "SkinnedMeshMaterialWrapper")', source)
+        self.assertIn('"model_property_indices"', source)
+        self.assertIn("mesh.model_property_index = model_property_index_for_path", source)
         self.assertIn("material_keys_overlap", source)
         self.assertIn("normalized_texture_family_key", source)
         self.assertIn("build_material_bindings(job, *index, parsed.meshes, package)", source)

@@ -109,6 +109,8 @@ class ArchiveRemoteWindowBridge(QObject):
         self._export_selection_error = ""
         self._progress_operation = ""
         self._item_scope_selection_generation: int | None = None
+        self._item_scope_preferred_prefab_stems: tuple[str, ...] = ()
+        self._item_scope_entry_ids: tuple[int, ...] = ()
         self._model = RemoteArchiveBrowserModel(parent=self)
         self._controller = ArchiveRemoteCatalogueController(
             window.archive_catalogue_service,
@@ -196,6 +198,8 @@ class ArchiveRemoteWindowBridge(QObject):
             current_session.session_id if current_session is not None else None
         )
         self.cancel_preview_dependencies(clear_snapshot=True)
+        self._item_scope_preferred_prefab_stems = ()
+        self._item_scope_entry_ids = ()
         self._last_open_root = str(Path(package_root))
         self._last_force_refresh = bool(force_refresh)
         self._activate_tab_on_publish = bool(activate_tab)
@@ -328,6 +332,8 @@ class ArchiveRemoteWindowBridge(QObject):
 
     def apply_current_query(self) -> None:
         self.cancel_preview_dependencies(clear_snapshot=True)
+        self._item_scope_preferred_prefab_stems = ()
+        self._item_scope_entry_ids = ()
         session = self._controller.current_session
         if session is None:
             package_root = str(self._window.archive_package_root_edit.text() or "").strip()
@@ -342,12 +348,26 @@ class ArchiveRemoteWindowBridge(QObject):
             selection_identity=self.current_selection_identity(),
         )
 
-    def apply_entry_id_scope(self, entry_ids: Iterable[int], *, label: str) -> bool:
+    def apply_entry_id_scope(
+        self,
+        entry_ids: Iterable[int],
+        *,
+        label: str,
+        preferred_prefab_stems: Iterable[str] = (),
+    ) -> bool:
         session = self._controller.current_session
         bounded_ids = tuple(dict.fromkeys(int(entry_id) for entry_id in entry_ids))[:MAX_REMOTE_EXPORT_ENTRY_IDS]
         if session is None or not bounded_ids:
             return False
         self.cancel_preview_dependencies(clear_snapshot=True)
+        self._item_scope_entry_ids = bounded_ids
+        self._item_scope_preferred_prefab_stems = tuple(
+            dict.fromkeys(
+                str(stem or "").replace("\\", "/").rsplit("/", 1)[-1].casefold()
+                for stem in preferred_prefab_stems
+                if str(stem or "").strip()
+            )
+        )[:32]
         window = self._window
         window.archive_active_asset_catalog_scope = str(label or "Finder results")
         window.archive_clear_asset_scope_button.setVisible(True)
@@ -390,7 +410,12 @@ class ArchiveRemoteWindowBridge(QObject):
         dto = self._model.entry_for_index(self._window.archive_tree.currentIndex())
         if provider is None or dto is None or _legacy_identity_key(entry) != _dto_identity_key(dto):
             return False
-        return provider.request(dto, ui_request_id=int(ui_request_id))
+        return provider.request(
+            dto,
+            ui_request_id=int(ui_request_id),
+            preferred_prefab_stems=self._item_scope_preferred_prefab_stems,
+            scope_entry_ids=self._item_scope_entry_ids,
+        )
 
     def preview_dependencies_for(
         self,

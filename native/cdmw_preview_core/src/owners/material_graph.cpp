@@ -702,12 +702,43 @@ static int score_material_wrapper_block_for_preview(const std::string& block, co
     return score;
 }
 
-static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(const std::string& text) {
+static int xml_model_property_index(const std::string& block) {
+    const std::string value = xml_attr_value_from_map(
+        xml_attribute_map(block),
+        {"Index", "_index"});
+    if (value.empty()) return -1;
+    char* end = nullptr;
+    const long parsed = std::strtol(value.c_str(), &end, 10);
+    return end != value.c_str() && *end == '\0' && parsed >= 0 && parsed <= 255
+        ? static_cast<int>(parsed)
+        : -1;
+}
+
+static std::string material_sidecar_scope_for_model_property(
+    const std::string& text,
+    int model_property_index
+) {
+    std::string index_zero_scope;
+    for (const std::string& block : collect_xml_tag_blocks(text, "ModelProperty")) {
+        const int block_index = xml_model_property_index(block);
+        if (block_index == model_property_index) return block;
+        if (block_index == 0 && index_zero_scope.empty()) index_zero_scope = block;
+    }
+    return index_zero_scope.empty() ? text : index_zero_scope;
+}
+
+static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(
+    const std::string& text,
+    int model_property_index = 0
+) {
     std::vector<SidecarTextureRef> refs;
     std::set<std::string> seen;
+    const std::string scope = material_sidecar_scope_for_model_property(
+        text,
+        model_property_index);
 
     int wrapper_index = 0;
-    for (const std::string& block : collect_xml_tag_blocks(text, "SkinnedMeshMaterialWrapper")) {
+    for (const std::string& block : collect_xml_tag_blocks(scope, "SkinnedMeshMaterialWrapper")) {
         std::string material_name = xml_attr_value(block, {"_subMeshName", "PrimitiveName", "Name"});
         std::replace(material_name.begin(), material_name.end(), '\\', '/');
         const std::string shader_family = extract_shader_family_hint(block);
@@ -716,7 +747,7 @@ static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(const std::st
 
     if (refs.empty()) {
         wrapper_index = 0;
-        for (const std::string& block : collect_xml_tag_blocks(text, "Material")) {
+        for (const std::string& block : collect_xml_tag_blocks(scope, "Material")) {
             std::string material_name = xml_attr_value(block, {"PrimitiveName", "_subMeshName", "Name"});
             std::replace(material_name.begin(), material_name.end(), '\\', '/');
             std::string shader_family = extract_shader_family_hint(block);
@@ -726,11 +757,11 @@ static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(const std::st
     }
 
     if (refs.empty()) {
-        extract_texture_refs_from_scope(text, "", "", -1, refs, seen);
+        extract_texture_refs_from_scope(scope, "", "", -1, refs, seen);
     }
 
     if (!refs.empty()) return refs;
-    for (const std::string& token : extract_dds_tokens(text)) {
+    for (const std::string& token : extract_dds_tokens(scope)) {
         add_sidecar_texture_ref(refs, seen, token, basename_from_path(token), "", "", -1);
     }
     return refs;

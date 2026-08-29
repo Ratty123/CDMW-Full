@@ -522,9 +522,13 @@ static void trim_resident_parsed_material_sidecar_cache() {
     }
 }
 
-static const ParsedMaterialSidecar& cached_parsed_material_sidecar(const ArchiveEntryRef& sidecar) {
+static const ParsedMaterialSidecar& cached_parsed_material_sidecar(
+    const ArchiveEntryRef& sidecar,
+    int model_property_index
+) {
     auto& cache = resident_parsed_material_sidecar_cache();
-    const std::string key = archive_ref_identity(sidecar);
+    const std::string key = archive_ref_identity(sidecar)
+        + "|model-property:" + std::to_string(model_property_index);
     auto found = cache.find(key);
     if (found != cache.end()) {
         ++g_sidecar_parse_cache_hits;
@@ -533,15 +537,18 @@ static const ParsedMaterialSidecar& cached_parsed_material_sidecar(const Archive
     ++g_sidecar_parse_cache_misses;
     std::vector<char> sidecar_bytes = read_archive_ref_decoded_bytes(sidecar);
     std::string sidecar_text(sidecar_bytes.begin(), sidecar_bytes.end());
+    const std::string material_scope = material_sidecar_scope_for_model_property(
+        sidecar_text,
+        model_property_index);
     ParsedMaterialSidecar parsed;
-    parsed.shader_family = extract_shader_family_hint(sidecar_text);
+    parsed.shader_family = extract_shader_family_hint(material_scope);
     if (parsed.shader_family.empty()) {
         parsed.shader_family = sidecar.extension == ".pami" ? "StaticMaterial" : "";
     }
     parsed.shader_rule = shader_rule_for_family(parsed.shader_family);
-    parsed.parameter_summary = summarize_sidecar_parameters(sidecar_text);
-    parsed.pbd_hints = extract_native_pbd_sidecar_hints(sidecar_text, sidecar.path);
-    parsed.refs = extract_sidecar_texture_refs(sidecar_text);
+    parsed.parameter_summary = summarize_sidecar_parameters(material_scope);
+    parsed.pbd_hints = extract_native_pbd_sidecar_hints(material_scope, sidecar.path);
+    parsed.refs = extract_sidecar_texture_refs(material_scope, model_property_index);
     parsed.material_wrapper_count = 0;
     for (const SidecarTextureRef& ref : parsed.refs) {
         if (ref.material_wrapper_index >= 0) {
@@ -549,8 +556,8 @@ static const ParsedMaterialSidecar& cached_parsed_material_sidecar(const Archive
         }
     }
     if (parsed.refs.empty()) {
-        const std::vector<MaterialParameterRecord> material_parameters = extract_material_parameters(sidecar_text);
-        for (const std::string& token : extract_dds_tokens(sidecar_text)) {
+        const std::vector<MaterialParameterRecord> material_parameters = extract_material_parameters(material_scope);
+        for (const std::string& token : extract_dds_tokens(material_scope)) {
             parsed.refs.push_back(SidecarTextureRef{token, "", "", parsed.shader_family, -1, material_parameters});
         }
     }

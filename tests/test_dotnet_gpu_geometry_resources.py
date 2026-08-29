@@ -278,11 +278,14 @@ def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence()
     assert "MinimumSpecularMeanLuma = 1.0" in textured_metal_readability
     assert "MinimumSpecularMeanLumaViewSpan = 3.0" in textured_metal_readability
     assert "MaximumSpecularWhiteFraction = 0.12" in textured_metal_readability
+    assert "MaximumCenterClippedChannelFraction = 0.12" in textured_metal_readability
+    assert "MaximumSpecularClippedChannelFraction = 0.16" in textured_metal_readability
     assert '"specular_mean_luma_view_span"' in textured_metal_readability
     assert "MinimumAllViewLumaRatio" in textured_metal_readability
     assert "MaximumViewChromaticityDistance" in textured_metal_readability
     assert "center_chromaticity_span" in textured_metal_readability
     assert "center_white_fraction" in textured_metal_readability
+    assert "center_clipped_channel_fraction" in textured_metal_readability
     assert 'TryCaptureReplacementPng' in textured_metal_readability
     assert 'IsWindowVisible(viewport.Handle)' in textured_metal_readability
 

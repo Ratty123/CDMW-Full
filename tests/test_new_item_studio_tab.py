@@ -783,6 +783,9 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             return_value=(prefab,),
             create=True,
         ), patch(
+            "cdmw.workers.archive_preview_native.native_preview_model_property_indices",
+            return_value={primary.path.casefold(): 1},
+        ) as model_property_indices, patch(
             "cdmw.services.preview_rendering_service.run_native_preview_core_preview_job",
             return_value=attempt,
         ) as run_native, patch(
@@ -800,6 +803,8 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         native_kwargs = run_native.call_args.kwargs
         self.assertEqual(native_kwargs["enabled_prefab_component_paths"], (component.path,))
         self.assertEqual(native_kwargs["dependency_entries"], (primary, component, prefab))
+        self.assertEqual(native_kwargs["model_property_indices"], {primary.path.casefold(): 1})
+        model_property_indices.assert_called_once()
         archive_identity = build_package.call_args.kwargs["archive_identity"]
         self.assertIn(f":template={TEMPLATE}:", archive_identity)
         self.assertIn(prefab.path, archive_identity)

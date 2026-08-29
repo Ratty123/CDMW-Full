@@ -1,6 +1,6 @@
 constexpr int kNativePackageSchemaVersion = 8;
 constexpr int kNativeMaterialGraphVersion = 3;
-constexpr int kNativeMaterialSemanticsVersion = 7;
+constexpr int kNativeMaterialSemanticsVersion = 8;
 constexpr int kNativeDdsExtractionVersion = 2;
 
 std::string json_escape(const std::string& value) {
@@ -407,6 +407,7 @@ struct EntryJob {
     std::vector<ArchiveEntryRef> archive_dependency_entries;
     bool archive_dependency_entries_complete = false;
     std::vector<std::string> enabled_prefab_component_paths;
+    std::map<std::string, int> model_property_indices;
     fs::path presentation_geometry_path;
     std::string presentation_geometry_source;
     bool use_textures = true;
@@ -527,6 +528,7 @@ struct NativeSubmesh {
     std::string material;
     std::string source_model_path;
     std::string source_component_label;
+    int model_property_index = 0;
     std::vector<Vec3> positions;
     std::vector<Vec2> uvs;
     std::vector<Vec3> normals;
@@ -649,6 +651,11 @@ struct TextureBinding {
     // every glow in the game the same shade.
     std::array<float, 3> emissive_color{1.0f, 1.0f, 1.0f};
     std::array<float, 4> tint_color{1.0f, 1.0f, 1.0f, 1.0f};
+    std::array<std::array<float, 4>, 3> color_blending_tints{{
+        {1.0f, 1.0f, 1.0f, 1.0f},
+        {1.0f, 1.0f, 1.0f, 1.0f},
+        {1.0f, 1.0f, 1.0f, 1.0f},
+    }};
     int dds_width = 0;
     int dds_height = 0;
     std::string dds_format = "";
@@ -871,6 +878,24 @@ EntryJob parse_job(const fs::path& job_path) {
         prefab_components_truncated);
     if (prefab_components_truncated) {
         throw std::runtime_error("enabled prefab component paths exceeded the 32-entry safety bound");
+    }
+    bool model_property_indices_truncated = false;
+    for (const std::string& selection_object : find_object_array_values(
+             text,
+             "model_property_indices",
+             32,
+             model_property_indices_truncated)) {
+        std::string path = find_string_value(selection_object, "path");
+        std::replace(path.begin(), path.end(), '\\', '/');
+        path = lower_copy(path);
+        const long long index = find_int_value(selection_object, "index", -1);
+        if (path.empty() || index < 0 || index > 255) {
+            throw std::runtime_error("model property selection has an invalid path or index");
+        }
+        job.model_property_indices.emplace(path, static_cast<int>(index));
+    }
+    if (model_property_indices_truncated) {
+        throw std::runtime_error("model property selections exceeded the 32-entry safety bound");
     }
     job.presentation_geometry_path = fs::path(find_string_value(text, "presentation_geometry_path"));
     job.presentation_geometry_source = find_string_value(text, "presentation_geometry_source");

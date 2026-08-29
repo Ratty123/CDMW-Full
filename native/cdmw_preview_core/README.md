@@ -16,7 +16,14 @@ they never rewrite the selected PAC or its linked PABC/PAMT sources.
 For layered Crimson materials, `_colorBlendingMaskTexture` remains a colour-layer
 selector rather than a PBR map. Preview packages publish three `color_seed` rows from
 the PAC's `_tintColorR/G/B` values; the resident compiler reconstructs those masked
-regions before grime/detail overlays and suppresses the older global-tint approximation.
+regions before grime/detail overlays, preserves the source fabric's local luminance,
+and suppresses the older global-tint approximation. When several logical items share
+one physical PAC, the ordered item prefab supplies `_modelPropertyIndex` per model and
+the native material reader scopes each `.pac_xml` to that exact `ModelProperty` block;
+the first item's index is therefore kept out of every sibling item's cache identity.
+The production shader compresses high-energy studio radiance into SDR before tone
+mapping instead of multiplying it by a fixed HDR exposure, so bright dye and metal
+retain their colour without flattening into white.
 
 `src/main.cpp` is only the executable adapter. Ordered protocol, archive,
 geometry, material, package, report, rebuild, index, and command owners live in

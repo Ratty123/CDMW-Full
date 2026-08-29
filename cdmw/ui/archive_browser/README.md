@@ -14,7 +14,10 @@ The resident item catalogue and name index follow model paths embedded in matchi
 part-prefab payloads. A shared PAC can therefore carry every owning item name, and an Item
 Finder scope includes those resolved model dependencies even when the item's prefab or icon
 uses a different numeric stem. Archive Browser and Create New Item also share Preview Core's
-PAC RGB selector-mask colour reconstruction.
+PAC RGB selector-mask colour reconstruction. Item Finder additionally retains the selected
+logical prefab ahead of shared physical siblings, allowing the background preview worker to
+decode its per-model `_modelPropertyIndex`; variant-aware package keys prevent two items that
+share a PAC from reusing each other's material set.
 
 Browsing, preview, scan, extraction, and package preparation are read-only.
 Actions that can write route through service-owned confirmation and

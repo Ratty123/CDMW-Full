@@ -98,6 +98,7 @@ internal static class NetMaterialLayerCompiler
         using var selector = ScaleToBgra(red.Mask, width, height);
         var selectorPixels = ReadBgra(selector);
         var palette = new[] { red.Binding, green.Binding, blue.Binding };
+        var referenceLumas = SelectorReferenceLumas(targetPixels, selectorPixels);
         for (var offset = 0; offset < targetPixels.Length; offset += 4)
         {
             var redWeight = selectorPixels[offset + 2] / 255.0f;
@@ -109,24 +110,85 @@ internal static class NetMaterialLayerCompiler
                 continue;
             }
             var coverage = Math.Clamp(total, 0.0f, 1.0f);
+            var sourceLuma = PixelLuma(targetPixels, offset);
+            var referenceLuma = (
+                referenceLumas[0] * redWeight
+                + referenceLumas[1] * greenWeight
+                + referenceLumas[2] * blueWeight) / total;
+            // The RGB selector supplies hue regions, not a replacement for the
+            // authored fabric/metal value map.  Replacing every selected texel
+            // with the palette constant erased seams, wear and weave, then the
+            // lit pass had one flat value to lift into a blown-looking panel.
+            // Preserve the source's local luminance around the mean of the
+            // selector channel while bounding the modulation so a bright stitch
+            // cannot clip a pale dye before the renderer sees it.
+            var detailScale = Math.Clamp(
+                sourceLuma / Math.Max(referenceLuma, 1.0f / 255.0f),
+                0.55f,
+                1.25f);
             var seededR = 255.0f * (
                 palette[0].TintR * redWeight
                 + palette[1].TintR * greenWeight
-                + palette[2].TintR * blueWeight) / total;
+                + palette[2].TintR * blueWeight) / total * detailScale;
             var seededG = 255.0f * (
                 palette[0].TintG * redWeight
                 + palette[1].TintG * greenWeight
-                + palette[2].TintG * blueWeight) / total;
+                + palette[2].TintG * blueWeight) / total * detailScale;
             var seededB = 255.0f * (
                 palette[0].TintB * redWeight
                 + palette[1].TintB * greenWeight
-                + palette[2].TintB * blueWeight) / total;
+                + palette[2].TintB * blueWeight) / total * detailScale;
             targetPixels[offset] = Blend(targetPixels[offset], seededB, coverage);
             targetPixels[offset + 1] = Blend(targetPixels[offset + 1], seededG, coverage);
             targetPixels[offset + 2] = Blend(targetPixels[offset + 2], seededR, coverage);
         }
         return true;
     }
+
+    private static float[] SelectorReferenceLumas(byte[] targetPixels, byte[] selectorPixels)
+    {
+        var weightedLumas = new double[3];
+        var weightTotals = new double[3];
+        double visibleLuma = 0.0;
+        var visibleCount = 0;
+        for (var offset = 0; offset < targetPixels.Length; offset += 4)
+        {
+            var luma = PixelLuma(targetPixels, offset);
+            if (luma <= 1.0f / 255.0f)
+            {
+                continue;
+            }
+            visibleLuma += luma;
+            visibleCount++;
+            var weights = new[]
+            {
+                selectorPixels[offset + 2] / 255.0,
+                selectorPixels[offset + 1] / 255.0,
+                selectorPixels[offset] / 255.0,
+            };
+            for (var channel = 0; channel < weights.Length; channel++)
+            {
+                weightedLumas[channel] += luma * weights[channel];
+                weightTotals[channel] += weights[channel];
+            }
+        }
+        var fallback = visibleCount > 0 ? visibleLuma / visibleCount : 0.5;
+        return Enumerable.Range(0, 3)
+            .Select(channel => QuantizeReferenceLuma(
+                weightTotals[channel] > 0.001
+                    ? weightedLumas[channel] / weightTotals[channel]
+                    : fallback))
+            .ToArray();
+    }
+
+    private static float PixelLuma(byte[] pixels, int offset) =>
+        (float)(
+            (pixels[offset + 2] / 255.0) * 0.2126
+            + (pixels[offset + 1] / 255.0) * 0.7152
+            + (pixels[offset] / 255.0) * 0.0722);
+
+    private static float QuantizeReferenceLuma(double value) =>
+        (float)(Math.Round(Math.Clamp(value, 1.0 / 255.0, 1.0) * 4096.0) / 4096.0);
 
     // The surface companion of Compile. Crimson gives every colour layer its own
     // packed surface map, and the mask that chooses which layer's colour owns a
@@ -265,18 +327,26 @@ internal static class NetMaterialLayerCompiler
 
     public static bool CompositesColorPaletteThroughSelector()
     {
-        using var baseBitmap = new Bitmap(4, 1, PixelFormat.Format32bppArgb);
-        using var diffuse = new Bitmap(4, 1, PixelFormat.Format32bppArgb);
-        using var selector = new Bitmap(4, 1, PixelFormat.Format32bppArgb);
-        using (var baseGraphics = Graphics.FromImage(baseBitmap)) baseGraphics.Clear(Color.FromArgb(255, 64, 64, 64));
+        using var baseBitmap = new Bitmap(8, 1, PixelFormat.Format32bppArgb);
+        using var diffuse = new Bitmap(8, 1, PixelFormat.Format32bppArgb);
+        using var selector = new Bitmap(8, 1, PixelFormat.Format32bppArgb);
+        for (var x = 0; x < baseBitmap.Width; x++)
+        {
+            var value = x % 2 == 0 ? 48 : 96;
+            baseBitmap.SetPixel(x, 0, Color.FromArgb(255, value, value, value));
+        }
         using (var diffuseGraphics = Graphics.FromImage(diffuse)) diffuseGraphics.Clear(Color.White);
         selector.SetPixel(0, 0, Color.Red);
-        selector.SetPixel(1, 0, Color.FromArgb(255, 0, 255, 0));
-        selector.SetPixel(2, 0, Color.Blue);
-        selector.SetPixel(3, 0, Color.FromArgb(255, 128, 128, 0));
-        var red = new NetMaterialLayerBinding("color_seed", "r", 1.0f, 1.0f, 0.0f, 0.0f, "base", "selector");
-        var green = new NetMaterialLayerBinding("color_seed", "g", 1.0f, 0.0f, 1.0f, 0.0f, "base", "selector");
-        var blue = new NetMaterialLayerBinding("color_seed", "b", 1.0f, 0.0f, 0.0f, 1.0f, "base", "selector");
+        selector.SetPixel(1, 0, Color.Red);
+        selector.SetPixel(2, 0, Color.FromArgb(255, 0, 255, 0));
+        selector.SetPixel(3, 0, Color.FromArgb(255, 0, 255, 0));
+        selector.SetPixel(4, 0, Color.Blue);
+        selector.SetPixel(5, 0, Color.Blue);
+        selector.SetPixel(6, 0, Color.FromArgb(255, 128, 128, 0));
+        selector.SetPixel(7, 0, Color.FromArgb(255, 128, 128, 0));
+        var red = new NetMaterialLayerBinding("color_seed", "r", 1.0f, 0.18f, 0.40f, 0.25f, "base", "selector");
+        var green = new NetMaterialLayerBinding("color_seed", "g", 1.0f, 0.76f, 0.58f, 0.40f, "base", "selector");
+        var blue = new NetMaterialLayerBinding("color_seed", "b", 1.0f, 0.79f, 0.79f, 0.79f, "base", "selector");
         using var compiled = Compile(
             baseBitmap,
             new[]
@@ -290,14 +360,25 @@ internal static class NetMaterialLayerCompiler
             return false;
         }
         var redPixel = compiled.GetPixel(0, 0);
-        var greenPixel = compiled.GetPixel(1, 0);
-        var bluePixel = compiled.GetPixel(2, 0);
-        var mixedPixel = compiled.GetPixel(3, 0);
-        return redPixel.R > 245 && redPixel.G < 10 && redPixel.B < 10
-            && greenPixel.G > 245 && greenPixel.R < 10 && greenPixel.B < 10
-            && bluePixel.B > 245 && bluePixel.R < 10 && bluePixel.G < 10
-            && Math.Abs(mixedPixel.R - mixedPixel.G) <= 2
-            && mixedPixel.R > 120 && mixedPixel.B < 10;
+        var redHighlight = compiled.GetPixel(1, 0);
+        var greenPixel = compiled.GetPixel(2, 0);
+        var greenHighlight = compiled.GetPixel(3, 0);
+        var bluePixel = compiled.GetPixel(4, 0);
+        var blueHighlight = compiled.GetPixel(5, 0);
+        var mixedPixel = compiled.GetPixel(6, 0);
+        var mixedHighlight = compiled.GetPixel(7, 0);
+        return redPixel.G > redPixel.R + 20 && redPixel.G > redPixel.B + 15
+            && greenPixel.R > greenPixel.B + 30 && greenPixel.G > greenPixel.B + 20
+            && Math.Max(bluePixel.R, Math.Max(bluePixel.G, bluePixel.B))
+                - Math.Min(bluePixel.R, Math.Min(bluePixel.G, bluePixel.B)) <= 2
+            && Math.Abs(mixedPixel.R - mixedPixel.G) <= 10
+            && mixedPixel.R > mixedPixel.B + 20
+            && redHighlight.G > redPixel.G + 30
+            && greenHighlight.R > greenPixel.R + 30
+            && blueHighlight.B > bluePixel.B + 30
+            && mixedHighlight.R > mixedPixel.R + 30
+            && new[] { redHighlight, greenHighlight, blueHighlight, mixedHighlight }
+                .All(color => Math.Max(color.R, Math.Max(color.G, color.B)) < 254);
     }
 
     private static byte Blend(byte background, float foreground, float alpha)

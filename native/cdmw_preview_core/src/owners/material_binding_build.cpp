@@ -144,6 +144,12 @@ static TextureBinding make_sidecar_texture_binding(
     binding.layer_channel = layer_channel_from_parameter(binding.parameter_name);
     binding.layer_weight = layer_weight_from_parameters(ref.material_parameters, binding.layer_role, binding.layer_channel);
     binding.tint_color = tint_for_layer(ref.material_parameters, binding.layer_role, binding.layer_channel);
+    for (size_t channel = 0; channel < binding.color_blending_tints.size(); ++channel) {
+        binding.color_blending_tints[channel] = tint_for_layer(
+            ref.material_parameters,
+            "grime",
+            std::string(1, "rgb"[channel]));
+    }
     binding.blend_flags = normalized_key(binding.parameter_name).find("colorblending") != std::string::npos
         ? "color_blending_mask" : "";
     binding.material_parameter_names = joined_parameter_names(ref.material_parameters);
@@ -260,6 +266,18 @@ static bool process_sidecar_texture_ref(
     return true;
 }
 
+static int material_sidecar_model_property_index(
+    const std::string& component_key,
+    const std::vector<NativeSubmesh>& meshes
+) {
+    for (const NativeSubmesh& mesh : meshes) {
+        if (material_component_key_from_path(mesh.source_model_path) == component_key) {
+            return mesh.model_property_index;
+        }
+    }
+    return 0;
+}
+
 static void process_material_sidecar(MaterialBindingBuildState& state, const ArchiveEntryRef& sidecar) {
     add_asset_family_row(state.package, NativeAssetFamilyRow{
         "Material", sidecar.extension == ".pami" ? "Material Index" : "Material Sidecar",
@@ -269,9 +287,13 @@ static void process_material_sidecar(MaterialBindingBuildState& state, const Arc
         "metadata", "Material sidecar", "", "", "", package_label_for_ref(sidecar),
         sidecar.extension, "", "", "", ""
     });
+    const std::string component_key = material_component_key_from_path(sidecar.path);
+    const int model_property_index = material_sidecar_model_property_index(
+        component_key,
+        state.meshes);
     const ParsedMaterialSidecar* parsed = nullptr;
     try {
-        parsed = &cached_parsed_material_sidecar(sidecar);
+        parsed = &cached_parsed_material_sidecar(sidecar, model_property_index);
     } catch (const std::exception& exc) {
         state.package.notes.push_back(
             std::string("native material sidecar read failed:") + sidecar.path + ": " + exc.what());
@@ -292,8 +314,8 @@ static void process_material_sidecar(MaterialBindingBuildState& state, const Arc
         + "; color_params=" + std::to_string(parsed->parameter_summary.color_params)
         + "; byte4_params=" + std::to_string(parsed->parameter_summary.byte4_params)
         + "; flags=" + std::to_string(parsed->parameter_summary.bit_flags)
-        + "; pbd_hints=" + std::to_string(parsed->pbd_hints.size()));
-    const std::string component_key = material_component_key_from_path(sidecar.path);
+        + "; pbd_hints=" + std::to_string(parsed->pbd_hints.size())
+        + "; model_property_index=" + std::to_string(model_property_index));
     const int scoped_count = sidecar_scoped_mesh_count(component_key, state.meshes);
     const bool wrapper_order_authoritative = parsed->material_wrapper_count > 0
         && parsed->material_wrapper_count == scoped_count;

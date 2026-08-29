@@ -261,11 +261,18 @@ def _generate_synthesized_albedo_map(
             )
         blended = _blend_selector_tints(
             target, color_blending_mask, color_blending_tints,
-            target_format=target_format, preserve_base_alpha=preserve_base_alpha,
+            target_format=target_format,
+            preserve_base_alpha=preserve_base_alpha,
+            cancelled=cancelled,
         )
         if blended is not None:
             target = blended
         else:
+            selector_reference_lumas = _selector_reference_lumas(
+                target,
+                color_blending_mask,
+                cancelled=cancelled,
+            )
             for y in range(height):
                 _raise_if_material_combiner_cancelled(cancelled)
                 for x in range(width):
@@ -284,6 +291,21 @@ def _generate_synthesized_albedo_map(
                     )
                     coverage = _clamp(total)
                     base = target.pixelColor(x, y)
+                    source_luma = (
+                        base.redF() * 0.2126
+                        + base.greenF() * 0.7152
+                        + base.blueF() * 0.0722
+                    )
+                    reference_luma = sum(
+                        selector_reference_lumas[channel] * normalized[channel]
+                        for channel in range(3)
+                    )
+                    detail_scale = _clamp(
+                        source_luma / max(reference_luma, 1.0 / 255.0),
+                        0.55,
+                        1.25,
+                    )
+                    seeded = tuple(component * detail_scale for component in seeded)
                     target.setPixelColor(
                         x,
                         y,
@@ -414,8 +436,56 @@ def _generate_synthesized_albedo_map(
     return _local_file_url(output_path), note
 
 
-def _blend_selector_tints(target, selector_mask, tints, *, target_format, preserve_base_alpha: bool):
-    """Seed the surface from the PAC RGB selector and its three tints, whole-image."""
+def _selector_reference_lumas(target, selector_mask, *, cancelled=None):
+    weighted_lumas = [0.0, 0.0, 0.0]
+    weight_totals = [0.0, 0.0, 0.0]
+    visible_luma = 0.0
+    visible_count = 0
+    for y in range(int(target.height())):
+        _raise_if_material_combiner_cancelled(cancelled)
+        for x in range(int(target.width())):
+            base = target.pixelColor(x, y)
+            source_luma = (
+                base.redF() * 0.2126
+                + base.greenF() * 0.7152
+                + base.blueF() * 0.0722
+            )
+            if source_luma <= 1.0 / 255.0:
+                continue
+            visible_luma += source_luma
+            visible_count += 1
+            selector = selector_mask.pixelColor(x, y)
+            weights = (selector.redF(), selector.greenF(), selector.blueF())
+            for channel, weight in enumerate(weights):
+                weighted_lumas[channel] += source_luma * weight
+                weight_totals[channel] += weight
+    fallback = visible_luma / visible_count if visible_count else 0.5
+    return tuple(
+        round(
+            _clamp(
+                weighted_lumas[channel] / weight_totals[channel]
+                if weight_totals[channel] > 0.001
+                else fallback,
+                1.0 / 255.0,
+                1.0,
+            )
+            * 4096.0
+        )
+        / 4096.0
+        for channel in range(3)
+    )
+
+
+def _blend_selector_tints(
+    target,
+    selector_mask,
+    tints,
+    *,
+    target_format,
+    preserve_base_alpha: bool,
+    cancelled=None,
+):
+    """Apply the PAC RGB palette without erasing the source texture's value detail."""
 
     numpy = numpy_module()
     base = image_to_rgba_array(target) if numpy is not None else None
@@ -436,6 +506,39 @@ def _blend_selector_tints(target, selector_mask, tints, *, target_format, preser
             + (float(tints[1][component]) * normalized[:, :, 1])
             + (float(tints[2][component]) * normalized[:, :, 2])
         )
+    source_luma = (
+        base[:, :, 0] * 0.2126
+        + base[:, :, 1] * 0.7152
+        + base[:, :, 2] * 0.0722
+    )
+    visible = source_luma > (1.0 / 255.0)
+    visible_weights = weights * visible[:, :, None]
+    weight_totals = visible_weights.sum(axis=(0, 1))
+    weighted_lumas = (visible_weights * source_luma[:, :, None]).sum(axis=(0, 1))
+    fallback = float(source_luma[visible].mean()) if visible.any() else 0.5
+    reference_lumas = numpy.array(
+        [
+            weighted_lumas[channel] / weight_totals[channel]
+            if weight_totals[channel] > 0.001
+            else fallback
+            for channel in range(3)
+        ],
+        dtype=numpy.float64,
+    )
+    reference_lumas = numpy.rint(
+        numpy.clip(reference_lumas, 1.0 / 255.0, 1.0) * 4096.0
+    ) / 4096.0
+    reference_luma = (
+        normalized[:, :, 0] * reference_lumas[0]
+        + normalized[:, :, 1] * reference_lumas[1]
+        + normalized[:, :, 2] * reference_lumas[2]
+    )
+    detail_scale = numpy.clip(
+        source_luma / numpy.maximum(reference_luma, 1.0 / 255.0),
+        0.55,
+        1.25,
+    )
+    seeded *= detail_scale[:, :, None]
     coverage = numpy.clip(total, 0.0, 1.0)[:, :, None]
     mixed = (base[:, :, :3] * (1.0 - coverage)) + (seeded * coverage)
     out = numpy.where(live[:, :, None], mixed, base[:, :, :3])

@@ -5,6 +5,22 @@ static void require_material_contract(bool condition, const char* message) {
 }
 
 static void run_color_blending_palette_contract_self_test() {
+    const std::string shared_variant_sidecar =
+        "<Root>"
+        "<ModelProperty Index=\"0\"><SkinnedMeshMaterialWrapper _subMeshName=\"vest\">"
+        "<MaterialParameterTexture _name=\"_baseColorTexture\" Value=\"variant_zero.dds\"/>"
+        "</SkinnedMeshMaterialWrapper></ModelProperty>"
+        "<ModelProperty Index=\"1\"><SkinnedMeshMaterialWrapper _subMeshName=\"vest\">"
+        "<MaterialParameterTexture _name=\"_baseColorTexture\" Value=\"variant_one.dds\"/>"
+        "</SkinnedMeshMaterialWrapper></ModelProperty>"
+        "</Root>";
+    const std::vector<SidecarTextureRef> variant_one_refs =
+        extract_sidecar_texture_refs(shared_variant_sidecar, 1);
+    require_material_contract(
+        variant_one_refs.size() == 1
+            && lower_copy(variant_one_refs.front().path).find("variant_one.dds") != std::string::npos,
+        "shared PAC material-property selection ignored the item prefab index");
+
     TextureBinding dyed_base;
     dyed_base.role = "base";
     dyed_base.source_path = "vest_base.dds";
@@ -12,6 +28,7 @@ static void run_color_blending_palette_contract_self_test() {
     dyed_base.parameter_name = "_baseColorTexture";
     dyed_base.sidecar_path = "character/modelproperty/vest.pac_xml";
     dyed_base.material_wrapper_index = 9;
+    dyed_base.material_parameter_names = "_tintColorR,_tintColorG,_tintColorB";
     TextureBinding dye_selector;
     dye_selector.role = "material";
     dye_selector.source_path = "vest_ma.dds";
@@ -20,27 +37,13 @@ static void run_color_blending_palette_contract_self_test() {
     dye_selector.sidecar_path = dyed_base.sidecar_path;
     dye_selector.material_wrapper_index = dyed_base.material_wrapper_index;
     dye_selector.material_output_quality = "exact";
-    std::vector<TextureBinding> dyed_bindings{dyed_base, dye_selector};
     const std::array<std::array<float, 4>, 3> dye_colors{{
         {0.10f, 0.75f, 0.20f, 1.0f},
         {0.75f, 0.60f, 0.25f, 1.0f},
         {0.90f, 0.90f, 0.90f, 1.0f},
     }};
-    for (size_t channel = 0; channel < dye_colors.size(); ++channel) {
-        TextureBinding layer;
-        layer.role = "base";
-        layer.source_path = std::string("vest_layer_") + "rgb"[channel] + ".dds";
-        layer.parameter_name = std::string("_grimeDiffuseTexture")
-            + static_cast<char>(std::toupper("rgb"[channel]));
-        layer.layer_role = "grime";
-        layer.layer_channel = std::string(1, "rgb"[channel]);
-        layer.sidecar_path = dyed_base.sidecar_path;
-        layer.material_wrapper_index = dyed_base.material_wrapper_index;
-        layer.material_output_quality = "exact";
-        layer.material_parameter_names = "_tintColorR,_tintColorG,_tintColorB";
-        layer.tint_color = dye_colors[channel];
-        dyed_bindings.push_back(std::move(layer));
-    }
+    dyed_base.color_blending_tints = dye_colors;
+    std::vector<TextureBinding> dyed_bindings{dyed_base, dye_selector};
     std::vector<const TextureBinding*> dyed_binding_refs;
     for (const TextureBinding& binding : dyed_bindings) dyed_binding_refs.push_back(&binding);
     const std::vector<MaterialLayer> dye_seeds = compile_color_blending_seed_layers(
@@ -53,8 +56,34 @@ static void run_color_blending_palette_contract_self_test() {
             && dye_seeds[0].layer_channel == "r"
             && dye_seeds[1].layer_channel == "g"
             && dye_seeds[2].layer_channel == "b"
-            && dye_seeds[0].mask_source == dye_selector.source_path,
+            && dye_seeds[0].mask_source == dye_selector.source_path
+            && dye_seeds[1].tint == dye_colors[1],
         "color blending palette seed contract changed");
+
+    TextureBinding reliable_chainmail_base;
+    reliable_chainmail_base.role = "base";
+    reliable_chainmail_base.source_path = "chainmail.dds";
+    reliable_chainmail_base.archive_path = "character/texture/chainmail.dds";
+    reliable_chainmail_base.parameter_name = "_baseColorTexture";
+    reliable_chainmail_base.visible_class = "primary_visible";
+    reliable_chainmail_base.material_output_quality = "exact";
+    reliable_chainmail_base.source_authority = "exact_sidecar";
+    reliable_chainmail_base.tint_color = {0.71f, 0.47f, 0.17f, 1.0f};
+    MaterialLayer masked_chainmail_tint;
+    masked_chainmail_tint.layer_role = "grime";
+    masked_chainmail_tint.mask_source = "chainmail_ma.dds";
+    masked_chainmail_tint.tint = reliable_chainmail_base.tint_color;
+    NativeSubmesh chainmail_mesh;
+    chainmail_mesh.material = "FS_PHM_00_UB_0003_00_01_01";
+    chainmail_mesh.source_model_path = "character/model/armor/9_upperbody/chainmail.pac";
+    std::array<float, 4> promoted_chainmail_tint{1.0f, 1.0f, 1.0f, 1.0f};
+    require_material_contract(
+        !preview_sidecar_tint_for_surface(
+            &reliable_chainmail_base,
+            chainmail_mesh,
+            {MaterialLayer{}, masked_chainmail_tint},
+            &promoted_chainmail_tint),
+        "masked apparel tint escaped into the reliable base texture");
 }
 
 static void run_material_contract_self_test() {

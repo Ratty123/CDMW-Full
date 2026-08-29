@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from cdmw.models import ArchiveEntry
+from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings
 from cdmw.rendering.native_preview_core import build_native_preview_core_job
-from cdmw.ui.archive_browser.preview_cache import _archive_preview_dependency_digest
+from cdmw.ui.archive_browser.preview_cache import (
+    ArchivePreviewCacheMixin,
+    _archive_preview_dependency_digest,
+)
+from cdmw.workers.archive_preview_native import native_preview_model_property_indices
 
 
 def _entry(path: str, *, prepared_sha256: str) -> ArchiveEntry:
@@ -49,6 +56,54 @@ class ArchivePreviewDependencyOptimizationTests(unittest.TestCase):
         self.assertEqual(str(selected.prepared_path), job["entry"]["prepared_path"])
         self.assertEqual(texture.prepared_sha256, job["archive_dependency_entries"][1]["prepared_sha256"])
 
+    def test_native_job_carries_validated_model_property_indices(self) -> None:
+        selected = _entry("character/model/shared.pac", prepared_sha256="1" * 64)
+
+        job = build_native_preview_core_job(
+            selected,
+            cache_root=Path("C:/cache/native"),
+            output_root=Path("C:/cache/package"),
+            model_property_indices={r"character\model\shared.pac": 1},
+        )
+
+        self.assertEqual(
+            [{"path": "character/model/shared.pac", "index": 1}],
+            job["model_property_indices"],
+        )
+        with self.assertRaisesRegex(ValueError, "between 0 and 255"):
+            build_native_preview_core_job(
+                selected,
+                cache_root=Path("C:/cache/native"),
+                output_root=Path("C:/cache/package"),
+                model_property_indices={selected.path: 256},
+            )
+
+    def test_first_item_prefab_owns_shared_pac_model_property_selection(self) -> None:
+        first = _entry("character/prefab/logical.prefab", prepared_sha256="1" * 64)
+        second = _entry("character/prefab/physical.prefab", prepared_sha256="2" * 64)
+        model_value = SimpleNamespace(text=r"character\model\shared.pac")
+
+        def document(index: int) -> object:
+            numbers = () if index == 0 else (
+                SimpleNamespace(name="_modelPropertyIndex", raw=bytes((index,))),
+            )
+            return SimpleNamespace(objects=(SimpleNamespace(
+                values=(("_skinnedMeshFile", model_value),),
+                numbers=numbers,
+            ),))
+
+        with patch(
+            "cdmw.core.prefab_binary.decode_prefab_binary",
+            side_effect=(document(1), document(0)),
+        ):
+            selections = native_preview_model_property_indices(
+                (first, second),
+                threading.Event(),
+                read_entry_data=lambda entry: entry.path.encode("utf-8"),
+            )
+
+        self.assertEqual({"character/model/shared.pac": 1}, selections)
+
     def test_dependency_digest_is_order_independent_and_hash_sensitive(self) -> None:
         first = _entry("a/model.pac", prepared_sha256="1" * 64)
         second = _entry("b/material.dds", prepared_sha256="2" * 64)
@@ -57,6 +112,49 @@ class ArchivePreviewDependencyOptimizationTests(unittest.TestCase):
         self.assertEqual(baseline, _archive_preview_dependency_digest((second, first)))
         second.prepared_sha256 = "3" * 64
         self.assertNotEqual(baseline, _archive_preview_dependency_digest((first, second)))
+
+    def test_native_package_cache_separates_logical_prefab_authority_order(self) -> None:
+        selected = _entry("character/model/shared.pac", prepared_sha256="1" * 64)
+        logical = _entry("character/prefab/logical.prefab", prepared_sha256="2" * 64)
+        physical = _entry("character/prefab/physical.prefab", prepared_sha256="3" * 64)
+
+        class Harness(ArchivePreviewCacheMixin):
+            archive_sidecar_generation = 0
+
+            def _archive_preview_cache_key(self, *_args: object, **_kwargs: object) -> str:
+                return "base"
+
+            def _current_model_preview_render_settings(self) -> ModelPreviewRenderSettings:
+                return ModelPreviewRenderSettings()
+
+            def _archive_preview_support_texture_slots(self, _settings: object) -> tuple[object, ...]:
+                return ()
+
+            def _archive_model_renderer_backend(self) -> str:
+                return "d3d11"
+
+        harness = Harness()
+        with patch(
+            "cdmw.ui.archive_browser.preview_cache.find_native_preview_core_binary",
+            return_value=Path("C:/bin/cdmw-preview-core.exe"),
+        ), patch(
+            "cdmw.ui.archive_browser.preview_cache.NativePreviewCoreServiceClient.resolve_binary_signature",
+            return_value=(1, 2),
+        ):
+            logical_key = harness._archive_native_preview_package_cache_key(
+                selected,
+                None,
+                (),
+                dependency_entries=(selected, logical, physical),
+            )
+            physical_key = harness._archive_native_preview_package_cache_key(
+                selected,
+                None,
+                (),
+                dependency_entries=(selected, physical, logical),
+            )
+
+        self.assertNotEqual(logical_key, physical_key)
 
     def test_incomplete_dependency_hash_disables_snapshot_cache_identity(self) -> None:
         entry = _entry("a/model.pac", prepared_sha256="")

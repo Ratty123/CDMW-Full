@@ -257,55 +257,38 @@ static std::vector<MaterialLayer> compile_color_blending_seed_layers(
     }
     if (selector == nullptr) return {};
 
-    std::array<const TextureBinding*, 3> palette_sources{nullptr, nullptr, nullptr};
-    std::array<int, 3> palette_scores{-1, -1, -1};
-    for (const TextureBinding* binding : bindings) {
-        if (binding == nullptr || binding->source_path.empty()
-            || lower_copy(binding->layer_role) != "grime") continue;
-        if (!selector->sidecar_path.empty() && binding->sidecar_path != selector->sidecar_path) continue;
-        if (selector->material_wrapper_index >= 0
-            && binding->material_wrapper_index != selector->material_wrapper_index) continue;
-        const std::string layer_channel = lower_copy(binding->layer_channel);
-        if (layer_channel != "r" && layer_channel != "g" && layer_channel != "b") continue;
-        const int channel = layer_channel_index(layer_channel);
-        const std::string parameter = normalized_key(binding->parameter_name);
-        int score = parameter == std::string("grimediffusetexture") + "rgb"[channel] ? 100 : 0;
-        if (parameter.find("grimediffuse") != std::string::npos) score += 40;
-        if (binding->material_output_quality == "exact") score += 20;
-        if (score > palette_scores[static_cast<size_t>(channel)]) {
-            palette_sources[static_cast<size_t>(channel)] = binding;
-            palette_scores[static_cast<size_t>(channel)] = score;
-        }
+    const TextureBinding* palette_owner = base;
+    if (palette_owner == nullptr
+        || (!selector->sidecar_path.empty() && palette_owner->sidecar_path != selector->sidecar_path)
+        || (selector->material_wrapper_index >= 0
+            && palette_owner->material_wrapper_index != selector->material_wrapper_index)) {
+        palette_owner = selector;
     }
-    if (std::any_of(palette_sources.begin(), palette_sources.end(), [](const TextureBinding* value) {
-        return value == nullptr;
-    })) return {};
-    const std::string parameter_names = lower_copy(palette_sources[0]->material_parameter_names);
+    const std::string parameter_names = lower_copy(palette_owner->material_parameter_names);
     if (parameter_names.find("tintcolorr") == std::string::npos
         || parameter_names.find("tintcolorg") == std::string::npos
         || parameter_names.find("tintcolorb") == std::string::npos) return {};
 
     std::vector<MaterialLayer> result;
-    result.reserve(3);
-    for (size_t channel = 0; channel < palette_sources.size(); ++channel) {
-        const TextureBinding& palette = *palette_sources[channel];
+    result.reserve(palette_owner->color_blending_tints.size());
+    for (size_t channel = 0; channel < palette_owner->color_blending_tints.size(); ++channel) {
         MaterialLayer layer;
         layer.layer_role = "color_seed";
         layer.layer_channel = std::string(1, "rgb"[channel]);
-        layer.shader_family = palette.shader_family;
-        layer.shader_rule = palette.shader_rule;
-        layer.evidence_grade = palette.evidence_grade;
+        layer.shader_family = palette_owner->shader_family;
+        layer.shader_rule = palette_owner->shader_rule;
+        layer.evidence_grade = palette_owner->evidence_grade;
         layer.blend_order = "pac_rgb_selector_palette";
         layer.source_parameter = std::string("_tintColor") + static_cast<char>(std::toupper("rgb"[channel]));
         layer.mask_parameter = selector->parameter_name;
         layer.diffuse_source = base != nullptr && !base->source_path.empty()
-            ? base->source_path : palette.source_path;
+            ? base->source_path : palette_owner->source_path;
         layer.diffuse_archive_path = base != nullptr && !base->archive_path.empty()
-            ? base->archive_path : palette.archive_path;
+            ? base->archive_path : palette_owner->archive_path;
         layer.mask_source = selector->source_path;
         layer.mask_archive_path = selector->archive_path;
         layer.weight = 1.0f;
-        layer.tint = palette.tint_color;
+        layer.tint = palette_owner->color_blending_tints[channel];
         result.push_back(std::move(layer));
     }
     return result;
@@ -538,6 +521,8 @@ static bool binding_is_tintable_visible_layer_base(const TextureBinding* base) {
         || descriptor.find("layer_visible") != std::string::npos;
 }
 
+static bool reliable_visible_base_texture(const TextureBinding* base);
+
 static bool weapon_metal_base_tint_should_stay_masked(const TextureBinding* base, const NativeSubmesh& mesh) {
     if (base == nullptr) return false;
     if (!mesh_has_crimson_weapon_surface(mesh) || mesh_local_surface_has_strong_nonmetal_token(mesh)) return false;
@@ -746,6 +731,21 @@ static bool preview_sidecar_tint_for_surface(
     const bool wrong_family_nonmetal_layer_base =
         base_binding_is_wrong_family_layer_or_environment(*base, mesh)
         && mesh_local_surface_has_strong_nonmetal_token(mesh);
+    const bool masked_tint_layer = std::any_of(
+        material_layers.begin(),
+        material_layers.end(),
+        [](const MaterialLayer& layer) {
+            return layer.layer_role != "base"
+                && !layer.mask_source.empty()
+                && tint_color_is_visible(layer.tint);
+        });
+    if (reliable_visible_base_texture(base) && masked_tint_layer) {
+        // A selector/detail tint owns only the texels named by its mask.  The
+        // layer compiler already applies it there; promoting the same colour to
+        // a global base tint recoloured neutral chain mail and cloth outside the
+        // mask, which is why a silver hood appeared gold in the preview.
+        return false;
+    }
     if (tintable_layer_base && tint_rgb_is_visible(base->tint_color) && !wrong_family_nonmetal_layer_base) {
         *tint_out = base->tint_color;
         return true;

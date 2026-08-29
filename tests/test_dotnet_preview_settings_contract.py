@@ -231,7 +231,7 @@ def test_dotnet_material_tone_mapping_matches_native_reference_operator() -> Non
     assert "finalColor *= max(contrastedLuma, 0.0f) / max(currentLuma, 1e-5f);" in shader
 
 
-def test_dotnet_material_environment_uses_hdr_split_sum_ibl() -> None:
+def test_dotnet_material_environment_uses_sdr_bounded_split_sum_ibl() -> None:
     shader = _source("D3D11MaterialShaders.hlsl")
 
     assert "float StudioSoftboxLobe(" in shader
@@ -243,12 +243,14 @@ def test_dotnet_material_environment_uses_hdr_split_sum_ibl() -> None:
     assert "float3 environmentDiffuse = materialReferenceAlbedo" in shader
     assert "float3 metalMultipleScattering = environmentIrradiance" in shader
     assert "float3(7.50f, 6.20f, 4.60f)" in shader
-    assert "const float studioHdrExposure = 1.65f;" in shader
+    assert "float radiancePeak = max(radiance.r, max(radiance.g, radiance.b));" in shader
+    assert "radiance /= 1.0f + radiancePeak;" in shader
+    assert "studioHdrExposure" not in shader
     assert "float3(1.25f, 1.25f, 1.25f)" not in shader
     assert "litDiffuse + environmentDiffuse" in shader
 
 
-def test_every_material_aware_preview_route_uses_the_shared_hdr_renderer() -> None:
+def test_every_material_aware_preview_route_uses_the_shared_material_renderer() -> None:
     route_hosts = {
         "archive browser": ROOT / "cdmw/ui/archive_browser/preview_layout.py",
         "archive reference": ROOT / "cdmw/ui/archive_browser/reference_preview.py",

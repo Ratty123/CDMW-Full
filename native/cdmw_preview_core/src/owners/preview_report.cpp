@@ -170,6 +170,12 @@ static void merge_prefab_component_meshes(
     }
 }
 
+static int model_property_index_for_path(const EntryJob& job, std::string path) {
+    std::replace(path.begin(), path.end(), '\\', '/');
+    const auto found = job.model_property_indices.find(lower_copy(path));
+    return found == job.model_property_indices.end() ? 0 : found->second;
+}
+
 static NativePackage try_generate_native_package(const EntryJob& job, const std::vector<char>& data) {
     NativePackage package;
     NativeMeshParseResult parsed;
@@ -218,6 +224,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     for (size_t mesh_index = 0; mesh_index < parsed.meshes.size(); ++mesh_index) {
         NativeSubmesh& mesh = parsed.meshes[mesh_index];
         if (mesh.source_model_path.empty()) mesh.source_model_path = job.path;
+        mesh.model_property_index = model_property_index_for_path(job, mesh.source_model_path);
         if (mesh.source_component_label.empty()) mesh.source_component_label = job.entry.basename.empty() ? basename_from_path(job.path) : job.entry.basename;
         if (mesh.source_local_submesh_index < 0) mesh.source_local_submesh_index = mesh.source_submesh_index;
         if (mesh.source_submesh_index < 0) mesh.source_submesh_index = static_cast<int>(mesh_index);

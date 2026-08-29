@@ -322,10 +322,13 @@ float3 PreviewEnvironmentRadiance(float3 reflectedView, float roughness)
     float darkBand = pow(
         saturate(1.0f - abs(reflectedView.x * 1.35f + reflectedView.y * 0.45f)),
         3.2f) * saturate(0.95f - reflectedView.z);
-    // Values deliberately exceed one: this is linear HDR radiance which the
-    // ACES presentation operator compresses after all direct and environment
-    // terms are combined. The warm key and cool fill make curved metal reveal
-    // both its source tint and its changing reflection direction.
+    // Build the directional studio response at high precision, then compress
+    // the environment itself into a hue-preserving SDR range. Sending the raw
+    // multi-stop softboxes into every material made chain mail and pale cloth
+    // clip before their authored colours reached the final presentation pass.
+    // Scaling all channels by the same peak-derived factor preserves the warm
+    // key/cool fill chromaticity and the relative lobe response without an HDR
+    // hotspot overriding the source texture.
     float3 radiance = float3(0.070f, 0.065f, 0.060f);
     radiance += horizonBand * float3(0.55f, 0.46f, 0.38f);
     radiance += frontSoftbox * float3(7.50f, 6.20f, 4.60f);
@@ -338,8 +341,8 @@ float3 PreviewEnvironmentRadiance(float3 reflectedView, float roughness)
         radiance,
         float3(0.32f, 0.28f, 0.24f),
         roughnessSquared * 0.34f);
-    const float studioHdrExposure = 1.65f;
-    radiance *= studioHdrExposure;
+    float radiancePeak = max(radiance.r, max(radiance.g, radiance.b));
+    radiance /= 1.0f + radiancePeak;
     return max(radiance, float3(0.010f, 0.010f, 0.012f));
 }
 

@@ -11,7 +11,7 @@ import time
 from collections import defaultdict
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from PySide6.QtGui import QImageReader
 
@@ -63,6 +63,55 @@ def native_preview_core_timeout_seconds(render_settings: object) -> float:
         if bool(getattr(render_settings, "use_textures_by_default", False))
         else NATIVE_PREVIEW_CORE_GEOMETRY_TIMEOUT_S
     )
+
+
+def native_preview_model_property_indices(
+    prefab_entries: Sequence[ArchiveEntry],
+    stop_event: object,
+    *,
+    read_entry_data: Optional[Callable[[ArchiveEntry], bytes]] = None,
+) -> Dict[str, int]:
+    """Recover the material-set index each selected item prefab assigns to a model.
+
+    A physical PAC can serve several logical items. Their prefabs select the
+    intended ``ModelProperty`` block, so first-prefab authority is deliberate:
+    callers order the logical item's prefab before shared physical companions.
+    """
+
+    from cdmw.core.prefab_binary import PrefabBinaryError, decode_prefab_binary
+
+    if read_entry_data is None:
+        from cdmw.core.archive_extraction import read_archive_entry_data
+
+        def read_entry_data(candidate: ArchiveEntry) -> bytes:
+            return read_archive_entry_data(candidate, stop_event=stop_event)[0]
+
+    selections: Dict[str, int] = {}
+    for entry in prefab_entries:
+        if bool(getattr(stop_event, "is_set", lambda: False)()):
+            raise RunCancelled("Native preview-core job cancelled.")
+        if str(getattr(entry, "extension", "") or "").casefold() != ".prefab":
+            continue
+        try:
+            document = decode_prefab_binary(bytes(read_entry_data(entry)))
+        except RunCancelled:
+            raise
+        except (PrefabBinaryError, KeyError, OSError, RuntimeError, ValueError):
+            continue
+        for item in document.objects:
+            values = {name: value.text for name, value in item.values}
+            model_path = str(values.get("_skinnedMeshFile", "") or "").replace("\\", "/").strip()
+            if not model_path:
+                continue
+            property_index = 0
+            for number in item.numbers:
+                if number.name != "_modelPropertyIndex":
+                    continue
+                property_index = int.from_bytes(number.raw, "little", signed=False)
+                break
+            if 0 <= property_index <= 255:
+                selections.setdefault(model_path.casefold(), property_index)
+    return selections
 
 
 def _native_presentation_geometry_payload(mesh: object, stop_event: object) -> bytes:
@@ -217,16 +266,24 @@ class ArchivePreviewNativeMixin:
         dds_cache_target_bytes: int,
     ) -> NativePreviewCoreAttempt:
         payload, source, appearance_notes = self._prepare_native_preview_presentation_geometry()
+        dependency_entries = tuple(
+            getattr(self, "native_preview_dependency_entries", ()) or ()
+        )
+        model_property_indices = native_preview_model_property_indices(
+            dependency_entries,
+            self.stop_event,
+        )
         attempt = run_native_preview_core_preview_job(
             self.entry,
             cache_root=self.native_preview_core_cache_root,
             render_settings=self.render_settings,
             companion_entry=self.companion_entry,
-            dependency_entries=getattr(self, "native_preview_dependency_entries", ()),
+            dependency_entries=dependency_entries,
             dependency_entries_complete=bool(
                 getattr(self, "native_preview_dependency_entries_complete", False)
             ),
             enabled_prefab_component_paths=getattr(self, "enabled_prefab_component_paths", ()),
+            model_property_indices=model_property_indices,
             package_root=self.native_preview_core_package_root,
             output_root=output_root,
             timeout_seconds=native_preview_core_timeout_seconds(self.render_settings),

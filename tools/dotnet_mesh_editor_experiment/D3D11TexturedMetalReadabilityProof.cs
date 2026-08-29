@@ -18,10 +18,12 @@ internal static class D3D11TexturedMetalReadabilityProof
     private const double MinimumAllViewLumaRatio = 0.65;
     private const double MaximumViewChromaticityDistance = 0.10;
     private const double MaximumCenterWhiteFraction = 0.08;
+    private const double MaximumCenterClippedChannelFraction = 0.12;
     private const double MinimumCenterChromaticitySpan = 0.18;
     private const double MinimumSpecularMeanLuma = 1.0;
     private const double MinimumSpecularMeanLumaViewSpan = 3.0;
     private const double MaximumSpecularWhiteFraction = 0.12;
+    private const double MaximumSpecularClippedChannelFraction = 0.16;
 
     public static Dictionary<string, object?> Run()
     {
@@ -136,7 +138,8 @@ internal static class D3D11TexturedMetalReadabilityProof
                     && Metric(metrics, "center_mean_luma") >= MinimumCenterMeanLuma
                     && Metric(metrics, "center_p10_luma") >= MinimumCenterP10Luma
                     && Metric(metrics, "center_luma_deviation") >= MinimumCenterLumaDeviation
-                    && Metric(metrics, "center_background_fraction") <= MaximumCenterBackgroundFraction;
+                    && Metric(metrics, "center_background_fraction") <= MaximumCenterBackgroundFraction
+                    && Metric(metrics, "center_clipped_channel_fraction") <= MaximumCenterClippedChannelFraction;
                 rows.Add(new Dictionary<string, object?>
                 {
                     ["name"] = view.Name,
@@ -293,6 +296,7 @@ internal static class D3D11TexturedMetalReadabilityProof
                 ["angle_color_identity_stable"] = maximumChromaticityDistance <= MaximumViewChromaticityDistance
                     && rows.All(row => row.GetValueOrDefault("metrics") is Dictionary<string, object?> metrics
                         && Metric(metrics, "center_white_fraction") <= MaximumCenterWhiteFraction
+                        && Metric(metrics, "center_clipped_channel_fraction") <= MaximumCenterClippedChannelFraction
                         && Metric(metrics, "center_chromaticity_span") >= MinimumCenterChromaticitySpan),
                 ["angle_brightness_stable"] = allViewLumaRatio >= MinimumAllViewLumaRatio,
                 ["specular_debug_captures_complete"] = specularRows.Count == views.Length
@@ -302,7 +306,8 @@ internal static class D3D11TexturedMetalReadabilityProof
                 ["specular_debug_response_bounded"] = specularRows.Count == views.Length
                     && specularRows.All(row => row.GetValueOrDefault("metrics") is Dictionary<string, object?> metrics
                         && Metric(metrics, "center_mean_luma") >= MinimumSpecularMeanLuma
-                        && Metric(metrics, "center_white_fraction") <= MaximumSpecularWhiteFraction),
+                        && Metric(metrics, "center_white_fraction") <= MaximumSpecularWhiteFraction
+                        && Metric(metrics, "center_clipped_channel_fraction") <= MaximumSpecularClippedChannelFraction),
             };
             return new Dictionary<string, object?>
             {
@@ -351,10 +356,12 @@ internal static class D3D11TexturedMetalReadabilityProof
                 ["minimum_all_view_luma_ratio"] = MinimumAllViewLumaRatio,
                 ["maximum_view_chromaticity_distance"] = MaximumViewChromaticityDistance,
                 ["maximum_center_white_fraction"] = MaximumCenterWhiteFraction,
+                ["maximum_center_clipped_channel_fraction"] = MaximumCenterClippedChannelFraction,
                 ["minimum_center_chromaticity_span"] = MinimumCenterChromaticitySpan,
                 ["minimum_specular_mean_luma"] = MinimumSpecularMeanLuma,
                 ["minimum_specular_mean_luma_view_span"] = MinimumSpecularMeanLumaViewSpan,
                 ["maximum_specular_white_fraction"] = MaximumSpecularWhiteFraction,
+                ["maximum_specular_clipped_channel_fraction"] = MaximumSpecularClippedChannelFraction,
                 ["front_back_mean_luma_ratio"] = frontBackRatio,
                 ["oblique_mean_luma_ratio"] = obliqueRatio,
                 ["all_view_mean_luma_ratio"] = allViewLumaRatio,
@@ -505,6 +512,7 @@ internal static class D3D11TexturedMetalReadabilityProof
         double blueTotal = 0.0;
         var backgroundCount = 0;
         var whiteCount = 0;
+        var clippedChannelCount = 0;
         for (var y = top; y < bottom; y++)
         {
             for (var x = left; x < right; x++)
@@ -521,6 +529,10 @@ internal static class D3D11TexturedMetalReadabilityProof
                 if (color.R >= 245 && color.G >= 245 && color.B >= 245)
                 {
                     whiteCount++;
+                }
+                if (color.R >= 254 || color.G >= 254 || color.B >= 254)
+                {
+                    clippedChannelCount++;
                 }
             }
         }
@@ -553,6 +565,9 @@ internal static class D3D11TexturedMetalReadabilityProof
                 - Math.Min(chromaticityRed, Math.Min(chromaticityGreen, chromaticityBlue)),
             ["center_white_fraction"] = lumas.Count > 0
                 ? (double)whiteCount / lumas.Count
+                : 1.0,
+            ["center_clipped_channel_fraction"] = lumas.Count > 0
+                ? (double)clippedChannelCount / lumas.Count
                 : 1.0,
         };
     }

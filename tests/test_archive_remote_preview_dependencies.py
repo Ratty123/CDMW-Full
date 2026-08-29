@@ -11,6 +11,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveEntryRef,
     ArchiveEntryDto,
     ArchiveEntryRole,
+    ArchiveLookupResult,
 )
 from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult, PrepareEntryResult
 from cdmw.models import ArchiveEntry
@@ -37,6 +38,10 @@ class _CatalogueService(QObject):
     def find_association_candidates(self, request: object, *, ui_generation: int) -> str:
         self.requests.append((request, ui_generation))
         return f"association-{len(self.requests)}"
+
+    def resolve_entries(self, request: object, *, ui_generation: int) -> str:
+        self.requests.append((request, ui_generation))
+        return f"resolve-{len(self.requests)}"
 
     def prepare_entries(self, request: object, *, ui_generation: int) -> str:
         self.requests.append((request, ui_generation))
@@ -150,6 +155,48 @@ def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> Non
     assert provider.snapshot_for_entry(snapshot.selected_entry) is snapshot
     provider.cancel(clear_snapshot=True)
     assert provider.snapshot_for_entry(snapshot.selected_entry) is None
+
+
+def test_remote_preview_provider_prioritizes_the_selected_items_logical_prefab() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    selected = _dto(7, "character/model/cd_m0001_00_so_phm_ub_31037.pac")
+    physical_prefab = _dto(8, "character/prefab/cd_m0001_00_so_phm_ub_31037.prefab")
+    sidecar = _dto(9, "character/model/cd_m0001_00_so_phm_ub_31037.pac_xml")
+    logical_prefab = _dto(10, "character/prefab/cd_m0001_00_so_phm_ub_31035.prefab")
+
+    assert provider.request(
+        selected,
+        ui_request_id=41,
+        preferred_prefab_stems=("cd_m0001_00_so_phm_ub_31035",),
+        scope_entry_ids=(logical_prefab.entry_id,),
+    )
+    lookup_request = service.requests[-1][0]
+    assert lookup_request.entry_ids == (logical_prefab.entry_id,)
+    service.result_ready.emit(
+        "resolve-1",
+        "resolve_entries",
+        ArchiveLookupResult(
+            "session-a",
+            (logical_prefab,),
+            1,
+            False,
+        ),
+    )
+    service.result_ready.emit(
+        "association-2",
+        "find_association_candidates",
+        ArchiveAssociationResult(
+            "session-a",
+            selected.entry_id,
+            (physical_prefab, sidecar),
+            2,
+            False,
+        ),
+    )
+
+    request = service.requests[-1][0]
+    assert request.entry_ids == (7, 10, 8, 9)
 
 
 def test_remote_preview_provider_cancels_and_ignores_obsolete_requests() -> None:

@@ -8191,7 +8191,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 339,
+          "line": 345,
           "sink": "_begin_pending"
         }
       ]
@@ -8291,7 +8291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 364,
+          "line": 384,
           "sink": "_begin_pending"
         }
       ]
@@ -9041,7 +9041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 319,
+          "line": 323,
           "sink": "append_archive_log"
         }
       ]
@@ -9051,7 +9051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 282,
+          "line": 286,
           "sink": "append_archive_log"
         }
       ]
@@ -9061,7 +9061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 870,
+          "line": 895,
           "sink": "append_archive_log"
         }
       ]
@@ -9101,12 +9101,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 841,
+          "line": 866,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 842,
+          "line": 867,
           "sink": "append_archive_log"
         }
       ]
@@ -9211,17 +9211,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 257,
+          "line": 261,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 258,
+          "line": 262,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 259,
+          "line": 263,
           "sink": "append_archive_log"
         }
       ]
@@ -9246,22 +9246,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 677,
+          "line": 702,
           "sink": "_set_archive_list_status"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 679,
+          "line": 704,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 680,
+          "line": 705,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 681,
+          "line": 706,
           "sink": "append_archive_log"
         }
       ]
@@ -10076,7 +10076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 252,
+          "line": 302,
           "sink": "_fail_pending"
         },
         {
@@ -10091,7 +10091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 50,
+          "line": 53,
           "sink": "ValueError"
         }
       ]
@@ -10241,17 +10241,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 257,
+          "line": 261,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 258,
+          "line": 262,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 259,
+          "line": 263,
           "sink": "append_archive_log"
         }
       ]
@@ -10516,7 +10516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 813,
+          "line": 838,
           "sink": "append_archive_log"
         }
       ]
@@ -10526,7 +10526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 612,
+          "line": 637,
           "sink": "append_archive_log"
         }
       ]
@@ -15711,7 +15711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 672,
+          "line": 697,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -15751,7 +15751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 672,
+          "line": 697,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -15791,12 +15791,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 252,
+          "line": 256,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 830,
+          "line": 855,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -15876,7 +15876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 836,
+          "line": 861,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -15896,7 +15896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 245,
+          "line": 249,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -16166,7 +16166,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 600,
+          "line": 625,
           "sink": "setText"
         },
         {
@@ -16311,7 +16311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 601,
+          "line": 626,
           "sink": "setToolTip"
         }
       ]
@@ -17461,7 +17461,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 76,
+          "line": 125,
           "sink": "ValueError"
         }
       ]
@@ -17471,7 +17471,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 74,
+          "line": 123,
           "sink": "ValueError"
         }
       ]
@@ -17481,7 +17481,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 101,
+          "line": 150,
           "sink": "ValueError"
         }
       ]
@@ -17491,7 +17491,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 91,
+          "line": 140,
           "sink": "ValueError"
         }
       ]
@@ -35471,7 +35471,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 560,
+          "line": 585,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -41256,7 +41256,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 601,
+          "line": 626,
           "sink": "setToolTip"
         }
       ]
@@ -47406,7 +47406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 211,
+          "line": 215,
           "sink": "_begin_pending"
         },
         {
@@ -55926,7 +55926,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 724,
+          "line": 781,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -56066,12 +56066,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 724,
+          "line": 781,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 762,
+          "line": 819,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -56081,12 +56081,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 87,
+          "line": 136,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 98,
+          "line": 147,
           "sink": "RunCancelled"
         }
       ]
@@ -56116,7 +56116,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 762,
+          "line": 819,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -56176,7 +56176,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 467,
+          "line": 524,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -56241,12 +56241,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 724,
+          "line": 781,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 762,
+          "line": 819,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -56376,7 +56376,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 285,
+          "line": 92,
+          "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 342,
           "sink": "RunCancelled"
         }
       ]
@@ -63651,12 +63656,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 536,
+          "line": 541,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 578,
+          "line": 583,
           "sink": "raise_if_cancelled"
         },
         {
@@ -69856,7 +69861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 76,
+          "line": 79,
           "sink": "ValueError"
         }
       ]
@@ -69891,7 +69896,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 560,
+          "line": 585,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -69936,7 +69941,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 566,
+          "line": 591,
           "sink": "_set_archive_warmup_overlay"
         },
         {
@@ -71046,7 +71051,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 724,
+          "line": 781,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -71086,7 +71091,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 762,
+          "line": 819,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -71096,7 +71101,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 471,
+          "line": 528,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -71106,7 +71111,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 463,
+          "line": 520,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -74286,12 +74291,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 257,
+          "line": 261,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 679,
+          "line": 704,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -76566,7 +76571,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 600,
+          "line": 625,
           "sink": "setText"
         },
         {
@@ -76841,7 +76846,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 211,
+          "line": 215,
           "sink": "_begin_pending"
         }
       ]
@@ -83111,7 +83116,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 355,
+          "line": 375,
           "sink": "setText"
         }
       ]
@@ -83146,7 +83151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 724,
+          "line": 728,
           "sink": "setText"
         }
       ]
@@ -97346,7 +97351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 263,
+          "line": 314,
           "sink": "_fail_pending"
         }
       ]
@@ -97386,12 +97391,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 241,
+          "line": 278,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 259,
+          "line": 285,
+          "sink": "_fail_pending"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
+          "line": 293,
+          "sink": "_fail_pending"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
+          "line": 310,
           "sink": "_fail_pending"
         }
       ]
@@ -97401,12 +97416,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 238,
+          "line": 282,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 249,
+          "line": 299,
           "sink": "_fail_pending"
         }
       ]
@@ -98016,7 +98031,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 762,
+          "line": 819,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -98156,7 +98171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 646,
+          "line": 651,
           "sink": "emit"
         }
       ]
@@ -98776,7 +98791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 566,
+          "line": 591,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -98866,7 +98881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 596,
+          "line": 601,
           "sink": "emit"
         }
       ]
@@ -105286,7 +105301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 807,
+          "line": 832,
           "sink": "append_archive_log"
         }
       ]
@@ -105381,7 +105396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 699,
+          "line": 724,
           "sink": "append_archive_log"
         }
       ]
@@ -105401,7 +105416,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 654,
+          "line": 679,
           "sink": "append_archive_log"
         },
         {
@@ -112676,7 +112691,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 762,
+          "line": 819,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -113561,7 +113576,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 762,
+          "line": 819,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -115811,17 +115826,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 252,
+          "line": 256,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 672,
+          "line": 697,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 830,
+          "line": 855,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -118861,7 +118876,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 724,
+          "line": 781,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -120266,7 +120281,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 724,
+          "line": 781,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -200841,7 +200856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 836,
+          "line": 861,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -200911,7 +200926,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 245,
+          "line": 249,
           "sink": "_set_archive_cache_health"
         },
         {

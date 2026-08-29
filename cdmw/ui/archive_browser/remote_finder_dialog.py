@@ -699,7 +699,7 @@ class RemoteArchiveFinderDialog(QDialog):
 
     def _start_scope(self, request: ItemCatalogScopeRequest, *, label: str) -> None:
         self._cancel_request("_scope_request_id")
-        self._pending_scope_label = label
+        self._pending_scope_label, self._pending_scope_item_ids = label, request.item_ids
         self._status.setText("Resolving archive links for the selected scope...")
         try:
             self._scope_request_id = self._service.scope_item_catalog(
@@ -719,7 +719,11 @@ class RemoteArchiveFinderDialog(QDialog):
             self._update_buttons()
             return
         label = getattr(self, "_pending_scope_label", self.windowTitle())
-        if self._bridge.apply_entry_id_scope(result.entry_ids, label=label):
+        if self._bridge.apply_entry_id_scope(
+            result.entry_ids,
+            label=label,
+            preferred_prefab_stems=self._pending_scope_model_stems(),
+        ):
             suffix = " (result capped)" if result.truncated else ""
             self._status.setText(f"Scoped the Archive Browser to {len(result.entry_ids):,} files{suffix}.")
             self.accept()
@@ -920,6 +924,16 @@ class RemoteArchiveFinderDialog(QDialog):
         retained = getattr(self._window, "_remote_archive_finder_dialogs", None)
         if isinstance(retained, set):
             retained.discard(self)
+
+    def _pending_scope_model_stems(self) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(
+                stem
+                for item_id in getattr(self, "_pending_scope_item_ids", ())
+                for stem in tuple(getattr(self._rows.get(item_id), "model_stems", ()) or ())
+                if str(stem or "").strip()
+            )
+        )
 
 
 def show_remote_archive_finder(window: object) -> None:

@@ -456,6 +456,11 @@ class NewItemPreviewControllerMixin:
                         dependency_entries=dependencies,
                         dependency_entries_complete=False,
                         enabled_prefab_component_paths=component_paths,
+                        model_property_indices=_template_model_property_indices(
+                            prefab_entries,
+                            stop_event,
+                            snapshot,
+                        ),
                         package_root=Path(entry.pamt_path).parent.parent,
                         output_root=native_package,
                         timeout_seconds=native_preview_core_timeout_seconds(native_render_settings),
@@ -738,4 +743,30 @@ class NewItemPreviewControllerMixin:
             family = self.snapshot.family(key)
         except Exception:  # noqa: BLE001
             return ()
-        return tuple(self.snapshot.entry(item.path) for item in family.files_for("prefab") if item.exists)
+        return tuple(
+            sorted(
+                (
+                    self.snapshot.entry(item.path)
+                    for item in family.files_for("prefab")
+                    if item.exists
+                ),
+                key=lambda entry: (
+                    Path(entry.basename).stem.casefold()
+                    != str(family.model_stem or "").casefold()
+                ),
+            )
+        )
+
+
+def _template_model_property_indices(
+    prefab_entries: Sequence[ArchiveEntry],
+    stop_event: object,
+    snapshot: NewItemSnapshot,
+) -> Dict[str, int]:
+    from cdmw.workers.archive_preview_native import native_preview_model_property_indices
+
+    return native_preview_model_property_indices(
+        prefab_entries,
+        stop_event,
+        read_entry_data=lambda candidate: snapshot.payload(candidate.path),
+    )

@@ -14,6 +14,9 @@ from cdmw.domain.archives.catalogue import (
     ArchiveAssociationRequest,
     ArchiveAssociationResult,
     ArchiveEntryDto,
+    ArchiveLookupKind,
+    ArchiveLookupRequest,
+    ArchiveLookupResult,
 )
 from cdmw.domain.archives.catalogue_operations import (
     PrepareEntryResult,
@@ -113,6 +116,8 @@ class _PendingPreviewDependencies:
     operation: str
     ui_request_id: int
     selected: ArchiveEntryDto
+    preferred_prefab_stems: tuple[str, ...] = ()
+    scope_entry_ids: tuple[int, ...] = ()
     candidates: dict[int, ArchiveEntryDto] = field(default_factory=dict)
     prepared: dict[int, PrepareEntryResult] = field(default_factory=dict)
     total_candidates: int = 0
@@ -189,27 +194,62 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             self._snapshots_by_identity.move_to_end(snapshot_key)
         return snapshot
 
-    def request(self, selected: ArchiveEntryDto, *, ui_request_id: int) -> bool:
+    def request(
+        self,
+        selected: ArchiveEntryDto,
+        *,
+        ui_request_id: int,
+        preferred_prefab_stems: tuple[str, ...] = (),
+        scope_entry_ids: tuple[int, ...] = (),
+    ) -> bool:
         self.cancel(clear_snapshot=False)
-        request = ArchiveAssociationRequest(
-            selected.session_id,
-            selected.entry_id,
-            limit=MAX_ARCHIVE_PREVIEW_DEPENDENCIES,
-            purpose=ArchiveAssociationPurpose.PREVIEW,
-        )
-        try:
-            request_id = self._service.find_association_candidates(
-                request,
-                ui_generation=int(ui_request_id),
+        normalized_prefab_stems = tuple(
+            dict.fromkeys(
+                str(stem or "").replace("\\", "/").rsplit("/", 1)[-1].casefold()
+                for stem in preferred_prefab_stems
+                if str(stem or "").strip()
             )
+        )[:32]
+        bounded_scope_entry_ids = tuple(
+            dict.fromkeys(
+                int(entry_id)
+                for entry_id in scope_entry_ids
+                if not isinstance(entry_id, bool) and int(entry_id) >= 0
+            )
+        )[:MAX_ARCHIVE_PREVIEW_ENTRIES]
+        operation = "find_association_candidates"
+        try:
+            if normalized_prefab_stems and bounded_scope_entry_ids:
+                request_id = self._service.resolve_entries(
+                    ArchiveLookupRequest(
+                        selected.session_id,
+                        ArchiveLookupKind.ENTRY_IDS,
+                        entry_ids=bounded_scope_entry_ids,
+                        limit=max(1, len(bounded_scope_entry_ids)),
+                    ),
+                    ui_generation=int(ui_request_id),
+                )
+                operation = "resolve_preferred_prefabs"
+            else:
+                request_id = self._service.find_association_candidates(
+                    ArchiveAssociationRequest(
+                        selected.session_id,
+                        selected.entry_id,
+                        limit=MAX_ARCHIVE_PREVIEW_DEPENDENCIES,
+                        purpose=ArchiveAssociationPurpose.PREVIEW,
+                    ),
+                    ui_generation=int(ui_request_id),
+                )
         except Exception as exc:
             self.failed.emit(int(ui_request_id), str(exc))
             return False
         self._pending = _PendingPreviewDependencies(
             request_id=str(request_id),
-            operation="find_association_candidates",
+            operation=operation,
             ui_request_id=int(ui_request_id),
             selected=selected,
+            preferred_prefab_stems=normalized_prefab_stems,
+            scope_entry_ids=bounded_scope_entry_ids,
         )
         return True
 
@@ -233,6 +273,10 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         pending = self._matching_pending(request_id, operation)
         if pending is None:
             return
+        if pending.operation == "resolve_preferred_prefabs":
+            if not self._accept_preferred_prefabs(pending, payload):
+                self._fail_pending("The archive worker returned invalid prepared preview dependencies.")
+            return
         if pending.operation == "find_association_candidates":
             if not self._accept_payload(pending, payload):
                 self._fail_pending("The archive worker returned preview candidates for the wrong entry.")
@@ -244,6 +288,12 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         pending = self._matching_pending(request_id, operation)
         if pending is None:
             return
+        if pending.operation == "resolve_preferred_prefabs":
+            if not self._accept_preferred_prefabs(pending, payload):
+                self._fail_pending("The archive worker returned invalid prepared preview dependencies.")
+                return
+            self._start_association_lookup(pending)
+            return
         if pending.operation == "find_association_candidates":
             if not self._accept_payload(pending, payload):
                 self._fail_pending("The archive worker returned preview candidates for the wrong entry.")
@@ -253,6 +303,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                     "Archive preview dependency lookup exceeded the 4,096-entry safety bound."
                 )
                 return
+            self._prioritize_model_property_prefabs(pending)
             self._start_dependency_preparation(pending)
             return
         if pending.operation != "prepare_entries" or not self._accept_prepared_batch(pending, payload):
@@ -317,9 +368,13 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             pending is None
             or pending.request_id != str(request_id)
             or str(operation) != (
-                "find_association_candidates"
-                if pending.operation == "find_association_candidates"
-                else "prepare_entry"
+                "resolve_entries"
+                if pending.operation == "resolve_preferred_prefabs"
+                else (
+                    "find_association_candidates"
+                    if pending.operation == "find_association_candidates"
+                    else "prepare_entry"
+                )
             )
         ):
             return None
@@ -362,6 +417,46 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             pending.prepared.setdefault(item.entry.entry_id, item)
         return True
 
+    @staticmethod
+    def _accept_preferred_prefabs(
+        pending: _PendingPreviewDependencies,
+        payload: object,
+    ) -> bool:
+        if not isinstance(payload, ArchiveLookupResult) or payload.session_id != pending.selected.session_id:
+            return False
+        preferred = set(pending.preferred_prefab_stems)
+        scope_ids = set(pending.scope_entry_ids)
+        for candidate in payload.entries:
+            if (
+                candidate.entry_id in scope_ids
+                and candidate.extension.casefold() == ".prefab"
+                and Path(candidate.path).stem.casefold() in preferred
+            ):
+                pending.candidates.setdefault(candidate.entry_id, candidate)
+        return True
+
+    @staticmethod
+    def _prioritize_model_property_prefabs(pending: _PendingPreviewDependencies) -> None:
+        if not pending.preferred_prefab_stems or not pending.candidates:
+            return
+        ranks = {
+            stem: index
+            for index, stem in enumerate(pending.preferred_prefab_stems)
+        }
+        ordered = sorted(
+            enumerate(pending.candidates.values()),
+            key=lambda pair: (
+                ranks.get(
+                    Path(pair[1].path).stem.casefold(),
+                    len(ranks),
+                )
+                if pair[1].extension.casefold() == ".prefab"
+                else len(ranks),
+                pair[0],
+            ),
+        )
+        pending.candidates = {candidate.entry_id: candidate for _index, candidate in ordered}
+
     def _start_dependency_preparation(self, pending: _PendingPreviewDependencies) -> None:
         entry_ids = (pending.selected.entry_id, *pending.candidates)
         try:
@@ -378,6 +473,26 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             return
         pending.request_id = str(request_id)
         pending.operation = "prepare_entries"
+
+    def _start_association_lookup(self, pending: _PendingPreviewDependencies) -> None:
+        try:
+            request_id = self._service.find_association_candidates(
+                ArchiveAssociationRequest(
+                    pending.selected.session_id,
+                    pending.selected.entry_id,
+                    limit=max(
+                        1,
+                        MAX_ARCHIVE_PREVIEW_DEPENDENCIES - len(pending.candidates),
+                    ),
+                    purpose=ArchiveAssociationPurpose.PREVIEW,
+                ),
+                ui_generation=pending.ui_request_id,
+            )
+        except Exception as exc:
+            self._fail_pending(str(exc))
+            return
+        pending.request_id = str(request_id)
+        pending.operation = "find_association_candidates"
 
     def _fail_pending(self, message: str) -> None:
         pending = self._pending

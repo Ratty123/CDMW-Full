@@ -41,6 +41,7 @@ NATIVE_PREVIEW_CORE_MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION = 2
 NATIVE_PREVIEW_CORE_TEXTURE_QUALITY_SCHEMA_VERSION = 1
 NATIVE_PREVIEW_CORE_MAX_DEPENDENCY_ENTRIES = 4096
 NATIVE_PREVIEW_CORE_MAX_PREFAB_COMPONENTS = 32
+NATIVE_PREVIEW_CORE_MAX_MODEL_PROPERTY_INDICES = 32
 
 
 def _repo_root() -> Path:
@@ -804,6 +805,33 @@ def _validated_enabled_prefab_component_paths(
     return tuple(normalized)
 
 
+def _validated_model_property_indices(
+    model_property_indices: Mapping[str, int],
+) -> tuple[tuple[str, int], ...]:
+    normalized: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    for raw_path, raw_index in model_property_indices.items():
+        path = str(raw_path or "").replace("\\", "/").strip()
+        if not path:
+            continue
+        if isinstance(raw_index, bool):
+            raise ValueError("Native preview model-property indices must be integers.")
+        try:
+            index = int(raw_index)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("Native preview model-property indices must be integers.") from exc
+        if not 0 <= index <= 255:
+            raise ValueError("Native preview model-property indices must be between 0 and 255.")
+        key = path.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append((path, index))
+        if len(normalized) > NATIVE_PREVIEW_CORE_MAX_MODEL_PROPERTY_INDICES:
+            raise ValueError("Native preview model-property selections are limited to 32 models.")
+    return tuple(normalized)
+
+
 def build_native_preview_core_job(
     entry: ArchiveEntry,
     *,
@@ -814,6 +842,7 @@ def build_native_preview_core_job(
     dependency_entries: Sequence[ArchiveEntry] = (),
     dependency_entries_complete: bool = False,
     enabled_prefab_component_paths: Sequence[str] = (),
+    model_property_indices: Optional[Mapping[str, int]] = None,
     package_root: Optional[Path] = None,
     presentation_geometry_path: Optional[Path] = None,
     presentation_geometry_source: str = "",
@@ -826,6 +855,9 @@ def build_native_preview_core_job(
     )
     enabled_prefab_component_paths = _validated_enabled_prefab_component_paths(
         enabled_prefab_component_paths
+    )
+    model_property_indices = dict(
+        _validated_model_property_indices(model_property_indices or {})
     )
     return {
         "version": 1,
@@ -844,6 +876,10 @@ def build_native_preview_core_job(
         ],
         "archive_dependency_entries_complete": bool(dependency_entries_complete),
         "enabled_prefab_component_paths": list(enabled_prefab_component_paths),
+        "model_property_indices": [
+            {"path": path, "index": index}
+            for path, index in model_property_indices.items()
+        ],
         "presentation_geometry_path": str(presentation_geometry_path or ""),
         "presentation_geometry_source": str(presentation_geometry_source or "").strip(),
         "render_settings": render_settings_to_native_preview_core_dict(render_settings),
@@ -868,6 +904,7 @@ def run_native_preview_core_preview_job(
     dependency_entries: Sequence[ArchiveEntry] = (),
     dependency_entries_complete: bool = False,
     enabled_prefab_component_paths: Sequence[str] = (),
+    model_property_indices: Optional[Mapping[str, int]] = None,
     package_root: Optional[Path] = None,
     output_root: Optional[Path] = None,
     timeout_seconds: float = 3.0,
@@ -884,6 +921,9 @@ def run_native_preview_core_preview_job(
     dependency_entries = _validated_native_preview_dependency_entries(dependency_entries, complete=dependency_entries_complete)
     enabled_prefab_component_paths = _validated_enabled_prefab_component_paths(
         enabled_prefab_component_paths
+    )
+    model_property_indices = dict(
+        _validated_model_property_indices(model_property_indices or {})
     )
     binary = find_native_preview_core_binary()
     if binary is None:
@@ -907,6 +947,7 @@ def run_native_preview_core_preview_job(
         dependency_entries=dependency_entries,
         dependency_entries_complete=dependency_entries_complete,
         enabled_prefab_component_paths=enabled_prefab_component_paths,
+        model_property_indices=model_property_indices,
         package_root=package_root,
         presentation_geometry_path=presentation_geometry_path,
         presentation_geometry_source=presentation_geometry_source,

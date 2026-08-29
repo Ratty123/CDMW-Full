@@ -208,6 +208,40 @@ def test_synthesized_albedo_arrays_match_the_per_pixel_loops(
     assert _image_bytes(arrays, "RGB") == _image_bytes(loops, "RGB")
 
 
+def test_rgb_selector_palette_preserves_source_value_detail_without_clipping() -> None:
+    base = QImage(6, 1, QImage.Format.Format_RGBA8888)
+    selector = QImage(6, 1, QImage.Format.Format_RGBA8888)
+    for x in range(6):
+        value = 48 if x % 2 == 0 else 96
+        base.setPixelColor(x, 0, QColor(value, value, value, 255))
+    selector_colors = (
+        QColor("red"), QColor("red"),
+        QColor("green"), QColor("green"),
+        QColor("blue"), QColor("blue"),
+    )
+    for x, color in enumerate(selector_colors):
+        selector.setPixelColor(x, 0, color)
+
+    result = material_combiner_images._blend_selector_tints(
+        base,
+        selector,
+        ((0.18, 0.40, 0.25), (0.76, 0.58, 0.40), (0.79, 0.79, 0.79)),
+        target_format=QImage.Format.Format_RGB888,
+        preserve_base_alpha=False,
+    )
+
+    assert result is not None
+    for dark_index in (0, 2, 4):
+        dark = result.pixelColor(dark_index, 0)
+        light = result.pixelColor(dark_index + 1, 0)
+        assert light.value() >= dark.value() + 30
+        assert max(light.red(), light.green(), light.blue()) < 254
+    assert result.pixelColor(0, 0).green() > result.pixelColor(0, 0).red()
+    assert result.pixelColor(2, 0).red() > result.pixelColor(2, 0).blue()
+    gray = result.pixelColor(4, 0)
+    assert max(gray.red(), gray.green(), gray.blue()) - min(gray.red(), gray.green(), gray.blue()) <= 1
+
+
 def test_synthesized_normal_arrays_match_the_per_pixel_loops(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

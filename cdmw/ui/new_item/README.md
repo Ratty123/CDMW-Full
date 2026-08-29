@@ -48,7 +48,10 @@ all model components, and the prefab revisions. Right-clicking a template row ca
 resolved primary model filename or open that exact model in Archive Browser. Shared Preview
 Core material packages reconstruct PAC RGB selector-mask tints before grime and detail
 layers, so templates that borrow another numbered model retain the archive-authored colour
-regions instead of inheriting the raw texture colours. The part-prefab reader preserves both
+regions instead of inheriting the raw texture colours. The selected template's logical prefab
+is authoritative when several items share a physical PAC: its `_modelPropertyIndex` chooses
+the matching material block for every composed model, and prefab order remains part of the
+package cache identity. The part-prefab reader preserves both
 the original record
 layout and game 2.00.00's opaque per-record tag-prefix byte exactly. After a successful
 snapshot, the shell records the current `CrimsonDesert.exe` hash as compatible with New

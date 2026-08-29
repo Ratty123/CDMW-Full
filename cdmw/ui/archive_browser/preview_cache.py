@@ -293,6 +293,13 @@ class ArchivePreviewCacheMixin:
             "entry": self._archive_entry_native_cache_signature(entry),
             "companion": self._archive_entry_native_cache_signature(companion_entry),
             "dependency_digest": dependency_digest,
+            "dependency_order": tuple(
+                str(getattr(dependency, "path", "") or "")
+                .replace("\\", "/")
+                .strip("/")
+                .casefold()
+                for dependency in dependency_entries
+            ),
             "enabled_prefab_component_paths": enabled_prefab_paths,
             "render_settings": render_settings_to_native_preview_core_dict(self._current_model_preview_render_settings()),
             "support_slots": self._archive_preview_support_texture_slots(self._current_model_preview_render_settings()),

@@ -79,7 +79,14 @@ class _Bridge:
         self.controller = type("Controller", (), {"generation": 4})()
         self.scopes: list[tuple[tuple[int, ...], str]] = []
 
-    def apply_entry_id_scope(self, entry_ids: object, *, label: str) -> bool:
+    def apply_entry_id_scope(
+        self,
+        entry_ids: object,
+        *,
+        label: str,
+        preferred_prefab_stems: object = (),
+    ) -> bool:
+        del preferred_prefab_stems
         self.scopes.append((tuple(entry_ids), label))
         return True
 
