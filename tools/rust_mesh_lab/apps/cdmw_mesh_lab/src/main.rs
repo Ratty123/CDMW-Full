@@ -2,6 +2,8 @@
 
 mod camera;
 #[cfg(test)]
+mod headless_stress_tests;
+#[cfg(test)]
 mod headless_tests;
 mod loader;
 mod viewport;

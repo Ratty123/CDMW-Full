@@ -35,7 +35,7 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Versioned neutral binary package and manifest comparison.
 - Explicit neutral OBJ/MTL export of the edited working copy with staging, cancellation checks, reparse, structural comparison, atomic new-directory publication, and no source texture embedding.
 - Synthetic unit tests, formatting, Clippy, Release workspace build, no-window app coverage, opt-in offscreen GPU coverage, and visible Release interaction smoke.
-- Deterministic synthetic stress covering 100 lasso winding variants, 100 cancelled/restored gestures, and 1,000 mixed replay events with repeatable fingerprints and invariant validation.
+- Deterministic synthetic stress covering 16,800 real-app lasso gestures across every domain/depth/operation/shape combination; 400 committed and 400 cancelled sculpt strokes; four 2,048-update and four bounded 5,000-sample strokes; tool, mode, resize, and focus-loss interruption cases; and two repeatable 1,000-gesture mixed app sessions. Every checkpoint requires valid geometry, idle operators, bounded latency/pointer queues, exact cancellation, and total Undo-plus-Redo retained history within its configured budget.
 
 ## Incomplete gates
 
@@ -50,7 +50,7 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 | Lab project | Incomplete | Camera/tool/history persistence is not published yet |
 | Neutral export | OBJ/MTL implemented | GLB, skinning/material preservation, and private corpus re-import parity remain incomplete |
 | Persistent cache | Incomplete | No cold/warm cache timing |
-| Interaction stress | Partial | 100 lasso variants, 100 cancellations, 1,000 mixed events, bounded fast-pointer retention, 10,000-point lasso compaction, and a 100,000-element local-query candidate bound pass; per-tool long high-rate/focus-loss/resize and bounded-memory soaks remain unrun |
+| Interaction stress | Synthetic app gate passes; representative soak still partial | The complete deterministic synthetic interaction matrix passes with bounded app containers and history; long-duration real-PAC input, OS working-set, UI-thread frame pacing, repeated window lifecycle, and GPU/device-loss soaks remain unrun |
 | Performance targets | Partial instrumentation | The live inspector reports last/p95 CPU query and operator cost plus indexed candidates inspected, and one supplied PAC has CPU headless-edit timings; no representative corpus latency, FPS, GPU, or memory claim has been measured |
 | Fuzzing | Not run | Parser robustness proof incomplete |
 | `cargo deny` / `cargo audit` | Not run yet | License/advisory gate unproven |
@@ -82,6 +82,25 @@ empty and the readback contained non-background pixels. No winit window or
 surface was created. This proves offscreen command encoding, pipeline/resource
 compatibility, aspect-dependent camera framing, and observable output; it is
 not visual appearance, pointer latency, frame pacing, or real-PAC GPU proof.
+
+## Headless interaction stress proof
+
+The opt-in serial stress gate on 2026-08-30 ran 16,800 lasso gestures covering
+Vertex/Edge/Face, Visible/X-Ray, Replace/Add/Subtract/Toggle, winding reversal,
+self-intersection, repeated points, tiny/large polygons, and polygons leaving
+the viewport. It also ran 100 committed and 100 cancelled strokes for each of
+Grab, Smooth, Inflate, and Pinch, plus 2,048-update strokes, bounded
+5,000-sample pointer streams, tool/mode changes, resize cancellation, and
+focus-loss cancellation. Two independent 1,000-gesture mixed app sessions
+finished with identical fingerprints and history metrics. The gate requires
+valid topology after every checkpoint, no active gesture, an idle operator,
+256-sample latency bounds, a 4,096-event pointer bound, exact cancelled-state
+restoration, and retained Undo-plus-Redo history within a 4 KiB synthetic
+budget. Building this proof found that moving an entry from Undo to Redo
+subtracted it from the reported retained bytes even though the snapshots stayed
+resident; accounting now covers both stacks and releases Redo bytes only when a
+new commit discards them. This is deterministic synthetic app stress, not an OS
+working-set, visible input, real-PAC, frame-pacing, or device-loss soak.
 
 ## Supplied PAC headless edit proof
 

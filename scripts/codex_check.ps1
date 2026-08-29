@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "mesh-unit", "rust-mesh-lab-unit", "rust-mesh-lab-gpu", "full")]
+    [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "mesh-unit", "rust-mesh-lab-unit", "rust-mesh-lab-gpu", "rust-mesh-lab-stress", "full")]
     [string]$Area = "smoke",
     [string]$GameRoot = "",
     [string]$PytestBaseTemp = ""
@@ -415,6 +415,19 @@ if ($Area -eq "rust-mesh-lab-gpu") {
         Pop-Location
     }
     exit $RustGpuExitCode
+}
+
+if ($Area -eq "rust-mesh-lab-stress") {
+    $RustRoot = Join-Path $RepoRoot "tools\rust_mesh_lab"
+    Push-Location $RustRoot
+    try {
+        & cargo test -p cdmw_mesh_lab --all-features headless_stress_tests:: -- --ignored --test-threads=1 --nocapture
+        $RustStressExitCode = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+    exit $RustStressExitCode
 }
 
 $ConfiguredTests = @($TestsByArea[$Area])

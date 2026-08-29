@@ -773,6 +773,10 @@ impl History {
             after: after.clone(),
             retained_bytes_estimate,
         };
+        let discarded_redo_bytes = self.redo.iter().fold(0_usize, |total, entry| {
+            total.saturating_add(entry.retained_bytes_estimate)
+        });
+        self.retained_bytes = self.retained_bytes.saturating_sub(discarded_redo_bytes);
         self.redo.clear();
         self.retained_bytes = self
             .retained_bytes
@@ -791,9 +795,6 @@ impl History {
         let entry = self.undo.pop().ok_or(MeshError::EmptyOperation)?;
         *mesh = entry.before.clone();
         mesh.validate()?;
-        self.retained_bytes = self
-            .retained_bytes
-            .saturating_sub(entry.retained_bytes_estimate);
         self.redo.push(entry);
         Ok(())
     }
@@ -802,9 +803,6 @@ impl History {
         let entry = self.redo.pop().ok_or(MeshError::EmptyOperation)?;
         *mesh = entry.after.clone();
         mesh.validate()?;
-        self.retained_bytes = self
-            .retained_bytes
-            .saturating_add(entry.retained_bytes_estimate);
         self.undo.push(entry);
         Ok(())
     }
@@ -812,6 +810,16 @@ impl History {
     #[must_use]
     pub fn undo_len(&self) -> usize {
         self.undo.len()
+    }
+
+    #[must_use]
+    pub fn retained_bytes(&self) -> usize {
+        self.retained_bytes
+    }
+
+    #[must_use]
+    pub fn budget_bytes(&self) -> usize {
+        self.budget_bytes
     }
 }
 
@@ -1000,13 +1008,41 @@ mod tests {
         let mut history = History::new(1_000_000);
         history.commit("translate", before.clone(), &mesh)?;
         assert_eq!(history.undo_len(), 1);
+        assert_eq!(history.budget_bytes(), 1_000_000);
+        let committed_bytes = history.retained_bytes();
+        assert!(committed_bytes > 0);
+        assert!(committed_bytes <= history.budget_bytes());
         history.undo(&mut mesh)?;
+        assert_eq!(history.retained_bytes(), committed_bytes);
         assert_eq!(
             mesh.structural_fingerprint(),
             before.structural_fingerprint()
         );
         history.redo(&mut mesh)?;
+        assert_eq!(history.retained_bytes(), committed_bytes);
         assert_eq!(mesh.structural_fingerprint(), committed);
+        Ok(())
+    }
+
+    #[test]
+    fn new_commit_releases_discarded_redo_memory() -> Result<(), MeshError> {
+        let mut mesh = triangle();
+        let baseline = mesh.clone();
+        let handles = mesh.vertices.keys().collect::<HashSet<_>>();
+        mesh.translate_vertices(&handles, Vec3::X)?;
+        let mut history = History::new(1_000_000);
+        history.commit("first", baseline, &mesh)?;
+        let first_entry_bytes = history.retained_bytes();
+        history.undo(&mut mesh)?;
+        assert_eq!(history.retained_bytes(), first_entry_bytes);
+
+        let second_before = mesh.clone();
+        mesh.translate_vertices(&handles, Vec3::Y)?;
+        let second_entry_bytes =
+            estimate_mesh_bytes(&second_before).saturating_add(estimate_mesh_bytes(&mesh));
+        history.commit("second", second_before, &mesh)?;
+        assert_eq!(history.retained_bytes(), second_entry_bytes);
+        assert_eq!(history.undo_len(), 1);
         Ok(())
     }
 

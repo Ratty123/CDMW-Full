@@ -100,9 +100,10 @@ Use a system temporary directory for private evidence. Do not place game assets,
 ```powershell
 .\scripts\codex_check.ps1 -Area rust-mesh-lab-unit
 .\scripts\codex_check.ps1 -Area rust-mesh-lab-gpu
+.\scripts\codex_check.ps1 -Area rust-mesh-lab-stress
 ```
 
-The unit gate runs formatting, Clippy with warnings denied, workspace tests, and a Release workspace build. The GPU gate creates no window: it requires a D3D12 adapter, reuses the live renderer's mesh draw path for all seven preview modes plus Normals and Bounds, renders wide, tall, and 4:3 targets, checks `wgpu` validation scopes, and reads back a frame to reject an all-background result. It proves offscreen execution, not visible usability or appearance parity. `cargo deny`, `cargo audit`, and fuzzing are separate optional gates when installed.
+The unit gate runs formatting, Clippy with warnings denied, workspace tests, and a Release workspace build. The GPU gate creates no window: it requires a D3D12 adapter, reuses the live renderer's mesh draw path for all seven preview modes plus Normals and Bounds, renders wide, tall, and 4:3 targets, checks `wgpu` validation scopes, and reads back a frame to reject an all-background result. The stress gate also creates no window and serially drives the real `LabApplication` through 16,800 lasso gestures, 400 committed and 400 cancelled sculpt strokes, long and 5,000-sample high-rate strokes, tool/mode/resize/focus interruptions, and two deterministic 1,000-gesture mixed sessions. It asserts mesh invariants, idle operators, bounded pointer/latency queues, exact cancellation, and the configured total Undo/Redo history budget. These gates prove CPU/offscreen execution, not visible usability, OS working-set stability, or appearance parity. `cargo deny`, `cargo audit`, and fuzzing are separate optional gates when installed.
 
 ## Troubleshooting
 

@@ -2,13 +2,13 @@ use super::*;
 use cdmw_formats::{MeshFormat, decode_mesh};
 use cdmw_interaction::{OperatorState, ProjectedHandle};
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn viewport() -> egui::Rect {
+pub(super) fn viewport() -> egui::Rect {
     egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(800.0, 600.0))
 }
 
-fn triangle_application() -> Result<LabApplication, Box<dyn std::error::Error>> {
+pub(super) fn triangle_application() -> Result<LabApplication, Box<dyn std::error::Error>> {
     let document = decode_mesh(
         &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
         MeshFormat::Pam,
@@ -25,7 +25,7 @@ fn triangle_application() -> Result<LabApplication, Box<dyn std::error::Error>> 
     Ok(application)
 }
 
-fn projected_domain_point(
+pub(super) fn projected_domain_point(
     application: &mut LabApplication,
     domain: SelectionDomain,
 ) -> Result<Vec2, Box<dyn std::error::Error>> {
