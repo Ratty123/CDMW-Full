@@ -161,6 +161,7 @@ from .skeleton import (
     summarize_mesh_skinning,
     summarize_skeleton_bones,
 )
+from .stroke_samples import StrokeSample, StrokeSampleBuffer, StrokeSampleConfig
 from .textures import MeshTextureEditTarget, selected_mesh_texture_edit_target
 from .uv import MeshUvIslandSummary, MeshUvSummary, mesh_uv_lasso_selection, mesh_uv_region_selection, summarize_mesh_uvs
 
@@ -266,6 +267,9 @@ __all__ = [
     "MeshUvIslandSummary",
     "MeshUvSummary",
     "MeshWorkspaceSummary",
+    "StrokeSample",
+    "StrokeSampleBuffer",
+    "StrokeSampleConfig",
     "DEVELOPER_OVERRIDABLE_REBUILD_BLOCKERS",
     "SUPPORTED_GAME_MESH_FORMATS",
     "SAFE_MESH_EDIT_OPERATIONS",
