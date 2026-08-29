@@ -1,28 +1,32 @@
 #![forbid(unsafe_code)]
 
+mod camera;
 mod loader;
+mod viewport;
 
 use anyhow::{Context, Result};
+use camera::{OrbitCamera, StandardView};
 use cdmw_archive::ArchiveCatalog;
 use cdmw_formats::MeshDocument;
-use cdmw_interaction::{
-    InteractionSnapshot, OperatorController, ProjectedElement, ProjectedHandle, SculptTool,
-    SelectionDomain, SelectionOperation, SelectionQuery, SelectionShape, apply_selection,
-    query_selection,
-};
-use cdmw_mesh::{History, Selection, WorkingMesh};
-use cdmw_render_wgpu::WindowRenderer;
+use cdmw_interaction::{OperatorController, SelectionDomain, SelectionOperation};
+use cdmw_mesh::{History, Selection, VertexHandle, WorkingMesh};
+use cdmw_render_wgpu::{ViewMode, WindowRenderer};
 use cdmw_texture::{DdsMetadata, TextureRole};
-use egui::{Color32, RichText};
+use egui::{Color32, RichText, Stroke};
+use glam::{Quat, Vec2, Vec3};
 use loader::{LoadEvent, Loader};
-use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 use tracing::error;
+use viewport::{
+    EditGesture, GizmoAxis, PointerEventQueue, SelectionGesture, SelectionTool,
+    ViewportPointerEvent, ViewportProjection, ViewportTool, brush_vertex_scope,
+};
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -65,11 +69,9 @@ enum UiAction {
     SelectAllVertices,
     SelectAllFaces,
     ClearSelection,
-    TranslateX,
-    Grab,
-    Smooth,
-    Inflate,
-    Pinch,
+    FrameAll,
+    FrameSelected,
+    StandardView(StandardView),
     DeleteFaces,
     SubdivideFaces,
     DuplicateFaces,
@@ -102,6 +104,22 @@ struct LabApplication {
     selection_operation: SelectionOperation,
     viewport_rect: Option<egui::Rect>,
     viewport_revision: u64,
+    camera: OrbitCamera,
+    view_mode: ViewMode,
+    viewport_tool: ViewportTool,
+    selection_tool: SelectionTool,
+    brush_radius: f32,
+    brush_strength: f32,
+    selection_gesture: Option<SelectionGesture>,
+    edit_gesture: Option<EditGesture>,
+    projection: Option<ViewportProjection>,
+    last_selection_ms: Option<f64>,
+    last_edit_ms: Option<f64>,
+    pointer_events: PointerEventQueue,
+    raw_pointer_position: Option<Vec2>,
+    raw_primary_captured: bool,
+    raw_orbit_captured: bool,
+    raw_pan_captured: bool,
 }
 
 impl LabApplication {
@@ -150,6 +168,22 @@ impl LabApplication {
             selection_operation: SelectionOperation::Replace,
             viewport_rect: None,
             viewport_revision: 1,
+            camera: OrbitCamera::default(),
+            view_mode: ViewMode::TexturedSolid,
+            viewport_tool: ViewportTool::Select,
+            selection_tool: SelectionTool::Click,
+            brush_radius: 48.0,
+            brush_strength: 0.18,
+            selection_gesture: None,
+            edit_gesture: None,
+            projection: None,
+            last_selection_ms: None,
+            last_edit_ms: None,
+            pointer_events: PointerEventQueue::default(),
+            raw_pointer_position: None,
+            raw_primary_captured: false,
+            raw_orbit_captured: false,
+            raw_pan_captured: false,
         }
     }
 
@@ -181,8 +215,20 @@ impl LabApplication {
                                 loaded.mesh.faces().count(),
                                 loaded.document.parser
                             );
+                            self.camera.frame_all(&loaded.mesh);
+                            self.projection = None;
+                            self.selection_gesture = None;
+                            self.edit_gesture = None;
+                            self.pointer_events.clear();
+                            self.raw_primary_captured = false;
+                            self.raw_orbit_captured = false;
+                            self.raw_pan_captured = false;
                             if let Some(renderer) = &mut self.renderer {
                                 renderer.reset_texture();
+                                renderer.set_view_mode(self.view_mode);
+                                if let Some(rectangle) = self.viewport_rect {
+                                    renderer.set_camera(self.camera.view_projection(rectangle));
+                                }
                                 if let Some(texture) = &loaded.texture
                                     && let Err(error) = renderer
                                         .set_dds_texture(&texture.bytes, TextureRole::BaseColor)
@@ -431,6 +477,46 @@ impl LabApplication {
                     }
                 }
                 ui.separator();
+                ui.label(RichText::new("Viewport").strong());
+                egui::ComboBox::from_label("Preview mode")
+                    .selected_text(self.view_mode.label())
+                    .show_ui(ui, |ui| {
+                        for mode in [
+                            ViewMode::TexturedSolid,
+                            ViewMode::Solid,
+                            ViewMode::SolidWire,
+                            ViewMode::Wireframe,
+                            ViewMode::Vertices,
+                            ViewMode::WireVertices,
+                            ViewMode::XRay,
+                        ] {
+                            ui.selectable_value(&mut self.view_mode, mode, mode.label());
+                        }
+                    });
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button("Frame All").clicked() {
+                        actions.push(UiAction::FrameAll);
+                    }
+                    if ui.button("Frame Selected").clicked() {
+                        actions.push(UiAction::FrameSelected);
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    for (label, view) in [
+                        ("Front", StandardView::Front),
+                        ("Back", StandardView::Back),
+                        ("Left", StandardView::Left),
+                        ("Right", StandardView::Right),
+                        ("Top", StandardView::Top),
+                        ("Bottom", StandardView::Bottom),
+                    ] {
+                        if ui.small_button(label).clicked() {
+                            actions.push(UiAction::StandardView(view));
+                        }
+                    }
+                });
+                ui.label("RMB orbit · MMB pan · wheel zoom · F frame selected/all");
+                ui.separator();
                 ui.label(RichText::new("Selection").strong());
                 let has_mesh = self.mesh.is_some();
                 ui.horizontal(|ui| {
@@ -458,7 +544,22 @@ impl LabApplication {
                             );
                         }
                     });
-                ui.label("Viewport click selection: X-Ray CPU snapshot");
+                ui.horizontal_wrapped(|ui| {
+                    for tool in [
+                        SelectionTool::Click,
+                        SelectionTool::Brush,
+                        SelectionTool::Rectangle,
+                        SelectionTool::Lasso,
+                    ] {
+                        let selected = self.viewport_tool == ViewportTool::Select
+                            && self.selection_tool == tool;
+                        if ui.selectable_label(selected, tool.label()).clicked() {
+                            self.viewport_tool = ViewportTool::Select;
+                            self.selection_tool = tool;
+                        }
+                    }
+                });
+                ui.label("Selection currently uses the X-Ray CPU projection snapshot.");
                 ui.horizontal(|ui| {
                     if ui
                         .add_enabled(has_mesh, egui::Button::new("All Vertices"))
@@ -491,27 +592,68 @@ impl LabApplication {
                     .mesh
                     .as_ref()
                     .map_or(0, |mesh| mesh.selection.faces.len());
+                let selected_edges = self
+                    .mesh
+                    .as_ref()
+                    .map_or(0, |mesh| mesh.selection.edges.len());
                 ui.label(format!(
-                    "Selected scope: {selected_vertices} vertices · {selected_faces} faces"
+                    "Selected: {selected_vertices} vertices · {selected_edges} edges · {selected_faces} faces"
                 ));
-                ui.separator();
-                ui.label(RichText::new("Edit / Sculpt").strong());
-                let can_deform = selected_vertices > 0;
-                for (label, action) in [
-                    ("Move +X", UiAction::TranslateX),
-                    ("Grab +Y", UiAction::Grab),
-                    ("Smooth", UiAction::Smooth),
-                    ("Inflate", UiAction::Inflate),
-                    ("Pinch", UiAction::Pinch),
-                ] {
-                    if ui
-                        .add_enabled(can_deform, egui::Button::new(label))
-                        .on_disabled_hover_text("Select vertices, edges, faces, or a submesh first")
-                        .clicked()
-                    {
-                        actions.push(action);
-                    }
+                if self.selection_tool == SelectionTool::Brush
+                    || self.viewport_tool.sculpt_tool().is_some()
+                {
+                    ui.add(
+                        egui::Slider::new(&mut self.brush_radius, 4.0..=240.0)
+                            .text("Brush radius px"),
+                    );
                 }
+                ui.separator();
+                ui.label(RichText::new("Interactive Edit / Sculpt").strong());
+                ui.label(format!("Active tool: {}", self.viewport_tool.label()));
+                ui.horizontal_wrapped(|ui| {
+                    for tool in [ViewportTool::Move, ViewportTool::Rotate, ViewportTool::Scale] {
+                        if ui
+                            .add_enabled(
+                                selected_vertices > 0,
+                                egui::Button::new(tool.label())
+                                    .selected(self.viewport_tool == tool),
+                            )
+                            .on_disabled_hover_text(
+                                "Select vertices, edges, or faces before using transforms",
+                            )
+                            .clicked()
+                        {
+                            self.viewport_tool = tool;
+                        }
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    for tool in [
+                        ViewportTool::Grab,
+                        ViewportTool::Smooth,
+                        ViewportTool::Inflate,
+                        ViewportTool::Pinch,
+                    ] {
+                        if ui
+                            .add_enabled(
+                                has_mesh,
+                                egui::Button::new(tool.label())
+                                    .selected(self.viewport_tool == tool),
+                            )
+                            .on_disabled_hover_text("Load a mesh first")
+                            .clicked()
+                        {
+                            self.viewport_tool = tool;
+                        }
+                    }
+                });
+                if self.viewport_tool.sculpt_tool().is_some() {
+                    ui.add(
+                        egui::Slider::new(&mut self.brush_strength, 0.01..=1.0)
+                            .text("Strength"),
+                    );
+                }
+                ui.label("Drag the gizmo for transforms; drag over the surface for sculpt tools. Esc cancels the active gesture.");
                 ui.horizontal(|ui| {
                     for (label, action) in [
                         ("Delete", UiAction::DeleteFaces),
@@ -541,6 +683,15 @@ impl LabApplication {
                         actions.push(UiAction::Redo);
                     }
                 });
+                if self.last_selection_ms.is_some() || self.last_edit_ms.is_some() {
+                    ui.label(format!(
+                        "Last CPU query/operator: selection {} · edit {}",
+                        self.last_selection_ms
+                            .map_or_else(|| "—".to_owned(), |value| format!("{value:.2} ms")),
+                        self.last_edit_ms
+                            .map_or_else(|| "—".to_owned(), |value| format!("{value:.2} ms"))
+                    ));
+                }
                 if ui
                     .add_enabled(has_mesh, egui::Button::new("Export Neutral OBJ…"))
                     .on_disabled_hover_text("Load a mesh first")
@@ -551,18 +702,18 @@ impl LabApplication {
             });
         egui::CentralPanel::no_frame().show(root_ui, |ui| {
             let rectangle = ui.max_rect();
-            self.viewport_rect = Some(rectangle);
-            let response = ui.allocate_rect(rectangle, egui::Sense::click());
-            if response.clicked()
-                && let Some(position) = response.interact_pointer_pos()
-            {
-                self.select_from_viewport(rectangle, position);
-            }
-            self.paint_selection_overlay(ui, rectangle);
+            self.update_viewport_rect(rectangle);
+            let response = ui.allocate_rect(rectangle, egui::Sense::click_and_drag());
+            self.handle_viewport_input(ui, rectangle, &response);
+            self.paint_viewport_overlay(ui, rectangle);
             ui.painter().text(
                 rectangle.left_top() + egui::vec2(12.0, 12.0),
                 egui::Align2::LEFT_TOP,
-                "wgpu viewport · D3D12 · material approximation",
+                format!(
+                    "wgpu viewport · D3D12 · {} · {}",
+                    self.view_mode.label(),
+                    self.viewport_tool.label()
+                ),
                 egui::TextStyle::Monospace.resolve(ui.style()),
                 Color32::from_gray(180),
             );
@@ -571,6 +722,7 @@ impl LabApplication {
     }
 
     fn handle_actions(&mut self, actions: Vec<UiAction>) {
+        let mut publish_mesh = false;
         for action in actions {
             match action {
                 UiAction::OpenArchive => self.choose_archive(),
@@ -580,44 +732,74 @@ impl LabApplication {
                 UiAction::SelectAllVertices => self.select_all_vertices(),
                 UiAction::SelectAllFaces => self.select_all_faces(),
                 UiAction::ClearSelection => {
-                    if let Some(mesh) = &mut self.mesh
-                        && let Err(error) = mesh.set_selection(Selection::default())
-                    {
-                        self.status = error.to_string();
+                    if let Some(mesh) = &mut self.mesh {
+                        match mesh.set_selection(Selection::default()) {
+                            Ok(()) => self.status = "Selection cleared".to_owned(),
+                            Err(error) => self.status = error.to_string(),
+                        }
                     }
                 }
-                UiAction::TranslateX => self.run_translate(glam::Vec3::new(0.05, 0.0, 0.0)),
-                UiAction::Grab => self.run_sculpt(SculptTool::Grab),
-                UiAction::Smooth => self.run_sculpt(SculptTool::Smooth),
-                UiAction::Inflate => self.run_sculpt(SculptTool::Inflate),
-                UiAction::Pinch => self.run_sculpt(SculptTool::Pinch),
+                UiAction::FrameAll => {
+                    if let Some(mesh) = &self.mesh {
+                        self.camera.frame_all(mesh);
+                        self.projection = None;
+                        self.status = "Camera framed the complete mesh".to_owned();
+                    }
+                }
+                UiAction::FrameSelected => {
+                    if let Some(mesh) = &self.mesh {
+                        self.camera.frame_selected(mesh);
+                        self.projection = None;
+                        self.status = "Camera framed the selected elements".to_owned();
+                    }
+                }
+                UiAction::StandardView(view) => {
+                    self.camera.set_standard_view(view);
+                    self.projection = None;
+                    self.status = format!("Camera switched to {view:?} view");
+                }
                 UiAction::DeleteFaces => {
                     self.run_topology("Delete faces", |mesh, faces| mesh.delete_faces(faces));
+                    publish_mesh = true;
                 }
                 UiAction::SubdivideFaces => self.run_topology("Subdivide faces", |mesh, faces| {
+                    publish_mesh = true;
                     mesh.subdivide_faces(faces).map(|_| ())
                 }),
                 UiAction::DuplicateFaces => self.run_topology("Duplicate faces", |mesh, faces| {
+                    publish_mesh = true;
                     mesh.duplicate_faces(faces).map(|_| ())
                 }),
                 UiAction::Undo => {
-                    if let Some(mesh) = &mut self.mesh
-                        && let Err(error) = self.history.undo(mesh)
-                    {
-                        self.status = error.to_string();
+                    if let Some(mesh) = &mut self.mesh {
+                        match self.history.undo(mesh) {
+                            Ok(()) => {
+                                self.status = "Undo restored geometry and selection".to_owned();
+                                publish_mesh = true;
+                            }
+                            Err(error) => self.status = error.to_string(),
+                        }
                     }
+                    self.projection = None;
                 }
                 UiAction::Redo => {
-                    if let Some(mesh) = &mut self.mesh
-                        && let Err(error) = self.history.redo(mesh)
-                    {
-                        self.status = error.to_string();
+                    if let Some(mesh) = &mut self.mesh {
+                        match self.history.redo(mesh) {
+                            Ok(()) => {
+                                self.status = "Redo restored geometry and selection".to_owned();
+                                publish_mesh = true;
+                            }
+                            Err(error) => self.status = error.to_string(),
+                        }
                     }
+                    self.projection = None;
                 }
                 UiAction::ExportObj => self.choose_export(),
             }
         }
-        self.publish_mesh_snapshot();
+        if publish_mesh {
+            self.publish_mesh_snapshot();
+        }
     }
 
     fn choose_archive(&mut self) {
@@ -723,53 +905,6 @@ impl LabApplication {
         }
     }
 
-    fn run_translate(&mut self, delta: glam::Vec3) {
-        let Some(mesh) = &mut self.mesh else {
-            return;
-        };
-        let scope = mesh.selected_vertex_scope();
-        let result = (|| {
-            let gesture = self.operator.begin(mesh, "Move")?;
-            self.operator.translate(mesh, gesture, &scope, delta)?;
-            self.operator.confirm(mesh, &mut self.history, gesture)
-        })();
-        if let Err(error) = result {
-            self.status = error.to_string();
-        }
-    }
-
-    fn run_sculpt(&mut self, tool: SculptTool) {
-        let Some(mesh) = &mut self.mesh else {
-            return;
-        };
-        let scope = mesh.selected_vertex_scope();
-        let center = if scope.is_empty() {
-            glam::Vec3::ZERO
-        } else {
-            let total = scope.iter().fold(glam::Vec3::ZERO, |sum, handle| {
-                mesh.vertex(*handle)
-                    .map_or(sum, |vertex| sum + glam::Vec3::from_array(vertex.position))
-            });
-            total / scope.len() as f32
-        };
-        let result = (|| {
-            let gesture = self.operator.begin(mesh, format!("{tool:?}"))?;
-            self.operator.sculpt(
-                mesh,
-                gesture,
-                tool,
-                &scope,
-                center,
-                glam::Vec3::new(0.0, 0.05, 0.0),
-                0.1,
-            )?;
-            self.operator.confirm(mesh, &mut self.history, gesture)
-        })();
-        if let Err(error) = result {
-            self.status = error.to_string();
-        }
-    }
-
     fn run_topology(
         &mut self,
         label: &str,
@@ -790,6 +925,7 @@ impl LabApplication {
     }
 
     fn publish_mesh_snapshot(&mut self) {
+        self.projection = None;
         if let (Some(renderer), Some(mesh)) = (&mut self.renderer, &self.mesh)
             && let Err(error) = renderer.set_snapshot(&mesh.draw_snapshot())
         {
@@ -797,122 +933,741 @@ impl LabApplication {
         }
     }
 
-    fn select_from_viewport(&mut self, rectangle: egui::Rect, position: egui::Pos2) {
-        let Some(snapshot) = self.interaction_snapshot(rectangle) else {
+    fn update_viewport_rect(&mut self, rectangle: egui::Rect) {
+        if self.viewport_rect == Some(rectangle) {
+            return;
+        }
+        if self.viewport_rect.is_some()
+            && (self.selection_gesture.is_some() || self.edit_gesture.is_some())
+        {
+            self.cancel_active_gesture("Viewport changed; active gesture cancelled");
+        }
+        self.viewport_rect = Some(rectangle);
+        self.viewport_revision = self.viewport_revision.saturating_add(1);
+        self.projection = None;
+    }
+
+    fn ensure_projection(&mut self, rectangle: egui::Rect) -> bool {
+        let Some(mesh) = &self.mesh else {
+            self.projection = None;
+            return false;
+        };
+        let matches = self.projection.as_ref().is_some_and(|projection| {
+            projection.matches(mesh, &self.camera, rectangle, self.viewport_revision)
+        });
+        if !matches {
+            self.projection = Some(ViewportProjection::build(
+                mesh,
+                &self.camera,
+                rectangle,
+                self.viewport_revision,
+            ));
+        }
+        true
+    }
+
+    fn capture_viewport_pointer_event(&mut self, event: &WindowEvent, scale_factor: f64) -> bool {
+        match event {
+            WindowEvent::CursorMoved { position, .. } => {
+                let scale = scale_factor.max(1.0e-6) as f32;
+                let next = Vec2::new(position.x as f32 / scale, position.y as f32 / scale);
+                let delta = self
+                    .raw_pointer_position
+                    .map_or(Vec2::ZERO, |previous| next - previous);
+                self.raw_pointer_position = Some(next);
+                let mut captured = false;
+                if self.raw_primary_captured {
+                    self.pointer_events
+                        .push(ViewportPointerEvent::PrimaryMoved(next));
+                    captured = true;
+                }
+                if self.raw_orbit_captured && delta != Vec2::ZERO {
+                    self.pointer_events.push(ViewportPointerEvent::Orbit(delta));
+                    captured = true;
+                }
+                if self.raw_pan_captured && delta != Vec2::ZERO {
+                    self.pointer_events.push(ViewportPointerEvent::Pan(delta));
+                    captured = true;
+                }
+                captured
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                let Some(point) = self.raw_pointer_position else {
+                    return false;
+                };
+                let inside = self
+                    .viewport_rect
+                    .is_some_and(|rectangle| rectangle.contains(egui::pos2(point.x, point.y)));
+                match (state, button) {
+                    (ElementState::Pressed, MouseButton::Left) if inside => {
+                        self.raw_primary_captured = true;
+                        self.pointer_events
+                            .push(ViewportPointerEvent::PrimaryPressed(point));
+                        true
+                    }
+                    (ElementState::Released, MouseButton::Left) if self.raw_primary_captured => {
+                        self.raw_primary_captured = false;
+                        self.pointer_events
+                            .push(ViewportPointerEvent::PrimaryReleased(point));
+                        true
+                    }
+                    (ElementState::Pressed, MouseButton::Right) if inside => {
+                        self.raw_orbit_captured = true;
+                        true
+                    }
+                    (ElementState::Released, MouseButton::Right) if self.raw_orbit_captured => {
+                        self.raw_orbit_captured = false;
+                        true
+                    }
+                    (ElementState::Pressed, MouseButton::Middle) if inside => {
+                        self.raw_pan_captured = true;
+                        true
+                    }
+                    (ElementState::Released, MouseButton::Middle) if self.raw_pan_captured => {
+                        self.raw_pan_captured = false;
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_viewport_input(
+        &mut self,
+        ui: &egui::Ui,
+        rectangle: egui::Rect,
+        response: &egui::Response,
+    ) {
+        if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
+            self.cancel_active_gesture("Gesture cancelled");
+        }
+
+        let geometry_before = self.mesh.as_ref().map(|mesh| mesh.geometry_revision);
+        let pointer_events = self.pointer_events.drain().collect::<Vec<_>>();
+        for event in pointer_events {
+            match event {
+                ViewportPointerEvent::PrimaryPressed(point) => {
+                    self.begin_primary_gesture(rectangle, point);
+                }
+                ViewportPointerEvent::PrimaryMoved(point) => {
+                    if self.selection_gesture.is_some() || self.edit_gesture.is_some() {
+                        self.update_primary_gesture(rectangle, point, false);
+                    }
+                }
+                ViewportPointerEvent::PrimaryReleased(point) => {
+                    if self.selection_gesture.is_some() || self.edit_gesture.is_some() {
+                        self.update_primary_gesture(rectangle, point, true);
+                        self.finish_primary_gesture();
+                    }
+                }
+                ViewportPointerEvent::Orbit(delta) => {
+                    self.cancel_active_gesture("Camera orbit took pointer ownership");
+                    self.camera.orbit(delta);
+                    self.projection = None;
+                    self.status = "Camera orbit · release RMB to finish".to_owned();
+                }
+                ViewportPointerEvent::Pan(delta) => {
+                    self.cancel_active_gesture("Camera pan took pointer ownership");
+                    self.camera.pan(delta, rectangle);
+                    self.projection = None;
+                    self.status = "Camera pan · release MMB to finish".to_owned();
+                }
+            }
+        }
+        let geometry_after = self.mesh.as_ref().map(|mesh| mesh.geometry_revision);
+        if geometry_before != geometry_after {
+            self.publish_mesh_snapshot();
+        }
+
+        if response.hovered() {
+            let wheel = ui.input(|input| input.smooth_scroll_delta.y);
+            if wheel.abs() > f32::EPSILON {
+                self.cancel_active_gesture("Camera zoom took pointer ownership");
+                self.camera.zoom(wheel);
+                self.projection = None;
+                self.status = "Camera zoom".to_owned();
+            }
+            if ui.input(|input| input.key_pressed(egui::Key::F))
+                && let Some(mesh) = &self.mesh
+            {
+                if mesh.selected_vertex_scope().is_empty() {
+                    self.camera.frame_all(mesh);
+                } else {
+                    self.camera.frame_selected(mesh);
+                }
+                self.projection = None;
+            }
+        }
+
+        if self.selection_gesture.is_some() || self.edit_gesture.is_some() {
+            ui.ctx().request_repaint();
+        }
+    }
+
+    fn begin_primary_gesture(&mut self, rectangle: egui::Rect, point: Vec2) {
+        if self.mesh.is_none() || self.selection_gesture.is_some() || self.edit_gesture.is_some() {
+            return;
+        }
+        if self.viewport_tool == ViewportTool::Select {
+            if !self.ensure_projection(rectangle) {
+                return;
+            }
+            let started = Instant::now();
+            let Some(mesh) = &mut self.mesh else {
+                return;
+            };
+            let mut gesture = SelectionGesture::new(
+                mesh,
+                self.selection_tool,
+                self.selection_domain,
+                self.selection_operation,
+                false,
+                point,
+                self.brush_radius,
+            );
+            let result = self.projection.as_ref().map_or(
+                Err(cdmw_interaction::InteractionError::InvalidTransition),
+                |projection| gesture.update(mesh, &projection.interaction, point),
+            );
+            self.last_selection_ms = Some(started.elapsed().as_secs_f64() * 1_000.0);
+            match result {
+                Ok(()) => {
+                    self.selection_gesture = Some(gesture);
+                    self.status = format!(
+                        "{} selection preview · release to commit · Esc cancels",
+                        self.selection_tool.label()
+                    );
+                }
+                Err(error) => self.status = format!("Selection failed: {error}"),
+            }
+            return;
+        }
+
+        let is_sculpt = self.viewport_tool.sculpt_tool().is_some();
+        if is_sculpt && !self.ensure_projection(rectangle) {
+            return;
+        }
+        let Some(mesh) = &self.mesh else {
             return;
         };
-        let query = SelectionQuery {
-            domain: self.selection_domain,
-            operation: self.selection_operation,
-            visible_only: false,
-            shape: SelectionShape::Click {
-                point: glam::Vec2::new(position.x, position.y),
-                radius: 10.0,
-            },
-            geometry_revision: snapshot.geometry_revision,
-            topology_generation: snapshot.topology_generation,
-            camera_revision: snapshot.camera_revision,
-            viewport_revision: snapshot.viewport_revision,
+        let selected_handles = mesh.selected_vertex_scope();
+        let pivot = OrbitCamera::selected_center(mesh).unwrap_or_else(|| self.camera.target());
+        let (axis, handles) = if matches!(
+            self.viewport_tool,
+            ViewportTool::Move | ViewportTool::Rotate | ViewportTool::Scale
+        ) {
+            if selected_handles.is_empty() {
+                self.status = "Select vertices, edges, or faces before transforming".to_owned();
+                return;
+            }
+            let Some(axis) = self.hit_test_gizmo(self.viewport_tool, point, pivot, rectangle)
+            else {
+                self.status = "Drag a visible gizmo axis, ring, or center handle".to_owned();
+                return;
+            };
+            (axis, selected_handles)
+        } else {
+            let handles = self
+                .projection
+                .as_ref()
+                .and_then(|projection| {
+                    brush_vertex_scope(mesh, &projection.interaction, point, self.brush_radius).ok()
+                })
+                .unwrap_or_default();
+            if handles.is_empty() {
+                self.status = "The sculpt brush has no eligible vertices here".to_owned();
+                return;
+            }
+            (GizmoAxis::Free, handles)
         };
-        let result = query_selection(&snapshot, &query).and_then(|selection| {
+        let pivot = center_of_handles(mesh, &handles).unwrap_or(pivot);
+        let gesture_id = match self.operator.begin(mesh, self.viewport_tool.label()) {
+            Ok(gesture_id) => gesture_id,
+            Err(error) => {
+                self.status = format!("Could not start tool: {error}");
+                return;
+            }
+        };
+        self.edit_gesture = Some(EditGesture {
+            gesture_id,
+            tool: self.viewport_tool,
+            axis,
+            handles,
+            pivot,
+            last_pointer: point,
+            last_sample: point,
+        });
+        if self.viewport_tool.sculpt_tool().is_some() && self.viewport_tool != ViewportTool::Grab {
+            self.update_edit_gesture(rectangle, point, true);
+            if self.edit_gesture.is_none() {
+                return;
+            }
+        }
+        self.status = format!(
+            "{} preview · release to commit · Esc cancels",
+            self.viewport_tool.label()
+        );
+    }
+
+    fn update_primary_gesture(&mut self, rectangle: egui::Rect, point: Vec2, terminal: bool) {
+        if self.selection_gesture.is_some() {
+            if !self.ensure_projection(rectangle) {
+                return;
+            }
+            let started = Instant::now();
+            let Some(mut gesture) = self.selection_gesture.take() else {
+                return;
+            };
+            let defer_query = matches!(
+                gesture.tool,
+                SelectionTool::Rectangle | SelectionTool::Lasso
+            ) && !terminal;
+            let result = if defer_query {
+                gesture.record_point(point);
+                Ok(())
+            } else {
+                match (&mut self.mesh, &self.projection) {
+                    (Some(mesh), Some(projection)) => {
+                        gesture.update(mesh, &projection.interaction, point)
+                    }
+                    _ => Err(cdmw_interaction::InteractionError::InvalidTransition),
+                }
+            };
+            self.last_selection_ms = Some(started.elapsed().as_secs_f64() * 1_000.0);
+            if let Err(error) = result {
+                if let Some(mesh) = &mut self.mesh {
+                    gesture.cancel(mesh);
+                }
+                self.status = format!("Selection cancelled: {error}");
+            } else {
+                self.selection_gesture = Some(gesture);
+            }
+        } else if self.edit_gesture.is_some() {
+            self.update_edit_gesture(rectangle, point, false);
+        }
+    }
+
+    fn update_edit_gesture(&mut self, rectangle: egui::Rect, point: Vec2, force: bool) {
+        let Some(current) = &self.edit_gesture else {
+            return;
+        };
+        if current.tool.sculpt_tool().is_some() && current.tool != ViewportTool::Grab {
+            self.ensure_projection(rectangle);
+        }
+        let Some(mut gesture) = self.edit_gesture.take() else {
+            return;
+        };
+        let screen_delta = point - gesture.last_pointer;
+        let sample_delta = point - gesture.last_sample;
+        if !force && screen_delta.length_squared() < 0.25 && sample_delta.length_squared() < 4.0 {
+            self.edit_gesture = Some(gesture);
+            return;
+        }
+        let started = Instant::now();
+        let result: Result<(), cdmw_interaction::InteractionError> = (|| {
             let mesh = self
                 .mesh
                 .as_mut()
                 .ok_or(cdmw_interaction::InteractionError::InvalidTransition)?;
-            apply_selection(mesh, query.operation, selection)
-        });
-        if let Err(error) = result {
-            self.status = format!("Viewport selection failed: {error}");
-        }
-    }
-
-    fn interaction_snapshot(&self, rectangle: egui::Rect) -> Option<InteractionSnapshot> {
-        let mesh = self.mesh.as_ref()?;
-        let positions = projected_positions(mesh, rectangle);
-        let mut elements = Vec::new();
-        for (handle, _) in mesh.vertices() {
-            if let Some(position) = positions.get(&handle) {
-                elements.push(ProjectedElement {
-                    handle: ProjectedHandle::Vertex(handle),
-                    position: *position,
-                    depth: 0.0,
-                    visible: true,
-                });
-            }
-        }
-        for (handle, edge) in mesh.edges() {
-            let points = edge
-                .vertices
-                .iter()
-                .filter_map(|vertex| positions.get(vertex))
-                .copied()
-                .collect::<Vec<_>>();
-            if points.len() == 2 {
-                elements.push(ProjectedElement {
-                    handle: ProjectedHandle::Edge(handle),
-                    position: (points[0] + points[1]) * 0.5,
-                    depth: 0.0,
-                    visible: true,
-                });
-            }
-        }
-        for (handle, face) in mesh.faces() {
-            let points = face
-                .vertices
-                .iter()
-                .filter_map(|vertex| positions.get(vertex))
-                .copied()
-                .collect::<Vec<_>>();
-            if points.len() == 3 {
-                elements.push(ProjectedElement {
-                    handle: ProjectedHandle::Face(handle),
-                    position: (points[0] + points[1] + points[2]) / 3.0,
-                    depth: 0.0,
-                    visible: true,
-                });
-            }
-        }
-        Some(InteractionSnapshot {
-            geometry_revision: mesh.geometry_revision,
-            topology_generation: mesh.topology_generation,
-            camera_revision: 1,
-            viewport_revision: self.viewport_revision,
-            viewport_size: glam::Vec2::new(rectangle.width(), rectangle.height()),
-            elements,
-        })
-    }
-
-    fn paint_selection_overlay(&self, ui: &egui::Ui, rectangle: egui::Rect) {
-        let Some(snapshot) = self.interaction_snapshot(rectangle) else {
-            return;
-        };
-        let Some(mesh) = &self.mesh else {
-            return;
-        };
-        for element in snapshot.elements {
-            let selected = match element.handle {
-                ProjectedHandle::Vertex(handle) => mesh.selection.vertices.contains(&handle),
-                ProjectedHandle::Edge(handle) => mesh.selection.edges.contains(&handle),
-                ProjectedHandle::Face(handle) => mesh.selection.faces.contains(&handle),
-            };
-            let belongs_to_domain = matches!(
-                (self.selection_domain, &element.handle),
-                (SelectionDomain::Vertex, ProjectedHandle::Vertex(_))
-                    | (SelectionDomain::Edge, ProjectedHandle::Edge(_))
-                    | (SelectionDomain::Face, ProjectedHandle::Face(_))
-            );
-            if belongs_to_domain {
-                ui.painter().circle_filled(
-                    egui::pos2(element.position.x, element.position.y),
-                    if selected { 5.0 } else { 2.5 },
-                    if selected {
-                        Color32::from_rgb(255, 145, 35)
+            match gesture.tool {
+                ViewportTool::Move => {
+                    let delta = if gesture.axis == GizmoAxis::Free {
+                        self.camera.screen_delta_to_world(screen_delta, rectangle)
                     } else {
-                        Color32::from_white_alpha(155)
-                    },
+                        self.camera.axis_drag_delta(
+                            gesture.axis.vector(&self.camera),
+                            gesture.pivot,
+                            screen_delta,
+                            rectangle,
+                        )
+                    };
+                    self.operator
+                        .translate(mesh, gesture.gesture_id, &gesture.handles, delta)
+                }
+                ViewportTool::Rotate => {
+                    let axis = if gesture.axis == GizmoAxis::Free {
+                        self.camera.forward()
+                    } else {
+                        gesture.axis.vector(&self.camera)
+                    };
+                    let angle = self.camera.project(gesture.pivot, rectangle).map_or(
+                        (screen_delta.x - screen_delta.y) * 0.008,
+                        |center| {
+                            signed_screen_angle(
+                                gesture.last_pointer - center.screen,
+                                point - center.screen,
+                            )
+                        },
+                    );
+                    self.operator.rotate(
+                        mesh,
+                        gesture.gesture_id,
+                        &gesture.handles,
+                        gesture.pivot,
+                        Quat::from_axis_angle(axis.normalize_or_zero(), angle),
+                    )
+                }
+                ViewportTool::Scale => {
+                    let factor = ((screen_delta.x - screen_delta.y) * 0.01)
+                        .exp()
+                        .clamp(0.2, 5.0);
+                    let scale = match gesture.axis {
+                        GizmoAxis::X => Vec3::new(factor, 1.0, 1.0),
+                        GizmoAxis::Y => Vec3::new(1.0, factor, 1.0),
+                        GizmoAxis::Z => Vec3::new(1.0, 1.0, factor),
+                        _ => Vec3::splat(factor),
+                    };
+                    self.operator.scale(
+                        mesh,
+                        gesture.gesture_id,
+                        &gesture.handles,
+                        gesture.pivot,
+                        scale,
+                    )
+                }
+                ViewportTool::Grab => {
+                    let delta = self.camera.screen_delta_to_world(screen_delta, rectangle);
+                    self.operator.sculpt(
+                        mesh,
+                        gesture.gesture_id,
+                        cdmw_interaction::SculptTool::Grab,
+                        &gesture.handles,
+                        gesture.pivot,
+                        delta,
+                        1.0,
+                    )
+                }
+                ViewportTool::Smooth | ViewportTool::Inflate | ViewportTool::Pinch => {
+                    if let Some(projection) = &self.projection {
+                        gesture.handles = brush_vertex_scope(
+                            mesh,
+                            &projection.interaction,
+                            point,
+                            self.brush_radius,
+                        )?;
+                    }
+                    gesture.pivot = center_of_handles(mesh, &gesture.handles)
+                        .ok_or(cdmw_interaction::InteractionError::InvalidShape)?;
+                    let tool = gesture
+                        .tool
+                        .sculpt_tool()
+                        .ok_or(cdmw_interaction::InteractionError::InvalidTransition)?;
+                    let strength = match tool {
+                        cdmw_interaction::SculptTool::Inflate => {
+                            self.brush_strength * self.camera.world_units_per_pixel(rectangle) * 8.0
+                        }
+                        cdmw_interaction::SculptTool::Smooth => self.brush_strength * 0.35,
+                        cdmw_interaction::SculptTool::Pinch => self.brush_strength * 0.12,
+                        cdmw_interaction::SculptTool::Grab => 1.0,
+                    };
+                    self.operator.sculpt(
+                        mesh,
+                        gesture.gesture_id,
+                        tool,
+                        &gesture.handles,
+                        gesture.pivot,
+                        Vec3::ZERO,
+                        strength,
+                    )
+                }
+                ViewportTool::Select => Err(cdmw_interaction::InteractionError::InvalidTransition),
+            }
+        })();
+        self.last_edit_ms = Some(started.elapsed().as_secs_f64() * 1_000.0);
+        match result {
+            Ok(()) => {
+                gesture.last_pointer = point;
+                gesture.last_sample = point;
+                self.edit_gesture = Some(gesture);
+                self.projection = None;
+            }
+            Err(error) => {
+                self.edit_gesture = Some(gesture);
+                self.cancel_active_gesture(format!("Tool failed and was rolled back: {error}"));
+            }
+        }
+    }
+
+    fn finish_primary_gesture(&mut self) {
+        if let Some(gesture) = self.selection_gesture.take() {
+            let result = self
+                .mesh
+                .as_ref()
+                .map_or(Ok(false), |mesh| gesture.commit(mesh, &mut self.history));
+            self.status = match result {
+                Ok(true) => format!(
+                    "{} selection committed as one undo entry",
+                    self.selection_tool.label()
+                ),
+                Ok(false) => "Selection gesture made no change".to_owned(),
+                Err(error) => format!("Selection commit failed: {error}"),
+            };
+        }
+        if let Some(gesture) = self.edit_gesture.take() {
+            let result = self.mesh.as_mut().map_or(
+                Err(cdmw_interaction::InteractionError::InvalidTransition),
+                |mesh| {
+                    self.operator
+                        .confirm(mesh, &mut self.history, gesture.gesture_id)
+                },
+            );
+            self.status = match result {
+                Ok(()) => format!("{} committed as one undo entry", gesture.tool.label()),
+                Err(error) => format!("Tool commit failed: {error}"),
+            };
+        }
+    }
+
+    fn cancel_active_gesture(&mut self, reason: impl Into<String>) {
+        let reason = reason.into();
+        let mut cancelled = false;
+        if let Some(gesture) = self.selection_gesture.take()
+            && let Some(mesh) = &mut self.mesh
+        {
+            gesture.cancel(mesh);
+            cancelled = true;
+        }
+        if let Some(gesture) = self.edit_gesture.take()
+            && let Some(mesh) = &mut self.mesh
+        {
+            if let Err(error) = self.operator.cancel(mesh, gesture.gesture_id) {
+                self.status = format!("Gesture rollback failed: {error}");
+                return;
+            }
+            cancelled = true;
+        }
+        if cancelled {
+            self.status = reason;
+            self.publish_mesh_snapshot();
+        }
+    }
+
+    fn paint_viewport_overlay(&mut self, ui: &egui::Ui, rectangle: egui::Rect) {
+        if !self.ensure_projection(rectangle) {
+            return;
+        }
+        let (Some(mesh), Some(projection)) = (&self.mesh, &self.projection) else {
+            return;
+        };
+        let painter = ui.painter();
+        let show_vertices = matches!(self.view_mode, ViewMode::Vertices | ViewMode::WireVertices)
+            || (self.viewport_tool == ViewportTool::Select
+                && self.selection_domain == SelectionDomain::Vertex);
+        if show_vertices {
+            for projected in projection
+                .vertices
+                .values()
+                .filter(|point| point.inside_view)
+            {
+                painter.circle_filled(
+                    egui::pos2(projected.screen.x, projected.screen.y),
+                    1.4,
+                    Color32::from_white_alpha(125),
                 );
             }
         }
+        for handle in &mesh.selection.vertices {
+            if let Some(projected) = projection.vertices.get(handle) {
+                painter.circle_filled(
+                    egui::pos2(projected.screen.x, projected.screen.y),
+                    4.0,
+                    Color32::from_rgb(255, 145, 35),
+                );
+            }
+        }
+        for handle in &mesh.selection.edges {
+            if let Some(edge) = mesh.edge(*handle)
+                && let (Some(first), Some(second)) = (
+                    projection.vertices.get(&edge.vertices[0]),
+                    projection.vertices.get(&edge.vertices[1]),
+                )
+            {
+                painter.line_segment(
+                    [
+                        egui::pos2(first.screen.x, first.screen.y),
+                        egui::pos2(second.screen.x, second.screen.y),
+                    ],
+                    Stroke::new(2.0, Color32::from_rgb(255, 145, 35)),
+                );
+            }
+        }
+        let detailed_faces = mesh.selection.faces.len() <= 4_000;
+        for handle in &mesh.selection.faces {
+            let Some(face) = mesh.face(*handle) else {
+                continue;
+            };
+            let points = face
+                .vertices
+                .iter()
+                .filter_map(|vertex| projection.vertices.get(vertex))
+                .map(|point| egui::pos2(point.screen.x, point.screen.y))
+                .collect::<Vec<_>>();
+            if points.len() != 3 {
+                continue;
+            }
+            if detailed_faces {
+                painter.add(egui::Shape::convex_polygon(
+                    points,
+                    Color32::from_rgba_unmultiplied(255, 125, 25, 72),
+                    Stroke::new(1.0, Color32::from_rgb(255, 145, 35)),
+                ));
+            } else {
+                let center = points
+                    .iter()
+                    .fold(egui::Vec2::ZERO, |sum, point| sum + point.to_vec2())
+                    / 3.0;
+                painter.circle_filled(
+                    egui::pos2(center.x, center.y),
+                    1.2,
+                    Color32::from_rgba_unmultiplied(255, 145, 35, 150),
+                );
+            }
+        }
+        self.paint_active_shape(ui);
+        self.paint_gizmo(ui, rectangle);
+    }
+
+    fn paint_active_shape(&self, ui: &egui::Ui) {
+        let painter = ui.painter();
+        let stroke = Stroke::new(2.0, Color32::from_rgb(80, 190, 255));
+        if let Some(gesture) = &self.selection_gesture {
+            match gesture.tool {
+                SelectionTool::Click | SelectionTool::Brush => {
+                    painter.circle_stroke(
+                        egui::pos2(gesture.current.x, gesture.current.y),
+                        gesture.radius,
+                        stroke,
+                    );
+                }
+                SelectionTool::Rectangle => {
+                    painter.rect_stroke(
+                        egui::Rect::from_two_pos(
+                            egui::pos2(gesture.start.x, gesture.start.y),
+                            egui::pos2(gesture.current.x, gesture.current.y),
+                        ),
+                        0.0,
+                        stroke,
+                        egui::StrokeKind::Inside,
+                    );
+                }
+                SelectionTool::Lasso => {
+                    let points = gesture
+                        .points
+                        .iter()
+                        .map(|point| egui::pos2(point.x, point.y))
+                        .collect::<Vec<_>>();
+                    if points.len() >= 2 {
+                        painter.add(egui::Shape::line(points, stroke));
+                    }
+                }
+            }
+        } else if (self.selection_tool == SelectionTool::Brush
+            || self.viewport_tool.sculpt_tool().is_some())
+            && let Some(pointer) = ui.input(|input| input.pointer.hover_pos())
+            && self
+                .viewport_rect
+                .is_some_and(|rectangle| rectangle.contains(pointer))
+        {
+            painter.circle_stroke(pointer, self.brush_radius, stroke);
+        }
+    }
+
+    fn paint_gizmo(&self, ui: &egui::Ui, rectangle: egui::Rect) {
+        if !matches!(
+            self.viewport_tool,
+            ViewportTool::Move | ViewportTool::Rotate | ViewportTool::Scale
+        ) {
+            return;
+        }
+        let Some(mesh) = &self.mesh else {
+            return;
+        };
+        let Some(pivot) = OrbitCamera::selected_center(mesh) else {
+            return;
+        };
+        let painter = ui.painter();
+        if self.viewport_tool == ViewportTool::Rotate {
+            for (axis, color) in axis_colors() {
+                let points = rotation_ring(&self.camera, pivot, axis, rectangle);
+                if points.len() >= 2 {
+                    painter.add(egui::Shape::line(
+                        points
+                            .into_iter()
+                            .map(|point| egui::pos2(point.x, point.y))
+                            .collect(),
+                        Stroke::new(2.0, color),
+                    ));
+                }
+            }
+            if let Some(center) = self.camera.project(pivot, rectangle) {
+                painter.circle_filled(
+                    egui::pos2(center.screen.x, center.screen.y),
+                    5.0,
+                    Color32::WHITE,
+                );
+            }
+            return;
+        }
+        for (_axis, start, end, color) in gizmo_segments(&self.camera, pivot, rectangle) {
+            painter.line_segment(
+                [egui::pos2(start.x, start.y), egui::pos2(end.x, end.y)],
+                Stroke::new(3.0, color),
+            );
+            if self.viewport_tool == ViewportTool::Scale {
+                painter.rect_filled(
+                    egui::Rect::from_center_size(egui::pos2(end.x, end.y), egui::vec2(9.0, 9.0)),
+                    1.0,
+                    color,
+                );
+            } else {
+                painter.circle_filled(egui::pos2(end.x, end.y), 5.0, color);
+            }
+        }
+        if let Some(center) = self.camera.project(pivot, rectangle) {
+            painter.circle_filled(
+                egui::pos2(center.screen.x, center.screen.y),
+                6.0,
+                Color32::WHITE,
+            );
+        }
+    }
+
+    fn hit_test_gizmo(
+        &self,
+        tool: ViewportTool,
+        pointer: Vec2,
+        pivot: Vec3,
+        rectangle: egui::Rect,
+    ) -> Option<GizmoAxis> {
+        let center = self.camera.project(pivot, rectangle)?.screen;
+        if pointer.distance(center) <= 11.0 {
+            return Some(if tool == ViewportTool::Rotate {
+                GizmoAxis::View
+            } else {
+                GizmoAxis::Free
+            });
+        }
+        if tool == ViewportTool::Rotate {
+            return axis_colors()
+                .into_iter()
+                .filter_map(|(axis, _)| {
+                    let points = rotation_ring(&self.camera, pivot, axis, rectangle);
+                    let distance = polyline_distance(pointer, &points);
+                    (distance <= 9.0).then_some((axis, distance))
+                })
+                .min_by(|(_, first), (_, second)| first.total_cmp(second))
+                .map(|(axis, _)| axis);
+        }
+        gizmo_segments(&self.camera, pivot, rectangle)
+            .into_iter()
+            .filter_map(|(axis, start, end, _)| {
+                let distance = point_segment_distance(pointer, start, end);
+                (distance <= 10.0).then_some((axis, distance))
+            })
+            .min_by(|(_, first), (_, second)| first.total_cmp(second))
+            .map(|(axis, _)| axis)
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
@@ -935,7 +1690,15 @@ impl LabApplication {
         }
         self.handle_actions(actions);
         let paint_jobs = context.tessellate(full_output.shapes, full_output.pixels_per_point);
+        let camera_matrix = self
+            .viewport_rect
+            .map(|rectangle| self.camera.view_projection(rectangle));
+        let view_mode = self.view_mode;
         let render_error = if let Some(renderer) = &mut self.renderer {
+            renderer.set_view_mode(view_mode);
+            if let Some(camera_matrix) = camera_matrix {
+                renderer.set_camera(camera_matrix);
+            }
             renderer.set_mesh_viewport(self.viewport_rect.map(|rectangle| {
                 let scale = full_output.pixels_per_point;
                 [
@@ -985,29 +1748,97 @@ fn path_is_within(path: &std::path::Path, root: &std::path::Path) -> bool {
     path_text == root_text || path_text.starts_with(format!("{root_text}/").as_str())
 }
 
-fn projected_positions(
+fn center_of_handles(
     mesh: &WorkingMesh,
-    rectangle: egui::Rect,
-) -> HashMap<cdmw_mesh::VertexHandle, glam::Vec2> {
-    let mut minimum = glam::Vec3::splat(f32::INFINITY);
-    let mut maximum = glam::Vec3::splat(f32::NEG_INFINITY);
-    for (_, vertex) in mesh.vertices() {
-        let position = glam::Vec3::from_array(vertex.position);
-        minimum = minimum.min(position);
-        maximum = maximum.max(position);
+    handles: &std::collections::HashSet<VertexHandle>,
+) -> Option<Vec3> {
+    if handles.is_empty() {
+        return None;
     }
-    let center = (minimum + maximum) * 0.5;
-    let extent = (maximum - minimum).max_element().max(1.0e-6);
-    mesh.vertices()
-        .map(|(handle, vertex)| {
-            let normalized = (glam::Vec3::from_array(vertex.position) - center) * (1.8 / extent);
-            let screen = glam::Vec2::new(
-                rectangle.center().x + normalized.x * rectangle.width() * 0.5,
-                rectangle.center().y - normalized.y * rectangle.height() * 0.5,
-            );
-            (handle, screen)
+    let mut total = Vec3::ZERO;
+    let mut count = 0usize;
+    for (handle, vertex) in mesh.vertices() {
+        if handles.contains(&handle) {
+            total += Vec3::from_array(vertex.position);
+            count = count.saturating_add(1);
+        }
+    }
+    (count > 0).then_some(total / count as f32)
+}
+
+fn axis_colors() -> [(GizmoAxis, Color32); 3] {
+    [
+        (GizmoAxis::X, Color32::from_rgb(235, 72, 72)),
+        (GizmoAxis::Y, Color32::from_rgb(92, 210, 92)),
+        (GizmoAxis::Z, Color32::from_rgb(75, 135, 245)),
+    ]
+}
+
+fn gizmo_segments(
+    camera: &OrbitCamera,
+    pivot: Vec3,
+    rectangle: egui::Rect,
+) -> Vec<(GizmoAxis, Vec2, Vec2, Color32)> {
+    let Some(start) = camera.project(pivot, rectangle).map(|point| point.screen) else {
+        return Vec::new();
+    };
+    let length = camera.world_units_per_pixel(rectangle) * 72.0;
+    axis_colors()
+        .into_iter()
+        .filter_map(|(axis, color)| {
+            camera
+                .project(pivot + axis.vector(camera) * length, rectangle)
+                .map(|end| (axis, start, end.screen, color))
         })
         .collect()
+}
+
+fn rotation_ring(
+    camera: &OrbitCamera,
+    pivot: Vec3,
+    axis: GizmoAxis,
+    rectangle: egui::Rect,
+) -> Vec<Vec2> {
+    let radius = camera.world_units_per_pixel(rectangle) * 58.0;
+    let (first, second) = match axis {
+        GizmoAxis::X => (Vec3::Y, Vec3::Z),
+        GizmoAxis::Y => (Vec3::X, Vec3::Z),
+        GizmoAxis::Z => (Vec3::X, Vec3::Y),
+        GizmoAxis::View => (camera.right(), camera.up()),
+        GizmoAxis::Free => return Vec::new(),
+    };
+    (0..=64)
+        .filter_map(|index| {
+            let angle = index as f32 / 64.0 * std::f32::consts::TAU;
+            let position = pivot + (first * angle.cos() + second * angle.sin()) * radius;
+            camera
+                .project(position, rectangle)
+                .map(|point| point.screen)
+        })
+        .collect()
+}
+
+fn point_segment_distance(point: Vec2, start: Vec2, end: Vec2) -> f32 {
+    let segment = end - start;
+    if segment.length_squared() <= 1.0e-6 {
+        return point.distance(start);
+    }
+    let amount = ((point - start).dot(segment) / segment.length_squared()).clamp(0.0, 1.0);
+    point.distance(start + segment * amount)
+}
+
+fn polyline_distance(point: Vec2, points: &[Vec2]) -> f32 {
+    points
+        .windows(2)
+        .map(|segment| point_segment_distance(point, segment[0], segment[1]))
+        .fold(f32::INFINITY, f32::min)
+}
+
+fn signed_screen_angle(previous: Vec2, current: Vec2) -> f32 {
+    if previous.length_squared() <= 1.0e-4 || current.length_squared() <= 1.0e-4 {
+        return 0.0;
+    }
+    previous.perp_dot(current).atan2(previous.dot(current))
 }
 
 impl ApplicationHandler for LabApplication {
@@ -1071,14 +1902,30 @@ impl ApplicationHandler for LabApplication {
         {
             window.request_redraw();
         }
+        if self.capture_viewport_pointer_event(&event, window.scale_factor()) {
+            window.request_redraw();
+        }
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
+                self.cancel_active_gesture("Resize cancelled the active gesture");
+                self.pointer_events.clear();
+                self.raw_primary_captured = false;
+                self.raw_orbit_captured = false;
+                self.raw_pan_captured = false;
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize(size);
                 }
                 self.viewport_revision = self.viewport_revision.saturating_add(1);
+                self.projection = None;
                 window.request_redraw();
+            }
+            WindowEvent::Focused(false) => {
+                self.cancel_active_gesture("Focus loss cancelled the active gesture");
+                self.pointer_events.clear();
+                self.raw_primary_captured = false;
+                self.raw_orbit_captured = false;
+                self.raw_pan_captured = false;
             }
             WindowEvent::RedrawRequested => self.redraw(event_loop),
             _ => {}
@@ -1091,5 +1938,16 @@ impl ApplicationHandler for LabApplication {
         {
             window.request_redraw();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quarter_circle_gizmo_drag_produces_a_quarter_turn() {
+        let angle = signed_screen_angle(Vec2::new(0.0, -10.0), Vec2::new(10.0, 0.0));
+        assert!((angle - std::f32::consts::FRAC_PI_2).abs() < 1.0e-6);
     }
 }

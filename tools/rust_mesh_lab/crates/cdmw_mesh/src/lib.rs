@@ -2,7 +2,7 @@
 
 use cdmw_evidence::sha256_bytes;
 use cdmw_formats::{MeshDocument, Submesh};
-use glam::Vec3;
+use glam::{Quat, Vec3};
 use serde::{Deserialize, Serialize};
 use slotmap::{Key, SecondaryMap, SlotMap, new_key_type};
 use std::collections::{HashMap, HashSet};
@@ -310,6 +310,61 @@ impl WorkingMesh {
         self.geometry_revision = self.geometry_revision.saturating_add(1);
         self.recompute_normals()?;
         self.validate()
+    }
+
+    pub fn rotate_vertices(
+        &mut self,
+        handles: &HashSet<VertexHandle>,
+        pivot: Vec3,
+        rotation: Quat,
+    ) -> Result<(), MeshError> {
+        if handles.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        if !pivot.is_finite() || !rotation.is_finite() || rotation.length_squared() <= 1.0e-8 {
+            return Err(MeshError::Invariant(
+                "invalid rotation transform".to_owned(),
+            ));
+        }
+        let rotation = rotation.normalize();
+        let positions = handles
+            .iter()
+            .map(|handle| {
+                let vertex = self.vertices.get(*handle).ok_or(MeshError::StaleHandle)?;
+                let position = pivot + rotation * (Vec3::from_array(vertex.position) - pivot);
+                Ok((*handle, position.to_array()))
+            })
+            .collect::<Result<HashMap<_, _>, MeshError>>()?;
+        self.apply_positions(&positions)
+    }
+
+    pub fn scale_vertices(
+        &mut self,
+        handles: &HashSet<VertexHandle>,
+        pivot: Vec3,
+        scale: Vec3,
+    ) -> Result<(), MeshError> {
+        if handles.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        if !pivot.is_finite()
+            || !scale.is_finite()
+            || scale
+                .to_array()
+                .iter()
+                .any(|component| component.abs() <= 1.0e-6)
+        {
+            return Err(MeshError::Invariant("invalid scale transform".to_owned()));
+        }
+        let positions = handles
+            .iter()
+            .map(|handle| {
+                let vertex = self.vertices.get(*handle).ok_or(MeshError::StaleHandle)?;
+                let position = pivot + (Vec3::from_array(vertex.position) - pivot) * scale;
+                Ok((*handle, position.to_array()))
+            })
+            .collect::<Result<HashMap<_, _>, MeshError>>()?;
+        self.apply_positions(&positions)
     }
 
     pub fn delete_faces(&mut self, handles: &HashSet<FaceHandle>) -> Result<(), MeshError> {
@@ -833,5 +888,21 @@ mod tests {
         history.redo(&mut mesh)?;
         assert_eq!(mesh.structural_fingerprint(), committed);
         Ok(())
+    }
+
+    #[test]
+    fn rotate_and_scale_selected_vertices_preserve_invariants() -> Result<(), MeshError> {
+        let mut mesh = triangle();
+        let handles = mesh.vertices.keys().collect::<HashSet<_>>();
+        mesh.rotate_vertices(
+            &handles,
+            Vec3::ZERO,
+            Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+        )?;
+        mesh.scale_vertices(&handles, Vec3::ZERO, Vec3::splat(2.0))?;
+        assert!(mesh.vertices.values().any(|vertex| {
+            Vec3::from_array(vertex.position).distance(Vec3::new(0.0, 2.0, 0.0)) < 1.0e-5
+        }));
+        mesh.validate()
     }
 }

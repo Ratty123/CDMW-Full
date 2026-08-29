@@ -34,7 +34,7 @@ cdmw_asset_probe ──> archive/formats/texture/oracle
 - `cdmw_texture`: DDS metadata, format, color-space, role, and resource-limit contracts.
 - `cdmw_mesh`: the separate editable working document, generational handles, explicit edges/faces, invariants, generated provenance, revisioned draw snapshots, and bounded history.
 - `cdmw_interaction`: modal operator ownership, exact snapshot correlation, deterministic selection shapes, selection operations, transforms, and sculpt algorithms.
-- `cdmw_render_wgpu`: Direct3D 12 adapter/device/surface ownership, persistent mesh buffers, immutable snapshot upload, mesh pipeline, and egui composition.
+- `cdmw_render_wgpu`: Direct3D 12 adapter/device/surface ownership, persistent mesh buffers, immutable snapshot upload, depth-aware solid/wire/point pipelines, camera uniforms, and egui composition.
 - `cdmw_replay`: ordinal-addressed deterministic edit replays independent of runtime slot-map keys.
 - `cdmw_oracle`: versioned neutral manifests, typed binary descriptors, staged new-directory publication, structural comparison, and reparsed OBJ/MTL export of the edited working copy.
 - `cdmw_evidence`: SHA-256, redaction, source fingerprints, command evidence, and atomic new-file JSON publication.
@@ -51,13 +51,15 @@ One `OperatorController` owns one gesture. Begin snapshots the working mesh. Pro
 
 ## Renderer ownership
 
-`WindowRenderer` owns the `wgpu` instance, D3D12 surface, adapter, device, queue, surface configuration, render pipeline, mesh buffers, and egui renderer. It consumes `DrawSnapshot`; it does not own topology, selection semantics, tools, history, relationship rules, or source-output policy.
+`WindowRenderer` owns the `wgpu` instance, D3D12 surface, adapter, device, queue, surface configuration, depth target, render pipelines, mesh buffers, camera uniform, and egui renderer. It consumes `DrawSnapshot` plus the application-owned view-projection matrix; it does not own topology, selection semantics, tools, history, relationship rules, camera input, or source-output policy.
 
-Geometry is normalized only for the current diagnostic camera-less view. A later camera matrix owner must be shared with interaction snapshots; it must not move editing semantics into the renderer.
+`OrbitCamera` is the single camera owner shared by renderer submission and interaction projection. Mesh vertices remain in working-document coordinates. Orbit, pan, zoom, framing, standard views, and viewport aspect changes increment the camera or viewport generation so stale selection snapshots cannot apply. Resizing recreates the depth target but never rescales mesh axes independently.
+
+The renderer builds unique edge indices beside the triangle index buffer and selects among Textured, Solid Faces, Solid + Wire, Wireframe, Vertices, Wire + Vertices, and X-Ray pipelines without rebuilding the working mesh. Geometry/topology revisions suppress unchanged GPU mesh uploads; camera-only changes update the uniform buffer.
 
 ## UI and worker ownership
 
-The application event thread owns winit, egui, dialogs, current UI state, renderer submission, and immutable result adoption. A named worker thread owns archive discovery, index parsing, payload reads, mesh decode, working-document construction, and archive filtering.
+The application event thread owns winit, egui, dialogs, current UI state, camera, renderer submission, and immutable result adoption. A bounded raw-pointer queue preserves press, intermediate movement, and release across redraw coalescing. One selection or edit gesture owns that stream; high-rate mesh changes publish one final GPU snapshot per drained event batch. A named worker thread owns archive discovery, index parsing, payload reads, mesh decode, working-document construction, and archive filtering.
 
 Requests use:
 

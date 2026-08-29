@@ -4,9 +4,9 @@
 
 **PARTIALLY READY**
 
-The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12 adapter, renders validated geometry and a supported explicit 2D DDS reference through `wgpu`, opens archive roots read-only, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD candidates, and supports an in-memory generational edit/history workflow.
+The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12 adapter, renders validated geometry and a supported explicit 2D DDS reference through `wgpu`, opens archive roots read-only, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD candidates, and supports camera navigation plus pointer-driven selection, transform, sculpt, and history workflows on an in-memory generational mesh.
 
-It is not LAB READY because private real-game parity, complete texture reconstruction/material composition, PAC skinning/appearance, viewport pointer routing, stress/performance evidence, cache, versioned lab projects, fuzzing, and source fingerprint sessions remain incomplete.
+It is not LAB READY because private real-game parity, complete texture reconstruction/material composition, PAC skinning/appearance, depth-aware visible-only picking, representative stress/performance evidence, cache, versioned lab projects, fuzzing, and source fingerprint sessions remain incomplete.
 
 ## Implemented and locally proven
 
@@ -19,16 +19,18 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Exact/relative/unambiguous asset relation resolver.
 - Immutable decoded source document and separate editable working document.
 - Generational vertex/edge/face handles and topology generation.
-- Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, Duplicate, Undo, and Redo.
+- Interactive Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch plus face Delete, Subdivide, Duplicate, Undo, and Redo.
 - One modal gesture owner and one committed history entry per confirmed gesture.
 - Deterministic click/brush/rectangle/lasso query predicates and stale-snapshot rejection in the interaction crate.
-- Viewport-aligned Vertex/Edge/Face click selection with visible X-Ray overlay and Replace/Add/Subtract/Toggle operations.
-- Direct3D 12 `wgpu` surface and persistent revisioned mesh buffers.
+- Viewport-aligned Vertex/Edge/Face Click, Brush, Rectangle, and Lasso selection with visible X-Ray overlays and Replace/Add/Subtract/Toggle operations.
+- Bounded raw pointer sampling that retains press, intermediate movement, and release when Windows coalesces redraws; one completed gesture creates one history entry and Esc/resize/focus loss restores the pre-gesture mesh.
+- Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots.
+- Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh buffers, and Textured/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes.
 - egui archive/assets, viewport, inspector, selection/edit, and status surfaces.
 - Bounded cancellable latest-wins loader/search worker with stale-result rejection.
 - Versioned neutral binary package and manifest comparison.
 - Explicit neutral OBJ/MTL export of the edited working copy with staging, cancellation checks, reparse, structural comparison, atomic new-directory publication, and no source texture embedding.
-- Synthetic unit tests, formatting, Clippy, and visible launch smoke.
+- Synthetic unit tests, formatting, Clippy, and visible Release interaction smoke.
 - Deterministic synthetic stress covering 100 lasso winding variants, 100 cancelled/restored gestures, and 1,000 mixed replay events with repeatable fingerprints and invariant validation.
 
 ## Incomplete gates
@@ -41,13 +43,11 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 | Native texture/material binding | Partial | One explicit supported 2D DDS can render; multi-material binding, arrays/cubes, reconstruction, and fallback transcode remain incomplete |
 | PAC skin palette/PAB/PABC/morph | Incomplete | Character appearance parity not proven |
 | LOD1+ PAC editing | Unsupported | LOD0 diagnostic slice only |
-| Pointer-to-selection UI routing | Partial | X-Ray Vertex/Edge/Face click is routed; rectangle/brush/lasso and gesture buffering remain incomplete |
 | Visible-only GPU ID readback | Incomplete | No asynchronous depth-aware picking proof |
-| Camera/orbit/pan/zoom | Incomplete | Current mesh normalization is diagnostic only |
 | Lab project | Incomplete | Camera/tool/history persistence is not published yet |
 | Neutral export | OBJ/MTL implemented | GLB, skinning/material preservation, and private corpus re-import parity remain incomplete |
 | Persistent cache | Incomplete | No cold/warm cache timing |
-| Interaction stress | Partial | 100 lasso variants, 100 cancellations, and 1,000 mixed events pass; per-tool high-rate/focus-loss/resize and bounded-memory soak remain unrun |
+| Interaction stress | Partial | 100 lasso variants, 100 cancellations, 1,000 mixed events, and bounded fast-pointer retention pass; per-tool long high-rate/focus-loss/resize and bounded-memory soaks remain unrun |
 | Performance targets | Not measured | No latency/FPS claim |
 | Fuzzing | Not run | Parser robustness proof incomplete |
 | `cargo deny` / `cargo audit` | Not run yet | License/advisory gate unproven |
@@ -66,6 +66,19 @@ One local Release-mode microbenchmark on 2026-08-29 used the redistributable
 This is a synthetic CPU microbenchmark, not representative asset, archive,
 GPU-frame, UI-latency, memory, or real-game proof. It does not satisfy the
 33 ms interaction or stable-60-FPS readiness targets by itself.
+
+## Visible synthetic interaction proof
+
+A Release build on 2026-08-29 loaded the redistributable 3-vertex PAM and 2×2
+DDS fixture through Direct3D 12 and exercised the actual Windows event path.
+The live viewport switched among textured, wireframe, and X-Ray rendering, changed
+standard camera views, zoomed with the wheel, retained both endpoints of a fast
+Brush drag, selected a face with Rectangle, displayed and applied the Move and
+Rotate gizmos, applied Grab sculpting, and restored a Move through Undo. Window
+resize kept equal world-space X/Y spans equal in screen pixels; the automated
+projection test covers both wide and tall viewport shapes. This is synthetic
+interaction proof, not real-PAC usability, representative latency/FPS, or
+depth-aware visible-only selection proof.
 
 ## Production boundary
 

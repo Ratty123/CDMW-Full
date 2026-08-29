@@ -2,7 +2,7 @@
 
 CDMW Rust Mesh Lab is a separate Windows-first diagnostic application for testing a native Rust archive, mesh, editing, and `wgpu` architecture. It does not replace the production Mesh Editor and is not linked from CDMW startup.
 
-The current readiness state is **PARTIALLY READY**. The lab builds and launches, opens PA archive roots read-only, browses a virtualized result list, reads archive entries lazily, loads supported PAC/PAM/PAMLOD layouts, renders geometry and a supported explicit 2D DDS reference through Direct3D 12, edits an in-memory generational mesh, and exports the edited copy as a validated neutral OBJ/MTL directory. Full multi-material/Partial DDS appearance, PAC skin/appearance parity, versioned lab projects, and private real-game parity remain incomplete. See [READINESS.md](READINESS.md).
+The current readiness state is **PARTIALLY READY**. The lab builds and launches, opens PA archive roots read-only, browses a virtualized result list, reads archive entries lazily, loads supported PAC/PAM/PAMLOD layouts, renders geometry and a supported explicit 2D DDS reference through Direct3D 12, provides a navigable aspect-correct viewport, routes pointer selection and interactive editing through an in-memory generational mesh, and exports the edited copy as a validated neutral OBJ/MTL directory. Full multi-material/Partial DDS appearance, PAC skin/appearance parity, depth-aware visible-only picking, versioned lab projects, representative performance evidence, and private real-game parity remain incomplete. See [READINESS.md](READINESS.md).
 
 ## Asset-safety notice
 
@@ -50,13 +50,25 @@ The application shows the actual executable path before launch. It does not requ
 ## User interface
 
 - **Archive / Assets** opens an archive root or extracted mesh, searches virtual paths off the UI thread, and virtualizes the displayed rows.
-- **Viewport** uses `wgpu` with Direct3D 12 on Windows. An explicit decoded DDS reference is uploaded directly when its supported 2D layout is unambiguous; the shader remains an explicit material approximation and currently binds one texture.
+- **Viewport** uses `wgpu` with Direct3D 12 on Windows, an aspect-aware shared camera matrix, and a depth target. An explicit decoded DDS reference is uploaded directly when its supported 2D layout is unambiguous; the shader remains an explicit material approximation and currently binds one texture.
 - **Inspector** reports format, LOD, counts, parser, warnings, archive flags, and entry sizes.
-- **Selection** provides deterministic all-vertex/all-face scopes for the current diagnostic slice.
-- **Edit / Sculpt** exercises Move, Grab, Smooth, Inflate, Pinch, face deletion, midpoint subdivision, duplication, Undo, and Redo. Disabled controls state why they are unavailable.
+- **Selection** routes Click, Brush, Rectangle, and Lasso gestures through the same revision-stamped X-Ray projection for Vertex, Edge, and Face domains. Replace, Add, Subtract, and Toggle apply once to the complete gesture, including fast drags retained by the bounded raw-input queue.
+- **Interactive Edit / Sculpt** provides Move, Rotate, and Scale gizmos plus Grab, Smooth, Inflate, and Pinch brushes. Each drag previews locally, mouse release commits one undo entry, and Esc, resize, or focus loss rolls the gesture back. Face deletion, midpoint subdivision, duplication, Undo, and Redo remain one-shot commands. Disabled controls state why they are unavailable.
 - **Export Neutral OBJ…** asks for a parent folder, refuses the selected game/archive root, stages and reparses the edited mesh on the worker, verifies its structural fingerprint, then publishes a new `cdmw-rust-mesh-export` directory atomically. Existing output is never replaced and source textures are not embedded.
 
-Viewport click selection routes Vertex, Edge, and Face modes through the same generation-stamped X-Ray CPU snapshot shown by its overlay, with Replace/Add/Subtract/Toggle operations. Rectangle, brush, lasso, and asynchronous depth-aware visible-only contracts exist in `cdmw_interaction`, but those pointer gestures are not yet routed by the UI.
+### Viewport controls
+
+- Hold **RMB** and drag to orbit.
+- Hold **MMB** and drag to pan.
+- Use the **mouse wheel** to zoom.
+- Press **F** to frame the selection, or the complete mesh when nothing is selected.
+- Use **Frame All**, **Frame Selected**, or Front/Back/Left/Right/Top/Bottom for exact camera placement.
+- Choose Textured, Solid Faces, Solid + Wire, Wireframe, Vertices, Wire + Vertices, or X-Ray from **Preview mode**.
+- Choose Click, Brush, Rectangle, or Lasso, then drag in the viewport. Brush radius and sculpt strength are adjustable in the inspector.
+- Select Move, Rotate, or Scale and drag the visible axis/ring/center gizmo. Select Grab, Smooth, Inflate, or Pinch and drag over eligible vertices.
+- Press **Esc** to cancel an active selection or edit gesture.
+
+Selection is currently X-Ray: element candidates behind the visible surface remain eligible. The asynchronous depth-aware visible-only route is still incomplete and is not represented as working.
 
 ## Asset probe
 

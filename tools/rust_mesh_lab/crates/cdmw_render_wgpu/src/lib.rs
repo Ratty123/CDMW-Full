@@ -3,6 +3,8 @@
 use bytemuck::{Pod, Zeroable};
 use cdmw_mesh::DrawSnapshot;
 use cdmw_texture::{DdsFormat, TextureRole, plan_2d_upload};
+use glam::Mat4;
+use std::collections::HashSet;
 use std::sync::Arc;
 use thiserror::Error;
 use wgpu::util::DeviceExt;
@@ -10,6 +12,14 @@ use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 const SHADER: &str = r#"
+struct CameraUniform {
+    view_projection: mat4x4<f32>,
+    solid_mode: u32,
+    _padding_0: u32,
+    _padding_1: u32,
+    _padding_2: u32,
+};
+
 struct VertexOut {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec3<f32>,
@@ -18,6 +28,7 @@ struct VertexOut {
 
 @group(0) @binding(0) var base_texture: texture_2d<f32>;
 @group(0) @binding(1) var base_sampler: sampler;
+@group(1) @binding(0) var<uniform> camera: CameraUniform;
 
 @vertex
 fn vs_main(
@@ -26,18 +37,82 @@ fn vs_main(
     @location(2) uv: vec2<f32>,
 ) -> VertexOut {
     var out: VertexOut;
-    out.position = vec4<f32>(position, 1.0);
+    out.position = camera.view_projection * vec4<f32>(position, 1.0);
     out.color = normal * 0.35 + vec3<f32>(0.55, 0.58, 0.65);
     out.uv = uv;
     return out;
 }
 
 @fragment
-fn fs_main(input: VertexOut) -> @location(0) vec4<f32> {
+fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
+    if camera.solid_mode == 1u {
+        return vec4<f32>(input.color, 1.0);
+    }
     let texel = textureSample(base_texture, base_sampler, input.uv);
     return vec4<f32>(texel.rgb * input.color, texel.a);
 }
+
+@fragment
+fn fs_wire(_input: VertexOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(0.72, 0.78, 0.88, 1.0);
+}
+
+@fragment
+fn fs_point(_input: VertexOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(0.92, 0.94, 1.0, 1.0);
+}
+
+@fragment
+fn fs_xray(_input: VertexOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(0.20, 0.55, 0.92, 0.24);
+}
 "#;
+
+const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewMode {
+    TexturedSolid,
+    Solid,
+    SolidWire,
+    Wireframe,
+    Vertices,
+    WireVertices,
+    XRay,
+}
+
+impl ViewMode {
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::TexturedSolid => "Textured",
+            Self::Solid => "Solid Faces",
+            Self::SolidWire => "Solid + Wire",
+            Self::Wireframe => "Wireframe",
+            Self::Vertices => "Vertices",
+            Self::WireVertices => "Wire + Vertices",
+            Self::XRay => "X-Ray",
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct CameraUniform {
+    view_projection: [[f32; 4]; 4],
+    solid_mode: u32,
+    _padding: [u32; 3],
+}
+
+impl CameraUniform {
+    fn new() -> Self {
+        Self {
+            view_projection: Mat4::IDENTITY.to_cols_array_2d(),
+            solid_mode: 0,
+            _padding: [0; 3],
+        }
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
@@ -89,14 +164,17 @@ pub enum RenderError {
 
 pub struct GpuMeshBuffers {
     vertex: wgpu::Buffer,
-    index: wgpu::Buffer,
-    index_count: u32,
+    triangle_index: wgpu::Buffer,
+    wire_index: wgpu::Buffer,
+    triangle_index_count: u32,
+    wire_index_count: u32,
+    vertex_count: u32,
     pub draw_revision: u64,
+    pub topology_generation: u64,
 }
 
 impl GpuMeshBuffers {
     pub fn upload(device: &wgpu::Device, snapshot: &DrawSnapshot) -> Result<Self, RenderError> {
-        let (center, scale) = normalization(snapshot);
         let vertices = snapshot
             .positions
             .iter()
@@ -109,11 +187,7 @@ impl GpuMeshBuffers {
                     .unwrap_or([0.0, 1.0, 0.0]);
                 let uv = snapshot.uvs.get(index).copied().unwrap_or([0.0, 0.0]);
                 GpuVertex {
-                    position: [
-                        (position[0] - center[0]) * scale,
-                        (position[1] - center[1]) * scale,
-                        (position[2] - center[2]) * scale * 0.1,
-                    ],
+                    position: *position,
                     normal,
                     uv,
                 }
@@ -124,19 +198,35 @@ impl GpuMeshBuffers {
             contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
-        let index = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("CDMW Rust Mesh Lab indices"),
+        let triangle_index = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CDMW Rust Mesh Lab triangle indices"),
             contents: bytemuck::cast_slice(&snapshot.indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let wire_indices = unique_wire_indices(&snapshot.indices);
+        let wire_index = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CDMW Rust Mesh Lab wire indices"),
+            contents: bytemuck::cast_slice(&wire_indices),
             usage: wgpu::BufferUsages::INDEX,
         });
         Ok(Self {
             vertex,
-            index,
-            index_count: u32::try_from(snapshot.indices.len())
+            triangle_index,
+            wire_index,
+            triangle_index_count: u32::try_from(snapshot.indices.len())
                 .map_err(|_| RenderError::ResourceLimit)?,
+            wire_index_count: u32::try_from(wire_indices.len())
+                .map_err(|_| RenderError::ResourceLimit)?,
+            vertex_count: u32::try_from(vertices.len()).map_err(|_| RenderError::ResourceLimit)?,
             draw_revision: snapshot.draw_revision,
+            topology_generation: snapshot.topology_generation,
         })
     }
+}
+
+struct DepthTarget {
+    _texture: wgpu::Texture,
+    view: wgpu::TextureView,
 }
 
 pub struct WindowRenderer {
@@ -146,13 +236,21 @@ pub struct WindowRenderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    pipeline: wgpu::RenderPipeline,
+    solid_pipeline: wgpu::RenderPipeline,
+    wire_pipeline: wgpu::RenderPipeline,
+    point_pipeline: wgpu::RenderPipeline,
+    xray_pipeline: wgpu::RenderPipeline,
     mesh: Option<GpuMeshBuffers>,
     egui_renderer: egui_wgpu::Renderer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     texture_bind_group: wgpu::BindGroup,
     material_texture: wgpu::Texture,
     mesh_viewport: Option<[f32; 4]>,
+    depth_target: DepthTarget,
+    camera_uniform: CameraUniform,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
+    view_mode: ViewMode,
 }
 
 impl WindowRenderer {
@@ -232,7 +330,28 @@ impl WindowRenderer {
         let texture_bind_group_layout = create_texture_bind_group_layout(&device);
         let (material_texture, texture_bind_group) =
             create_default_texture(&device, &queue, &texture_bind_group_layout);
-        let pipeline = create_pipeline(&device, format, &texture_bind_group_layout);
+        let camera_bind_group_layout = create_camera_bind_group_layout(&device);
+        let camera_uniform = CameraUniform::new();
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CDMW Rust Mesh Lab camera uniform"),
+            contents: bytemuck::bytes_of(&camera_uniform),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("CDMW Rust Mesh Lab camera bind group"),
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+        let pipelines = create_pipelines(
+            &device,
+            format,
+            &texture_bind_group_layout,
+            &camera_bind_group_layout,
+        );
+        let depth_target = create_depth_target(&device, config.width, config.height);
         let egui_renderer =
             egui_wgpu::Renderer::new(&device, format, egui_wgpu::RendererOptions::default());
         Ok(Self {
@@ -242,13 +361,21 @@ impl WindowRenderer {
             device,
             queue,
             config,
-            pipeline,
+            solid_pipeline: pipelines.solid,
+            wire_pipeline: pipelines.wire,
+            point_pipeline: pipelines.point,
+            xray_pipeline: pipelines.xray,
             mesh: None,
             egui_renderer,
             texture_bind_group_layout,
             texture_bind_group,
             material_texture,
             mesh_viewport: None,
+            depth_target,
+            camera_uniform,
+            camera_buffer,
+            camera_bind_group,
+            view_mode: ViewMode::TexturedSolid,
         })
     }
 
@@ -265,8 +392,36 @@ impl WindowRenderer {
     }
 
     pub fn set_snapshot(&mut self, snapshot: &DrawSnapshot) -> Result<(), RenderError> {
+        if self.mesh.as_ref().is_some_and(|mesh| {
+            mesh.draw_revision == snapshot.draw_revision
+                && mesh.topology_generation == snapshot.topology_generation
+        }) {
+            return Ok(());
+        }
         self.mesh = Some(GpuMeshBuffers::upload(&self.device, snapshot)?);
         Ok(())
+    }
+
+    pub fn set_camera(&mut self, view_projection: Mat4) {
+        self.camera_uniform.view_projection = view_projection.to_cols_array_2d();
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&self.camera_uniform),
+        );
+    }
+
+    pub fn set_view_mode(&mut self, view_mode: ViewMode) {
+        if self.view_mode == view_mode {
+            return;
+        }
+        self.view_mode = view_mode;
+        self.camera_uniform.solid_mode = u32::from(view_mode != ViewMode::TexturedSolid);
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&self.camera_uniform),
+        );
     }
 
     pub fn set_dds_texture(&mut self, bytes: &[u8], role: TextureRole) -> Result<(), RenderError> {
@@ -345,6 +500,7 @@ impl WindowRenderer {
         self.config.width = size.width;
         self.config.height = size.height;
         self.surface.configure(&self.device, &self.config);
+        self.depth_target = create_depth_target(&self.device, size.width, size.height);
     }
 
     pub fn render(&mut self) -> Result<(), RenderError> {
@@ -436,31 +592,81 @@ impl WindowRenderer {
                     },
                     depth_slice: None,
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_target.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
             if let Some(mesh) = &self.mesh {
-                pass.set_pipeline(&self.pipeline);
                 if let Some([x, y, width, height]) = self.mesh_viewport {
-                    pass.set_viewport(x, y, width.max(1.0), height.max(1.0), 0.0, 1.0);
+                    let maximum_x = self.config.width.saturating_sub(1) as f32;
+                    let maximum_y = self.config.height.saturating_sub(1) as f32;
+                    let x = x.clamp(0.0, maximum_x);
+                    let y = y.clamp(0.0, maximum_y);
+                    let width = width.max(1.0).min(self.config.width as f32 - x);
+                    let height = height.max(1.0).min(self.config.height as f32 - y);
+                    pass.set_viewport(x, y, width, height, 0.0, 1.0);
+                    let scissor_x = x.floor() as u32;
+                    let scissor_y = y.floor() as u32;
+                    let scissor_right = (x + width).ceil().min(self.config.width as f32) as u32;
+                    let scissor_bottom = (y + height).ceil().min(self.config.height as f32) as u32;
                     pass.set_scissor_rect(
-                        x.max(0.0) as u32,
-                        y.max(0.0) as u32,
-                        width.max(1.0) as u32,
-                        height.max(1.0) as u32,
+                        scissor_x,
+                        scissor_y,
+                        scissor_right.saturating_sub(scissor_x).max(1),
+                        scissor_bottom.saturating_sub(scissor_y).max(1),
                     );
                 }
                 pass.set_bind_group(0, &self.texture_bind_group, &[]);
+                pass.set_bind_group(1, &self.camera_bind_group, &[]);
                 pass.set_vertex_buffer(0, mesh.vertex.slice(..));
-                pass.set_index_buffer(mesh.index.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                match self.view_mode {
+                    ViewMode::TexturedSolid | ViewMode::Solid => {
+                        draw_solid(&mut pass, mesh, &self.solid_pipeline);
+                    }
+                    ViewMode::SolidWire => {
+                        draw_solid(&mut pass, mesh, &self.solid_pipeline);
+                        draw_wire(&mut pass, mesh, &self.wire_pipeline);
+                    }
+                    ViewMode::Wireframe => draw_wire(&mut pass, mesh, &self.wire_pipeline),
+                    ViewMode::Vertices => draw_points(&mut pass, mesh, &self.point_pipeline),
+                    ViewMode::WireVertices => {
+                        draw_wire(&mut pass, mesh, &self.wire_pipeline);
+                        draw_points(&mut pass, mesh, &self.point_pipeline);
+                    }
+                    ViewMode::XRay => {
+                        draw_solid(&mut pass, mesh, &self.xray_pipeline);
+                        draw_wire(&mut pass, mesh, &self.wire_pipeline);
+                    }
+                }
             }
-            if let Some(descriptor) = &screen_descriptor {
-                self.egui_renderer
-                    .render(&mut pass.forget_lifetime(), paint_jobs, descriptor);
-            }
+        }
+        if let Some(descriptor) = &screen_descriptor {
+            let ui_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("CDMW Rust Mesh Lab egui"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            self.egui_renderer
+                .render(&mut ui_pass.forget_lifetime(), paint_jobs, descriptor);
         }
         command_buffers.push(encoder.finish());
         self.queue.submit(command_buffers);
@@ -474,50 +680,222 @@ impl WindowRenderer {
     }
 }
 
-fn create_pipeline(
+struct Pipelines {
+    solid: wgpu::RenderPipeline,
+    wire: wgpu::RenderPipeline,
+    point: wgpu::RenderPipeline,
+    xray: wgpu::RenderPipeline,
+}
+
+fn create_pipelines(
     device: &wgpu::Device,
     format: wgpu::TextureFormat,
     texture_layout: &wgpu::BindGroupLayout,
-) -> wgpu::RenderPipeline {
+    camera_layout: &wgpu::BindGroupLayout,
+) -> Pipelines {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("CDMW Rust Mesh Lab shader"),
         source: wgpu::ShaderSource::Wgsl(SHADER.into()),
     });
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("CDMW Rust Mesh Lab pipeline layout"),
-        bind_group_layouts: &[Some(texture_layout)],
+        bind_group_layouts: &[Some(texture_layout), Some(camera_layout)],
         immediate_size: 0,
     });
+    Pipelines {
+        solid: create_pipeline(
+            device,
+            format,
+            &layout,
+            &shader,
+            "solid",
+            wgpu::PrimitiveTopology::TriangleList,
+            "fs_solid",
+            Some(wgpu::Face::Back),
+            true,
+            Some(wgpu::BlendState::REPLACE),
+        ),
+        wire: create_pipeline(
+            device,
+            format,
+            &layout,
+            &shader,
+            "wire",
+            wgpu::PrimitiveTopology::LineList,
+            "fs_wire",
+            None,
+            true,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+        ),
+        point: create_pipeline(
+            device,
+            format,
+            &layout,
+            &shader,
+            "points",
+            wgpu::PrimitiveTopology::PointList,
+            "fs_point",
+            None,
+            true,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+        ),
+        xray: create_pipeline(
+            device,
+            format,
+            &layout,
+            &shader,
+            "xray",
+            wgpu::PrimitiveTopology::TriangleList,
+            "fs_xray",
+            None,
+            false,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn create_pipeline(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    layout: &wgpu::PipelineLayout,
+    shader: &wgpu::ShaderModule,
+    label: &str,
+    topology: wgpu::PrimitiveTopology,
+    fragment_entry: &str,
+    cull_mode: Option<wgpu::Face>,
+    depth_write_enabled: bool,
+    blend: Option<wgpu::BlendState>,
+) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("CDMW Rust Mesh Lab pipeline"),
-        layout: Some(&layout),
+        label: Some(format!("CDMW Rust Mesh Lab {label} pipeline").as_str()),
+        layout: Some(layout),
         vertex: wgpu::VertexState {
-            module: &shader,
+            module: shader,
             entry_point: Some("vs_main"),
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             buffers: &[Some(GpuVertex::layout())],
         },
         primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            cull_mode: Some(wgpu::Face::Back),
+            topology,
+            cull_mode,
             front_face: wgpu::FrontFace::Ccw,
             ..Default::default()
         },
-        depth_stencil: None,
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: Some(depth_write_enabled),
+            depth_compare: Some(if depth_write_enabled {
+                wgpu::CompareFunction::LessEqual
+            } else {
+                wgpu::CompareFunction::Always
+            }),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
         multisample: wgpu::MultisampleState::default(),
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
+            module: shader,
+            entry_point: Some(fragment_entry),
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             targets: &[Some(wgpu::ColorTargetState {
                 format,
-                blend: Some(wgpu::BlendState::REPLACE),
+                blend,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
         }),
         multiview_mask: None,
         cache: None,
     })
+}
+
+fn create_camera_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("CDMW Rust Mesh Lab camera layout"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        }],
+    })
+}
+
+fn create_depth_target(device: &wgpu::Device, width: u32, height: u32) -> DepthTarget {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("CDMW Rust Mesh Lab depth target"),
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: DEPTH_FORMAT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    DepthTarget {
+        _texture: texture,
+        view,
+    }
+}
+
+fn draw_solid<'a>(
+    pass: &mut wgpu::RenderPass<'a>,
+    mesh: &'a GpuMeshBuffers,
+    pipeline: &'a wgpu::RenderPipeline,
+) {
+    pass.set_pipeline(pipeline);
+    pass.set_index_buffer(mesh.triangle_index.slice(..), wgpu::IndexFormat::Uint32);
+    pass.draw_indexed(0..mesh.triangle_index_count, 0, 0..1);
+}
+
+fn draw_wire<'a>(
+    pass: &mut wgpu::RenderPass<'a>,
+    mesh: &'a GpuMeshBuffers,
+    pipeline: &'a wgpu::RenderPipeline,
+) {
+    pass.set_pipeline(pipeline);
+    pass.set_index_buffer(mesh.wire_index.slice(..), wgpu::IndexFormat::Uint32);
+    pass.draw_indexed(0..mesh.wire_index_count, 0, 0..1);
+}
+
+fn draw_points<'a>(
+    pass: &mut wgpu::RenderPass<'a>,
+    mesh: &'a GpuMeshBuffers,
+    pipeline: &'a wgpu::RenderPipeline,
+) {
+    pass.set_pipeline(pipeline);
+    pass.draw(0..mesh.vertex_count, 0..1);
+}
+
+fn unique_wire_indices(indices: &[u32]) -> Vec<u32> {
+    let mut edge_set = HashSet::new();
+    let mut wire_indices = Vec::with_capacity(indices.len().saturating_mul(2));
+    for triangle in indices.chunks_exact(3) {
+        for (first, second) in [
+            (triangle[0], triangle[1]),
+            (triangle[1], triangle[2]),
+            (triangle[2], triangle[0]),
+        ] {
+            let edge = if first <= second {
+                (first, second)
+            } else {
+                (second, first)
+            };
+            if edge_set.insert(edge) {
+                wire_indices.extend_from_slice(&[first, second]);
+            }
+        }
+    }
+    wire_indices
 }
 
 fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -651,26 +1029,46 @@ fn map_dds_format(format: &DdsFormat) -> Result<wgpu::TextureFormat, RenderError
     Ok(mapped)
 }
 
-fn normalization(snapshot: &DrawSnapshot) -> ([f32; 3], f32) {
-    let mut minimum = [f32::INFINITY; 3];
-    let mut maximum = [f32::NEG_INFINITY; 3];
-    for position in &snapshot.positions {
-        for axis in 0..3 {
-            minimum[axis] = minimum[axis].min(position[axis]);
-            maximum[axis] = maximum[axis].max(position[axis]);
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shared_triangle_edges_are_uploaded_once() {
+        let wire = unique_wire_indices(&[0, 1, 2, 2, 1, 3]);
+        assert_eq!(wire.len(), 10);
+        let edges = wire
+            .chunks_exact(2)
+            .map(|edge| {
+                if edge[0] <= edge[1] {
+                    (edge[0], edge[1])
+                } else {
+                    (edge[1], edge[0])
+                }
+            })
+            .collect::<HashSet<_>>();
+        assert_eq!(edges.len(), 5);
     }
-    if snapshot.positions.is_empty() {
-        return ([0.0; 3], 1.0);
+
+    #[test]
+    fn camera_uniform_matches_the_wgsl_scalar_padding_contract() {
+        assert_eq!(std::mem::size_of::<CameraUniform>(), 80);
     }
-    let center = [
-        (minimum[0] + maximum[0]) * 0.5,
-        (minimum[1] + maximum[1]) * 0.5,
-        (minimum[2] + maximum[2]) * 0.5,
-    ];
-    let extent = (maximum[0] - minimum[0])
-        .max(maximum[1] - minimum[1])
-        .max(maximum[2] - minimum[2])
-        .max(1.0e-6);
-    (center, 1.8 / extent)
+
+    #[test]
+    fn every_view_mode_has_a_distinct_user_label() {
+        let labels = [
+            ViewMode::TexturedSolid,
+            ViewMode::Solid,
+            ViewMode::SolidWire,
+            ViewMode::Wireframe,
+            ViewMode::Vertices,
+            ViewMode::WireVertices,
+            ViewMode::XRay,
+        ]
+        .map(ViewMode::label)
+        .into_iter()
+        .collect::<HashSet<_>>();
+        assert_eq!(labels.len(), 7);
+    }
 }

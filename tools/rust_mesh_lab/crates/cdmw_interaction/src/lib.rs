@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use cdmw_mesh::{EdgeHandle, FaceHandle, History, MeshError, Selection, VertexHandle, WorkingMesh};
-use glam::{Vec2, Vec3};
+use glam::{Quat, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
@@ -43,7 +43,7 @@ pub enum SculptTool {
     Pinch,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ProjectedHandle {
     Vertex(VertexHandle),
     Edge(EdgeHandle),
@@ -121,22 +121,47 @@ pub fn query_selection(
         (!query.visible_only || element.visible)
             && element.position.is_finite()
             && shape_contains(&query.shape, element.position)
+            && handle_matches_domain(element.handle, query.domain)
     });
-    for candidate in candidates {
-        match candidate.handle {
-            ProjectedHandle::Vertex(handle) if query.domain == SelectionDomain::Vertex => {
-                selection.vertices.insert(handle);
-            }
-            ProjectedHandle::Edge(handle) if query.domain == SelectionDomain::Edge => {
-                selection.edges.insert(handle);
-            }
-            ProjectedHandle::Face(handle) if query.domain == SelectionDomain::Face => {
-                selection.faces.insert(handle);
-            }
-            _ => {}
+    if let SelectionShape::Click { point, .. } = &query.shape {
+        if let Some(candidate) = candidates.min_by(|first, second| {
+            first
+                .position
+                .distance_squared(*point)
+                .total_cmp(&second.position.distance_squared(*point))
+                .then_with(|| first.depth.total_cmp(&second.depth))
+        }) {
+            insert_candidate(&mut selection, candidate.handle);
         }
+        return Ok(selection);
+    }
+    for candidate in candidates {
+        insert_candidate(&mut selection, candidate.handle);
     }
     Ok(selection)
+}
+
+fn handle_matches_domain(handle: ProjectedHandle, domain: SelectionDomain) -> bool {
+    matches!(
+        (handle, domain),
+        (ProjectedHandle::Vertex(_), SelectionDomain::Vertex)
+            | (ProjectedHandle::Edge(_), SelectionDomain::Edge)
+            | (ProjectedHandle::Face(_), SelectionDomain::Face)
+    )
+}
+
+fn insert_candidate(selection: &mut Selection, handle: ProjectedHandle) {
+    match handle {
+        ProjectedHandle::Vertex(handle) => {
+            selection.vertices.insert(handle);
+        }
+        ProjectedHandle::Edge(handle) => {
+            selection.edges.insert(handle);
+        }
+        ProjectedHandle::Face(handle) => {
+            selection.faces.insert(handle);
+        }
+    }
 }
 
 pub fn apply_selection(
@@ -144,15 +169,25 @@ pub fn apply_selection(
     operation: SelectionOperation,
     incoming: Selection,
 ) -> Result<(), InteractionError> {
-    let mut next = mesh.selection.clone();
-    match operation {
-        SelectionOperation::Replace => next = incoming,
-        SelectionOperation::Add => union_selection(&mut next, &incoming),
-        SelectionOperation::Subtract => subtract_selection(&mut next, &incoming),
-        SelectionOperation::Toggle => toggle_selection(&mut next, &incoming),
-    }
+    let next = selection_after_operation(&mesh.selection, operation, &incoming);
     mesh.set_selection(next)?;
     Ok(())
+}
+
+#[must_use]
+pub fn selection_after_operation(
+    base: &Selection,
+    operation: SelectionOperation,
+    incoming: &Selection,
+) -> Selection {
+    let mut next = base.clone();
+    match operation {
+        SelectionOperation::Replace => next = incoming.clone(),
+        SelectionOperation::Add => union_selection(&mut next, incoming),
+        SelectionOperation::Subtract => subtract_selection(&mut next, incoming),
+        SelectionOperation::Toggle => toggle_selection(&mut next, incoming),
+    }
+    next
 }
 
 fn union_selection(target: &mut Selection, incoming: &Selection) {
@@ -315,6 +350,32 @@ impl OperatorController {
         Ok(())
     }
 
+    pub fn rotate(
+        &self,
+        mesh: &mut WorkingMesh,
+        gesture_id: u64,
+        handles: &HashSet<VertexHandle>,
+        pivot: Vec3,
+        rotation: Quat,
+    ) -> Result<(), InteractionError> {
+        self.require_running(gesture_id)?;
+        mesh.rotate_vertices(handles, pivot, rotation)?;
+        Ok(())
+    }
+
+    pub fn scale(
+        &self,
+        mesh: &mut WorkingMesh,
+        gesture_id: u64,
+        handles: &HashSet<VertexHandle>,
+        pivot: Vec3,
+        scale: Vec3,
+    ) -> Result<(), InteractionError> {
+        self.require_running(gesture_id)?;
+        mesh.scale_vertices(handles, pivot, scale)?;
+        Ok(())
+    }
+
     pub fn sculpt(
         &self,
         mesh: &mut WorkingMesh,
@@ -374,7 +435,7 @@ impl OperatorController {
 
     pub fn confirm(
         &mut self,
-        mesh: &WorkingMesh,
+        mesh: &mut WorkingMesh,
         history: &mut History,
         gesture_id: u64,
     ) -> Result<(), InteractionError> {
@@ -389,9 +450,15 @@ impl OperatorController {
         operator.state = OperatorState::Confirming;
         if let Err(error) = mesh.validate() {
             operator.state = OperatorState::Failed;
+            *mesh = operator.before;
             return Err(error.into());
         }
-        history.commit(operator.label.clone(), operator.before, mesh)?;
+        let before = operator.before;
+        if let Err(error) = history.commit(operator.label.clone(), before.clone(), mesh) {
+            *mesh = before;
+            operator.state = OperatorState::Failed;
+            return Err(error.into());
+        }
         operator.state = OperatorState::Committed;
         Ok(())
     }
@@ -484,6 +551,56 @@ mod tests {
     }
 
     #[test]
+    fn click_selects_only_the_nearest_candidate() -> Result<(), Box<dyn std::error::Error>> {
+        let document = decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
+            MeshFormat::Pam,
+        )?;
+        let mesh = WorkingMesh::from_document(&document)?;
+        let handles = mesh
+            .vertices()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        let snapshot = InteractionSnapshot {
+            geometry_revision: mesh.geometry_revision,
+            topology_generation: mesh.topology_generation,
+            camera_revision: 1,
+            viewport_revision: 1,
+            viewport_size: Vec2::splat(100.0),
+            elements: vec![
+                ProjectedElement {
+                    handle: ProjectedHandle::Vertex(handles[0]),
+                    position: Vec2::new(2.0, 0.0),
+                    depth: 0.5,
+                    visible: true,
+                },
+                ProjectedElement {
+                    handle: ProjectedHandle::Vertex(handles[1]),
+                    position: Vec2::new(5.0, 0.0),
+                    depth: 0.2,
+                    visible: true,
+                },
+            ],
+        };
+        let query = SelectionQuery {
+            domain: SelectionDomain::Vertex,
+            operation: SelectionOperation::Replace,
+            visible_only: false,
+            shape: SelectionShape::Click {
+                point: Vec2::ZERO,
+                radius: 10.0,
+            },
+            geometry_revision: mesh.geometry_revision,
+            topology_generation: mesh.topology_generation,
+            camera_revision: 1,
+            viewport_revision: 1,
+        };
+        let selected = query_selection(&snapshot, &query)?;
+        assert_eq!(selected.vertices, HashSet::from([handles[0]]));
+        Ok(())
+    }
+
+    #[test]
     fn one_hundred_cancelled_gestures_restore_the_exact_fingerprint()
     -> Result<(), Box<dyn std::error::Error>> {
         let document = decode_mesh(
@@ -534,6 +651,35 @@ mod tests {
                 shape_contains(&reverse, Vec2::splat(0.5))
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn rotate_and_scale_share_one_modal_history_transaction()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let document = decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
+            MeshFormat::Pam,
+        )?;
+        let mut mesh = WorkingMesh::from_document(&document)?;
+        let handles = mesh
+            .vertices()
+            .map(|(handle, _)| handle)
+            .collect::<HashSet<_>>();
+        let mut controller = OperatorController::default();
+        let mut history = History::new(1_000_000);
+        let gesture = controller.begin(&mesh, "rotate and scale")?;
+        controller.rotate(
+            &mut mesh,
+            gesture,
+            &handles,
+            Vec3::ZERO,
+            Quat::from_rotation_z(0.25),
+        )?;
+        controller.scale(&mut mesh, gesture, &handles, Vec3::ZERO, Vec3::splat(1.1))?;
+        controller.confirm(&mut mesh, &mut history, gesture)?;
+        assert_eq!(history.undo_len(), 1);
+        assert_eq!(controller.state(), OperatorState::Idle);
         Ok(())
     }
 }
