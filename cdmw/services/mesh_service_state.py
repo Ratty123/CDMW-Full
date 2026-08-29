@@ -183,6 +183,11 @@ class _MeshEditSession:
     # recorded.
     native_editor_topology_summaries: tuple[Mapping[str, int], ...] = ()
     base_mesh_is_original_parse: bool = False
+    mesh_format: str = ""
+    lod_index: int = 0
+    output_policy: str = "read_only"
+    output_destination: str = ""
+    output_destination_ready: bool = False
     mode: str = "object"
     selection: MeshEditSelection = field(default_factory=MeshEditSelection)
     selection_revision: int = 0

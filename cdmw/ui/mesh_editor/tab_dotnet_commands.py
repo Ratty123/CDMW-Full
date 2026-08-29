@@ -720,11 +720,15 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
         if not command:
             self._send_dotnet_command_result("command", ok=False, status="error", diagnostics=("Missing command.",), request_payload=payload)
             return False
+        if command == "configure_free_edit":
+            return self._configure_free_edit_output_requested(payload)
+        if command == "export_free_edit":
+            return self._start_free_edit_output_requested(payload)
         if command.startswith("morph_"):
             return self._handle_dotnet_morph_command_request(controller, command, payload)
         if (
             not self.standalone_dotnet_target_embedded
-            and (self._standalone_exact_output_required() or command == "toggle_visibility")
+            and controller is getattr(self, "standalone_controller", None)
         ):
             blocker = self._standalone_action_authoring_blocker(command)
             if blocker:

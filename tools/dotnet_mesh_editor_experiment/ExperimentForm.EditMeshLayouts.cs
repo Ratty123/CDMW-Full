@@ -267,6 +267,8 @@ internal sealed partial class ExperimentForm
             Font = new Font(Font, FontStyle.Bold),
             AccessibleName = "Mesh Edit Session, Editable view",
         };
+        _outputPolicyLabel = title;
+        EnsureOutputPolicyControls();
         _compactSessionCommandHost = new FlowLayoutPanel
         {
             Name = "EditMeshSessionCommands",
@@ -706,6 +708,8 @@ internal sealed partial class ExperimentForm
         if (_sessionInvertButton is not null) yield return _sessionInvertButton;
         if (_undoButton is not null) yield return _undoButton;
         if (_redoButton is not null) yield return _redoButton;
+        if (_configureFreeEditButton is not null) yield return _configureFreeEditButton;
+        if (_exportFreeEditButton is not null) yield return _exportFreeEditButton;
         if (_sessionFinishButton is not null) yield return _sessionFinishButton;
     }
 

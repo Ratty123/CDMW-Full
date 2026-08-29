@@ -8,6 +8,7 @@ from importlib import import_module
 _EXPORTS = {
     "MESH_EDITOR_ACTIONS": ("cdmw.ui.mesh_editor.actions", "MESH_EDITOR_ACTIONS"),
     "MESH_EDITOR_VISIBLE_ACTIONS": ("cdmw.ui.mesh_editor.actions", "MESH_EDITOR_VISIBLE_ACTIONS"),
+    "MESH_EDITOR_SESSION_ACTIONS": ("cdmw.ui.mesh_editor.actions", "MESH_EDITOR_SESSION_ACTIONS"),
     "MeshEditorAction": ("cdmw.ui.mesh_editor.actions", "MeshEditorAction"),
     "MeshEditorActionBar": ("cdmw.ui.mesh_editor.action_bar", "MeshEditorActionBar"),
     "MeshEditorActionExecution": ("cdmw.ui.mesh_editor.controller", "MeshEditorActionExecution"),
@@ -16,6 +17,7 @@ _EXPORTS = {
     "MeshEditorSessionRequest": ("cdmw.ui.mesh_editor.session", "MeshEditorSessionRequest"),
     "MeshEditorTab": ("cdmw.ui.mesh_editor.tab", "MeshEditorTab"),
     "MeshEditorWorkspace": ("cdmw.ui.mesh_editor.workspace", "MeshEditorWorkspace"),
+    "visible_actions_for_session": ("cdmw.ui.mesh_editor.actions", "visible_actions_for_session"),
     "apply_native_update_to_host": ("cdmw.ui.mesh_editor.controller", "apply_native_update_to_host"),
     "mesh_editor_actions_by_key": ("cdmw.ui.mesh_editor.actions", "mesh_editor_actions_by_key"),
     "mesh_editor_actions_for_category": ("cdmw.ui.mesh_editor.actions", "mesh_editor_actions_for_category"),
@@ -39,6 +41,7 @@ def __dir__() -> list[str]:
 __all__ = [
     "MESH_EDITOR_ACTIONS",
     "MESH_EDITOR_VISIBLE_ACTIONS",
+    "MESH_EDITOR_SESSION_ACTIONS",
     "MeshEditorAction",
     "MeshEditorActionBar",
     "MeshEditorActionExecution",
@@ -47,6 +50,7 @@ __all__ = [
     "MeshEditorSessionRequest",
     "MeshEditorTab",
     "MeshEditorWorkspace",
+    "visible_actions_for_session",
     "apply_native_update_to_host",
     "mesh_editor_actions_by_key",
     "mesh_editor_actions_for_category",

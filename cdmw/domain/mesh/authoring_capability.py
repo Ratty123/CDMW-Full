@@ -42,6 +42,14 @@ class AuthoringSupport(str, Enum):
     READ_ONLY = "read_only"
 
 
+class MeshOutputPolicy(str, Enum):
+    """What kind of output the active editor session is allowed to produce."""
+
+    EXACT_GAME_ASSET = "exact_game_asset"
+    FREE_EDIT = "free_edit_rebuild"
+    READ_ONLY = "read_only"
+
+
 AUTHORABLE_SUPPORT = frozenset({AuthoringSupport.EXACT, AuthoringSupport.REBUILD})
 
 
@@ -66,9 +74,48 @@ class AuthoringCapability:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class MeshOutputPolicyState:
+    """Session output truth, separate from the final writer/validator verdict."""
+
+    mesh_format: str
+    lod_index: int
+    policy: MeshOutputPolicy
+    output_destination: str
+    destination_ready: bool
+    output_capability: AuthoringCapability
+    exact_write_status: AuthoringSupport
+
+    @property
+    def authoring_enabled(self) -> bool:
+        return bool(self.output_capability.authorable)
+
+    @property
+    def reason(self) -> str:
+        return " ".join(
+            part
+            for part in (self.output_capability.reason, self.output_capability.detail)
+            if str(part).strip()
+        )
+
+    def as_payload(self) -> dict[str, object]:
+        return {
+            "mesh_format": self.mesh_format,
+            "lod_index": self.lod_index,
+            "output_policy": self.policy.value,
+            "output_destination": self.output_destination,
+            "destination_ready": self.destination_ready,
+            "authoring_enabled": self.authoring_enabled,
+            "exact_write_status": self.exact_write_status.value,
+            "output_capability": self.output_capability.as_payload(),
+            "reason": self.reason,
+        }
+
+
 #: Formats this build can author geometry into, and the one it cannot.
 AUTHORABLE_MESH_FORMATS = frozenset({"pac", "pam", "pamlod"})
 READ_ONLY_MESH_FORMATS = frozenset({"meshinfo"})
+FREE_EDIT_WORKING_MESH_FORMATS = frozenset({"obj", "fbx", "dae", "gltf", "glb"})
 
 #: The LOD the exact topology path is proven on.
 PROVEN_AUTHORING_LOD = 0
@@ -95,6 +142,18 @@ _UNPROVEN_LOD = AuthoringCapability(
     AuthoringSupport.UNPROVEN,
     "LOD1 and above are not proven for authoring",
     "The exact topology path is proven on LOD0. Lower LODs are copied through unchanged.",
+)
+
+_FREE_EDIT_DESTINATION_REQUIRED = AuthoringCapability(
+    AuthoringSupport.BLOCKED,
+    "Choose a Free Edit output folder before authoring",
+    "Free Edit publishes a new non-exact OBJ package and never overwrites the source asset.",
+)
+
+_FREE_EDIT_REBUILD = AuthoringCapability(
+    AuthoringSupport.REBUILD,
+    "",
+    "Output is a new non-exact OBJ package, not a byte-preserving PAC/PAM/PAMLOD round trip.",
 )
 
 #: Topology operations, and what the exact PAC LOD0 writer can do with each.
@@ -149,6 +208,60 @@ _BLOCKED_EXACT_AUTHORING_ACTIONS: dict[str, str] = {
     "separate": "Create Part has no exact writeback route",
     "refine_smooth": "Refine Smooth has no exact writeback route",
 }
+
+#: These actions have executable native/service/history coverage and can be
+#: published by the Free Edit OBJ package route. Keeping this explicit prevents
+#: an action descriptor from becoming a user promise by merely existing.
+FREE_EDIT_PROVEN_ACTIONS = frozenset(
+    {
+        "delete",
+        "dissolve",
+        "subdivide",
+        "refine_smooth",
+        "split",
+        "separate",
+        "duplicate",
+        "copy",
+        "paste",
+        "layer_delete",
+        "mirror",
+        "extrude",
+        "inset",
+        "loop_cut",
+        "edge_split",
+        "merge",
+        "weld",
+        "bridge",
+        "fill",
+        "remove_doubles",
+        "delete_loose_vertices",
+        "compact_orphans",
+        "fix_winding",
+        "fill_holes",
+        "recalculate_normals",
+        "generate_tangents",
+        "flip_normals",
+        "sharpen_normals",
+        "soften_normals",
+        "weighted_normals",
+        "copy_normals",
+        "uv_transform",
+        "uv_flip_u",
+        "uv_flip_v",
+        "uv_rotate_90",
+        "uv_island_transform",
+        "uv_normalize",
+        "uv_align_u",
+        "uv_align_v",
+        "uv_planar_project",
+        "uv_box_project",
+        "uv_cylindrical_project",
+        "uv_auto_unwrap",
+        "uv_pack",
+        "uv_snap_grid",
+        "uv_snap_pixels",
+    }
+)
 
 _NO_EXACT_ROUTE_DETAIL = (
     "The operation changes topology in ways the exact PAC LOD0 serializer cannot express, "
@@ -211,6 +324,9 @@ def action_authoring_capability(
     *,
     mesh_format: object = "pac",
     lod_index: int = PROVEN_AUTHORING_LOD,
+    output_policy: MeshOutputPolicy | str = MeshOutputPolicy.EXACT_GAME_ASSET,
+    free_edit_destination_ready: bool = False,
+    native_capabilities: object | None = None,
 ) -> AuthoringCapability | None:
     """The capability for an authoring-sensitive native editor action.
 
@@ -220,6 +336,34 @@ def action_authoring_capability(
     """
 
     key = str(action_key or "").strip().lower()
+    normalized_format = normalize_mesh_format(mesh_format)
+    try:
+        policy = MeshOutputPolicy(str(getattr(output_policy, "value", output_policy) or ""))
+    except ValueError:
+        policy = MeshOutputPolicy.READ_ONLY
+    if policy is MeshOutputPolicy.READ_ONLY:
+        return geometry_authoring_capability("meshinfo", lod_index=lod_index)
+    if policy is MeshOutputPolicy.FREE_EDIT and normalized_format not in (
+        AUTHORABLE_MESH_FORMATS | FREE_EDIT_WORKING_MESH_FORMATS
+    ):
+        return geometry_authoring_capability(normalized_format, lod_index=lod_index)
+    if policy is MeshOutputPolicy.FREE_EDIT:
+        if key not in FREE_EDIT_PROVEN_ACTIONS:
+            return None
+        if not free_edit_destination_ready:
+            return _FREE_EDIT_DESTINATION_REQUIRED
+        if native_capabilities is not None:
+            try:
+                available = {str(value or "").strip().lower() for value in native_capabilities}
+            except TypeError:
+                available = set()
+            if key not in available:
+                return AuthoringCapability(
+                    AuthoringSupport.BLOCKED,
+                    f"{key.replace('_', ' ').title()} is unavailable in the resident native editor",
+                    "The action remains hidden until the active renderer advertises it.",
+                )
+        return _FREE_EDIT_REBUILD
     from cdmw.domain.mesh.topology import TOPOLOGY_OPERATION_BY_NATIVE_ACTION
 
     operation = TOPOLOGY_OPERATION_BY_NATIVE_ACTION.get(key)
@@ -233,6 +377,78 @@ def action_authoring_capability(
         return AuthoringCapability(AuthoringSupport.BLOCKED, reason, _NO_EXACT_ROUTE_DETAIL)
     capability = _TOPOLOGY_CAPABILITY.get(operation)
     return capability
+
+
+def output_policy_state(
+    mesh_format: object,
+    *,
+    lod_index: int = PROVEN_AUTHORING_LOD,
+    requested_policy: MeshOutputPolicy | str | None = None,
+    output_destination: object = "",
+    destination_ready: bool = False,
+) -> MeshOutputPolicyState:
+    """Resolve explicit session policy without mutating geometry or writing output."""
+
+    normalized = normalize_mesh_format(mesh_format)
+    if requested_policy is None:
+        if normalized in AUTHORABLE_MESH_FORMATS:
+            policy = MeshOutputPolicy.EXACT_GAME_ASSET
+        elif normalized in FREE_EDIT_WORKING_MESH_FORMATS:
+            policy = MeshOutputPolicy.FREE_EDIT
+        else:
+            policy = MeshOutputPolicy.READ_ONLY
+    else:
+        try:
+            policy = MeshOutputPolicy(str(getattr(requested_policy, "value", requested_policy) or ""))
+        except ValueError:
+            policy = MeshOutputPolicy.READ_ONLY
+
+    destination = str(output_destination or "").strip()
+    if policy is MeshOutputPolicy.EXACT_GAME_ASSET:
+        capability = geometry_authoring_capability(normalized, lod_index=lod_index)
+        if capability.support not in {AuthoringSupport.EXACT, AuthoringSupport.UNPROVEN}:
+            policy = MeshOutputPolicy.READ_ONLY
+        else:
+            return MeshOutputPolicyState(
+                normalized,
+                int(lod_index),
+                policy,
+                "",
+                False,
+                capability,
+                capability.support,
+            )
+    if policy is MeshOutputPolicy.FREE_EDIT and normalized not in (
+        AUTHORABLE_MESH_FORMATS | FREE_EDIT_WORKING_MESH_FORMATS
+    ):
+        policy = MeshOutputPolicy.READ_ONLY
+    if policy is MeshOutputPolicy.FREE_EDIT:
+        capability = _FREE_EDIT_REBUILD if destination_ready and destination else _FREE_EDIT_DESTINATION_REQUIRED
+        return MeshOutputPolicyState(
+            normalized,
+            int(lod_index),
+            policy,
+            destination,
+            bool(destination_ready and destination),
+            capability,
+            AuthoringSupport.REBUILD,
+        )
+    read_only = geometry_authoring_capability(normalized, lod_index=lod_index)
+    if read_only.support not in {AuthoringSupport.READ_ONLY, AuthoringSupport.BLOCKED}:
+        read_only = AuthoringCapability(
+            AuthoringSupport.READ_ONLY,
+            "This session is read-only",
+            "Selection, inspection, comparison, and safe export remain available.",
+        )
+    return MeshOutputPolicyState(
+        normalized,
+        int(lod_index),
+        MeshOutputPolicy.READ_ONLY,
+        "",
+        False,
+        read_only,
+        read_only.support,
+    )
 
 
 def capability_matrix(mesh_format: object, *, lod_index: int = PROVEN_AUTHORING_LOD) -> dict[str, object]:
@@ -265,13 +481,18 @@ def capability_matrix(mesh_format: object, *, lod_index: int = PROVEN_AUTHORING_
 __all__ = [
     "AUTHORABLE_MESH_FORMATS",
     "AUTHORABLE_SUPPORT",
+    "FREE_EDIT_PROVEN_ACTIONS",
+    "FREE_EDIT_WORKING_MESH_FORMATS",
     "PROVEN_AUTHORING_LOD",
     "READ_ONLY_MESH_FORMATS",
     "AuthoringCapability",
     "AuthoringSupport",
+    "MeshOutputPolicy",
+    "MeshOutputPolicyState",
     "action_authoring_capability",
     "capability_matrix",
     "geometry_authoring_capability",
     "normalize_mesh_format",
+    "output_policy_state",
     "topology_authoring_capability",
 ]

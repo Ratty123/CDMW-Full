@@ -18,8 +18,11 @@ internal sealed partial class ExperimentForm
     {
         _directAuthoringExactOutputRequired = _options.DirectAuthoring;
         BuildAuthoringToolPanels();
-        ReassertDirectAuthoringBlockedButtons();
         ActivateToolRailLayout();
+        ApplyDiagnosticOutputPolicyState(
+            "exact_game_asset",
+            destinationReady: false,
+            authoringEnabled: true);
         _scene.SetInteractionMode("mesh_edit");
         var displayApplied = _viewport.TrySetSynchronizedDisplayMode("textured", out var displayError);
         var materialApplied = _viewport.TryApplyMaterialState(
@@ -66,14 +69,26 @@ internal sealed partial class ExperimentForm
             var partCommandTargets = RunPartCommandTargetDiagnostic(formProtocolEvents);
             var mixedMorphRefit = RunMixedMorphRefitSelectionDiagnostic();
             var restrictedControlsVisible = _directAuthoringBlockedButtons.All(button => OwnVisibleState(button) && !button.Enabled);
-            ApplyDirectAuthoringOutputContract(exactOutputRequired: false);
+            ResetMorphStateAuthority();
+            ApplyDiagnosticOutputPolicyState(
+                "free_edit_rebuild",
+                destinationReady: true,
+                authoringEnabled: true);
+            ShowToolRailPage(ToolRailPage.Topology);
             var importedModelControlsVisible = _directAuthoringBlockedButtons.All(OwnVisibleState);
             var importedLayerCopyEnabled = _layerCopyButton?.Enabled is true;
+            var freeEditControlsVisible = _freeEditOnlyButtons.Values.All(OwnVisibleState);
+            var freeEditControlsEnabled = _freeEditOnlyButtons.Values.All(OwnEnabledState);
+            var freeEditExportEnabled = _exportFreeEditButton?.Enabled is true;
             var importedTopologyDescription =
                 _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Topology)?.AccessibleDescription
                 ?? string.Empty;
             var importedTopologyHelp = importedTopologyDescription.Contains("Subdivide", StringComparison.Ordinal);
-            ApplyDirectAuthoringOutputContract(exactOutputRequired: true);
+            ApplyDiagnosticOutputPolicyState(
+                "exact_game_asset",
+                destinationReady: false,
+                authoringEnabled: true);
+            var exactFreeEditControlsHidden = _freeEditOnlyButtons.Values.All(button => !OwnVisibleState(button));
             var exactTopologyHelp = (
                 _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Topology)?.AccessibleDescription
                 ?? string.Empty).Contains("Subdivide is unavailable", StringComparison.Ordinal);
@@ -84,6 +99,10 @@ internal sealed partial class ExperimentForm
                         && restrictedControlsVisible
                         && importedModelControlsVisible
                         && importedLayerCopyEnabled
+                        && freeEditControlsVisible
+                        && freeEditControlsEnabled
+                        && freeEditExportEnabled
+                        && exactFreeEditControlsHidden
                         && importedTopologyHelp
                         && exactTopologyHelp),
                 ["blocked_control_count"] = _directAuthoringBlockedButtons.Count,
@@ -91,6 +110,10 @@ internal sealed partial class ExperimentForm
                 ["all_disabled"] = _directAuthoringBlockedButtons.All(button => !button.Enabled),
                 ["imported_model_controls_visible"] = importedModelControlsVisible,
                 ["imported_layer_copy_enabled"] = importedLayerCopyEnabled,
+                ["free_edit_controls_visible"] = freeEditControlsVisible,
+                ["free_edit_controls_enabled"] = freeEditControlsEnabled,
+                ["free_edit_export_enabled"] = freeEditExportEnabled,
+                ["exact_free_edit_controls_hidden"] = exactFreeEditControlsHidden,
                 ["imported_topology_help"] = importedTopologyHelp,
                 ["exact_topology_help"] = exactTopologyHelp,
             };
@@ -190,6 +213,7 @@ internal sealed partial class ExperimentForm
             "◰    Select", "✥    Move", "✜    Grab", "◍    Smooth", "◉    Inflate",
             "◇    Pinch", "△    Topology", "◑    Morph & Refit", "▣    Viewport",
             "Clear Selection", "Select All", "Invert", "Undo", "Redo",
+            "Free Edit Output...",
             "Grow", "Shrink", "-X", "+X", "-Y", "+Y", "-Z", "+Z",
             "Delete Selection", "Duplicate Selection", "Subdivide", "Refine Smooth",
             "All", "None", "Duplicate", "Delete", "Copy", "Paste",
@@ -629,6 +653,15 @@ internal sealed partial class ExperimentForm
             "GetState",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         return getState?.Invoke(control, new object[] { stateVisible }) is true;
+    }
+
+    private static bool OwnEnabledState(Control control)
+    {
+        const int stateEnabled = 0x00000004;
+        var getState = typeof(Control).GetMethod(
+            "GetState",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        return getState?.Invoke(control, new object[] { stateEnabled }) is true;
     }
 
     private static IEnumerable<Control> DescendantControls(Control root)

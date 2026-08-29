@@ -4,7 +4,11 @@ from types import SimpleNamespace
 from typing import Mapping, Sequence
 
 from cdmw.domain.mesh.resident_mutation import ResidentMutationBatch
-from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
+from cdmw.ui.mesh_editor.actions import (
+    MESH_EDITOR_SESSION_ACTIONS,
+    mesh_editor_action_authoring_blocker,
+    visible_actions_for_session,
+)
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_dotnet_material_parameters import (
     MeshEditorDotNetMaterialParameterMixin,
@@ -30,8 +34,27 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 view = controller.session_view()
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 return False
-        actions = sorted(mesh_editor_actions_by_key().keys())
-        exact_output_required = getattr(self, "_standalone_exact_output_required", None)
+        visible_actions = visible_actions_for_session(
+            view.mesh_format,
+            view.lod_index,
+            view.output_policy,
+            free_edit_destination_ready=view.output_destination_ready,
+        )
+        actions = sorted(action.key for action in visible_actions)
+        unavailable_reasons = {
+            action.key: blocker
+            for action in MESH_EDITOR_SESSION_ACTIONS
+            if (
+                blocker := mesh_editor_action_authoring_blocker(
+                    action.key,
+                    mesh_format=view.mesh_format,
+                    lod_index=view.lod_index,
+                    output_policy=view.output_policy,
+                    free_edit_destination=view.output_destination,
+                    free_edit_destination_ready=view.output_destination_ready,
+                )
+            )
+        }
         payload = {
             "event": "session_state",
             "session_id": view.session_id,
@@ -61,7 +84,16 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             ],
             "actions": actions,
             "selection_depth_mode": "visible",
-            "exact_output_required": bool(exact_output_required()) if callable(exact_output_required) else False,
+            "mesh_format": view.mesh_format,
+            "lod_index": view.lod_index,
+            "output_policy": view.output_policy,
+            "output_destination": view.output_destination,
+            "output_destination_ready": view.output_destination_ready,
+            "authoring_enabled": view.authoring_enabled,
+            "exact_write_status": view.exact_write_status,
+            "output_policy_reason": view.output_policy_reason,
+            "unavailable_action_reasons": unavailable_reasons,
+            "exact_output_required": view.output_policy == "exact_game_asset",
         }
         if include_selection:
             payload["selection"] = self._dotnet_selection_payload(view.selection)

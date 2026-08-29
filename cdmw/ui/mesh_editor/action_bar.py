@@ -8,7 +8,12 @@ from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QFont, QKeySequence
 from PySide6.QtWidgets import QButtonGroup, QFrame, QGridLayout, QHBoxLayout, QSizePolicy, QToolButton, QWidget
 
-from cdmw.ui.mesh_editor.actions import MESH_EDITOR_VISIBLE_ACTIONS, NATIVE_EDITOR_SESSION_COMMANDS, MeshEditorAction
+from cdmw.ui.mesh_editor.actions import (
+    MESH_EDITOR_SESSION_ACTIONS,
+    MESH_EDITOR_VISIBLE_ACTIONS,
+    NATIVE_EDITOR_SESSION_COMMANDS,
+    MeshEditorAction,
+)
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
 
 
@@ -58,12 +63,14 @@ _BUTTON_LABELS = {
 class MeshEditorActionBar(QFrame):
     action_requested = Signal(object)
 
-    def __init__(self, actions: Sequence[MeshEditorAction] = MESH_EDITOR_VISIBLE_ACTIONS, parent: QWidget | None = None) -> None:
+    def __init__(self, actions: Sequence[MeshEditorAction] = MESH_EDITOR_SESSION_ACTIONS, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("MeshEditorActionBar")
         self.buttons_by_key: dict[str, QToolButton] = {}
         self._actions_by_key = {action.key: action for action in actions}
         self._button_groups: list[QButtonGroup] = []
+        self._category_frames: dict[str, QWidget] = {}
+        self._category_action_keys: dict[str, tuple[str, ...]] = {}
         self._tool_button_group = QButtonGroup(self)
         self._tool_button_group.setExclusive(True)
         self._button_groups.append(self._tool_button_group)
@@ -74,8 +81,12 @@ class MeshEditorActionBar(QFrame):
         for category in _CATEGORY_ORDER:
             category_actions = tuple(action for action in actions if action.category == category)
             if category_actions:
-                root.addWidget(self._build_category(category, category_actions))
+                frame = self._build_category(category, category_actions)
+                self._category_frames[category] = frame
+                self._category_action_keys[category] = tuple(action.key for action in category_actions)
+                root.addWidget(frame)
         root.addStretch(1)
+        self.set_action_visibility(action.key for action in MESH_EDITOR_VISIBLE_ACTIONS)
 
     def button_for_key(self, key: str) -> QToolButton | None:
         return self.buttons_by_key.get(str(key or ""))
@@ -99,6 +110,16 @@ class MeshEditorActionBar(QFrame):
         button = self.button_for_key(key)
         if button is not None and button.isCheckable():
             button.setChecked(True)
+
+    def set_action_visibility(self, visible_action_keys: object) -> None:
+        try:
+            visible = {str(key or "").strip() for key in visible_action_keys}
+        except TypeError:
+            visible = set()
+        for key, button in self.buttons_by_key.items():
+            button.setVisible(key in visible)
+        for category, frame in self._category_frames.items():
+            frame.setVisible(any(key in visible for key in self._category_action_keys[category]))
 
     def update_action_state(
         self,

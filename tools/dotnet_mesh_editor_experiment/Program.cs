@@ -598,6 +598,11 @@ internal sealed partial class ExperimentForm : Form
             return 0;
         }
         var normalizedCommand = (command ?? string.Empty).Trim().ToLowerInvariant();
+        if (OutputPolicyBlocksCommand(normalizedCommand, out var outputPolicyBlocker))
+        {
+            _statusLabel.Text = outputPolicyBlocker;
+            return 0;
+        }
         var directAuthoringBlocker = DirectAuthoringRestrictionsActive
             ? DirectAuthoringCommandBlocker(normalizedCommand)
             : string.Empty;
@@ -607,8 +612,10 @@ internal sealed partial class ExperimentForm : Form
             return 0;
         }
         var topologyCanWaitForSelection = normalizedCommand is "subdivide" or "refine_smooth" or "separate"
+            or "extrude" or "inset" or "loop_cut" or "edge_split" or "bridge" or "merge" or "weld" or "fill"
             && _viewport.HasPendingSelectionAuthority;
         if (normalizedCommand is "transform_move" or "delete" or "duplicate" or "subdivide" or "refine_smooth" or "separate" or "copy"
+                or "extrude" or "inset" or "loop_cut" or "edge_split" or "bridge" or "merge" or "weld" or "fill"
             && !_viewport.HasEditableSelection
             && !topologyCanWaitForSelection)
         {

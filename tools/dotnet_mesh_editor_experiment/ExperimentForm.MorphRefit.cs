@@ -835,6 +835,7 @@ internal sealed partial class ExperimentForm
             _helpToolTip.SetToolTip(button, string.Empty);
         }
         ReassertDirectAuthoringBlockedButtons();
+        ApplyOutputPolicyControls();
         RefreshCreatePartFromSelectionButton();
     }
 

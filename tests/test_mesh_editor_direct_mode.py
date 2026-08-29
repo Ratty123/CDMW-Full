@@ -11,6 +11,7 @@ from PySide6.QtCore import QEventLoop, QObject, QSettings, QThread, QTimer, Qt, 
 from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QToolButton
 
 from cdmw.domain.mesh import MeshEditSelection, MeshExportValidationReport, MeshObjectTransformState
+from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.models import ArchiveEntry
@@ -835,7 +836,9 @@ def test_exact_output_qt_entry_points_reject_whole_part_and_duplicate_actions() 
     app.processEvents()
 
 
-def test_imported_model_direct_session_keeps_topology_tools_and_reports_nonexact_output() -> None:
+def test_imported_model_direct_session_requires_explicit_free_edit_output_for_topology(
+    tmp_path: Path,
+) -> None:
     app = QApplication.instance() or QApplication([])
     tab = MeshEditorTab(settings=QSettings("CDMWTests", "ImportedModelAuthoringCapability"))
     mesh = _mesh(two_parts=False)
@@ -846,6 +849,28 @@ def test_imported_model_direct_session_keeps_topology_tools_and_reports_nonexact
     tab.standalone_dotnet_target_controller = tab.standalone_controller
     tab.standalone_dotnet_target_embedded = False
     protocol_messages: list[dict[str, object]] = []
+    rejected: list[dict[str, object]] = []
+
+    with patch.object(tab, "_start_dotnet_action_worker") as start_worker, patch.object(
+        tab,
+        "_send_dotnet_command_result",
+        side_effect=lambda _command, **payload: rejected.append(dict(payload)),
+    ):
+        assert tab._handle_dotnet_command_request(
+            {
+                "command": "duplicate",
+                "target_mode": "face",
+                "local_selection": {"faces_by_submesh": {"0": [0]}},
+            }
+        )
+    start_worker.assert_not_called()
+    assert rejected[-1]["status"] == "unavailable"
+    assert "output folder" in rejected[-1]["diagnostics"][0]
+
+    tab.standalone_controller.configure_output_policy(
+        MeshOutputPolicy.FREE_EDIT,
+        output_destination=tmp_path / "imported-model-free-edit",
+    )
 
     with patch.object(tab, "_start_dotnet_action_worker", return_value=True) as start_worker, patch.object(
         tab,

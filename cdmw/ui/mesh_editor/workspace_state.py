@@ -107,6 +107,23 @@ class WorkspaceStateMixin:
     def button_for_key(self, key: str) -> QToolButton | None:
         return self._buttons_by_key.get(str(key or ""))
 
+    def set_action_visibility(self, visible_action_keys: object) -> None:
+        try:
+            visible = {str(key or "").strip() for key in visible_action_keys}
+        except TypeError:
+            visible = set()
+        for key, button in self._buttons_by_key.items():
+            button.setVisible(key in visible)
+        for key, button in self._uv_action_buttons.items():
+            button.setVisible(key in visible)
+        for category, widgets in self._category_widgets.items():
+            category_visible = any(
+                action.key in visible and action.category == category
+                for action in self._actions_by_key.values()
+            )
+            for widget in widgets:
+                widget.setVisible(category_visible)
+
     def set_theme(self, theme_key: str) -> None:
         self._theme_key = str(theme_key or self._theme_key)
         for preview in (
@@ -293,6 +310,12 @@ class WorkspaceStateMixin:
             ("Session", view.session_id),
             ("Mode", view.mode),
             ("Revision", view.revision),
+            ("Format", view.mesh_format.upper() or "UNKNOWN"),
+            ("LOD", view.lod_index),
+            ("Output policy", view.output_policy.replace("_", " ").title()),
+            ("Exact write", view.exact_write_status.replace("_", "-")),
+            ("Output", view.output_destination or "Not configured"),
+            ("Authoring", "Enabled" if view.authoring_enabled else view.output_policy_reason or "Disabled"),
             ("Undo", view.undo_count),
             ("Redo", view.redo_count),
         ):
