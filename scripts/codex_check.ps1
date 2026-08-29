@@ -157,6 +157,7 @@ $TestsByArea = @{
     )
     "mesh-unit" = @(
         "tests/test_mesh_dotnet_experiment.py",
+        "tests/test_native_dotnet_preview_adapter_layers.py",
         "tests/test_mesh_dotnet_experiment_output.py",
         "tests/test_material_category_contract.py",
         "tests/test_mesh_dotnet_material_state.py",

@@ -19,7 +19,7 @@ from cdmw.rendering.crimson_shader_registry import (
 from cdmw.services.atomic_file_service import atomic_write_text
 
 
-NATIVE_DOTNET_ADAPTER_SCHEMA = 1
+NATIVE_DOTNET_ADAPTER_SCHEMA = 2
 NATIVE_DOTNET_ADAPTER_MARKER = "cdmw_native_dotnet_adapter_v1.json"
 SUPPORTED_NATIVE_PREVIEW_SCHEMA = 8
 _BYTES_PER_VERTEX = 23 * 4
@@ -256,6 +256,85 @@ def _resource_id(path: str) -> tuple[str, str]:
     return f"texture:{fingerprint}", f"stat:{fingerprint}"
 
 
+def _register_texture_resource(
+    resources: dict[str, dict[str, object]],
+    path: str,
+    *,
+    submesh_index: int,
+    semantic: str,
+    color_space: str,
+    authority: str = "native_preview_core",
+) -> str:
+    resource_id, fingerprint = _resource_id(path)
+    resources.setdefault(
+        resource_id,
+        {
+            "resource_id": resource_id,
+            "path": path,
+            "source_reference": path,
+            "fingerprint": fingerprint,
+            "role": "replacement",
+            "submesh_index": submesh_index,
+            "material_channel": semantic,
+            "semantic": semantic,
+            "color_space": color_space,
+            "semantic_authority": authority,
+            "profile": "legacy_unknown",
+            "required": False,
+            "criticality": "optional",
+            "fallback_policy": {
+                "base": "neutral_checker",
+                "normal": "flat_normal",
+                "emissive": "black",
+            }.get(semantic, "diagnostic_only"),
+        },
+    )
+    return resource_id
+
+
+def _adapt_material_layers(
+    root: Path,
+    batch: Mapping[str, object],
+    resources: dict[str, dict[str, object]],
+    *,
+    submesh_index: int,
+) -> list[dict[str, object]]:
+    raw_layers = batch.get("material_layers")
+    if not isinstance(raw_layers, Sequence) or isinstance(raw_layers, (str, bytes, bytearray)):
+        return []
+    adapted: list[dict[str, object]] = []
+    for raw_layer in raw_layers:
+        if not isinstance(raw_layer, Mapping):
+            continue
+        layer: dict[str, object] = {
+            "layer_role": str(raw_layer.get("layer_role", "") or ""),
+            "mask_channel": str(raw_layer.get("mask_channel", "") or ""),
+            "weight": max(0.0, min(1.0, _safe_float(raw_layer.get("weight"), 1.0))),
+        }
+        tint = raw_layer.get("tint")
+        if isinstance(tint, Sequence) and not isinstance(tint, (str, bytes, bytearray)):
+            layer["tint"] = [max(0.0, min(2.0, _safe_float(value, 1.0))) for value in tint[:3]]
+        for source_key, resource_key, semantic, color_space in (
+            ("diffuse_source", "diffuse_resource_id", "layer_diffuse", "srgb"),
+            ("mask_source", "mask_resource_id", "layer_mask", "linear"),
+            ("material_source", "material_resource_id", "layer_material", "linear"),
+        ):
+            if not str(raw_layer.get(source_key, "") or "").strip():
+                continue
+            path = str(_texture_file(root, raw_layer[source_key]))
+            layer[resource_key] = _register_texture_resource(
+                resources,
+                path,
+                submesh_index=submesh_index,
+                semantic=semantic,
+                color_space=color_space,
+                authority="native_preview_core_material_layer",
+            )
+        if layer.get("diffuse_resource_id") or layer.get("material_resource_id"):
+            adapted.append(layer)
+    return adapted
+
+
 def _shader_family(value: object) -> str:
     compact = _compact(value)
     if "skinnedmeshskin" in compact or ("skin" in compact and "skinnedmesh" not in compact):
@@ -308,6 +387,14 @@ def _declared_texture_paths(root: Path, batches: Sequence[Mapping[str, object]])
     for batch in batches:
         channels, _components, _spaces, _authorities = _resolve_channels(root, batch)
         declared.update(str(Path(path).resolve()).casefold() for path in channels.values())
+        raw_layers = batch.get("material_layers")
+        if isinstance(raw_layers, Sequence) and not isinstance(raw_layers, (str, bytes, bytearray)):
+            for raw_layer in raw_layers:
+                if not isinstance(raw_layer, Mapping):
+                    continue
+                for source_key in ("diffuse_source", "mask_source", "material_source"):
+                    if str(raw_layer.get(source_key, "") or "").strip():
+                        declared.add(str(_texture_file(root, raw_layer[source_key]).resolve()).casefold())
     return declared
 
 
@@ -408,29 +495,21 @@ def adapt_native_dotnet_preview_package(
         channels, components, color_spaces, authorities = _resolve_channels(root, batch)
         resource_channels: dict[str, str] = {}
         for semantic, path in sorted(channels.items()):
-            resource_id, fingerprint = _resource_id(path)
-            resource_channels[semantic] = resource_id
-            resources.setdefault(
-                resource_id,
-                {
-                    "resource_id": resource_id,
-                    "path": path,
-                    "source_reference": path,
-                    "fingerprint": fingerprint,
-                    "role": "replacement",
-                    "submesh_index": index,
-                    "material_channel": semantic,
-                    "semantic": semantic,
-                    "color_space": color_spaces.get(semantic, "linear"),
-                    "semantic_authority": authorities.get(semantic, "native_preview_core"),
-                    "profile": "legacy_unknown",
-                    "required": False,
-                    "criticality": "optional",
-                    "fallback_policy": {"base": "neutral_checker", "normal": "flat_normal", "emissive": "black"}.get(
-                        semantic, "diagnostic_only"
-                    ),
-                },
+            resource_channels[semantic] = _register_texture_resource(
+                resources,
+                path,
+                submesh_index=index,
+                semantic=semantic,
+                color_space=color_spaces.get(semantic, "linear"),
+                authority=authorities.get(semantic, "native_preview_core"),
             )
+        material_layers = _adapt_material_layers(root, batch, resources, submesh_index=index)
+        if any(layer.get("material_resource_id") for layer in material_layers):
+            for semantic in ("roughness", "metallic"):
+                channels.pop(semantic, None)
+                resource_channels.pop(semantic, None)
+                color_spaces.pop(semantic, None)
+                authorities.pop(semantic, None)
         slots.append({"index": index, "name": material, "texture": channels.get("base", ""), "channels": channels})
         raw_shader = str(batch.get("shader_family", "generic") or "generic")
         shader = _shader_family(raw_shader)
@@ -472,8 +551,10 @@ def adapt_native_dotnet_preview_package(
                 "double_sided_authority": "native_preview_core",
                 "unsupported_features": unsupported,
                 "layer_bindings": layer_bindings,
-                "material_layers": [],
-                "material_layer_compiler": "none",
+                "material_layers": material_layers,
+                "material_layer_compiler": (
+                    "archive_lite_managed_layer_compiler_v1" if material_layers else "none"
+                ),
                 "parameters": _material_parameters(batch, channels),
             }
         )
