@@ -311,7 +311,7 @@ class MeshEditorSessionMixin:
         thread.started.connect(worker.run)
         worker.loaded.connect(self._handle_standalone_file_loaded)
         worker.error.connect(self._handle_standalone_file_load_error)
-        worker.finished.connect(thread.quit)
+        worker.finished.connect(thread.quit, Qt.DirectConnection)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_file_loader(target_thread, target_worker))
@@ -397,6 +397,9 @@ class MeshEditorSessionMixin:
         ):
             self._start_dotnet_editor_requested(self.standalone_controller, embedded=False)
     def close_standalone_session(self) -> None:
+        close_ui_state = getattr(self, "_close_mesh_editor_ui_state", None)
+        if callable(close_ui_state):
+            close_ui_state()
         self.draft_banner.setVisible(False)
         self.mesh_editor_matching_drafts = ()
         self.standalone_archive_material_preview_model = None

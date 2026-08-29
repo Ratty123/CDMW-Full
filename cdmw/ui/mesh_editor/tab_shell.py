@@ -695,6 +695,12 @@ class MeshEditorTabShellMixin(
         previous = int(getattr(self, "standalone_dotnet_process_generation", 0) or 0)
         self.standalone_dotnet_editor_process = process
         self.standalone_dotnet_process_generation = generation
+        observe_generation = getattr(self, "_observe_mesh_editor_process_generation", None)
+        if callable(observe_generation):
+            observe_generation(
+                generation,
+                renderer_capabilities=getattr(controller, "capabilities", ()),
+            )
         update_queue = getattr(self, "standalone_dotnet_update_queue", None)
         if update_queue is not None:
             update_queue.set_context(

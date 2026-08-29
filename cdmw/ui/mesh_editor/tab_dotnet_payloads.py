@@ -3,9 +3,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Mapping, Sequence
 
+from cdmw.domain.mesh import MeshEditorUiEvent
 from cdmw.domain.mesh.resident_mutation import ResidentMutationBatch
 from cdmw.ui.mesh_editor.actions import (
     MESH_EDITOR_SESSION_ACTIONS,
+    NATIVE_EDITOR_SESSION_COMMANDS,
     mesh_editor_action_authoring_blocker,
     visible_actions_for_session,
 )
@@ -34,45 +36,30 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 view = controller.session_view()
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 return False
-        visible_actions = visible_actions_for_session(
-            view.mesh_format,
-            view.lod_index,
-            view.output_policy,
-            free_edit_destination_ready=view.output_destination_ready,
-        )
-        actions = sorted(action.key for action in visible_actions)
-        unavailable_reasons = {
-            action.key: blocker
-            for action in MESH_EDITOR_SESSION_ACTIONS
-            if (
-                blocker := mesh_editor_action_authoring_blocker(
-                    action.key,
-                    mesh_format=view.mesh_format,
-                    lod_index=view.lod_index,
-                    output_policy=view.output_policy,
-                    free_edit_destination=view.output_destination,
-                    free_edit_destination_ready=view.output_destination_ready,
-                )
-            )
-        }
+        ui_state = self._dotnet_session_state_authority(controller, view)
+        actions = sorted(ui_state.visible_actions)
+        unavailable_reasons = dict(ui_state.action_blockers)
+        if not ui_state.authoring_enabled:
+            for action_key in ui_state.mutation_actions:
+                unavailable_reasons.setdefault(action_key, ui_state.authoring_blocker)
         payload = {
             "event": "session_state",
-            "session_id": view.session_id,
-            "process_generation": self.standalone_dotnet_process_generation,
-            "mode": view.mode,
-            "revision": view.revision,
+            "session_id": ui_state.session_id,
+            "process_generation": ui_state.process_generation,
+            "mode": ui_state.mode,
+            "revision": ui_state.geometry_revision,
             "edit_revision": view.resident_revision,
             # Two keys because they are two things. `selection_mode` is the drag
             # gesture the helper whitelists as brush/lasso/rectangle; an element
             # kind arriving here was silently ignored by it and reset the
             # reader's shape on the way back.
-            "selection_mode": str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "brush"),
-            "element_type": str(getattr(controller, "active_element_type", "") or self.current_element_type or "vertex"),
+            "selection_mode": ui_state.selection_shape,
+            "element_type": ui_state.element_type,
             "submesh_count": view.submesh_count,
             "vertex_count": view.vertex_count,
             "face_count": view.face_count,
-            "undo_count": view.undo_count,
-            "redo_count": view.redo_count,
+            "undo_count": ui_state.undo_count,
+            "redo_count": ui_state.redo_count,
             "history_cursor": view.history_cursor,
             "history_entries": [
                 {
@@ -84,16 +71,16 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             ],
             "actions": actions,
             "selection_depth_mode": "visible",
-            "mesh_format": view.mesh_format,
-            "lod_index": view.lod_index,
-            "output_policy": view.output_policy,
-            "output_destination": view.output_destination,
-            "output_destination_ready": view.output_destination_ready,
-            "authoring_enabled": view.authoring_enabled,
-            "exact_write_status": view.exact_write_status,
-            "output_policy_reason": view.output_policy_reason,
+            "mesh_format": ui_state.mesh_format,
+            "lod_index": ui_state.lod_index,
+            "output_policy": ui_state.output_policy,
+            "output_destination": ui_state.output_destination,
+            "output_destination_ready": ui_state.output_destination_ready,
+            "authoring_enabled": ui_state.authoring_enabled,
+            "exact_write_status": ui_state.exact_write_status,
+            "output_policy_reason": ui_state.authoring_blocker or ui_state.policy_reason,
             "unavailable_action_reasons": unavailable_reasons,
-            "exact_output_required": view.output_policy == "exact_game_asset",
+            "exact_output_required": ui_state.output_policy == "exact_game_asset",
         }
         if include_selection:
             payload["selection"] = self._dotnet_selection_payload(view.selection)
@@ -107,6 +94,90 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                     "layers": (),
                 }
         return self._send_dotnet_protocol_message(payload)
+
+    def _dotnet_session_state_authority(self, controller: object, view: object) -> object:
+        session_id = str(getattr(view, "session_id", "") or "")
+        generation = max(0, int(self.standalone_dotnet_process_generation or 0))
+        transition = getattr(self, "_transition_mesh_editor_ui_state", None)
+        observe = getattr(self, "_observe_mesh_editor_service_view", None)
+        ui_state = getattr(self, "mesh_editor_ui_state", None)
+        if callable(transition) and callable(observe) and ui_state is not None:
+            if ui_state.session_id != session_id:
+                transition(
+                    MeshEditorUiEvent.session_opened(
+                        session_id,
+                        process_generation=generation,
+                        mode=str(getattr(view, "mode", "object") or "object"),
+                    )
+                )
+            observe(view, session_id=session_id)
+            return self.mesh_editor_ui_state
+        mesh_format = str(getattr(view, "mesh_format", "") or "")
+        lod_index = int(getattr(view, "lod_index", 0) or 0)
+        output_policy = str(getattr(view, "output_policy", "read_only") or "read_only")
+        destination = str(getattr(view, "output_destination", "") or "")
+        destination_ready = bool(getattr(view, "output_destination_ready", False))
+        visible = visible_actions_for_session(
+            mesh_format,
+            lod_index,
+            output_policy,
+            free_edit_destination_ready=destination_ready,
+        )
+        blockers = {
+            action.key: blocker
+            for action in MESH_EDITOR_SESSION_ACTIONS
+            if (
+                blocker := mesh_editor_action_authoring_blocker(
+                    action.key,
+                    mesh_format=mesh_format,
+                    lod_index=lod_index,
+                    output_policy=output_policy,
+                    free_edit_destination=destination,
+                    free_edit_destination_ready=destination_ready,
+                )
+            )
+        }
+        mutation_actions = frozenset(
+            action.key
+            for action in MESH_EDITOR_SESSION_ACTIONS
+            if action.command in (NATIVE_EDITOR_SESSION_COMMANDS | {"undo", "redo"})
+        )
+        authoring_enabled = bool(getattr(view, "authoring_enabled", False))
+        return SimpleNamespace(
+            session_id=session_id,
+            process_generation=generation,
+            service_revision=int(getattr(view, "revision", 0) or 0),
+            geometry_revision=int(getattr(view, "revision", 0) or 0),
+            mode=str(getattr(view, "mode", "object") or "object"),
+            selection_shape=str(
+                getattr(controller, "active_selection_mode", "")
+                or getattr(self, "current_selection_mode", "brush")
+                or "brush"
+            ),
+            element_type=str(
+                getattr(controller, "active_element_type", "")
+                or getattr(self, "current_element_type", "vertex")
+                or "vertex"
+            ),
+            undo_count=int(getattr(view, "undo_count", 0) or 0),
+            redo_count=int(getattr(view, "redo_count", 0) or 0),
+            visible_actions=frozenset(action.key for action in visible),
+            action_blockers=tuple(sorted(blockers.items())),
+            mutation_actions=mutation_actions,
+            authoring_enabled=authoring_enabled,
+            authoring_blocker=(
+                str(getattr(view, "output_policy_reason", "") or "")
+                if not authoring_enabled
+                else ""
+            ),
+            mesh_format=mesh_format,
+            lod_index=lod_index,
+            output_policy=output_policy,
+            output_destination=destination,
+            output_destination_ready=destination_ready,
+            exact_write_status=str(getattr(view, "exact_write_status", "read_only") or "read_only"),
+            policy_reason=str(getattr(view, "output_policy_reason", "") or ""),
+        )
 
     def _send_dotnet_cached_morph_state(
         self,

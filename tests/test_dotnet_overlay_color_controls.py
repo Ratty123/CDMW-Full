@@ -200,7 +200,7 @@ def test_xray_renderer_uses_no_depth_wire_and_vertex_passes_with_hidden_gpu_proo
     assert "_xRayVertexNoDepthPassCount++" in overlay
     assert '["xray_wire_no_depth_draws"]' in metrics
     assert '["xray_vertex_no_depth_passes"]' in metrics
-    assert "!ShowXRay" in selection
+    assert "SelectionGeometry.RequiresVisibleDepth(ShowXRay)" in selection
     assert "ApplyXRayOverlayProof" in headless
     assert 'gates["xray_overlay_draws_wire_and_vertices_without_depth"]' in headless
     assert 'gates["configurable_wire_width_and_vertex_size"]' in headless

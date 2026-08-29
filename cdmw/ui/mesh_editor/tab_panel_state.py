@@ -66,6 +66,9 @@ class MeshEditorPanelStateMixin:
             return
         revision = int(getattr(view, "revision", -1))
         session_id = str(view.session_id)
+        observe_service_view = getattr(self, "_observe_mesh_editor_service_view", None)
+        if callable(observe_service_view):
+            observe_service_view(view, session_id=session_id)
         report = self.standalone_last_export_validation_report
         legacy_revision = self.standalone_export_validation_revision
         if report is not None and legacy_revision is not None and state.value is not report:
@@ -111,6 +114,9 @@ class MeshEditorPanelStateMixin:
             return
         revision = int(getattr(view, "revision", -1))
         session_id = str(view.session_id)
+        observe_service_view = getattr(self, "_observe_mesh_editor_service_view", None)
+        if callable(observe_service_view):
+            observe_service_view(view, session_id=session_id)
         report = self.standalone_last_rebuild_report
         legacy_revision = self.standalone_rebuild_report_revision
         # Minimal compatibility hosts sometimes stamp an opaque sentinel instead

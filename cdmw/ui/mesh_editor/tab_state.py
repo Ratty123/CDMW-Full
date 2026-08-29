@@ -18,18 +18,16 @@ from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     untextured_fallback_display_mode,
 )
 from cdmw.ui.mesh_editor.actions import (
-    MESH_EDITOR_VISIBLE_ACTIONS,
     NATIVE_EDITOR_SESSION_COMMANDS,
     mesh_editor_action_authoring_blocker,
-    mesh_editor_actions_by_key,
     normalize_mesh_element_type,
     normalize_mesh_selection_shape,
-    visible_actions_for_session,
 )
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_panel_state import MeshEditorPanelStateMixin
+from cdmw.ui.mesh_editor.tab_state_presentation import MeshEditorStatePresentationMixin
 from cdmw.ui.mesh_editor.tab_support import _validation_report_json_payload
 from cdmw.ui.mesh_editor.tab_textured_view import MeshEditorTexturedViewMixin
 
@@ -46,7 +44,11 @@ PENDING_TEXTURED_VIEW_TIMEOUT_MS = 20_000
 PENDING_TEXTURED_VIEW_MAX_EXTENSIONS = 9
 
 
-class MeshEditorStateMixin(MeshEditorPanelStateMixin, MeshEditorTexturedViewMixin):
+class MeshEditorStateMixin(
+    MeshEditorPanelStateMixin,
+    MeshEditorTexturedViewMixin,
+    MeshEditorStatePresentationMixin,
+):
     def _entry_path(self, entry: object) -> str:
         return str(getattr(entry, "path", "") or getattr(entry, "name", "") or "").strip()
     def _entry_label(self, entry: object) -> str:
@@ -189,17 +191,23 @@ class MeshEditorStateMixin(MeshEditorPanelStateMixin, MeshEditorTexturedViewMixi
         deletes_parts: bool = False,
         policy_view: _tab.MeshEditSessionView | None = None,
     ) -> str:
+        self._refresh_mesh_editor_ui_state()
         normalized = str(action_key or "").strip().lower().replace("-", "_")
         synchronization_blocker = self._resident_mutation_authoring_blocker()
         if synchronization_blocker and normalized != "toggle_visibility":
             return synchronization_blocker
+        ui_state = getattr(self, "mesh_editor_ui_state", None)
+        if ui_state is not None and ui_state.session_id and not deletes_parts:
+            central_blocker = ui_state.action_blocker(normalized)
+            if central_blocker:
+                return central_blocker
         view = policy_view or self._standalone_output_policy_view()
         output_policy = (
             str(getattr(view, "output_policy", "") or "")
             if view is not None
             else MeshOutputPolicy.EXACT_GAME_ASSET.value
         )
-        return mesh_editor_action_authoring_blocker(
+        blocker = mesh_editor_action_authoring_blocker(
             action_key,
             deletes_parts=deletes_parts,
             mesh_format=(getattr(view, "mesh_format", "") if view is not None else self._standalone_mesh_format()),
@@ -210,6 +218,15 @@ class MeshEditorStateMixin(MeshEditorPanelStateMixin, MeshEditorTexturedViewMixi
                 bool(getattr(view, "output_destination_ready", False)) if view is not None else False
             ),
         )
+        if blocker:
+            return blocker
+        if (
+            ui_state is not None
+            and normalized in ui_state.mutation_actions
+            and not ui_state.action_enabled(normalized)
+        ):
+            return ui_state.authoring_blocker
+        return ""
 
     def _standalone_output_policy_view(self) -> _tab.MeshEditSessionView | None:
         controller = getattr(self, "standalone_controller", None)
@@ -222,6 +239,14 @@ class MeshEditorStateMixin(MeshEditorPanelStateMixin, MeshEditorTexturedViewMixi
             return None
 
     def _resident_mutation_authoring_blocker(self) -> str:
+        ui_state = getattr(self, "mesh_editor_ui_state", None)
+        if (
+            ui_state is not None
+            and ui_state.session_id
+            and ui_state.synchronization_status.value
+            in {"waiting_renderer", "pending", "recovering", "failed"}
+        ):
+            return ui_state.authoring_blocker
         queue = getattr(self, "standalone_dotnet_update_queue", None)
         metrics = queue.metrics() if queue is not None else {}
         if bool(metrics.get("recovery_failed")):
@@ -268,74 +293,27 @@ class MeshEditorStateMixin(MeshEditorPanelStateMixin, MeshEditorTexturedViewMixi
         self.status_message_requested.emit(message, True)
         return True
     def _sync_state(self) -> None:
+        ui_state = self._refresh_mesh_editor_ui_state()
         target = self._current_target_entry()
-        has_standalone = self.has_active_standalone_session()
+        has_standalone = bool(ui_state.session_id)
         has_archive_target = isinstance(target, _tab.ArchiveEntry)
         has_target = target is not None or has_standalone
         has_workflow_target = target is not None
-        native_editor_available = self._native_mesh_editor_available()
         workflow_mode = str(getattr(self.current_request, "mode", "") or "modify_original")
         path_text = self._entry_path(target) if target is not None else self.standalone_mesh_label
-        label_text = self._entry_label(target) if target is not None else Path(self.standalone_mesh_label).name or "none"
+        label_text = (
+            self._entry_label(target)
+            if target is not None
+            else Path(self.standalone_mesh_label).name or "none"
+        )
         self.target_label.setText(f"Target: {path_text or label_text}")
-        session_text = ""
-        authoring_tooltip = ""
-        authoring_blockers: dict[str, str] = {}
-        visible_action_keys = {action.key for action in MESH_EDITOR_VISIBLE_ACTIONS}
-        if has_standalone:
-            policy_view = self._standalone_output_policy_view()
-            if policy_view is not None:
-                mesh_format = str(getattr(policy_view, "mesh_format", "") or self._standalone_mesh_format())
-                lod_index = int(getattr(policy_view, "lod_index", PROVEN_AUTHORING_LOD) or 0)
-                output_policy = str(
-                    getattr(policy_view, "output_policy", "")
-                    or (
-                        MeshOutputPolicy.EXACT_GAME_ASSET.value
-                        if self._standalone_exact_output_required()
-                        else MeshOutputPolicy.READ_ONLY.value
-                    )
-                )
-                destination_ready = bool(getattr(policy_view, "output_destination_ready", False))
-                exact_write_status = str(
-                    getattr(policy_view, "exact_write_status", "")
-                    or ("exact" if output_policy == MeshOutputPolicy.EXACT_GAME_ASSET.value else "not_exact")
-                )
-                format_label = mesh_format.upper() or "UNKNOWN"
-                policy_label = output_policy.replace("_", " ").title()
-                session_text = (
-                    f"Mode: standalone | Edit: {self.current_edit_mode} | "
-                    f"{format_label} LOD{lod_index} | Output: {policy_label} | "
-                    f"Exact write: {exact_write_status.replace('_', '-')}"
-                )
-                authoring_tooltip = str(getattr(policy_view, "output_policy_reason", "") or "")
-                visible_action_keys = {
-                    action.key
-                    for action in visible_actions_for_session(
-                        mesh_format,
-                        lod_index,
-                        output_policy,
-                        free_edit_destination_ready=destination_ready,
-                    )
-                }
-                for action in mesh_editor_actions_by_key().values():
-                    blocker = self._standalone_action_authoring_blocker(
-                        action.key,
-                        policy_view=policy_view,
-                    )
-                    if blocker:
-                        authoring_blockers[action.key] = blocker
-            synchronization_blocker = self._resident_mutation_authoring_blocker()
-            if synchronization_blocker:
-                for action in mesh_editor_actions_by_key().values():
-                    if action.command != "set_mode":
-                        authoring_blockers[action.key] = synchronization_blocker
-                authoring_tooltip = " ".join(
-                    part for part in (authoring_tooltip, synchronization_blocker) if part
-                )
-        if has_target and not has_standalone:
-            session_text = (
-                f"Mode: {workflow_mode.replace('_', ' ')} | Edit: {self.current_edit_mode}"
-            )
+        presentation = self._mesh_editor_action_presentation(
+            ui_state,
+            has_standalone=has_standalone,
+            has_target=has_target,
+            workflow_mode=workflow_mode,
+        )
+        session_text, authoring_tooltip, blockers, visible_keys = presentation
         self.session_label.setText(session_text if has_target else "Mode: no active session")
         self.session_label.setToolTip(authoring_tooltip)
         self.empty_status_label.setText(
@@ -344,134 +322,29 @@ class MeshEditorStateMixin(MeshEditorPanelStateMixin, MeshEditorTexturedViewMixi
             if has_target
             else "No mesh target loaded. Select a .pac, .pam, or .pamlod in Archive Browser, then Open in Mesh Editor."
         )
-        for button in (
-            self.open_archive_button,
-            self.open_selected_mesh_button,
-        ):
+        for button in (self.open_archive_button, self.open_selected_mesh_button):
             button.setEnabled(has_workflow_target)
         self.standalone_native_preview_button.setEnabled(False)
         self.action_bar.setVisible(False)
-        task_active = (
-            self._standalone_action_worker_active()
-            or self._standalone_validation_worker_active()
-            or self._standalone_rebuild_report_worker_active()
-            or self._mesh_direct_output_busy()
-            or self._standalone_editable_package_task_active()
-            or self._standalone_dotnet_package_worker_active()
-            or self._standalone_dotnet_import_worker_active()
-            or (
-                self._standalone_dotnet_editor_process_running()
-                and self.standalone_dotnet_target_embedded
-                and self.standalone_dotnet_embedded_state != "suspended"
-            )
-        )
-        self.action_bar.setEnabled(not task_active)
-        self.action_bar.set_action_visibility(visible_action_keys)
-        self.action_bar.update_action_state(
+        task_active = self._mesh_editor_task_active(include_package_build=True)
+        self._apply_mesh_editor_action_surfaces(
+            ui_state,
+            has_standalone=has_standalone,
             has_target=has_target,
-            selection_empty=self.current_selection_empty,
-            mode=self.current_edit_mode,
-            active_selection_mode=self.current_selection_mode,
-            active_tool_key=self.current_tool_action_key,
-            undo_count=self.current_undo_count,
-            redo_count=self.current_redo_count,
-            native_editor_available=native_editor_available,
-            authoring_blockers=authoring_blockers,
+            native_editor_available=self._native_mesh_editor_available(),
+            task_active=task_active,
+            visible_action_keys=visible_keys,
+            authoring_blockers=blockers,
         )
-        workspace_state = getattr(self.standalone_workspace, "update_action_state", None)
-        workspace_visibility = getattr(self.standalone_workspace, "set_action_visibility", None)
-        if callable(workspace_visibility):
-            workspace_visibility(visible_action_keys)
-        if callable(workspace_state):
-            workspace_state(
-                has_target=has_target,
-                selection_empty=self.current_selection_empty,
-                mode=self.current_edit_mode,
-                active_selection_mode=self.current_selection_mode,
-                undo_count=self.current_undo_count,
-                redo_count=self.current_redo_count,
-                native_editor_available=native_editor_available,
-                authoring_blockers=authoring_blockers,
-            )
-        dotnet_button = getattr(self, "standalone_dotnet_editor_button", None)
-        if dotnet_button is not None:
-            dotnet_button.setEnabled(has_standalone and not task_active and not self._standalone_dotnet_editor_process_running())
-        embedded_dotnet_button = getattr(self, "embedded_dotnet_editor_button", None)
-        if embedded_dotnet_button is not None:
-            try:
-                embedded_dotnet_button.setEnabled(
-                    self.workspace_stack.currentWidget() is self.embedded_builder_host
-                    and not task_active
-                    and not self._standalone_dotnet_editor_process_running()
-                )
-            except RuntimeError:
-                # The modeless builder can be deleted before a queued archive
-                # selection update reaches this tab.
-                if embedded_dotnet_button is getattr(self, "embedded_dotnet_editor_button", None):
-                    self.embedded_dotnet_editor_button = None
-        qt_output_task_active = (
-            self._standalone_action_worker_active()
-            or self._standalone_validation_worker_active()
-            or self._standalone_rebuild_report_worker_active()
-            or self._mesh_direct_output_busy()
-            or self._standalone_editable_package_task_active()
-            or self._standalone_dotnet_import_worker_active()
-            or (
-                self._standalone_dotnet_editor_process_running()
-                and self.standalone_dotnet_target_embedded
-                and self.standalone_dotnet_embedded_state != "suspended"
-            )
+        self._apply_mesh_editor_launch_button_state(
+            has_standalone=has_standalone,
+            task_active=task_active,
         )
-        exact_session = has_standalone and self._standalone_exact_output_required()
-        for button_name in (
-            "standalone_run_validation_report_button",
-            "standalone_export_mesh_file_button",
-            "standalone_build_mod_button",
-            "standalone_install_overlay_button",
-            "standalone_restore_overlay_button",
-            "standalone_export_editable_package_button",
-            "standalone_import_edited_package_button",
-            "standalone_open_editable_package_folder_button",
-        ):
-            button = getattr(self, button_name, None)
-            if button is not None:
-                enabled = has_standalone and not qt_output_task_active
-                if button_name != "standalone_open_editable_package_folder_button":
-                    enabled = enabled and exact_session
-                if button_name in {
-                    "standalone_export_mesh_file_button",
-                    "standalone_build_mod_button",
-                    "standalone_install_overlay_button",
-                }:
-                    enabled = enabled and self._standalone_rebuild_allowed()
-                    if button_name in {
-                        "standalone_build_mod_button",
-                        "standalone_install_overlay_button",
-                    }:
-                        enabled = enabled and has_archive_target
-                elif button_name == "standalone_restore_overlay_button":
-                    receipt = self._mesh_overlay_receipt_path()
-                    enabled = enabled and receipt is not None and receipt.is_file()
-                button.setEnabled(enabled)
-                if button_name != "standalone_open_editable_package_folder_button":
-                    exact_tooltip = button.property("meshEditorExactOutputToolTip")
-                    if exact_tooltip is None:
-                        exact_tooltip = button.toolTip()
-                        button.setProperty("meshEditorExactOutputToolTip", exact_tooltip)
-                    button.setToolTip(
-                        str(exact_tooltip or "")
-                        if exact_session
-                        else "This control is for Exact Game Asset output. "
-                        "Free Edit publishes through Export Free Edit OBJ."
-                    )
-        self._set_rebuild_report_button_enabled(
-            has_standalone and exact_session and not qt_output_task_active
-        )
-        self._set_rebuild_asset_button_enabled(
-            has_standalone
-            and exact_session
-            and not qt_output_task_active
-            and self._standalone_rebuild_allowed()
+        self._apply_mesh_editor_output_control_state(
+            ui_state,
+            has_standalone=has_standalone,
+            has_archive_target=has_archive_target,
+            output_task_active=self._mesh_editor_task_active(include_package_build=False),
         )
     def _handle_action_requested(self, action: object) -> None:
         if self.has_active_standalone_session():

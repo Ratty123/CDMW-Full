@@ -273,53 +273,7 @@ internal sealed partial class ExperimentForm
         brushSection.Name = "CompactBrushSection";
         _brushSection = brushSection;
         _meshEditOnlySections.Add(brushSection);
-        var subdivideButton = CommandButton("Subdivide", "subdivide");
-        var refineButton = CommandButton("Refine Smooth", "refine_smooth");
-        // Deleting and duplicating geometry is driven by the current selection
-        // target, so it belongs beside the other topology edits. The Parts group
-        // keeps its own pair for whole-part actions.
-        var deleteSelectionButton = CommandButton("Delete Selection", "delete");
-        var duplicateSelectionButton = CommandButton("Duplicate Selection", "duplicate");
-        var extrudeButton = FreeEditTopologyButton("Extrude", "extrude");
-        var insetButton = FreeEditTopologyButton("Inset", "inset");
-        var loopCutButton = FreeEditTopologyButton("Loop Cut", "loop_cut");
-        var edgeSplitButton = FreeEditTopologyButton("Edge Split", "edge_split");
-        var bridgeButton = FreeEditTopologyButton("Bridge", "bridge");
-        var mergeButton = FreeEditTopologyButton("Merge", "merge");
-        var weldButton = FreeEditTopologyButton("Weld", "weld");
-        var fillButton = FreeEditTopologyButton("Fill", "fill");
-        BlockDirectAuthoringButton(
-            subdivideButton,
-            "Subdivide is unavailable because derived PAC vertices cannot preserve protected bytes.");
-        BlockDirectAuthoringButton(
-            refineButton,
-            "Refine Smooth is unavailable because derived PAC vertices cannot preserve protected bytes.");
-        BlockDirectAuthoringButton(
-            duplicateSelectionButton,
-            "Duplicate Selection is unavailable because the exact PAC writer cannot add protected geometry records.");
-        RegisterTopologyMutationButton(subdivideButton);
-        RegisterTopologyMutationButton(refineButton);
-        RegisterTopologyMutationButton(deleteSelectionButton);
-        RegisterTopologyMutationButton(duplicateSelectionButton);
-        var topologyControls = new List<Control>
-        {
-            ButtonRow(deleteSelectionButton, duplicateSelectionButton),
-            ButtonRow(subdivideButton, refineButton),
-            ButtonRow(extrudeButton, insetButton),
-            ButtonRow(loopCutButton, edgeSplitButton),
-            ButtonRow(bridgeButton, fillButton),
-            ButtonRow(mergeButton, weldButton),
-        };
-        var topologySection = AddHelpSection(
-            leftStack,
-            "Topology",
-            "Acts on the viewport mesh selection or the explicit PARTS selection. "
-                + "Exact mode shows exact-safe commands; Free Edit reveals proven non-exact topology tools only after an OBJ output folder is chosen.",
-            out _,
-            topologyControls.ToArray());
-        topologySection.Name = "CompactTopologySection";
-        _topologySection = topologySection;
-        _meshEditOnlySections.Add(topologySection);
+        BuildOutputPolicyTopologySection(leftStack);
         StartupTiming.Mark("transform_brush_topology_sections_built");
         _viewportSection = AddHelpSection(
             leftStack,

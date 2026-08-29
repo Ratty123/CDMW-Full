@@ -215,6 +215,25 @@ class MeshEditorDotNetProtocolMixin(
 
     def _sync_resident_mutation_recovery_state(self) -> None:
         metrics = self.standalone_dotnet_update_queue.metrics()
+        ui_state = self._refresh_mesh_editor_ui_state()
+        if ui_state.invariant_errors and not self.standalone_dotnet_recovery_failure_reported:
+            self.standalone_dotnet_recovery_failure_reported = True
+            message = "Mesh Editor renderer synchronization failed. Reload the session to continue editing."
+            self._set_dotnet_status(message, error=True)
+            self.status_message_requested.emit(message, True)
+            self._record_mesh_dotnet_event(
+                "mesh_editor_ui_state_invariant_failed",
+                error_code=ui_state.recovery_error_code,
+                session_id=ui_state.session_id,
+                process_generation=ui_state.process_generation,
+                request_id=ui_state.pending_request_id,
+                base_revision=ui_state.pending_base_revision,
+                target_revision=ui_state.pending_target_revision,
+                service_revision=ui_state.service_revision,
+                renderer_revision=ui_state.renderer_revision,
+                ui_state=ui_state.as_payload(),
+                queue_metrics=metrics,
+            )
         if bool(metrics.get("recovery_failed")):
             if not self.standalone_dotnet_recovery_failure_reported:
                 self.standalone_dotnet_recovery_failure_reported = True
@@ -223,7 +242,15 @@ class MeshEditorDotNetProtocolMixin(
                 self.status_message_requested.emit(message, True)
                 self._record_mesh_dotnet_event(
                     "mesh_dotnet_resident_mutation_recovery_failed",
+                    session_id=ui_state.session_id,
+                    process_generation=ui_state.process_generation,
+                    request_id=ui_state.pending_request_id,
+                    base_revision=ui_state.pending_base_revision,
+                    target_revision=ui_state.pending_target_revision,
+                    service_revision=ui_state.service_revision,
+                    renderer_revision=ui_state.renderer_revision,
                     queue_metrics=metrics,
+                    ui_state=ui_state.as_payload(),
                 )
         elif bool(metrics.get("resync_active")):
             self.standalone_dotnet_recovery_failure_reported = False

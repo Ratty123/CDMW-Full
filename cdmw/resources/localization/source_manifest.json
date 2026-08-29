@@ -4735,8 +4735,8 @@
       "key": "Acts on the viewport mesh selection or the explicit PARTS selection. ",
       "origins": [
         {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 316,
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
+          "line": 82,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -6176,12 +6176,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 279,
+          "line": 285,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 534,
+          "line": 558,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -9146,12 +9146,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 658,
+          "line": 682,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 911,
+          "line": 935,
           "sink": "emit"
         }
       ]
@@ -12211,7 +12211,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 335,
+          "line": 289,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         },
         {
@@ -12656,7 +12656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 930,
+          "line": 946,
           "sink": "ValueError"
         }
       ]
@@ -12666,7 +12666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 861,
+          "line": 877,
           "sink": "ValueError"
         }
       ]
@@ -12676,7 +12676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 912,
+          "line": 928,
           "sink": "ValueError"
         }
       ]
@@ -12696,7 +12696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 888,
+          "line": 904,
           "sink": "ValueError"
         }
       ]
@@ -13336,7 +13336,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 336,
+          "line": 290,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -13911,7 +13911,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 626,
+          "line": 650,
           "sink": "setWindowTitle"
         },
         {
@@ -16216,12 +16216,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 228,
+          "line": 234,
           "sink": "QProgressDialog"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 695,
+          "line": 719,
           "sink": "QProgressDialog"
         },
         {
@@ -17066,7 +17066,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
-          "line": 174,
+          "line": 270,
           "sink": "csharp:.Text="
         }
       ]
@@ -18011,7 +18011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 635,
+          "line": 659,
           "sink": "getExistingDirectory"
         }
       ]
@@ -19216,7 +19216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 627,
+          "line": 651,
           "sink": "setText"
         }
       ]
@@ -19236,7 +19236,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 327,
+          "line": 281,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -20456,7 +20456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 661,
+          "line": 685,
           "sink": "emit"
         }
       ]
@@ -20471,7 +20471,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 903,
+          "line": 909,
           "sink": "question"
         }
       ]
@@ -23281,7 +23281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 773,
+          "line": 646,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -23321,12 +23321,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_compilation.py",
-          "line": 426,
+          "line": 436,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_compilation.py",
-          "line": 430,
+          "line": 440,
           "sink": "_finish_pending_textured_view"
         }
       ]
@@ -23866,12 +23866,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_compilation.py",
-          "line": 301,
+          "line": 359,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_compilation.py",
-          "line": 305,
+          "line": 360,
           "sink": "_finish_pending_textured_view"
         }
       ]
@@ -24046,7 +24046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 776,
+          "line": 786,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -25591,7 +25591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 629,
+          "line": 653,
           "sink": "addButton"
         }
       ]
@@ -26395,8 +26395,8 @@
           "sink": "_mesh_edit_start_topology_worker"
         },
         {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 281,
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
+          "line": 56,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -26601,12 +26601,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
-          "line": 257,
+          "line": 263,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
-          "line": 497,
+          "line": 503,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -27836,7 +27836,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 903,
+          "line": 909,
           "sink": "question"
         }
       ]
@@ -28865,8 +28865,8 @@
       "key": "Duplicate Selection",
       "origins": [
         {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 282,
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
+          "line": 57,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -29151,7 +29151,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 573,
+          "line": 639,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -30176,7 +30176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 855,
+          "line": 728,
           "sink": "emit"
         }
       ]
@@ -30186,7 +30186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 848,
+          "line": 721,
           "sink": "emit"
         }
       ]
@@ -31210,8 +31210,8 @@
       "key": "Exact mode shows exact-safe commands; Free Edit reveals proven non-exact topology tools only after an OBJ output folder is chosen.",
       "origins": [
         {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 317,
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
+          "line": 83,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -32346,7 +32346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 279,
+          "line": 285,
           "sink": "getSaveFileName"
         },
         {
@@ -36206,7 +36206,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 337,
+          "line": 291,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -37406,7 +37406,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
-          "line": 175,
+          "line": 271,
           "sink": "csharp:.Text="
         }
       ]
@@ -37436,7 +37436,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
-          "line": 131,
+          "line": 227,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -37486,7 +37486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1268,
+          "line": 1284,
           "sink": "ValueError"
         }
       ]
@@ -37496,7 +37496,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1175,
+          "line": 1191,
           "sink": "RuntimeError"
         }
       ]
@@ -37511,7 +37511,7 @@
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1264,
+          "line": 1280,
           "sink": "ValueError"
         }
       ]
@@ -37531,7 +37531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1266,
+          "line": 1282,
           "sink": "ValueError"
         }
       ]
@@ -37541,7 +37541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1255,
+          "line": 1271,
           "sink": "ValueError"
         }
       ]
@@ -37641,7 +37641,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 335,
+          "line": 289,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -43531,7 +43531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 757,
+          "line": 781,
           "sink": "question"
         },
         {
@@ -43636,7 +43636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 757,
+          "line": 781,
           "sink": "question"
         }
       ]
@@ -44836,7 +44836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 534,
+          "line": 558,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -45981,7 +45981,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 852,
+          "line": 868,
           "sink": "ValueError"
         }
       ]
@@ -46121,7 +46121,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 336,
+          "line": 290,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -47361,12 +47361,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 784,
+          "line": 787,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 930,
+          "line": 803,
           "sink": "emit"
         }
       ]
@@ -48216,7 +48216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 628,
+          "line": 652,
           "sink": "addButton"
         }
       ]
@@ -50276,17 +50276,17 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_payloads.py",
-          "line": 610,
+          "line": 681,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_payloads.py",
-          "line": 716,
+          "line": 787,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_payloads.py",
-          "line": 766,
+          "line": 837,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50296,7 +50296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 861,
+          "line": 883,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50611,7 +50611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 303,
+          "line": 330,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50621,7 +50621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 296,
+          "line": 323,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50631,7 +50631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 323,
+          "line": 350,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50641,7 +50641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 326,
+          "line": 353,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50651,7 +50651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 349,
+          "line": 376,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50896,7 +50896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 492,
+          "line": 519,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -50981,7 +50981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 670,
+          "line": 697,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -51061,7 +51061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2267,
+          "line": 2283,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -51106,12 +51106,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 229,
+          "line": 235,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 696,
+          "line": 720,
           "sink": "setWindowTitle"
         },
         {
@@ -51166,7 +51166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 803,
+          "line": 809,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -51471,7 +51471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 917,
+          "line": 920,
           "sink": "emit"
         }
       ]
@@ -51481,7 +51481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 908,
+          "line": 911,
           "sink": "emit"
         }
       ]
@@ -51516,7 +51516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 793,
+          "line": 809,
           "sink": "RuntimeError"
         }
       ]
@@ -51571,7 +51571,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 870,
+          "line": 876,
           "sink": "RuntimeError"
         }
       ]
@@ -51616,7 +51616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1217,
+          "line": 1233,
           "sink": "RuntimeError"
         }
       ]
@@ -51656,17 +51656,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 230,
+          "line": 257,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 230,
+          "line": 255,
           "sink": "python-return:_resident_mutation_authoring_blocker"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 235,
+          "line": 260,
           "sink": "python-return:_resident_mutation_authoring_blocker"
         }
       ]
@@ -51791,7 +51791,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 811,
+          "line": 827,
           "sink": "RuntimeError"
         }
       ]
@@ -51821,7 +51821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 563,
+          "line": 590,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -51846,12 +51846,42 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
+          "line": 222,
+          "sink": "_set_dotnet_status"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
           "line": 223,
           "sink": "emit"
         },
         {
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
+          "line": 223,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
+          "line": 241,
+          "sink": "_set_dotnet_status"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
+          "line": 241,
+          "sink": "_set_dotnet_status"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
+          "line": 242,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
+          "line": 242,
+          "sink": "emit"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 228,
+          "line": 253,
           "sink": "python-return:_resident_mutation_authoring_blocker"
         }
       ]
@@ -51946,7 +51976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 869,
+          "line": 872,
           "sink": "emit"
         }
       ]
@@ -51976,7 +52006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 780,
+          "line": 804,
           "sink": "emit"
         }
       ]
@@ -52116,7 +52146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 279,
+          "line": 285,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -52166,7 +52196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
-          "line": 388,
+          "line": 394,
           "sink": "setText"
         }
       ]
@@ -52636,7 +52666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 838,
+          "line": 862,
           "sink": "emit"
         }
       ]
@@ -52646,7 +52676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 749,
+          "line": 773,
           "sink": "_handle_mesh_direct_output_error"
         }
       ]
@@ -52656,7 +52686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 777,
+          "line": 801,
           "sink": "emit"
         }
       ]
@@ -52666,7 +52696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 824,
+          "line": 848,
           "sink": "emit"
         }
       ]
@@ -52676,7 +52706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 829,
+          "line": 853,
           "sink": "emit"
         }
       ]
@@ -52736,7 +52766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 212,
+          "line": 218,
           "sink": "emit"
         }
       ]
@@ -53366,7 +53396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 721,
+          "line": 724,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -53666,7 +53696,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 339,
+          "line": 317,
           "sink": "setText"
         }
       ]
@@ -53675,9 +53705,9 @@
       "key": "Mode: standalone | Edit: {value_0} | {value_1} LOD{value_2} | Output: {value_3} | Exact write: {value_4}",
       "origins": [
         {
-          "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 339,
-          "sink": "setText"
+          "path": "cdmw/ui/mesh_editor/tab_state_presentation.py",
+          "line": 49,
+          "sink": "python-return:_mesh_editor_action_presentation"
         }
       ]
     },
@@ -53685,9 +53715,9 @@
       "key": "Mode: {value_0} | Edit: {value_1}",
       "origins": [
         {
-          "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 339,
-          "sink": "setText"
+          "path": "cdmw/ui/mesh_editor/tab_state_presentation.py",
+          "line": 49,
+          "sink": "python-return:_mesh_editor_action_presentation"
         }
       ]
     },
@@ -54871,7 +54901,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2266,
+          "line": 2282,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -55991,7 +56021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
-          "line": 393,
+          "line": 399,
           "sink": "setText"
         }
       ]
@@ -56981,7 +57011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 906,
+          "line": 930,
           "sink": "emit"
         }
       ]
@@ -57116,7 +57146,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
-          "line": 363,
+          "line": 369,
           "sink": "setText"
         },
         {
@@ -57556,7 +57586,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 783,
+          "line": 799,
           "sink": "RuntimeError"
         }
       ]
@@ -58616,7 +58646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 341,
+          "line": 319,
           "sink": "setText"
         }
       ]
@@ -59406,32 +59436,32 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 718,
+          "line": 721,
           "sink": "_finish_pending_textured_view"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 723,
+          "line": 726,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 789,
+          "line": 792,
           "sink": "_finish_pending_textured_view"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 794,
+          "line": 797,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 809,
+          "line": 812,
           "sink": "_finish_pending_textured_view"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 814,
+          "line": 817,
           "sink": "emit"
         },
         {
@@ -59906,12 +59936,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 902,
+          "line": 775,
           "sink": "_send_embedded_viewport_display_mode"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 907,
+          "line": 780,
           "sink": "emit"
         }
       ]
@@ -62131,7 +62161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 356,
+          "line": 367,
           "sink": "emit"
         }
       ]
@@ -62496,7 +62526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 200,
+          "line": 206,
           "sink": "emit"
         }
       ]
@@ -62506,7 +62536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 600,
+          "line": 624,
           "sink": "emit"
         }
       ]
@@ -62591,7 +62621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 608,
+          "line": 632,
           "sink": "emit"
         }
       ]
@@ -63906,7 +63936,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 338,
+          "line": 292,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
         }
       ]
@@ -64616,7 +64646,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
-          "line": 201,
+          "line": 297,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -64956,7 +64986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 916,
+          "line": 940,
           "sink": "emit"
         }
       ]
@@ -66361,7 +66391,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
-          "line": 235,
+          "line": 331,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -67046,22 +67076,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 319,
+          "line": 325,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 320,
+          "line": 326,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 334,
+          "line": 345,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 335,
+          "line": 346,
           "sink": "emit"
         }
       ]
@@ -70286,7 +70316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 695,
+          "line": 719,
           "sink": "QProgressDialog"
         }
       ]
@@ -71771,12 +71801,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 600,
+          "line": 627,
           "sink": "_set_embedded_dotnet_preview_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 640,
+          "line": 667,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -74481,7 +74511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 341,
+          "line": 319,
           "sink": "setText"
         }
       ]
@@ -74746,12 +74776,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 352,
+          "line": 363,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 366,
+          "line": 377,
           "sink": "emit"
         }
       ]
@@ -74786,12 +74816,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 423,
+          "line": 420,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 424,
+          "line": 421,
           "sink": "emit"
         }
       ]
@@ -74801,22 +74831,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 319,
+          "line": 325,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 320,
+          "line": 326,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 334,
+          "line": 345,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 335,
+          "line": 346,
           "sink": "emit"
         }
       ]
@@ -74826,7 +74856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 577,
+          "line": 601,
           "sink": "emit"
         }
       ]
@@ -74836,7 +74866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 574,
+          "line": 598,
           "sink": "emit"
         }
       ]
@@ -74846,22 +74876,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 319,
+          "line": 325,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 320,
+          "line": 326,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 334,
+          "line": 345,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 335,
+          "line": 346,
           "sink": "emit"
         }
       ]
@@ -76400,8 +76430,8 @@
           "sink": "MeshEditorAction"
         },
         {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 277,
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
+          "line": 55,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -78856,7 +78886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 763,
+          "line": 790,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -79001,7 +79031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 469,
+          "line": 496,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -79021,7 +79051,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 716,
+          "line": 743,
           "sink": "_fail_embedded_dotnet_edit_mode_finish"
         }
       ]
@@ -79041,7 +79071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 710,
+          "line": 737,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -79296,7 +79326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 900,
+          "line": 903,
           "sink": "emit"
         }
       ]
@@ -79541,7 +79571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 919,
+          "line": 943,
           "sink": "question"
         },
         {
@@ -79606,7 +79636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 919,
+          "line": 943,
           "sink": "question"
         }
       ]
@@ -79821,7 +79851,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 243,
+          "line": 245,
           "sink": "QPushButton"
         }
       ]
@@ -80566,7 +80596,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 336,
+          "line": 290,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -81306,7 +81336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 531,
+          "line": 555,
           "sink": "emit"
         }
       ]
@@ -81361,7 +81391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 167,
+          "line": 169,
           "sink": "emit"
         }
       ]
@@ -81371,7 +81401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 623,
+          "line": 647,
           "sink": "emit"
         }
       ]
@@ -81381,7 +81411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 653,
+          "line": 677,
           "sink": "emit"
         }
       ]
@@ -81391,7 +81421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 274,
+          "line": 280,
           "sink": "emit"
         }
       ]
@@ -81481,7 +81511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 269,
+          "line": 275,
           "sink": "emit"
         }
       ]
@@ -81491,7 +81521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 228,
+          "line": 234,
           "sink": "QProgressDialog"
         },
         {
@@ -82026,7 +82056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 534,
+          "line": 558,
           "sink": "getSaveFileName"
         }
       ]
@@ -82326,7 +82356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 570,
+          "line": 594,
           "sink": "emit"
         }
       ]
@@ -82336,7 +82366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 507,
+          "line": 534,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -85991,7 +86021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 823,
+          "line": 845,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -92136,7 +92166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 400,
+          "line": 427,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -92221,7 +92251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 244,
+          "line": 246,
           "sink": "QPushButton"
         }
       ]
@@ -93755,8 +93785,8 @@
           "sink": "MeshEditorAction"
         },
         {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 276,
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
+          "line": 54,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -95051,7 +95081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 280,
+          "line": 309,
           "sink": "setText"
         }
       ]
@@ -98911,7 +98941,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
-          "line": 205,
+          "line": 301,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -99096,12 +99126,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 861,
+          "line": 734,
           "sink": "_send_embedded_viewport_display_mode"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 866,
+          "line": 739,
           "sink": "emit"
         }
       ]
@@ -99195,8 +99225,8 @@
       "key": "This control is for Exact Game Asset output. Free Edit publishes through Export Free Edit OBJ.",
       "origins": [
         {
-          "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 461,
+          "path": "cdmw/ui/mesh_editor/tab_state_presentation.py",
+          "line": 194,
           "sink": "setToolTip"
         }
       ]
@@ -100216,7 +100246,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 335,
+          "line": 289,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -100240,14 +100270,14 @@
       "key": "Topology",
       "origins": [
         {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
+          "line": 81,
+          "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
+        },
+        {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
           "line": 153,
           "sink": "csharp:csharp-return:ToolListRowCaption"
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 315,
-          "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
     },
@@ -101286,7 +101316,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
-          "line": 203,
+          "line": 299,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -101916,7 +101946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 747,
+          "line": 763,
           "sink": "ValueError"
         }
       ]
@@ -101946,7 +101976,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1249,
+          "line": 1265,
           "sink": "ValueError"
         }
       ]
@@ -102011,7 +102041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1583,
+          "line": 1599,
           "sink": "ValueError"
         }
       ]
@@ -103726,12 +103756,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 151,
+          "line": 157,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 152,
+          "line": 158,
           "sink": "emit"
         }
       ]
@@ -103751,12 +103781,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 133,
+          "line": 139,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 134,
+          "line": 140,
           "sink": "emit"
         }
       ]
@@ -103766,12 +103796,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 172,
+          "line": 174,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 173,
+          "line": 175,
           "sink": "emit"
         }
       ]
@@ -103791,12 +103821,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 133,
+          "line": 139,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 134,
+          "line": 140,
           "sink": "emit"
         }
       ]
@@ -104426,7 +104456,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
-          "line": 326,
+          "line": 280,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -104941,7 +104971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 934,
+          "line": 958,
           "sink": "emit"
         }
       ]
@@ -104966,7 +104996,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 207,
+          "line": 213,
           "sink": "emit"
         }
       ]
@@ -104976,7 +105006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 681,
+          "line": 705,
           "sink": "emit"
         },
         {
@@ -105021,7 +105051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 543,
+          "line": 567,
           "sink": "emit"
         }
       ]
@@ -109411,7 +109441,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 484,
+          "line": 511,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -111406,7 +111436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 721,
+          "line": 724,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -112111,7 +112141,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 702,
+          "line": 628,
           "sink": "_project_non_negative_int"
         }
       ]
@@ -113406,12 +113436,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 721,
+          "line": 724,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 862,
+          "line": 884,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -113461,12 +113491,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_payloads.py",
-          "line": 610,
+          "line": 681,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_payloads.py",
-          "line": 717,
+          "line": 788,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -113476,12 +113506,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 400,
+          "line": 427,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 493,
+          "line": 520,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -116821,7 +116851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 706,
+          "line": 632,
           "sink": "_project_non_negative_int"
         }
       ]
@@ -118421,7 +118451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 582,
+          "line": 670,
           "sink": "TypeError"
         },
         {
@@ -119081,7 +119111,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 749,
+          "line": 765,
           "sink": "RuntimeError"
         }
       ]
@@ -119091,7 +119121,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 773,
+          "line": 789,
           "sink": "RuntimeError"
         }
       ]
@@ -119101,7 +119131,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 759,
+          "line": 775,
           "sink": "RuntimeError"
         }
       ]
@@ -119111,7 +119141,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 784,
+          "line": 800,
           "sink": "RuntimeError"
         }
       ]
@@ -119216,7 +119246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2109,
+          "line": 2125,
           "sink": "RuntimeError"
         }
       ]
@@ -119291,7 +119321,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2409,
+          "line": 2425,
           "sink": "RuntimeError"
         }
       ]
@@ -119301,7 +119331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1395,
+          "line": 1411,
           "sink": "RuntimeError"
         }
       ]
@@ -119311,12 +119341,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1372,
+          "line": 1388,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1406,
+          "line": 1422,
           "sink": "RuntimeError"
         }
       ]
@@ -119326,7 +119356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1384,
+          "line": 1400,
           "sink": "RuntimeError"
         }
       ]
@@ -119366,7 +119396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1359,
+          "line": 1375,
           "sink": "RuntimeError"
         },
         {
@@ -119381,7 +119411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1988,
+          "line": 2004,
           "sink": "RuntimeError"
         }
       ]
@@ -119391,7 +119421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1293,
+          "line": 1309,
           "sink": "RuntimeError"
         }
       ]
@@ -119486,7 +119516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1798,
+          "line": 1814,
           "sink": "RuntimeError"
         }
       ]
@@ -119516,7 +119546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2463,
+          "line": 2479,
           "sink": "RuntimeError"
         }
       ]
@@ -119526,7 +119556,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2432,
+          "line": 2448,
           "sink": "RuntimeError"
         }
       ]
@@ -119546,7 +119576,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2299,
+          "line": 2315,
           "sink": "RuntimeError"
         }
       ]
@@ -119556,7 +119586,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2635,
+          "line": 2651,
           "sink": "RuntimeError"
         }
       ]
@@ -119756,7 +119786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 594,
+          "line": 618,
           "sink": "RuntimeError"
         }
       ]
@@ -120086,7 +120116,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 573,
+          "line": 639,
           "sink": "csharp:StatusRequested?.Invoke("
         },
         {
@@ -120221,7 +120251,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 573,
+          "line": 639,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -120641,7 +120671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 376,
+          "line": 387,
           "sink": "_standalone_rebuilt_asset_handoff_payload"
         }
       ]
@@ -121581,7 +121611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 370,
+          "line": 381,
           "sink": "_standalone_rebuilt_asset_handoff_payload"
         }
       ]
@@ -122706,7 +122736,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 484,
+          "line": 511,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -122801,7 +122831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 77,
+          "line": 79,
           "sink": "TypeError"
         }
       ]
@@ -200671,12 +200701,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 735,
+          "line": 738,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 766,
+          "line": 776,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -200696,7 +200726,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 469,
+          "line": 496,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -200706,12 +200736,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
-          "line": 243,
+          "line": 249,
           "sink": "translate_active_ui_text"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
-          "line": 492,
+          "line": 498,
           "sink": "translate_active_ui_text"
         }
       ]
@@ -200891,12 +200921,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1953,
+          "line": 1969,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1992,
+          "line": 2008,
           "sink": "RuntimeError"
         }
       ]
@@ -203346,7 +203376,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.OutputPolicy.cs",
-          "line": 192,
+          "line": 288,
           "sink": "csharp:.Text="
         }
       ]
@@ -203496,7 +203526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1951,
+          "line": 1967,
           "sink": "RuntimeError"
         },
         {
@@ -203536,12 +203566,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 267,
+          "line": 292,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 268,
+          "line": 293,
           "sink": "emit"
         }
       ]
@@ -203811,7 +203841,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1612,
+          "line": 1628,
           "sink": "RuntimeError"
         }
       ]
@@ -203821,7 +203851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1279,
+          "line": 1295,
           "sink": "ValueError"
         }
       ]
@@ -204391,7 +204421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1606,
+          "line": 1622,
           "sink": "RuntimeError"
         }
       ]

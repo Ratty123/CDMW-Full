@@ -711,21 +711,24 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
         if failure.source != "dotnet_selection":
             self._retry_pending_dotnet_topology_command()
 
-    def _handle_dotnet_command_request(self, payload: Mapping[str, object]) -> bool:
+    def _prepare_dotnet_command_request(
+        self,
+        payload: Mapping[str, object],
+    ) -> tuple[object | None, str, bool | None]:
         controller = self._dotnet_target_controller()
         if controller is None:
-            return False
+            return None, "", False
         command = str(payload.get("command", payload.get("action", "")) or "").strip().lower()
         command = command.replace("-", "_")
         if not command:
             self._send_dotnet_command_result("command", ok=False, status="error", diagnostics=("Missing command.",), request_payload=payload)
-            return False
+            return controller, command, False
         if command == "configure_free_edit":
-            return self._configure_free_edit_output_requested(payload)
+            return controller, command, self._configure_free_edit_output_requested(payload)
         if command == "export_free_edit":
-            return self._start_free_edit_output_requested(payload)
+            return controller, command, self._start_free_edit_output_requested(payload)
         if command.startswith("morph_"):
-            return self._handle_dotnet_morph_command_request(controller, command, payload)
+            return controller, command, self._handle_dotnet_morph_command_request(controller, command, payload)
         if (
             not self.standalone_dotnet_target_embedded
             and controller is getattr(self, "standalone_controller", None)
@@ -739,19 +742,26 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
                     diagnostics=(blocker,),
                     request_payload=payload,
                 )
-                return True
+                return controller, command, True
         if self._queue_dotnet_topology_after_selection(command, payload):
-            return True
+            return controller, command, True
         if self._reject_dotnet_mutation_while_busy(command, payload):
-            return True
+            return controller, command, True
         layer_result = self._handle_dotnet_layer_command(controller, command, payload)
         if layer_result is not None:
-            return layer_result
+            return controller, command, layer_result
+        return controller, command, None
+
+    def _prepare_dotnet_command_selection(
+        self,
+        controller: object,
+        command: str,
+        payload: Mapping[str, object],
+    ) -> tuple[object, bool, str, bool | None]:
         local_selection = self._dotnet_local_selection_payload_to_selection(payload)
         selection_supplied = isinstance(payload.get("local_selection"), Mapping) or isinstance(
             payload.get("selection"), Mapping
         )
-        action_selection = local_selection if selection_supplied else None
         target_mode = str(payload.get("target_mode", "") or "").strip().lower()
         if (
             not self.standalone_dotnet_target_embedded
@@ -770,7 +780,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
                 diagnostics=(blocker,),
                 request_payload=payload,
             )
-            return True
+            return local_selection, selection_supplied, target_mode, True
         if command == "separate":
             if target_mode != "face":
                 self._send_dotnet_command_result(
@@ -780,7 +790,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
                     diagnostics=("Create Part requires Faces selection mode.",),
                     request_payload=payload,
                 )
-                return False
+                return local_selection, selection_supplied, target_mode, False
             selection_for_separate = local_selection if selection_supplied else controller.session_view().selection
             diagnostic = self._separate_selection_diagnostic(selection_for_separate)
             if diagnostic is not None:
@@ -791,7 +801,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
                     diagnostics=(diagnostic,),
                     request_payload=payload,
                 )
-                return False
+                return local_selection, selection_supplied, target_mode, False
         embedded_result = self._handle_dotnet_embedded_part_command(
             command,
             local_selection,
@@ -799,7 +809,19 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
             payload,
         )
         if embedded_result is not None:
-            return embedded_result
+            return local_selection, selection_supplied, target_mode, embedded_result
+        return local_selection, selection_supplied, target_mode, None
+
+    def _handle_dotnet_command_request(self, payload: Mapping[str, object]) -> bool:
+        controller, command, terminal = self._prepare_dotnet_command_request(payload)
+        if terminal is not None or controller is None:
+            return bool(terminal)
+        local_selection, selection_supplied, target_mode, terminal = (
+            self._prepare_dotnet_command_selection(controller, command, payload)
+        )
+        if terminal is not None:
+            return terminal
+        action_selection = local_selection if selection_supplied else None
         try:
             direct_result = self._handle_dotnet_direct_command(
                 controller,

@@ -15,6 +15,7 @@ def _source(name: str) -> str:
         "Program.cs": (
             "Program.cs",
             "ExperimentForm.ToolPanels.cs",
+            "ExperimentForm.OutputPolicy.cs",
             "ExperimentForm.StartupRealization.cs",
         ),
         # The flat button is a further partial of the same class.

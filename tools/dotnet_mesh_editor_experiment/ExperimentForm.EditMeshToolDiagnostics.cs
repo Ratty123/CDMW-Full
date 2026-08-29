@@ -40,27 +40,9 @@ internal sealed partial class ExperimentForm
         _viewport.EditorEventRequested += Capture;
         try
         {
-            var interactionCases = new List<Dictionary<string, object?>>();
-            foreach (var target in new[] { "vertex", "edge", "face" })
-            {
-                foreach (var shape in new[] { "brush", "lasso", "rectangle" })
-                {
-                    interactionCases.Add(RunEditMeshInteractionDiagnostic(
-                        $"select_{shape}_{target}",
-                        protocolEvents,
-                        formProtocolEvents,
-                        sustained: shape == "brush" && target == "face"));
-                }
-            }
-            foreach (var tool in new[] { "move", "grab", "smooth", "inflate", "pinch" })
-            {
-                interactionCases.Add(RunEditMeshInteractionDiagnostic(
-                    tool,
-                    protocolEvents,
-                    formProtocolEvents,
-                    sustained: true));
-            }
-
+            var interactionCases = RunAllEditMeshInteractionDiagnostics(
+                protocolEvents,
+                formProtocolEvents);
             var commandPages = RunEditMeshCommandPageDiagnostics();
             var selectionReleaseRecovery = RunSelectionReleaseRecoveryDiagnostic(protocolEvents);
             var pendingSelectionTopology = RunPendingSelectionTopologyDiagnostic(formProtocolEvents);
@@ -69,130 +51,25 @@ internal sealed partial class ExperimentForm
             var partCommandTargets = RunPartCommandTargetDiagnostic(formProtocolEvents);
             var mixedMorphRefit = RunMixedMorphRefitSelectionDiagnostic();
             var restrictedControlsVisible = _directAuthoringBlockedButtons.All(button => OwnVisibleState(button) && !button.Enabled);
-            ResetMorphStateAuthority();
-            ApplyDiagnosticOutputPolicyState(
-                "free_edit_rebuild",
-                destinationReady: true,
-                authoringEnabled: true);
-            ShowToolRailPage(ToolRailPage.Topology);
-            var importedModelControlsVisible = _directAuthoringBlockedButtons.All(OwnVisibleState);
-            var importedLayerCopyEnabled = _layerCopyButton?.Enabled is true;
-            var freeEditControlsVisible = _freeEditOnlyButtons.Values.All(OwnVisibleState);
-            var freeEditControlsEnabled = _freeEditOnlyButtons.Values.All(OwnEnabledState);
-            var freeEditExportEnabled = _exportFreeEditButton?.Enabled is true;
-            var importedTopologyDescription =
-                _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Topology)?.AccessibleDescription
-                ?? string.Empty;
-            var importedTopologyHelp = importedTopologyDescription.Contains("Subdivide", StringComparison.Ordinal);
-            ApplyDiagnosticOutputPolicyState(
-                "exact_game_asset",
-                destinationReady: false,
-                authoringEnabled: true);
-            var exactFreeEditControlsHidden = _freeEditOnlyButtons.Values.All(button => !OwnVisibleState(button));
-            var exactTopologyHelp = (
-                _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Topology)?.AccessibleDescription
-                ?? string.Empty).Contains("Subdivide is unavailable", StringComparison.Ordinal);
-            var directAuthoringControls = new Dictionary<string, object?>
-            {
-                ["ok"] = !_options.DirectAuthoring
-                    || (_directAuthoringBlockedButtons.Count == 9
-                        && restrictedControlsVisible
-                        && importedModelControlsVisible
-                        && importedLayerCopyEnabled
-                        && freeEditControlsVisible
-                        && freeEditControlsEnabled
-                        && freeEditExportEnabled
-                        && exactFreeEditControlsHidden
-                        && importedTopologyHelp
-                        && exactTopologyHelp),
-                ["blocked_control_count"] = _directAuthoringBlockedButtons.Count,
-                ["all_visible"] = _directAuthoringBlockedButtons.All(OwnVisibleState),
-                ["all_disabled"] = _directAuthoringBlockedButtons.All(button => !button.Enabled),
-                ["imported_model_controls_visible"] = importedModelControlsVisible,
-                ["imported_layer_copy_enabled"] = importedLayerCopyEnabled,
-                ["free_edit_controls_visible"] = freeEditControlsVisible,
-                ["free_edit_controls_enabled"] = freeEditControlsEnabled,
-                ["free_edit_export_enabled"] = freeEditExportEnabled,
-                ["exact_free_edit_controls_hidden"] = exactFreeEditControlsHidden,
-                ["imported_topology_help"] = importedTopologyHelp,
-                ["exact_topology_help"] = exactTopologyHelp,
-            };
+            var directAuthoringControls = RunOutputPolicyControlDiagnostic(restrictedControlsVisible);
             var finalFrame = RunEditMeshDiagnosticFrame();
-            var formProtocolOk = formProtocolEvents.Any(item =>
-                    item.Name == "command_request"
-                    && Convert.ToString(item.Payload.GetValueOrDefault("command")) == "recalculate_normals")
-                && formProtocolEvents.Any(item =>
-                    item.Name == "command_request"
-                    && Convert.ToString(item.Payload.GetValueOrDefault("command")) == "morph_state_request")
-                && formProtocolEvents.All(item => item.Name != "part_material_edit_request");
-            var requiredRows = EditMeshToolListContract.RowOrder
-                .Select(row => row.Key)
-                .ToArray();
-            var coveredRows = interactionCases
-                .Select(item => Convert.ToString(item.GetValueOrDefault("rail_row")) ?? string.Empty)
-                .Concat(commandPages.Select(item =>
-                    Convert.ToString(item.GetValueOrDefault("rail_row")) ?? string.Empty))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            var allRowsCovered = requiredRows.All(row =>
-                coveredRows.Contains(row, StringComparer.OrdinalIgnoreCase));
-            var interactionsOk = interactionCases.All(item => item.GetValueOrDefault("ok") is true);
-            var pagesOk = commandPages.All(item => item.GetValueOrDefault("ok") is true);
-            return new Dictionary<string, object?>
-            {
-                ["ok"] = displayApplied
-                    && materialApplied
-                    && _viewport.TexturesEnabled
-                    && _viewport.HasTexturedMaterialResources
-                    && interactionsOk
-                    && pagesOk
-                    && selectionReleaseRecovery.GetValueOrDefault("ok") is true
-                    && pendingSelectionTopology.GetValueOrDefault("ok") is true
-                    && controlSurface.GetValueOrDefault("ok") is true
-                    && createPartControl.GetValueOrDefault("ok") is true
-                    && partCommandTargets.GetValueOrDefault("ok") is true
-                    && mixedMorphRefit.GetValueOrDefault("ok") is true
-                    && directAuthoringControls.GetValueOrDefault("ok") is true
-                    && formProtocolOk
-                    && finalFrame.GetValueOrDefault("ok") is true
-                    && allRowsCovered
-                    && string.Equals(
-                        _viewport.RendererBackendName,
-                        "d3d11_vortice_shader",
-                        StringComparison.Ordinal),
-                ["hidden"] = !Visible && !ShowInTaskbar,
-                ["renderer_backend"] = _viewport.RendererBackendName,
-                ["display_mode"] = _viewport.DisplayMode,
-                ["textures_enabled"] = _viewport.TexturesEnabled,
-                ["bound_texture_resources"] = _viewport.HasTexturedMaterialResources,
-                ["display_applied"] = displayApplied,
-                ["display_error"] = displayError,
-                ["material_applied"] = materialApplied,
-                ["material_error"] = materialError,
-                ["required_rail_rows"] = requiredRows,
-                ["covered_rail_rows"] = coveredRows,
-                ["all_rail_rows_covered"] = allRowsCovered,
-                ["interaction_cases"] = interactionCases,
-                ["command_pages"] = commandPages,
-                ["selection_release_recovery"] = selectionReleaseRecovery,
-                ["pending_selection_topology"] = pendingSelectionTopology,
-                ["control_surface"] = controlSurface,
-                ["create_part_from_selection"] = createPartControl,
-                ["part_command_targets"] = partCommandTargets,
-                ["mixed_morph_refit_selection"] = mixedMorphRefit,
-                ["direct_authoring_controls"] = directAuthoringControls,
-                ["form_protocol_ok"] = formProtocolOk,
-                ["captured_viewport_protocol_events"] = protocolEvents.Count,
-                ["captured_form_protocol_events"] = formProtocolEvents.Select(item =>
-                    new Dictionary<string, object?>
-                    {
-                        ["event"] = item.Name,
-                        ["command"] = item.Payload.GetValueOrDefault("command"),
-                        ["request_id"] = item.Payload.GetValueOrDefault("request_id"),
-                    }).ToArray(),
-                ["final_frame"] = finalFrame,
-                ["renderer_resources"] = _viewport.RendererResourceMetricsPayload(),
-            };
+            return BuildAllEditMeshToolsDiagnosticReport(
+                displayApplied,
+                displayError,
+                materialApplied,
+                materialError,
+                protocolEvents,
+                formProtocolEvents,
+                interactionCases,
+                commandPages,
+                selectionReleaseRecovery,
+                pendingSelectionTopology,
+                controlSurface,
+                createPartControl,
+                partCommandTargets,
+                mixedMorphRefit,
+                directAuthoringControls,
+                finalFrame);
         }
         finally
         {
@@ -529,6 +406,122 @@ internal sealed partial class ExperimentForm
             }
             RefreshCreatePartFromSelectionButton();
         }
+    }
+
+    private List<Dictionary<string, object?>> RunAllEditMeshInteractionDiagnostics(
+        List<(string Name, Dictionary<string, object?> Payload)> protocolEvents,
+        List<(string Name, Dictionary<string, object?> Payload)> formProtocolEvents)
+    {
+        var cases = new List<Dictionary<string, object?>>();
+        foreach (var target in new[] { "vertex", "edge", "face" })
+        {
+            foreach (var shape in new[] { "brush", "lasso", "rectangle" })
+            {
+                cases.Add(RunEditMeshInteractionDiagnostic(
+                    $"select_{shape}_{target}",
+                    protocolEvents,
+                    formProtocolEvents,
+                    sustained: shape == "brush" && target == "face"));
+            }
+        }
+        foreach (var tool in new[] { "move", "grab", "smooth", "inflate", "pinch" })
+        {
+            cases.Add(RunEditMeshInteractionDiagnostic(
+                tool,
+                protocolEvents,
+                formProtocolEvents,
+                sustained: true));
+        }
+        return cases;
+    }
+
+    private Dictionary<string, object?> BuildAllEditMeshToolsDiagnosticReport(
+        bool displayApplied,
+        string displayError,
+        bool materialApplied,
+        string materialError,
+        List<(string Name, Dictionary<string, object?> Payload)> protocolEvents,
+        List<(string Name, Dictionary<string, object?> Payload)> formProtocolEvents,
+        List<Dictionary<string, object?>> interactionCases,
+        List<Dictionary<string, object?>> commandPages,
+        Dictionary<string, object?> selectionReleaseRecovery,
+        Dictionary<string, object?> pendingSelectionTopology,
+        Dictionary<string, object?> controlSurface,
+        Dictionary<string, object?> createPartControl,
+        Dictionary<string, object?> partCommandTargets,
+        Dictionary<string, object?> mixedMorphRefit,
+        Dictionary<string, object?> directAuthoringControls,
+        Dictionary<string, object?> finalFrame)
+    {
+        var formProtocolOk = formProtocolEvents.Any(item =>
+                item.Name == "command_request"
+                && Convert.ToString(item.Payload.GetValueOrDefault("command")) == "recalculate_normals")
+            && formProtocolEvents.Any(item =>
+                item.Name == "command_request"
+                && Convert.ToString(item.Payload.GetValueOrDefault("command")) == "morph_state_request")
+            && formProtocolEvents.All(item => item.Name != "part_material_edit_request");
+        var requiredRows = EditMeshToolListContract.RowOrder.Select(row => row.Key).ToArray();
+        var coveredRows = interactionCases
+            .Select(item => Convert.ToString(item.GetValueOrDefault("rail_row")) ?? string.Empty)
+            .Concat(commandPages.Select(item =>
+                Convert.ToString(item.GetValueOrDefault("rail_row")) ?? string.Empty))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var allRowsCovered = requiredRows.All(row =>
+            coveredRows.Contains(row, StringComparer.OrdinalIgnoreCase));
+        var ok = displayApplied
+            && materialApplied
+            && _viewport.TexturesEnabled
+            && _viewport.HasTexturedMaterialResources
+            && interactionCases.All(item => item.GetValueOrDefault("ok") is true)
+            && commandPages.All(item => item.GetValueOrDefault("ok") is true)
+            && selectionReleaseRecovery.GetValueOrDefault("ok") is true
+            && pendingSelectionTopology.GetValueOrDefault("ok") is true
+            && controlSurface.GetValueOrDefault("ok") is true
+            && createPartControl.GetValueOrDefault("ok") is true
+            && partCommandTargets.GetValueOrDefault("ok") is true
+            && mixedMorphRefit.GetValueOrDefault("ok") is true
+            && directAuthoringControls.GetValueOrDefault("ok") is true
+            && formProtocolOk
+            && finalFrame.GetValueOrDefault("ok") is true
+            && allRowsCovered
+            && string.Equals(_viewport.RendererBackendName, "d3d11_vortice_shader", StringComparison.Ordinal);
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = ok,
+            ["hidden"] = !Visible && !ShowInTaskbar,
+            ["renderer_backend"] = _viewport.RendererBackendName,
+            ["display_mode"] = _viewport.DisplayMode,
+            ["textures_enabled"] = _viewport.TexturesEnabled,
+            ["bound_texture_resources"] = _viewport.HasTexturedMaterialResources,
+            ["display_applied"] = displayApplied,
+            ["display_error"] = displayError,
+            ["material_applied"] = materialApplied,
+            ["material_error"] = materialError,
+            ["required_rail_rows"] = requiredRows,
+            ["covered_rail_rows"] = coveredRows,
+            ["all_rail_rows_covered"] = allRowsCovered,
+            ["interaction_cases"] = interactionCases,
+            ["command_pages"] = commandPages,
+            ["selection_release_recovery"] = selectionReleaseRecovery,
+            ["pending_selection_topology"] = pendingSelectionTopology,
+            ["control_surface"] = controlSurface,
+            ["create_part_from_selection"] = createPartControl,
+            ["part_command_targets"] = partCommandTargets,
+            ["mixed_morph_refit_selection"] = mixedMorphRefit,
+            ["direct_authoring_controls"] = directAuthoringControls,
+            ["form_protocol_ok"] = formProtocolOk,
+            ["captured_viewport_protocol_events"] = protocolEvents.Count,
+            ["captured_form_protocol_events"] = formProtocolEvents.Select(item =>
+                new Dictionary<string, object?>
+                {
+                    ["event"] = item.Name,
+                    ["command"] = item.Payload.GetValueOrDefault("command"),
+                    ["request_id"] = item.Payload.GetValueOrDefault("request_id"),
+                }).ToArray(),
+            ["final_frame"] = finalFrame,
+            ["renderer_resources"] = _viewport.RendererResourceMetricsPayload(),
+        };
     }
 
     private Dictionary<string, object?> RunMixedMorphRefitSelectionDiagnostic()

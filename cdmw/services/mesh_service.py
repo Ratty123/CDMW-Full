@@ -549,6 +549,94 @@ def _load_mesh_file(path: Path | str, *, run_roundtrip: bool) -> ParsedMesh:
     return _load_mesh_bytes(source_path.read_bytes(), source_path, run_roundtrip=run_roundtrip)
 
 
+def _mesh_session_source_context(
+    mesh: ParsedMesh,
+    original_data: bytes,
+) -> tuple[str, Path | None, Path | None, Mapping[str, object]]:
+    discovered = discover_mesh_layer_project_context(mesh)
+    source_hash = str(
+        getattr(mesh, "_cdmw_mesh_asset_source_hash", "")
+        or getattr(mesh, "_cdmw_sidecar_source_asset_hash", "")
+        or discovered.get("source_asset_sha256", "")
+        or (hashlib.sha256(original_data).hexdigest() if original_data else "")
+    ).strip().lower()
+    project_text = str(
+        getattr(mesh, "_cdmw_mesh_layer_project_path", "")
+        or discovered.get("project_path", "")
+        or ""
+    ).strip()
+    manifest_text = str(
+        getattr(mesh, "_cdmw_modify_original_workspace_manifest_path", "")
+        or discovered.get("manifest_path", "")
+        or ""
+    ).strip()
+    project_path = Path(project_text).expanduser().resolve() if project_text else None
+    manifest_path = Path(manifest_text).expanduser().resolve() if manifest_text else None
+    return source_hash, project_path, manifest_path, discovered
+
+
+def _mesh_session_output_context(mesh: ParsedMesh) -> tuple[str, int, object]:
+    mesh_format = normalize_mesh_format(getattr(mesh, "format", ""))
+    try:
+        lod_index = max(
+            0,
+            int(
+                getattr(
+                    mesh,
+                    "active_lod_index",
+                    getattr(mesh, "displayed_lod_index", 0),
+                )
+                or 0
+            ),
+        )
+    except (TypeError, ValueError, OverflowError):
+        lod_index = 0
+    return mesh_format, lod_index, output_policy_state(mesh_format, lod_index=lod_index)
+
+
+def _apply_loaded_mesh_layer_project(
+    session: _MeshEditSession,
+    loaded: Mapping[str, object] | None,
+    submesh_count: int,
+) -> None:
+    if loaded is None:
+        session.geometry_layers = (
+            _MeshGeometryLayer(
+                layer_id="base",
+                name="Base mesh",
+                submesh_indices=tuple(range(submesh_count)),
+                visible=True,
+                base=True,
+            ),
+        )
+        return
+    raw_transform = loaded.get("object_transform")
+    if isinstance(raw_transform, Mapping) and raw_transform:
+        session.object_transform = MeshObjectTransformState(
+            location=tuple(raw_transform.get("location", (0.0, 0.0, 0.0))),
+            rotation_degrees=tuple(raw_transform.get("rotation_degrees", (0.0, 0.0, 0.0))),
+            scale=tuple(raw_transform.get("scale", (1.0, 1.0, 1.0))),
+            pivot=tuple(raw_transform.get("pivot", session.object_transform.pivot)),
+        )
+    session.geometry_layers = _geometry_layers_from_project_payload(loaded, submesh_count)
+    session.active_geometry_layer_id = str(loaded.get("active_layer_id") or "base")
+    if not any(
+        layer.layer_id == session.active_geometry_layer_id and layer.visible
+        for layer in session.geometry_layers
+    ):
+        session.active_geometry_layer_id = "base"
+    session.geometry_layer_copy_counter = _project_non_negative_int(
+        loaded.get("copy_counter"),
+        field="copy counter",
+    )
+    session.geometry_layer_revision = _project_non_negative_int(
+        loaded.get("layer_revision"),
+        field="layer revision",
+    )
+    session.mesh_layer_loaded_generation = str(loaded.get("loaded_generation") or "")
+    session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
+
+
 @dataclass(slots=True)
 class _MeshServiceSessionLayerCore(
     MeshRiggingServiceMixin,
@@ -583,44 +671,14 @@ class _MeshServiceSessionLayerCore(
         mode = _mode(mode)
         session_key = str(session_id or uuid4())
         original_data = bytes(getattr(mesh, "_cdmw_original_data", b"") or b"")
-        discovered_project = discover_mesh_layer_project_context(mesh)
-        source_asset_hash = str(
-            getattr(mesh, "_cdmw_mesh_asset_source_hash", "")
-            or getattr(mesh, "_cdmw_sidecar_source_asset_hash", "")
-            or discovered_project.get("source_asset_sha256", "")
-            or (hashlib.sha256(original_data).hexdigest() if original_data else "")
-        ).strip().lower()
-        project_path_text = str(
-            getattr(mesh, "_cdmw_mesh_layer_project_path", "")
-            or discovered_project.get("project_path", "")
-            or ""
-        ).strip()
-        project_path = Path(project_path_text).expanduser().resolve() if project_path_text else None
-        workspace_manifest_text = str(
-            getattr(mesh, "_cdmw_modify_original_workspace_manifest_path", "")
-            or discovered_project.get("manifest_path", "")
-            or ""
-        ).strip()
-        workspace_manifest_path = (
-            Path(workspace_manifest_text).expanduser().resolve() if workspace_manifest_text else None
-        )
+        (
+            source_asset_hash,
+            project_path,
+            workspace_manifest_path,
+            discovered_project,
+        ) = _mesh_session_source_context(mesh, original_data)
+        mesh_format, lod_index, initial_output_policy = _mesh_session_output_context(mesh)
         working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)
-        mesh_format = normalize_mesh_format(getattr(mesh, "format", ""))
-        try:
-            lod_index = max(
-                0,
-                int(
-                    getattr(
-                        mesh,
-                        "active_lod_index",
-                        getattr(mesh, "displayed_lod_index", 0),
-                    )
-                    or 0
-                ),
-            )
-        except (TypeError, ValueError, OverflowError):
-            lod_index = 0
-        initial_output_policy = output_policy_state(mesh_format, lod_index=lod_index)
         loaded_layer_project: Mapping[str, object] | None = None
         if project_path is not None and project_path.is_file():
             loaded_layer_project = load_mesh_layer_project(
@@ -674,53 +732,11 @@ class _MeshServiceSessionLayerCore(
                 or ""
             ),
         )
-        if loaded_layer_project is not None:
-            raw_object_transform = loaded_layer_project.get("object_transform")
-            if isinstance(raw_object_transform, Mapping) and raw_object_transform:
-                session.object_transform = MeshObjectTransformState(
-                    location=tuple(raw_object_transform.get("location", (0.0, 0.0, 0.0))),
-                    rotation_degrees=tuple(
-                        raw_object_transform.get("rotation_degrees", (0.0, 0.0, 0.0))
-                    ),
-                    scale=tuple(raw_object_transform.get("scale", (1.0, 1.0, 1.0))),
-                    pivot=tuple(
-                        raw_object_transform.get("pivot", session.object_transform.pivot)
-                    ),
-                )
-            session.geometry_layers = _geometry_layers_from_project_payload(
-                loaded_layer_project,
-                len(working_mesh.submeshes),
-            )
-            session.active_geometry_layer_id = str(
-                loaded_layer_project.get("active_layer_id") or "base"
-            )
-            if not any(
-                layer.layer_id == session.active_geometry_layer_id and layer.visible
-                for layer in session.geometry_layers
-            ):
-                session.active_geometry_layer_id = "base"
-            session.geometry_layer_copy_counter = _project_non_negative_int(
-                loaded_layer_project.get("copy_counter"),
-                field="copy counter",
-            )
-            session.geometry_layer_revision = _project_non_negative_int(
-                loaded_layer_project.get("layer_revision"),
-                field="layer revision",
-            )
-            session.mesh_layer_loaded_generation = str(
-                loaded_layer_project.get("loaded_generation") or ""
-            )
-            session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
-        else:
-            session.geometry_layers = (
-                _MeshGeometryLayer(
-                    layer_id="base",
-                    name="Base mesh",
-                    submesh_indices=tuple(range(len(working_mesh.submeshes))),
-                    visible=True,
-                    base=True,
-                ),
-            )
+        _apply_loaded_mesh_layer_project(
+            session,
+            loaded_layer_project,
+            len(working_mesh.submeshes),
+        )
         self._sessions[session_key] = session
         return self.session_view(session_key)
 
