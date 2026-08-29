@@ -34,6 +34,7 @@ from cdmw.domain.mesh import (
     MeshCompareSummary,
     MeshEditSessionView,
     MeshExportValidationReport,
+    MeshPanelSnapshot,
     MeshSkeletonSummary,
     MeshUvSummary,
     MeshWorkspaceSummary,
@@ -100,6 +101,14 @@ from cdmw.ui.mesh_editor.workspace_views import (
 )
 
 class WorkspaceSkeletonStateMixin:
+    def update_skeleton_panel_state(
+        self,
+        state: MeshPanelSnapshot[MeshSkeletonSummary],
+    ) -> None:
+        self._skeleton_panel_state = state
+        self.update_skeleton_summary(state.value)
+        self._append_panel_status(self.skeleton_tree, state)
+
     def update_skeleton_summary(self, summary: MeshSkeletonSummary | None) -> None:
         self._skeleton_summary = summary
         self.skeleton_tree.clear()
@@ -140,16 +149,19 @@ class WorkspaceSkeletonStateMixin:
         if summary is None:
             return
         selected_sources = {int(index) for index in getattr(selection, "source_indices", ())}
-        self.update_skeleton_summary(
-            replace(
-                summary,
-                selected_vertex_weights=(),
-                parts=tuple(
-                    replace(part, selected=part.index in selected_sources)
-                    for part in summary.parts
-                ),
-            )
+        updated = replace(
+            summary,
+            selected_vertex_weights=(),
+            parts=tuple(
+                replace(part, selected=part.index in selected_sources)
+                for part in summary.parts
+            ),
         )
+        state = getattr(self, "_skeleton_panel_state", None)
+        if isinstance(state, MeshPanelSnapshot) and state.value is summary:
+            self.update_skeleton_panel_state(state.replace_value(updated))
+        else:
+            self.update_skeleton_summary(updated)
 
     def _append_skeleton_sources(self, summary: MeshSkeletonSummary) -> None:
         resolver_bits = [

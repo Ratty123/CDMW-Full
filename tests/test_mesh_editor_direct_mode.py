@@ -10,7 +10,7 @@ import pytest
 from PySide6.QtCore import QEventLoop, QObject, QSettings, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QToolButton
 
-from cdmw.domain.mesh import MeshEditSelection, MeshObjectTransformState
+from cdmw.domain.mesh import MeshEditSelection, MeshExportValidationReport, MeshObjectTransformState
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.models import ArchiveEntry
@@ -634,7 +634,7 @@ def test_geometry_revision_invalidates_cached_validation_and_output_authority() 
     tab.open_mesh_session(_mesh(two_parts=False), session_id="validation-revision-authority", mode="edit")
     assert tab.standalone_controller is not None
     view = tab.standalone_controller.session_view()
-    tab.standalone_last_export_validation_report = SimpleNamespace(ok=True)
+    tab.standalone_last_export_validation_report = MeshExportValidationReport("pac", 1, 3, 1)
     tab.standalone_export_validation_revision = view.revision
     assert tab._standalone_export_validation_ok()
 
@@ -642,8 +642,8 @@ def test_geometry_revision_invalidates_cached_validation_and_output_authority() 
         SimpleNamespace(session_id=view.session_id, revision=view.revision + 1)
     )
 
-    assert tab.standalone_last_export_validation_report is None
-    assert tab.standalone_export_validation_revision is None
+    assert tab.standalone_last_export_validation_report is not None and tab.standalone_export_validation_revision == view.revision
+    assert tab.standalone_validation_panel_state.status.value == "unavailable" and tab.standalone_validation_panel_state.value is tab.standalone_last_export_validation_report
     assert not tab._standalone_export_validation_ok()
     tab.close_standalone_session()
     tab.deleteLater()
@@ -658,7 +658,7 @@ def test_direct_result_update_invalidates_the_previous_revision_validation() -> 
     controller = tab.standalone_controller
     controller.select(vertices_by_submesh={0: (0,)}, operation="replace")
     before = controller.session_view()
-    tab.standalone_last_export_validation_report = SimpleNamespace(ok=True)
+    tab.standalone_last_export_validation_report = MeshExportValidationReport("pac", 1, 3, 1)
     tab.standalone_export_validation_revision = before.revision
     result = controller.apply_editor_action("transform_move", delta=(0.1, 0.0, 0.0))
     assert result.ok
@@ -696,9 +696,9 @@ def test_direct_result_update_invalidates_the_previous_revision_validation() -> 
         }
     )
 
-    assert tab.standalone_last_export_validation_report is None
-    assert tab.standalone_export_validation_revision is None
-    assert not tab._standalone_export_validation_ok()
+    assert tab.standalone_last_export_validation_report is not None and tab.standalone_export_validation_revision == before.revision
+    assert tab.standalone_validation_panel_state.status.value == "unavailable" and tab.standalone_validation_panel_state.value is tab.standalone_last_export_validation_report
+    assert not tab._standalone_export_validation_ok() and tab.standalone_workspace_panel_state.revision == result.revision and tab.standalone_uv_panel_state.revision == result.revision
     tab.close_standalone_session()
     tab.deleteLater()
     app.processEvents()

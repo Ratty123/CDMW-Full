@@ -7,6 +7,7 @@ from typing import Sequence
 
 from cdmw.domain.mesh import (
     MeshAnimationClip,
+    MeshPanelUnavailableError,
     MeshSkeletonSummary,
     sample_mesh_animation_pose,
     summarize_mesh_skinning,
@@ -79,7 +80,7 @@ class MeshRiggingServiceMixin:
     ) -> MeshSkeletonSummary:
         session = self._session(session_id)
         if session.native_editor_mesh_dirty:
-            raise RuntimeError("native mesh editor skeleton summary unavailable; Python mesh state is stale")
+            raise MeshPanelUnavailableError("native_skeleton_snapshot_unavailable", "native mesh editor skeleton summary unavailable; Python mesh state is stale")
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
         return summarize_mesh_skinning(
             session.working_mesh,

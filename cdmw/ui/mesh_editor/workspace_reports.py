@@ -33,6 +33,8 @@ from cdmw.domain.mesh import (
     MeshCompareSummary,
     MeshEditSessionView,
     MeshExportValidationReport,
+    MeshPanelSnapshot,
+    MeshPanelStatus,
     MeshSkeletonSummary,
     MeshUvSummary,
     MeshWorkspaceSummary,
@@ -99,6 +101,14 @@ from cdmw.ui.mesh_editor.workspace_views import (
 )
 
 class WorkspaceReportMixin:
+    def update_compare_panel_state(
+        self,
+        state: MeshPanelSnapshot[MeshCompareSummary],
+    ) -> None:
+        self._compare_panel_state = state
+        self.update_compare_summary(state.value)
+        self._append_panel_status(self.compare_tree, state)
+
     def set_native_part_picking_status(self, message: str, *, available: bool = False) -> None:
         label = getattr(self, "native_part_pick_status_label", None)
         if label is None:
@@ -357,6 +367,22 @@ class WorkspaceReportMixin:
             message = f"{issue.message}{' ' + location if location else ''}"
             self.validator_tree.addTopLevelItem(QTreeWidgetItem((issue.severity.title(), issue.code, message)))
 
+    def update_export_validation_state(
+        self,
+        state: MeshPanelSnapshot[MeshExportValidationReport],
+    ) -> None:
+        self._export_validation_panel_state = state
+        self.update_export_validation(state.value)
+        current = state.status is MeshPanelStatus.READY and state.value_revision == state.revision
+        self._export_validation_ok = bool(current and state.value is not None and state.value.ok)
+        for name in ("export_mesh_file_button", "build_mod_button", "install_overlay_button"):
+            button = getattr(self, name, None)
+            if button is not None:
+                button.setEnabled(
+                    self._has_editor_target and self._export_validation_ok and not self._embedded_controls_only
+                )
+        self._append_panel_status(self.validator_tree, state)
+
     def _add_validation_status_rows(self, report: MeshExportValidationReport) -> None:
         rows = (
             ("Asset hash match", "present" if report.source_asset_hash else "unknown"),
@@ -443,3 +469,15 @@ class WorkspaceReportMixin:
         )
         for label, value in rows:
             self.rebuild_tree.addTopLevelItem(QTreeWidgetItem((label, str(value or "none"))))
+
+    def update_rebuild_report_state(
+        self,
+        state: MeshPanelSnapshot[object],
+    ) -> None:
+        self._rebuild_panel_state = state
+        self.update_rebuild_report(state.value)
+        current = state.status is MeshPanelStatus.READY and state.value_revision == state.revision
+        self._has_rebuilt_asset_output = bool(
+            current and str(getattr(state.value, "output_path", "") or "").strip()
+        )
+        self._append_panel_status(self.rebuild_tree, state)

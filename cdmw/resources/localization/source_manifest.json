@@ -2036,7 +2036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 423,
+          "line": 459,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -5246,12 +5246,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 282,
+          "line": 283,
           "sink": "_push_history"
         },
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 325,
+          "line": 326,
           "sink": "_push_history"
         }
       ]
@@ -6176,12 +6176,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 221,
+          "line": 279,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 389,
+          "line": 534,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -7056,12 +7056,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 362,
+          "line": 374,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 507,
+          "line": 519,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -9146,12 +9146,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 513,
+          "line": 658,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 766,
+          "line": 911,
           "sink": "emit"
         }
       ]
@@ -10971,7 +10971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -11611,7 +11611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 343,
+          "line": 355,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -12071,7 +12071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 165,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -12646,7 +12646,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 904,
+          "line": 900,
           "sink": "ValueError"
         }
       ]
@@ -12656,7 +12656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 835,
+          "line": 831,
           "sink": "ValueError"
         }
       ]
@@ -12666,7 +12666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 886,
+          "line": 882,
           "sink": "ValueError"
         }
       ]
@@ -12686,7 +12686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 862,
+          "line": 858,
           "sink": "ValueError"
         }
       ]
@@ -13011,7 +13011,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 345,
+          "line": 355,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -13231,7 +13231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -13241,12 +13241,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 433,
+          "line": 445,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 517,
+          "line": 529,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -13336,7 +13336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 287,
+          "line": 297,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -13891,7 +13891,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 481,
+          "line": 626,
           "sink": "setWindowTitle"
         },
         {
@@ -15251,7 +15251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -15546,7 +15546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 165,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -15556,7 +15556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 247,
+          "line": 257,
           "sink": "append_log"
         }
       ]
@@ -15566,7 +15566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 147,
+          "line": 157,
           "sink": "setText"
         }
       ]
@@ -16191,12 +16191,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 179,
+          "line": 228,
           "sink": "QProgressDialog"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 550,
+          "line": 695,
           "sink": "QProgressDialog"
         },
         {
@@ -17111,7 +17111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -17121,7 +17121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -17966,7 +17966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 490,
+          "line": 635,
           "sink": "getExistingDirectory"
         }
       ]
@@ -19151,7 +19151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 482,
+          "line": 627,
           "sink": "setText"
         }
       ]
@@ -20391,7 +20391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 516,
+          "line": 661,
           "sink": "emit"
         }
       ]
@@ -21216,7 +21216,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 267,
+          "line": 277,
           "sink": "_tree"
         },
         {
@@ -22051,7 +22051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 208,
+          "line": 220,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22061,7 +22061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 325,
+          "line": 337,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22071,7 +22071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 177,
+          "line": 189,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22081,7 +22081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 220,
+          "line": 232,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22091,7 +22091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 190,
+          "line": 202,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22101,7 +22101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 199,
+          "line": 211,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22111,7 +22111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 236,
+          "line": 248,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22121,7 +22121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 267,
+          "line": 279,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22131,7 +22131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 272,
+          "line": 284,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22151,7 +22151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 251,
+          "line": 263,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22211,7 +22211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 263,
+          "line": 275,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -23216,7 +23216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 836,
+          "line": 694,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -24666,7 +24666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 165,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -25526,7 +25526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 484,
+          "line": 629,
           "sink": "addButton"
         }
       ]
@@ -26532,6 +26532,21 @@
       "manual": true
     },
     {
+      "key": "Derived panel provider returned no value.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 257,
+          "sink": "translate_active_ui_text"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 497,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Description",
       "origins": [
         {
@@ -27081,7 +27096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -28531,7 +28546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 165,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -29446,7 +29461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -29711,12 +29726,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 261,
+          "line": 271,
           "sink": "_combo"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 267,
+          "line": 277,
           "sink": "_tree"
         },
         {
@@ -29781,7 +29796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -29891,7 +29906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -30086,7 +30101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 918,
+          "line": 776,
           "sink": "emit"
         }
       ]
@@ -30096,7 +30111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 911,
+          "line": 769,
           "sink": "emit"
         }
       ]
@@ -31166,7 +31181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -32236,7 +32251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 221,
+          "line": 279,
           "sink": "getSaveFileName"
         },
         {
@@ -34111,7 +34126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 147,
+          "line": 157,
           "sink": "setText"
         }
       ]
@@ -34131,7 +34146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 147,
+          "line": 157,
           "sink": "setText"
         }
       ]
@@ -37026,7 +37041,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -37201,7 +37216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 165,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -37211,7 +37226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 147,
+          "line": 157,
           "sink": "setText"
         }
       ]
@@ -37221,7 +37236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 147,
+          "line": 157,
           "sink": "setText"
         }
       ]
@@ -37506,7 +37521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 165,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -37516,7 +37531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 247,
+          "line": 257,
           "sink": "append_log"
         }
       ]
@@ -37526,7 +37541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 147,
+          "line": 157,
           "sink": "setText"
         }
       ]
@@ -38066,7 +38081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 261,
+          "line": 271,
           "sink": "_combo"
         }
       ]
@@ -42761,7 +42776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 165,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -42821,22 +42836,22 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 274,
+          "line": 284,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 339,
+          "line": 349,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 348,
+          "line": 358,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 354,
+          "line": 364,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -43201,7 +43216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 612,
+          "line": 757,
           "sink": "question"
         },
         {
@@ -43306,7 +43321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 612,
+          "line": 757,
           "sink": "question"
         }
       ]
@@ -44506,7 +44521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 389,
+          "line": 534,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -45271,7 +45286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -45651,7 +45666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 826,
+          "line": 822,
           "sink": "ValueError"
         }
       ]
@@ -47031,12 +47046,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 779,
+          "line": 784,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 993,
+          "line": 851,
           "sink": "emit"
         }
       ]
@@ -47876,7 +47891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 483,
+          "line": 628,
           "sink": "addButton"
         }
       ]
@@ -49636,7 +49651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 302,
+          "line": 312,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -50711,7 +50726,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2138,
+          "line": 2134,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -50751,12 +50766,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 180,
+          "line": 229,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 551,
+          "line": 696,
           "sink": "setWindowTitle"
         },
         {
@@ -51116,7 +51131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 912,
+          "line": 917,
           "sink": "emit"
         }
       ]
@@ -51126,7 +51141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 903,
+          "line": 908,
           "sink": "emit"
         }
       ]
@@ -51161,7 +51176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 767,
+          "line": 763,
           "sink": "RuntimeError"
         }
       ]
@@ -51261,7 +51276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1155,
+          "line": 1151,
           "sink": "RuntimeError"
         }
       ]
@@ -51306,12 +51321,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 274,
+          "line": 205,
           "sink": "python-return:_resident_mutation_authoring_blocker"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 279,
+          "line": 210,
           "sink": "python-return:_resident_mutation_authoring_blocker"
         }
       ]
@@ -51436,7 +51451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 785,
+          "line": 781,
           "sink": "RuntimeError"
         }
       ]
@@ -51496,7 +51511,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 272,
+          "line": 203,
           "sink": "python-return:_resident_mutation_authoring_blocker"
         }
       ]
@@ -51591,7 +51606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 864,
+          "line": 869,
           "sink": "emit"
         }
       ]
@@ -51621,7 +51636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 635,
+          "line": 780,
           "sink": "emit"
         }
       ]
@@ -51761,7 +51776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 221,
+          "line": 279,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -51810,8 +51825,8 @@
       "key": "Mesh editing ready | Mode: {value_0} | Revision {value_1} | Undo {value_2} | Redo {value_3}",
       "origins": [
         {
-          "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 513,
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 388,
           "sink": "setText"
         }
       ]
@@ -52011,7 +52026,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 345,
+          "line": 341,
           "sink": "ValueError"
         }
       ]
@@ -52021,7 +52036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 332,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -52031,12 +52046,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 370,
+          "line": 366,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 372,
+          "line": 368,
           "sink": "ValueError"
         }
       ]
@@ -52046,7 +52061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 337,
+          "line": 333,
           "sink": "ValueError"
         }
       ]
@@ -52056,7 +52071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 341,
+          "line": 337,
           "sink": "ValueError"
         }
       ]
@@ -52066,7 +52081,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 362,
+          "line": 358,
           "sink": "ValueError"
         }
       ]
@@ -52076,7 +52091,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 343,
+          "line": 339,
           "sink": "ValueError"
         }
       ]
@@ -52096,7 +52111,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 360,
+          "line": 356,
           "sink": "ValueError"
         }
       ]
@@ -52106,7 +52121,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 326,
+          "line": 322,
           "sink": "ValueError"
         }
       ]
@@ -52281,7 +52296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 693,
+          "line": 838,
           "sink": "emit"
         }
       ]
@@ -52291,7 +52306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 604,
+          "line": 749,
           "sink": "_handle_mesh_direct_output_error"
         }
       ]
@@ -52301,7 +52316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 632,
+          "line": 777,
           "sink": "emit"
         }
       ]
@@ -52311,7 +52326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 679,
+          "line": 824,
           "sink": "emit"
         }
       ]
@@ -52321,7 +52336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 684,
+          "line": 829,
           "sink": "emit"
         }
       ]
@@ -52373,6 +52388,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 391,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Mesh rebuild could not identify the current session revision.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 212,
+          "sink": "emit"
         }
       ]
     },
@@ -52451,7 +52476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 56,
+          "line": 53,
           "sink": "emit"
         }
       ]
@@ -53301,7 +53326,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 367,
+          "line": 298,
           "sink": "setText"
         }
       ]
@@ -53311,7 +53336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 367,
+          "line": 298,
           "sink": "setText"
         }
       ]
@@ -53321,7 +53346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 367,
+          "line": 298,
           "sink": "setText"
         }
       ]
@@ -53331,7 +53356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 367,
+          "line": 298,
           "sink": "setText"
         }
       ]
@@ -54516,7 +54541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2137,
+          "line": 2133,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -55635,8 +55660,8 @@
       "key": "Native Mesh Editor unavailable: C++ mesh core missing.",
       "origins": [
         {
-          "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 518,
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 393,
           "sink": "setText"
         }
       ]
@@ -56626,7 +56651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 761,
+          "line": 906,
           "sink": "emit"
         }
       ]
@@ -56676,12 +56701,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 319,
+          "line": 344,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 420,
+          "line": 456,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -56691,7 +56716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 423,
+          "line": 459,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -56760,8 +56785,8 @@
           "sink": "setText"
         },
         {
-          "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 500,
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 363,
           "sink": "setText"
         },
         {
@@ -56776,7 +56801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 339,
+          "line": 349,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -57201,7 +57226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 757,
+          "line": 753,
           "sink": "RuntimeError"
         }
       ]
@@ -57396,7 +57421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 309,
+          "line": 311,
           "sink": "addItem"
         },
         {
@@ -57751,7 +57776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 280,
+          "line": 282,
           "sink": "addItem"
         }
       ]
@@ -58136,7 +58161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 317,
+          "line": 342,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -58241,17 +58266,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 276,
+          "line": 278,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 315,
+          "line": 340,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 364,
+          "line": 389,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -58261,7 +58286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 369,
+          "line": 300,
           "sink": "setText"
         }
       ]
@@ -58781,7 +58806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 424,
+          "line": 450,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -59051,32 +59076,32 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 713,
-          "sink": "_finish_pending_textured_view"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 718,
-          "sink": "emit"
+          "sink": "_finish_pending_textured_view"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 784,
-          "sink": "_finish_pending_textured_view"
+          "line": 723,
+          "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 789,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 804,
           "sink": "_finish_pending_textured_view"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
+          "line": 794,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 809,
+          "sink": "_finish_pending_textured_view"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
+          "line": 814,
           "sink": "emit"
         },
         {
@@ -59241,22 +59266,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 108,
+          "line": 117,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 282,
+          "line": 284,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 322,
+          "line": 347,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 366,
+          "line": 391,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -59286,12 +59311,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 476,
+          "line": 488,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 543,
+          "line": 555,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -59386,7 +59411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 274,
+          "line": 284,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -59551,12 +59576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 965,
+          "line": 823,
           "sink": "_send_embedded_viewport_display_mode"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 970,
+          "line": 828,
           "sink": "emit"
         }
       ]
@@ -60026,12 +60051,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 354,
+          "line": 355,
           "sink": "_push_history"
         },
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 395,
+          "line": 396,
           "sink": "_push_history"
         }
       ]
@@ -60706,7 +60731,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 345,
+          "line": 355,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -61776,7 +61801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 270,
+          "line": 356,
           "sink": "emit"
         }
       ]
@@ -62131,7 +62156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 36,
+          "line": 37,
           "sink": "emit"
         }
       ]
@@ -62141,7 +62166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 156,
+          "line": 200,
           "sink": "emit"
         }
       ]
@@ -62151,7 +62176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 455,
+          "line": 600,
           "sink": "emit"
         }
       ]
@@ -62236,7 +62261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 463,
+          "line": 608,
           "sink": "emit"
         }
       ]
@@ -63631,7 +63656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 293,
+          "line": 303,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -64111,7 +64136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -64591,7 +64616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 771,
+          "line": 916,
           "sink": "emit"
         }
       ]
@@ -64856,12 +64881,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 163,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 170,
+          "line": 182,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -64901,12 +64926,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 163,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 170,
+          "line": 182,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -65831,7 +65856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -66116,7 +66141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 541,
+          "line": 553,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -66671,12 +66696,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 253,
+          "line": 319,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 254,
+          "line": 320,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 334,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 335,
           "sink": "emit"
         }
       ]
@@ -68821,7 +68856,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 376,
+          "line": 388,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -69891,7 +69926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 550,
+          "line": 695,
           "sink": "QProgressDialog"
         }
       ]
@@ -74086,7 +74121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 369,
+          "line": 300,
           "sink": "setText"
         }
       ]
@@ -74351,7 +74386,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 280,
+          "line": 352,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 366,
           "sink": "emit"
         }
       ]
@@ -74361,7 +74401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -74382,16 +74422,41 @@
       ]
     },
     {
-      "key": "Rebuild report ready.",
+      "key": "Rebuild report cancelled.",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 253,
+          "line": 423,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 254,
+          "line": 424,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Rebuild report ready.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 319,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 320,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 334,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 335,
           "sink": "emit"
         }
       ]
@@ -74401,7 +74466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 432,
+          "line": 577,
           "sink": "emit"
         }
       ]
@@ -74411,7 +74476,32 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 429,
+          "line": 574,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Rebuild result ignored because the mesh changed; run the report again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 319,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 320,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 334,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 335,
           "sink": "emit"
         }
       ]
@@ -74591,7 +74681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -75106,7 +75196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -78811,7 +78901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 163,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -78846,7 +78936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 895,
+          "line": 900,
           "sink": "emit"
         }
       ]
@@ -79091,7 +79181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 774,
+          "line": 919,
           "sink": "question"
         },
         {
@@ -79156,7 +79246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 774,
+          "line": 919,
           "sink": "question"
         }
       ]
@@ -80046,7 +80136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 170,
+          "line": 182,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -80086,7 +80176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 489,
+          "line": 501,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -80856,7 +80946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 386,
+          "line": 531,
           "sink": "emit"
         }
       ]
@@ -80911,7 +81001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 182,
+          "line": 165,
           "sink": "emit"
         }
       ]
@@ -80921,7 +81011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 478,
+          "line": 623,
           "sink": "emit"
         }
       ]
@@ -80931,7 +81021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 508,
+          "line": 653,
           "sink": "emit"
         }
       ]
@@ -80941,7 +81031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 216,
+          "line": 274,
           "sink": "emit"
         }
       ]
@@ -81011,7 +81101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 78,
+          "line": 88,
           "sink": "emit"
         }
       ]
@@ -81021,7 +81111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 76,
+          "line": 86,
           "sink": "setText"
         }
       ]
@@ -81031,7 +81121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 211,
+          "line": 269,
           "sink": "emit"
         }
       ]
@@ -81041,7 +81131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 179,
+          "line": 228,
           "sink": "QProgressDialog"
         },
         {
@@ -81576,7 +81666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 389,
+          "line": 534,
           "sink": "getSaveFileName"
         }
       ]
@@ -81876,7 +81966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 425,
+          "line": 570,
           "sink": "emit"
         }
       ]
@@ -81916,7 +82006,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 290,
+          "line": 300,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -86076,7 +86166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 494,
+          "line": 506,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -86826,7 +86916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 278,
+          "line": 280,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -89231,7 +89321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -89466,7 +89556,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -89741,7 +89831,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 492,
+          "line": 493,
           "sink": "ValueError"
         }
       ]
@@ -89981,7 +90071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 247,
+          "line": 257,
           "sink": "append_log"
         }
       ]
@@ -90791,12 +90881,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 261,
+          "line": 271,
           "sink": "_combo"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 267,
+          "line": 277,
           "sink": "_tree"
         },
         {
@@ -91141,7 +91231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -91271,7 +91361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 483,
+          "line": 484,
           "sink": "ValueError"
         }
       ]
@@ -91281,7 +91371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 700,
+          "line": 701,
           "sink": "ValueError"
         }
       ]
@@ -92576,13 +92666,18 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 424,
+          "line": 450,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_state.py",
+          "line": 318,
+          "sink": "translate_active_ui_text"
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
@@ -93351,7 +93446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -93406,12 +93501,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 278,
+          "line": 288,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 116,
+          "line": 125,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -93696,7 +93791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 262,
+          "line": 272,
           "sink": "setToolTip"
         }
       ]
@@ -94456,7 +94551,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 704,
+          "line": 705,
           "sink": "ValueError"
         }
       ]
@@ -94601,7 +94696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 320,
+          "line": 251,
           "sink": "setText"
         }
       ]
@@ -96001,7 +96096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 165,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -96326,7 +96421,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 305,
+          "line": 315,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -98626,12 +98721,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 924,
+          "line": 782,
           "sink": "_send_embedded_viewport_display_mode"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 929,
+          "line": 787,
           "sink": "emit"
         }
       ]
@@ -98786,57 +98881,57 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         }
       ]
@@ -99846,7 +99941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -99946,12 +100041,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 433,
+          "line": 434,
           "sink": "_push_history"
         },
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 500,
+          "line": 501,
           "sink": "_push_history"
         }
       ]
@@ -100316,12 +100411,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 455,
+          "line": 467,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 529,
+          "line": 541,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -100771,7 +100866,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 308,
+          "line": 318,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -100801,12 +100896,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 354,
+          "line": 379,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 411,
+          "line": 447,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -100816,7 +100911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 480,
+          "line": 519,
           "sink": "setText"
         }
       ]
@@ -100836,7 +100931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 484,
+          "line": 523,
           "sink": "setText"
         }
       ]
@@ -101486,7 +101581,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 721,
+          "line": 717,
           "sink": "ValueError"
         }
       ]
@@ -101571,7 +101666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1454,
+          "line": 1450,
           "sink": "ValueError"
         }
       ]
@@ -101591,12 +101686,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 528,
+          "line": 524,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 543,
+          "line": 539,
           "sink": "ValueError"
         }
       ]
@@ -103256,17 +103351,17 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 388,
+          "line": 400,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 498,
+          "line": 510,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -103286,12 +103381,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 113,
+          "line": 151,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 114,
+          "line": 152,
           "sink": "emit"
         }
       ]
@@ -103301,22 +103396,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 90,
+          "line": 113,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 91,
+          "line": 114,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 105,
+          "line": 133,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 106,
+          "line": 134,
           "sink": "emit"
         }
       ]
@@ -103326,12 +103421,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 187,
+          "line": 170,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 188,
+          "line": 171,
           "sink": "emit"
         }
       ]
@@ -103341,22 +103436,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 90,
+          "line": 113,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 91,
+          "line": 114,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 105,
+          "line": 133,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 106,
+          "line": 134,
           "sink": "emit"
         }
       ]
@@ -103366,7 +103461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -103816,7 +103911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 165,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -103901,7 +103996,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 257,
+          "line": 267,
           "sink": "QLabel"
         },
         {
@@ -104131,7 +104226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 165,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -104501,7 +104596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 789,
+          "line": 934,
           "sink": "emit"
         }
       ]
@@ -104521,12 +104616,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 46,
+          "line": 47,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 163,
+          "line": 207,
           "sink": "emit"
         }
       ]
@@ -104536,7 +104631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 536,
+          "line": 681,
           "sink": "emit"
         },
         {
@@ -104581,7 +104676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 398,
+          "line": 543,
           "sink": "emit"
         }
       ]
@@ -104926,7 +105021,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 445,
+          "line": 471,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -105396,7 +105491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 417,
+          "line": 429,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -105416,7 +105511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 534,
+          "line": 546,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -105431,7 +105526,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 400,
+          "line": 412,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -105441,7 +105536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 421,
+          "line": 433,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -108901,7 +108996,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 177,
+          "line": 178,
           "sink": "TypeError"
         }
       ]
@@ -109416,12 +109511,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 385,
+          "line": 411,
           "sink": "python-return:_topology_rebuild_status"
         }
       ]
@@ -109936,7 +110031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 354,
+          "line": 364,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -109946,7 +110041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 354,
+          "line": 364,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -111356,17 +111451,17 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 163,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 170,
+          "line": 182,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 489,
+          "line": 501,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -111656,7 +111751,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 676,
+          "line": 672,
           "sink": "_project_non_negative_int"
         }
       ]
@@ -112111,17 +112206,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 163,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 170,
+          "line": 182,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 489,
+          "line": 501,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -112156,7 +112251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 290,
+          "line": 300,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -112186,7 +112281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 325,
+          "line": 337,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -116351,7 +116446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 680,
+          "line": 676,
           "sink": "_project_non_negative_int"
         }
       ]
@@ -117946,7 +118041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 577,
+          "line": 573,
           "sink": "TypeError"
         },
         {
@@ -117961,7 +118056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 532,
+          "line": 528,
           "sink": "TypeError"
         }
       ]
@@ -118226,7 +118321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 344,
+          "line": 369,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -118606,7 +118701,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 723,
+          "line": 719,
           "sink": "RuntimeError"
         }
       ]
@@ -118616,7 +118711,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 747,
+          "line": 743,
           "sink": "RuntimeError"
         }
       ]
@@ -118626,7 +118721,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 733,
+          "line": 729,
           "sink": "RuntimeError"
         }
       ]
@@ -118636,7 +118731,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 758,
+          "line": 754,
           "sink": "RuntimeError"
         }
       ]
@@ -118741,7 +118836,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1980,
+          "line": 1976,
           "sink": "RuntimeError"
         }
       ]
@@ -118785,9 +118880,9 @@
       "key": "native mesh editor UV summary unavailable; Python mesh state is stale",
       "origins": [
         {
-          "path": "cdmw/services/mesh_service.py",
-          "line": 1315,
-          "sink": "RuntimeError"
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 21,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -118795,9 +118890,9 @@
       "key": "native mesh editor compare summary unavailable; Python mesh state is stale",
       "origins": [
         {
-          "path": "cdmw/services/mesh_service.py",
-          "line": 1309,
-          "sink": "RuntimeError"
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 29,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -118816,7 +118911,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2280,
+          "line": 2276,
           "sink": "RuntimeError"
         }
       ]
@@ -118826,7 +118921,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1266,
+          "line": 1262,
           "sink": "RuntimeError"
         }
       ]
@@ -118836,12 +118931,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1243,
+          "line": 1239,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1277,
+          "line": 1273,
           "sink": "RuntimeError"
         }
       ]
@@ -118851,7 +118946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1255,
+          "line": 1251,
           "sink": "RuntimeError"
         }
       ]
@@ -118891,7 +118986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1230,
+          "line": 1226,
           "sink": "RuntimeError"
         },
         {
@@ -118906,7 +119001,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1859,
+          "line": 1855,
           "sink": "RuntimeError"
         }
       ]
@@ -118916,7 +119011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1179,
+          "line": 1175,
           "sink": "RuntimeError"
         }
       ]
@@ -118926,7 +119021,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 521,
+          "line": 522,
           "sink": "RuntimeError"
         }
       ]
@@ -118935,9 +119030,9 @@
       "key": "native mesh editor skeleton summary unavailable; Python mesh state is stale",
       "origins": [
         {
-          "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 82,
-          "sink": "RuntimeError"
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 25,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -118946,17 +119041,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 274,
+          "line": 275,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 350,
+          "line": 351,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 425,
+          "line": 426,
           "sink": "RuntimeError"
         }
       ]
@@ -118966,17 +119061,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 307,
+          "line": 308,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 377,
+          "line": 378,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_rigging.py",
-          "line": 463,
+          "line": 464,
           "sink": "RuntimeError"
         }
       ]
@@ -119011,7 +119106,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1669,
+          "line": 1665,
           "sink": "RuntimeError"
         }
       ]
@@ -119030,9 +119125,9 @@
       "key": "native mesh editor workspace summary failed; Python mesh state is stale",
       "origins": [
         {
-          "path": "cdmw/services/mesh_service.py",
-          "line": 1301,
-          "sink": "RuntimeError"
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 17,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -119041,7 +119136,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2334,
+          "line": 2330,
           "sink": "RuntimeError"
         }
       ]
@@ -119051,7 +119146,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2303,
+          "line": 2299,
           "sink": "RuntimeError"
         }
       ]
@@ -119071,7 +119166,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2170,
+          "line": 2166,
           "sink": "RuntimeError"
         }
       ]
@@ -119081,7 +119176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2506,
+          "line": 2502,
           "sink": "RuntimeError"
         }
       ]
@@ -119231,7 +119326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -119281,7 +119376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 449,
+          "line": 594,
           "sink": "RuntimeError"
         }
       ]
@@ -119336,7 +119431,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 278,
+          "line": 280,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -120166,7 +120261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 290,
+          "line": 376,
           "sink": "_standalone_rebuilt_asset_handoff_payload"
         }
       ]
@@ -120221,12 +120316,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 445,
+          "line": 457,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 524,
+          "line": 536,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -120256,7 +120351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -120936,7 +121031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -121106,7 +121201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 284,
+          "line": 370,
           "sink": "_standalone_rebuilt_asset_handoff_payload"
         }
       ]
@@ -121881,7 +121976,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 385,
+          "line": 411,
           "sink": "python-return:_topology_rebuild_status"
         },
         {
@@ -122326,7 +122421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 74,
+          "line": 75,
           "sink": "TypeError"
         }
       ]
@@ -124106,7 +124201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 417,
+          "line": 429,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -198281,7 +198376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 541,
+          "line": 553,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -198291,12 +198386,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 455,
+          "line": 467,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 529,
+          "line": 541,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -198306,7 +198401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 421,
+          "line": 433,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -198746,12 +198841,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 163,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 170,
+          "line": 182,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -198806,7 +198901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 308,
+          "line": 318,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -198826,7 +198921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 305,
+          "line": 315,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -198836,7 +198931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 302,
+          "line": 312,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -199271,7 +199366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 345,
+          "line": 355,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -200223,6 +200318,21 @@
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
           "line": 469,
           "sink": "_send_dotnet_command_result"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 33,
+          "sink": "translate_active_ui_text"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 243,
+          "sink": "translate_active_ui_text"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_panel_state.py",
+          "line": 492,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -200261,7 +200371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 354,
+          "line": 364,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -200346,7 +200456,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -200401,12 +200511,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1824,
+          "line": 1820,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1863,
+          "line": 1859,
           "sink": "RuntimeError"
         }
       ]
@@ -200676,17 +200786,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 163,
+          "line": 175,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 170,
+          "line": 182,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 489,
+          "line": 501,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -201086,7 +201196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 362,
+          "line": 387,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -201436,7 +201546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 379,
+          "line": 405,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -202851,57 +202961,57 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 368,
+          "line": 299,
           "sink": "setToolTip"
         }
       ]
@@ -202911,7 +203021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 214,
+          "line": 224,
           "sink": "python-return:_format_bytes"
         }
       ]
@@ -203051,7 +203161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1822,
+          "line": 1818,
           "sink": "RuntimeError"
         },
         {
@@ -203091,12 +203201,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 307,
+          "line": 238,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 308,
+          "line": 239,
           "sink": "emit"
         }
       ]
@@ -203281,7 +203391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 412,
+          "line": 438,
           "sink": "python-return:_validation_status"
         }
       ]
@@ -203291,7 +203401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 345,
+          "line": 355,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -203301,12 +203411,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 433,
+          "line": 445,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 517,
+          "line": 529,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -203366,7 +203476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1483,
+          "line": 1479,
           "sink": "RuntimeError"
         }
       ]
@@ -203576,7 +203686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 247,
+          "line": 257,
           "sink": "append_log"
         }
       ]
@@ -203856,12 +203966,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 388,
+          "line": 400,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 498,
+          "line": 510,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -203926,7 +204036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1477,
+          "line": 1473,
           "sink": "RuntimeError"
         }
       ]
@@ -204181,17 +204291,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 302,
+          "line": 312,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 305,
+          "line": 315,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 308,
+          "line": 318,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -204476,7 +204586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 278,
+          "line": 288,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -204556,7 +204666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 263,
+          "line": 275,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -204701,7 +204811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 400,
+          "line": 412,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205026,7 +205136,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 331,
+          "line": 356,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205036,7 +205146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 428,
+          "line": 464,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205046,7 +205156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 247,
+          "line": 257,
           "sink": "append_log"
         }
       ]
@@ -205071,7 +205181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 412,
+          "line": 438,
           "sink": "python-return:_validation_status"
         }
       ]
@@ -205426,7 +205536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 116,
+          "line": 125,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205436,7 +205546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 417,
+          "line": 429,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205446,7 +205556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 474,
+          "line": 486,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205466,7 +205576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 362,
+          "line": 374,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205476,7 +205586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 376,
+          "line": 388,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205486,7 +205596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 344,
+          "line": 369,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205496,22 +205606,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 314,
+          "line": 324,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 343,
+          "line": 355,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 343,
+          "line": 355,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 507,
+          "line": 519,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -205556,7 +205666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 177,
+          "line": 189,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205981,7 +206091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 534,
+          "line": 546,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -205991,7 +206101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 539,
+          "line": 551,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -206001,7 +206111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 474,
+          "line": 486,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -206291,17 +206401,17 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 354,
+          "line": 379,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 362,
+          "line": 387,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 411,
+          "line": 447,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -206601,7 +206711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 278,
+          "line": 288,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -206641,7 +206751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 494,
+          "line": 506,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -206651,7 +206761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 314,
+          "line": 324,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -206946,7 +207056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 428,
+          "line": 464,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -207096,22 +207206,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 474,
+          "line": 486,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 539,
+          "line": 551,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 331,
+          "line": 356,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
-          "line": 344,
+          "line": 369,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -207136,12 +207246,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 445,
+          "line": 457,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
-          "line": 524,
+          "line": 536,
           "sink": "QTreeWidgetItem"
         }
       ]

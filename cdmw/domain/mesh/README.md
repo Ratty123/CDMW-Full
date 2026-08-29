@@ -6,6 +6,16 @@ Keep mesh parsing, replacement building, native preview packaging, and PySide
 controls outside this package. Use `cdmw/modding/` for mesh/material operations,
 `cdmw/rendering/` for preview packaging, and `cdmw/ui/mesh_editor/` for UI.
 
+## Derived panel authority
+
+`panel_state.py` defines the immutable session/revision/generation contract for
+derived Mesh Editor values. A pending, unavailable, or failed request may retain
+last-known-good data from the same session, but `value_revision` keeps that data
+distinct from the requested `revision`; only a ready matching value is current
+authority. `MeshPanelUnavailableError` is reserved for expected conditions such
+as a native snapshot that is not yet authoritative, leaving unexpected failures
+available to diagnostics.
+
 ## Body region segmentation
 
 `body_regions.py` turns a skinned body's own skin weights plus the bone names

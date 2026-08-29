@@ -27,6 +27,7 @@ from cdmw.ui.mesh_editor.actions import (
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
+from cdmw.ui.mesh_editor.tab_panel_state import MeshEditorPanelStateMixin
 from cdmw.ui.mesh_editor.tab_support import _validation_report_json_payload
 from cdmw.ui.mesh_editor.tab_textured_view import MeshEditorTexturedViewMixin
 
@@ -43,7 +44,7 @@ PENDING_TEXTURED_VIEW_TIMEOUT_MS = 20_000
 PENDING_TEXTURED_VIEW_MAX_EXTENSIONS = 9
 
 
-class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
+class MeshEditorStateMixin(MeshEditorPanelStateMixin, MeshEditorTexturedViewMixin):
     def _entry_path(self, entry: object) -> str:
         return str(getattr(entry, "path", "") or getattr(entry, "name", "") or "").strip()
     def _entry_label(self, entry: object) -> str:
@@ -119,22 +120,21 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         if derived_panels_visible:
             self._refresh_standalone_uv_summary(view)
             self._refresh_standalone_compare_summary(view)
+        else:
+            self._defer_standalone_summary_panel(
+                view,
+                state_name="standalone_uv_panel_state",
+                state_updater_name="update_uv_panel_state",
+                legacy_updater_name="update_uv_summary",
+            )
+            self._defer_standalone_summary_panel(
+                view,
+                state_name="standalone_compare_panel_state",
+                state_updater_name="update_compare_panel_state",
+                legacy_updater_name="update_compare_summary",
+            )
         self._refresh_standalone_export_validation(view)
-        rebuild_updater = getattr(self.standalone_workspace, "update_rebuild_report", None)
-        # A rebuild report goes stale when the geometry changes, not when the user
-        # clicks a different part -- and this ran on every state refresh, so selecting
-        # a part threw away a finished report the user could no longer inspect,
-        # preview or package. Only a geometry command moves `revision`.
-        stamped = self.standalone_rebuild_report_revision
-        report_is_stale = (
-            view is None
-            or stamped is None
-            or int(getattr(view, "revision", -1)) != int(stamped)
-        )
-        if callable(rebuild_updater) and report_is_stale:
-            self.standalone_last_rebuild_report = None
-            self.standalone_rebuild_report_revision = None
-            rebuild_updater(None)
+        self._refresh_standalone_rebuild_report(view)
         if view is None:
             self.update_editor_action_state(
                 mode="object",
@@ -159,23 +159,6 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
             active_element_type=active_element_type,
             active_tool_key=active_tool_key,
         )
-    def _refresh_standalone_export_validation(self, view: _tab.MeshEditSessionView | None) -> None:
-        updater = getattr(self.standalone_workspace, "update_export_validation", None)
-        if not callable(updater):
-            return
-        controller = self.standalone_controller
-        if view is None or controller is None or controller.active_session_id != view.session_id:
-            self.standalone_last_export_validation_report = None
-            self.standalone_export_validation_revision = None
-            updater(None)
-            return
-        revision = int(getattr(view, "revision", -1))
-        if self.standalone_export_validation_revision != revision:
-            self.standalone_last_export_validation_report = None
-            self.standalone_export_validation_revision = None
-            updater(None)
-            return
-        updater(self.standalone_last_export_validation_report)
     def _copy_standalone_validation_report_requested(self) -> None:
         report = self.standalone_last_export_validation_report
         if report is None:
@@ -186,58 +169,6 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         text = "Validation report copied to clipboard."
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, False)
-    def _refresh_standalone_workspace_summary(self, view: _tab.MeshEditSessionView | None) -> None:
-        updater = getattr(self.standalone_workspace, "update_workspace_summary", None)
-        if not callable(updater):
-            return
-        controller = self.standalone_controller
-        if view is None or controller is None or controller.active_session_id != view.session_id:
-            updater(None)
-            return
-        try:
-            updater(controller.workspace_summary())
-        except Exception:
-            # Best effort: standalone workspace summary is derived UI state.
-            updater(None)
-    def _refresh_standalone_uv_summary(self, view: _tab.MeshEditSessionView | None) -> None:
-        updater = getattr(self.standalone_workspace, "update_uv_summary", None)
-        if not callable(updater):
-            return
-        controller = self.standalone_controller
-        if view is None or controller is None or controller.active_session_id != view.session_id:
-            updater(None)
-            return
-        try:
-            updater(controller.uv_summary())
-        except Exception:
-            # Best effort: standalone UV summary is derived UI state.
-            updater(None)
-    def _refresh_standalone_skeleton_summary(self, view: _tab.MeshEditSessionView | None) -> None:
-        updater = getattr(self.standalone_workspace, "update_skeleton_summary", None)
-        if not callable(updater):
-            return
-        controller = self.standalone_controller
-        if view is None or controller is None or controller.active_session_id != view.session_id:
-            updater(None)
-            return
-        try:
-            updater(controller.skeleton_summary())
-        except Exception:
-            # Best effort: standalone skeleton summary is derived UI state.
-            updater(None)
-    def _refresh_standalone_compare_summary(self, view: _tab.MeshEditSessionView | None) -> None:
-        updater = getattr(self.standalone_workspace, "update_compare_summary", None)
-        if not callable(updater):
-            return
-        controller = self.standalone_controller
-        if view is None or controller is None or controller.active_session_id != view.session_id:
-            updater(None)
-            return
-        try:
-            updater(controller.compare_summary())
-        except Exception:
-            # Best effort: standalone compare summary is derived UI state.
-            updater(None)
     def _current_target_entry(self) -> Optional[_tab.ArchiveEntry]:
         if self.current_request is not None:
             return self.current_request.target_entry
@@ -479,79 +410,6 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
             # Best effort: embedded builder controller lookup is optional UI state sync.
             return None
         return controller if isinstance(controller, _tab.MeshEditorController) else None
-    def _refresh_embedded_workspace_from_builder(
-        self,
-        *,
-        include_derived: bool = True,
-        session_view: _tab.MeshEditSessionView | None = None,
-    ) -> None:
-        workspace = self.embedded_workspace
-        if workspace is None:
-            return
-        controller = self._embedded_builder_controller()
-        view = session_view
-        if controller is not None and view is None:
-            try:
-                view = controller.session_view()
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                view = None
-        if controller is None or view is None:
-            if hasattr(workspace, "status_label"):
-                workspace.status_label.setText("No active edit session.")
-            workspace.update_session_summary(None)
-            workspace.update_workspace_summary(None)
-            workspace.update_uv_summary(None)
-            workspace.update_skeleton_summary(None)
-            workspace.update_compare_summary(None)
-            workspace.update_export_validation(None)
-            workspace.update_rebuild_report(None)
-            workspace.update_action_state(has_target=False)
-            return
-        native_editor_available = self._native_mesh_editor_available()
-        if hasattr(workspace, "status_label"):
-            if native_editor_available:
-                workspace.status_label.setText(
-                    f"Mesh editing ready | Mode: {str(view.mode or 'edit').title()} | "
-                    f"Revision {view.revision} | Undo {view.undo_count} | Redo {view.redo_count}"
-                )
-            else:
-                workspace.status_label.setText("Native Mesh Editor unavailable: C++ mesh core missing.")
-        workspace.update_session_summary(view, mesh_label=self._entry_label(self._current_target_entry()))
-        if not include_derived:
-            update_selection = getattr(workspace, "update_workspace_selection", None)
-            if callable(update_selection):
-                update_selection(view.selection)
-        if include_derived:
-            for method_name, updater_name in (
-                ("workspace_summary", "update_workspace_summary"),
-                ("uv_summary", "update_uv_summary"),
-                ("skeleton_summary", "update_skeleton_summary"),
-                ("compare_summary", "update_compare_summary"),
-                ("export_validation_report", "update_export_validation"),
-            ):
-                updater = getattr(workspace, updater_name, None)
-                method = getattr(controller, method_name, None)
-                if callable(updater) and callable(method):
-                    try:
-                        updater(method())
-                    except Exception:
-                        # Best effort: workspace side panels are derived status only.
-                        updater(None)
-            workspace.update_rebuild_report(None)
-        workspace.update_action_state(
-            has_target=True,
-            selection_empty=bool(view.selection.is_empty()),
-            mode=str(view.mode or "edit"),
-            active_selection_mode=str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "brush"),
-            undo_count=int(view.undo_count or 0),
-            redo_count=int(view.redo_count or 0),
-            native_editor_available=native_editor_available,
-        )
-        builder = self.active_builder()
-        selection_changed = getattr(builder, "_mesh_editor_embedded_apply_part_selection_from_viewport", None)
-        if callable(selection_changed):
-            selection_changed(tuple(view.selection.source_indices))
-
     def _refresh_embedded_active_selection_summary(
         self,
         _index: int = -1,

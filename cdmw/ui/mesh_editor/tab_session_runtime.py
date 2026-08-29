@@ -456,10 +456,15 @@ class MeshEditorSessionMixin:
         self.standalone_last_export_validation_report = None
         self.standalone_export_validation_revision = None
         self.standalone_validation_started_revision = None
-        self.standalone_workspace.update_export_validation(None)
+        self.standalone_validation_started_session_id = ""
+        self.standalone_validation_started_generation = 0
         self.standalone_last_rebuild_report = None
         self.standalone_rebuild_report_revision = None
+        self.standalone_rebuild_started_session_id = ""
+        self.standalone_rebuild_started_revision = None
+        self.standalone_rebuild_started_generation = 0
         self.standalone_last_rebuilt_asset_path = None
+        self._reset_standalone_panel_snapshots()
         self.standalone_file_load_source_skeleton = None
         self.standalone_compare_mode = "edited"
         self.standalone_texture_preview_overrides.clear()

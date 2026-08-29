@@ -140,6 +140,7 @@ from .operations import (
     validate_mesh_edit_operations,
 )
 from .parts import MeshPartSummary, MeshWorkspaceSummary, summarize_mesh_workspace
+from .panel_state import MeshPanelKind, MeshPanelSnapshot, MeshPanelStatus, MeshPanelUnavailableError
 from .skeleton import (
     MeshAnimationClip,
     MeshAnimationKeyframe,
@@ -242,6 +243,10 @@ __all__ = [
     "MeshExportValidationIssue",
     "MeshExportValidationReport",
     "MeshPartSummary",
+    "MeshPanelKind",
+    "MeshPanelSnapshot",
+    "MeshPanelStatus",
+    "MeshPanelUnavailableError",
     "MeshPartCompareSummary",
     "MeshAnimationClip",
     "MeshAnimationKeyframe",

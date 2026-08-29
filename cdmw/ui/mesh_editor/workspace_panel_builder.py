@@ -145,13 +145,13 @@ class WorkspacePanelBuilderMixin:
             tabs.addTab(widget, title)
             self._right_panels_by_title[title.strip().lower()] = widget
         self.update_session_summary(None)
-        self.update_workspace_summary(None)
-        self.update_uv_summary(None)
-        self.update_export_validation(None)
-        self.update_rebuild_report(None)
+        self.update_workspace_panel_state(self._workspace_panel_state)
+        self.update_uv_panel_state(self._uv_panel_state)
+        self.update_export_validation_state(self._export_validation_panel_state)
+        self.update_rebuild_report_state(self._rebuild_panel_state)
         self.set_native_performance_status(None)
-        self.update_compare_summary(None)
-        self.update_skeleton_summary(None)
+        self.update_compare_panel_state(self._compare_panel_state)
+        self.update_skeleton_panel_state(self._skeleton_panel_state)
         return tabs
 
     def _build_object_transform_panel(self) -> QWidget:
