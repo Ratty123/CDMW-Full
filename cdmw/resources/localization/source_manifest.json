@@ -15356,12 +15356,12 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ProgramEntry.cs",
-          "line": 174,
+          "line": 178,
           "sink": "csharp:MessageBox.Show("
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ProgramEntry.cs",
-          "line": 232,
+          "line": 236,
           "sink": "csharp:MessageBox.Show("
         }
       ]
@@ -29076,7 +29076,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 686,
+          "line": 573,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -71286,7 +71286,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 286,
+          "line": 227,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -71296,7 +71296,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 285,
+          "line": 226,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -119706,7 +119706,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 686,
+          "line": 573,
           "sink": "csharp:StatusRequested?.Invoke("
         },
         {
@@ -119841,7 +119841,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 686,
+          "line": 573,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -204706,7 +204706,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 323,
+          "line": 264,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -204821,12 +204821,12 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 256,
+          "line": 197,
           "sink": "csharp:StatusRequested?.Invoke("
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 301,
+          "line": 242,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]

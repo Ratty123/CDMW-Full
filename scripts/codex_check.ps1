@@ -17,6 +17,7 @@ $TestsByArea = @{
         # is built below before pytest for both ordinary main pushes and mesh-unit.
         "tests/test_dotnet_resident_mutation_batch_contract.py",
         "tests/test_dotnet_stroke_sample_buffer_contract.py",
+        "tests/test_dotnet_selection_geometry_contract.py",
         # Generated-manifest freshness. Both of these are verified by
         # build_pyside6_app.ps1 before it compiles anything, so a stale one is a
         # failed release build. The localization manifest stores a line number
@@ -184,6 +185,7 @@ $TestsByArea = @{
         "tests/test_dotnet_helper_manifest_contract.py",
         "tests/test_dotnet_resident_mutation_batch_contract.py",
         "tests/test_dotnet_stroke_sample_buffer_contract.py",
+        "tests/test_dotnet_selection_geometry_contract.py",
         "tests/test_dotnet_ui_localization_protocol_source.py",
         "tests/test_dotnet_preview_shared_host.py",
         "tests/test_dotnet_preview_theme.py",

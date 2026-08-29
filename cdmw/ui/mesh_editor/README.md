@@ -417,6 +417,15 @@ drawing and always append the exact mouse-up endpoint; local echo and native
 tests therefore share one tolerance-bounded outline instead of doing mouse-up
 work proportional to every raw event. Its immediate target-specific result remains visible until
 native authority answers.
+All C# screen-selection predicates live in `SelectionGeometry`: calculations
+use doubles, coordinate/collinearity and inclusive boundaries use the native
+owner's 1e-9 tolerance, squared zero-length and projected-degenerate thresholds
+use 1e-12, and visible-facing UI selection keeps its established 0.01
+pixel-squared area threshold. Zero/near-zero triangles are not selectable region
+areas; collinear segments intersect only when their inclusive bounds overlap.
+X-Ray bypasses depth/facing rejection but never presentation visibility or the
+active geometry-layer filter. The 25-case headless contract is executable math
+evidence; visible input and licensed-game appearance remain separate gates.
 `MeshEditorTab` routes those events to a resident native `select` command
 through `MeshService`, C++ expands the requested selection mask from the D3D11
 projection matrix, composes D3D11 per-source world transforms when alignment

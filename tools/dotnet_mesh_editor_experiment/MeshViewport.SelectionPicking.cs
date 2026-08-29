@@ -27,80 +27,18 @@ internal sealed partial class MeshViewport
         PointF b,
         PointF c)
     {
-        if (SelectionPointInTriangle(start, a, b, c) || SelectionPointInTriangle(end, a, b, c))
+        if (SelectionGeometry.PointInTriangle(start, a, b, c)
+            || SelectionGeometry.PointInTriangle(end, a, b, c))
         {
             return true;
         }
         var radiusSquared = radius * radius;
-        return SegmentDistanceSquared(start, end, a, a) <= radiusSquared
-            || SegmentDistanceSquared(start, end, b, b) <= radiusSquared
-            || SegmentDistanceSquared(start, end, c, c) <= radiusSquared
-            || SegmentDistanceSquared(start, end, a, b) <= radiusSquared
-            || SegmentDistanceSquared(start, end, b, c) <= radiusSquared
-            || SegmentDistanceSquared(start, end, c, a) <= radiusSquared;
-    }
-
-    private static bool SelectionPointInTriangle(Point point, PointF a, PointF b, PointF c)
-    {
-        static float Sign(float px, float py, PointF first, PointF second) =>
-            (px - second.X) * (first.Y - second.Y) - (first.X - second.X) * (py - second.Y);
-        var d1 = Sign(point.X, point.Y, a, b);
-        var d2 = Sign(point.X, point.Y, b, c);
-        var d3 = Sign(point.X, point.Y, c, a);
-        var hasNegative = d1 < 0.0f || d2 < 0.0f || d3 < 0.0f;
-        var hasPositive = d1 > 0.0f || d2 > 0.0f || d3 > 0.0f;
-        return !(hasNegative && hasPositive);
-    }
-
-    private static double SegmentDistanceSquared(Point firstStart, Point firstEnd, PointF secondStart, PointF secondEnd)
-    {
-        if (SelectionSegmentsIntersect(firstStart, firstEnd, secondStart, secondEnd))
-        {
-            return 0.0;
-        }
-        return Math.Min(
-            Math.Min(PointSegmentDistanceSquared(firstStart.X, firstStart.Y, secondStart, secondEnd),
-                PointSegmentDistanceSquared(firstEnd.X, firstEnd.Y, secondStart, secondEnd)),
-            Math.Min(PointSegmentDistanceSquared(secondStart.X, secondStart.Y, firstStart, firstEnd),
-                PointSegmentDistanceSquared(secondEnd.X, secondEnd.Y, firstStart, firstEnd)));
-    }
-
-    private static double PointSegmentDistanceSquared(float x, float y, PointF start, PointF end)
-    {
-        var dx = end.X - start.X;
-        var dy = end.Y - start.Y;
-        var lengthSquared = dx * dx + dy * dy;
-        var t = lengthSquared <= 0.000001f
-            ? 0.0f
-            : Math.Clamp(((x - start.X) * dx + (y - start.Y) * dy) / lengthSquared, 0.0f, 1.0f);
-        var nearestX = start.X + t * dx;
-        var nearestY = start.Y + t * dy;
-        var deltaX = x - nearestX;
-        var deltaY = y - nearestY;
-        return deltaX * deltaX + deltaY * deltaY;
-    }
-
-    internal static bool SelectionSegmentsIntersect(PointF a, PointF b, PointF c, PointF d)
-    {
-        static float Cross(PointF first, PointF second, PointF third) =>
-            (second.X - first.X) * (third.Y - first.Y) - (second.Y - first.Y) * (third.X - first.X);
-        static bool OnSegment(PointF point, PointF start, PointF end) =>
-            point.X >= Math.Min(start.X, end.X) - 0.00001f
-            && point.X <= Math.Max(start.X, end.X) + 0.00001f
-            && point.Y >= Math.Min(start.Y, end.Y) - 0.00001f
-            && point.Y <= Math.Max(start.Y, end.Y) + 0.00001f;
-        var abC = Cross(a, b, c);
-        var abD = Cross(a, b, d);
-        var cdA = Cross(c, d, a);
-        var cdB = Cross(c, d, b);
-        if (Math.Sign(abC) != Math.Sign(abD) && Math.Sign(cdA) != Math.Sign(cdB))
-        {
-            return true;
-        }
-        return (Math.Abs(abC) <= 0.00001f && OnSegment(c, a, b))
-            || (Math.Abs(abD) <= 0.00001f && OnSegment(d, a, b))
-            || (Math.Abs(cdA) <= 0.00001f && OnSegment(a, c, d))
-            || (Math.Abs(cdB) <= 0.00001f && OnSegment(b, c, d));
+        return SelectionGeometry.SegmentDistanceSquared(start, end, a, a) <= radiusSquared
+            || SelectionGeometry.SegmentDistanceSquared(start, end, b, b) <= radiusSquared
+            || SelectionGeometry.SegmentDistanceSquared(start, end, c, c) <= radiusSquared
+            || SelectionGeometry.SegmentDistanceSquared(start, end, a, b) <= radiusSquared
+            || SelectionGeometry.SegmentDistanceSquared(start, end, b, c) <= radiusSquared
+            || SelectionGeometry.SegmentDistanceSquared(start, end, c, a) <= radiusSquared;
     }
 
     private (int SubmeshIndex, int ItemIndex)? PickVertexAt(Point point)
@@ -117,7 +55,8 @@ internal sealed partial class MeshViewport
             var submesh = _document.Submeshes[submeshIndex];
             for (var vertexIndex = 0; vertexIndex < submesh.Vertices.Count; vertexIndex++)
             {
-                if (!ShowXRay && !IsVertexFrontFacing(submeshIndex, vertexIndex, camera))
+                if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
+                    && !IsVertexFrontFacing(submeshIndex, vertexIndex, camera))
                 {
                     continue;
                 }
@@ -141,7 +80,7 @@ internal sealed partial class MeshViewport
 
     private (int SubmeshIndex, int ItemIndex)? PickFaceAt(Point point)
     {
-        if (!ShowXRay)
+        if (SelectionGeometry.RequiresVisibleDepth(ShowXRay))
         {
             return TryNearestVisibleSurface(point, out _, out var visibleSubmesh, out var visibleFace)
                 ? (visibleSubmesh, visibleFace)
@@ -159,7 +98,8 @@ internal sealed partial class MeshViewport
             var submesh = _document.Submeshes[submeshIndex];
             for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
             {
-                if (!ShowXRay && !IsFaceFrontFacing(submeshIndex, faceIndex, camera))
+                if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
+                    && !IsFaceFrontFacing(submeshIndex, faceIndex, camera))
                 {
                     continue;
                 }
@@ -180,7 +120,8 @@ internal sealed partial class MeshViewport
                     }
                     points[cornerIndex] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
                 }
-                if (!valid || !PointInTriangle(point, points[0], points[1], points[2]))
+                if (!valid
+                    || !SelectionGeometry.PointInTriangle(point, points[0], points[1], points[2]))
                 {
                     continue;
                 }
@@ -368,12 +309,15 @@ internal sealed partial class MeshViewport
                     || edge.VertexA >= points.Length
                     || edge.VertexB < 0
                     || edge.VertexB >= points.Length
-                    || !SelectionPolygonIntersectsSegment(polygon, points[edge.VertexA], points[edge.VertexB]))
+                    || !SelectionGeometry.PolygonIntersectsSegment(
+                        polygon,
+                        points[edge.VertexA],
+                        points[edge.VertexB]))
                 {
                     continue;
                 }
                 var edgeDepths = cache.Depths[edge.SubmeshIndex];
-                if (!ShowXRay
+                if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
                     && !PaintSegmentVisible(
                         cache,
                         points[edge.VertexA],
@@ -420,11 +364,15 @@ internal sealed partial class MeshViewport
                         var b = face.Corners[1].VertexIndex;
                         var c = face.Corners[2].VertexIndex;
                         if (a < 0 || b < 0 || c < 0 || a >= points.Length || b >= points.Length || c >= points.Length
-                            || !SelectionPolygonIntersectsTriangle(polygon, points[a], points[b], points[c]))
+                            || !SelectionGeometry.PolygonIntersectsTriangle(
+                                polygon,
+                                points[a],
+                                points[b],
+                                points[c]))
                         {
                             continue;
                         }
-                        if (!ShowXRay
+                        if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
                             && !PaintTriangleVisible(cache, points[a], depths[a], points[b], depths[b], points[c], depths[c]))
                         {
                             continue;
@@ -452,8 +400,8 @@ internal sealed partial class MeshViewport
                 }
                 for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
                 {
-                    if (!SelectionPointInPolygon(points[vertexIndex], polygon)
-                        || (!ShowXRay
+                    if (!SelectionGeometry.PointInPolygon(points[vertexIndex], polygon)
+                        || (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
                             && !PaintPointVisible(cache, points[vertexIndex].X, points[vertexIndex].Y, depths[vertexIndex])))
                     {
                         continue;
@@ -474,70 +422,6 @@ internal sealed partial class MeshViewport
         _provisionalPartSelectionActive = false;
         UpdateGpuViewport();
         Invalidate();
-    }
-
-    private static bool SelectionPolygonIntersectsTriangle(
-        IReadOnlyList<Point> polygon,
-        PointF a,
-        PointF b,
-        PointF c)
-    {
-        var center = new PointF((a.X + b.X + c.X) / 3.0f, (a.Y + b.Y + c.Y) / 3.0f);
-        if (SelectionPointInPolygon(a, polygon)
-            || SelectionPointInPolygon(b, polygon)
-            || SelectionPointInPolygon(c, polygon)
-            || SelectionPointInPolygon(center, polygon))
-        {
-            return true;
-        }
-        foreach (var point in polygon)
-        {
-            if (SelectionPointInTriangle(point, a, b, c))
-            {
-                return true;
-            }
-        }
-        return SelectionPolygonIntersectsSegment(polygon, a, b)
-            || SelectionPolygonIntersectsSegment(polygon, b, c)
-            || SelectionPolygonIntersectsSegment(polygon, c, a);
-    }
-
-    private static bool SelectionPolygonIntersectsSegment(
-        IReadOnlyList<Point> polygon,
-        PointF start,
-        PointF end)
-    {
-        if (SelectionPointInPolygon(start, polygon) || SelectionPointInPolygon(end, polygon))
-        {
-            return true;
-        }
-        for (var index = 0; index < polygon.Count; index++)
-        {
-            var first = polygon[index];
-            var second = polygon[(index + 1) % polygon.Count];
-            if (SelectionSegmentsIntersect(start, end, first, second))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static bool SelectionPointInPolygon(PointF point, IReadOnlyList<Point> polygon)
-    {
-        var inside = false;
-        for (var index = 0; index < polygon.Count; index++)
-        {
-            var first = polygon[index];
-            var second = polygon[(index + polygon.Count - 1) % polygon.Count];
-            if ((first.Y > point.Y) != (second.Y > point.Y)
-                && point.X < (second.X - first.X) * (point.Y - first.Y)
-                    / (second.Y - first.Y) + first.X)
-            {
-                inside = !inside;
-            }
-        }
-        return inside;
     }
 
     private Rectangle EdgeDragRectangle()
@@ -563,7 +447,8 @@ internal sealed partial class MeshViewport
             var submesh = _document.Submeshes[submeshIndex];
             for (var vertexIndex = 0; vertexIndex < submesh.Vertices.Count; vertexIndex++)
             {
-                if (!ShowXRay && !IsVertexFrontFacing(submeshIndex, vertexIndex, camera))
+                if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
+                    && !IsVertexFrontFacing(submeshIndex, vertexIndex, camera))
                 {
                     continue;
                 }
@@ -591,7 +476,8 @@ internal sealed partial class MeshViewport
             var submesh = _document.Submeshes[submeshIndex];
             for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
             {
-                if (!ShowXRay && !IsFaceFrontFacing(submeshIndex, faceIndex, camera))
+                if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
+                    && !IsFaceFrontFacing(submeshIndex, faceIndex, camera))
                 {
                     continue;
                 }
@@ -629,14 +515,11 @@ internal sealed partial class MeshViewport
             }
             points[i] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
         }
-        var center = new PointF((points[0].X + points[1].X + points[2].X) / 3.0f, (points[0].Y + points[1].Y + points[2].Y) / 3.0f);
-        return rectangle.Contains(Point.Round(points[0]))
-            || rectangle.Contains(Point.Round(points[1]))
-            || rectangle.Contains(Point.Round(points[2]))
-            || rectangle.Contains(Point.Round(center))
-            || SegmentIntersectsRectangle(points[0], points[1], rectangle)
-            || SegmentIntersectsRectangle(points[1], points[2], rectangle)
-            || SegmentIntersectsRectangle(points[2], points[0], rectangle);
+        return SelectionGeometry.RectangleIntersectsTriangle(
+            rectangle,
+            points[0],
+            points[1],
+            points[2]);
     }
 
     private int[] EdgeIdsInRectangle(Rectangle rectangle)
@@ -651,7 +534,8 @@ internal sealed partial class MeshViewport
             {
                 continue;
             }
-            if (!ShowXRay && !IsEdgeFrontFacing(edge, camera, orientationScratch))
+            if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
+                && !IsEdgeFrontFacing(edge, camera, orientationScratch))
             {
                 continue;
             }
@@ -667,7 +551,10 @@ internal sealed partial class MeshViewport
             var a = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexA]);
             var b = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexB]);
             var midpoint = new PointF((a.X + b.X) * 0.5f, (a.Y + b.Y) * 0.5f);
-            if (expanded.Contains(Point.Round(a)) || expanded.Contains(Point.Round(b)) || expanded.Contains(Point.Round(midpoint)) || SegmentIntersectsRectangle(a, b, expanded))
+            if (expanded.Contains(Point.Round(a))
+                || expanded.Contains(Point.Round(b))
+                || expanded.Contains(Point.Round(midpoint))
+                || SelectionGeometry.SegmentIntersectsRectangle(a, b, expanded))
             {
                 result.Add(edge.Id);
             }
@@ -703,7 +590,8 @@ internal sealed partial class MeshViewport
         var rayOrigin = Vector3.Zero;
         var rayDirection = Vector3.Zero;
         var nearestSurfaceDistance = float.PositiveInfinity;
-        if (!ShowXRay && TryScreenRay(point, out rayOrigin, out rayDirection))
+        if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
+            && TryScreenRay(point, out rayOrigin, out rayDirection))
         {
             hasOcclusion = TryNearestVisibleSurface(
                 rayOrigin,
@@ -720,7 +608,8 @@ internal sealed partial class MeshViewport
             {
                 continue;
             }
-            if (!ShowXRay && !IsEdgeFrontFacing(edge, camera, orientationScratch))
+            if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
+                && !IsEdgeFrontFacing(edge, camera, orientationScratch))
             {
                 continue;
             }
@@ -735,7 +624,7 @@ internal sealed partial class MeshViewport
             }
             var a = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexA]);
             var b = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexB]);
-            var distance = DistanceToSegment(point, a, b);
+            var distance = SelectionGeometry.PointSegmentDistance(point, a, b);
             if (distance >= bestDistance)
             {
                 continue;
@@ -764,11 +653,16 @@ internal sealed partial class MeshViewport
 
     private bool IsSubmeshVisibleForViewportSelection(int submeshIndex)
     {
-        return submeshIndex >= 0
-            && submeshIndex < _document.Submeshes.Count
-            && IsSelectableGeometryLayerSubmesh(submeshIndex)
-            && ActivePaneIncludesForPicking(submeshIndex)
-            && _materials.ParametersForSubmesh(submeshIndex).Visible is not false;
+        var indexInRange = submeshIndex >= 0 && submeshIndex < _document.Submeshes.Count;
+        if (!indexInRange)
+        {
+            return false;
+        }
+        return SelectionGeometry.SubmeshAllowsSelection(
+            indexInRange,
+            IsSelectableGeometryLayerSubmesh(submeshIndex),
+            ActivePaneIncludesForPicking(submeshIndex),
+            _materials.ParametersForSubmesh(submeshIndex).Visible is not false);
     }
 
     private bool IsEdgeFrontFacing(NetEdge edge, NetViewportCamera camera)
@@ -854,8 +748,7 @@ internal sealed partial class MeshViewport
             }
             points[i] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
         }
-        var area = ((points[1].X - points[0].X) * (points[2].Y - points[0].Y)) - ((points[1].Y - points[0].Y) * (points[2].X - points[0].X));
-        return area < -0.01f;
+        return SelectionGeometry.IsFrontFacingProjectedTriangle(points[0], points[1], points[2]);
     }
 
     /// <summary>

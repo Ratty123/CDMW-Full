@@ -44,12 +44,12 @@ internal static class HeadlessGpuInteractionSoak
 
     private static int Execute(HeadlessGpuFramePacingSoakOptions options, string mode)
     {
-        if (MeshViewport.SelectionSegmentsIntersect(
+        if (SelectionGeometry.SegmentsIntersect(
                 new PointF(0.0f, 0.0f),
                 new PointF(10.0f, 0.0f),
                 new PointF(20.0f, 0.0f),
                 new PointF(30.0f, 0.0f))
-            || !MeshViewport.SelectionSegmentsIntersect(
+            || !SelectionGeometry.SegmentsIntersect(
                 new PointF(0.0f, 0.0f),
                 new PointF(10.0f, 10.0f),
                 new PointF(0.0f, 10.0f),

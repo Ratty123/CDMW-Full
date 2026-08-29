@@ -145,11 +145,15 @@ internal sealed partial class MeshViewport
                 || edge.VertexA >= points.Length
                 || edge.VertexB < 0
                 || edge.VertexB >= points.Length
-                || SegmentDistanceSquared(start, end, points[edge.VertexA], points[edge.VertexB]) > radiusSquared)
+                || SelectionGeometry.SegmentDistanceSquared(
+                    start,
+                    end,
+                    points[edge.VertexA],
+                    points[edge.VertexB]) > radiusSquared)
             {
                 continue;
             }
-            if (!ShowXRay
+            if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
                 && !PaintSegmentVisible(
                     cache,
                     points[edge.VertexA],
@@ -243,7 +247,7 @@ internal sealed partial class MeshViewport
                 {
                     continue;
                 }
-                if (!ShowXRay
+                if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
                     && !PaintTriangleVisible(cache, points[a], depths[a], points[b], depths[b], points[c], depths[c]))
                 {
                     continue;
@@ -299,11 +303,11 @@ internal sealed partial class MeshViewport
                 {
                     foreach (var vertexIndex in vertexBuckets[row * cache.GridColumns + column])
                     {
-                        if (DistanceToSegment(points[vertexIndex], start, end) > radius)
+                        if (SelectionGeometry.PointSegmentDistance(points[vertexIndex], start, end) > radius)
                         {
                             continue;
                         }
-                        if (!ShowXRay
+                        if (SelectionGeometry.RequiresVisibleDepth(ShowXRay)
                             && !PaintPointVisible(cache, points[vertexIndex].X, points[vertexIndex].Y, depths[vertexIndex]))
                         {
                             continue;
