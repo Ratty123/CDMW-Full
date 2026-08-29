@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Mapping
 
@@ -21,10 +22,15 @@ def resolve_package_output_path(package: object, value: Path | str, *, label: st
     try:
         package_root = package.package_dir.resolve(strict=True)
         output_root = package.output_dir.resolve(strict=True)
-        output_root.relative_to(package_root)
+        if bool(getattr(package, "runtime_output_external", False)):
+            output_root.relative_to(Path(tempfile.gettempdir()).resolve())
+        else:
+            output_root.relative_to(package_root)
     except OSError as exc:
         raise ValueError("Mesh .NET package output directory is unavailable.") from exc
     except ValueError as exc:
+        if bool(getattr(package, "runtime_output_external", False)):
+            raise ValueError("Mesh .NET package output directory is unavailable.") from exc
         raise ValueError("Mesh .NET package output directory escapes its package root.") from exc
     if not output_root.is_dir():
         raise ValueError("Mesh .NET package output directory is unavailable.")

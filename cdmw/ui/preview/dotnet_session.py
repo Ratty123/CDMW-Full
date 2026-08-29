@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import sys
+import tempfile
 import uuid
 from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -121,6 +124,8 @@ class DotNetPreviewSessionController(
         self._protocol_request_id = 0
         self._launch_package_generation = 0
         self._launch_package_path = ""
+        self._launch_output_dir = ""
+        self._runtime_output_dir: Path | None = None
         self._launch_is_prewarm = False
         self._prewarm_package: MeshDotNetExperimentPackage | None = None
         self._desired_package: MeshDotNetExperimentPackage | None = None
@@ -544,11 +549,12 @@ class DotNetPreviewSessionController(
         if self._closed:
             return False
         try:
-            resolved = (
+            resolved_package = (
                 package
                 if isinstance(package, MeshDotNetExperimentPackage)
                 else mesh_dotnet_experiment_package_from_path(package, status_path=status_path)
             )
+            resolved = self._with_preview_runtime_output(resolved_package)
         except (OSError, TypeError, ValueError) as exc:
             self._invalid_retry_package_path = str(package)
             self._invalid_retry_status_path = str(status_path or "")
@@ -634,6 +640,33 @@ class DotNetPreviewSessionController(
                 self.retry_now()
         return True
 
+    def _with_preview_runtime_output(
+        self,
+        package: MeshDotNetExperimentPackage,
+    ) -> MeshDotNetExperimentPackage:
+        if self.profile is not DotNetPreviewProfile.PREVIEW:
+            return package
+        output_dir = self._runtime_output_dir
+        if output_dir is None:
+            output_dir = Path(tempfile.mkdtemp(prefix="cdmw_preview_session_output_"))
+            self._runtime_output_dir = output_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return replace(
+            package,
+            status_path=output_dir / "dotnet_status.json",
+            output_dir=output_dir,
+            edit_operations_path=output_dir / "edit_operations.json",
+            runtime_output_external=True,
+        )
+
+    def _cleanup_preview_runtime_outputs(self) -> None:
+        if self._process is not None:
+            return
+        output_dir = self._runtime_output_dir
+        self._runtime_output_dir = None
+        if output_dir is not None:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
     def prewarm(
         self,
         package: MeshDotNetExperimentPackage | Path | str,
@@ -644,11 +677,12 @@ class DotNetPreviewSessionController(
         if self._closed or self._desired_package is not None or self.is_running:
             return False
         try:
-            resolved = (
+            resolved_package = (
                 package
                 if isinstance(package, MeshDotNetExperimentPackage)
                 else mesh_dotnet_experiment_package_from_path(package, status_path=status_path)
             )
+            resolved = self._with_preview_runtime_output(resolved_package)
         except (OSError, TypeError, ValueError):
             return False
         self._prewarm_package = resolved
@@ -858,13 +892,10 @@ class DotNetPreviewSessionController(
         package = self._desired_package
         if package is None or not self._session_established:
             return False
-        # The helper only writes captures under the output directory it was launched
-        # with; a package loaded into the resident process later has its own output
-        # directory, which the helper refuses ("Capture output must remain inside the
-        # package output directory"). Ask under the launch package's, recreated if the
-        # package was cleaned up meanwhile; the file is moved to `output_path` anyway.
-        launch = str(self._launch_package_path or "")
-        capture_root = Path(launch) / "output" if launch and self._process is not None else package.output_dir
+        # The helper only writes captures under the session output directory it was
+        # launched with. The file is moved to `output_path` after the helper finishes.
+        launch_output = str(self._launch_output_dir or "")
+        capture_root = Path(launch_output) if launch_output and self._process is not None else package.output_dir
         capture_dir = capture_root / "captures"
         try:
             capture_dir.mkdir(parents=True, exist_ok=True)
@@ -959,6 +990,8 @@ class DotNetPreviewSessionController(
         self._clear_prewarm_capture()
         self._prewarm_package = None
         self._launch_is_prewarm = False
+        if process is None:
+            self._cleanup_preview_runtime_outputs()
         self._set_state("closed", ".NET/Vortice Preview closed.")
 
     def _launch_if_needed(self) -> None:
@@ -1005,6 +1038,7 @@ class DotNetPreviewSessionController(
         generation = self._process_generation
         self._launch_package_generation = self._package_generation
         self._launch_package_path = str(package.package_dir)
+        self._launch_output_dir = str(package.output_dir)
         self._launch_is_prewarm = prewarm_launch
         self._process = process
         self._executable = Path(program)
@@ -1059,11 +1093,15 @@ class DotNetPreviewSessionController(
 
     def _process_finished(self, process: object, generation: int, exit_code: int, exit_status: object) -> None:
         if not self._is_current_process(process, generation):
+            if self._closed and self._process is None:
+                self._cleanup_preview_runtime_outputs()
             self._delete_process_later(process)
             return
         self._read_stdout(process, generation)
         self._read_stderr(process, generation)
         self._process = None
+        if self._closed:
+            self._cleanup_preview_runtime_outputs()
         self._ready_timer.stop()
         self._package_timer.stop()
         self._activation_timer.stop()

@@ -73,6 +73,7 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Yes",
         "Yes to All",
         "Zlib",
+        "{value_0}; unresolved {value_1}",
         "animation",
         "authoritative",
         "auto-fixed",

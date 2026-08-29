@@ -256,7 +256,7 @@ def test_every_material_aware_preview_route_uses_the_shared_hdr_renderer() -> No
         "material sidecar": ROOT / "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py",
         "static replacement": ROOT / "cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py",
         "mesh editor": ROOT / "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-        "model library": ROOT / "cdmw/ui/model_library/panels.py",
+        "model library": ROOT / "cdmw/ui/model_library/preview.py",
         "new item model": ROOT / "cdmw/ui/new_item/item_preview.py",
         "new item effects": ROOT / "cdmw/ui/new_item/effect_placement_dialog.py",
     }

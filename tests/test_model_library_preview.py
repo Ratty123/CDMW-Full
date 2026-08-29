@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication
 from cdmw.models import ModelPreviewRenderSettings, RunCancelled
 from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
 from cdmw.services.model_library_preview import (
+    _model_library_preview_package_cache_identity,
     prepare_model_library_inline_preview,
     prepare_model_library_inline_preview_in_subprocess,
 )
@@ -150,6 +151,53 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             touched_at = time.time() + 5.0
             os.utime(scene_path, (touched_at, touched_at))
             self.assertNotEqual(before_touch, identity_for(False))
+
+    def test_backend_package_identity_tracks_external_texture_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scene_path = _write_triangle_gltf(root, with_texture=True)
+            texture_path = root / "texture.png"
+            settings = ModelPreviewRenderSettings()
+
+            before = _model_library_preview_package_cache_identity(
+                scene_path,
+                scene_path,
+                extract_root=None,
+                render_settings=settings,
+                texture_flip_vertical=True,
+                stop_event=None,
+            )
+            texture_path.write_bytes(texture_path.read_bytes() + b"revision")
+            after = _model_library_preview_package_cache_identity(
+                scene_path,
+                scene_path,
+                extract_root=None,
+                render_settings=settings,
+                texture_flip_vertical=True,
+                stop_event=None,
+            )
+
+            self.assertIsNotNone(before)
+            self.assertNotEqual(before, after)
+
+    def test_warm_package_hit_skips_scene_import_and_keeps_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scene_path = _write_triangle_gltf(Path(tmp))
+            first = prepare_model_library_inline_preview(scene_path, model_name="Warm Triangle")
+
+            with patch(
+                "cdmw.services.model_library_preview.import_scene_mesh_with_report",
+                side_effect=AssertionError("warm package hit parsed the scene"),
+            ):
+                second = prepare_model_library_inline_preview(scene_path, model_name="Warm Triangle")
+
+            self.assertTrue(second["cache_hit"])
+            self.assertEqual(first["dotnet_preview_package_path"], second["dotnet_preview_package_path"])
+            self.assertEqual(first["vertices"], second["vertices"])
+            self.assertEqual(first["faces"], second["faces"])
+            self.assertEqual(first["textures"], second["textures"])
+            self.assertEqual(first["audit_category"], second["audit_category"])
+            self.assertEqual(first["audit_warnings"], tuple(second["audit_warnings"]))
 
     def test_backend_prepares_fast_d3d11_package_from_gltf_zip_with_texture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
+import shlex
+import struct
 import sys
 import tempfile
 import threading
 import time
+import xml.etree.ElementTree as ElementTree
 from collections import defaultdict
 from collections.abc import Callable, Mapping
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 from typing import Optional
+from urllib.parse import unquote, urlparse
 
+from cdmw.constants import APP_VERSION
 from cdmw.core.common import run_process_with_cancellation
 from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -32,28 +38,195 @@ from cdmw.rendering.material_channels import resolve_preview_batch_material_chan
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
 from cdmw.services.mesh_dotnet_preview_package import (
     build_or_lookup_dotnet_preview_package_from_model,
+    lookup_dotnet_preview_package_hit_from_model_identity,
 )
 
 _DOTNET_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH = 50_000
 _DOTNET_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH = 80_000
 _SUBPROCESS_TIMEOUT_SECONDS = 300
 _PREVIEW_PACKAGE_CACHE_MODE = "balanced"
+_MODEL_LIBRARY_CACHE_IDENTITY_SCHEMA = 2
+_MODEL_LIBRARY_CACHE_SUMMARY_SCHEMA = 1
+_GLB_HEADER = struct.Struct("<4sII")
+_GLB_CHUNK_HEADER = struct.Struct("<II")
+_GLB_JSON_CHUNK = 0x4E4F534A
 
 
 def _model_library_preview_package_cache_identity(
+    source_path: Path,
     import_path: Path,
     *,
+    extract_root: Path | None,
+    render_settings: object,
     texture_flip_vertical: bool,
-) -> str:
-    """Key one prepared package by its source revision and baked orientation."""
+    stop_event: threading.Event | None,
+) -> str | None:
+    """Key a package by every supported source resource and render input."""
 
+    source = Path(source_path).expanduser().resolve()
+    resolved = Path(import_path).expanduser().resolve()
+    if not source.is_file() or not resolved.is_file():
+        return None
+    if source.suffix.lower() == ".zip":
+        dependency_paths = (source,)
+        try:
+            selected_member = resolved.relative_to(Path(extract_root).expanduser().resolve()).as_posix()
+        except (OSError, ValueError, TypeError):
+            selected_member = resolved.name
+    else:
+        dependency_paths = _model_library_preview_dependency_paths(resolved)
+        if dependency_paths is None:
+            return None
+        selected_member = resolved.name
+    revisions = []
+    for dependency in dependency_paths:
+        revision = _model_library_file_revision(dependency, stop_event=stop_event)
+        if revision is None:
+            return None
+        revisions.append(revision)
+    settings_payload = _model_preview_render_settings_payload(render_settings)
+    identity_payload = {
+        "schema": _MODEL_LIBRARY_CACHE_IDENTITY_SCHEMA,
+        "app_version": APP_VERSION,
+        "source": str(source),
+        "selected_member": selected_member,
+        "dependencies": revisions,
+        "texture_flip_vertical": bool(texture_flip_vertical),
+        "render_settings": settings_payload,
+        "cache_profile": _PREVIEW_PACKAGE_CACHE_MODE,
+        "face_limit": _DOTNET_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH,
+        "vertex_limit": _DOTNET_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH,
+    }
+    encoded = json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return "model-library-v2:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _model_library_file_revision(
+    path: Path,
+    *,
+    stop_event: threading.Event | None,
+) -> dict[str, object] | None:
     try:
-        stat = import_path.stat()
-        revision = f"{int(stat.st_mtime_ns)}:{int(stat.st_size)}"
+        resolved = Path(path).expanduser().resolve()
+        stat = resolved.stat()
+        digest = hashlib.sha256()
+        with resolved.open("rb") as stream:
+            while True:
+                raise_if_cancelled(stop_event)
+                chunk = stream.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
     except OSError:
-        revision = "unstatable"
-    orientation = "flipv" if texture_flip_vertical else "noflipv"
-    return f"model-library:{import_path}:{revision}:{orientation}"
+        return None
+    return {
+        "path": str(resolved),
+        "mtime_ns": int(stat.st_mtime_ns),
+        "size": int(stat.st_size),
+        "sha256": digest.hexdigest(),
+    }
+
+
+def _model_library_gltf_document(path: Path) -> Mapping[str, object] | None:
+    try:
+        if path.suffix.lower() == ".gltf":
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
+            return payload if isinstance(payload, Mapping) else None
+        with path.open("rb") as stream:
+            header = stream.read(_GLB_HEADER.size)
+            magic, _version, _length = _GLB_HEADER.unpack(header)
+            if magic != b"glTF":
+                return None
+            while True:
+                chunk_header = stream.read(_GLB_CHUNK_HEADER.size)
+                if not chunk_header:
+                    return None
+                chunk_length, chunk_type = _GLB_CHUNK_HEADER.unpack(chunk_header)
+                chunk = stream.read(chunk_length)
+                if len(chunk) != chunk_length:
+                    return None
+                if chunk_type == _GLB_JSON_CHUNK:
+                    payload = json.loads(chunk.rstrip(b"\x00 \t\r\n").decode("utf-8"))
+                    return payload if isinstance(payload, Mapping) else None
+    except (OSError, ValueError, struct.error, UnicodeDecodeError):
+        return None
+
+
+def _model_library_local_reference(owner: Path, raw_reference: object) -> Path | None:
+    text = unquote(str(raw_reference or "").strip().strip('"\''))
+    parsed = urlparse(text)
+    if not text or parsed.scheme or text.startswith("data:"):
+        return None
+    try:
+        candidate = owner.parent.joinpath(*PurePosixPath(text.replace("\\", "/")).parts).resolve()
+    except (OSError, ValueError):
+        return None
+    return candidate if candidate.is_file() else None
+
+
+def _model_library_preview_dependency_paths(import_path: Path) -> tuple[Path, ...] | None:
+    source = Path(import_path).expanduser().resolve()
+    suffix = source.suffix.lower()
+    discovered: list[Path] = [source]
+    if suffix in {".gltf", ".glb"}:
+        document = _model_library_gltf_document(source)
+        if document is None:
+            return None
+        for collection_name in ("buffers", "images"):
+            for row in tuple(document.get(collection_name, ()) or ()):
+                if not isinstance(row, Mapping) or "uri" not in row:
+                    continue
+                reference = str(row.get("uri", "") or "")
+                if reference.startswith("data:"):
+                    continue
+                candidate = _model_library_local_reference(source, reference)
+                if candidate is None:
+                    return None
+                discovered.append(candidate)
+    elif suffix == ".obj":
+        try:
+            lines = source.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+        except OSError:
+            return None
+        material_paths = []
+        for line in lines:
+            if line.lstrip().lower().startswith("mtllib "):
+                candidate = _model_library_local_reference(source, line.split(None, 1)[1])
+                if candidate is None:
+                    return None
+                material_paths.append(candidate)
+                discovered.append(candidate)
+        for material_path in material_paths:
+            try:
+                material_lines = material_path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+            except OSError:
+                return None
+            for line in material_lines:
+                parts = shlex.split(line, comments=True, posix=True)
+                if parts and parts[0].lower() in {"map_kd", "map_ks", "map_bump", "bump", "disp", "decal"}:
+                    candidate = _model_library_local_reference(material_path, parts[-1])
+                    if candidate is None:
+                        return None
+                    discovered.append(candidate)
+    elif suffix == ".dae":
+        try:
+            root = ElementTree.parse(source).getroot()
+        except (OSError, ElementTree.ParseError):
+            return None
+        for image in root.iter():
+            if str(image.tag).rsplit("}", 1)[-1] != "image":
+                continue
+            for element in image:
+                if str(element.tag).rsplit("}", 1)[-1] != "init_from" or not str(element.text or "").strip():
+                    continue
+                candidate = _model_library_local_reference(source, element.text)
+                if candidate is None:
+                    return None
+                discovered.append(candidate)
+    elif suffix not in {".stl", ".ply"}:
+        return None
+    unique = {str(path).casefold(): path for path in discovered}
+    return tuple(unique[key] for key in sorted(unique))
 
 
 def _model_preview_render_settings_payload(render_settings: object) -> dict[str, object]:
@@ -164,6 +337,48 @@ def model_library_preview_material_channel_summary(prepared_preview: object) -> 
     return f"{channel_text}; unresolved {unresolved_text}" if unresolved_text else channel_text
 
 
+def _model_library_cached_preview_result(
+    package_path: Path,
+    metadata: Mapping[str, object],
+    *,
+    request_id: int,
+    model_name: str,
+    source_path: Path,
+    import_path: Path,
+    renderer_backend: str,
+    high_quality_textures: bool,
+    lookup_ms: float,
+) -> dict[str, object] | None:
+    if int(metadata.get("model_library_summary_schema", 0) or 0) != _MODEL_LIBRARY_CACHE_SUMMARY_SCHEMA:
+        return None
+    raw_summary = metadata.get("model_library_summary")
+    if not isinstance(raw_summary, Mapping):
+        return None
+    summary = dict(raw_summary)
+    return {
+        "request_id": int(request_id),
+        "model_name": model_name,
+        "source_path": str(source_path),
+        "import_path": str(import_path),
+        "renderer_backend": renderer_backend,
+        "preview_model": None,
+        "prepared_preview": None,
+        "dotnet_preview_package_path": str(package_path),
+        "dotnet_package_ms": max(0.0, float(lookup_ms)),
+        "cache_hit": True,
+        "high_quality_textures": bool(high_quality_textures),
+        "audit": None,
+        "audit_category": "",
+        "audit_confidence": 0.0,
+        "audit_texture_slots": (),
+        "audit_workflows": (),
+        "audit_warnings": (),
+        "audit_false_positive": False,
+        "audit_mixed_model": False,
+        **summary,
+    }
+
+
 def prepare_model_library_inline_preview(
     source_path: Path | str,
     *,
@@ -204,6 +419,47 @@ def prepare_model_library_inline_preview(
             f"{', '.join(sorted(IMPORTABLE_MODEL_EXTENSIONS))}."
         )
     raise_if_cancelled(stop_event)
+    texture_flip_vertical = scene_import_normalizes_texture_v(
+        resolved_import_path.suffix,
+        resolved_import_path,
+    )
+    if bool(getattr(render_settings, "flip_texture_v", False)):
+        texture_flip_vertical = not texture_flip_vertical
+    cache_root = Path(tempfile.gettempdir()) / "cdmw_preview_packages"
+    cache_max_bytes, cache_target_bytes = dotnet_preview_package_cache_budget(_PREVIEW_PACKAGE_CACHE_MODE)
+    cache_identity = _model_library_preview_package_cache_identity(
+        source,
+        resolved_import_path,
+        extract_root=extract_root,
+        render_settings=render_settings,
+        texture_flip_vertical=texture_flip_vertical,
+        stop_event=stop_event,
+    )
+    if cache_identity is not None:
+        lookup_started = time.perf_counter()
+        cached_hit = lookup_dotnet_preview_package_hit_from_model_identity(
+            cache_root=cache_root,
+            archive_identity=cache_identity,
+            cancelled=(stop_event.is_set if stop_event is not None else None),
+        )
+        lookup_ms = max(0.0, (time.perf_counter() - lookup_started) * 1000.0)
+        if cached_hit is not None:
+            cached_package, cached_metadata = cached_hit
+            cached_result = _model_library_cached_preview_result(
+                cached_package.package_dir,
+                cached_metadata,
+                request_id=request_id,
+                model_name=name,
+                source_path=source,
+                import_path=resolved_import_path,
+                renderer_backend=backend,
+                high_quality_textures=high_quality_textures,
+                lookup_ms=lookup_ms,
+            )
+            if cached_result is not None:
+                progress("Loaded a validated durable .NET/Vortice preview package.")
+                return cached_result
+    raise_if_cancelled(stop_event)
     progress(f"Reading model file: {resolved_import_path}")
     scene_result = import_scene_mesh_with_report(
         resolved_import_path,
@@ -234,12 +490,15 @@ def prepare_model_library_inline_preview(
     raise_if_cancelled(stop_event)
     preview_model = parsed_mesh_to_preview_model(scene_result.mesh)
     texture_count = attach_scene_preview_textures(preview_model, scene_result, resolved_import_path)
-    texture_flip_vertical = scene_import_normalizes_texture_v(
+    parsed_texture_flip_vertical = scene_import_normalizes_texture_v(
         getattr(scene_result.mesh, "format", ""),
         getattr(scene_result.mesh, "path", "") or resolved_import_path,
     )
     if bool(getattr(render_settings, "flip_texture_v", False)):
-        texture_flip_vertical = not texture_flip_vertical
+        parsed_texture_flip_vertical = not parsed_texture_flip_vertical
+    if parsed_texture_flip_vertical != texture_flip_vertical:
+        cache_identity = None
+        texture_flip_vertical = parsed_texture_flip_vertical
     set_dotnet_preview_texture_flip_vertical(preview_model, texture_flip_vertical)
     raise_if_cancelled(stop_event)
     # Support maps are synthesized once while the canonical package is written,
@@ -252,25 +511,52 @@ def prepare_model_library_inline_preview(
     raise_if_cancelled(stop_event)
     package_started = time.perf_counter()
     progress("Writing canonical .NET/Vortice preview package...")
-    cache_max_bytes, cache_target_bytes = dotnet_preview_package_cache_budget(_PREVIEW_PACKAGE_CACHE_MODE)
+    material_channel_summary = model_library_preview_material_channel_summary(prepared_preview)
+    audit = getattr(scene_result, "external_audit", None)
+    quality_reduction_payload = (
+        dataclasses.asdict(quality_reduction)
+        if dataclasses.is_dataclass(quality_reduction)
+        else quality_reduction
+    )
+    summary_metadata = {
+        "source_vertices": original_vertices,
+        "source_faces": original_faces,
+        "vertices": int(scene_result.mesh.total_vertices),
+        "faces": int(scene_result.mesh.total_faces),
+        "quality_reduction": quality_reduction_payload,
+        "meshes": len(getattr(preview_model, "meshes", ()) or ()),
+        "textures": int(texture_count),
+        "texture_flip_vertical": bool(texture_flip_vertical),
+        "material_channel_summary": material_channel_summary,
+        "diagnostics": tuple(scene_result.diagnostics or ()),
+        "audit_category": str(getattr(audit, "verified_category", "") or ""),
+        "audit_confidence": float(getattr(audit, "confidence", 0.0) or 0.0),
+        "audit_texture_slots": tuple(getattr(audit, "texture_slots", ()) or ()),
+        "audit_workflows": tuple(getattr(audit, "pbr_workflows", ()) or ()),
+        "audit_warnings": tuple(getattr(audit, "warnings", ()) or ()),
+        "audit_false_positive": bool(getattr(audit, "false_positive", False)),
+        "audit_mixed_model": bool(getattr(audit, "mixed_model", False)),
+    }
+    effective_cache_mode = _PREVIEW_PACKAGE_CACHE_MODE if cache_identity is not None else "off"
     package_dir = str(
         build_or_lookup_dotnet_preview_package_from_model(
             prepared_model,
-            cache_root=Path(tempfile.gettempdir()) / "cdmw_preview_packages",
-            archive_identity=_model_library_preview_package_cache_identity(
-                resolved_import_path,
-                texture_flip_vertical=texture_flip_vertical,
-            ),
-            cache_mode=_PREVIEW_PACKAGE_CACHE_MODE,
+            cache_root=cache_root,
+            archive_identity=cache_identity or f"model-library-uncached:{resolved_import_path}",
+            cache_mode=effective_cache_mode,
             max_bytes=cache_max_bytes,
             target_bytes=cache_target_bytes,
             cancelled=(stop_event.is_set if stop_event is not None else None),
-            metadata={"surface": "model_library", "source_path": str(resolved_import_path)},
+            metadata={
+                "surface": "model_library",
+                "source_path": str(resolved_import_path),
+                "model_library_summary_schema": _MODEL_LIBRARY_CACHE_SUMMARY_SCHEMA,
+                "model_library_summary": summary_metadata,
+            },
         ).package_dir
     )
     package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
     raise_if_cancelled(stop_event)
-    audit = getattr(scene_result, "external_audit", None)
     return {
         "request_id": int(request_id),
         "model_name": name,
@@ -290,7 +576,7 @@ def prepare_model_library_inline_preview(
         "textures": int(texture_count),
         "texture_flip_vertical": bool(texture_flip_vertical),
         "high_quality_textures": bool(high_quality_textures),
-        "material_channel_summary": model_library_preview_material_channel_summary(prepared_preview),
+        "material_channel_summary": material_channel_summary,
         "diagnostics": tuple(scene_result.diagnostics or ()),
         "audit": audit,
         "audit_category": str(getattr(audit, "verified_category", "") or ""),

@@ -29,6 +29,8 @@ _ACTIVE_CACHE_KEYS: dict[tuple[str, str], int] = {}
 _RECENT_CACHE_KEYS: dict[tuple[str, str], float] = {}
 _ACTIVE_PACKAGE_PATHS: dict[str, tuple[Path, int]] = {}
 _RECENT_PACKAGE_PATHS: dict[str, tuple[Path, float]] = {}
+_PENDING_ACCESS_NS: dict[tuple[str, str], int] = {}
+_CACHE_TOTAL_BYTES: dict[str, int] = {}
 
 
 @dataclass(frozen=True)
@@ -288,6 +290,39 @@ def _mark_cache_key_recent(cache_root: Path, cache_key: str) -> None:
         )
 
 
+def _queue_cache_access(cache_root: Path, cache_key: str, access_ns: int) -> None:
+    with _CACHE_STATE_LOCK:
+        _PENDING_ACCESS_NS[_cache_key_id(cache_root, cache_key)] = int(access_ns)
+
+
+def flush_native_preview_package_cache_accesses(cache_root: Path | None = None) -> int:
+    """Flush batched hit timestamps outside the selection-critical lookup path."""
+
+    root_key = _resolved_path_key(Path(cache_root)) if cache_root is not None else ""
+    with _CACHE_STATE_LOCK:
+        pending = {
+            key_id: access_ns
+            for key_id, access_ns in _PENDING_ACCESS_NS.items()
+            if not root_key or key_id[0] == root_key
+        }
+        for key_id in pending:
+            _PENDING_ACCESS_NS.pop(key_id, None)
+    written = 0
+    for (cached_root, cache_key), access_ns in pending.items():
+        entry_dir = native_preview_package_cache_entry_dir(Path(cached_root), cache_key)
+        with native_preview_package_cache_build_lock(Path(cached_root), cache_key):
+            metadata = _read_metadata(entry_dir)
+            if int(metadata.get("schema", 0) or 0) != NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA:
+                continue
+            metadata["last_access_ns"] = int(access_ns)
+            try:
+                _write_metadata(entry_dir, metadata)
+            except OSError:
+                continue
+            written += 1
+    return written
+
+
 def _cache_key_is_protected(cache_root: Path, cache_key: str) -> bool:
     key_id = _cache_key_id(cache_root, cache_key)
     with _CACHE_STATE_LOCK:
@@ -407,6 +442,51 @@ def _directory_size(path: Path) -> int:
     return total
 
 
+def _metadata_package_bytes(metadata: Mapping[str, object], entry_dir: Path) -> int:
+    try:
+        value = int(metadata.get("package_bytes", 0) or 0)
+    except (TypeError, ValueError):
+        value = 0
+    return value if value > 0 else _directory_size(entry_dir / "package")
+
+
+def _cached_total_bytes(cache_root: Path) -> int:
+    root_id = _resolved_path_key(Path(cache_root))
+    with _CACHE_STATE_LOCK:
+        cached = _CACHE_TOTAL_BYTES.get(root_id)
+    if cached is not None:
+        return max(0, int(cached))
+    packages_root = native_preview_package_cache_packages_root(cache_root)
+    total = 0
+    try:
+        children = tuple(path for path in packages_root.iterdir() if path.is_dir())
+    except OSError:
+        children = ()
+    for entry_dir in children:
+        if not entry_dir.name.startswith("_staging_"):
+            total += _metadata_package_bytes(_read_metadata(entry_dir), entry_dir)
+    with _CACHE_STATE_LOCK:
+        _CACHE_TOTAL_BYTES[root_id] = total
+    return total
+
+
+def _set_cached_total_bytes(cache_root: Path, total_bytes: int) -> None:
+    with _CACHE_STATE_LOCK:
+        _CACHE_TOTAL_BYTES[_resolved_path_key(Path(cache_root))] = max(0, int(total_bytes))
+
+
+def _add_cached_total_bytes(cache_root: Path, added_bytes: int) -> None:
+    root_id = _resolved_path_key(Path(cache_root))
+    with _CACHE_STATE_LOCK:
+        current = max(0, int(_CACHE_TOTAL_BYTES.get(root_id, 0)))
+        _CACHE_TOTAL_BYTES[root_id] = current + max(0, int(added_bytes))
+
+
+def _invalidate_cached_total_bytes(cache_root: Path) -> None:
+    with _CACHE_STATE_LOCK:
+        _CACHE_TOTAL_BYTES.pop(_resolved_path_key(Path(cache_root)), None)
+
+
 def lookup_native_preview_package_cache(
     cache_root: Path,
     cache_key: str,
@@ -423,18 +503,18 @@ def lookup_native_preview_package_cache(
         if int(metadata.get("schema", 0) or 0) != NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA:
             if not _cache_key_is_protected(cache_root, key):
                 shutil.rmtree(entry_dir, ignore_errors=True)
+                _invalidate_cached_total_bytes(cache_root)
             return None
         ok, _missing = validate_package(package_dir)
         if not ok:
             if not _cache_key_is_protected(cache_root, key):
                 shutil.rmtree(entry_dir, ignore_errors=True)
+                _invalidate_cached_total_bytes(cache_root)
             return None
         metadata = dict(metadata)
-        metadata["last_access_ns"] = int(time.time_ns())
-        try:
-            _write_metadata(entry_dir, metadata)
-        except OSError:
-            pass
+        access_ns = int(time.time_ns())
+        metadata["last_access_ns"] = access_ns
+        _queue_cache_access(cache_root, key, access_ns)
         _mark_cache_key_recent(cache_root, key)
         return NativePreviewPackageCacheHit(key, entry_dir, package_dir, metadata)
 
@@ -471,6 +551,7 @@ def store_native_preview_package_cache(
                 if _cache_key_is_active(cache_root, key):
                     return None
                 shutil.rmtree(final_entry_dir, ignore_errors=True)
+                _invalidate_cached_total_bytes(cache_root)
                 if final_entry_dir.exists():
                     return None
             packages_root = native_preview_package_cache_packages_root(cache_root)
@@ -486,6 +567,7 @@ def store_native_preview_package_cache(
                 }
             )
             _write_metadata(staging_entry_dir, metadata_payload)
+            _cached_total_bytes(cache_root)
             try:
                 staging_entry_dir.replace(final_entry_dir)
             except OSError:
@@ -495,15 +577,26 @@ def store_native_preview_package_cache(
                 shutil.rmtree(staging_entry_dir, ignore_errors=True)
                 return hit
             _mark_cache_key_recent(cache_root, key)
+            stored_hit = NativePreviewPackageCacheHit(
+                key,
+                final_entry_dir,
+                final_entry_dir / "package",
+                metadata_payload,
+            )
+            _add_cached_total_bytes(
+                cache_root,
+                int(metadata_payload.get("package_bytes", 0) or 0),
+            )
     finally:
         _release_staging_lease(staging_entry_dir)
-    prune_native_preview_package_cache(
-        cache_root,
-        max_bytes=max_bytes,
-        target_bytes=target_bytes,
-        protected_keys=(key,),
-    )
-    return lookup_native_preview_package_cache(cache_root, key, validate_package=validate_package)
+    if _cached_total_bytes(cache_root) > max(0, int(max_bytes)):
+        prune_native_preview_package_cache(
+            cache_root,
+            max_bytes=max_bytes,
+            target_bytes=target_bytes,
+            protected_keys=(key,),
+        )
+    return stored_hit
 
 
 def prune_native_preview_package_cache(
@@ -513,6 +606,7 @@ def prune_native_preview_package_cache(
     target_bytes: int,
     protected_keys: Sequence[str] = (),
 ) -> dict:
+    flush_native_preview_package_cache_accesses(cache_root)
     packages_root = native_preview_package_cache_packages_root(cache_root)
     if max_bytes <= 0 or target_bytes < 0 or not packages_root.is_dir():
         return {"entries": 0, "bytes": 0, "removed_entries": 0, "removed_bytes": 0}
@@ -531,8 +625,8 @@ def prune_native_preview_package_cache(
         with native_preview_package_cache_build_lock(cache_root, entry_dir.name):
             if not entry_dir.is_dir():
                 continue
-            size = _directory_size(entry_dir)
             metadata = _read_metadata(entry_dir)
+            size = _metadata_package_bytes(metadata, entry_dir)
             try:
                 last_access_ns = int(metadata.get("last_access_ns", 0) or 0)
             except (TypeError, ValueError):
@@ -545,6 +639,7 @@ def prune_native_preview_package_cache(
             total_bytes += size
             entries.append((last_access_ns, size, entry_dir))
     if total_bytes <= max_bytes:
+        _set_cached_total_bytes(cache_root, total_bytes)
         return {"entries": len(entries), "bytes": total_bytes, "removed_entries": 0, "removed_bytes": 0}
     removed_entries = 0
     removed_bytes = 0
@@ -562,6 +657,7 @@ def prune_native_preview_package_cache(
             total_bytes -= size
             removed_entries += 1
             removed_bytes += size
+    _set_cached_total_bytes(cache_root, total_bytes)
     return {
         "entries": max(0, len(entries) - removed_entries),
         "bytes": max(0, total_bytes),
@@ -600,10 +696,12 @@ def clear_native_preview_package_cache_tiers(cache_root: Path) -> None:
 
 
 def clear_native_preview_package_cache(cache_root: Path) -> None:
+    flush_native_preview_package_cache_accesses(cache_root)
     packages_root = native_preview_package_cache_packages_root(cache_root)
     try:
         children = tuple(path for path in packages_root.iterdir() if path.is_dir())
     except OSError:
+        _set_cached_total_bytes(cache_root, 0)
         return
     for entry_dir in children:
         if entry_dir.name.startswith("_staging_"):
@@ -617,6 +715,7 @@ def clear_native_preview_package_cache(cache_root: Path) -> None:
         packages_root.rmdir()
     except OSError:
         pass
+    _set_cached_total_bytes(cache_root, 0)
 
 
 # Canonical .NET/Vortice names.  The implementation remains in this module so
@@ -642,6 +741,7 @@ acquire_dotnet_preview_package_cache_lease_for_path = acquire_native_preview_pac
 is_temp_dotnet_preview_package_path = is_temp_native_preview_package_path
 is_durable_dotnet_preview_package_path = is_durable_native_preview_package_path
 lookup_dotnet_preview_package_cache = lookup_native_preview_package_cache
+flush_dotnet_preview_package_cache_accesses = flush_native_preview_package_cache_accesses
 store_dotnet_preview_package_cache = store_native_preview_package_cache
 prune_dotnet_preview_package_cache = prune_native_preview_package_cache
 prune_dotnet_preview_package_cache_tiers = prune_native_preview_package_cache_tiers

@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 
 from cdmw.models import ArchiveEntry, RunCancelled
+from cdmw.rendering import native_preview_package_cache as cache_module
 from cdmw.rendering.native_preview_core import NativePreviewCoreAttempt
 from cdmw.rendering.native_preview_package_cache import (
     NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
@@ -16,6 +17,7 @@ from cdmw.rendering.native_preview_package_cache import (
     create_native_preview_package_staging_dir,
     acquire_native_preview_package_cache_lease_for_path,
     lookup_native_preview_package_cache,
+    flush_native_preview_package_cache_accesses,
     native_preview_package_cache_use,
     native_preview_package_derived_cache_root,
     native_preview_package_live_paths_guard,
@@ -56,6 +58,7 @@ def _raw_cache_entry(cache_root: Path, key: str) -> Path:
                 "schema": NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
                 "cache_key": key,
                 "last_access_ns": 1,
+                "package_bytes": 66,
             }
         ),
         encoding="utf-8",
@@ -64,6 +67,88 @@ def _raw_cache_entry(cache_root: Path, key: str) -> Path:
 
 
 class NativePreviewPackageCacheConcurrencyTests(unittest.TestCase):
+    def test_cached_total_bytes_increment_is_atomic(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            cache_module._set_cached_total_bytes(cache_root, 0)
+            barrier = threading.Barrier(8)
+
+            def increment() -> None:
+                barrier.wait()
+                for _ in range(1_000):
+                    cache_module._add_cached_total_bytes(cache_root, 1)
+
+            threads = [threading.Thread(target=increment) for _ in range(8)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=5)
+
+            self.assertTrue(all(not thread.is_alive() for thread in threads))
+            self.assertEqual(8_000, cache_module._cached_total_bytes(cache_root))
+
+    def test_cache_hit_batches_access_metadata_until_explicit_flush(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            entry_dir = _raw_cache_entry(cache_root, "batched-access")
+
+            hit = lookup_native_preview_package_cache(
+                cache_root,
+                "batched-access",
+                validate_package=_validate,
+            )
+
+            self.assertIsNotNone(hit)
+            on_disk = json.loads((entry_dir / "cache_entry.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, on_disk["last_access_ns"])
+            self.assertEqual(1, flush_native_preview_package_cache_accesses(cache_root))
+            flushed = json.loads((entry_dir / "cache_entry.json").read_text(encoding="utf-8"))
+            self.assertGreater(int(flushed["last_access_ns"]), 1)
+
+    def test_store_returns_published_package_without_second_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            staging = cache_root / "packages" / "_staging_once"
+            package = staging / "package"
+            package.mkdir(parents=True)
+            (package / "manifest.json").write_text("{}", encoding="utf-8")
+            validations = 0
+
+            def validate(package_dir: Path):
+                nonlocal validations
+                validations += 1
+                return (package_dir / "manifest.json").is_file(), ()
+
+            hit = store_native_preview_package_cache(
+                cache_root,
+                "validate-once",
+                staging,
+                {"source": "test"},
+                validate_package=validate,
+                max_bytes=1024 * 1024,
+                target_bytes=512 * 1024,
+            )
+
+            self.assertIsNotNone(hit)
+            self.assertEqual(1, validations)
+
+    def test_prune_uses_stored_package_bytes_without_recursive_measurement(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            _raw_cache_entry(cache_root, "stored-size")
+
+            with patch(
+                "cdmw.rendering.native_preview_package_cache._directory_size",
+                side_effect=AssertionError("recursive size scan"),
+            ):
+                report = prune_native_preview_package_cache(
+                    cache_root,
+                    max_bytes=1024,
+                    target_bytes=512,
+                )
+
+            self.assertEqual(1, report["entries"])
+
     def test_foreground_build_separates_native_scratch_from_model_packages(self) -> None:
         class Harness(ArchivePreviewNativeMixin):
             pass

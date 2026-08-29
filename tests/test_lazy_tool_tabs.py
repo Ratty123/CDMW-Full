@@ -189,6 +189,7 @@ class LazyToolTabTests(unittest.TestCase):
         preload_modules = tuple(
             sorted({module for modules in assignments["_LAZY_TOOL_PRELOAD_MODULES"].values() for module in modules})
         )
+        self.assertNotIn("model_library", assignments["_LAZY_TOOL_PRELOAD_MODULES"])
         ui_keys = set(assignments["_LAZY_TOOL_UI_MODULES"])
         self.assertEqual(
             {

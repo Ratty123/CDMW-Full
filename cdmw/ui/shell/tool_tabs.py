@@ -28,14 +28,6 @@ _LAZY_TOOL_PRELOAD_MODULES: dict[str, tuple[str, ...]] = {
         "cdmw.modding.static_mesh_types",
         "cdmw.core.upscale_profiles",
     ),
-    "model_library": (
-        "cdmw.models",
-        "cdmw.ui.localization_catalogs_v2",
-        "cdmw.modding.static_mesh_types",
-        "cdmw.core.upscale_profiles",
-        "PIL.Image",
-        "numpy",
-    ),
     "item_icons": (
         "cdmw.models",
         "cdmw.ui.localization_catalogs_v2",

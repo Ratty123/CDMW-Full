@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 from tools.benchmark_app_startup import (
-    FIRST_TAB_PARENTS,
+    FIRST_TAB_ROUTES,
+    _comparison,
     _stage_probe_summaries,
     percentile,
     summarize_timings,
@@ -21,10 +22,10 @@ TOOL = ROOT / "tools" / "benchmark_app_startup.py"
 SCHEMA = ROOT / "schemas" / "startup" / "app-startup-benchmark.schema.json"
 
 
-def test_first_tab_parents_follow_shell_navigation() -> None:
-    assert FIRST_TAB_PARENTS["mesh_editor_tab"] == "main_tabs"
-    assert FIRST_TAB_PARENTS["research_tab"] == "tools_tabs"
-    assert FIRST_TAB_PARENTS["text_search_tab"] == "tools_tabs"
+def test_first_tab_routes_use_complete_shell_navigation_keys() -> None:
+    assert FIRST_TAB_ROUTES["mesh_editor_tab"] == "mesh_editor"
+    assert FIRST_TAB_ROUTES["research_tab"] == "research"
+    assert FIRST_TAB_ROUTES["texture_editor_tab"] == "texture_editor"
 
 
 def test_percentile_and_timing_summary_are_deterministic() -> None:
@@ -56,16 +57,90 @@ def test_stage_timing_summaries_preserve_each_probe_stage() -> None:
     assert summaries["window_construction"]["status"] == "ok"
 
 
-def test_schema_requires_all_four_startup_probe_surfaces() -> None:
+def test_schema_requires_cold_and_warm_startup_probe_surfaces() -> None:
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-    assert schema["properties"]["schema_version"]["const"] == 1
+    assert schema["properties"]["schema_version"]["const"] == 2
     required = set(schema["properties"]["probes"]["required"])
     assert required == {
         "public_facade_import",
         "first_window",
         "first_tab",
+        "warm_process",
         "helper_protocol_ready",
     }
+
+
+def test_v1_false_first_tab_baseline_is_not_used_as_a_regression_gate() -> None:
+    artifact = {
+        "probes": {
+            "public_facade_import": {"p95_ms": 40.0, "forbidden_modules_seen": []},
+            "first_window": {"p95_ms": 700.0},
+            "first_tab": {
+                "p95_ms": 400.0,
+                "created_every_run": True,
+                "painted_every_run": True,
+                "gui_heartbeat_max_gap": {"maximum_ms": 80.0},
+            },
+            "helper_protocol_ready": {"status": "skipped"},
+        }
+    }
+    baseline = {
+        "schema_version": 1,
+        "generated_at_utc": "2026-07-11T00:00:00+00:00",
+        "probes": {
+            "first_window": {"p95_ms": 1_000.0},
+            "first_tab": {"p95_ms": 5.0, "created_every_run": False},
+            "helper_protocol_ready": {"status": "skipped"},
+        },
+    }
+
+    comparison, gates = _comparison(artifact, baseline)
+
+    assert gates["first_tab_regression_within_10_percent"] is None
+    assert comparison["first_tab_comparison_skipped"]
+    assert gates["first_tab_created_every_run"] is True
+    assert gates["first_tab_painted_every_run"] is True
+
+
+def test_nested_window_probe_waits_for_creation_and_first_paint(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(TOOL),
+            "--child-probe",
+            "window",
+            "--settings-path",
+            str(tmp_path / "settings.ini"),
+            "--first-tab",
+            "texture_editor_tab",
+        ],
+        cwd=ROOT,
+        env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    pair = json.loads(result.stdout.splitlines()[-1])
+    for temperature in ("cold_process", "warm_process"):
+        payload = pair[temperature]
+        assert payload["first_tab_created"] is True
+        assert payload["first_tab_painted"] is True
+        assert payload["first_tab_first_paint_ms"] >= payload["first_tab_ms"] > 0.0
+        assert set(
+            (
+                "worker_preload",
+                "gui_module_import",
+                "widget_construction",
+                "final_hookup",
+                "navigation_activation",
+                "queued_dispatch_wait",
+                "first_visible_paint",
+                "gui_heartbeat_max_gap",
+            )
+        ).issubset(payload["stages_ms"])
 
 
 @pytest.mark.parametrize("run_count", [1])

@@ -658,9 +658,6 @@ def _fallback_builtin_translation(language_code: str, text: str) -> str:
 
 def language_name_for_code(code: str) -> str:
     normalized = canonical_language_code(code)
-    payload = BUILTIN_LANGUAGES.get(normalized)
-    if isinstance(payload, dict):
-        return str(payload.get("language_name", code) or code)
     return _builtin_language_name_for_code(normalized)
 
 
@@ -690,7 +687,7 @@ def write_language_file(
 
 
 class _TemplateRule(NamedTuple):
-    """One catalogue template compiled for matching against already-rendered text.
+    """One catalogue template indexed for matching against already-rendered text.
 
     ``prefix`` and ``literal`` are what make the match *skippable* without running
     the regex. Both are text the pattern copies through verbatim, so a value that
@@ -702,7 +699,7 @@ class _TemplateRule(NamedTuple):
     """
 
     rank: int
-    pattern: re.Pattern[str]
+    pattern_source: str
     source: str
     fields: Tuple[Tuple[str, str], ...]
     prefix: str
@@ -743,12 +740,12 @@ class UiLocalizer(QObject):
         self._event_filter_busy = False
         self._rendered_translation_cache: dict[str, str] = {}
         self._pending_flush_scheduled = False
-        self._template_patterns = self._build_template_patterns(SOURCE_STRING_CATALOGUE)
-        (
-            self._template_prefix_index,
-            self._template_literal_index,
-            self._template_unfiltered_rules,
-        ) = self._build_template_index(self._template_patterns)
+        self._template_patterns: Tuple[_TemplateRule, ...] | None = None
+        self._template_prefix_index: Dict[str, Tuple[_TemplateRule, ...]] = {}
+        self._template_literal_index: Dict[str, Tuple[_TemplateRule, ...]] = {}
+        self._template_unfiltered_rules: Tuple[_TemplateRule, ...] = ()
+        self._compiled_template_patterns: dict[int, re.Pattern[str]] = {}
+        self._identity_english = False
         self._scan_custom_languages_once()
         self.load_language(self.language_code)
 
@@ -812,6 +809,7 @@ class UiLocalizer(QObject):
             if isinstance(builtin, dict)
             else BUILTIN_LANGUAGES.get("en")
         )
+        self._identity_english = normalized_code == "en" and custom is None
         self.language_code = normalized_code
         self.language_name = language_name_for_code(normalized_code)
         self.translations = {}
@@ -889,6 +887,8 @@ class UiLocalizer(QObject):
     def translate(self, text: str) -> str:
         value = str(text or "")
         if not value:
+            return value
+        if self._identity_english:
             return value
         entry = self.translations.get(value)
         if isinstance(entry, str):
@@ -1195,7 +1195,16 @@ class UiLocalizer(QObject):
         sources: Iterable[str],
     ) -> Tuple[_TemplateRule, ...]:
         patterns: list[
-            Tuple[int, re.Pattern[str], str, Tuple[Tuple[str, str], ...], str, str]
+            Tuple[
+                int,
+                str,
+                str,
+                Tuple[Tuple[str, str], ...],
+                str,
+                str,
+                Tuple[str, ...],
+                str,
+            ]
         ] = []
         for source in sources:
             source_text = str(source)
@@ -1245,10 +1254,7 @@ class UiLocalizer(QObject):
             if not expression or (literal_chars < 2 and not numeric_pair):
                 continue
             expression.append("$")
-            try:
-                pattern = re.compile("".join(expression), re.DOTALL)
-            except re.error:
-                continue
+            pattern_source = "".join(expression)
             key_length = _TEMPLATE_INDEX_KEY_LENGTH
             prefix = (
                 leading_literal[:key_length]
@@ -1259,7 +1265,7 @@ class UiLocalizer(QObject):
             patterns.append(
                 (
                     literal_chars,
-                    pattern,
+                    pattern_source,
                     source_text,
                     tuple(fields),
                     prefix,
@@ -1307,7 +1313,30 @@ class UiLocalizer(QObject):
             tuple(unfiltered),
         )
 
+    def _ensure_template_index(self) -> None:
+        if self._template_patterns is not None:
+            return
+        rules = self._build_template_patterns(SOURCE_STRING_CATALOGUE)
+        self._template_patterns = rules
+        (
+            self._template_prefix_index,
+            self._template_literal_index,
+            self._template_unfiltered_rules,
+        ) = self._build_template_index(rules)
+
+    def _compiled_template_pattern(self, rule: _TemplateRule) -> re.Pattern[str] | None:
+        pattern = self._compiled_template_patterns.get(rule.rank)
+        if pattern is not None:
+            return pattern
+        try:
+            pattern = re.compile(rule.pattern_source, re.DOTALL)
+        except re.error:
+            return None
+        self._compiled_template_patterns[rule.rank] = pattern
+        return pattern
+
     def _candidate_template_rules(self, value: str) -> list[_TemplateRule]:
+        self._ensure_template_index()
         key_length = _TEMPLATE_INDEX_KEY_LENGTH
         candidates = list(self._template_prefix_index.get(value[:key_length], ()))
         literal_index = self._template_literal_index
@@ -1361,7 +1390,10 @@ class UiLocalizer(QObject):
         for rule in self._candidate_template_rules(value):
             if not self._rule_can_match(rule, value):
                 continue
-            match = rule.pattern.fullmatch(value)
+            pattern = self._compiled_template_pattern(rule)
+            if pattern is None:
+                continue
+            match = pattern.fullmatch(value)
             if match is None:
                 continue
             arguments = {

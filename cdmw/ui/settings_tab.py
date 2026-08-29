@@ -75,8 +75,10 @@ from cdmw.domain.camera_bindings import (
     normalize_camera_drag,
     normalize_camera_modifier,
 )
-from cdmw.domain.localization import canonical_language_code
-from cdmw.ui.localization import BUILTIN_LANGUAGES
+from cdmw.domain.localization import (
+    BUILTIN_LANGUAGES as BUILTIN_LANGUAGE_SPECS,
+    canonical_language_code,
+)
 from cdmw.ui.shell.compact.settings import CompactWorkspaceSettingsMixin
 from cdmw.ui.settings_helper_discovery import (
     SettingsHelperDiscoveryMixin,
@@ -1161,8 +1163,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
     def _populate_language_combo(self, language_options: Optional[tuple[tuple[str, str], ...]] = None) -> None:
         current_code = self.current_language_code() if hasattr(self, "language_combo") else "en"
         options = language_options or tuple(
-            (code, str(payload.get("language_name", code)))
-            for code, payload in BUILTIN_LANGUAGES.items()
+            (spec.code, spec.display_name)
+            for spec in BUILTIN_LANGUAGE_SPECS
         )
         self.language_combo.blockSignals(True)
         self.language_combo.clear()

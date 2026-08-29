@@ -359,8 +359,12 @@ class ModelLibraryCommandsMixin:
         deleted = [Path(path) for path in result.deleted_paths]
         if deleted:
             self._texture_status_cache.clear()
-            self.inline_d3d11_preview_host.clear_preview()
-            self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
+            preview_host = getattr(self, "inline_d3d11_preview_host", None)
+            if preview_host is not None:
+                preview_host.clear_preview()
+            self.inline_preview_stack.setCurrentWidget(
+                preview_host or self.inline_preview_placeholder
+            )
             self._set_inline_preview_status("Select a downloaded or local model to preview it here.")
             self._inline_preview_loaded_import_path = None
             self._inline_preview_loaded_payload = None

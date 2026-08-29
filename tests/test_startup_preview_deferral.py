@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import cdmw.ui.shell.startup_restore as startup_restore_module
 from cdmw.models import ModelPreviewRenderSettings
 from cdmw.ui.archive_browser.preview_settings import ArchivePreviewSettingsMixin
 from cdmw.ui.archive_browser.workers import ArchivePreviewWorkerMixin
@@ -29,6 +30,43 @@ class _Timer:
     @staticmethod
     def isActive() -> bool:
         return False
+
+
+def test_startup_restore_does_not_rewrite_all_settings_before_first_paint(monkeypatch) -> None:
+    saves: list[bool] = []
+
+    class RestoreProbe(ShellStartupRestoreMixin):
+        def __init__(self) -> None:
+            self.settings = SimpleNamespace(value=lambda _key: None)
+            self.archive_tree = _Tree()
+            self.archive_preview_debounce_timer = _Timer()
+            self.current_archive_preview_result = None
+            self.archive_preview_thread = None
+            self.archive_preview_worker = None
+            self.pending_archive_preview_request = None
+            self.scheduled_archive_preview_request = None
+            self.model_preview_settings_dialog = None
+            self._modal_model_preview_settings_dialogs = ()
+            self._archive_preview_startup_state_pending = False
+            self._settings_ready = False
+
+        def __getattr__(self, name: str):
+            if name == "_startup_benchmark_enabled":
+                return lambda: False
+            if name == "_startup_archive_autoload_expected":
+                return lambda: False
+            return lambda *_args, **_kwargs: None
+
+        def _save_settings(self) -> None:
+            saves.append(True)
+
+    monkeypatch.setattr(startup_restore_module.QTimer, "singleShot", lambda *_args: None)
+    window = RestoreProbe()
+
+    window._restore_shell_startup_state(lambda _message: None, previous_session_unclean=False)
+
+    assert window._settings_ready is True
+    assert saves == []
 
 
 def test_idle_startup_defers_preview_state_application() -> None:

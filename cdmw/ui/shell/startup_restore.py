@@ -85,8 +85,6 @@ class ShellStartupRestoreMixin:
         self._apply_ui_language()
         self._settings_ready = True
         self._schedule_workflow_match_refresh()
-        if not self._startup_benchmark_enabled():
-            self._save_settings()
 
         geometry = self.settings.value("window/geometry")
         if geometry:

@@ -206,6 +206,71 @@ def _start_controller(tmp_path: Path) -> tuple[DotNetPreviewSessionController, _
     return controller, processes[-1], package
 
 
+def test_preview_session_uses_one_external_runtime_output_and_cleans_it(
+    tmp_path: Path,
+) -> None:
+    controller = _own(
+        DotNetPreviewSessionController(
+            host_hwnd=lambda: 0,
+            profile=DotNetPreviewProfile.PREVIEW,
+            terminate_on_close=True,
+        )
+    )
+    controller.set_visible(False)
+    first = _package(tmp_path / "cache" / "packages" / "first", "package")
+    second = _package(tmp_path / "cache" / "packages" / "second", "package")
+
+    assert controller.load_package(first)
+    first_runtime = controller._desired_package  # noqa: SLF001 - runtime ownership contract
+    assert first_runtime is not None
+    runtime_output = first_runtime.output_dir
+    assert first_runtime.runtime_output_external is True
+    assert runtime_output != first.output_dir
+    assert first.output_dir.is_dir()
+
+    assert controller.load_package(second)
+    second_runtime = controller._desired_package  # noqa: SLF001 - runtime ownership contract
+    assert second_runtime is not None
+    assert second_runtime.output_dir == runtime_output
+    assert second.output_dir.is_dir()
+
+    controller.shutdown()
+    assert not runtime_output.exists()
+
+
+def test_authoring_session_keeps_package_owned_output(tmp_path: Path) -> None:
+    controller = _own(
+        DotNetPreviewSessionController(
+            host_hwnd=lambda: 0,
+            profile=DotNetPreviewProfile.AUTHORING,
+            terminate_on_close=True,
+        )
+    )
+    controller.set_visible(False)
+    package = _package(tmp_path, "authoring-package")
+
+    assert controller.load_package(package)
+    resolved = controller._desired_package  # noqa: SLF001 - output ownership contract
+    assert resolved is not None
+    assert resolved.output_dir == package.output_dir
+    assert resolved.runtime_output_external is False
+
+
+def test_preview_session_cleans_runtime_output_after_active_process_finishes(
+    tmp_path: Path,
+) -> None:
+    controller, process, _package_value = _start_controller(tmp_path)
+    desired = controller._desired_package  # noqa: SLF001 - runtime lifecycle contract
+    assert desired is not None
+    runtime_output = desired.output_dir
+    assert runtime_output.is_dir()
+
+    controller.shutdown()
+    process.finished.emit(0, QProcess.ExitStatus.NormalExit)
+
+    assert not runtime_output.exists()
+
+
 def _make_ready(controller: DotNetPreviewSessionController) -> None:
     generation = controller.process_generation
     with (
@@ -777,14 +842,19 @@ def test_prewarm_uses_no_package_generation_and_real_request_supersedes_it(tmp_p
     )
     assert prewarm_capture["width"] == 64
     assert prewarm_capture["height"] == 64
-    assert str(prewarm_capture["output_path"]).startswith(str(warmup.output_dir))
+    assert controller._prewarm_package is not None  # noqa: SLF001
+    assert controller._prewarm_package.runtime_output_external is True  # noqa: SLF001
+    assert str(prewarm_capture["output_path"]).startswith(
+        str(controller._prewarm_package.output_dir)  # noqa: SLF001
+    )
+    assert not str(prewarm_capture["output_path"]).startswith(str(warmup.output_dir))
     controller._handle_protocol_event(  # noqa: SLF001
         {**prewarm_capture, "event": "capture_result", "status": "captured"},
         generation,
     )
     assert controller._prewarm_capture_request_id == 0  # noqa: SLF001
     assert controller.process is process
-    assert controller._prewarm_package is warmup  # noqa: SLF001
+    assert controller._prewarm_package.package_dir == warmup.package_dir  # noqa: SLF001
     assert controller._package_key(warmup.package_dir) in controller._package_leases  # noqa: SLF001
     assert released == []
     controller.set_visible(False)

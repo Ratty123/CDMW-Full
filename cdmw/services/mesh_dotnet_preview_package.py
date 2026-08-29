@@ -727,6 +727,24 @@ def lookup_dotnet_preview_package_from_model_identity(
 ) -> MeshDotNetExperimentPackage | None:
     """Return a valid canonical Python-model package without decoding its source."""
 
+    hit = lookup_dotnet_preview_package_hit_from_model_identity(
+        cache_root=cache_root,
+        archive_identity=archive_identity,
+        sidecar_generation=sidecar_generation,
+        cancelled=cancelled,
+    )
+    return hit[0] if hit is not None else None
+
+
+def lookup_dotnet_preview_package_hit_from_model_identity(
+    *,
+    cache_root: Path,
+    archive_identity: str,
+    sidecar_generation: int = 0,
+    cancelled: Callable[[], bool] | None = None,
+) -> tuple[MeshDotNetExperimentPackage, dict[str, object]] | None:
+    """Return a canonical Python-model package and its publication metadata."""
+
     _check_cancelled(cancelled)
     cache_key = dotnet_preview_package_cache_key(
         "python:" + str(archive_identity or ""),
@@ -739,7 +757,9 @@ def lookup_dotnet_preview_package_from_model_identity(
         validate_package=validate_dotnet_preview_package,
     )
     _check_cancelled(cancelled)
-    return mesh_dotnet_experiment_package_from_path(hit.package_dir) if hit is not None else None
+    if hit is None:
+        return None
+    return mesh_dotnet_experiment_package_from_path(hit.package_dir), dict(hit.metadata)
 
 
 def build_dotnet_preview_prewarm_package(cache_root: Path) -> MeshDotNetExperimentPackage:
@@ -789,6 +809,7 @@ __all__ = [
     "dotnet_preview_overlays_from_preview_core_package",
     "dotnet_preview_package_cache_key",
     "lookup_dotnet_preview_package_from_model_identity",
+    "lookup_dotnet_preview_package_hit_from_model_identity",
     "parsed_mesh_from_model_preview",
     "validate_dotnet_preview_package",
 ]
