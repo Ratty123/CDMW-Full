@@ -16,6 +16,17 @@ authority. `MeshPanelUnavailableError` is reserved for expected conditions such
 as a native snapshot that is not yet authoritative, leaving unexpected failures
 available to diagnostics.
 
+## Bounded gesture samples
+
+`stroke_samples.py` owns the pure incremental screen-path bound used by Mesh
+Editor live gestures. It always keeps first/final samples, removes points within
+the 2.5 px path tolerance, retains turns of at least 12 degrees and a slow-motion
+sample every 50 ms, then evicts the least important interior point at the
+configured hard limit. The UI packet owner applies the 256-sample / 64 KiB
+packet bounds and fixed segment queue; the resident C# form applies the same
+sample contract before lasso/toggle mouse-up and before writing a coalesced
+protocol path.
+
 ## Body region segmentation
 
 `body_regions.py` turns a skinned body's own skin weights plus the bone names

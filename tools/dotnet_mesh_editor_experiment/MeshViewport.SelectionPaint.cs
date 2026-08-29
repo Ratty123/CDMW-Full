@@ -60,7 +60,7 @@ internal sealed partial class MeshViewport
     // native request carries this actual path, not the straight chord between
     // samples: a fast curved stroke's echo and its authoritative result must
     // agree about which band was painted.
-    private readonly List<Point> _selectionPaintPendingPath = new();
+    private readonly StrokeSampleBuffer _selectionPaintPendingPath = new();
 
     private void AppendSelectionPaintPendingPoint(Point point)
     {
@@ -217,9 +217,9 @@ internal sealed partial class MeshViewport
 
     private void EmitFinalTogglePaintSelection()
     {
-        var path = _selectionPaintPathPoints.Count > 0
+        IReadOnlyList<Point> path = _selectionPaintPathPoints.Count > 0
             ? _selectionPaintPathPoints
-            : new List<Point> { _selectionPaintLastEcho };
+            : new[] { _selectionPaintLastEcho };
         var region = ScreenDragPayload(path[0], path[^1]);
         region["mode"] = "brush";
         region["selection_mode"] = "brush";

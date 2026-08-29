@@ -281,16 +281,19 @@ exact renderer-local preview on every pointer update. Native Grab captures the
 same initial weights and center on `stroke_begin`, then reuses that fixed scope
 even after the cursor leaves the mesh. Smooth, Inflate, and Pinch display the
 correlated resident-native result stream instead of a second local sculpt
-approximation. Protocol updates are bounded to 16 ms; coalescing retains the
-complete compact `screen_path` polyline, not only its newest endpoint, while
-the visible-depth mask spans that complete path and the dispatcher keeps one
-in-flight plus one pending update. The renderer publication lane is also
+approximation. Protocol updates are bounded to 16 ms. Coalescing keeps exact
+first/final samples, points at least 2.5 px off the simplified path, turns of at
+least 12 degrees, and one point every 50 ms during slow motion. Each native
+packet carries at most 256 samples and 64 KiB; high-curvature gestures split
+into at most 16 queued packets with one overlapping boundary, one stroke ID,
+and one final history commit. The visible-depth mask spans the retained swept
+path and the dispatcher keeps one in-flight plus one pending update. The renderer publication lane is also
 acknowledgement-paced: while one geometry frame is applying it retains only the
 newest cumulative nonterminal stroke outcome, acknowledges every superseded
 request as coalesced, and treats end/cancel as an ordering boundary. Only a matching
-stroke ID, request, and revision can reconcile the result. Cancel restores the
-baseline, and the terminal phase publishes one cumulative geometry frame and
-creates one history entry.
+stroke ID, request, and revision can reconcile the result. Cancel restores every
+provisional segment to the baseline, and the terminal phase publishes one
+cumulative geometry frame and creates one history entry.
 When the shared helper adopts a new process generation or session identity, the
 revision queue adopts it at the same boundary, discards work addressed to the
 old identity, and restores the process's negotiated revision capabilities. A
@@ -403,15 +406,16 @@ draft. Moving between tool pages inside the same live session preserves the
 current tool.
 Selection gestures use the background latest-wins stroke dispatcher. Immutable
 begin/update/end/cancel requests carry stroke ID, sequence, target, operation,
-and every unsent swept brush/region sample. One update may run while one merged
+and bounded retained swept brush/region samples. One update may run while one merged
 update waits; native selection never runs inline on the Qt UI thread. Provisional
 geometry stays ahead of the last acknowledged base, and an old acknowledgement
 cannot clear a newer tail. The matching final acknowledgement creates exactly
 one selection-history entry; cancellation, failure, or session retirement
 restores the pre-stroke selection and clears the correlated provisional state.
-Lasso spatially samples its visible points while drawing, appends the exact
-mouse-up endpoint, and uses that same unsimplified polygon for local and native
-tests. Its immediate target-specific mouse-up result remains visible until
+Lasso and toggle-paint use the same bounded spacing/curvature/time buffer while
+drawing and always append the exact mouse-up endpoint; local echo and native
+tests therefore share one tolerance-bounded outline instead of doing mouse-up
+work proportional to every raw event. Its immediate target-specific result remains visible until
 native authority answers.
 `MeshEditorTab` routes those events to a resident native `select` command
 through `MeshService`, C++ expands the requested selection mask from the D3D11

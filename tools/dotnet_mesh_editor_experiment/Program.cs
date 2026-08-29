@@ -824,8 +824,8 @@ internal sealed partial class MeshViewport : Control
     // authoritative result.
     private Point _selectionPaintLastEcho;
     private long _selectionPaintLastSampleTicks;
-    private readonly List<Point> _selectionPaintPathPoints = new();
-    private readonly List<Point> _selectionLassoPoints = new();
+    private readonly StrokeSampleBuffer _selectionPaintPathPoints = new();
+    private readonly StrokeSampleBuffer _selectionLassoPoints = new();
     private string _selectionStrokeId = string.Empty;
     private long _selectionStrokeSequence;
     private Point _edgeDragStart;

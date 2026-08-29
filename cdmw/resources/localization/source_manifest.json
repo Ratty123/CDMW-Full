@@ -15356,12 +15356,12 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ProgramEntry.cs",
-          "line": 170,
+          "line": 174,
           "sink": "csharp:MessageBox.Show("
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ProgramEntry.cs",
-          "line": 228,
+          "line": 232,
           "sink": "csharp:MessageBox.Show("
         }
       ]
@@ -124231,7 +124231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_stroke_dispatcher.py",
-          "line": 469,
+          "line": 467,
           "sink": "RuntimeError"
         }
       ]

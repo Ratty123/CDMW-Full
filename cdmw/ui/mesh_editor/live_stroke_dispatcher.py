@@ -12,6 +12,16 @@ from PySide6.QtCore import QObject, Signal
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection
 from cdmw.ui.mesh_editor.controller import MeshEditorController, MeshEditorNativeUpdate
+from cdmw.ui.mesh_editor.stroke_packets import (
+    STROKE_MAX_SEGMENTS,
+    StrokePacketBuild,
+    bound_live_stroke_command,
+    cancel_live_stroke_command,
+    carry_live_stroke_segment_boundary,
+    command_for_live_stroke_apply,
+    continue_selection_terminal,
+    merge_live_stroke_commands,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +32,7 @@ class MeshLiveStrokeRequest:
     command: MeshEditCommand
     source: str = ""
     request_payloads: tuple[dict[str, object], ...] = ()
+    submitted_at: float = field(default_factory=time.monotonic)
     stop_event: threading.Event = field(default_factory=threading.Event)
 
 
@@ -82,126 +93,12 @@ def _same_pending_update_stream(
     )
 
 
-def _merge_pending_screen_drag(
-    previous: MeshLiveStrokeRequest,
-    newest: MeshLiveStrokeRequest,
-) -> MeshEditCommand:
-    if (
-        previous.controller is not newest.controller
-        or previous.source != newest.source
-        or previous.command.action != newest.command.action
-    ):
-        return newest.command
-    previous_stroke_id = str(previous.command.params.get("stroke_id", "") or "")
-    newest_stroke_id = str(newest.command.params.get("stroke_id", "") or "")
-    previous_drag = previous.command.params.get("screen_drag")
-    newest_drag = newest.command.params.get("screen_drag")
-    if (
-        not previous_stroke_id
-        or previous_stroke_id != newest_stroke_id
-        or not isinstance(previous_drag, Mapping)
-        or not isinstance(newest_drag, Mapping)
-        or "start_x" not in previous_drag
-        or "start_y" not in previous_drag
-        or "end_x" not in newest_drag
-        or "end_y" not in newest_drag
-    ):
-        return newest.command
-    merged_drag = {
-        **newest_drag,
-        "start_x": previous_drag["start_x"],
-        "start_y": previous_drag["start_y"],
-    }
-    def _path_points(command: MeshEditCommand, drag: Mapping[str, object]) -> list[dict[str, object]]:
-        raw_path = command.params.get("screen_path")
-        if isinstance(raw_path, (tuple, list)):
-            points = [
-                {"x": point["x"], "y": point["y"]}
-                for point in raw_path
-                if isinstance(point, Mapping) and "x" in point and "y" in point
-            ]
-            if len(points) >= 2:
-                return points
-        return [
-            {"x": drag["start_x"], "y": drag["start_y"]},
-            {"x": drag["end_x"], "y": drag["end_y"]},
-        ]
-
-    merged_path = _path_points(previous.command, previous_drag)
-    for point in _path_points(newest.command, newest_drag):
-        if merged_path and point == merged_path[-1]:
-            continue
-        merged_path.append(point)
-    return MeshEditCommand(
-        newest.command.action,
-        selection=newest.command.selection,
-        params={
-            **newest.command.params,
-            "screen_drag": merged_drag,
-            "screen_path": tuple(merged_path),
-        },
-        mode=newest.command.mode,
-        label=newest.command.label,
-    )
-
-
-def _screen_selection_items(payload: Mapping[str, object], singular: str, plural: str) -> list[object]:
-    items: list[object] = []
-    raw_many = payload.get(plural)
-    if isinstance(raw_many, (tuple, list)):
-        items.extend(item for item in raw_many if isinstance(item, Mapping))
-    raw_one = payload.get(singular)
-    if isinstance(raw_one, Mapping):
-        items.append(raw_one)
-    return items
-
-
-def _merge_pending_screen_selection(
-    previous: MeshLiveStrokeRequest,
-    newest: MeshLiveStrokeRequest,
-) -> MeshEditCommand:
-    if (
-        previous.controller is not newest.controller
-        or previous.source != "dotnet_selection"
-        or newest.source != "dotnet_selection"
-        or previous.command.action != "select"
-        or newest.command.action != "select"
-    ):
-        return newest.command
-    previous_params = dict(previous.command.params)
-    newest_params = dict(newest.command.params)
-    previous_stroke_id = str(previous_params.get("selection_stroke_id", "") or "")
-    newest_stroke_id = str(newest_params.get("selection_stroke_id", "") or "")
-    previous_screen = previous_params.get("_native_screen_selection_payload")
-    newest_screen = newest_params.get("_native_screen_selection_payload")
-    if (
-        not previous_stroke_id
-        or previous_stroke_id != newest_stroke_id
-        or not isinstance(previous_screen, Mapping)
-        or not isinstance(newest_screen, Mapping)
-    ):
-        return newest.command
-    merged_screen = dict(newest_screen)
-    brushes = _screen_selection_items(previous_screen, "screen_brush", "screen_brushes")
-    brushes.extend(_screen_selection_items(newest_screen, "screen_brush", "screen_brushes"))
-    regions = _screen_selection_items(previous_screen, "screen_region", "screen_regions")
-    regions.extend(_screen_selection_items(newest_screen, "screen_region", "screen_regions"))
-    merged_screen.pop("screen_brush", None)
-    merged_screen.pop("screen_region", None)
-    if brushes:
-        merged_screen["screen_brushes"] = brushes
-    if regions:
-        merged_screen["screen_regions"] = regions
-    return MeshEditCommand(
-        newest.command.action,
-        selection=newest.command.selection,
-        params={
-            **newest_params,
-            "operation": previous_params.get("operation", newest_params.get("operation", "add")),
-            "_native_screen_selection_payload": merged_screen,
-        },
-        mode=newest.command.mode,
-        label=newest.command.label,
+def _stroke_stream_key(request: MeshLiveStrokeRequest) -> tuple[int, str, str, str]:
+    return (
+        id(request.controller),
+        request.source,
+        request.command.action,
+        _request_stream_id(request),
     )
 
 
@@ -223,6 +120,13 @@ class MeshLiveStrokeDispatcher(QObject):
         self._stopping = False
         self._sequence = 0
         self._coalesced = 0
+        self._segmented_batches = 0
+        self._oversize_rejections = 0
+        self._max_packet_bytes = 0
+        self._max_packet_samples = 0
+        self._max_raw_samples = 0
+        self._max_segments_per_stroke = 0
+        self._stroke_segment_counts: dict[tuple[int, str, str, str], int] = {}
         self._thread = threading.Thread(
             target=self._run,
             name="cdmw-mesh-live-stroke",
@@ -244,87 +148,45 @@ class MeshLiveStrokeDispatcher(QObject):
         normalized_phase = str(phase or "").strip().lower()
         if normalized_phase not in {"begin", "update", "end", "cancel"}:
             return 0
+        submitted_at = time.monotonic()
+        request_source = str(source or "")
+        packet = bound_live_stroke_command(
+            command,
+            source=request_source,
+            timestamp_seconds=submitted_at,
+        )
         cancelled_pending: MeshLiveStrokeRequest | None = None
         with self._condition:
             if self._stopping:
                 return 0
+            if packet.too_large:
+                self._oversize_rejections += 1
+                if normalized_phase not in {"end", "cancel"}:
+                    return 0
+                normalized_phase = "cancel"
+                packet = bound_live_stroke_command(
+                    cancel_live_stroke_command(command, source=request_source),
+                    source=request_source,
+                    timestamp_seconds=submitted_at,
+                )
+                if packet.too_large:
+                    return 0
+            self._record_packet_metrics_locked(packet)
             self._sequence += 1
             request_payloads = (dict(request_payload),) if request_payload is not None else ()
-            request_source = str(source or "")
+            request = MeshLiveStrokeRequest(
+                self._sequence,
+                normalized_phase,
+                controller,
+                packet.command,
+                request_source,
+                request_payloads,
+                submitted_at=submitted_at,
+            )
             if normalized_phase == "update":
-                candidate = MeshLiveStrokeRequest(
-                    self._sequence,
-                    normalized_phase,
-                    controller,
-                    command,
-                    request_source,
-                    request_payloads,
-                )
-                if (
-                    self._pending_update is not None
-                    and not _same_pending_update_stream(self._pending_update, candidate)
-                ):
-                    # A pending update from another gesture is an ordering
-                    # boundary, not a sample that the newer gesture may
-                    # supersede. Preserve it in FIFO order before installing
-                    # the new stream's coalescing slot.
-                    self._controls.append(self._pending_update)
-                    self._pending_update = None
-                if self._pending_update is not None:
-                    superseded_payloads = self._pending_update.request_payloads
-                    command = _merge_pending_screen_selection(
-                        self._pending_update,
-                        candidate,
-                    )
-                    command = _merge_pending_screen_drag(
-                        self._pending_update,
-                        MeshLiveStrokeRequest(
-                            self._sequence,
-                            normalized_phase,
-                            controller,
-                            command,
-                            request_source,
-                            request_payloads,
-                        ),
-                    )
-                    self._pending_update.stop_event.set()
-                    self._coalesced += 1
-                    if superseded_payloads:
-                        self.coalesced.emit(
-                            MeshLiveStrokeCoalesced(
-                                controller,
-                                request_source,
-                                command.action,
-                                superseded_payloads,
-                                self._sequence,
-                            )
-                        )
-                request = MeshLiveStrokeRequest(
-                    self._sequence,
-                    normalized_phase,
-                    controller,
-                    command,
-                    request_source,
-                    request_payloads,
-                )
-                self._pending_update = request
+                request = self._submit_update_locked(request)
             else:
-                request = MeshLiveStrokeRequest(
-                    self._sequence,
-                    normalized_phase,
-                    controller,
-                    command,
-                    request_source,
-                    request_payloads,
-                )
-                if normalized_phase in {"end", "cancel"} and self._pending_update is not None:
-                    if normalized_phase == "end":
-                        self._controls.append(self._pending_update)
-                    else:
-                        self._pending_update.stop_event.set()
-                        cancelled_pending = self._pending_update
-                    self._pending_update = None
-                self._controls.append(request)
+                request, cancelled_pending = self._submit_control_locked(request)
             self._condition.notify_all()
             sequence = request.sequence
         if cancelled_pending is not None:
@@ -341,6 +203,133 @@ class MeshLiveStrokeDispatcher(QObject):
             )
         return sequence
 
+    def _submit_update_locked(self, request: MeshLiveStrokeRequest) -> MeshLiveStrokeRequest:
+        pending = self._pending_update
+        if pending is not None and not _same_pending_update_stream(pending, request):
+            self._controls.append(pending)
+            self._note_segment_locked(pending)
+            pending = None
+            self._pending_update = None
+        if pending is None:
+            self._pending_update = request
+            return request
+
+        merged = merge_live_stroke_commands(
+            pending.command,
+            request.command,
+            source=request.source,
+            timestamp_seconds=request.submitted_at,
+        )
+        self._record_packet_metrics_locked(merged)
+        stream_key = _stroke_stream_key(request)
+        segment_count = self._stroke_segment_counts.get(stream_key, 0)
+        if (
+            merged.overflowed
+            and stream_key[-1]
+            and segment_count < STROKE_MAX_SEGMENTS - 1
+        ):
+            self._controls.append(pending)
+            self._note_segment_locked(pending)
+            carried = carry_live_stroke_segment_boundary(
+                pending.command,
+                request.command,
+                source=request.source,
+                timestamp_seconds=request.submitted_at,
+            )
+            self._record_packet_metrics_locked(carried)
+            request = self._request_with_command(request, carried.command)
+            self._pending_update = request
+            return request
+
+        pending.stop_event.set()
+        self._coalesced += 1
+        if pending.request_payloads:
+            self.coalesced.emit(
+                MeshLiveStrokeCoalesced(
+                    request.controller,
+                    request.source,
+                    merged.command.action,
+                    pending.request_payloads,
+                    request.sequence,
+                )
+            )
+        request = self._request_with_command(request, merged.command)
+        self._pending_update = request
+        return request
+
+    def _submit_control_locked(
+        self,
+        request: MeshLiveStrokeRequest,
+    ) -> tuple[MeshLiveStrokeRequest, MeshLiveStrokeRequest | None]:
+        stream_key = _stroke_stream_key(request)
+        if request.phase == "begin":
+            self._stroke_segment_counts[stream_key] = 0
+        cancelled_pending: MeshLiveStrokeRequest | None = None
+        pending = self._pending_update
+        if pending is not None:
+            same_stream = _same_pending_update_stream(pending, request)
+            if request.phase == "cancel" and same_stream:
+                pending.stop_event.set()
+                cancelled_pending = pending
+            else:
+                self._controls.append(pending)
+                self._note_segment_locked(pending)
+            self._pending_update = None
+        if request.source == "dotnet_selection" and request.phase in {"end", "cancel"}:
+            if self._stroke_segment_counts.get(stream_key, 0) > 0:
+                request = self._request_with_command(
+                    request,
+                    continue_selection_terminal(request.command),
+                )
+        self._controls.append(request)
+        if request.phase in {"end", "cancel"}:
+            self._stroke_segment_counts.pop(stream_key, None)
+        return request, cancelled_pending
+
+    @staticmethod
+    def _request_with_command(
+        request: MeshLiveStrokeRequest,
+        command: MeshEditCommand,
+    ) -> MeshLiveStrokeRequest:
+        return MeshLiveStrokeRequest(
+            request.sequence,
+            request.phase,
+            request.controller,
+            command,
+            request.source,
+            request.request_payloads,
+            submitted_at=request.submitted_at,
+            stop_event=request.stop_event,
+        )
+
+    def _note_segment_locked(
+        self,
+        request: MeshLiveStrokeRequest,
+        *,
+        segmented_batch: bool = True,
+    ) -> None:
+        stream_key = _stroke_stream_key(request)
+        if not stream_key[-1]:
+            return
+        segment_count = self._stroke_segment_counts.get(stream_key, 0) + 1
+        self._stroke_segment_counts[stream_key] = segment_count
+        if segmented_batch:
+            self._segmented_batches += 1
+        self._max_segments_per_stroke = max(self._max_segments_per_stroke, segment_count)
+
+    def _record_packet_metrics_locked(self, packet: StrokePacketBuild) -> None:
+        self._max_packet_bytes = max(self._max_packet_bytes, packet.encoded_bytes)
+        self._max_packet_samples = max(self._max_packet_samples, packet.retained_samples)
+        self._max_raw_samples = max(self._max_raw_samples, packet.raw_samples)
+
+    def _retire_stream_if_idle_locked(self, request: MeshLiveStrokeRequest) -> None:
+        stream_key = _stroke_stream_key(request)
+        if any(_stroke_stream_key(queued) == stream_key for queued in self._controls):
+            return
+        if self._pending_update is not None and _stroke_stream_key(self._pending_update) == stream_key:
+            return
+        self._stroke_segment_counts.pop(stream_key, None)
+
     def cancel_pending(self) -> None:
         cancelled: list[MeshLiveStrokeRequest] = []
         with self._condition:
@@ -354,6 +343,7 @@ class MeshLiveStrokeDispatcher(QObject):
                 self._pending_update.stop_event.set()
                 cancelled.append(self._pending_update)
                 self._pending_update = None
+            self._stroke_segment_counts.clear()
             self._condition.notify_all()
         for request in cancelled:
             self.failed.emit(
@@ -415,6 +405,12 @@ class MeshLiveStrokeDispatcher(QObject):
                 "retired_controller_depth": len(self._retired_controllers),
                 "retiring_controller": int(self._retiring_controller is not None),
                 "coalesced_updates": self._coalesced,
+                "segmented_batches": self._segmented_batches,
+                "oversize_rejections": self._oversize_rejections,
+                "max_packet_bytes": self._max_packet_bytes,
+                "max_packet_samples": self._max_packet_samples,
+                "max_raw_samples": self._max_raw_samples,
+                "max_segments_per_stroke": self._max_segments_per_stroke,
                 "latest_sequence": self._sequence,
             }
 
@@ -435,6 +431,7 @@ class MeshLiveStrokeDispatcher(QObject):
             elif self._pending_update is not None:
                 request = self._pending_update
                 self._pending_update = None
+                self._note_segment_locked(request, segmented_batch=False)
             else:
                 return None
             self._active = request
@@ -456,12 +453,13 @@ class MeshLiveStrokeDispatcher(QObject):
                         self._condition.notify_all()
                 continue
             try:
-                params = dict(request.command.params)
+                apply_command = command_for_live_stroke_apply(request.command)
+                params = dict(apply_command.params)
                 params["stop_event"] = request.stop_event
                 result = request.controller.apply(
-                    request.command.action,
-                    selection=request.command.selection,
-                    mode=request.command.mode,
+                    apply_command.action,
+                    selection=apply_command.selection,
+                    mode=apply_command.mode,
                     **params,
                 )
                 if request.source == "dotnet_selection" and not result.ok:
@@ -548,6 +546,7 @@ class MeshLiveStrokeDispatcher(QObject):
             finally:
                 with self._condition:
                     self._active = None
+                    self._retire_stream_if_idle_locked(request)
                     self._condition.notify_all()
 
 
