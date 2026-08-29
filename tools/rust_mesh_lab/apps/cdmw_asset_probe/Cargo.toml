@@ -1,0 +1,23 @@
+[package]
+name = "cdmw_asset_probe"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+cdmw_archive = { path = "../../crates/cdmw_archive" }
+cdmw_evidence = { path = "../../crates/cdmw_evidence" }
+cdmw_formats = { path = "../../crates/cdmw_formats" }
+cdmw_mesh = { path = "../../crates/cdmw_mesh" }
+cdmw_oracle = { path = "../../crates/cdmw_oracle" }
+cdmw_replay = { path = "../../crates/cdmw_replay" }
+cdmw_texture = { path = "../../crates/cdmw_texture" }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

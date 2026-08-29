@@ -1,0 +1,17 @@
+[package]
+name = "cdmw_mesh"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+cdmw_evidence = { path = "../cdmw_evidence" }
+cdmw_formats = { path = "../cdmw_formats" }
+glam.workspace = true
+serde.workspace = true
+slotmap = { version = "1.1.1", features = ["serde"] }
+thiserror.workspace = true
+
+[lints]
+workspace = true

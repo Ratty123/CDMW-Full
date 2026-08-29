@@ -1,0 +1,20 @@
+[package]
+name = "cdmw_render_wgpu"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+bytemuck.workspace = true
+cdmw_mesh = { path = "../cdmw_mesh" }
+cdmw_texture = { path = "../cdmw_texture" }
+egui.workspace = true
+egui-wgpu.workspace = true
+glam.workspace = true
+thiserror.workspace = true
+wgpu.workspace = true
+winit.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,92 @@
+# Rust Mesh Lab format contract
+
+This inventory records the local CDMW contracts examined at implementation time. “Proven” means backed by the current local owner and synthetic tests. It does not mean private real-game parity has run in Rust.
+
+## Support matrix
+
+| Format | Current Rust level | Local CDMW owner used as oracle | Limits and remaining proof |
+|---|---|---|---|
+| Archive `.pamt` index | Structural read | `cdmw/core/archive_format.py`, `cdmw/core/archive_scan_cache.py` | Header/table/path/payload bounds are checked; mount order from `meta/0.papgt` is not ported |
+| Numbered `.paz` payload | Lazy read | `cdmw/core/archive_extraction.py` | Stored and LZ4 entries decode; Partial raw is classified; Partial DDS/PAR and Sparse DDS reconstruction remain incomplete |
+| PAC | Geometry read, LOD0 | `cdmw/modding/mesh_parser.py`, `native/cdmw_preview_core/src/owners/geometry_pac.cpp` | PAR sections, descriptors, candidate strides/UV offsets, packed normals, topology; skin palettes, extra influences, LOD1+, and appearance parity incomplete |
+| PAM | Geometry read | `cdmw/modding/mesh_parser.py`, `native/cdmw_preview_core/src/owners/geometry_static.cpp` | Proven quantized candidate layouts; global/scan fallback variants incomplete |
+| PAMLOD | Geometry read | same static owners | Declared LOD groups and proven quantized groups; unsupported groups fail visibly |
+| DDS | Metadata read and direct 2D GPU upload | `cdmw/core/archive_extraction.py`, `cdmw/core/dds_resource_limits.py` | Legacy/DX10 metadata and common BC/R/RG/RGBA/BGRA formats; arrays/cubes, Partial/Sparse reconstruction, fallback transcode, and multi-material composition incomplete |
+| PAC XML / PAM XML / PAMLOD XML | Relationship target only | material sidecar owners | XML parameter parsing not native yet |
+| PAMI / APP XML / Prefab-data XML | Relationship target only | appearance/material owners | Native semantic parsing not implemented |
+| PAB | Unsupported in Rust | `cdmw/modding/skeleton_parser.py` | No skeleton overlay parity yet |
+| PABC | Unsupported in Rust | `cdmw/modding/skeleton_variation_parser.py` | No variation application parity yet |
+| Morph-target PAMT | Explicitly distinct, unsupported | `cdmw/core/archive_mesh_appearance.py` | Never passed to the archive-index decoder based on extension alone |
+| Meshinfo | Unsupported metadata | current preview owners | No unproven table authority is claimed |
+
+## Archive index contract
+
+The current archive-index role is accepted only through structural parsing:
+
+1. Three little-endian `u32` values: header checksum, PAZ count, reserved value.
+2. `paz_count` records of three little-endian `u32` values. CDMW currently skips their semantics; Rust preserves them as checksum, file-count candidate, and reserved fields without using them as authority.
+3. A length-prefixed directory path-record block.
+4. A length-prefixed file-name path-record block.
+5. A `u32` folder count followed by 16-byte records: hash, path-record offset, first file index, file count.
+6. A `u32` file count followed by 20-byte records: path-record offset, PAZ byte offset, stored size, original size, PAZ index, flags.
+
+Path records contain a parent `u32`, one-byte part length, and UTF-8 bytes. `0xffffffff` is the root sentinel. Rust rejects path cycles, out-of-range offsets, traversal, drive-qualified components, excessive depth, and excessive path bytes.
+
+The low flag nibble is compression type; the next nibble is encryption type. Current labels are:
+
+| Value | Compression | Rust behavior |
+|---:|---|---|
+| 0 | None | Stored bytes |
+| 1 | Partial | Classified as Partial raw; format-specific reconstruction incomplete |
+| 2 | LZ4 block | Native `lz4_flex` decode with exact expected size |
+| 3 | Zlib | Unsupported, fail closed |
+| 4 | QuickLZ | Unsupported, fail closed |
+
+Encryption type 3 uses the current filename-derived ChaCha20 contract. Rust uses the maintained RustCrypto `chacha20` implementation in legacy mode, ports only the proven lookup3 seed/key/nonce derivation, and does not implement its own cipher primitive. Types 1, 2, and unknown values fail closed.
+
+Archive discovery recursively finds `.pamt` index candidates, ignores top-level `cdmods`, sorts deterministically, validates every numbered payload identity and range, and does not read entry payloads during browsing. `meta/0.papgt` mount ordering remains a parity gap.
+
+## PAC contract
+
+The Rust PAC reader currently requires:
+
+- `PAR ` magic and a complete 0x50-byte header;
+- up to eight structurally bounded internal sections;
+- in-memory LZ4 normalization when a section declares a compressed size;
+- section 0 with a LOD count from 1 through 10;
+- descriptor patterns currently proven by the native preview core;
+- finite bounds and counts below 200,000 vertices and 20,000,000 indices per descriptor;
+- one validated geometry section and candidate vertex layout;
+- every index inside its submesh vertex count;
+- finite decoded positions, UVs, and normals.
+
+Candidate vertex strides are 32, 36, 40, 44, and 48 bytes with the locally accepted UV-offset family and the packed normal at byte 16. LOD0 positions use the existing PAC extent decoder; packed 10:10:10 normals use the current component reorder.
+
+This is not yet PAC skinning parity. Bone indices, weights, palettes, rigid attachment context, and extra influence gates remain explicit readiness blockers.
+
+## PAM and PAMLOD contract
+
+PAM uses the local fixed header locations:
+
+- mesh count at byte 16;
+- bounding-box minimum at byte 20 and maximum at byte 32;
+- geometry offset at byte 60;
+- submesh table at byte 1040 with a 536-byte record stride;
+- count/offset fields in the first 16 bytes, a 256-byte texture name at byte 16, and a 256-byte material name at byte 272.
+
+PAMLOD uses declared LOD count at byte 0, geometry offset at byte 4, bounds at bytes 16 and 28, and scans only structurally valid descriptor/name records before geometry. Candidate layouts validate every index before decoding.
+
+Static positions are quantized `u16` values over the declared bounds. UVs are binary16 values when the accepted stride carries them. Missing normals are recomputed deterministically from validated triangles.
+
+## Resource limits
+
+- Archive index: 512 MiB default maximum.
+- Archive entry: 2 GiB configurable default maximum.
+- Archive entries: 20,000,000 default maximum.
+- Virtual path: 256 parent records and 32,768 bytes.
+- Mesh: 10,000,000 vertices and 60,000,000 indices per submesh.
+- DDS: 16,384 pixels per dimension and 512 MiB payload.
+- Lasso: 4,096 retained points.
+- Archive UI query: 20,000 displayed identities; full match count retained.
+
+All offsets, table lengths, buffer sizes, and decoded sizes use checked arithmetic before allocation or slicing.

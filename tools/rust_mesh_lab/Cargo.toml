@@ -1,0 +1,57 @@
+[workspace]
+resolver = "3"
+members = [
+    "apps/cdmw_asset_probe",
+    "apps/cdmw_mesh_lab",
+    "crates/cdmw_archive",
+    "crates/cdmw_asset_graph",
+    "crates/cdmw_evidence",
+    "crates/cdmw_formats",
+    "crates/cdmw_interaction",
+    "crates/cdmw_mesh",
+    "crates/cdmw_oracle",
+    "crates/cdmw_render_wgpu",
+    "crates/cdmw_replay",
+    "crates/cdmw_texture",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+authors = ["CDMW contributors"]
+
+[workspace.dependencies]
+anyhow = "1.0.100"
+bytemuck = { version = "1.25", features = ["derive"] }
+chacha20 = { version = "0.10.2", features = ["legacy"] }
+crossbeam-channel = "0.5.15"
+egui = "0.36.1"
+egui-wgpu = { version = "0.36.1", features = ["winit"] }
+egui-winit = "0.36.1"
+glam = { version = "0.32.1", features = ["serde"] }
+lz4_flex = "0.14.0"
+pollster = "0.4.0"
+rfd = "0.17.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.145"
+sha2 = "0.10.9"
+tempfile = "3.23.0"
+thiserror = "2.0.17"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
+wgpu = "30.0.1"
+winit = "0.30.13"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+too_many_arguments = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

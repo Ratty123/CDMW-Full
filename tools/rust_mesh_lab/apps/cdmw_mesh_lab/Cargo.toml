@@ -1,0 +1,32 @@
+[package]
+name = "cdmw_mesh_lab"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+cdmw_archive = { path = "../../crates/cdmw_archive" }
+cdmw_asset_graph = { path = "../../crates/cdmw_asset_graph" }
+cdmw_formats = { path = "../../crates/cdmw_formats" }
+cdmw_interaction = { path = "../../crates/cdmw_interaction" }
+cdmw_mesh = { path = "../../crates/cdmw_mesh" }
+cdmw_oracle = { path = "../../crates/cdmw_oracle" }
+cdmw_render_wgpu = { path = "../../crates/cdmw_render_wgpu" }
+cdmw_texture = { path = "../../crates/cdmw_texture" }
+crossbeam-channel.workspace = true
+egui.workspace = true
+egui-wgpu.workspace = true
+egui-winit.workspace = true
+glam.workspace = true
+pollster.workspace = true
+rfd.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+wgpu.workspace = true
+winit.workspace = true
+
+[lints]
+workspace = true

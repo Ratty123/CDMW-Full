@@ -1,0 +1,837 @@
+#![forbid(unsafe_code)]
+
+use cdmw_evidence::sha256_bytes;
+use cdmw_formats::{MeshDocument, Submesh};
+use glam::Vec3;
+use serde::{Deserialize, Serialize};
+use slotmap::{Key, SecondaryMap, SlotMap, new_key_type};
+use std::collections::{HashMap, HashSet};
+use thiserror::Error;
+
+new_key_type! {
+    pub struct VertexHandle;
+    pub struct FaceHandle;
+    pub struct EdgeHandle;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Provenance {
+    Source { submesh: u32, element: u32 },
+    Generated { operation: u64 },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Vertex {
+    pub position: [f32; 3],
+    pub normal: [f32; 3],
+    pub uv: [f32; 2],
+    pub provenance: Provenance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Face {
+    pub vertices: [VertexHandle; 3],
+    pub submesh: u32,
+    pub material: u32,
+    pub provenance: Provenance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Edge {
+    pub vertices: [VertexHandle; 2],
+    pub faces: Vec<FaceHandle>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Selection {
+    pub vertices: HashSet<VertexHandle>,
+    pub edges: HashSet<EdgeHandle>,
+    pub faces: HashSet<FaceHandle>,
+    pub submeshes: HashSet<u32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WorkingMesh {
+    vertices: SlotMap<VertexHandle, Vertex>,
+    faces: SlotMap<FaceHandle, Face>,
+    edges: SlotMap<EdgeHandle, Edge>,
+    edge_by_pair: HashMap<(VertexHandle, VertexHandle), EdgeHandle>,
+    pub selection: Selection,
+    pub topology_generation: u64,
+    pub geometry_revision: u64,
+    pub selection_revision: u64,
+    operation_sequence: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DrawSnapshot {
+    pub draw_revision: u64,
+    pub topology_generation: u64,
+    pub positions: Vec<[f32; 3]>,
+    pub normals: Vec<[f32; 3]>,
+    pub uvs: Vec<[f32; 2]>,
+    pub indices: Vec<u32>,
+    pub selected_vertices: Vec<u32>,
+    pub fingerprint: String,
+}
+
+#[derive(Debug, Error)]
+pub enum MeshError {
+    #[error("source document has no editable LOD")]
+    MissingLod,
+    #[error("source document contains an invalid vertex or face")]
+    InvalidSource,
+    #[error("stale or missing element handle")]
+    StaleHandle,
+    #[error("topology invariant failed: {0}")]
+    Invariant(String),
+    #[error("operation has no eligible elements")]
+    EmptyOperation,
+    #[error("resource limit exceeded")]
+    ResourceLimit,
+}
+
+impl WorkingMesh {
+    pub fn from_document(document: &MeshDocument) -> Result<Self, MeshError> {
+        let lod = document.lods.first().ok_or(MeshError::MissingLod)?;
+        let mut mesh = Self::empty();
+        for (submesh_index, submesh) in lod.submeshes.iter().enumerate() {
+            mesh.append_submesh(
+                submesh,
+                u32::try_from(submesh_index).map_err(|_| MeshError::ResourceLimit)?,
+            )?;
+        }
+        mesh.rebuild_edges()?;
+        mesh.validate()?;
+        Ok(mesh)
+    }
+
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            vertices: SlotMap::with_key(),
+            faces: SlotMap::with_key(),
+            edges: SlotMap::with_key(),
+            edge_by_pair: HashMap::new(),
+            selection: Selection::default(),
+            topology_generation: 1,
+            geometry_revision: 1,
+            selection_revision: 1,
+            operation_sequence: 0,
+        }
+    }
+
+    #[must_use]
+    pub fn vertex(&self, handle: VertexHandle) -> Option<&Vertex> {
+        self.vertices.get(handle)
+    }
+
+    #[must_use]
+    pub fn face(&self, handle: FaceHandle) -> Option<&Face> {
+        self.faces.get(handle)
+    }
+
+    #[must_use]
+    pub fn edge(&self, handle: EdgeHandle) -> Option<&Edge> {
+        self.edges.get(handle)
+    }
+
+    pub fn vertices(&self) -> impl Iterator<Item = (VertexHandle, &Vertex)> {
+        self.vertices.iter()
+    }
+
+    pub fn faces(&self) -> impl Iterator<Item = (FaceHandle, &Face)> {
+        self.faces.iter()
+    }
+
+    pub fn edges(&self) -> impl Iterator<Item = (EdgeHandle, &Edge)> {
+        self.edges.iter()
+    }
+
+    #[must_use]
+    pub fn vertex_neighbors(&self, handle: VertexHandle) -> Option<HashSet<VertexHandle>> {
+        if !self.vertices.contains_key(handle) {
+            return None;
+        }
+        Some(
+            self.edges
+                .values()
+                .filter(|edge| edge.vertices.contains(&handle))
+                .filter_map(|edge| {
+                    edge.vertices
+                        .into_iter()
+                        .find(|candidate| *candidate != handle)
+                })
+                .collect(),
+        )
+    }
+
+    #[must_use]
+    pub fn selected_vertex_scope(&self) -> HashSet<VertexHandle> {
+        let mut scope = self.selection.vertices.clone();
+        for handle in &self.selection.edges {
+            if let Some(edge) = self.edges.get(*handle) {
+                scope.extend(edge.vertices);
+            }
+        }
+        for handle in &self.selection.faces {
+            if let Some(face) = self.faces.get(*handle) {
+                scope.extend(face.vertices);
+            }
+        }
+        for face in self
+            .faces
+            .values()
+            .filter(|face| self.selection.submeshes.contains(&face.submesh))
+        {
+            scope.extend(face.vertices);
+        }
+        scope
+    }
+
+    pub fn apply_positions(
+        &mut self,
+        positions: &HashMap<VertexHandle, [f32; 3]>,
+    ) -> Result<(), MeshError> {
+        if positions.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        for (handle, position) in positions {
+            if position.iter().any(|component| !component.is_finite()) {
+                return Err(MeshError::Invariant("non-finite deformation".to_owned()));
+            }
+            self.vertices
+                .get_mut(*handle)
+                .ok_or(MeshError::StaleHandle)?
+                .position = *position;
+        }
+        self.geometry_revision = self.geometry_revision.saturating_add(1);
+        self.recompute_normals()?;
+        self.validate()
+    }
+
+    fn append_submesh(&mut self, source: &Submesh, submesh: u32) -> Result<(), MeshError> {
+        let mut handles = Vec::with_capacity(source.positions.len());
+        for (index, position) in source.positions.iter().enumerate() {
+            let normal = source
+                .normals
+                .get(index)
+                .copied()
+                .unwrap_or([0.0, 1.0, 0.0]);
+            let uv = source.uvs.get(index).copied().unwrap_or([0.0, 0.0]);
+            if position
+                .iter()
+                .chain(normal.iter())
+                .chain(uv.iter())
+                .any(|value| !value.is_finite())
+            {
+                return Err(MeshError::InvalidSource);
+            }
+            handles.push(self.vertices.insert(Vertex {
+                position: *position,
+                normal,
+                uv,
+                provenance: Provenance::Source {
+                    submesh,
+                    element: u32::try_from(index).map_err(|_| MeshError::ResourceLimit)?,
+                },
+            }));
+        }
+        for (face_index, triangle) in source.indices.chunks_exact(3).enumerate() {
+            let a = usize::try_from(*triangle.first().ok_or(MeshError::InvalidSource)?)
+                .map_err(|_| MeshError::InvalidSource)?;
+            let b = usize::try_from(*triangle.get(1).ok_or(MeshError::InvalidSource)?)
+                .map_err(|_| MeshError::InvalidSource)?;
+            let c = usize::try_from(*triangle.get(2).ok_or(MeshError::InvalidSource)?)
+                .map_err(|_| MeshError::InvalidSource)?;
+            let vertices = [
+                *handles.get(a).ok_or(MeshError::InvalidSource)?,
+                *handles.get(b).ok_or(MeshError::InvalidSource)?,
+                *handles.get(c).ok_or(MeshError::InvalidSource)?,
+            ];
+            if vertices[0] == vertices[1]
+                || vertices[1] == vertices[2]
+                || vertices[0] == vertices[2]
+            {
+                continue;
+            }
+            self.faces.insert(Face {
+                vertices,
+                submesh,
+                material: submesh,
+                provenance: Provenance::Source {
+                    submesh,
+                    element: u32::try_from(face_index).map_err(|_| MeshError::ResourceLimit)?,
+                },
+            });
+        }
+        Ok(())
+    }
+
+    pub fn set_selection(&mut self, selection: Selection) -> Result<(), MeshError> {
+        if selection
+            .vertices
+            .iter()
+            .any(|handle| !self.vertices.contains_key(*handle))
+            || selection
+                .faces
+                .iter()
+                .any(|handle| !self.faces.contains_key(*handle))
+            || selection
+                .edges
+                .iter()
+                .any(|handle| !self.edges.contains_key(*handle))
+        {
+            return Err(MeshError::StaleHandle);
+        }
+        self.selection = selection;
+        self.selection_revision = self.selection_revision.saturating_add(1);
+        Ok(())
+    }
+
+    pub fn translate_vertices(
+        &mut self,
+        handles: &HashSet<VertexHandle>,
+        delta: Vec3,
+    ) -> Result<(), MeshError> {
+        if !delta.is_finite() {
+            return Err(MeshError::Invariant("non-finite translation".to_owned()));
+        }
+        if handles.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        for handle in handles {
+            let vertex = self
+                .vertices
+                .get_mut(*handle)
+                .ok_or(MeshError::StaleHandle)?;
+            vertex.position = (Vec3::from_array(vertex.position) + delta).to_array();
+        }
+        self.geometry_revision = self.geometry_revision.saturating_add(1);
+        self.recompute_normals()?;
+        self.validate()
+    }
+
+    pub fn delete_faces(&mut self, handles: &HashSet<FaceHandle>) -> Result<(), MeshError> {
+        if handles.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        for handle in handles {
+            if self.faces.remove(*handle).is_none() {
+                return Err(MeshError::StaleHandle);
+            }
+        }
+        self.selection
+            .faces
+            .retain(|handle| self.faces.contains_key(*handle));
+        self.finish_topology_operation()
+    }
+
+    pub fn duplicate_faces(
+        &mut self,
+        handles: &HashSet<FaceHandle>,
+    ) -> Result<HashSet<FaceHandle>, MeshError> {
+        if handles.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        let operation = self.next_operation();
+        let originals = handles
+            .iter()
+            .map(|handle| {
+                self.faces
+                    .get(*handle)
+                    .cloned()
+                    .ok_or(MeshError::StaleHandle)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut duplicated = HashSet::new();
+        for face in originals {
+            let mut vertices = Vec::with_capacity(3);
+            for source_handle in face.vertices {
+                let mut vertex = self
+                    .vertices
+                    .get(source_handle)
+                    .cloned()
+                    .ok_or(MeshError::StaleHandle)?;
+                vertex.provenance = Provenance::Generated { operation };
+                vertices.push(self.vertices.insert(vertex));
+            }
+            let triangle = [
+                *vertices.first().ok_or(MeshError::InvalidSource)?,
+                *vertices.get(1).ok_or(MeshError::InvalidSource)?,
+                *vertices.get(2).ok_or(MeshError::InvalidSource)?,
+            ];
+            duplicated.insert(self.faces.insert(Face {
+                vertices: triangle,
+                submesh: face.submesh,
+                material: face.material,
+                provenance: Provenance::Generated { operation },
+            }));
+        }
+        self.finish_topology_operation()?;
+        Ok(duplicated)
+    }
+
+    pub fn subdivide_faces(
+        &mut self,
+        handles: &HashSet<FaceHandle>,
+    ) -> Result<HashSet<FaceHandle>, MeshError> {
+        if handles.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        let operation = self.next_operation();
+        let originals = handles
+            .iter()
+            .map(|handle| {
+                self.faces
+                    .get(*handle)
+                    .cloned()
+                    .map(|face| (*handle, face))
+                    .ok_or(MeshError::StaleHandle)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut midpoint_by_edge = HashMap::new();
+        let mut created = HashSet::new();
+        for (handle, face) in originals {
+            let a = face.vertices[0];
+            let b = face.vertices[1];
+            let c = face.vertices[2];
+            let ab = self.midpoint(a, b, operation, &mut midpoint_by_edge)?;
+            let bc = self.midpoint(b, c, operation, &mut midpoint_by_edge)?;
+            let ca = self.midpoint(c, a, operation, &mut midpoint_by_edge)?;
+            let _ = self.faces.remove(handle).ok_or(MeshError::StaleHandle)?;
+            for vertices in [[a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]] {
+                created.insert(self.faces.insert(Face {
+                    vertices,
+                    submesh: face.submesh,
+                    material: face.material,
+                    provenance: Provenance::Generated { operation },
+                }));
+            }
+        }
+        self.selection.faces = created.clone();
+        self.finish_topology_operation()?;
+        Ok(created)
+    }
+
+    fn midpoint(
+        &mut self,
+        first: VertexHandle,
+        second: VertexHandle,
+        operation: u64,
+        cache: &mut HashMap<(VertexHandle, VertexHandle), VertexHandle>,
+    ) -> Result<VertexHandle, MeshError> {
+        let key = ordered_pair(first, second);
+        if let Some(handle) = cache.get(&key) {
+            return Ok(*handle);
+        }
+        let a = self.vertices.get(first).ok_or(MeshError::StaleHandle)?;
+        let b = self.vertices.get(second).ok_or(MeshError::StaleHandle)?;
+        let position = (Vec3::from_array(a.position) + Vec3::from_array(b.position)) * 0.5;
+        let normal = (Vec3::from_array(a.normal) + Vec3::from_array(b.normal))
+            .try_normalize()
+            .unwrap_or(Vec3::Y);
+        let handle = self.vertices.insert(Vertex {
+            position: position.to_array(),
+            normal: normal.to_array(),
+            uv: [(a.uv[0] + b.uv[0]) * 0.5, (a.uv[1] + b.uv[1]) * 0.5],
+            provenance: Provenance::Generated { operation },
+        });
+        cache.insert(key, handle);
+        Ok(handle)
+    }
+
+    fn finish_topology_operation(&mut self) -> Result<(), MeshError> {
+        self.topology_generation = self.topology_generation.saturating_add(1);
+        self.geometry_revision = self.geometry_revision.saturating_add(1);
+        self.selection_revision = self.selection_revision.saturating_add(1);
+        self.remove_unreferenced_vertices();
+        self.rebuild_edges()?;
+        self.recompute_normals()?;
+        self.selection
+            .vertices
+            .retain(|handle| self.vertices.contains_key(*handle));
+        self.selection
+            .edges
+            .retain(|handle| self.edges.contains_key(*handle));
+        self.validate()
+    }
+
+    fn remove_unreferenced_vertices(&mut self) {
+        let referenced = self
+            .faces
+            .values()
+            .flat_map(|face| face.vertices)
+            .collect::<HashSet<_>>();
+        self.vertices
+            .retain(|handle, _| referenced.contains(&handle));
+    }
+
+    fn rebuild_edges(&mut self) -> Result<(), MeshError> {
+        self.edges.clear();
+        self.edge_by_pair.clear();
+        for (face_handle, face) in &self.faces {
+            for (first, second) in [
+                (face.vertices[0], face.vertices[1]),
+                (face.vertices[1], face.vertices[2]),
+                (face.vertices[2], face.vertices[0]),
+            ] {
+                let pair = ordered_pair(first, second);
+                if let Some(edge_handle) = self.edge_by_pair.get(&pair).copied() {
+                    let edge = self
+                        .edges
+                        .get_mut(edge_handle)
+                        .ok_or(MeshError::StaleHandle)?;
+                    edge.faces.push(face_handle);
+                } else {
+                    let edge_handle = self.edges.insert(Edge {
+                        vertices: [pair.0, pair.1],
+                        faces: vec![face_handle],
+                    });
+                    self.edge_by_pair.insert(pair, edge_handle);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn recompute_normals(&mut self) -> Result<(), MeshError> {
+        let mut accumulators: SecondaryMap<VertexHandle, Vec3> = SecondaryMap::new();
+        for handle in self.vertices.keys() {
+            accumulators.insert(handle, Vec3::ZERO);
+        }
+        for face in self.faces.values() {
+            let a = Vec3::from_array(
+                self.vertices
+                    .get(face.vertices[0])
+                    .ok_or(MeshError::StaleHandle)?
+                    .position,
+            );
+            let b = Vec3::from_array(
+                self.vertices
+                    .get(face.vertices[1])
+                    .ok_or(MeshError::StaleHandle)?
+                    .position,
+            );
+            let c = Vec3::from_array(
+                self.vertices
+                    .get(face.vertices[2])
+                    .ok_or(MeshError::StaleHandle)?
+                    .position,
+            );
+            let normal = (b - a).cross(c - a);
+            for handle in face.vertices {
+                let value = accumulators.get_mut(handle).ok_or(MeshError::StaleHandle)?;
+                *value += normal;
+            }
+        }
+        for (handle, vertex) in &mut self.vertices {
+            vertex.normal = accumulators
+                .get(handle)
+                .copied()
+                .unwrap_or(Vec3::Y)
+                .try_normalize()
+                .unwrap_or(Vec3::Y)
+                .to_array();
+        }
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), MeshError> {
+        for (face_handle, face) in &self.faces {
+            if face.vertices[0] == face.vertices[1]
+                || face.vertices[1] == face.vertices[2]
+                || face.vertices[0] == face.vertices[2]
+            {
+                return Err(MeshError::Invariant(format!(
+                    "face {:?} repeats a vertex",
+                    face_handle.data()
+                )));
+            }
+            if face
+                .vertices
+                .iter()
+                .any(|handle| !self.vertices.contains_key(*handle))
+            {
+                return Err(MeshError::Invariant(format!(
+                    "face {:?} references a missing vertex",
+                    face_handle.data()
+                )));
+            }
+        }
+        for (edge_handle, edge) in &self.edges {
+            if edge.vertices[0] == edge.vertices[1] || edge.faces.is_empty() || edge.faces.len() > 2
+            {
+                return Err(MeshError::Invariant(format!(
+                    "edge {:?} has invalid incidence",
+                    edge_handle.data()
+                )));
+            }
+            if edge
+                .faces
+                .iter()
+                .any(|handle| !self.faces.contains_key(*handle))
+            {
+                return Err(MeshError::Invariant(format!(
+                    "edge {:?} references a missing face",
+                    edge_handle.data()
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn structural_fingerprint(&self) -> String {
+        let mut snapshot = self.draw_snapshot();
+        std::mem::take(&mut snapshot.fingerprint)
+    }
+
+    #[must_use]
+    pub fn draw_snapshot(&self) -> DrawSnapshot {
+        let mut positions = Vec::with_capacity(self.vertices.len());
+        let mut normals = Vec::with_capacity(self.vertices.len());
+        let mut uvs = Vec::with_capacity(self.vertices.len());
+        let mut handles = HashMap::new();
+        for (handle, vertex) in &self.vertices {
+            let index = u32::try_from(positions.len()).unwrap_or(u32::MAX);
+            handles.insert(handle, index);
+            positions.push(vertex.position);
+            normals.push(vertex.normal);
+            uvs.push(vertex.uv);
+        }
+        let mut indices = Vec::with_capacity(self.faces.len().saturating_mul(3));
+        for face in self.faces.values() {
+            for handle in face.vertices {
+                if let Some(index) = handles.get(&handle) {
+                    indices.push(*index);
+                }
+            }
+        }
+        let selected_vertices = self
+            .selection
+            .vertices
+            .iter()
+            .filter_map(|handle| handles.get(handle).copied())
+            .collect();
+        let mut bytes = Vec::new();
+        for position in &positions {
+            for component in position {
+                bytes.extend_from_slice(&component.to_le_bytes());
+            }
+        }
+        for index in &indices {
+            bytes.extend_from_slice(&index.to_le_bytes());
+        }
+        DrawSnapshot {
+            draw_revision: self.geometry_revision,
+            topology_generation: self.topology_generation,
+            positions,
+            normals,
+            uvs,
+            indices,
+            selected_vertices,
+            fingerprint: sha256_bytes(&bytes),
+        }
+    }
+
+    fn next_operation(&mut self) -> u64 {
+        self.operation_sequence = self.operation_sequence.saturating_add(1);
+        self.operation_sequence
+    }
+}
+
+fn ordered_pair(first: VertexHandle, second: VertexHandle) -> (VertexHandle, VertexHandle) {
+    if first.data().as_ffi() <= second.data().as_ffi() {
+        (first, second)
+    } else {
+        (second, first)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HistoryEntry {
+    pub label: String,
+    pub before: WorkingMesh,
+    pub after: WorkingMesh,
+    pub before_fingerprint: String,
+    pub after_fingerprint: String,
+    pub retained_bytes_estimate: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct History {
+    undo: Vec<HistoryEntry>,
+    redo: Vec<HistoryEntry>,
+    budget_bytes: usize,
+    retained_bytes: usize,
+}
+
+impl History {
+    #[must_use]
+    pub fn new(budget_bytes: usize) -> Self {
+        Self {
+            undo: Vec::new(),
+            redo: Vec::new(),
+            budget_bytes: budget_bytes.max(1),
+            retained_bytes: 0,
+        }
+    }
+
+    pub fn commit(
+        &mut self,
+        label: impl Into<String>,
+        before: WorkingMesh,
+        after: &WorkingMesh,
+    ) -> Result<(), MeshError> {
+        after.validate()?;
+        let retained_bytes_estimate =
+            estimate_mesh_bytes(&before).saturating_add(estimate_mesh_bytes(after));
+        let entry = HistoryEntry {
+            label: label.into(),
+            before_fingerprint: before.structural_fingerprint(),
+            after_fingerprint: after.structural_fingerprint(),
+            before,
+            after: after.clone(),
+            retained_bytes_estimate,
+        };
+        self.redo.clear();
+        self.retained_bytes = self
+            .retained_bytes
+            .saturating_add(entry.retained_bytes_estimate);
+        self.undo.push(entry);
+        while self.retained_bytes > self.budget_bytes && self.undo.len() > 1 {
+            let removed = self.undo.remove(0);
+            self.retained_bytes = self
+                .retained_bytes
+                .saturating_sub(removed.retained_bytes_estimate);
+        }
+        Ok(())
+    }
+
+    pub fn undo(&mut self, mesh: &mut WorkingMesh) -> Result<(), MeshError> {
+        let entry = self.undo.pop().ok_or(MeshError::EmptyOperation)?;
+        *mesh = entry.before.clone();
+        mesh.validate()?;
+        self.retained_bytes = self
+            .retained_bytes
+            .saturating_sub(entry.retained_bytes_estimate);
+        self.redo.push(entry);
+        Ok(())
+    }
+
+    pub fn redo(&mut self, mesh: &mut WorkingMesh) -> Result<(), MeshError> {
+        let entry = self.redo.pop().ok_or(MeshError::EmptyOperation)?;
+        *mesh = entry.after.clone();
+        mesh.validate()?;
+        self.retained_bytes = self
+            .retained_bytes
+            .saturating_add(entry.retained_bytes_estimate);
+        self.undo.push(entry);
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn undo_len(&self) -> usize {
+        self.undo.len()
+    }
+}
+
+fn estimate_mesh_bytes(mesh: &WorkingMesh) -> usize {
+    mesh.vertices
+        .len()
+        .saturating_mul(std::mem::size_of::<Vertex>())
+        + mesh.faces.len().saturating_mul(std::mem::size_of::<Face>())
+        + mesh.edges.len().saturating_mul(std::mem::size_of::<Edge>())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn triangle() -> WorkingMesh {
+        let mut mesh = WorkingMesh::empty();
+        let a = mesh.vertices.insert(Vertex {
+            position: [0.0, 0.0, 0.0],
+            normal: [0.0, 0.0, 1.0],
+            uv: [0.0, 0.0],
+            provenance: Provenance::Source {
+                submesh: 0,
+                element: 0,
+            },
+        });
+        let b = mesh.vertices.insert(Vertex {
+            position: [1.0, 0.0, 0.0],
+            normal: [0.0, 0.0, 1.0],
+            uv: [1.0, 0.0],
+            provenance: Provenance::Source {
+                submesh: 0,
+                element: 1,
+            },
+        });
+        let c = mesh.vertices.insert(Vertex {
+            position: [0.0, 1.0, 0.0],
+            normal: [0.0, 0.0, 1.0],
+            uv: [0.0, 1.0],
+            provenance: Provenance::Source {
+                submesh: 0,
+                element: 2,
+            },
+        });
+        mesh.faces.insert(Face {
+            vertices: [a, b, c],
+            submesh: 0,
+            material: 0,
+            provenance: Provenance::Source {
+                submesh: 0,
+                element: 0,
+            },
+        });
+        mesh.rebuild_edges()
+            .unwrap_or_else(|error| panic!("edge rebuild failed: {error}"));
+        mesh
+    }
+
+    #[test]
+    fn subdivide_is_atomic_and_produces_four_faces() -> Result<(), MeshError> {
+        let mut mesh = triangle();
+        let selected = mesh.faces.keys().collect::<HashSet<_>>();
+        let created = mesh.subdivide_faces(&selected)?;
+        assert_eq!(created.len(), 4);
+        assert_eq!(mesh.faces.len(), 4);
+        assert_eq!(mesh.vertices.len(), 6);
+        mesh.validate()
+    }
+
+    #[test]
+    fn stale_face_handle_is_rejected_after_delete() -> Result<(), MeshError> {
+        let mut mesh = triangle();
+        let face = mesh.faces.keys().next().ok_or(MeshError::InvalidSource)?;
+        mesh.delete_faces(&HashSet::from([face]))?;
+        assert!(matches!(
+            mesh.delete_faces(&HashSet::from([face])),
+            Err(MeshError::StaleHandle)
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn one_commit_round_trips_through_undo_and_redo() -> Result<(), MeshError> {
+        let mut mesh = triangle();
+        let before = mesh.clone();
+        let handles = mesh.vertices.keys().collect::<HashSet<_>>();
+        mesh.translate_vertices(&handles, Vec3::Z)?;
+        let committed = mesh.structural_fingerprint();
+        let mut history = History::new(1_000_000);
+        history.commit("translate", before.clone(), &mesh)?;
+        assert_eq!(history.undo_len(), 1);
+        history.undo(&mut mesh)?;
+        assert_eq!(
+            mesh.structural_fingerprint(),
+            before.structural_fingerprint()
+        );
+        history.redo(&mut mesh)?;
+        assert_eq!(mesh.structural_fingerprint(), committed);
+        Ok(())
+    }
+}

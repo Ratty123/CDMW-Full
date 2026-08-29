@@ -1,0 +1,74 @@
+# Rust Mesh Lab architecture
+
+## Isolation
+
+The lab is a standalone Cargo workspace under `tools/rust_mesh_lab`. Production CDMW does not import it, launch it, package it, or depend on its crates. The Vortice Mesh Editor remains unchanged.
+
+```text
+cdmw_archive ──────┐
+                   v
+cdmw_asset_graph  cdmw_formats ──> cdmw_texture
+                         |
+                         v
+                     cdmw_mesh
+                         |
+                         v
+                  cdmw_interaction
+                         |
+                         v
+                 cdmw_render_wgpu
+                         |
+                         v
+                  cdmw_mesh_lab
+
+cdmw_replay ──> cdmw_interaction + cdmw_mesh
+cdmw_oracle ──> cdmw_formats + cdmw_mesh + cdmw_evidence
+cdmw_asset_probe ──> archive/formats/texture/oracle
+```
+
+## Crate responsibilities
+
+- `cdmw_archive`: read-only index discovery, path graph decoding, lazy PAZ reads, supported decompression/encryption, bounds, cancellation, and source verification hooks.
+- `cdmw_asset_graph`: exact/relative/unambiguous relationship resolution. Ambiguous basenames never select a target.
+- `cdmw_formats`: immutable decoded PAC/PAM/PAMLOD documents and structural fingerprints.
+- `cdmw_texture`: DDS metadata, format, color-space, role, and resource-limit contracts.
+- `cdmw_mesh`: the separate editable working document, generational handles, explicit edges/faces, invariants, generated provenance, revisioned draw snapshots, and bounded history.
+- `cdmw_interaction`: modal operator ownership, exact snapshot correlation, deterministic selection shapes, selection operations, transforms, and sculpt algorithms.
+- `cdmw_render_wgpu`: Direct3D 12 adapter/device/surface ownership, persistent mesh buffers, immutable snapshot upload, mesh pipeline, and egui composition.
+- `cdmw_replay`: ordinal-addressed deterministic edit replays independent of runtime slot-map keys.
+- `cdmw_oracle`: versioned neutral manifests, typed binary descriptors, staged new-directory publication, structural comparison, and reparsed OBJ/MTL export of the edited working copy.
+- `cdmw_evidence`: SHA-256, redaction, source fingerprints, command evidence, and atomic new-file JSON publication.
+
+## Source and working documents
+
+Decoders produce immutable `MeshDocument` values. `WorkingMesh::from_document` creates separate generational slot maps. Source positions, faces, submesh identity, and element ordinals become explicit provenance. Topology operations create `Generated { operation }` provenance and never alter source bytes.
+
+The current editable model is an explicit triangular face/edge graph. Every operation rebuilds reciprocal edge incidence, removes unreferenced vertices, recomputes normals where needed, rejects stale generational handles, validates face and edge invariants, and publishes a new topology/geometry revision.
+
+## Modal transactions and history
+
+One `OperatorController` owns one gesture. Begin snapshots the working mesh. Provisional calls use the same transform/sculpt algorithms committed by Confirm. Cancel restores the exact snapshot and creates no history. Confirm validates invariants and contributes one history entry. Topology commands similarly stage a pre-operation clone, validate, and commit once.
+
+## Renderer ownership
+
+`WindowRenderer` owns the `wgpu` instance, D3D12 surface, adapter, device, queue, surface configuration, render pipeline, mesh buffers, and egui renderer. It consumes `DrawSnapshot`; it does not own topology, selection semantics, tools, history, relationship rules, or source-output policy.
+
+Geometry is normalized only for the current diagnostic camera-less view. A later camera matrix owner must be shared with interaction snapshots; it must not move editing semantics into the renderer.
+
+## UI and worker ownership
+
+The application event thread owns winit, egui, dialogs, current UI state, renderer submission, and immutable result adoption. A named worker thread owns archive discovery, index parsing, payload reads, mesh decode, working-document construction, and archive filtering.
+
+Requests use:
+
+- a monotonically increasing generation;
+- a cooperative cancellation token;
+- a bounded request queue;
+- a bounded result/progress queue;
+- stale-result rejection before UI adoption.
+
+A new request cancels the previous token. Progress uses nonblocking publication. Closing drops the sender, requests cancellation, and does not block the window close path waiting for the worker.
+
+## Cache and output
+
+Persistent cache publication is not implemented yet. Neutral oracle packages write binary arrays to a sibling staging directory, write a versioned manifest last, and rename the complete directory to a previously absent destination. Existing output is never overwritten.
