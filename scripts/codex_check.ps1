@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "mesh-unit", "full")]
+    [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "mesh-unit", "rust-mesh-lab-unit", "full")]
     [string]$Area = "smoke",
     [string]$GameRoot = "",
     [string]$PytestBaseTemp = ""
@@ -380,6 +380,11 @@ if ($Area -eq "mesh") {
     $OutputDir = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-real-archive-mesh-editor-dotnet-$ProofRunId"
     Write-Host "Running real in-game PAC .NET Mesh Editor proof from $PamtPath"
     & $Python tools\mesh_editor_dev_harness.py --scenario $RealMeshScenario --game-root $ResolvedGameRoot --output $OutputDir
+    exit $LASTEXITCODE
+}
+
+if ($Area -eq "rust-mesh-lab-unit") {
+    & (Join-Path $PSScriptRoot "test_rust_mesh_lab.ps1")
     exit $LASTEXITCODE
 }
 
