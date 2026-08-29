@@ -51,10 +51,10 @@ The application shows the actual executable path before launch. It does not requ
 
 - **Archive / Assets** opens an archive root or extracted mesh, searches virtual paths off the UI thread, and virtualizes the displayed rows.
 - **Viewport** uses `wgpu` with Direct3D 12 on Windows, an aspect-aware shared camera matrix, and a depth target. Persistent GPU line buffers provide optional cyan vertex normals and an always-readable amber mesh-bounds box. An explicit decoded DDS reference is uploaded directly when its supported 2D layout is unambiguous; the shader remains an explicit material approximation and currently binds one texture.
-- **Inspector** reports format, LOD, counts, parser, warnings, archive flags, and entry sizes.
+- **Inspector** reports format, editable/declared LOD counts, parser, warnings, archive flags, and entry sizes. **Editable LOD** switches between worker-prepared LODs while preserving each LOD's geometry, selection, and Undo/Redo history; the active counts follow the edited mesh rather than summing every source LOD. The existing 512 MiB history budget is divided across the loaded LOD sessions.
 - **Selection** routes Click, Brush, Rectangle, and Lasso gestures through the same revision-stamped projection for Vertex, Edge, and Face domains. **Visible** depth-tests candidates against a projected-triangle BVH while **X-Ray** includes occluded candidates; both use a persistent 32-pixel screen grid so local queries inspect bounded cells instead of rescanning every projected element. Replace, Add, Subtract, and Toggle apply once to the complete gesture, including fast drags retained by the bounded raw-input queue; pathological long lassos are deterministically compacted while preserving the press and release points.
 - **Interactive Edit / Sculpt** provides Move, Rotate, and Scale gizmos plus Grab, Smooth, Inflate, and Pinch brushes. Each drag previews locally, mouse release commits one undo entry, and Esc, resize, or focus loss rolls the gesture back. Face deletion, midpoint subdivision, and duplication validate a private working draft before replacing the live mesh; subdivision and duplication select their generated faces. Undo and Redo remain one-shot commands. Disabled controls state why they are unavailable.
-- **Export Neutral OBJ…** asks for a parent folder, refuses the selected game/archive root, stages and reparses the edited mesh on the worker, verifies its structural fingerprint, then publishes a new `cdmw-rust-mesh-export` directory atomically. Existing output is never replaced and source textures are not embedded.
+- **Export Neutral OBJ…** asks for a parent folder, refuses the selected game/archive root, stages and reparses the active LOD's edited mesh on the worker, verifies its structural fingerprint, then publishes a new `cdmw-rust-mesh-export` directory atomically. Existing output is never replaced and source textures are not embedded.
 
 ### Viewport controls
 
@@ -63,6 +63,7 @@ The application shows the actual executable path before launch. It does not requ
 - Use the **mouse wheel** to zoom.
 - Press **F** to frame the selection, or the complete mesh when nothing is selected.
 - Use **Frame All**, **Frame Selected**, or Front/Back/Left/Right/Top/Bottom for exact camera placement.
+- Use **Editable LOD** to inspect and edit another proven LOD without losing the previous LOD's changes. Switching keeps the camera and cancels any unfinished gesture before parking that LOD's session. PAC levels use only the proven section 4→LOD0 through section 1→LOD3 mapping; no PAC/PAM/PAMLOD writeback is implied.
 - Choose Textured, Solid Faces, Solid + Wire, Wireframe, Vertices, Wire + Vertices, or X-Ray from **Preview mode**, then independently toggle **Normals** and **Bounds**. **Bones** remains visibly disabled with its missing-skeleton reason until PAB/PAC binding is decoded.
 - Choose Click, Brush, Rectangle, or Lasso, then drag in the viewport. Brush radius and sculpt strength are adjustable in the inspector.
 - **Visible** is the default and rejects candidates behind the nearest projected triangle at their representative point; choose **X-Ray** to include occluded candidates. Sculpt brushes always use the visible-only route so a surface stroke does not also modify the back side.
@@ -87,7 +88,7 @@ cargo run --release -p cdmw_asset_probe -- compare expected\manifest.json actual
 
 Neutral packages keep numeric arrays in binary files, include typed descriptors and SHA-256 hashes, and never require absolute source paths in the manifest.
 
-`headless-mesh` decodes the supplied file read-only, then runs Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate on fresh in-memory documents. Every scenario must make the intended change, create one history entry, pass mesh invariants, restore the exact baseline through Undo, and reproduce the exact edited fingerprint through Redo. Its JSON timings measure CPU decode/edit/history work; they are not pointer-latency, frame-rate, or visual-parity measurements.
+`headless-mesh` decodes the supplied file read-only, then runs Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate on fresh working meshes for every decoded LOD. Every scenario names its `lod_level`, must make the intended change, create one history entry, pass mesh invariants, restore the exact baseline through Undo, and reproduce the exact edited fingerprint through Redo. Top-level vertex/face counts retain the first decoded LOD's counts. Its JSON timings measure CPU decode/edit/history work; they are not pointer-latency, frame-rate, or visual-parity measurements.
 
 ## Cache and evidence
 

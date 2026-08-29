@@ -20,7 +20,7 @@ use cdmw_render_wgpu::{ViewMode, WindowRenderer};
 use cdmw_texture::{DdsMetadata, TextureRole};
 use egui::{Color32, RichText, Stroke};
 use glam::{Quat, Vec2, Vec3};
-use loader::{LoadEvent, Loader};
+use loader::{LoadEvent, LoadedMesh, Loader};
 use std::collections::VecDeque;
 use std::env;
 use std::fs;
@@ -38,6 +38,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
 const LATENCY_SAMPLE_WINDOW: usize = 256;
+const HISTORY_BUDGET_BYTES: usize = 512 * 1024 * 1024;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -75,6 +76,7 @@ enum UiAction {
     OpenMesh,
     QueryArchive,
     LoadSelectedArchiveEntry,
+    SwitchLod(usize),
     SelectAllVertices,
     SelectAllFaces,
     ClearSelection,
@@ -87,6 +89,11 @@ enum UiAction {
     Undo,
     Redo,
     ExportObj,
+}
+
+struct LodSession {
+    mesh: WorkingMesh,
+    history: History,
 }
 
 struct LabApplication {
@@ -103,6 +110,8 @@ struct LabApplication {
     selected_archive_entry: Option<usize>,
     document: Option<MeshDocument>,
     mesh: Option<WorkingMesh>,
+    active_lod_index: usize,
+    lod_sessions: Vec<Option<LodSession>>,
     texture_metadata: Option<DdsMetadata>,
     texture_label: Option<String>,
     source_label: String,
@@ -173,11 +182,13 @@ impl LabApplication {
             selected_archive_entry: None,
             document: None,
             mesh: None,
+            active_lod_index: 0,
+            lod_sessions: Vec::new(),
             texture_metadata: None,
             texture_label: None,
             source_label: "No asset loaded".to_owned(),
             status,
-            history: History::new(512 * 1024 * 1024),
+            history: History::new(HISTORY_BUDGET_BYTES),
             operator: OperatorController::default(),
             selection_domain: SelectionDomain::Vertex,
             selection_operation: SelectionOperation::Replace,
@@ -228,64 +239,7 @@ impl LabApplication {
                 }
                 LoadEvent::Mesh { generation, result } if generation == self.current_generation => {
                     match *result {
-                        Ok(loaded) => {
-                            self.source_label = loaded.path.to_string_lossy().replace('\\', "/");
-                            self.status = format!(
-                                "Loaded {} vertices and {} faces with {}",
-                                loaded.mesh.vertices().count(),
-                                loaded.mesh.faces().count(),
-                                loaded.document.parser
-                            );
-                            self.camera.frame_all(&loaded.mesh);
-                            self.projection = None;
-                            self.selection_gesture = None;
-                            self.edit_gesture = None;
-                            self.pointer_events.clear();
-                            self.raw_primary_captured = false;
-                            self.raw_orbit_captured = false;
-                            self.raw_pan_captured = false;
-                            if let Some(renderer) = &mut self.renderer {
-                                renderer.reset_texture();
-                                renderer.set_view_mode(self.view_mode);
-                                if let Some(rectangle) = self.viewport_rect {
-                                    renderer.set_camera(self.camera.view_projection(rectangle));
-                                }
-                                if let Some(texture) = &loaded.texture
-                                    && let Err(error) = renderer
-                                        .set_dds_texture(&texture.bytes, TextureRole::BaseColor)
-                                {
-                                    self.status = format!("DDS GPU upload failed: {error}");
-                                }
-                                if let Err(error) =
-                                    renderer.set_snapshot(&loaded.mesh.draw_snapshot())
-                                {
-                                    self.status = format!("GPU upload failed: {error}");
-                                }
-                            }
-                            if let Some(texture) = &loaded.texture {
-                                self.status.push_str(
-                                    format!(
-                                        " · textured {}×{} {:?}",
-                                        texture.metadata.width,
-                                        texture.metadata.height,
-                                        texture.metadata.format
-                                    )
-                                    .as_str(),
-                                );
-                            }
-                            self.history = History::new(512 * 1024 * 1024);
-                            self.operator = OperatorController::default();
-                            self.last_selection_ms = None;
-                            self.last_edit_ms = None;
-                            self.last_selection_stats = None;
-                            self.selection_latency_ms.clear();
-                            self.edit_latency_ms.clear();
-                            self.document = Some(loaded.document);
-                            self.mesh = Some(loaded.mesh);
-                            self.texture_label =
-                                loaded.texture.as_ref().map(|texture| texture.label.clone());
-                            self.texture_metadata = loaded.texture.map(|texture| texture.metadata);
-                        }
+                        Ok(loaded) => self.install_loaded_mesh(loaded),
                         Err(message) => self.status = format!("Mesh load failed: {message}"),
                     }
                     changed = true;
@@ -353,6 +307,80 @@ impl LabApplication {
             window.set_title(format!("CDMW Rust Mesh Lab — {}", self.status).as_str());
         }
         changed
+    }
+
+    fn install_loaded_mesh(&mut self, loaded: LoadedMesh) {
+        let LoadedMesh {
+            path,
+            document,
+            mesh,
+            other_lod_meshes,
+            texture,
+        } = loaded;
+        let editable_lod_count = other_lod_meshes.len().saturating_add(1);
+        debug_assert_eq!(editable_lod_count, document.lods.len());
+        let per_lod_history_budget = HISTORY_BUDGET_BYTES / editable_lod_count.max(1);
+
+        self.source_label = path.to_string_lossy().replace('\\', "/");
+        self.status = format!(
+            "Loaded {} vertices and {} faces with {}",
+            mesh.vertices().count(),
+            mesh.faces().count(),
+            document.parser
+        );
+        self.camera.frame_all(&mesh);
+        self.projection = None;
+        self.selection_gesture = None;
+        self.edit_gesture = None;
+        self.pointer_events.clear();
+        self.raw_primary_captured = false;
+        self.raw_orbit_captured = false;
+        self.raw_pan_captured = false;
+        if let Some(renderer) = &mut self.renderer {
+            renderer.reset_texture();
+            renderer.set_view_mode(self.view_mode);
+            if let Some(rectangle) = self.viewport_rect {
+                renderer.set_camera(self.camera.view_projection(rectangle));
+            }
+            if let Some(texture) = &texture
+                && let Err(error) = renderer.set_dds_texture(&texture.bytes, TextureRole::BaseColor)
+            {
+                self.status = format!("DDS GPU upload failed: {error}");
+            }
+            if let Err(error) = renderer.set_snapshot(&mesh.draw_snapshot()) {
+                self.status = format!("GPU upload failed: {error}");
+            }
+        }
+        if let Some(texture) = &texture {
+            self.status.push_str(
+                format!(
+                    " · textured {}×{} {:?}",
+                    texture.metadata.width, texture.metadata.height, texture.metadata.format
+                )
+                .as_str(),
+            );
+        }
+        self.history = History::new(per_lod_history_budget);
+        self.operator = OperatorController::default();
+        self.last_selection_ms = None;
+        self.last_edit_ms = None;
+        self.last_selection_stats = None;
+        self.selection_latency_ms.clear();
+        self.edit_latency_ms.clear();
+        self.active_lod_index = 0;
+        self.lod_sessions = Vec::with_capacity(editable_lod_count);
+        self.lod_sessions.push(None);
+        self.lod_sessions
+            .extend(other_lod_meshes.into_iter().map(|mesh| {
+                Some(LodSession {
+                    mesh,
+                    history: History::new(per_lod_history_budget),
+                })
+            }));
+        self.document = Some(document);
+        self.mesh = Some(mesh);
+        self.texture_label = texture.as_ref().map(|texture| texture.label.clone());
+        self.texture_metadata = texture.map(|texture| texture.metadata);
     }
 
     fn draw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
@@ -439,22 +467,48 @@ impl LabApplication {
                 ui.heading("Inspector");
                 ui.label(RichText::new(&self.source_label).strong());
                 if let Some(document) = &self.document {
-                    let vertices = document
-                        .lods
-                        .iter()
-                        .flat_map(|lod| &lod.submeshes)
-                        .map(|mesh| mesh.positions.len())
-                        .sum::<usize>();
-                    let faces = document
-                        .lods
-                        .iter()
-                        .flat_map(|lod| &lod.submeshes)
-                        .map(|mesh| mesh.face_count())
-                        .sum::<usize>();
+                    let active_lod = document.lods.get(self.active_lod_index);
+                    let vertices = self.mesh.as_ref().map_or(0, |mesh| mesh.vertices().count());
+                    let faces = self.mesh.as_ref().map_or(0, |mesh| mesh.faces().count());
                     ui.label(format!("Format: {:?}", document.format));
-                    ui.label(format!("LODs: {}", document.lod_count_reported));
-                    ui.label(format!("Vertices: {vertices}"));
-                    ui.label(format!("Faces: {faces}"));
+                    ui.label(format!(
+                        "LODs: {} editable / {} declared",
+                        document.lods.len(),
+                        document.lod_count_reported
+                    ));
+                    let mut requested_lod = self.active_lod_index;
+                    egui::ComboBox::from_label("Editable LOD")
+                        .selected_text(active_lod.map_or_else(
+                            || "No LOD".to_owned(),
+                            |lod| format!("LOD {}", lod.level),
+                        ))
+                        .show_ui(ui, |ui| {
+                            for (index, lod) in document.lods.iter().enumerate() {
+                                let lod_mesh = if index == self.active_lod_index {
+                                    self.mesh.as_ref()
+                                } else {
+                                    self.lod_sessions
+                                        .get(index)
+                                        .and_then(Option::as_ref)
+                                        .map(|session| &session.mesh)
+                                };
+                                let lod_vertices = lod_mesh.map_or(0, |mesh| mesh.vertices().count());
+                                let lod_faces = lod_mesh.map_or(0, |mesh| mesh.faces().count());
+                                ui.selectable_value(
+                                    &mut requested_lod,
+                                    index,
+                                    format!(
+                                        "LOD {} · {lod_vertices} vertices · {lod_faces} faces",
+                                        lod.level
+                                    ),
+                                );
+                            }
+                        });
+                    if requested_lod != self.active_lod_index {
+                        actions.push(UiAction::SwitchLod(requested_lod));
+                    }
+                    ui.label(format!("Active vertices: {vertices}"));
+                    ui.label(format!("Active faces: {faces}"));
                     ui.label(format!("Parser: {}", document.parser));
                     for warning in &document.warnings {
                         ui.colored_label(Color32::YELLOW, warning);
@@ -794,6 +848,7 @@ impl LabApplication {
                 UiAction::OpenMesh => self.choose_mesh(),
                 UiAction::QueryArchive => self.query_archive(),
                 UiAction::LoadSelectedArchiveEntry => self.load_selected_archive_entry(),
+                UiAction::SwitchLod(index) => self.switch_lod(index),
                 UiAction::SelectAllVertices => self.select_all_vertices(),
                 UiAction::SelectAllFaces => self.select_all_faces(),
                 UiAction::ClearSelection => {
@@ -919,6 +974,60 @@ impl LabApplication {
                 Err(error) => self.status = error.to_string(),
             }
         }
+    }
+
+    fn switch_lod(&mut self, target_index: usize) {
+        if target_index == self.active_lod_index {
+            return;
+        }
+        let Some(target_session) = self
+            .lod_sessions
+            .get_mut(target_index)
+            .and_then(Option::take)
+        else {
+            self.status = format!("LOD {target_index} is not available for editing");
+            return;
+        };
+        if self.selection_gesture.is_some() || self.edit_gesture.is_some() {
+            self.cancel_active_gesture("LOD switch cancelled the active gesture");
+        }
+        let Some(current_mesh) = self.mesh.take() else {
+            self.lod_sessions[target_index] = Some(target_session);
+            self.status = "No active mesh is available for the LOD switch".to_owned();
+            return;
+        };
+        let LodSession {
+            mesh: target_mesh,
+            history: target_history,
+        } = target_session;
+        let current_history = std::mem::replace(&mut self.history, target_history);
+        self.lod_sessions[self.active_lod_index] = Some(LodSession {
+            mesh: current_mesh,
+            history: current_history,
+        });
+        self.mesh = Some(target_mesh);
+        self.active_lod_index = target_index;
+        self.operator = OperatorController::default();
+        self.selection_gesture = None;
+        self.edit_gesture = None;
+        self.pointer_events.clear();
+        self.raw_primary_captured = false;
+        self.raw_orbit_captured = false;
+        self.raw_pan_captured = false;
+        self.projection = None;
+        let lod_level = self
+            .document
+            .as_ref()
+            .and_then(|document| document.lods.get(target_index))
+            .map_or_else(|| target_index.to_string(), |lod| lod.level.to_string());
+        if let Some(mesh) = &self.mesh {
+            self.status = format!(
+                "LOD {lod_level} active · {} vertices · {} faces · edits and Undo history are preserved per LOD",
+                mesh.vertices().count(),
+                mesh.faces().count()
+            );
+        }
+        self.publish_mesh_snapshot();
     }
 
     fn select_all_vertices(&mut self) {

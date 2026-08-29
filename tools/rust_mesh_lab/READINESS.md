@@ -15,6 +15,7 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Read-only `.pamt` index discovery and parsing with PAZ range validation.
 - Stored and LZ4 entry decode; filename-derived ChaCha20 type 3 support.
 - PAC/PAM/PAMLOD geometry foundations with fail-closed layout validation.
+- Proven PAC section-to-LOD decoding and an **Editable LOD** selector. The worker prepares every decoded LOD, and switching preserves independent geometry, selection, and Undo/Redo state without multiplying the 512 MiB history budget. Non-manifold source edges retain all incident faces rather than rejecting an otherwise valid lower LOD.
 - DDS legacy/DX10 metadata, common format/color-space classification, bounded mip planning, and direct supported 2D `wgpu` upload.
 - Exact/relative/unambiguous asset relation resolver.
 - Immutable decoded source document and separate editable working document.
@@ -30,7 +31,7 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - egui archive/assets, viewport, inspector, selection/edit, and status surfaces.
 - No-window `LabApplication` construction and egui-frame coverage plus direct app-method tests for every selection shape/domain, Visible/X-Ray routing, camera operation and aspect, all preview modes/overlays, transform/sculpt/topology tools, exact cancel, and Undo/Redo.
 - Offscreen D3D12 renderer coverage using the live mesh draw dispatcher for all seven preview modes with Normals and Bounds across 4:3, portrait, and widescreen targets; a validation error scope and CPU readback reject invalid or all-background output without constructing a window.
-- Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with fresh-document operation/Undo/Redo fingerprints and invariants for Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate.
+- Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with fresh-working-mesh operation/Undo/Redo fingerprints and invariants for Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate on every decoded LOD.
 - Bounded cancellable latest-wins loader/search worker with stale-result rejection.
 - Versioned neutral binary package and manifest comparison.
 - Explicit neutral OBJ/MTL export of the edited working copy with staging, cancellation checks, reparse, structural comparison, atomic new-directory publication, and no source texture embedding.
@@ -42,11 +43,10 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 | Gate | State | Consequence |
 |---|---|---|
 | Private archive corpus | Not run | Archive READY cannot be claimed |
-| Real PAC/PAM/PAMLOD parity | One supplied LOD0 PAC exercised; corpus parity not run | Geometry support remains partial |
+| Real PAC/PAM/PAMLOD parity | All four LODs of one supplied PAC exercised; corpus parity not run | Geometry support remains partial |
 | Partial/Sparse DDS reconstruction | Incomplete | Some archive textures cannot decode |
 | Native texture/material binding | Partial | One explicit supported 2D DDS can render; multi-material binding, arrays/cubes, reconstruction, and fallback transcode remain incomplete |
 | PAC skin palette/PAB/PABC/morph | Incomplete | Character appearance parity not proven |
-| LOD1+ PAC editing | Unsupported | LOD0 diagnostic slice only |
 | Lab project | Incomplete | Camera/tool/history persistence is not published yet |
 | Neutral export | OBJ/MTL implemented | GLB, skinning/material preservation, and private corpus re-import parity remain incomplete |
 | Persistent cache | Incomplete | No cold/warm cache timing |
@@ -78,7 +78,11 @@ dispatcher used by the live viewport. It submitted Textured, Solid Faces,
 Solid + Wire, Wireframe, Vertices, Wire + Vertices, and X-Ray with Normals and
 Bounds across 640×480, 480×640, and 1280×720 targets, then submitted and read
 back a final Solid + Wire frame: 22 frames total. The D3D12 validation scope was
-empty and the readback contained non-background pixels. No winit window or
+empty and the readback contained non-background pixels. The same gate also
+checks the live GPU-cache predicate: a different working-mesh identity with
+equal geometry/topology revisions must not reuse the previous buffers. That
+regression failed under the old revision-only predicate and passes with the
+identity-aware key. No winit window or
 surface was created. This proves offscreen command encoding, pipeline/resource
 compatibility, aspect-dependent camera framing, and observable output; it is
 not visual appearance, pointer latency, frame pacing, or real-PAC GPU proof.
@@ -105,17 +109,29 @@ working-set, visible input, real-PAC, frame-pacing, or device-loss soak.
 ## Supplied PAC headless edit proof
 
 A Release `headless-mesh` run on 2026-08-30 decoded one user-supplied PAC as
-`rust_pac_section_4_pac40`: the file reports four LODs, the supported LOD0 slice
-loaded 13,740 vertices and 25,158 faces, and the warm decode took 4.41 ms. Move,
-Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate each ran on
-fresh in-memory documents; every operation changed the expected fingerprint,
-created one history entry, passed invariants, restored the exact baseline with
-Undo, and reproduced the exact edited fingerprint with Redo. The eight complete
-operation/Undo/Redo scenarios took 870.83 ms; individual operation steps were
-17.76–27.62 ms. A SHA-256 comparison before and after the run confirmed the
-source file was unchanged. These are single-file CPU edit/history measurements,
-not full PAC/PAM/PAMLOD parity, visible selection proof, live pointer latency,
-FPS, GPU, or memory evidence.
+`rust_pac_section_4_pac40`. All four declared LODs were decoded using the same
+section-to-LOD mapping as the production parser, and their counts matched:
+
+| LOD | Vertices | Faces | Edit families passed |
+|---|---:|---:|---:|
+| 0 | 13,740 | 25,158 | 8/8 |
+| 1 | 1,938 | 3,030 | 8/8 |
+| 2 | 609 | 778 | 8/8 |
+| 3 | 337 | 429 | 8/8 |
+
+Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate each
+ran on fresh working meshes for every LOD. Every operation changed the expected
+fingerprint, created one history entry, passed invariants, restored the exact
+baseline with Undo, and reproduced the exact edited fingerprint with Redo.
+The single warm decode took 3.81 ms and all 32 complete operation/Undo/Redo
+scenarios took 623.22 ms. LOD3 contains three source edges shared by four faces;
+the production parser confirmed those incidences, and the Rust graph now
+preserves them instead of imposing an unsupported two-face limit. A focused
+synthetic regression failed under the old limit and passed after the correction.
+SHA-256 and timestamp comparisons before and after the run confirmed the source
+file was unchanged. These are single-file CPU edit/history measurements, not
+full PAC/PAM/PAMLOD parity, visible selection or LOD-switch proof, live pointer
+latency, FPS, GPU, or memory evidence.
 
 ## Visible synthetic interaction proof
 

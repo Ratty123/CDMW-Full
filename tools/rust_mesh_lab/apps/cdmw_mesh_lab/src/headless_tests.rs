@@ -25,6 +25,23 @@ pub(super) fn triangle_application() -> Result<LabApplication, Box<dyn std::erro
     Ok(application)
 }
 
+fn two_lod_application() -> Result<LabApplication, Box<dyn std::error::Error>> {
+    let document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
+    let cancellation = cdmw_archive::CancellationToken::default();
+    let mut meshes = crate::loader::build_lod_meshes(&document, &cancellation)?.into_iter();
+    let mesh = meshes.next().ok_or("missing LOD0 working mesh")?;
+    let mut application = LabApplication::new(None, None);
+    application.install_loaded_mesh(LoadedMesh {
+        path: PathBuf::from("headless-two-lod.pac"),
+        document,
+        mesh,
+        other_lod_meshes: meshes.collect(),
+        texture: None,
+    });
+    application.update_viewport_rect(viewport());
+    Ok(application)
+}
+
 pub(super) fn projected_domain_point(
     application: &mut LabApplication,
     domain: SelectionDomain,
@@ -130,6 +147,157 @@ fn headless_ui_frame_builds_the_complete_app_without_a_window() -> TestResult {
     assert!(application.window.is_none());
     assert!(application.renderer.is_none());
     output.textures_delta.clear();
+    Ok(())
+}
+
+#[test]
+fn decoded_lods_switch_headlessly_and_preserve_independent_edit_history() -> TestResult {
+    let mut application = two_lod_application()?;
+    assert_eq!(application.active_lod_index, 0);
+    assert_eq!(application.lod_sessions.len(), 2);
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("missing active LOD0")?
+            .vertices()
+            .count(),
+        3
+    );
+    let total_history_budget = application.history.budget_bytes()
+        + application
+            .lod_sessions
+            .iter()
+            .flatten()
+            .map(|session| session.history.budget_bytes())
+            .sum::<usize>();
+    assert_eq!(total_history_budget, HISTORY_BUDGET_BYTES);
+
+    application.handle_actions(vec![UiAction::SelectAllFaces, UiAction::DuplicateFaces]);
+    let lod_zero_edited = application
+        .mesh
+        .as_ref()
+        .ok_or("missing edited LOD0")?
+        .structural_fingerprint();
+    assert_eq!(application.history.undo_len(), 1);
+
+    application.handle_actions(vec![UiAction::SwitchLod(1)]);
+    assert_eq!(application.active_lod_index, 1);
+    let lod_one = application.mesh.as_ref().ok_or("missing active LOD1")?;
+    assert_eq!(lod_one.vertices().count(), 4);
+    assert_eq!(lod_one.faces().count(), 2);
+    assert_eq!(application.history.undo_len(), 0);
+    application.handle_actions(vec![UiAction::SelectAllFaces, UiAction::DuplicateFaces]);
+    let lod_one_edited = application
+        .mesh
+        .as_ref()
+        .ok_or("missing edited LOD1")?
+        .structural_fingerprint();
+    assert_eq!(application.history.undo_len(), 1);
+
+    application.handle_actions(vec![UiAction::SwitchLod(0)]);
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("missing restored LOD0")?
+            .structural_fingerprint(),
+        lod_zero_edited
+    );
+    assert_eq!(application.history.undo_len(), 1);
+    application.handle_actions(vec![UiAction::Undo]);
+    assert_ne!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("missing undone LOD0")?
+            .structural_fingerprint(),
+        lod_zero_edited
+    );
+    application.handle_actions(vec![UiAction::Redo]);
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("missing redone LOD0")?
+            .structural_fingerprint(),
+        lod_zero_edited
+    );
+
+    application.handle_actions(vec![UiAction::SwitchLod(1)]);
+    assert_eq!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("missing restored LOD1")?
+            .structural_fingerprint(),
+        lod_one_edited
+    );
+    assert_eq!(application.history.undo_len(), 1);
+
+    let context = application.egui_context.clone();
+    let mut output = context.run_ui(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1_440.0, 900.0),
+            )),
+            ..Default::default()
+        },
+        |ui| {
+            let actions = application.draw_ui(ui);
+            application.handle_actions(actions);
+        },
+    );
+    assert!(!output.shapes.is_empty());
+    assert!(application.window.is_none());
+    assert!(application.renderer.is_none());
+    output.textures_delta.clear();
+    Ok(())
+}
+
+#[test]
+fn lod_working_mesh_preparation_honors_cancellation() -> TestResult {
+    let document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
+    let cancellation = cdmw_archive::CancellationToken::default();
+    cancellation.cancel();
+    assert!(crate::loader::build_lod_meshes(&document, &cancellation).is_err());
+    Ok(())
+}
+
+#[test]
+fn lod_switch_rolls_back_an_active_edit_before_parking_the_session() -> TestResult {
+    let mut application = two_lod_application()?;
+    application.select_all_vertices();
+    application.viewport_tool = ViewportTool::Move;
+    let mesh = application.mesh.as_ref().ok_or("missing LOD0")?;
+    let before = mesh.structural_fingerprint();
+    let selection_before = mesh.selection.clone();
+    let pivot = OrbitCamera::selected_center(mesh).ok_or("missing selection pivot")?;
+    let center = application
+        .camera
+        .project(pivot, viewport())
+        .ok_or("missing projected pivot")?
+        .screen;
+    application.begin_primary_gesture(viewport(), center);
+    application.update_primary_gesture(viewport(), center + Vec2::new(25.0, 0.0), false);
+    assert_ne!(
+        application
+            .mesh
+            .as_ref()
+            .ok_or("missing edited LOD0")?
+            .structural_fingerprint(),
+        before
+    );
+    application.handle_actions(vec![UiAction::SwitchLod(1), UiAction::SwitchLod(0)]);
+    let restored = application.mesh.as_ref().ok_or("missing restored LOD0")?;
+    assert_eq!(restored.structural_fingerprint(), before);
+    assert_eq!(restored.selection, selection_before);
+    assert_eq!(application.history.undo_len(), 0);
+    assert_eq!(application.operator.state(), OperatorState::Idle);
+    assert!(application.edit_gesture.is_none());
+    assert!(application.selection_gesture.is_none());
+    assert!(!application.raw_primary_captured);
     Ok(())
 }
 

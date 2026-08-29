@@ -6,7 +6,10 @@ use glam::{Quat, Vec3};
 use serde::{Deserialize, Serialize};
 use slotmap::{Key, SecondaryMap, SlotMap, new_key_type};
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
+
+static NEXT_MESH_IDENTITY: AtomicU64 = AtomicU64::new(1);
 
 new_key_type! {
     pub struct VertexHandle;
@@ -52,6 +55,7 @@ pub struct Selection {
 
 #[derive(Debug, Clone)]
 pub struct WorkingMesh {
+    identity: u64,
     vertices: SlotMap<VertexHandle, Vertex>,
     faces: SlotMap<FaceHandle, Face>,
     edges: SlotMap<EdgeHandle, Edge>,
@@ -65,6 +69,7 @@ pub struct WorkingMesh {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DrawSnapshot {
+    pub mesh_identity: u64,
     pub draw_revision: u64,
     pub topology_generation: u64,
     pub positions: Vec<[f32; 3]>,
@@ -93,7 +98,11 @@ pub enum MeshError {
 
 impl WorkingMesh {
     pub fn from_document(document: &MeshDocument) -> Result<Self, MeshError> {
-        let lod = document.lods.first().ok_or(MeshError::MissingLod)?;
+        Self::from_document_lod(document, 0)
+    }
+
+    pub fn from_document_lod(document: &MeshDocument, lod_index: usize) -> Result<Self, MeshError> {
+        let lod = document.lods.get(lod_index).ok_or(MeshError::MissingLod)?;
         let mut mesh = Self::empty();
         for (submesh_index, submesh) in lod.submeshes.iter().enumerate() {
             mesh.append_submesh(
@@ -109,6 +118,7 @@ impl WorkingMesh {
     #[must_use]
     pub fn empty() -> Self {
         Self {
+            identity: NEXT_MESH_IDENTITY.fetch_add(1, Ordering::Relaxed),
             vertices: SlotMap::with_key(),
             faces: SlotMap::with_key(),
             edges: SlotMap::with_key(),
@@ -638,8 +648,7 @@ impl WorkingMesh {
             }
         }
         for (edge_handle, edge) in &self.edges {
-            if edge.vertices[0] == edge.vertices[1] || edge.faces.is_empty() || edge.faces.len() > 2
-            {
+            if edge.vertices[0] == edge.vertices[1] || edge.faces.is_empty() {
                 return Err(MeshError::Invariant(format!(
                     "edge {:?} has invalid incidence",
                     edge_handle.data()
@@ -702,6 +711,7 @@ impl WorkingMesh {
             bytes.extend_from_slice(&index.to_le_bytes());
         }
         DrawSnapshot {
+            mesh_identity: self.identity,
             draw_revision: self.geometry_revision,
             topology_generation: self.topology_generation,
             positions,
@@ -879,6 +889,7 @@ mod tests {
     }
 
     fn assert_exact_working_state(actual: &WorkingMesh, expected: &WorkingMesh) {
+        assert_eq!(actual.identity, expected.identity);
         assert_eq!(actual.vertices.len(), expected.vertices.len());
         assert_eq!(actual.faces.len(), expected.faces.len());
         assert_eq!(actual.edges.len(), expected.edges.len());
@@ -897,6 +908,95 @@ mod tests {
         assert_eq!(actual.geometry_revision, expected.geometry_revision);
         assert_eq!(actual.selection_revision, expected.selection_revision);
         assert_eq!(actual.operation_sequence, expected.operation_sequence);
+    }
+
+    #[test]
+    fn explicit_lod_construction_preserves_the_default_and_checks_bounds() -> Result<(), MeshError>
+    {
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::two_lod_pac(),
+            cdmw_formats::MeshFormat::Pac,
+        )
+        .map_err(|_| MeshError::InvalidSource)?;
+        let default = WorkingMesh::from_document(&document)?;
+        let first = WorkingMesh::from_document_lod(&document, 0)?;
+        assert_eq!(
+            default.structural_fingerprint(),
+            first.structural_fingerprint()
+        );
+        assert_ne!(default.identity, first.identity);
+        assert_eq!(first.identity, first.clone().identity);
+        let second = WorkingMesh::from_document_lod(&document, 1)?;
+        assert_eq!(second.vertices().count(), 4);
+        assert_eq!(second.faces().count(), 2);
+        assert!(matches!(
+            WorkingMesh::from_document_lod(&document, 2),
+            Err(MeshError::MissingLod)
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn source_non_manifold_edges_remain_editable() -> Result<(), MeshError> {
+        let mut mesh = WorkingMesh::empty();
+        let shared_a = mesh.vertices.insert(Vertex {
+            position: [-1.0, 0.0, 0.0],
+            normal: [0.0, 1.0, 0.0],
+            uv: [0.0, 0.0],
+            provenance: Provenance::Source {
+                submesh: 0,
+                element: 0,
+            },
+        });
+        let shared_b = mesh.vertices.insert(Vertex {
+            position: [1.0, 0.0, 0.0],
+            normal: [0.0, 1.0, 0.0],
+            uv: [1.0, 0.0],
+            provenance: Provenance::Source {
+                submesh: 0,
+                element: 1,
+            },
+        });
+        for (element, position) in [
+            [0.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, -1.0],
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let outer = mesh.vertices.insert(Vertex {
+                position,
+                normal: [0.0, 1.0, 0.0],
+                uv: [0.5, 1.0],
+                provenance: Provenance::Source {
+                    submesh: 0,
+                    element: u32::try_from(element + 2).map_err(|_| MeshError::ResourceLimit)?,
+                },
+            });
+            mesh.faces.insert(Face {
+                vertices: [shared_a, shared_b, outer],
+                submesh: 0,
+                material: 0,
+                provenance: Provenance::Source {
+                    submesh: 0,
+                    element: u32::try_from(element).map_err(|_| MeshError::ResourceLimit)?,
+                },
+            });
+        }
+        mesh.rebuild_edges()?;
+        let shared_edge = mesh
+            .edge_by_pair
+            .get(&ordered_pair(shared_a, shared_b))
+            .and_then(|handle| mesh.edges.get(*handle))
+            .ok_or(MeshError::InvalidSource)?;
+        assert_eq!(shared_edge.faces.len(), 4);
+        mesh.validate()?;
+
+        let selected = HashSet::from([mesh.faces.keys().next().ok_or(MeshError::InvalidSource)?]);
+        mesh.duplicate_faces(&selected)?;
+        mesh.validate()
     }
 
     #[test]

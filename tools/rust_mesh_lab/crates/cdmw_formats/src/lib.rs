@@ -333,34 +333,46 @@ fn decode_pac(source: &[u8]) -> Result<MeshDocument, FormatError> {
         ));
     }
     let layouts = pac_layouts();
-    let mut candidates = Vec::new();
-    for section in sections.iter().filter(|section| section.index != 0) {
+    let declared_lods = usize::try_from(lod_count).map_err(|_| FormatError::ResourceLimit)?;
+    let mut lods = Vec::new();
+    let mut lod_zero_parser = None;
+    for lod in 0..declared_lods.min(4) {
+        let section_index = 4_usize.saturating_sub(lod);
+        let Some(section) = sections
+            .iter()
+            .find(|section| section.index == section_index)
+        else {
+            continue;
+        };
+        let mut candidates = Vec::new();
         for layout in &layouts {
-            if let Ok(submeshes) = decode_pac_section(bytes, section, &descriptors, 0, layout) {
+            if let Ok(submeshes) = decode_pac_section(bytes, section, &descriptors, lod, layout) {
                 let faces = submeshes.iter().map(Submesh::face_count).sum::<usize>();
                 let vertices = submeshes
                     .iter()
                     .map(|mesh| mesh.positions.len())
                     .sum::<usize>();
                 if faces > 0 && vertices > 0 {
-                    candidates.push((faces, vertices, section.index, layout.name, submeshes));
+                    candidates.push((faces, vertices, layout.name, submeshes));
                 }
             }
         }
+        candidates.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
+        if let Some((_, _, layout_name, submeshes)) = candidates.into_iter().next() {
+            if lod == 0 {
+                lod_zero_parser = Some(format!("rust_pac_section_{section_index}_{layout_name}"));
+            }
+            lods.push(MeshLod {
+                level: u32::try_from(lod).map_err(|_| FormatError::ResourceLimit)?,
+                submeshes,
+            });
+        }
     }
-    candidates.sort_by(|left, right| {
-        right
-            .0
-            .cmp(&left.0)
-            .then_with(|| right.1.cmp(&left.1))
-            .then_with(|| right.2.cmp(&left.2))
-    });
-    let (_, _, section_index, layout_name, submeshes) =
-        candidates.into_iter().next().ok_or_else(|| {
-            FormatError::UnsupportedLayout(
-                "PAC geometry section and vertex layout were not proven".to_owned(),
-            )
-        })?;
+    let parser = lod_zero_parser.ok_or_else(|| {
+        FormatError::UnsupportedLayout(
+            "PAC LOD0 geometry section and vertex layout were not proven".to_owned(),
+        )
+    })?;
     let mut warnings = vec![
         "PAC skin palette and extra influence decoding are not yet native in this readiness slice"
             .to_owned(),
@@ -369,15 +381,18 @@ fn decode_pac(source: &[u8]) -> Result<MeshDocument, FormatError> {
     if normalized.is_some() {
         warnings.push("internal PAR LZ4 sections were normalized in memory".to_owned());
     }
+    if lods.len() != declared_lods {
+        warnings.push(format!(
+            "decoded {} of {lod_count} declared PAC LODs; only proven section 4-to-1 mappings are editable",
+            lods.len()
+        ));
+    }
     let mut document = MeshDocument {
         format: MeshFormat::Pac,
         source_sha256: sha256_bytes(source),
-        parser: format!("rust_pac_section_{section_index}_{layout_name}"),
+        parser,
         lod_count_reported: lod_count,
-        lods: vec![MeshLod {
-            level: 0,
-            submeshes,
-        }],
+        lods,
         warnings,
         structural_fingerprint: String::new(),
     };
@@ -1281,6 +1296,76 @@ pub mod synthetic {
         bytes
     }
 
+    #[must_use]
+    pub fn two_lod_pac() -> Vec<u8> {
+        let metadata_size = 128_usize;
+        let lod_one_size = 172_usize;
+        let lod_zero_size = 126_usize;
+        let metadata_offset = 0x50_usize;
+        let lod_one_offset = metadata_offset + metadata_size;
+        let lod_zero_offset = lod_one_offset + lod_one_size;
+        let mut bytes = vec![0_u8; lod_zero_offset + lod_zero_size];
+        write_text(&mut bytes, 0, b"PAR ");
+        write_u32(&mut bytes, 0x14, metadata_size as u32);
+        write_u32(&mut bytes, 0x2c, lod_one_size as u32);
+        write_u32(&mut bytes, 0x34, lod_zero_size as u32);
+        bytes[metadata_offset + 4] = 2;
+
+        let descriptor = metadata_offset + 40;
+        bytes[descriptor] = 1;
+        for offset in [descriptor + 11, descriptor + 15, descriptor + 19] {
+            write_f32(&mut bytes, offset, -1.0);
+        }
+        for offset in [descriptor + 23, descriptor + 27, descriptor + 31] {
+            write_f32(&mut bytes, offset, 1.0);
+        }
+        write_text(&mut bytes, descriptor + 35, &[2, 0, 1]);
+        write_u16(&mut bytes, descriptor + 40, 3);
+        write_u16(&mut bytes, descriptor + 42, 4);
+        write_u32(&mut bytes, descriptor + 44, 3);
+        write_u32(&mut bytes, descriptor + 48, 6);
+
+        write_geometry(
+            &mut bytes,
+            lod_one_offset,
+            &[
+                [0, 0, 0],
+                [u16::MAX, 0, 0],
+                [u16::MAX, u16::MAX, 0],
+                [0, u16::MAX, 0],
+            ],
+            &[0, 1, 2, 0, 2, 3],
+        );
+        write_geometry(
+            &mut bytes,
+            lod_zero_offset,
+            &[[0, 0, 0], [u16::MAX, 0, 0], [0, u16::MAX, 0]],
+            &[0, 1, 2],
+        );
+        bytes
+    }
+
+    fn write_geometry(
+        bytes: &mut [u8],
+        vertex_base: usize,
+        coordinates: &[[u16; 3]],
+        indices: &[u16],
+    ) {
+        let stride = 40_usize;
+        for (vertex, coordinate) in coordinates.iter().enumerate() {
+            let offset = vertex_base + vertex * stride;
+            write_u16(bytes, offset, coordinate[0]);
+            write_u16(bytes, offset + 2, coordinate[1]);
+            write_u16(bytes, offset + 4, coordinate[2]);
+            write_u16(bytes, offset + 8, 0);
+            write_u16(bytes, offset + 10, 0);
+        }
+        let index_base = vertex_base + coordinates.len() * stride;
+        for (index, value) in indices.iter().copied().enumerate() {
+            write_u16(bytes, index_base + index * 2, value);
+        }
+    }
+
     fn write_u16(bytes: &mut [u8], offset: usize, value: u16) {
         if let Some(destination) = bytes.get_mut(offset..offset.saturating_add(2)) {
             destination.copy_from_slice(&value.to_le_bytes());
@@ -1442,34 +1527,30 @@ mod tests {
     }
 
     #[test]
-    fn synthetic_pac_decodes_a_bounded_lod_zero_section() -> Result<(), FormatError> {
-        let metadata_size = 128_usize;
-        let geometry_size = 126_usize;
-        let metadata_offset = 0x50_usize;
-        let geometry_offset = metadata_offset + metadata_size;
-        let mut bytes = vec![0_u8; geometry_offset + geometry_size];
-        write_text(&mut bytes, 0, b"PAR ");
-        write_u32_at(&mut bytes, 0x14, metadata_size as u32);
-        write_u32_at(&mut bytes, 0x1c, geometry_size as u32);
-        bytes[metadata_offset + 4] = 2;
-        let descriptor = metadata_offset + 40;
-        bytes[descriptor] = 1;
-        for offset in [descriptor + 11, descriptor + 15, descriptor + 19] {
-            write_f32_at(&mut bytes, offset, -1.0);
-        }
-        for offset in [descriptor + 23, descriptor + 27, descriptor + 31] {
-            write_f32_at(&mut bytes, offset, 1.0);
-        }
-        write_text(&mut bytes, descriptor + 35, &[2, 0, 1]);
-        write_u16_at(&mut bytes, descriptor + 40, 3);
-        write_u16_at(&mut bytes, descriptor + 42, 0);
-        write_u32_at(&mut bytes, descriptor + 44, 3);
-        write_u32_at(&mut bytes, descriptor + 48, 0);
-        write_triangle_geometry(&mut bytes, geometry_offset, 40);
-
-        let document = decode_mesh(&bytes, MeshFormat::Pac)?;
+    fn synthetic_pac_decodes_each_proven_lod_section() -> Result<(), FormatError> {
+        let document = decode_mesh(&synthetic::two_lod_pac(), MeshFormat::Pac)?;
         assert_eq!(document.lod_count_reported, 2);
+        assert_eq!(document.lods.len(), 2);
+        assert_eq!(document.lods[0].level, 0);
+        assert_eq!(document.lods[0].submeshes[0].positions.len(), 3);
         assert_eq!(document.lods[0].submeshes[0].indices, vec![0, 1, 2]);
+        assert_eq!(document.lods[1].level, 1);
+        assert_eq!(document.lods[1].submeshes[0].positions.len(), 4);
+        assert_eq!(
+            document.lods[1].submeshes[0].indices,
+            vec![0, 1, 2, 0, 2, 3]
+        );
+        assert_eq!(document.parser, "rust_pac_section_4_pac40");
         Ok(())
+    }
+
+    #[test]
+    fn pac_does_not_relabel_a_lower_lod_as_lod_zero() {
+        let mut bytes = synthetic::two_lod_pac();
+        write_u32_at(&mut bytes, 0x34, 0);
+        assert!(matches!(
+            decode_mesh(&bytes, MeshFormat::Pac),
+            Err(FormatError::UnsupportedLayout(message)) if message.contains("LOD0")
+        ));
     }
 }

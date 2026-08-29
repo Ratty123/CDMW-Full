@@ -19,6 +19,7 @@ pub struct LoadedMesh {
     pub path: PathBuf,
     pub document: MeshDocument,
     pub mesh: WorkingMesh,
+    pub other_lod_meshes: Vec<WorkingMesh>,
     pub texture: Option<LoadedTexture>,
 }
 
@@ -353,7 +354,11 @@ fn load_archive_mesh(
     let path = PathBuf::from(&catalog_entry.entry.virtual_path);
     let format = MeshFormat::from_path(&path).map_err(|error| error.to_string())?;
     let mut document = decode_mesh(&decoded.bytes, format).map_err(|error| error.to_string())?;
-    let mesh = WorkingMesh::from_document(&document).map_err(|error| error.to_string())?;
+    let mut lod_meshes = build_lod_meshes(&document, cancellation)?.into_iter();
+    let mesh = lod_meshes
+        .next()
+        .ok_or_else(|| "decoded document has no editable LOD".to_owned())?;
+    let other_lod_meshes = lod_meshes.collect();
     let texture = resolve_archive_texture(catalog, catalog_entry, &document, cancellation)?;
     if let Some(texture) = &texture {
         document.warnings.push(format!(
@@ -365,6 +370,7 @@ fn load_archive_mesh(
         path,
         document,
         mesh,
+        other_lod_meshes,
         texture,
     })
 }
@@ -377,7 +383,11 @@ fn load_mesh(path: PathBuf, cancellation: &CancellationToken) -> Result<LoadedMe
     cancellation.check().map_err(|error| error.to_string())?;
     let mut document = decode_mesh(&bytes, format).map_err(|error| error.to_string())?;
     cancellation.check().map_err(|error| error.to_string())?;
-    let mesh = WorkingMesh::from_document(&document).map_err(|error| error.to_string())?;
+    let mut lod_meshes = build_lod_meshes(&document, cancellation)?.into_iter();
+    let mesh = lod_meshes
+        .next()
+        .ok_or_else(|| "decoded document has no editable LOD".to_owned())?;
+    let other_lod_meshes = lod_meshes.collect();
     let texture = resolve_direct_texture(&path, &document)?;
     if let Some(texture) = &texture {
         document.warnings.push(format!(
@@ -389,8 +399,29 @@ fn load_mesh(path: PathBuf, cancellation: &CancellationToken) -> Result<LoadedMe
         path,
         document,
         mesh,
+        other_lod_meshes,
         texture,
     })
+}
+
+pub(super) fn build_lod_meshes(
+    document: &MeshDocument,
+    cancellation: &CancellationToken,
+) -> Result<Vec<WorkingMesh>, String> {
+    let mut meshes = Vec::with_capacity(document.lods.len());
+    for lod_index in 0..document.lods.len() {
+        cancellation.check().map_err(|error| error.to_string())?;
+        meshes.push(
+            WorkingMesh::from_document_lod(document, lod_index).map_err(|error| {
+                format!(
+                    "LOD {} is not editable: {error}",
+                    document.lods[lod_index].level
+                )
+            })?,
+        );
+    }
+    cancellation.check().map_err(|error| error.to_string())?;
+    Ok(meshes)
 }
 
 fn resolve_direct_texture(

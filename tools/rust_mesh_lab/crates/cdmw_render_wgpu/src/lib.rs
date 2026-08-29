@@ -200,6 +200,7 @@ pub struct GpuMeshBuffers {
     vertex_count: u32,
     normal_line_vertex_count: u32,
     bounds_line_vertex_count: u32,
+    mesh_identity: u64,
     pub draw_revision: u64,
     pub topology_generation: u64,
 }
@@ -267,9 +268,16 @@ impl GpuMeshBuffers {
                 .map_err(|_| RenderError::ResourceLimit)?,
             bounds_line_vertex_count: u32::try_from(bounds_line_vertices.len())
                 .map_err(|_| RenderError::ResourceLimit)?,
+            mesh_identity: snapshot.mesh_identity,
             draw_revision: snapshot.draw_revision,
             topology_generation: snapshot.topology_generation,
         })
+    }
+
+    fn matches_snapshot(&self, snapshot: &DrawSnapshot) -> bool {
+        self.mesh_identity == snapshot.mesh_identity
+            && self.draw_revision == snapshot.draw_revision
+            && self.topology_generation == snapshot.topology_generation
     }
 }
 
@@ -442,10 +450,11 @@ impl WindowRenderer {
     }
 
     pub fn set_snapshot(&mut self, snapshot: &DrawSnapshot) -> Result<(), RenderError> {
-        if self.mesh.as_ref().is_some_and(|mesh| {
-            mesh.draw_revision == snapshot.draw_revision
-                && mesh.topology_generation == snapshot.topology_generation
-        }) {
+        if self
+            .mesh
+            .as_ref()
+            .is_some_and(|mesh| mesh.matches_snapshot(snapshot))
+        {
             return Ok(());
         }
         self.mesh = Some(GpuMeshBuffers::upload(&self.device, snapshot)?);
@@ -784,6 +793,19 @@ pub async fn run_headless_render_smoke(
     });
     let pipelines = create_pipelines(&device, format, &texture_layout, &camera_layout);
     let mesh = GpuMeshBuffers::upload(&device, snapshot)?;
+    if !mesh.matches_snapshot(snapshot) {
+        return Err(RenderError::Device(
+            "headless mesh cache rejected its current snapshot".to_owned(),
+        ));
+    }
+    let mut different_mesh = snapshot.clone();
+    different_mesh.mesh_identity = different_mesh.mesh_identity.wrapping_add(1);
+    if mesh.matches_snapshot(&different_mesh) {
+        return Err(RenderError::Device(
+            "headless mesh cache reused buffers for a different mesh with equal revisions"
+                .to_owned(),
+        ));
+    }
     let modes = [
         ViewMode::TexturedSolid,
         ViewMode::Solid,
@@ -1641,6 +1663,7 @@ mod tests {
     #[test]
     fn normal_and_bounds_overlays_build_persistent_line_vertices() {
         let snapshot = DrawSnapshot {
+            mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
             positions: vec![[0.0, 0.0, 0.0], [2.0, 4.0, 6.0]],
