@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
+using System.Text.RegularExpressions;
 using Cdmw.FullArchive.Contracts;
 
 namespace Cdmw.FullArchive.Core;
@@ -13,6 +14,8 @@ internal static class ArchiveNameIndexBuilder
     private const int MaximumPrefabListCount = 32;
     private const int MaximumPrefabHashes = 128;
     private const int MaximumRelatedModelCandidates = 64;
+    private const int MaximumPrefabDependencyPaths = 32;
+    private const int MaximumPrefabSourceBytes = 16 * 1024 * 1024;
     private static readonly int[] PabghCountWidths = [1, 2, 4];
 
     // Composite keys are real: `characterappearanceindexinfo` uses 8 bytes and
@@ -79,6 +82,9 @@ internal static class ArchiveNameIndexBuilder
     [
         "itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_",
     ];
+    private static readonly Regex PrefabModelPathPattern = new(
+        "(?<path>(?:character|object|vehicle|environment|effect)[/\\\\][A-Za-z0-9_./\\\\-]+\\.(?:pac|pam|pamlod))",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly HashSet<string> GenericItemModelTokens = new(StringComparer.OrdinalIgnoreCase)
     {
         "abyss", "armor", "armour", "character", "common", "customize", "default", "equip", "equipment",
@@ -156,6 +162,18 @@ internal static class ArchiveNameIndexBuilder
             .SelectMany(static record => record.PrefabHashes)
             .ToHashSet();
         var resolvedModels = ResolveModelHashes(session, wantedModelHashes, cancellationToken, progress);
+        var prefabCandidates = records
+            .SelectMany(record => record.PrefabHashes
+                .Select(hash => resolvedModels.GetValueOrDefault(hash) ?? string.Empty)
+                .Concat(record.RelatedModelStems))
+            .Where(static value => value.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var prefabModelPaths = ResolvePrefabModelPaths(
+            session,
+            native,
+            prefabCandidates,
+            cancellationToken,
+            progress);
         var exact = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var related = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var record in records)
@@ -175,6 +193,19 @@ internal static class ArchiveNameIndexBuilder
             foreach (var model in record.RelatedModelStems)
             {
                 AddDisplayName(related, StripModelVariantSuffix(model), record.DisplayName);
+            }
+            var recordCandidates = record.PrefabHashes
+                .Select(hash => resolvedModels.GetValueOrDefault(hash) ?? string.Empty)
+                .Concat(record.RelatedModelStems)
+                .Where(static value => value.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (var candidate in recordCandidates)
+            {
+                if (!prefabModelPaths.TryGetValue(NormalizeModelStem(candidate), out var modelPaths)) continue;
+                foreach (var modelPath in modelPaths)
+                {
+                    AddDisplayName(exact, NormalizeModelStem(modelPath), record.DisplayName);
+                }
             }
         }
 
@@ -681,6 +712,118 @@ internal static class ArchiveNameIndexBuilder
         return resolved;
     }
 
+    internal static Dictionary<string, string[]> ResolvePrefabModelPaths(
+        ArchiveSession session,
+        NativeArchiveCore native,
+        IEnumerable<string> candidateStems,
+        CancellationToken cancellationToken,
+        Func<ProgressUpdate, Task>? progress)
+    {
+        var candidateKeys = candidateStems
+            .Select(NormalizeModelStem)
+            .Where(static value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (candidateKeys.Length == 0) return new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+
+        var ownersByPrefabName = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var candidate in candidateKeys)
+        {
+            foreach (var prefabStem in PrefabCandidateStems(candidate))
+            {
+                var basename = prefabStem + ".prefab";
+                if (!ownersByPrefabName.TryGetValue(basename, out var owners))
+                {
+                    owners = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    ownersByPrefabName[basename] = owners;
+                }
+                owners.Add(candidate);
+            }
+        }
+
+        var matches = new List<(ArchiveEntryDto Entry, HashSet<string> Owners)>();
+        var total = session.Index.EntryCount;
+        Publish(progress, new ProgressUpdate(0, total, "names_prefab_scan"));
+        for (long entryId = 0; entryId < total; entryId++)
+        {
+            if ((entryId & 0x1FFF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Publish(progress, new ProgressUpdate(entryId, total, "names_prefab_scan"));
+            }
+            var entry = session.Index.ReadEntry(entryId, session.Id);
+            if (entry.Extension != ".prefab") continue;
+            var basename = Path.GetFileName(entry.Path);
+            if (ownersByPrefabName.TryGetValue(basename, out var owners))
+            {
+                matches.Add((entry, owners));
+            }
+        }
+
+        var resolved = candidateKeys.ToDictionary(
+            static candidate => candidate,
+            static _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < matches.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if ((index & 0x3F) == 0)
+            {
+                Publish(progress, new ProgressUpdate(index, matches.Count, "names_prefab_decode"));
+            }
+            var (entry, owners) = matches[index];
+            if (entry.OriginalSize is <= 0 or > MaximumPrefabSourceBytes) continue;
+            byte[] bytes;
+            try
+            {
+                bytes = native.Decode(entry).Bytes;
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or NativeArchiveException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+            var modelPaths = ExtractPrefabModelPaths(bytes);
+            foreach (var owner in owners)
+            {
+                resolved[owner].UnionWith(modelPaths);
+            }
+        }
+        Publish(progress, new ProgressUpdate(matches.Count, matches.Count, "names_prefab_decode"));
+        return resolved.ToDictionary(
+            static pair => pair.Key,
+            static pair => pair.Value.OrderBy(static value => value, StringComparer.OrdinalIgnoreCase).ToArray(),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IEnumerable<string> PrefabCandidateStems(string stem)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var modelStem in ModelCandidateBases(NormalizeModelStem(stem)))
+        {
+            if (seen.Add(modelStem)) yield return modelStem;
+            if (!modelStem.EndsWith("_v", StringComparison.OrdinalIgnoreCase) && seen.Add(modelStem + "_v"))
+            {
+                yield return modelStem + "_v";
+            }
+        }
+    }
+
+    private static string[] ExtractPrefabModelPaths(byte[] bytes)
+    {
+        if (bytes.Length == 0) return [];
+        var text = Encoding.UTF8.GetString(bytes);
+        var paths = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in PrefabModelPathPattern.Matches(text))
+        {
+            var path = match.Groups["path"].Value.Replace('\\', '/').Trim();
+            if (path.Length == 0 || !seen.Add(path)) continue;
+            paths.Add(path);
+            if (paths.Count >= MaximumPrefabDependencyPaths) break;
+        }
+        return [.. paths];
+    }
+
     private static List<string> LocalizationIdCandidates(byte[] data, int markerOffset, int recordEnd)
     {
         var expected = markerOffset + 18;
@@ -746,7 +889,7 @@ internal static class ArchiveNameIndexBuilder
         return string.Empty;
     }
 
-    private static void AddDisplayName(Dictionary<string, string> map, string key, string value)
+    internal static void AddDisplayName(Dictionary<string, string> map, string key, string value)
     {
         key = key.Trim().ToLowerInvariant();
         value = value.Trim();
@@ -767,7 +910,7 @@ internal static class ArchiveNameIndexBuilder
     private static string PackageGroup(string pamtPath) =>
         Path.GetFileName(Path.GetDirectoryName(pamtPath)) ?? string.Empty;
 
-    private static string NormalizeModelStem(string value)
+    internal static string NormalizeModelStem(string value)
     {
         var basename = Path.GetFileName(value.Replace('\\', '/')).ToLowerInvariant();
         return Path.GetExtension(basename) is ".pac" or ".prefab" or ".pact"

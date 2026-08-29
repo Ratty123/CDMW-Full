@@ -168,6 +168,10 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
             [
                 ("character/model/cd_test_01_sword.pac", new byte[] { 0x50, 0x41, 0x43, 0x00 }),
                 ("character/model/cd_marni_laser_hel_0001_index01.pac", new byte[] { 0x50, 0x41, 0x43, 0x01 }),
+                (
+                    "character/bin__/prefab/cd_marni_laser_hel_0001.prefab",
+                    Encoding.UTF8.GetBytes("character/model/cd_shared_armor_0002.pac\0")),
+                ("character/model/cd_shared_armor_0002.pac", new byte[] { 0x50, 0x41, 0x43, 0x02 }),
                 ("ui/itemicon/itemicon_prefab_cd_marni_laser_hel_0001_n.dds", new byte[] { 0x44, 0x44, 0x53, 0x20 }),
             ]).ConfigureAwait(false);
         await BuildPackageAsync(

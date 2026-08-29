@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import QEvent, Qt, QTimer
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QGroupBox,
     QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -28,6 +30,8 @@ _MATCH_PAGE_SIZE = 60
 
 class TemplatePanel(QGroupBox):
     """A search box over equipment items; picking one fixes the class the clone inherits."""
+
+    open_archive_entry_requested = Signal(str)
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("1. Template", parent)
@@ -58,6 +62,7 @@ class TemplatePanel(QGroupBox):
         self.matches.setUniformRowHeights(True)
         self.matches.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.matches.setAllColumnsShowFocus(True)
+        self.matches.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.matches.setProperty("cdmw_disable_auto_column_fill", True)
         header = self.matches.header()
         header.setStretchLastSection(False)
@@ -72,6 +77,7 @@ class TemplatePanel(QGroupBox):
         self.matches.setMinimumHeight(160)
         self.matches.currentItemChanged.connect(self._pick)
         self.matches.itemClicked.connect(self._apply_clicked_pick)
+        self.matches.customContextMenuRequested.connect(self._show_match_context_menu)
         self.matches.verticalScrollBar().valueChanged.connect(self._load_more_matches)
         self._column_fit_timer = QTimer(self)
         self._column_fit_timer.setSingleShot(True)
@@ -275,6 +281,39 @@ class TemplatePanel(QGroupBox):
         self._pick_timer.stop()
         self._pending_key = key if isinstance(key, int) and key != self._controller.draft.template_key else None
         self._apply_pick()
+
+    def _copy_model_filename(self, template_key: int) -> None:
+        entry = self._controller.template_primary_entry(int(template_key))
+        if entry is not None:
+            QApplication.clipboard().setText(entry.basename)
+
+    def _open_model_in_archive(self, template_key: int) -> None:
+        entry = self._controller.template_primary_entry(int(template_key))
+        if entry is not None:
+            self.open_archive_entry_requested.emit(entry.path)
+
+    def _show_match_context_menu(self, position) -> None:
+        item = self.matches.itemAt(position)
+        if item is None:
+            return
+        self.matches.setCurrentItem(item)
+        self._apply_clicked_pick(item)
+        key = item.data(0, Qt.UserRole)
+        if not isinstance(key, int):
+            return
+        entry = self._controller.template_primary_entry(key)
+        menu = QMenu(self)
+        copy_action = menu.addAction("Copy Filename")
+        copy_action.setEnabled(entry is not None)
+        copy_action.triggered.connect(
+            lambda _checked=False, template_key=key: self._copy_model_filename(template_key)
+        )
+        open_action = menu.addAction("Open In Archive Browser")
+        open_action.setEnabled(entry is not None)
+        open_action.triggered.connect(
+            lambda _checked=False, template_key=key: self._open_model_in_archive(template_key)
+        )
+        menu.exec(self.matches.viewport().mapToGlobal(position))
 
     def apply_pending_pick(self) -> None:
         """Take the pending row now: leaving the step must not leave it unchosen."""

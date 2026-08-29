@@ -4,6 +4,59 @@ static void require_material_contract(bool condition, const char* message) {
     }
 }
 
+static void run_color_blending_palette_contract_self_test() {
+    TextureBinding dyed_base;
+    dyed_base.role = "base";
+    dyed_base.source_path = "vest_base.dds";
+    dyed_base.archive_path = "character/texture/vest_base.dds";
+    dyed_base.parameter_name = "_baseColorTexture";
+    dyed_base.sidecar_path = "character/modelproperty/vest.pac_xml";
+    dyed_base.material_wrapper_index = 9;
+    TextureBinding dye_selector;
+    dye_selector.role = "material";
+    dye_selector.source_path = "vest_ma.dds";
+    dye_selector.archive_path = "character/texture/vest_ma.dds";
+    dye_selector.parameter_name = "_colorBlendingMaskTexture";
+    dye_selector.sidecar_path = dyed_base.sidecar_path;
+    dye_selector.material_wrapper_index = dyed_base.material_wrapper_index;
+    dye_selector.material_output_quality = "exact";
+    std::vector<TextureBinding> dyed_bindings{dyed_base, dye_selector};
+    const std::array<std::array<float, 4>, 3> dye_colors{{
+        {0.10f, 0.75f, 0.20f, 1.0f},
+        {0.75f, 0.60f, 0.25f, 1.0f},
+        {0.90f, 0.90f, 0.90f, 1.0f},
+    }};
+    for (size_t channel = 0; channel < dye_colors.size(); ++channel) {
+        TextureBinding layer;
+        layer.role = "base";
+        layer.source_path = std::string("vest_layer_") + "rgb"[channel] + ".dds";
+        layer.parameter_name = std::string("_grimeDiffuseTexture")
+            + static_cast<char>(std::toupper("rgb"[channel]));
+        layer.layer_role = "grime";
+        layer.layer_channel = std::string(1, "rgb"[channel]);
+        layer.sidecar_path = dyed_base.sidecar_path;
+        layer.material_wrapper_index = dyed_base.material_wrapper_index;
+        layer.material_output_quality = "exact";
+        layer.material_parameter_names = "_tintColorR,_tintColorG,_tintColorB";
+        layer.tint_color = dye_colors[channel];
+        dyed_bindings.push_back(std::move(layer));
+    }
+    std::vector<const TextureBinding*> dyed_binding_refs;
+    for (const TextureBinding& binding : dyed_bindings) dyed_binding_refs.push_back(&binding);
+    const std::vector<MaterialLayer> dye_seeds = compile_color_blending_seed_layers(
+        dyed_binding_refs, &dyed_bindings.front());
+    require_material_contract(
+        dye_seeds.size() == 3,
+        "color blending palette did not publish three selector channels");
+    require_material_contract(
+        dye_seeds[0].layer_role == "color_seed"
+            && dye_seeds[0].layer_channel == "r"
+            && dye_seeds[1].layer_channel == "g"
+            && dye_seeds[2].layer_channel == "b"
+            && dye_seeds[0].mask_source == dye_selector.source_path,
+        "color blending palette seed contract changed");
+}
+
 static void run_material_contract_self_test() {
     EntryJob bounded_job;
     bounded_job.archive_dependency_entries_complete = true;
@@ -119,6 +172,8 @@ static void run_material_contract_self_test() {
     require_material_contract(
         decoded_surface_promotes_metal(decoded_metal, metal_evidence),
         "incidental nonmetal evidence suppressed a metal-dominant control");
+
+    run_color_blending_palette_contract_self_test();
 }
 
 int run_cli(int argc, char** argv) {

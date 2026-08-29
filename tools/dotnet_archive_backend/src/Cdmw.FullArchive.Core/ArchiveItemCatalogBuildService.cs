@@ -10,7 +10,7 @@ public sealed class ArchiveItemCatalogBuildService(
     ArchiveSessionManager sessions,
     NativeArchiveCore native)
 {
-    private const int CacheSchemaVersion = 3;
+    private const int CacheSchemaVersion = 4;
     private const int NativeCatalogSchemaVersion = 1;
     private const int MaximumDiagnosticCharacters = 64 * 1024;
     private static readonly TimeSpan IndexerTimeout = TimeSpan.FromMinutes(3);
@@ -50,7 +50,7 @@ public sealed class ArchiveItemCatalogBuildService(
             {
                 return Result(session, active, usedCache: true);
             }
-            var cachePath = Path.Combine(session.GenerationPath, "item-catalog-v3.json");
+            var cachePath = Path.Combine(session.GenerationPath, "item-catalog-v4.json");
             var cached = await TryLoadCacheAsync(cachePath, cancellationToken).ConfigureAwait(false);
             if (cached is not null)
             {
@@ -89,7 +89,15 @@ public sealed class ArchiveItemCatalogBuildService(
                     await publishProgress(new ProgressUpdate(0, 0, "item_catalog_build")).ConfigureAwait(false);
                 }
                 await RunIndexerAsync(entriesPath, payloadRoot, reportPath, cancellationToken).ConfigureAwait(false);
-                var built = await ReadReportAsync(reportPath, cancellationToken).ConfigureAwait(false);
+                var parsed = await ReadReportAsync(reportPath, cancellationToken).ConfigureAwait(false);
+                var built = await Task.Run(
+                    () => EnrichPrefabDependencies(
+                        session,
+                        native,
+                        parsed,
+                        publishProgress,
+                        cancellationToken),
+                    CancellationToken.None).ConfigureAwait(false);
                 await SaveCacheAsync(cachePath, built, cancellationToken).ConfigureAwait(false);
                 session.SetCatalogue(built.NameIndex, built.ItemCatalog);
                 if (publishProgress is not null)
@@ -291,6 +299,75 @@ public sealed class ArchiveItemCatalogBuildService(
                 EquipType: ReadString(row, "equip_type")));
         }
         return result;
+    }
+
+    private static CatalogueBuildState EnrichPrefabDependencies(
+        ArchiveSession session,
+        NativeArchiveCore native,
+        CatalogueBuildState state,
+        Func<ProgressUpdate, Task>? progress,
+        CancellationToken cancellationToken)
+    {
+        var items = state.ItemCatalog.Items;
+        var candidates = items
+            .SelectMany(static item => item.ModelStems.Concat(item.PacFiles))
+            .Select(ArchiveNameIndexBuilder.NormalizeModelStem)
+            .Where(static value => value.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var dependencies = ArchiveNameIndexBuilder.ResolvePrefabModelPaths(
+            session,
+            native,
+            candidates,
+            cancellationToken,
+            progress);
+        if (dependencies.Values.All(static paths => paths.Length == 0)) return state;
+
+        var exact = state.NameIndex.ExactNames.ToDictionary(
+            static pair => pair.Key,
+            static pair => pair.Value,
+            StringComparer.OrdinalIgnoreCase);
+        var related = state.NameIndex.RelatedNames.ToDictionary(
+            static pair => pair.Key,
+            static pair => pair.Value,
+            StringComparer.OrdinalIgnoreCase);
+        var enriched = new List<ArchiveItemCatalogRecord>(items.Count);
+        foreach (var item in items)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var itemCandidates = item.ModelStems
+                .Concat(item.PacFiles)
+                .Select(ArchiveNameIndexBuilder.NormalizeModelStem)
+                .Where(static value => value.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            var modelPaths = itemCandidates
+                .SelectMany(candidate => dependencies.GetValueOrDefault(candidate) ?? [])
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            foreach (var modelPath in modelPaths)
+            {
+                ArchiveNameIndexBuilder.AddDisplayName(
+                    exact,
+                    ArchiveNameIndexBuilder.NormalizeModelStem(modelPath),
+                    item.DisplayName);
+            }
+            enriched.Add(item with
+            {
+                ModelStems = modelPaths
+                    .Select(ArchiveNameIndexBuilder.NormalizeModelStem)
+                    .Concat(item.ModelStems)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                PacFiles = modelPaths
+                    .Select(static path => Path.GetFileName(path) ?? string.Empty)
+                    .Concat(item.PacFiles)
+                    .Where(static value => value.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+            });
+        }
+        return new CatalogueBuildState(
+            ArchiveNameIndex.FromMappings(exact, related),
+            ArchiveItemCatalog.FromRecords(enriched));
     }
 
     private static async Task<CatalogueBuildState?> TryLoadCacheAsync(string cachePath, CancellationToken cancellationToken)

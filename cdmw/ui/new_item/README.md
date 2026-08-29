@@ -42,7 +42,14 @@ the native package reuses the shared DDS cache and bypasses New Item's former Py
 OBJ/material recompilation. Geometry reaches the resident viewport first, then textures
 replace it without restarting the host or resetting the camera. If Preview Core is
 unavailable, the established Python preview remains the compatibility fallback. The
-part-prefab reader preserves both the original record
+template resolver follows every model dependency embedded in each part prefab and composes
+the complete set in both preview stages; its cache identity includes the selected template,
+all model components, and the prefab revisions. Right-clicking a template row can copy the
+resolved primary model filename or open that exact model in Archive Browser. Shared Preview
+Core material packages reconstruct PAC RGB selector-mask tints before grime and detail
+layers, so templates that borrow another numbered model retain the archive-authored colour
+regions instead of inheriting the raw texture colours. The part-prefab reader preserves both
+the original record
 layout and game 2.00.00's opaque per-record tag-prefix byte exactly. After a successful
 snapshot, the shell records the current `CrimsonDesert.exe` hash as compatible with New
 Item Studio; a later unsupported-layout error mentions a possible game update only when

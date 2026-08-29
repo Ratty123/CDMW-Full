@@ -107,6 +107,7 @@ class NewItemStudioTab(QWidget):
     """Clone an equipment item into a brand-new one: identity, model, icon, stats, perks, shop, output."""
 
     status_message_requested = Signal(str, bool)
+    open_archive_entry_requested = Signal(str)
 
     def __init__(
         self,
@@ -353,6 +354,7 @@ class NewItemStudioTab(QWidget):
 
         controller = self.controller
         self.template_panel = TemplatePanel(controller)
+        self.template_panel.open_archive_entry_requested.connect(self.open_archive_entry_requested.emit)
         self.identity_panel = IdentityPanel(controller)
         archive_cache_root = getattr(self._window, "archive_cache_root", None)
         native_preview_core_cache_root = (

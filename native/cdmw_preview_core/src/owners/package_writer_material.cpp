@@ -181,9 +181,12 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
     batch.roughness_hint = batch.material_category == "metal"
         ? std::min(batch.effective_material_hints.roughness, strong_metal_response ? 0.24f : 0.32f)
         : batch.effective_material_hints.roughness;
-    batch.base_tint_strength = batch.base_tint_only_fallback ? 0.0f : native_preview_base_tint_strength(
-        batch.base, batch.color, batch.material_layers, batch.visible_layer_tint_applied,
-        batch.force_nonmetal_equipment_layer_tint);
+    batch.base_tint_strength = batch.base_tint_only_fallback
+        || material_layers_have_color_seed(batch.material_layers)
+        ? 0.0f
+        : native_preview_base_tint_strength(
+            batch.base, batch.color, batch.material_layers, batch.visible_layer_tint_applied,
+            batch.force_nonmetal_equipment_layer_tint);
     batch.preview_emissive = emissive_binding_is_safe_for_preview(
         batch.emissive, mesh, batch.material_category) ? batch.emissive : nullptr;
     if (batch.emissive != nullptr && batch.preview_emissive == nullptr
@@ -193,7 +196,7 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
             + ": generic emissive/effect texture suppressed for non-emissive material preview");
     }
     for (const MaterialLayer& layer : batch.material_layers) {
-        if (layer.layer_role == "base" || layer.diffuse_source.empty()) continue;
+        if (layer.layer_role == "base" || layer.layer_role == "color_seed" || layer.diffuse_source.empty()) continue;
         batch.primary_layer = &layer;
         break;
     }

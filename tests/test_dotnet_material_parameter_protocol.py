@@ -94,6 +94,16 @@ def test_required_and_optional_resource_policy_has_an_executable_runtime_probe()
     assert "MaterialResourcePolicyProbe.Run(args)" in entry
 
 
+def test_managed_layer_compiler_reconstructs_pac_rgb_dye_palette_before_overlays() -> None:
+    compiler = _source("NetMaterialLayerCompiler.cs")
+    proof = _source("D3D11MaterialLayerOrientationProof.cs")
+
+    assert 'string.Equals(layer.Binding.LayerRole, "color_seed"' in compiler
+    assert "ApplyColorSeedPalette(targetPixels, width, height, layers)" in compiler
+    assert "CompositesColorPaletteThroughSelector" in compiler
+    assert "NetMaterialLayerCompiler.CompositesColorPaletteThroughSelector()" in proof
+
+
 def test_parameter_protocol_is_versioned_session_scoped_and_independently_ordered() -> None:
     protocol = _source("ExperimentForm.Protocol.cs")
     material_protocol = _source("ExperimentForm.MaterialProtocol.cs")

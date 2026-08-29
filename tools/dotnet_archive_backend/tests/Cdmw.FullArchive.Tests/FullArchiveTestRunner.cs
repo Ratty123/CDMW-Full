@@ -1316,6 +1316,12 @@ internal static class FullArchiveTestRunner
                 enrichedRelated.ItemName == "Synthetic Blade" &&
                 enrichedRelated.NameEvidence == "Synthetic Blade",
                 "related archive name evidence changed");
+            var prefabDependencyEntry = session.Index.FindEntriesByPath("character/model/cd_shared_armor_0002.pac").Single();
+            var enrichedPrefabDependency = session.ReadEntry(prefabDependencyEntry.EntryId);
+            Require(
+                enrichedPrefabDependency.KnownName == "Synthetic Blade" &&
+                enrichedPrefabDependency.ExactName == "Synthetic Blade",
+                "a model reached through the item's prefab did not inherit the item name");
             var iconEntry = session.Index.FindEntriesByPath("ui/itemicon/itemicon_prefab_cd_marni_laser_hel_0001_n.dds").Single();
             var enrichedIcon = session.ReadEntry(iconEntry.EntryId);
             Require(
@@ -1332,6 +1338,42 @@ internal static class FullArchiveTestRunner
             Require(
                 reloaded.IsAvailable && reloaded.ExactNames.SequenceEqual(index.ExactNames),
                 "persisted archive name index did not round-trip");
+
+            var itemBuilder = new ArchiveItemCatalogBuildService(sessions, native);
+            var itemBuild = await itemBuilder.BuildAsync(
+                new BuildNameIndexRequest(handle.SessionId),
+                null,
+                CancellationToken.None).ConfigureAwait(false);
+            var itemService = new ArchiveItemCatalogService(sessions, itemBuilder);
+            var itemSearch = await itemService.SearchAsync(
+                new ItemCatalogSearchRequest(handle.SessionId, "Synthetic Blade"),
+                null,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                itemBuild.Available
+                && itemSearch.Items.Count == 1
+                && itemSearch.Items[0].ModelStems.Contains("cd_shared_armor_0002", StringComparer.OrdinalIgnoreCase)
+                && itemSearch.Items[0].PacFiles.Contains("cd_shared_armor_0002.pac", StringComparer.OrdinalIgnoreCase),
+                "the item catalogue did not publish its prefab-resolved model dependency");
+            var syntheticItem = itemSearch.Items[0];
+            var itemScope = new ArchiveItemCatalogScopeService(
+                sessions,
+                itemBuilder,
+                new ArchiveLookupService(sessions, cache, native));
+            var scoped = await itemScope.ResolveAsync(
+                new ItemCatalogScopeRequest(
+                    handle.SessionId,
+                    ItemIds: [syntheticItem.ItemId],
+                    IncludeRelated: false),
+                null,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                scoped.EntryIds.Contains(prefabDependencyEntry.EntryId),
+                "the Item Finder scope omitted the prefab-resolved model dependency");
+            var itemCatalogueDependency = session.ReadEntry(prefabDependencyEntry.EntryId);
+            Require(
+                itemCatalogueDependency.KnownName == "Synthetic Blade",
+                "the item catalogue name index dropped the prefab-resolved model name");
         }
         finally
         {

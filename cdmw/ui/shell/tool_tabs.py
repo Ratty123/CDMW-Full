@@ -523,6 +523,7 @@ class ShellToolTabsMixin:
                 message, error=is_error, tool_key="new_item_studio"
             )
         )
+        tab.open_archive_entry_requested.connect(self._show_archive_browser_from_texture_editor)
         return tab
 
     def open_new_item_studio(

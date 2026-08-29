@@ -33,6 +33,7 @@ internal static class NetMaterialLayerCompiler
         var height = Math.Max(1, (int)Math.Round(source.Height * scale));
         var target = ScaleToBgra(source, width, height);
         var targetPixels = ReadBgra(target);
+        ApplyColorSeedPalette(targetPixels, width, height, layers);
         var layerSeed = baseBitmap is null ? firstLayer : null;
         if (layerSeed is not null)
         {
@@ -41,6 +42,7 @@ internal static class NetMaterialLayerCompiler
         foreach (var layer in layers)
         {
             if (string.Equals(layer.Binding.LayerRole, "base", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(layer.Binding.LayerRole, "color_seed", StringComparison.OrdinalIgnoreCase)
                 || ReferenceEquals(layer, layerSeed)
                 || layer.Binding.Weight <= 0.001f)
             {
@@ -69,6 +71,61 @@ internal static class NetMaterialLayerCompiler
         }
         WriteBgra(target, targetPixels);
         return target;
+    }
+
+    private static bool ApplyColorSeedPalette(
+        byte[] targetPixels,
+        int width,
+        int height,
+        IReadOnlyList<NetMaterialLayerSource> layers)
+    {
+        var seeds = layers
+            .Where(layer => string.Equals(
+                layer.Binding.LayerRole,
+                "color_seed",
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var red = seeds.FirstOrDefault(layer => string.Equals(layer.Binding.MaskChannel, "r", StringComparison.OrdinalIgnoreCase));
+        var green = seeds.FirstOrDefault(layer => string.Equals(layer.Binding.MaskChannel, "g", StringComparison.OrdinalIgnoreCase));
+        var blue = seeds.FirstOrDefault(layer => string.Equals(layer.Binding.MaskChannel, "b", StringComparison.OrdinalIgnoreCase));
+        if (red?.Mask is null || green?.Mask is null || blue?.Mask is null
+            || !string.Equals(red.Binding.MaskResourceId, green.Binding.MaskResourceId, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(red.Binding.MaskResourceId, blue.Binding.MaskResourceId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        using var selector = ScaleToBgra(red.Mask, width, height);
+        var selectorPixels = ReadBgra(selector);
+        var palette = new[] { red.Binding, green.Binding, blue.Binding };
+        for (var offset = 0; offset < targetPixels.Length; offset += 4)
+        {
+            var redWeight = selectorPixels[offset + 2] / 255.0f;
+            var greenWeight = selectorPixels[offset + 1] / 255.0f;
+            var blueWeight = selectorPixels[offset] / 255.0f;
+            var total = redWeight + greenWeight + blueWeight;
+            if (total <= 0.001f)
+            {
+                continue;
+            }
+            var coverage = Math.Clamp(total, 0.0f, 1.0f);
+            var seededR = 255.0f * (
+                palette[0].TintR * redWeight
+                + palette[1].TintR * greenWeight
+                + palette[2].TintR * blueWeight) / total;
+            var seededG = 255.0f * (
+                palette[0].TintG * redWeight
+                + palette[1].TintG * greenWeight
+                + palette[2].TintG * blueWeight) / total;
+            var seededB = 255.0f * (
+                palette[0].TintB * redWeight
+                + palette[1].TintB * greenWeight
+                + palette[2].TintB * blueWeight) / total;
+            targetPixels[offset] = Blend(targetPixels[offset], seededB, coverage);
+            targetPixels[offset + 1] = Blend(targetPixels[offset + 1], seededG, coverage);
+            targetPixels[offset + 2] = Blend(targetPixels[offset + 2], seededR, coverage);
+        }
+        return true;
     }
 
     // The surface companion of Compile. Crimson gives every colour layer its own
@@ -204,6 +261,43 @@ internal static class NetMaterialLayerCompiler
         var uncovered = compiled.GetPixel(1, 3);
         return covered.B > 220 && covered.G < 35
             && uncovered.G > 220 && uncovered.B < 35;
+    }
+
+    public static bool CompositesColorPaletteThroughSelector()
+    {
+        using var baseBitmap = new Bitmap(4, 1, PixelFormat.Format32bppArgb);
+        using var diffuse = new Bitmap(4, 1, PixelFormat.Format32bppArgb);
+        using var selector = new Bitmap(4, 1, PixelFormat.Format32bppArgb);
+        using (var baseGraphics = Graphics.FromImage(baseBitmap)) baseGraphics.Clear(Color.FromArgb(255, 64, 64, 64));
+        using (var diffuseGraphics = Graphics.FromImage(diffuse)) diffuseGraphics.Clear(Color.White);
+        selector.SetPixel(0, 0, Color.Red);
+        selector.SetPixel(1, 0, Color.FromArgb(255, 0, 255, 0));
+        selector.SetPixel(2, 0, Color.Blue);
+        selector.SetPixel(3, 0, Color.FromArgb(255, 128, 128, 0));
+        var red = new NetMaterialLayerBinding("color_seed", "r", 1.0f, 1.0f, 0.0f, 0.0f, "base", "selector");
+        var green = new NetMaterialLayerBinding("color_seed", "g", 1.0f, 0.0f, 1.0f, 0.0f, "base", "selector");
+        var blue = new NetMaterialLayerBinding("color_seed", "b", 1.0f, 0.0f, 0.0f, 1.0f, "base", "selector");
+        using var compiled = Compile(
+            baseBitmap,
+            new[]
+            {
+                new NetMaterialLayerSource(red, diffuse, selector),
+                new NetMaterialLayerSource(green, diffuse, selector),
+                new NetMaterialLayerSource(blue, diffuse, selector),
+            });
+        if (compiled is null)
+        {
+            return false;
+        }
+        var redPixel = compiled.GetPixel(0, 0);
+        var greenPixel = compiled.GetPixel(1, 0);
+        var bluePixel = compiled.GetPixel(2, 0);
+        var mixedPixel = compiled.GetPixel(3, 0);
+        return redPixel.R > 245 && redPixel.G < 10 && redPixel.B < 10
+            && greenPixel.G > 245 && greenPixel.R < 10 && greenPixel.B < 10
+            && bluePixel.B > 245 && bluePixel.R < 10 && bluePixel.G < 10
+            && Math.Abs(mixedPixel.R - mixedPixel.G) <= 2
+            && mixedPixel.R > 120 && mixedPixel.B < 10;
     }
 
     private static byte Blend(byte background, float foreground, float alpha)

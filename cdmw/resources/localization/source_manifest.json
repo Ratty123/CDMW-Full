@@ -3576,12 +3576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]
@@ -7396,7 +7396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 740,
+          "line": 742,
           "sink": "set_part_editor_state"
         },
         {
@@ -7786,7 +7786,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 524,
+          "line": 526,
           "sink": "addButton"
         },
         {
@@ -8041,7 +8041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 522,
+          "line": 524,
           "sink": "setWindowTitle"
         }
       ]
@@ -12206,7 +12206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 443,
+          "line": 445,
           "sink": "QPushButton"
         },
         {
@@ -13716,7 +13716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 788,
+          "line": 790,
           "sink": "set_part_editor_state"
         }
       ]
@@ -20116,7 +20116,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 69,
+          "line": 74,
           "sink": "setToolTip"
         }
       ]
@@ -22466,7 +22466,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 445,
+          "line": 447,
           "sink": "QPushButton"
         },
         {
@@ -22898,6 +22898,11 @@
           "path": "cdmw/ui/archive_browser/preview_layout.py",
           "line": 171,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_template.py",
+          "line": 306,
+          "sink": "addAction"
         }
       ]
     },
@@ -24006,7 +24011,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 598,
+          "line": 599,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -24016,7 +24021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 152,
+          "line": 153,
           "sink": "QLabel"
         }
       ]
@@ -27816,7 +27821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 525,
+          "line": 527,
           "sink": "addButton"
         }
       ]
@@ -27951,12 +27956,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]
@@ -27966,12 +27971,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]
@@ -35856,7 +35861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 48,
+          "line": 52,
           "sink": "QLabel"
         }
       ]
@@ -37216,7 +37221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 634,
+          "line": 635,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -37951,7 +37956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 245,
+          "line": 246,
           "sink": "tr"
         },
         {
@@ -40841,7 +40846,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 595,
+          "line": 596,
           "sink": "_add_lazy_shell_tool"
         },
         {
@@ -41836,7 +41841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 737,
+          "line": 739,
           "sink": "set_part_editor_state"
         }
       ]
@@ -43571,12 +43576,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 880,
+          "line": 882,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 884,
+          "line": 886,
           "sink": "question"
         }
       ]
@@ -43601,12 +43606,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 854,
+          "line": 856,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 858,
+          "line": 860,
           "sink": "question"
         }
       ]
@@ -43651,7 +43656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 884,
+          "line": 886,
           "sink": "question"
         }
       ]
@@ -43661,7 +43666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 858,
+          "line": 860,
           "sink": "question"
         }
       ]
@@ -43751,7 +43756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 50,
+          "line": 54,
           "sink": "setPlaceholderText"
         }
       ]
@@ -43766,7 +43771,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 56,
+          "line": 60,
           "sink": "setHeaderLabels"
         }
       ]
@@ -44296,7 +44301,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 56,
+          "line": 60,
           "sink": "setHeaderLabels"
         },
         {
@@ -45431,7 +45436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 56,
+          "line": 60,
           "sink": "setHeaderLabels"
         },
         {
@@ -46746,7 +46751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 292,
+          "line": 293,
           "sink": "setText"
         }
       ]
@@ -51156,7 +51161,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 585,
+          "line": 586,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -51446,7 +51451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 766,
+          "line": 768,
           "sink": "set_part_editor_state"
         }
       ]
@@ -51546,12 +51551,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 759,
+          "line": 761,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 782,
+          "line": 784,
           "sink": "set_part_editor_state"
         }
       ]
@@ -51661,12 +51666,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 729,
+          "line": 731,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 762,
+          "line": 764,
           "sink": "set_part_editor_state"
         }
       ]
@@ -53861,7 +53866,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 592,
+          "line": 593,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -54351,12 +54356,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]
@@ -54366,7 +54371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 591,
+          "line": 593,
           "sink": "note"
         }
       ]
@@ -54386,7 +54391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 589,
+          "line": 591,
           "sink": "note"
         }
       ]
@@ -54396,7 +54401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 587,
+          "line": 589,
           "sink": "note"
         }
       ]
@@ -54406,12 +54411,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]
@@ -54421,12 +54426,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]
@@ -55036,22 +55041,22 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 916,
+          "line": 918,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 925,
+          "line": 927,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 928,
+          "line": 930,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 932,
+          "line": 934,
           "sink": "question"
         }
       ]
@@ -55191,7 +55196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 932,
+          "line": 934,
           "sink": "question"
         }
       ]
@@ -55756,7 +55761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 581,
+          "line": 583,
           "sink": "note"
         }
       ]
@@ -55766,12 +55771,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]
@@ -55781,7 +55786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 579,
+          "line": 581,
           "sink": "note"
         }
       ]
@@ -55791,7 +55796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 579,
+          "line": 581,
           "sink": "note"
         }
       ]
@@ -60831,7 +60836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 928,
+          "line": 930,
           "sink": "information"
         }
       ]
@@ -62088,6 +62093,11 @@
           "path": "cdmw/ui/item_icons/panels.py",
           "line": 158,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_template.py",
+          "line": 311,
+          "sink": "addAction"
         }
       ]
     },
@@ -63036,12 +63046,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 800,
+          "line": 802,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 804,
+          "line": 806,
           "sink": "set_part_editor_state"
         }
       ]
@@ -63641,12 +63651,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 484,
+          "line": 536,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 526,
+          "line": 578,
           "sink": "raise_if_cancelled"
         },
         {
@@ -64636,12 +64646,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]
@@ -64651,12 +64661,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]
@@ -68241,7 +68251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 627,
+          "line": 628,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -68751,7 +68761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 606,
+          "line": 608,
           "sink": "note"
         }
       ]
@@ -68761,7 +68771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 604,
+          "line": 606,
           "sink": "note"
         }
       ]
@@ -69131,7 +69141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 910,
+          "line": 912,
           "sink": "warning"
         }
       ]
@@ -70581,7 +70591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 559,
+          "line": 560,
           "sink": "pump_startup_splash"
         }
       ]
@@ -70621,7 +70631,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 820,
+          "line": 822,
           "sink": "set_part_editor_state"
         }
       ]
@@ -70931,7 +70941,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 92,
+          "line": 98,
           "sink": "QGroupBox"
         },
         {
@@ -71361,7 +71371,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 95,
+          "line": 101,
           "sink": "QLabel"
         }
       ]
@@ -73586,7 +73596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 158,
+          "line": 159,
           "sink": "QPushButton"
         },
         {
@@ -74086,12 +74096,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 285,
+          "line": 286,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 710,
+          "line": 712,
           "sink": "append_log"
         },
         {
@@ -74166,7 +74176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 290,
+          "line": 291,
           "sink": "setText"
         }
       ]
@@ -76981,7 +76991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 584,
+          "line": 585,
           "sink": "pump_startup_splash"
         }
       ]
@@ -77426,12 +77436,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 950,
+          "line": 952,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 954,
+          "line": 956,
           "sink": "question"
         }
       ]
@@ -78356,7 +78366,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 646,
+          "line": 647,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -87656,7 +87666,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 581,
+          "line": 582,
           "sink": "addTab"
         },
         {
@@ -88221,7 +88231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 602,
+          "line": 604,
           "sink": "note"
         }
       ]
@@ -88231,7 +88241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 600,
+          "line": 602,
           "sink": "note"
         }
       ]
@@ -93161,7 +93171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 526,
+          "line": 528,
           "sink": "addButton"
         }
       ]
@@ -93211,7 +93221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 516,
+          "line": 518,
           "sink": "setText"
         }
       ]
@@ -93221,7 +93231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 682,
+          "line": 684,
           "sink": "setAccessibleText"
         }
       ]
@@ -95291,7 +95301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 346,
+          "line": 355,
           "sink": "RunCancelled"
         }
       ]
@@ -95311,7 +95321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 576,
+          "line": 578,
           "sink": "note"
         }
       ]
@@ -95336,12 +95346,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 576,
+          "line": 578,
           "sink": "note"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]
@@ -95501,7 +95511,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 649,
+          "line": 650,
           "sink": "_add_lazy_shell_tool"
         },
         {
@@ -95706,7 +95716,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 613,
+          "line": 614,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -96106,7 +96116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 607,
+          "line": 608,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -96156,7 +96166,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 601,
+          "line": 602,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -97026,7 +97036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 523,
+          "line": 525,
           "sink": "setText"
         }
       ]
@@ -97211,12 +97221,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 279,
+          "line": 280,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 281,
+          "line": 282,
           "sink": "setText"
         }
       ]
@@ -97256,17 +97266,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 854,
+          "line": 856,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 880,
+          "line": 882,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 906,
+          "line": 908,
           "sink": "warning"
         },
         {
@@ -97446,12 +97456,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 313,
+          "line": 314,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 319,
+          "line": 320,
           "sink": "setText"
         }
       ]
@@ -97461,7 +97471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 925,
+          "line": 927,
           "sink": "warning"
         }
       ]
@@ -98146,7 +98156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 594,
+          "line": 646,
           "sink": "emit"
         }
       ]
@@ -98856,7 +98866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 544,
+          "line": 596,
           "sink": "emit"
         }
       ]
@@ -100701,7 +100711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 640,
+          "line": 641,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -100831,7 +100841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 318,
+          "line": 319,
           "sink": "setText"
         },
         {
@@ -101006,7 +101016,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 56,
+          "line": 60,
           "sink": "setHeaderLabels"
         },
         {
@@ -101876,7 +101886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 954,
+          "line": 956,
           "sink": "question"
         }
       ]
@@ -103646,7 +103656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 827,
+          "line": 829,
           "sink": "set_part_editor_state"
         }
       ]
@@ -105041,7 +105051,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 811,
+          "line": 813,
           "sink": "set_part_editor_state"
         }
       ]
@@ -107051,7 +107061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 422,
+          "line": 424,
           "sink": "QGroupBox"
         }
       ]
@@ -109196,7 +109206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 428,
+          "line": 430,
           "sink": "tinted"
         }
       ]
@@ -113151,7 +113161,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 774,
+          "line": 776,
           "sink": "open_mesh_session"
         }
       ]
@@ -205261,7 +205271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 429,
+          "line": 431,
           "sink": "setToolTip"
         }
       ]
@@ -205446,7 +205456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 584,
+          "line": 586,
           "sink": "note"
         }
       ]
@@ -207306,7 +207316,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 681,
+          "line": 683,
           "sink": "setToolTip"
         }
       ]

@@ -10,6 +10,12 @@ not clear or replace the current scene. Archive Browser publishes the path,
 basename, extension, dependency, and native package indexes reused by Model
 Library, Mesh Editor, and Create New Item.
 
+The resident item catalogue and name index follow model paths embedded in matching
+part-prefab payloads. A shared PAC can therefore carry every owning item name, and an Item
+Finder scope includes those resolved model dependencies even when the item's prefab or icon
+uses a different numeric stem. Archive Browser and Create New Item also share Preview Core's
+PAC RGB selector-mask colour reconstruction.
+
 Browsing, preview, scan, extraction, and package preparation are read-only.
 Actions that can write route through service-owned confirmation and
 `ArchiveMutationService`; this UI package never patches PAMT/PAZ directly.

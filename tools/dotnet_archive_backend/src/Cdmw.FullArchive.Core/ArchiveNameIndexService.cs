@@ -10,8 +10,8 @@ public sealed class ArchiveNameIndexService(
     ArchiveCacheStore cache,
     NativeArchiveCore native)
 {
-    private const int FileVersion = 4;
-    private static readonly byte[] Magic = "CDMWNAM4"u8.ToArray();
+    private const int FileVersion = 5;
+    private static readonly byte[] Magic = "CDMWNAM5"u8.ToArray();
     private readonly ConcurrentDictionary<string, Lazy<Task<ArchiveNameIndex>>> _indexes =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -306,7 +306,9 @@ public sealed class ArchiveNameIndex
     private static IReadOnlyDictionary<string, string> Normalize(IReadOnlyDictionary<string, string> source)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (rawKey, rawValue) in source)
+        foreach (var (rawKey, rawValue) in source.OrderBy(
+                     pair => pair.Key,
+                     StringComparer.OrdinalIgnoreCase))
         {
             var key = rawKey.Trim().ToLowerInvariant();
             var value = rawValue.Trim();

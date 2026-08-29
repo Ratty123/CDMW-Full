@@ -7,6 +7,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -144,6 +145,44 @@ class DiscoveryTests(unittest.TestCase):
             family.rename_stem("gimmick_trap_bomb_01", "cd_phm_00_ring_00_9011")
         with self.assertRaisesRegex(ItemModelFamilyError, "new model stem"):
             family.rename_stem("cd_phm_00_ring_00_0011", "")
+
+    def test_one_part_keeps_every_model_path_named_by_its_prefab(self) -> None:
+        upper = "character/model/2_mon/armor/9_upperbody/cd_m0001_00_so_phm_ub_31037.pac"
+        lower = "character/model/2_mon/armor/10_lowerbody/cd_m0001_00_so_phm_lb_31037.pac"
+        stem = "cd_m0001_00_so_phm_ub_31035"
+        pappt = PartPrefabTable(records=(_record(stem, folder="2_mon/armor"),))
+        icon = "ItemIcon_Prefab_CD_M0001_00_SO_PHM_UB_31035"
+        stringinfo = {stringinfo_key(text): text for text in (stem, icon)}
+        prefab_path = "character/bin__/prefab/2_mon/armor/cd_m0001_00_so_phm_ub_31035.prefab"
+        archive = _Archive(
+            {
+                prefab_path: b"prefab",
+                upper: b"upper",
+                lower: b"lower",
+            }
+        )
+        document = types.SimpleNamespace(
+            resource_strings=lambda: (
+                types.SimpleNamespace(text=upper),
+                types.SimpleNamespace(text=lower),
+            )
+        )
+
+        with patch("cdmw.core.item_model_family.decode_prefab_binary", return_value=document):
+            family = discover_item_model_family(
+                _row(114341, "Alsace_Fabric_Armor", stem, icon),
+                stringinfo=stringinfo,
+                pappt=pappt,
+                read_entry=archive.read,
+                path_exists=archive.exists,
+            )
+
+        self.assertEqual(family.parts[0].pac_path, upper, "the established primary path stays compatible")
+        self.assertEqual(family.parts[0].pac_paths, (upper, lower))
+        self.assertEqual([item.path for item in family.files_for("pac")], [lower, upper])
+        renamed = {old: new for _role, old, new in family.renamed("cd_m0001_00_so_phm_ub_91037")}
+        self.assertIn(lower, renamed, "the secondary body model must be cloned and re-pathed too")
+        self.assertEqual(Path(renamed[lower]).stem, "cd_m0001_00_so_phm_lb_91037")
 
     def test_fallbacks_and_refusals(self) -> None:
         pac_a = "character/model/6_object/tools/cd_t0000_paper_0002.pac"

@@ -928,6 +928,19 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("Layer", material_text)
         self.assertIn("layer", shader_text.casefold())
 
+    def test_native_core_publishes_the_pac_rgb_dye_selector_as_palette_seed_layers(self) -> None:
+        source = preview_core_source()
+        layer_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
+        layer_end = source.index("static std::string material_layer_json", layer_start)
+        layer_source = source[layer_start:layer_end]
+
+        self.assertIn("compile_color_blending_seed_layers", source)
+        self.assertIn('layer.layer_role = "color_seed";', source)
+        self.assertIn('layer.blend_order = "pac_rgb_selector_palette";', source)
+        self.assertIn("layers.insert(layers.end(), color_seed_layers.begin(), color_seed_layers.end());", layer_source)
+        self.assertIn("material_layers_have_color_seed", source)
+        self.assertIn("color blending palette did not publish three selector channels", source)
+
     def test_native_core_keeps_weapon_masked_layer_tint_off_base(self) -> None:
         source = preview_core_source()
         layer_start = source.index("static std::vector<MaterialLayer> compile_material_layers")

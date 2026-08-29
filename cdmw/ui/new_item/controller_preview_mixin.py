@@ -155,24 +155,31 @@ class NewItemPreviewControllerMixin:
         from cdmw.services.mesh_workflow_service import parse_pac
 
         data = bytes(getattr(self.model_result, "rebuilt_data", b"") or b"")
-        label = "imported model"
-        if not data and self.snapshot is not None and self.draft.template_key is not None:
+        if data:
             try:
-                family = self.snapshot.family(self.draft.template_key)
-            except Exception:  # noqa: BLE001 - no mesh is a plain "None"
+                return parse_pac(data, "imported model")
+            except Exception:  # noqa: BLE001
                 return None
-            primary = next((item for item in family.files_for("pac") if item.exists and item.path.lower().rsplit("/", 1)[-1] == f"{family.model_stem.lower()}.pac"), None)
-            primary = primary or next((item for item in family.files_for("pac") if item.exists), None)
-            if primary is None:
-                return None
-            data = self.snapshot.payload(primary.path)
-            label = primary.path
-        if not data:
+        if self.snapshot is None or self.draft.template_key is None:
             return None
-        try:
-            return parse_pac(data, label)
-        except Exception:  # noqa: BLE001
+        entries = self.template_entries()
+        primary = self.template_primary_entry()
+        if primary is None:
             return None
+        ordered = (primary, *(entry for entry in entries if entry.path != primary.path))
+        merged = None
+        for entry in ordered:
+            try:
+                parsed = parse_pac(self.snapshot.payload(entry.path), entry.path)
+            except Exception:  # noqa: BLE001 - one absent component must not hide the primary
+                continue
+            if merged is None:
+                merged = parsed
+                continue
+            from cdmw.ui.new_item.item_preview_materials import placement_reference_mesh
+
+            merged = placement_reference_mesh(merged, parsed)
+        return merged
 
     def item_preview_source(self, *, include_character: bool = False):
         """What the Model and icon step's viewport shows, textured the way the Model
@@ -331,29 +338,36 @@ class NewItemPreviewControllerMixin:
         entries = self.template_entries()
         if not entries:
             return None
-        try:
-            family = snapshot.family(self.draft.template_key)
-        except Exception:  # noqa: BLE001
+        entry = self.template_primary_entry()
+        if entry is None:
             return None
-        stem = family.model_stem.lower()
-        entry = next((item for item in entries if item.path.lower().rsplit("/", 1)[-1] == f"{stem}.pac"), entries[0])
+        template_key = int(self.draft.template_key)
+        ordered_entries = (entry, *(item for item in entries if item.path != entry.path))
 
         def build(stop_event):
             from cdmw.domain.cancellation import RunCancelled
             from cdmw.services.mesh_workflow_service import parse_pac
+            from cdmw.ui.new_item.item_preview_materials import placement_reference_mesh
 
-            if stop_event.is_set():
-                raise RunCancelled("Template preview cancelled")
-            return parse_pac(snapshot.payload(entry.path), entry.path)
+            merged = None
+            for component in ordered_entries:
+                if stop_event.is_set():
+                    raise RunCancelled("Template preview cancelled")
+                parsed = parse_pac(snapshot.payload(component.path), component.path)
+                merged = parsed if merged is None else placement_reference_mesh(merged, parsed)
+            return merged
 
-        entry_revision = (
-            entry.path,
-            str(getattr(entry, "pamt_path", "") or ""),
-            str(getattr(entry, "paz_file", "") or ""),
-            int(getattr(entry, "offset", 0) or 0),
-            int(getattr(entry, "comp_size", 0) or 0),
+        entry_revisions = tuple(
+            (
+                component.path,
+                str(getattr(component, "pamt_path", "") or ""),
+                str(getattr(component, "paz_file", "") or ""),
+                int(getattr(component, "offset", 0) or 0),
+                int(getattr(component, "comp_size", 0) or 0),
+            )
+            for component in ordered_entries
         )
-        return (("template-geometry", self.draft.template_key, *entry_revision), build)
+        return (("template-geometry", template_key, *entry_revisions[0], entry_revisions[1:]), build)
 
     def _template_preview_build(self):
         """`(token, build)` for the template's textured package or Python fallback."""
@@ -364,14 +378,43 @@ class NewItemPreviewControllerMixin:
         entries = self.template_entries()
         if not entries:
             return None
-        try:
-            family = snapshot.family(self.draft.template_key)
-        except Exception:  # noqa: BLE001
+        entry = self.template_primary_entry()
+        if entry is None:
             return None
-        stem = family.model_stem.lower()
-        entry = next((item for item in entries if item.path.lower().rsplit("/", 1)[-1] == f"{stem}.pac"), entries[0])
+        template_key = int(self.draft.template_key)
+        ordered_entries = (entry, *(item for item in entries if item.path != entry.path))
+        prefab_entries = self.template_prefab_entries()
+        dependencies_list = []
+        dependency_identities = set()
+        for dependency in (*ordered_entries, *prefab_entries):
+            if dependency.identity in dependency_identities:
+                continue
+            dependency_identities.add(dependency.identity)
+            dependencies_list.append(dependency)
+        dependencies = tuple(dependencies_list)
+        component_paths = tuple(item.path for item in ordered_entries[1:])
         controller = self
-        cache_key = (id(snapshot), entry.path)
+        entry_revisions = tuple(
+            (
+                component.path,
+                str(getattr(component, "pamt_path", "") or ""),
+                str(getattr(component, "paz_file", "") or ""),
+                int(getattr(component, "offset", 0) or 0),
+                int(getattr(component, "comp_size", 0) or 0),
+            )
+            for component in ordered_entries
+        )
+        dependency_revisions = tuple(
+            (
+                dependency.path,
+                str(getattr(dependency, "pamt_path", "") or ""),
+                str(getattr(dependency, "paz_file", "") or ""),
+                int(getattr(dependency, "offset", 0) or 0),
+                int(getattr(dependency, "comp_size", 0) or 0),
+            )
+            for dependency in dependencies
+        )
+        cache_key = (id(snapshot), template_key, dependency_revisions)
         cache = self._template_models
 
         def build(
@@ -410,8 +453,9 @@ class NewItemPreviewControllerMixin:
                         entry,
                         cache_root=Path(native_preview_core_cache_root),
                         render_settings=native_render_settings,
-                        dependency_entries=tuple(entries),
+                        dependency_entries=dependencies,
                         dependency_entries_complete=False,
+                        enabled_prefab_component_paths=component_paths,
                         package_root=Path(entry.pamt_path).parent.parent,
                         output_root=native_package,
                         timeout_seconds=native_preview_core_timeout_seconds(native_render_settings),
@@ -423,8 +467,11 @@ class NewItemPreviewControllerMixin:
                             native_attempt.package_path,
                             cache_root=preview_root,
                             archive_identity=(
-                                f"new_item_native:{entry.path}:{entry.pamt_path}:"
-                                f"{entry.paz_file}:{entry.offset}:{entry.comp_size}"
+                                f"new_item_native:template={template_key}:"
+                                + "|".join(
+                                    f"{path}:{pamt}:{paz}:{offset}:{size}"
+                                    for path, pamt, paz, offset, size in dependency_revisions
+                                )
                             ),
                             cache_mode=cache_mode,
                             max_bytes=cache_max_bytes,
@@ -446,31 +493,36 @@ class NewItemPreviewControllerMixin:
             if cached is not None:
                 return cached
             by_path, by_basename = snapshot.archive_index_maps()
-            try:
-                decoded = build_archive_preview_result(
-                    entry,
-                    texture_entries_by_normalized_path=by_path,
-                    texture_entries_by_basename=by_basename,
-                    enable_hkx_visual_preview=False,
-                    stop_event=stop_event,
-                )
-            except Exception:  # noqa: BLE001 - the bare mesh still shows
-                decoded = None
-            model = getattr(decoded, "preview_model", None) if decoded is not None else None
-            if model is not None and getattr(decoded, "preferred_view", "") == "model" and getattr(model, "meshes", None):
+            models = []
+            for component in ordered_entries:
+                try:
+                    decoded = build_archive_preview_result(
+                        component,
+                        texture_entries_by_normalized_path=by_path,
+                        texture_entries_by_basename=by_basename,
+                        enable_hkx_visual_preview=False,
+                        stop_event=stop_event,
+                    )
+                except Exception:  # noqa: BLE001 - the bare mesh still shows
+                    decoded = None
+                model = getattr(decoded, "preview_model", None) if decoded is not None else None
+                if model is not None and getattr(decoded, "preferred_view", "") == "model" and getattr(model, "meshes", None):
+                    models.append(model)
+            if models:
+                model = models[0]
+                if len(models) > 1:
+                    from cdmw.ui.new_item.item_preview_materials import as_parsed_mesh, placement_reference_mesh
+
+                    merged = as_parsed_mesh(model)
+                    for component_model in models[1:]:
+                        merged = placement_reference_mesh(merged, as_parsed_mesh(component_model))
+                    model = merged
                 cache.clear()
                 cache[cache_key] = model
                 return model
             return controller.item_mesh_for_preview()
 
-        entry_revision = (
-            entry.path,
-            str(getattr(entry, "pamt_path", "") or ""),
-            str(getattr(entry, "paz_file", "") or ""),
-            int(getattr(entry, "offset", 0) or 0),
-            int(getattr(entry, "comp_size", 0) or 0),
-        )
-        return (("template", self.draft.template_key, *entry_revision), build)
+        return (("template", template_key, *entry_revisions[0], dependency_revisions[1:]), build)
 
     def character_reference(self, model_folder: str = "", *, rig_model: str = "", stop_event=None):
         """The matching rig's own character for the placement viewport, or None.
@@ -640,13 +692,50 @@ class NewItemPreviewControllerMixin:
             remote=False,
         )
 
-    def template_entries(self) -> Tuple[ArchiveEntry, ...]:
-        """The template's own model files, for the Builder to import over."""
+    def template_entries_for(self, template_key: int) -> Tuple[ArchiveEntry, ...]:
+        """Every existing model file owned by one shipped template."""
 
-        if self.snapshot is None or self.draft.template_key is None:
+        if self.snapshot is None:
             return ()
         try:
-            family = self.snapshot.family(self.draft.template_key)
+            family = self.snapshot.family(int(template_key))
         except Exception:  # noqa: BLE001
             return ()
         return tuple(self.snapshot.entry(item.path) for item in family.files_for("pac") if item.exists)
+
+    def template_entries(self) -> Tuple[ArchiveEntry, ...]:
+        """The selected template's complete model set, for preview and authoring."""
+
+        if self.draft.template_key is None:
+            return ()
+        return self.template_entries_for(self.draft.template_key)
+
+    def template_primary_entry(self, template_key: Optional[int] = None) -> Optional[ArchiveEntry]:
+        """The model file whose stem owns the template family, preserving the old primary."""
+
+        key = self.draft.template_key if template_key is None else int(template_key)
+        if self.snapshot is None or key is None:
+            return None
+        entries = self.template_entries() if key == self.draft.template_key else self.template_entries_for(key)
+        if not entries:
+            return None
+        try:
+            stem = self.snapshot.family(key).model_stem.casefold()
+        except Exception:  # noqa: BLE001
+            return entries[0]
+        return next(
+            (entry for entry in entries if entry.basename.casefold() == f"{stem}.pac"),
+            entries[0],
+        )
+
+    def template_prefab_entries(self, template_key: Optional[int] = None) -> Tuple[ArchiveEntry, ...]:
+        """Existing prefabs that establish the selected template's model dependencies."""
+
+        key = self.draft.template_key if template_key is None else int(template_key)
+        if self.snapshot is None or key is None:
+            return ()
+        try:
+            family = self.snapshot.family(key)
+        except Exception:  # noqa: BLE001
+            return ()
+        return tuple(self.snapshot.entry(item.path) for item in family.files_for("prefab") if item.exists)

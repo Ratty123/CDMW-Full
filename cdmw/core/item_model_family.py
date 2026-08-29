@@ -61,6 +61,23 @@ class FamilyPart:
     #: The `.pac` path the prefab names, or "" when the prefab was not readable.
     pac_path: str
     owned: bool
+    #: Every model path named by the prefab. ``pac_path`` remains the primary/first
+    #: path for compatibility with placement and sheathed-model callers.
+    pac_paths: Tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        paths: list[str] = []
+        seen: set[str] = set()
+        for raw_path in (self.pac_path, *self.pac_paths):
+            path = str(raw_path or "").replace("\\", "/").strip()
+            key = path.casefold()
+            if not path or key in seen:
+                continue
+            seen.add(key)
+            paths.append(path)
+        object.__setattr__(self, "pac_paths", tuple(paths))
+        if not self.pac_path and paths:
+            object.__setattr__(self, "pac_path", paths[0])
 
     @property
     def prefab_path(self) -> str:
@@ -135,6 +152,24 @@ class ItemModelFamily:
         text = str(stem or "")
         if text.lower().startswith(self.model_stem.lower()):
             return target + text[len(self.model_stem):]
+        source_tokens = self.model_stem.split("_")
+        member_tokens = text.split("_")
+        target_tokens = target.split("_")
+        if len(source_tokens) == len(member_tokens) == len(target_tokens):
+            differences = [
+                index
+                for index, (source, member) in enumerate(zip(source_tokens, member_tokens))
+                if source.casefold() != member.casefold()
+            ]
+            if len(differences) == 1:
+                component_index = differences[0]
+                component_pair = {
+                    source_tokens[component_index].casefold(),
+                    member_tokens[component_index].casefold(),
+                }
+                if component_pair in ({"ub", "lb"}, {"upperbody", "lowerbody"}):
+                    target_tokens[component_index] = member_tokens[component_index]
+                    return "_".join(target_tokens)
         shared = _common_token_prefix(text.lower(), self.model_stem.lower())
         if not shared:
             raise ItemModelFamilyError(f"{text!r} shares no name with the family stem {self.model_stem!r}")
@@ -201,19 +236,30 @@ def _common_token_prefix(a: str, b: str) -> str:
     return "_".join(shared)
 
 
-def _prefab_pac_path(read_entry: ReadEntry, prefab_path: str) -> str:
+def _prefab_pac_paths(read_entry: ReadEntry, prefab_path: str) -> Tuple[str, ...]:
     data = read_entry(prefab_path)
     if not data:
-        return ""
+        return ()
     try:
         document = decode_prefab_binary(bytes(data))
     except PrefabBinaryError:
-        return ""
+        return ()
+    paths: list[str] = []
+    seen: set[str] = set()
     for item in document.resource_strings():
         text = item.text.replace("\\", "/").strip()
-        if text.lower().endswith(".pac"):
-            return text
-    return ""
+        key = text.casefold()
+        if key.endswith(".pac") and key not in seen:
+            seen.add(key)
+            paths.append(text)
+    return tuple(paths)
+
+
+def _prefab_pac_path(read_entry: ReadEntry, prefab_path: str) -> str:
+    """Compatibility primary path for callers that still need one model."""
+
+    paths = _prefab_pac_paths(read_entry, prefab_path)
+    return paths[0] if paths else ""
 
 
 def find_part_stems(
@@ -279,15 +325,15 @@ def discover_item_model_family(
     icon_hash, icon_string = find_icon_string(row, stringinfo)
 
     index = pappt.index()
-    resolved: list[tuple[int, str, Optional[PartPrefabRecord], str]] = []
+    resolved: list[tuple[int, str, Optional[PartPrefabRecord], Tuple[str, ...]]] = []
     for value, stem in stems:
         record = index.get(stem)
-        pac_path = _prefab_pac_path(read_entry, record.prefab_path) if record is not None else ""
+        pac_paths = _prefab_pac_paths(read_entry, record.prefab_path) if record is not None else ()
         if record is None:
             notes.append(f"{stem} is not in partprefabtable.pappt")
-        elif not pac_path:
+        elif not pac_paths:
             notes.append(f"{record.prefab_path} names no .pac (unreadable, or not a mesh prefab)")
-        resolved.append((value, stem, record, pac_path))
+        resolved.append((value, stem, record, pac_paths))
 
     model_stem, how = _choose_model_stem(icon_string, resolved, index, read_entry)
     notes.append(how)
@@ -301,10 +347,14 @@ def discover_item_model_family(
     if not owned:
         raise ItemModelFamilyError(
             f"item {row.key} ({row.string_key}) has no part whose mesh starts with {model_stem!r}: "
-            + ", ".join(f"{part.stem} -> {part.pac_path or '?'}" for part in parts)
+            + ", ".join(f"{part.stem} -> {', '.join(part.pac_paths) or '?'}" for part in parts)
         )
-    pac_paths = sorted({part.pac_path for part in owned if part.pac_path}, key=str.lower)
-    model_folder = _folder_under(pac_paths[0], MODEL_ROOT) if pac_paths else ""
+    pac_paths = sorted({path for part in owned for path in part.pac_paths}, key=str.lower)
+    primary_pac = next(
+        (path for path in pac_paths if _stem_of(path).casefold() == model_stem.casefold()),
+        pac_paths[0] if pac_paths else "",
+    )
+    model_folder = _folder_under(primary_pac, MODEL_ROOT) if primary_pac else ""
 
     files: list[FamilyFile] = []
     for pac_path in pac_paths:
@@ -335,11 +385,19 @@ def discover_item_model_family(
 
 
 def _classify(
-    model_stem: str, resolved: list[tuple[int, str, Optional[PartPrefabRecord], str]]
+    model_stem: str,
+    resolved: list[tuple[int, str, Optional[PartPrefabRecord], Tuple[str, ...]]],
 ) -> Tuple[FamilyPart, ...]:
     return tuple(
-        FamilyPart(stem=stem, hash=value, record=record, pac_path=pac_path, owned=_owns(model_stem, stem, pac_path))
-        for value, stem, record, pac_path in resolved
+        FamilyPart(
+            stem=stem,
+            hash=value,
+            record=record,
+            pac_path=pac_paths[0] if pac_paths else "",
+            pac_paths=pac_paths,
+            owned=_owns(model_stem, stem, pac_paths),
+        )
+        for value, stem, record, pac_paths in resolved
     )
 
 
@@ -361,36 +419,44 @@ def _folder_under(path: str, root: str) -> str:
     return rest.rsplit("/", 1)[0] if "/" in rest else ""
 
 
-def _owns(model_stem: str, part_stem: str, pac_path: str) -> bool:
+def _owns(model_stem: str, part_stem: str, pac_paths: Tuple[str, ...]) -> bool:
     if not model_stem:
         return False
-    if pac_path:
-        return _stem_of(pac_path).lower().startswith(model_stem.lower())
+    if pac_paths:
+        return any(_stem_of(path).lower().startswith(model_stem.lower()) for path in pac_paths)
     return part_stem.lower().startswith(model_stem.lower())
 
 
 def _choose_model_stem(
     icon_string: Optional[str],
-    resolved: list[tuple[int, str, Optional[PartPrefabRecord], str]],
+    resolved: list[tuple[int, str, Optional[PartPrefabRecord], Tuple[str, ...]]],
     index: Mapping[str, PartPrefabRecord],
     read_entry: ReadEntry,
 ) -> Tuple[str, str]:
     """The family stem and a sentence saying how it was picked."""
 
     icon_stem = _icon_stem(icon_string or "").lower()
-    pac_stems = [_stem_of(pac_path).lower() for _v, _s, _r, pac_path in resolved if pac_path]
+    pac_stems = [
+        _stem_of(pac_path).lower()
+        for _value, _stem, _record, pac_paths in resolved
+        for pac_path in pac_paths
+    ]
     if icon_stem:
         record = index.get(icon_stem)
         if record is not None:
-            pac_path = next((p for _v, s, _r, p in resolved if s == icon_stem), None)
-            if pac_path is None:
-                pac_path = _prefab_pac_path(read_entry, record.prefab_path)
+            pac_paths = next((paths for _value, stem, _record, paths in resolved if stem == icon_stem), ())
+            pac_path = pac_paths[0] if pac_paths else _prefab_pac_path(read_entry, record.prefab_path)
             if pac_path:
                 stem = _stem_of(pac_path).lower()
                 return stem, f"model stem {stem!r} is the mesh of the icon's part {icon_stem!r}"
         if icon_stem in pac_stems:
             return icon_stem, f"model stem {icon_stem!r} is the icon string, and a part draws that mesh"
-        named = [(stem, pac_path) for _v, stem, _r, pac_path in resolved if stem.lower().startswith(icon_stem)]
+        named = [
+            (stem, pac_path)
+            for _value, stem, _record, pac_paths in resolved
+            if stem.lower().startswith(icon_stem)
+            for pac_path in pac_paths
+        ]
         if named:
             meshes = Counter(_stem_of(pac_path).lower() for _s, pac_path in named if pac_path)
             if meshes:

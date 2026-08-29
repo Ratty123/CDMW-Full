@@ -13,6 +13,11 @@ restarting the renderer or resetting its camera. Character appearance overrides
 are read-only presentation clones and are acknowledged in the package report;
 they never rewrite the selected PAC or its linked PABC/PAMT sources.
 
+For layered Crimson materials, `_colorBlendingMaskTexture` remains a colour-layer
+selector rather than a PBR map. Preview packages publish three `color_seed` rows from
+the PAC's `_tintColorR/G/B` values; the resident compiler reconstructs those masked
+regions before grime/detail overlays and suppresses the older global-tint approximation.
+
 `src/main.cpp` is only the executable adapter. Ordered protocol, archive,
 geometry, material, package, report, rebuild, index, and command owners live in
 `src/owners/`. CMake compiles those owners in one named unity group because the

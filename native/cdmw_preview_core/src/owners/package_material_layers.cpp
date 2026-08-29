@@ -238,6 +238,85 @@ static void apply_layer_weight_and_tint_policy(
     layer.weight = std::clamp(layer.weight <= 0.001f ? 0.14f : layer.weight, 0.0f, 0.22f);
 }
 
+static std::vector<MaterialLayer> compile_color_blending_seed_layers(
+    const std::vector<const TextureBinding*>& bindings,
+    const TextureBinding* base
+) {
+    const TextureBinding* selector = nullptr;
+    int selector_score = -1;
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr || binding->source_path.empty()
+            || normalized_key(binding->parameter_name) != "colorblendingmasktexture") continue;
+        int score = binding->material_output_quality == "exact" ? 20 : 0;
+        if (base != nullptr && binding->sidecar_path == base->sidecar_path) score += 40;
+        if (base != nullptr && binding->material_wrapper_index == base->material_wrapper_index) score += 20;
+        if (score > selector_score) {
+            selector = binding;
+            selector_score = score;
+        }
+    }
+    if (selector == nullptr) return {};
+
+    std::array<const TextureBinding*, 3> palette_sources{nullptr, nullptr, nullptr};
+    std::array<int, 3> palette_scores{-1, -1, -1};
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr || binding->source_path.empty()
+            || lower_copy(binding->layer_role) != "grime") continue;
+        if (!selector->sidecar_path.empty() && binding->sidecar_path != selector->sidecar_path) continue;
+        if (selector->material_wrapper_index >= 0
+            && binding->material_wrapper_index != selector->material_wrapper_index) continue;
+        const std::string layer_channel = lower_copy(binding->layer_channel);
+        if (layer_channel != "r" && layer_channel != "g" && layer_channel != "b") continue;
+        const int channel = layer_channel_index(layer_channel);
+        const std::string parameter = normalized_key(binding->parameter_name);
+        int score = parameter == std::string("grimediffusetexture") + "rgb"[channel] ? 100 : 0;
+        if (parameter.find("grimediffuse") != std::string::npos) score += 40;
+        if (binding->material_output_quality == "exact") score += 20;
+        if (score > palette_scores[static_cast<size_t>(channel)]) {
+            palette_sources[static_cast<size_t>(channel)] = binding;
+            palette_scores[static_cast<size_t>(channel)] = score;
+        }
+    }
+    if (std::any_of(palette_sources.begin(), palette_sources.end(), [](const TextureBinding* value) {
+        return value == nullptr;
+    })) return {};
+    const std::string parameter_names = lower_copy(palette_sources[0]->material_parameter_names);
+    if (parameter_names.find("tintcolorr") == std::string::npos
+        || parameter_names.find("tintcolorg") == std::string::npos
+        || parameter_names.find("tintcolorb") == std::string::npos) return {};
+
+    std::vector<MaterialLayer> result;
+    result.reserve(3);
+    for (size_t channel = 0; channel < palette_sources.size(); ++channel) {
+        const TextureBinding& palette = *palette_sources[channel];
+        MaterialLayer layer;
+        layer.layer_role = "color_seed";
+        layer.layer_channel = std::string(1, "rgb"[channel]);
+        layer.shader_family = palette.shader_family;
+        layer.shader_rule = palette.shader_rule;
+        layer.evidence_grade = palette.evidence_grade;
+        layer.blend_order = "pac_rgb_selector_palette";
+        layer.source_parameter = std::string("_tintColor") + static_cast<char>(std::toupper("rgb"[channel]));
+        layer.mask_parameter = selector->parameter_name;
+        layer.diffuse_source = base != nullptr && !base->source_path.empty()
+            ? base->source_path : palette.source_path;
+        layer.diffuse_archive_path = base != nullptr && !base->archive_path.empty()
+            ? base->archive_path : palette.archive_path;
+        layer.mask_source = selector->source_path;
+        layer.mask_archive_path = selector->archive_path;
+        layer.weight = 1.0f;
+        layer.tint = palette.tint_color;
+        result.push_back(std::move(layer));
+    }
+    return result;
+}
+
+static bool material_layers_have_color_seed(const std::vector<MaterialLayer>& layers) {
+    return std::any_of(layers.begin(), layers.end(), [](const MaterialLayer& layer) {
+        return lower_copy(layer.layer_role) == "color_seed";
+    });
+}
+
 static std::vector<MaterialLayer> compile_material_layers(
     const std::vector<const TextureBinding*>& bindings,
     const NativeSubmesh& mesh,
@@ -258,6 +337,8 @@ static std::vector<MaterialLayer> compile_material_layers(
     if (mode == "mesh_base_first" && !shader_rule_supports_conservative_layer_stack(bindings)) {
         return layers;
     }
+    const std::vector<MaterialLayer> color_seed_layers = compile_color_blending_seed_layers(bindings, base);
+    layers.insert(layers.end(), color_seed_layers.begin(), color_seed_layers.end());
     const bool weapon_layer_stack =
         mesh_has_crimson_weapon_surface(mesh)
         && !mesh_local_surface_has_strong_nonmetal_token(mesh)
