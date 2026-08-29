@@ -38,6 +38,7 @@ from cdmw.ui.mesh_editor.tab_session_runtime import MeshEditorSessionMixin
 from cdmw.ui.mesh_editor.tab_state import MeshEditorStateMixin
 from cdmw.ui.mesh_editor.tab_interaction import MeshEditorInteractionMixin
 from cdmw.ui.mesh_editor.tab_actions import MeshEditorActionsMixin
+from cdmw.ui.mesh_editor.tab_output_policy import MeshEditorOutputPolicyMixin
 
 
 _LAZY_EXPORT_GROUPS = (
@@ -146,6 +147,7 @@ _LAZY_EXPORT_GROUPS = (
             "MeshTextureSourceResolveWorker",
         ),
     ),
+    ("cdmw.workers.mesh_free_edit_output_worker", ("MeshFreeEditOutputWorker",)),
     (
         "cdmw.ui.mesh_editor.tab_support",
         (
@@ -183,7 +185,7 @@ def __dir__() -> list[str]:
     return sorted((*globals(), *_LAZY_EXPORTS))
 
 
-class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshEditorPackageMixin, MeshEditorDotNetLaunchMixin, MeshEditorDotNetProtocolMixin, MeshEditorDotNetCommandMixin, MeshEditorDotNetProcessMixin, MeshEditorReportsMixin, MeshEditorSessionMixin, MeshEditorStateMixin, MeshEditorInteractionMixin, MeshEditorActionsMixin, QWidget):
+class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshEditorPackageMixin, MeshEditorDotNetLaunchMixin, MeshEditorDotNetProtocolMixin, MeshEditorDotNetCommandMixin, MeshEditorDotNetProcessMixin, MeshEditorOutputPolicyMixin, MeshEditorReportsMixin, MeshEditorSessionMixin, MeshEditorStateMixin, MeshEditorInteractionMixin, MeshEditorActionsMixin, QWidget):
     """Direct resident mesh-authoring workspace host."""
 
     status_message_requested = Signal(str, bool)

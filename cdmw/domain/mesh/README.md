@@ -27,6 +27,18 @@ packet bounds and fixed segment queue; the resident C# form applies the same
 sample contract before lasso/toggle mouse-up and before writing a coalesced
 protocol path.
 
+## Output policy
+
+`authoring_capability.py` classifies every session as **Exact Game Asset**,
+**Free Edit/Rebuild**, or **Read Only** from the mesh format, LOD, explicit
+destination, and proven native operation set. Exact PAC/PAM/PAMLOD LOD0 keeps
+the writer's protected-record constraints and never treats the capability model
+as output authority; the writer and validator still decide whether a revision
+can be published. Higher LODs remain exact-policy sessions with authoring marked
+unproven rather than silently falling back. Imported OBJ/FBX/DAE/glTF sessions
+stay blocked until a new non-exact output folder is selected, while MeshInfo and
+unknown formats retain selection and inspection without mutation.
+
 ## Body region segmentation
 
 `body_regions.py` turns a skinned body's own skin weights plus the bone names

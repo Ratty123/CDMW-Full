@@ -39,6 +39,11 @@ from cdmw.domain.mesh import (
     validate_mesh_export,
 )
 from cdmw.domain.mesh.operations import MeshEditOperation
+from cdmw.domain.mesh.authoring_capability import (
+    MeshOutputPolicy,
+    normalize_mesh_format,
+    output_policy_state,
+)
 from cdmw.domain.mesh.topology import (
     topology_operation_for_native_action,
     topology_operation_metadata,
@@ -113,6 +118,10 @@ from cdmw.services.mesh_layer_project_service import (
     discover_mesh_layer_project_context,
     load_mesh_layer_project,
     save_mesh_layer_project,
+)
+from cdmw.services.mesh_free_edit_output import (
+    MeshFreeEditOutputResult,
+    publish_free_edit_output,
 )
 from cdmw.services.mesh_service_rigging import (
     MeshRiggingServiceMixin,
@@ -596,6 +605,22 @@ class _MeshServiceSessionLayerCore(
             Path(workspace_manifest_text).expanduser().resolve() if workspace_manifest_text else None
         )
         working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)
+        mesh_format = normalize_mesh_format(getattr(mesh, "format", ""))
+        try:
+            lod_index = max(
+                0,
+                int(
+                    getattr(
+                        mesh,
+                        "active_lod_index",
+                        getattr(mesh, "displayed_lod_index", 0),
+                    )
+                    or 0
+                ),
+            )
+        except (TypeError, ValueError, OverflowError):
+            lod_index = 0
+        initial_output_policy = output_policy_state(mesh_format, lod_index=lod_index)
         loaded_layer_project: Mapping[str, object] | None = None
         if project_path is not None and project_path.is_file():
             loaded_layer_project = load_mesh_layer_project(
@@ -632,6 +657,11 @@ class _MeshServiceSessionLayerCore(
                 and bool(getattr(mesh, "_cdmw_obj_sidecar_present", False))
             ),
             base_mesh_is_original_parse=_native_source_parse_eligible(mesh, original_data),
+            mesh_format=mesh_format,
+            lod_index=lod_index,
+            output_policy=initial_output_policy.policy.value,
+            output_destination=initial_output_policy.output_destination,
+            output_destination_ready=initial_output_policy.destination_ready,
             mode=mode,
             object_transform=MeshObjectTransformState(
                 pivot=mesh_source_bounds_pivot(base_mesh),
@@ -1126,6 +1156,42 @@ class _MeshServiceSessionLayerCore(
 
 @dataclass(slots=True)
 class MeshService(_MeshServiceSessionLayerCore):
+    def export_free_edit_output(
+        self,
+        session_id: str,
+        *,
+        stop_event: threading.Event | None = None,
+    ) -> MeshFreeEditOutputResult:
+        session = self._session(session_id)
+        with session.export_lock:
+            policy = output_policy_state(
+                session.mesh_format,
+                lod_index=session.lod_index,
+                requested_policy=session.output_policy,
+                output_destination=session.output_destination,
+                destination_ready=session.output_destination_ready,
+            )
+            if policy.policy is not MeshOutputPolicy.FREE_EDIT or not policy.authoring_enabled:
+                raise RuntimeError(policy.reason or "Free Edit output is not active")
+            snapshot = self.capture_export_snapshot(
+                session_id,
+                stop_event=stop_event,
+                expected_mesh_revision=session.revision,
+            )
+            source_path = str(
+                getattr(session.base_mesh, "path", "")
+                or getattr(session.working_mesh, "path", "")
+                or ""
+            )
+            result = publish_free_edit_output(
+                snapshot,
+                policy.output_destination,
+                source_path=source_path,
+                stop_event=stop_event,
+            )
+            session.output_destination_ready = False
+            return result
+
     def close_edit_session(self, session_id: str, *, force_without_saving: bool = False) -> None:
         session_key = str(session_id)
         session = self._sessions.get(session_key)
@@ -1164,6 +1230,58 @@ class MeshService(_MeshServiceSessionLayerCore):
         with session.export_lock:
             return self._session_view_locked(session)
 
+    def configure_output_policy(
+        self,
+        session_id: str,
+        output_policy: MeshOutputPolicy | str,
+        *,
+        output_destination: Path | str = "",
+    ) -> MeshEditSessionView:
+        """Change output intent only; geometry, selection, history, and revision stay untouched."""
+
+        session = self._session(session_id)
+        with session.export_lock:
+            try:
+                requested = MeshOutputPolicy(
+                    str(getattr(output_policy, "value", output_policy) or "")
+                )
+            except ValueError as exc:
+                raise ValueError(f"Unsupported Mesh Editor output policy: {output_policy!r}") from exc
+            destination = ""
+            destination_ready = False
+            if requested is MeshOutputPolicy.FREE_EDIT:
+                raw_destination = str(output_destination or "").strip()
+                if not raw_destination:
+                    raise ValueError("Free Edit requires a new output folder")
+                target = Path(raw_destination).expanduser().resolve(strict=False)
+                source_text = str(
+                    getattr(session.base_mesh, "path", "")
+                    or getattr(session.working_mesh, "path", "")
+                    or ""
+                ).strip()
+                source = Path(source_text).expanduser().resolve(strict=False) if source_text else None
+                if source is not None and target == source:
+                    raise ValueError("Free Edit output must not overwrite the source asset")
+                if not target.parent.is_dir():
+                    raise ValueError("Free Edit output parent folder does not exist")
+                if target.exists():
+                    raise ValueError("Free Edit output folder must be new")
+                destination = str(target)
+                destination_ready = True
+            state = output_policy_state(
+                session.mesh_format,
+                lod_index=session.lod_index,
+                requested_policy=requested,
+                output_destination=destination,
+                destination_ready=destination_ready,
+            )
+            if state.policy is not requested:
+                raise ValueError(state.reason or f"{session.mesh_format or 'unknown'} cannot use {requested.value}")
+            session.output_policy = state.policy.value
+            session.output_destination = state.output_destination
+            session.output_destination_ready = state.destination_ready
+            return self._session_view_locked(session)
+
     def _session_view_locked(
         self,
         session: _MeshEditSession,
@@ -1180,6 +1298,13 @@ class MeshService(_MeshServiceSessionLayerCore):
             if not selection_is_authoritative:
                 session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
             submesh_count = len(session.working_mesh.submeshes)
+        policy = output_policy_state(
+            session.mesh_format,
+            lod_index=session.lod_index,
+            requested_policy=session.output_policy,
+            output_destination=session.output_destination,
+            destination_ready=session.output_destination_ready,
+        )
         return MeshEditSessionView(
             session_id=session.session_id,
             mode=session.mode,
@@ -1194,6 +1319,14 @@ class MeshService(_MeshServiceSessionLayerCore):
             history_cursor=len(session.undo_stack),
             object_transform=session.object_transform,
             resident_revision=1 + session.revision + session.selection_revision,
+            mesh_format=session.mesh_format,
+            lod_index=session.lod_index,
+            output_policy=policy.policy.value,
+            output_destination=policy.output_destination,
+            output_destination_ready=policy.destination_ready,
+            authoring_enabled=policy.authoring_enabled,
+            exact_write_status=policy.exact_write_status.value,
+            output_policy_reason=policy.reason,
         )
 
     def native_editor_mesh_dirty(self, session_id: str) -> bool:

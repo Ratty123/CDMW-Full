@@ -6,9 +6,11 @@ from dataclasses import dataclass, field
 
 from cdmw.domain.mesh import MESH_EDIT_ACTIONS, MESH_EDIT_MODES
 from cdmw.domain.mesh.authoring_capability import (
+    FREE_EDIT_PROVEN_ACTIONS,
+    MeshOutputPolicy,
     PROVEN_AUTHORING_LOD,
     action_authoring_capability,
-    geometry_authoring_capability,
+    output_policy_state,
 )
 
 _NON_NATIVE_EDITOR_SESSION_COMMANDS = frozenset(
@@ -33,6 +35,8 @@ _UNAUTHORABLE_TOPOLOGY_ACTION_KEYS = frozenset(
 #: single Select tool replaced them, so they are superseded rather than blocked
 #: and carry no authoring limit.
 _USER_HIDDEN_ACTION_KEYS = LEGACY_PART_SELECTION_ACTION_KEYS | _UNAUTHORABLE_TOPOLOGY_ACTION_KEYS
+_SESSION_HIDDEN_ACTION_KEYS = LEGACY_PART_SELECTION_ACTION_KEYS
+READ_ONLY_VISIBLE_ACTION_KEYS = frozenset({"select_parts"})
 
 
 def mesh_editor_action_authoring_blocker(
@@ -41,6 +45,10 @@ def mesh_editor_action_authoring_blocker(
     deletes_parts: bool = False,
     mesh_format: object = "pac",
     lod_index: int = PROVEN_AUTHORING_LOD,
+    output_policy: MeshOutputPolicy | str = MeshOutputPolicy.EXACT_GAME_ASSET,
+    free_edit_destination: object = "",
+    free_edit_destination_ready: bool = False,
+    native_capabilities: object | None = None,
 ) -> str:
     """Why a direct-authoring action cannot produce an exact Mesh Editor output."""
 
@@ -50,24 +58,52 @@ def mesh_editor_action_authoring_blocker(
         "subdivide_selection": "subdivide",
         "refine": "refine_smooth",
     }.get(key, key)
+    try:
+        normalized_policy = MeshOutputPolicy(
+            str(getattr(output_policy, "value", output_policy) or "")
+        )
+    except ValueError:
+        normalized_policy = MeshOutputPolicy.READ_ONLY
+    if (
+        normalized_policy is MeshOutputPolicy.READ_ONLY
+        and key in READ_ONLY_VISIBLE_ACTION_KEYS
+    ):
+        return ""
+    if key == "toggle_visibility" and normalized_policy is not MeshOutputPolicy.EXACT_GAME_ASSET:
+        return ""
     capability = action_authoring_capability(
         key,
         mesh_format=mesh_format,
         lod_index=lod_index,
+        output_policy=output_policy,
+        free_edit_destination_ready=free_edit_destination_ready,
+        native_capabilities=native_capabilities,
     )
     if capability is not None and not capability.authorable:
         return " ".join(part for part in (capability.reason, capability.detail) if str(part).strip())
-    if deletes_parts and key == "delete":
+    if (
+        deletes_parts
+        and key == "delete"
+        and normalized_policy is MeshOutputPolicy.EXACT_GAME_ASSET
+    ):
         return "Deleting whole parts changes the protected PAC submesh table and has no exact writeback route."
     if key == "toggle_visibility":
         return "Part visibility editing has no stored output authority in direct authoring."
     if capability is not None:
         return ""
-    geometry = geometry_authoring_capability(mesh_format, lod_index=lod_index)
-    if not geometry.authorable:
+    state = output_policy_state(
+        mesh_format,
+        lod_index=lod_index,
+        requested_policy=output_policy,
+        output_destination=free_edit_destination,
+        destination_ready=free_edit_destination_ready,
+    )
+    if not state.authoring_enabled:
         action = mesh_editor_actions_by_key().get(key)
-        if action is not None and action.command in NATIVE_EDITOR_SESSION_COMMANDS:
-            return " ".join(part for part in (geometry.reason, geometry.detail) if str(part).strip())
+        if action is not None and action.command in (
+            NATIVE_EDITOR_SESSION_COMMANDS | {"set_mode", "undo", "redo"}
+        ):
+            return state.reason
     return ""
 
 
@@ -303,6 +339,65 @@ MESH_EDITOR_ACTIONS = tuple(_with_palette_metadata(action) for action in (
 MESH_EDITOR_VISIBLE_ACTIONS = tuple(
     action for action in MESH_EDITOR_ACTIONS if action.key not in _USER_HIDDEN_ACTION_KEYS
 )
+MESH_EDITOR_SESSION_ACTIONS = tuple(
+    action for action in MESH_EDITOR_ACTIONS if action.key not in _SESSION_HIDDEN_ACTION_KEYS
+)
+
+
+def visible_actions_for_session(
+    mesh_format: object,
+    lod_index: int,
+    output_policy: MeshOutputPolicy | str,
+    writer_capabilities: object | None = None,
+    native_capabilities: object | None = None,
+    *,
+    free_edit_destination_ready: bool = False,
+) -> tuple[MeshEditorAction, ...]:
+    """Filter the real action registry by active output and native capability."""
+
+    try:
+        policy = MeshOutputPolicy(str(getattr(output_policy, "value", output_policy) or ""))
+    except ValueError:
+        policy = MeshOutputPolicy.READ_ONLY
+    writer = _normalized_capability_names(writer_capabilities)
+    native = _normalized_capability_names(native_capabilities)
+    if policy is MeshOutputPolicy.READ_ONLY:
+        return tuple(
+            action for action in MESH_EDITOR_SESSION_ACTIONS
+            if action.key in READ_ONLY_VISIBLE_ACTION_KEYS
+        )
+    if policy is MeshOutputPolicy.EXACT_GAME_ASSET:
+        if writer is None:
+            return tuple(MESH_EDITOR_VISIBLE_ACTIONS)
+        return tuple(
+            action
+            for action in MESH_EDITOR_VISIBLE_ACTIONS
+            if action.command in {"set_mode", "select", "undo", "redo"}
+            or action.key in writer
+            or action.command in writer
+        )
+    visible: list[MeshEditorAction] = []
+    for action in MESH_EDITOR_SESSION_ACTIONS:
+        if action.key in _UNAUTHORABLE_TOPOLOGY_ACTION_KEYS and action.key not in FREE_EDIT_PROVEN_ACTIONS:
+            continue
+        if (
+            native is not None
+            and action.command in NATIVE_EDITOR_SESSION_COMMANDS
+            and action.key not in native
+            and action.command not in native
+        ):
+            continue
+        visible.append(action)
+    return tuple(visible)
+
+
+def _normalized_capability_names(values: object | None) -> set[str] | None:
+    if values is None:
+        return None
+    try:
+        return {str(value or "").strip().lower() for value in values}
+    except TypeError:
+        return set()
 
 
 def mesh_editor_actions_by_key() -> dict[str, MeshEditorAction]:
@@ -380,10 +475,12 @@ def validate_mesh_editor_actions() -> None:
 __all__ = [
     "MESH_EDITOR_ACTIONS",
     "MESH_EDITOR_VISIBLE_ACTIONS",
+    "MESH_EDITOR_SESSION_ACTIONS",
     "LEGACY_PART_SELECTION_ACTION_KEYS",
     "NATIVE_EDITOR_SESSION_COMMANDS",
     "MeshEditorAction",
     "mesh_editor_actions_by_key",
+    "visible_actions_for_session",
     "mesh_editor_actions_for_category",
     "normalize_mesh_selection_shape",
     "validate_mesh_editor_actions",

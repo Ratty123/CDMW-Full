@@ -297,6 +297,14 @@ class MeshEditSessionView:
     history_cursor: int = 0
     object_transform: MeshObjectTransformState = field(default_factory=MeshObjectTransformState)
     resident_revision: int = 1
+    mesh_format: str = ""
+    lod_index: int = 0
+    output_policy: str = "read_only"
+    output_destination: str = ""
+    output_destination_ready: bool = False
+    authoring_enabled: bool = False
+    exact_write_status: str = "read_only"
+    output_policy_reason: str = ""
 
 
 __all__ = [

@@ -148,6 +148,9 @@ class MeshEditorController:
     def session_view(self) -> MeshEditSessionView:
         return self.mesh_service.session_view(self._session_id())
 
+    def configure_output_policy(self, output_policy: object, *, output_destination: Path | str = "") -> MeshEditSessionView:
+        return self.mesh_service.configure_output_policy(self._session_id(), output_policy, output_destination=output_destination)
+
     def geometry_layer_state(self) -> dict[str, object]:
         return self.mesh_service.geometry_layer_state(self._session_id())
 

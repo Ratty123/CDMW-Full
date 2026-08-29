@@ -61,14 +61,17 @@ are hidden from the normal product surface.
 The five direct output buttons use explicit normal, hover, pressed, and disabled
 states. Validation-gated outputs and receipt-gated restore stay visibly
 unavailable until their prerequisites exist.
-The session-state bridge also declares whether the current source requires an
-exact PAC/PAM/PAMLOD output. Those sessions show the complete Topology, Parts,
-clipboard, and Layers control surface, but disable operations whose result cannot
-preserve protected records and expose the exact reason in help. The host rejects
-the same commands before mutation. **Delete Selection** remains available through
-the exact face-delete route. Imported GLB/OBJ sessions opened by **Create New
-Item** declare a working-mesh output instead, so Create Part, duplicate and the
-other imported-model topology tools are enabled.
+The session-state bridge carries one explicit output policy: **Exact Game
+Asset**, **Free Edit/Rebuild**, or **Read Only**. Exact PAC/PAM/PAMLOD LOD0
+sessions show only writer-safe actions, disable operations whose result cannot
+preserve protected records, expose the exact reason in help, and still defer the
+final decision to the writer and validator. Higher unproven LODs do not fall
+back to another policy. Imported OBJ/FBX/DAE/glTF sessions require the user to
+choose a new output folder before proven non-exact topology tools appear; the
+active revision is then published atomically as a validated OBJ/MTL package with
+provenance, never over the source asset. MeshInfo and unknown formats remain
+read-only for selection, inspection, comparison, and safe export. The Python
+host and resident C# form reject the same unavailable command before mutation.
 The resident strip keeps **Close** at its far edge. It remains available while
 session work is active, confirms before discarding edits, and returns Mesh Editor
 to its empty state through the same nonblocking worker and renderer teardown path.

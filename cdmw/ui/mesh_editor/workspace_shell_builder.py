@@ -258,6 +258,7 @@ class WorkspaceShellBuilderMixin:
             label = QLabel(_LEFT_CATEGORY_LABELS.get(category, category.title()), page)
             label.setObjectName(f"MeshEditorToolCategory_{category}")
             self._ui_font_widgets.append(label)
+            self._category_widgets.setdefault(category, []).append(label)
             layout.addWidget(label, row, 0, 1, 3)
             row += 1
             for index, action in enumerate(category_actions):

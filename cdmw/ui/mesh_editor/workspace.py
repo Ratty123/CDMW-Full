@@ -42,6 +42,7 @@ from cdmw.domain.mesh import (
 )
 from cdmw.ui.mesh_editor.actions import (
     MESH_EDITOR_ACTIONS,
+    MESH_EDITOR_SESSION_ACTIONS,
     MESH_EDITOR_VISIBLE_ACTIONS,
     NATIVE_EDITOR_SESSION_COMMANDS,
     MeshEditorAction,
@@ -144,7 +145,7 @@ class MeshEditorWorkspace(
         self,
         *,
         theme_key: str = "graphite",
-        actions: Sequence[MeshEditorAction] = MESH_EDITOR_VISIBLE_ACTIONS,
+        actions: Sequence[MeshEditorAction] = MESH_EDITOR_SESSION_ACTIONS,
         embedded_controls_only: bool = False,
         object_name: str = "MeshEditorStandaloneWorkspace",
         parent: QWidget | None = None,
@@ -155,6 +156,7 @@ class MeshEditorWorkspace(
         self._actions_by_key = {action.key: action for action in actions}
         self._buttons_by_key: dict[str, QToolButton] = {}
         self._uv_action_buttons: dict[str, QToolButton] = {}
+        self._category_widgets: dict[str, list[QWidget]] = {}
         self._ui_font_widgets: list[QWidget] = []
         self._updating_state = False
         self._has_editor_target = False
@@ -198,6 +200,7 @@ class MeshEditorWorkspace(
             # in a second Tools/Edit/UV/Rig shell or a duplicate log/status panel.
             top_bar.setVisible(False)
             status_strip.setVisible(False)
+        self.set_action_visibility(action.key for action in MESH_EDITOR_VISIBLE_ACTIONS)
 
 
 __all__ = ["MeshEditorWorkspace"]

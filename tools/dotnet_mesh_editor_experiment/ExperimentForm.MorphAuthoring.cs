@@ -46,6 +46,7 @@ internal sealed partial class ExperimentForm
                 : string.Empty);
         }
         ReassertDirectAuthoringBlockedButtons();
+        ApplyOutputPolicyControls();
         RefreshCreatePartFromSelectionButton();
         ApplyMorphChoices(root, "available_profiles", "profile_id", _morphProfile, JsonString(root, "profile_id"));
         ApplyMorphChoices(root, "available_presets", "preset_id", _morphPreset, JsonString(root, "preset_id"), includeEmpty: true);

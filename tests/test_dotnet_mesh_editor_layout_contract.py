@@ -95,9 +95,14 @@ def test_edit_mesh_keeps_viewport_left_of_one_stable_controls_column() -> None:
     )[1].split("var targetMode = SelectionTarget();", maxsplit=1)[0]
     assert 'normalizedCommand is "subdivide" or "refine_smooth" or "separate"' in command_guard
     assert 'or "refine_smooth" or "separate" or "copy"' in command_guard
-    assert 'ApplyDirectAuthoringOutputContract(JsonBoolean(root, "exact_output_required"));' in _source(
+    assert "ApplyOutputPolicyState(root);" in _source(
         "ExperimentForm.Protocol.cs"
     )
+    output_policy = _source("ExperimentForm.OutputPolicy.cs")
+    assert '"configure_free_edit"' in output_policy
+    assert '"export_free_edit"' in output_policy
+    assert "_freeEditOnlyButtons" in output_policy
+    assert "_outputAuthoringEnabled" in output_policy
     assert "button.Visible = true;" in program
     assert "button.Visible = !DirectAuthoringRestrictionsActive;" not in program
     assert _section_stack(program, "Action History") == "rightStack"

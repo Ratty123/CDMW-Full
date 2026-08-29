@@ -48,6 +48,7 @@ from cdmw.domain.mesh import (
     MeshExportValidationReport,
     summarize_mesh_uvs,
 )
+from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
 from cdmw.modding.mesh_importer import MeshRebuildReport
 from cdmw.modding.mesh_exporter import _build_roundtrip_manifest_payload
 from cdmw.modding.skeleton_parser import Bone, Skeleton
@@ -495,8 +496,16 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual("1", select_parts_button.property("meshEditorShortcut"))
         self.assertEqual("1", select_parts_button.shortcut().toString(QKeySequence.SequenceFormat.PortableText))
         self.assertIn("Shortcut: 1", select_parts_button.toolTip())
-        for hidden_key in ("select_vertex", "select_edge", "select_face", "loop_cut", "edge_split", "bridge"):
+        for hidden_key in ("select_vertex", "select_edge", "select_face"):
             self.assertIsNone(action_bar.button_for_key(hidden_key))
+        for exact_hidden_key in ("loop_cut", "edge_split", "bridge"):
+            button = action_bar.button_for_key(exact_hidden_key)
+            self.assertIsNotNone(button)
+            assert button is not None
+            self.assertTrue(button.isHidden())
+
+        action_bar.set_action_visibility({"select_parts", "loop_cut", "edge_split", "bridge"})
+        self.assertFalse(action_bar.button_for_key("loop_cut").isHidden())
         app.processEvents()
         action_bar.deleteLater()
 
@@ -624,7 +633,9 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(tab.action_bar.isEnabled())
         self.assertTrue(tab.action_bar.isHidden())
 
-        self.assertIsNone(tab.action_bar.button_for_key("extrude"))
+        extrude = tab.action_bar.button_for_key("extrude")
+        self.assertIsNotNone(extrude)
+        self.assertTrue(extrude.isHidden())
         tab.action_bar.button_for_key("mode_edit").click()
 
         self.assertEqual(["mode_edit"], [getattr(action, "key", "") for action in emitted])
@@ -1744,6 +1755,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
             mode="edit",
         )
         assert tab.standalone_controller is not None
+        output_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(output_temp.cleanup)
+        tab.standalone_controller.configure_output_policy(
+            MeshOutputPolicy.FREE_EDIT,
+            output_destination=Path(output_temp.name) / "part-context-free-edit",
+        )
         workspace = tab.standalone_workspace
         workspace.part_selection_requested.emit(0, "toggle")
         workspace.part_selection_requested.emit(1, "toggle")
@@ -2648,6 +2665,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
         mesh.format = "obj"
         tab.open_mesh_session(mesh, session_id="standalone-auto-uv-accept", mode="edit")
         assert tab.standalone_controller is not None
+        output_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(output_temp.cleanup)
+        tab.standalone_controller.configure_output_policy(
+            MeshOutputPolicy.FREE_EDIT,
+            output_destination=Path(output_temp.name) / "auto-uv-free-edit",
+        )
         tab.standalone_controller.select(source_indices=(0,))
         tab.update_editor_session_state(
             tab.standalone_controller.session_view(),
@@ -2689,8 +2712,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             active_selection_mode=tab.standalone_controller.active_selection_mode,
         )
 
-        self.assertIn("Authoring: PAC LOD0 exact", tab.session_label.text())
-        self.assertIn("LOD1 and above", tab.session_label.toolTip())
+        self.assertIn("PAC LOD0 | Output: Exact Game Asset | Exact write: exact", tab.session_label.text())
         blocked_buttons = [
             tab.action_bar.button_for_key("split"),
             tab.standalone_workspace.button_for_key("dissolve"),
