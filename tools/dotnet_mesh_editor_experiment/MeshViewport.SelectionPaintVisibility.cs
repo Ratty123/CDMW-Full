@@ -50,8 +50,8 @@ internal sealed partial class MeshViewport
         PointF c,
         float depthC)
     {
-        var area = ((b.X - a.X) * (c.Y - a.Y)) - ((b.Y - a.Y) * (c.X - a.X));
-        if (Math.Abs(area) <= 1.0e-9f)
+        var area = SelectionGeometry.ProjectedTriangleArea(a, b, c);
+        if (SelectionGeometry.IsProjectedTriangleDegenerate(a, b, c))
         {
             return;
         }
@@ -65,14 +65,14 @@ internal sealed partial class MeshViewport
             return;
         }
         var depth = (w0 * depthA) + (w1 * depthB) + (w2 * depthC);
-        if (!float.IsFinite(depth))
+        if (!double.IsFinite(depth))
         {
             return;
         }
         var offset = (row * cache.OcclusionColumns) + column;
         if (depth < cache.OcclusionDepths[offset])
         {
-            cache.OcclusionDepths[offset] = depth;
+            cache.OcclusionDepths[offset] = (float)depth;
         }
     }
 
@@ -189,8 +189,8 @@ internal sealed partial class MeshViewport
         {
             return;
         }
-        var area = ((b.X - a.X) * (c.Y - a.Y)) - ((b.Y - a.Y) * (c.X - a.X));
-        if (Math.Abs(area) <= 1.0e-9f)
+        var area = SelectionGeometry.ProjectedTriangleArea(a, b, c);
+        if (SelectionGeometry.IsProjectedTriangleDegenerate(a, b, c))
         {
             return;
         }
@@ -224,14 +224,14 @@ internal sealed partial class MeshViewport
                     continue;
                 }
                 var depth = (w0 * depthA) + (w1 * depthB) + (w2 * depthC);
-                if (!float.IsFinite(depth))
+                if (!double.IsFinite(depth))
                 {
                     continue;
                 }
                 var offset = (row * cache.OcclusionColumns) + column;
                 if (depth < cache.OcclusionDepths[offset])
                 {
-                    cache.OcclusionDepths[offset] = depth;
+                    cache.OcclusionDepths[offset] = (float)depth;
                 }
             }
         }

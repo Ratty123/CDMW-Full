@@ -184,7 +184,7 @@ internal sealed partial class MeshViewport
                     var projected = GizmoProjectedPoint(world, camera);
                     if (previous is PointF before)
                     {
-                        var distance = DistanceToSegment(point, before, projected);
+                        var distance = SelectionGeometry.PointSegmentDistance(point, before, projected);
                         if (distance < bestDistance)
                         {
                             bestDistance = distance;
@@ -206,7 +206,8 @@ internal sealed partial class MeshViewport
                 var b = GizmoProjectedPoint(pivot + (GizmoAxes[axes.A] * length * 0.42f), camera);
                 var c = GizmoProjectedPoint(pivot + (GizmoAxes[axes.B] * length * 0.42f), camera);
                 var d = GizmoProjectedPoint(pivot + (GizmoAxes[axes.B] * length * 0.22f), camera);
-                if (PointInTriangle(point, a, b, c) || PointInTriangle(point, a, c, d))
+                if (SelectionGeometry.PointInTriangle(point, a, b, c)
+                    || SelectionGeometry.PointInTriangle(point, a, c, d))
                 {
                     return plane;
                 }
@@ -222,7 +223,7 @@ internal sealed partial class MeshViewport
             {
                 return AxisHandle(axisIndex);
             }
-            var distance = DistanceToSegment(point, center, endpoint);
+            var distance = SelectionGeometry.PointSegmentDistance(point, center, endpoint);
             if (distance < bestAxisDistance)
             {
                 bestAxisDistance = distance;

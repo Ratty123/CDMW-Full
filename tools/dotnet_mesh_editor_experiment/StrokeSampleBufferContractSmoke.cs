@@ -110,30 +110,10 @@ internal static class StrokeSampleBufferContractSmoke
         var minimum = double.MaxValue;
         for (var index = 0; index < path.Count - 1; index += 1)
         {
-            minimum = Math.Min(minimum, PointSegmentDistance(point, path[index], path[index + 1]));
+            minimum = Math.Min(
+                minimum,
+                SelectionGeometry.PointSegmentDistance(point, path[index], path[index + 1]));
         }
         return minimum;
-    }
-
-    private static double PointSegmentDistance(Point point, Point start, Point end)
-    {
-        var dx = (double)end.X - start.X;
-        var dy = (double)end.Y - start.Y;
-        var lengthSquared = dx * dx + dy * dy;
-        if (lengthSquared <= 1e-12)
-        {
-            return Math.Sqrt(
-                (double)(point.X - start.X) * (point.X - start.X)
-                + (double)(point.Y - start.Y) * (point.Y - start.Y));
-        }
-        var projection = (
-            (point.X - start.X) * dx + (point.Y - start.Y) * dy
-        ) / lengthSquared;
-        projection = Math.Clamp(projection, 0.0, 1.0);
-        var nearestX = start.X + projection * dx;
-        var nearestY = start.Y + projection * dy;
-        var pointDx = point.X - nearestX;
-        var pointDy = point.Y - nearestY;
-        return Math.Sqrt(pointDx * pointDx + pointDy * pointDy);
     }
 }

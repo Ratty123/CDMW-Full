@@ -75,7 +75,7 @@ internal sealed partial class MeshViewport
         var limit = radius * 0.5;
         foreach (var pathPoint in _selectionPaintPendingPath)
         {
-            if (DistanceToSegment(new PointF(pathPoint.X, pathPoint.Y), previous, point) > limit)
+            if (SelectionGeometry.PointSegmentDistance(pathPoint, previous, point) > limit)
             {
                 return true;
             }

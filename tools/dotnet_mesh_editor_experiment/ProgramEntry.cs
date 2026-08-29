@@ -69,6 +69,10 @@ internal static class Program
             {
                 return StrokeSampleBufferContractSmoke.Run(args);
             }
+            if (SelectionGeometryContractSmoke.IsRequested(args))
+            {
+                return SelectionGeometryContractSmoke.Run(args);
+            }
             if (HeadlessGpuFramePacingSoak.IsRequested(args))
             {
                 ApplicationConfiguration.Initialize();

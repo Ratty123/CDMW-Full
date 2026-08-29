@@ -192,7 +192,8 @@ internal sealed partial class MeshViewport
                 var dx = projected[vertexIndex].X - origin.X;
                 var dy = projected[vertexIndex].Y - origin.Y;
                 var distance = MathF.Sqrt(dx * dx + dy * dy);
-                if (distance > radius || (!ShowXRay && !frontFacing[vertexIndex]))
+                if (distance > radius
+                    || (SelectionGeometry.RequiresVisibleDepth(ShowXRay) && !frontFacing[vertexIndex]))
                 {
                     continue;
                 }
@@ -242,9 +243,10 @@ internal sealed partial class MeshViewport
             {
                 continue;
             }
-            var area = ((projected[b].X - projected[a].X) * (projected[c].Y - projected[a].Y))
-                - ((projected[b].Y - projected[a].Y) * (projected[c].X - projected[a].X));
-            if (area >= -0.01f)
+            if (!SelectionGeometry.IsFrontFacingProjectedTriangle(
+                projected[a],
+                projected[b],
+                projected[c]))
             {
                 continue;
             }
@@ -507,21 +509,6 @@ internal sealed partial class MeshViewport
     {
         var viewport = ActivePaneBounds();
         _activeProvisionalViewportSize = new Vector2(Math.Max(1, viewport.Width), Math.Max(1, viewport.Height));
-    }
-
-    private static float DistanceToSegment(PointF point, Point start, Point end)
-    {
-        var dx = end.X - start.X;
-        var dy = end.Y - start.Y;
-        var lengthSquared = dx * dx + dy * dy;
-        if (lengthSquared <= 0.0001f)
-        {
-            return MathF.Sqrt((point.X - start.X) * (point.X - start.X) + (point.Y - start.Y) * (point.Y - start.Y));
-        }
-        var t = Math.Clamp(((point.X - start.X) * dx + (point.Y - start.Y) * dy) / lengthSquared, 0.0f, 1.0f);
-        var nearestX = start.X + t * dx;
-        var nearestY = start.Y + t * dy;
-        return MathF.Sqrt((point.X - nearestX) * (point.X - nearestX) + (point.Y - nearestY) * (point.Y - nearestY));
     }
 
     // The weight math itself lives in BrushFalloffProfile, the guarded
