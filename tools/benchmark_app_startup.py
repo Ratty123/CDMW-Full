@@ -14,14 +14,16 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 PUBLIC_IMPORT_BUDGET_MS = 500.0
 FIRST_WINDOW_IMPROVEMENT_PERCENT = 30.0
 FIRST_USE_REGRESSION_PERCENT = 10.0
+FIRST_TAB_READY_TIMEOUT_SECONDS = 10.0
+GUI_HEARTBEAT_BUDGET_MS = 200.0
 FORBIDDEN_PUBLIC_MODULES = (
     "PIL",
     "cv2",
@@ -32,16 +34,16 @@ FORBIDDEN_PUBLIC_MODULES = (
     "cdmw.ui.shell.app_window",
     "cdmw.ui.shell.run_gui",
 )
-FIRST_TAB_PARENTS = {
-    "item_icons_tab": "assets_tabs",
-    "mesh_editor_tab": "main_tabs",
-    "model_library_tab": "assets_tabs",
-    "mod_package_retrofit_tab": "tools_tabs",
-    "recolor_variants_tab": "texture_tabs",
-    "replace_assistant_tab": "texture_tabs",
-    "research_tab": "tools_tabs",
-    "text_search_tab": "tools_tabs",
-    "texture_editor_tab": "texture_tabs",
+FIRST_TAB_ROUTES = {
+    "item_icons_tab": "item_icons",
+    "mesh_editor_tab": "mesh_editor",
+    "model_library_tab": "model_library",
+    "mod_package_retrofit_tab": "mod_package_retrofit",
+    "recolor_variants_tab": "recolor_variants",
+    "replace_assistant_tab": "replace_assistant",
+    "research_tab": "research",
+    "text_search_tab": "text_search",
+    "texture_editor_tab": "texture_editor",
 }
 
 
@@ -86,6 +88,148 @@ def _public_import_probe() -> dict[str, object]:
     }
 
 
+def _instrument_lazy_activation(container: object) -> dict[str, float]:
+    timings_ms = {
+        "worker_preload": 0.0,
+        "gui_module_import": 0.0,
+        "widget_construction": 0.0,
+        "final_hookup": 0.0,
+    }
+    for attribute, stage in (
+        ("_prepare", "worker_preload"),
+        ("_prepare_ui", "gui_module_import"),
+        ("_factory", "widget_construction"),
+        ("_publish_pending_widget", "final_hookup"),
+    ):
+        original = getattr(container, attribute, None)
+        if not callable(original):
+            continue
+
+        def timed(
+            *args: object,
+            _original: object = original,
+            _stage: str = stage,
+            **kwargs: object,
+        ) -> object:
+            started = time.perf_counter()
+            try:
+                return _original(*args, **kwargs)  # type: ignore[operator]
+            finally:
+                timings_ms[_stage] += (time.perf_counter() - started) * 1000.0
+
+        setattr(container, attribute, timed)
+    return timings_ms
+
+
+def _process_events_until(app: Any, predicate: Callable[[], bool], deadline: float) -> bool:
+    while time.perf_counter() < deadline:
+        app.processEvents()
+        if predicate():
+            return True
+        time.sleep(0.001)
+    app.processEvents()
+    return bool(predicate())
+
+
+def _probe_lazy_activation(window: Any, app: Any, first_tab: str) -> dict[str, object]:
+    from PySide6.QtCore import QEvent, QObject, QTimer, Qt
+
+    from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
+
+    container = getattr(window, first_tab)
+    if not isinstance(container, LazyToolTab):
+        raise TypeError(f"Startup benchmark target {first_tab!r} is not a LazyToolTab.")
+    if container.widget_if_created() is not None:
+        raise RuntimeError(f"Startup benchmark target {first_tab!r} was created before activation.")
+
+    activation_stages_ms = _instrument_lazy_activation(container)
+    created_at: list[float] = []
+    first_paint_at: list[float] = []
+
+    class FirstPaintFilter(QObject):
+        def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # type: ignore[override]
+            if event.type() == QEvent.Type.Paint and not first_paint_at:
+                first_paint_at.append(time.perf_counter())
+            return super().eventFilter(watched, event)
+
+    paint_filter = FirstPaintFilter()
+
+    def widget_created(widget: Any) -> None:
+        created_at.append(time.perf_counter())
+        widget.installEventFilter(paint_filter)
+        widget.update()
+
+    container.when_created(widget_created)
+    heartbeats: list[float] = []
+    heartbeat_timer = QTimer(window)
+    heartbeat_timer.setTimerType(Qt.TimerType.PreciseTimer)
+    heartbeat_timer.setInterval(10)
+    heartbeat_timer.timeout.connect(lambda: heartbeats.append(time.perf_counter()))
+    heartbeat_timer.start()
+    started = time.perf_counter()
+    navigation_started = time.perf_counter()
+    window._activate_tool_key(FIRST_TAB_ROUTES[first_tab])
+    activation_stages_ms["navigation_activation"] = (
+        time.perf_counter() - navigation_started
+    ) * 1000.0
+    deadline = started + FIRST_TAB_READY_TIMEOUT_SECONDS
+    created = _process_events_until(
+        app,
+        lambda: container.widget_if_created() is not None and bool(created_at),
+        deadline,
+    )
+    if not created:
+        raise RuntimeError(
+            f"Startup benchmark target {first_tab!r} was not created within "
+            f"{FIRST_TAB_READY_TIMEOUT_SECONDS:.1f}s."
+        )
+    widget = container.widget_if_created()
+    if widget is None:
+        raise RuntimeError(f"Startup benchmark target {first_tab!r} reported creation without a widget.")
+    widget.update()
+    painted = _process_events_until(app, lambda: bool(first_paint_at), deadline)
+    heartbeat_timer.stop()
+    if not painted:
+        raise RuntimeError(
+            f"Startup benchmark target {first_tab!r} did not paint within "
+            f"{FIRST_TAB_READY_TIMEOUT_SECONDS:.1f}s."
+        )
+
+    created_time = created_at[0]
+    painted_time = first_paint_at[0]
+    measured_creation_work_ms = sum(activation_stages_ms.values())
+    queued_dispatch_wait_ms = max(
+        0.0,
+        ((created_time - started) * 1000.0) - measured_creation_work_ms,
+    )
+    heartbeat_points = [
+        started,
+        *(beat for beat in heartbeats if started <= beat <= painted_time),
+        painted_time,
+    ]
+    heartbeat_gap_ms = max(
+        (
+            (later - earlier) * 1000.0
+            for earlier, later in zip(heartbeat_points, heartbeat_points[1:])
+        ),
+        default=0.0,
+    )
+    return {
+        "first_tab_ms": (created_time - started) * 1000.0,
+        "first_tab_created": created,
+        "first_tab_painted": painted,
+        "first_tab_first_paint_ms": (painted_time - started) * 1000.0,
+        "first_tab_gui_heartbeat_max_gap_ms": heartbeat_gap_ms,
+        "stages_ms": {
+            "first_tab_creation": (created_time - started) * 1000.0,
+            **activation_stages_ms,
+            "queued_dispatch_wait": queued_dispatch_wait_ms,
+            "first_visible_paint": (painted_time - created_time) * 1000.0,
+            "gui_heartbeat_max_gap": heartbeat_gap_ms,
+        },
+    }
+
+
 def _window_probe(settings_path: Path, first_tab: str) -> dict[str, object]:
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     os.environ["CDMW_GUI_STARTUP_SMOKE"] = "1"
@@ -119,20 +263,12 @@ def _window_probe(settings_path: Path, first_tab: str) -> dict[str, object]:
     first_window_shown = time.perf_counter()
     first_window_ms = (first_window_shown - start) * 1000.0
 
-    container = getattr(window, first_tab)
-    parent_tabs = getattr(window, FIRST_TAB_PARENTS[first_tab])
-    tab_start = time.perf_counter()
-    parent_tabs.setCurrentWidget(container)
-    app.processEvents()
-    first_tab_created = time.perf_counter()
-    first_tab_ms = (first_tab_created - tab_start) * 1000.0
-    created = container.widget_if_created() is not None
+    lazy_activation = _probe_lazy_activation(window, app, first_tab)
 
     payload = {
         "first_window_ms": first_window_ms,
-        "first_tab_ms": first_tab_ms,
         "first_tab": first_tab,
-        "first_tab_created": created,
+        **{name: value for name, value in lazy_activation.items() if name != "stages_ms"},
         "module_count": len(sys.modules),
         "stages_ms": {
             "settings_service_import": (settings_imported - start) * 1000.0,
@@ -141,12 +277,23 @@ def _window_probe(settings_path: Path, first_tab: str) -> dict[str, object]:
             "application_context_creation": (context_created - window_class_resolved) * 1000.0,
             "window_construction": (window_constructed - context_created) * 1000.0,
             "first_show_event": (first_window_shown - window_constructed) * 1000.0,
-            "first_tab_creation": (first_tab_created - tab_start) * 1000.0,
+            **lazy_activation["stages_ms"],  # type: ignore[dict-item]
         },
     }
     window.hide()
     window._finalize_close()
+    app.processEvents()
     return payload
+
+
+def _paired_window_probe(settings_path: Path, first_tab: str) -> dict[str, object]:
+    warm_settings_path = settings_path.with_name(
+        f"{settings_path.stem}-warm{settings_path.suffix}"
+    )
+    return {
+        "cold_process": _window_probe(settings_path, first_tab),
+        "warm_process": _window_probe(warm_settings_path, first_tab),
+    }
 
 
 def _helper_mesh() -> object:
@@ -306,7 +453,7 @@ def _child_probe(args: argparse.Namespace) -> int:
     elif args.child_probe == "window":
         if args.settings_path is None:
             raise ValueError("window probe requires --settings-path")
-        payload = _window_probe(args.settings_path, args.first_tab)
+        payload = _paired_window_probe(args.settings_path, args.first_tab)
     else:
         if args.helper_executable is None:
             raise ValueError("helper probe requires --helper-executable")
@@ -378,6 +525,42 @@ def _stage_probe_summaries(rows: Sequence[Mapping[str, object]]) -> dict[str, di
     return summaries
 
 
+def _window_probe_summaries(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    first_tab: str,
+) -> tuple[dict[str, object], dict[str, object]]:
+    first_window_probe = _probe_summary(rows, "first_window_ms")
+    first_tab_probe = _probe_summary(rows, "first_tab_ms")
+    first_paint_probe = _probe_summary(rows, "first_tab_first_paint_ms")
+    heartbeat_probe = _probe_summary(rows, "first_tab_gui_heartbeat_max_gap_ms")
+    stage_probes = _stage_probe_summaries(rows)
+    first_tab_stage_names = {
+        "first_tab_creation",
+        "worker_preload",
+        "gui_module_import",
+        "widget_construction",
+        "final_hookup",
+        "navigation_activation",
+        "queued_dispatch_wait",
+        "first_visible_paint",
+        "gui_heartbeat_max_gap",
+    }
+    first_window_probe["stages"] = {
+        name: summary for name, summary in stage_probes.items() if name not in first_tab_stage_names
+    }
+    first_tab_probe["stages"] = {
+        name: stage_probes[name] for name in sorted(first_tab_stage_names)
+    }
+    first_tab_probe["first_paint"] = first_paint_probe
+    first_tab_probe["gui_heartbeat_max_gap"] = heartbeat_probe
+    first_tab_probe["target"] = first_tab
+    first_tab_probe["route_key"] = FIRST_TAB_ROUTES[first_tab]
+    first_tab_probe["created_every_run"] = all(bool(row.get("first_tab_created")) for row in rows)
+    first_tab_probe["painted_every_run"] = all(bool(row.get("first_tab_painted")) for row in rows)
+    return first_window_probe, first_tab_probe
+
+
 def _comparison(
     artifact: Mapping[str, object],
     baseline: Mapping[str, object] | None,
@@ -391,6 +574,16 @@ def _comparison(
         ),
         "first_window_improved_at_least_30_percent": None,
         "first_tab_regression_within_10_percent": None,
+        "first_tab_created_every_run": bool(
+            artifact["probes"]["first_tab"]["created_every_run"]  # type: ignore[index]
+        ),
+        "first_tab_painted_every_run": bool(
+            artifact["probes"]["first_tab"]["painted_every_run"]  # type: ignore[index]
+        ),
+        "first_tab_gui_heartbeat_below_200_ms": bool(
+            artifact["probes"]["first_tab"]["gui_heartbeat_max_gap"]["maximum_ms"]  # type: ignore[index]
+            < GUI_HEARTBEAT_BUDGET_MS
+        ),
         "helper_protocol_ready_regression_within_10_percent": None,
     }
     comparison: dict[str, object] = {}
@@ -402,20 +595,28 @@ def _comparison(
     baseline_window = float(baseline_probes["first_window"]["p95_ms"])  # type: ignore[index]
     current_window = float(current_probes["first_window"]["p95_ms"])  # type: ignore[index]
     window_improvement = 100.0 * (baseline_window - current_window) / max(baseline_window, 0.001)
-    baseline_tab = float(baseline_probes["first_tab"]["p95_ms"])  # type: ignore[index]
-    current_tab = float(current_probes["first_tab"]["p95_ms"])  # type: ignore[index]
-    tab_regression = 100.0 * (current_tab - baseline_tab) / max(baseline_tab, 0.001)
     comparison.update(
         {
             "baseline_generated_at_utc": str(baseline.get("generated_at_utc", "")),
             "first_window_improvement_percent": round(window_improvement, 3),
-            "first_tab_regression_percent": round(tab_regression, 3),
         }
     )
     gates["first_window_improved_at_least_30_percent"] = (
         window_improvement >= FIRST_WINDOW_IMPROVEMENT_PERCENT
     )
-    gates["first_tab_regression_within_10_percent"] = tab_regression <= FIRST_USE_REGRESSION_PERCENT
+    baseline_first_tab = baseline_probes.get("first_tab", {})  # type: ignore[union-attr]
+    if int(baseline.get("schema_version", 0)) >= 2 and baseline_first_tab.get("created_every_run"):
+        baseline_tab = float(baseline_first_tab["p95_ms"])
+        current_tab = float(current_probes["first_tab"]["p95_ms"])  # type: ignore[index]
+        tab_regression = 100.0 * (current_tab - baseline_tab) / max(baseline_tab, 0.001)
+        comparison["first_tab_regression_percent"] = round(tab_regression, 3)
+        gates["first_tab_regression_within_10_percent"] = (
+            tab_regression <= FIRST_USE_REGRESSION_PERCENT
+        )
+    else:
+        comparison["first_tab_comparison_skipped"] = (
+            "Baseline predates truthful lazy-widget readiness timing."
+        )
 
     current_helper = current_probes.get("helper_protocol_ready", {})  # type: ignore[union-attr]
     baseline_helper = baseline_probes.get("helper_protocol_ready", {})  # type: ignore[union-attr]
@@ -432,7 +633,8 @@ def _comparison(
 
 def build_artifact(args: argparse.Namespace) -> dict[str, object]:
     public_rows: list[dict[str, object]] = []
-    window_rows: list[dict[str, object]] = []
+    cold_window_rows: list[dict[str, object]] = []
+    warm_window_rows: list[dict[str, object]] = []
     helper_rows: list[dict[str, object]] = []
     with tempfile.TemporaryDirectory(prefix="cdmw-app-startup-benchmark-") as temp_dir:
         temp_root = Path(temp_dir)
@@ -440,19 +642,19 @@ def build_artifact(args: argparse.Namespace) -> dict[str, object]:
             public_rows.append(
                 _run_child(["--child-probe", "public"], timeout_seconds=args.probe_timeout)
             )
-            window_rows.append(
-                _run_child(
-                    [
-                        "--child-probe",
-                        "window",
-                        "--settings-path",
-                        str(temp_root / f"settings-{index}.ini"),
-                        "--first-tab",
-                        args.first_tab,
-                    ],
-                    timeout_seconds=args.probe_timeout,
-                )
+            window_pair = _run_child(
+                [
+                    "--child-probe",
+                    "window",
+                    "--settings-path",
+                    str(temp_root / f"settings-{index}.ini"),
+                    "--first-tab",
+                    args.first_tab,
+                ],
+                timeout_seconds=args.probe_timeout,
             )
+            cold_window_rows.append(dict(window_pair["cold_process"]))  # type: ignore[arg-type]
+            warm_window_rows.append(dict(window_pair["warm_process"]))  # type: ignore[arg-type]
             if args.include_helper:
                 helper_rows.append(
                     _run_child(
@@ -478,15 +680,14 @@ def build_artifact(args: argparse.Namespace) -> dict[str, object]:
             for name in row.get("forbidden_modules", [])  # type: ignore[union-attr]
         }
     )
-    first_window_probe = _probe_summary(window_rows, "first_window_ms")
-    first_tab_probe = _probe_summary(window_rows, "first_tab_ms")
-    stage_probes = _stage_probe_summaries(window_rows)
-    first_window_probe["stages"] = {
-        name: summary for name, summary in stage_probes.items() if name != "first_tab_creation"
-    }
-    first_tab_probe["stages"] = {"first_tab_creation": stage_probes["first_tab_creation"]}
-    first_tab_probe["target"] = args.first_tab
-    first_tab_probe["created_every_run"] = all(bool(row.get("first_tab_created")) for row in window_rows)
+    first_window_probe, first_tab_probe = _window_probe_summaries(
+        cold_window_rows,
+        first_tab=args.first_tab,
+    )
+    warm_first_window_probe, warm_first_tab_probe = _window_probe_summaries(
+        warm_window_rows,
+        first_tab=args.first_tab,
+    )
 
     helper_probe: dict[str, object]
     if helper_rows and all(row.get("status") == "ok" for row in helper_rows):
@@ -514,11 +715,17 @@ def build_artifact(args: argparse.Namespace) -> dict[str, object]:
             "public_import_budget_ms": PUBLIC_IMPORT_BUDGET_MS,
             "required_first_window_improvement_percent": FIRST_WINDOW_IMPROVEMENT_PERCENT,
             "allowed_first_use_regression_percent": FIRST_USE_REGRESSION_PERCENT,
+            "first_tab_ready_timeout_seconds": FIRST_TAB_READY_TIMEOUT_SECONDS,
+            "gui_heartbeat_budget_ms": GUI_HEARTBEAT_BUDGET_MS,
         },
         "probes": {
             "public_facade_import": public_probe,
             "first_window": first_window_probe,
             "first_tab": first_tab_probe,
+            "warm_process": {
+                "first_window": warm_first_window_probe,
+                "first_tab": warm_first_tab_probe,
+            },
             "helper_protocol_ready": helper_probe,
         },
     }
@@ -549,7 +756,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--runs", type=int, default=7)
     parser.add_argument("--baseline", type=Path)
-    parser.add_argument("--first-tab", choices=tuple(FIRST_TAB_PARENTS), default="mesh_editor_tab")
+    parser.add_argument("--first-tab", choices=tuple(FIRST_TAB_ROUTES), default="mesh_editor_tab")
     parser.add_argument("--probe-timeout", type=float, default=90.0)
     parser.add_argument("--include-helper", action="store_true")
     parser.add_argument(

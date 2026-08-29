@@ -278,6 +278,29 @@ def test_dotnet_experiment_rejects_output_root_outside_package(tmp_path: Path) -
         )
 
 
+def test_dotnet_experiment_accepts_preview_session_output_under_system_temp(tmp_path: Path) -> None:
+    package = _dotnet_output_test_package(tmp_path)
+    session_output = tmp_path / "preview-session-output"
+    session_output.mkdir()
+    runtime_package = replace(
+        package,
+        status_path=session_output / "dotnet_status.json",
+        output_dir=session_output,
+        edit_operations_path=session_output / "edit_operations.json",
+        runtime_output_external=True,
+    )
+
+    _program, arguments = mesh_dotnet_experiment_command(
+        tmp_path / "helper.exe",
+        runtime_package,
+    )
+
+    assert arguments[arguments.index("--output") + 1] == str(session_output)
+    assert arguments[arguments.index("--status") + 1] == str(
+        session_output / "dotnet_status.json"
+    )
+
+
 def test_dotnet_experiment_evaluation_writes_keep_drop_note(tmp_path: Path) -> None:
     package_dir = tmp_path / "package"
     output_dir = package_dir / "output"

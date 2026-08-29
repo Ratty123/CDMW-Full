@@ -46,6 +46,7 @@ from cdmw.rendering.dotnet_preview_package_cache import (
 from cdmw.services.mesh_dotnet_preview_package import (
     build_or_lookup_dotnet_preview_package_from_model,
     dotnet_preview_package_cache_key,
+    lookup_dotnet_preview_package_from_model_identity,
     validate_dotnet_preview_package,
 )
 
@@ -183,6 +184,10 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             durable_native = self._durable_native_preview_cache_payload()
             if durable_native is not None:
                 self._emit_preview_payload(durable_native)
+                return
+            durable_python = self._durable_python_preview_cache_payload()
+            if durable_python is not None:
+                self._emit_preview_payload(durable_python)
                 return
             native_attempt: Optional[NativePreviewCoreAttempt] = None
             native_supported = self._native_preview_core_supported_for_entry()
@@ -375,6 +380,49 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         return _ArchivePreviewWorkerPayload(
             result=result,
             source="dotnet_package_cache",
+            cache_key=self.full_preview_cache_key,
+            cacheable=True,
+        )
+
+    def _durable_python_preview_cache_payload(self) -> Optional[_ArchivePreviewWorkerPayload]:
+        if self.entry is None or self.include_loose_preview_assets:
+            return None
+        cache_root = self.native_preview_package_cache_root
+        cache_key = str(self.full_preview_cache_key or "").strip()
+        cache_mode = str(self.native_preview_package_cache_mode or "off").strip().lower()
+        if cache_root is None or cache_mode == "off" or not cache_key:
+            return None
+        package = lookup_dotnet_preview_package_from_model_identity(
+            cache_root=Path(cache_root),
+            archive_identity=cache_key,
+            sidecar_generation=self.sidecar_generation,
+            cancelled=self.stop_event.is_set,
+        )
+        if package is None:
+            return None
+        result = ArchivePreviewResult(
+            status="ok",
+            title=self.entry.basename,
+            metadata_summary=f"{build_archive_entry_metadata_summary(self.entry)} | cached preview package",
+            detail_text="\n".join(
+                (
+                    "Loaded a validated durable .NET/Vortice preview package.",
+                    f"Package: {package.package_dir}",
+                    "Warm selection reused resident-ready package artifacts without rebuilding the archive decode.",
+                )
+            ),
+            preview_model=None,
+            dotnet_preview_package_path=str(package.package_dir),
+            native_preview_diagnostics={
+                "dotnet_preview_package_cache": "python_model_hit",
+                "dotnet_preview_package_path": str(package.package_dir),
+            },
+            preferred_view="model",
+            sidecar_generation=self.sidecar_generation,
+        )
+        return _ArchivePreviewWorkerPayload(
+            result=result,
+            source="dotnet_python_package_cache",
             cache_key=self.full_preview_cache_key,
             cacheable=True,
         )
@@ -582,6 +630,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                             cancelled=self.stop_event.is_set,
                             metadata={
                                 "entry_path": str(getattr(self.entry, "path", "") or ""),
+                                "surface": "archive_browser",
                                 "source_decoder": "python_model_preview",
                             },
                         )

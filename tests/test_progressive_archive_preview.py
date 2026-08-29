@@ -129,6 +129,40 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertIs(False, prepare_calls[0]["enable_material_combiner"])
         self.assertEqual(str(package_dir), result.dotnet_preview_package_path)
 
+    def test_python_package_cache_hit_skips_archive_preview_build(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_dir = Path(temp_dir) / "cached-package"
+            worker = ArchivePreviewWorker(
+                request_id=1,
+                entry=_entry("character/model/body.pac", ".pac"),
+                companion_entry=None,
+                texture_entries_by_normalized_path={},
+                texture_entries_by_basename={},
+                sidecar_entries_by_texture_path=None,
+                sidecar_entries_by_texture_basename=None,
+                loose_search_roots=(),
+                native_preview_package_cache_root=Path(temp_dir),
+                native_preview_package_cache_key="native-key",
+                native_preview_package_cache_mode="balanced",
+                full_preview_cache_key="full-key",
+            )
+
+            with patch(
+                "cdmw.workers.archive_preview_workers.lookup_dotnet_preview_package_from_model_identity",
+                return_value=SimpleNamespace(package_dir=package_dir),
+            ) as lookup:
+                payload = worker._durable_python_preview_cache_payload()
+
+        self.assertIsNotNone(payload)
+        self.assertEqual("dotnet_python_package_cache", payload.source)
+        self.assertEqual(str(package_dir), payload.result.dotnet_preview_package_path)
+        lookup.assert_called_once_with(
+            cache_root=Path(temp_dir),
+            archive_identity="full-key",
+            sidecar_generation=0,
+            cancelled=worker.stop_event.is_set,
+        )
+
     def test_native_model_preview_uses_key_repeat_selection_dwell(self) -> None:
         # Still above the ~30 ms key-repeat interval, so a held arrow key keeps
         # resetting the timer and only the row it settles on starts a preview.

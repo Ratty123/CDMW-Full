@@ -132,6 +132,47 @@ def test_builtin_selector_order_names_and_catalog_key_parity() -> None:
         ), code
 
 
+def test_catalog_module_loads_only_english_until_an_inactive_language_is_requested() -> None:
+    script = "\n".join(
+        (
+            "import tempfile",
+            "from pathlib import Path",
+            "import cdmw.ui.localization_catalogs_v2 as catalogs",
+            "assert catalogs._loaded_builtin_catalog_codes == {'en'}",
+            "from PySide6.QtWidgets import QApplication",
+            "from cdmw.ui.localization import UiLocalizer",
+            "app = QApplication.instance() or QApplication([])",
+            "localizer = UiLocalizer(language_dir=Path(tempfile.mkdtemp()), language_code='en')",
+            "assert len(localizer.available_languages()) == 14",
+            "assert catalogs._loaded_builtin_catalog_codes == {'en'}",
+            "catalogs.BUILTIN_LANGUAGES['fr']",
+            "assert catalogs._loaded_builtin_catalog_codes == {'en', 'fr'}",
+        )
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[1],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_custom_english_pack_still_overrides_direct_translation(tmp_path: Path) -> None:
+    language_dir = tmp_path / "languages"
+    write_language_file(
+        language_dir / "en.json",
+        language_code="en",
+        language_name="Custom English",
+        translations={"Model Library": "Models"},
+    )
+    localizer = UiLocalizer(language_dir=language_dir, language_code="en")
+
+    assert localizer.translate("Model Library") == "Models"
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     (
@@ -1108,7 +1149,13 @@ def test_template_index_agrees_with_a_full_scan_of_every_rule(tmp_path: Path) ->
     """
     _app()
     localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="fr")
+    assert localizer._template_patterns is None
+    assert localizer._compiled_template_patterns == {}
+    assert localizer.translate("Model Library") != "Model Library"
+    assert localizer._template_patterns is None
+    assert localizer.translate_rendered("- Loaded 7 rows")
     rules = localizer._template_patterns
+    assert rules is not None
     assert len(rules) > 1_000
     assert sorted(rule.rank for rule in rules) == list(range(len(rules)))
     bucketed = (
@@ -1122,7 +1169,9 @@ def test_template_index_agrees_with_a_full_scan_of_every_rule(tmp_path: Path) ->
         if value in localizer.translations:
             return localizer.translate(value)
         for rule in rules:
-            match = rule.pattern.fullmatch(value)
+            pattern = localizer._compiled_template_pattern(rule)
+            assert pattern is not None
+            match = pattern.fullmatch(value)
             if match is None:
                 continue
             arguments = {

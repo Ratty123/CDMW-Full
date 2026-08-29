@@ -13,9 +13,6 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QImage
 
 from cdmw.domain.library.models import is_importable_model_path
-from cdmw.services.model_library_preview import (
-    prepare_model_library_inline_preview,
-)
 from cdmw.ui.model_library.icon_output import ModelLibraryIconOutputMixin
 from cdmw.workers.model_library_workers import (
     prepare_model_library_preview_icon,
@@ -64,6 +61,20 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         controller = getattr(getattr(self, "inline_d3d11_preview_host", None), "controller", None)
         return bool(controller is not None and getattr(controller, "is_running", False))
 
+    def _ensure_inline_d3d11_preview_host(self) -> object:
+        existing = getattr(self, "inline_d3d11_preview_host", None)
+        if existing is not None:
+            return existing
+        from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
+
+        host = DotNetPreviewHostFrame(profile=DotNetPreviewProfile.PREVIEW)
+        host.setMinimumHeight(280)
+        host.controller.state_changed.connect(self._handle_inline_dotnet_state)
+        host.controller.capture_completed.connect(self._handle_inline_dotnet_capture_completed)
+        self.inline_preview_stack.addWidget(host)
+        self.inline_d3d11_preview_host = host
+        return host
+
     def _start_inline_d3d11_status_timer(self) -> None:
         return None
 
@@ -83,6 +94,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             self._remove_inline_d3d11_package_dir(package_dir)
 
     def _start_inline_d3d11_process(self, package_dir: Path, *, render_settings: object) -> bool:
+        self._ensure_inline_d3d11_preview_host()
         package_dir = Path(package_dir)
         previous_package = self._inline_d3d11_active_package
         self._record_model_library_preview_event(
@@ -231,8 +243,10 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         self._inline_preview_task_running = True
         self._prepare_inline_preview_orientation_for_load(reset_orientation=reset_orientation)
         self._set_inline_preview_status(f"Preparing preview for {model_name}...")
-        self.inline_d3d11_preview_host.clear_preview()
-        self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
+        preview_host = getattr(self, "inline_d3d11_preview_host", None)
+        if preview_host is not None:
+            preview_host.clear_preview()
+            self.inline_preview_stack.setCurrentWidget(preview_host)
         self._inline_preview_loaded_import_path = None
         self._inline_preview_loaded_payload = None
         preview_render_settings = self.inline_preview_render_settings
@@ -247,6 +261,8 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         )
 
         def task(progress: Callable[[str], None]) -> object:
+            from cdmw.services.model_library_preview import prepare_model_library_inline_preview
+
             extract_root = self._inline_preview_extract_root_for_source(source_path, payload)
             return prepare_model_library_inline_preview(
                 source_path,
@@ -421,7 +437,8 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         if self._task_thread is not None and self._task_thread.isRunning():
             self._set_inline_preview_status("A model library task is already running.", error=True)
             return
-        dotnet_capture = self.inline_preview_stack.currentWidget() is self.inline_d3d11_preview_host
+        preview_host = getattr(self, "inline_d3d11_preview_host", None)
+        dotnet_capture = preview_host is not None and self.inline_preview_stack.currentWidget() is preview_host
         if not dotnet_capture:
             self._set_inline_preview_status("The .NET/Vortice preview is not render-ready yet.", error=True)
             return
@@ -435,7 +452,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             Path(loaded_path),
             capture_path,
         )
-        if not self.inline_d3d11_preview_host.capture_replacement_icon(capture_path):
+        if preview_host is None or not preview_host.capture_replacement_icon(capture_path):
             self._pending_dotnet_icon_capture = None
             self._set_inline_preview_status("Icon capture failed: .NET/Vortice Preview rejected the capture request.", error=True)
             return

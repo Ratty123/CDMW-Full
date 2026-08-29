@@ -7,7 +7,8 @@ import json
 import string
 import sys
 from collections import OrderedDict
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
 
@@ -62,19 +63,67 @@ def _normalized_entries(
     return entries
 
 
-def _load_builtin_catalogs() -> OrderedDict[str, dict[str, object]]:
+_BUILTIN_LANGUAGE_SPEC_BY_CODE = {
+    spec.code: spec
+    for spec in BUILTIN_LANGUAGE_SPECS
+}
+_loaded_builtin_catalog_codes: set[str] = set()
+
+
+@lru_cache(maxsize=None)
+def load_builtin_catalog(code: str) -> dict[str, object]:
+    normalized_code = str(code)
+    spec = _BUILTIN_LANGUAGE_SPEC_BY_CODE.get(normalized_code)
+    if spec is None:
+        raise KeyError(normalized_code)
     root = localization_resource_root()
+    path = root / f"{spec.code}.json"
+    payload = _read_catalog(path)
+    payload_code = str(payload.get("language_code", "") or "")
+    if payload_code != spec.code:
+        raise RuntimeError(
+            f"Built-in UI catalog {path.name} declares {payload_code!r}, expected {spec.code!r}."
+        )
+    entries = _normalized_entries(spec.code, payload)
+    for source, entry in entries.items():
+        if not isinstance(entry, dict):
+            continue
+        missing_categories = required_plural_categories(spec.code) - set(entry)
+        if missing_categories:
+            raise RuntimeError(
+                f"Built-in UI plural {spec.code}/{source!r} is missing "
+                f"{sorted(missing_categories)!r}."
+            )
+    _loaded_builtin_catalog_codes.add(spec.code)
+    return {
+        "language_name": spec.display_name,
+        "translations": entries,
+        "plural_rule": spec.plural_rule,
+        "qt_locale": spec.qt_locale,
+        "font_families": spec.font_families,
+        "path": path,
+    }
+
+
+class _BuiltinLanguageCatalogs(Mapping[str, dict[str, object]]):
+    def __getitem__(self, code: str) -> dict[str, object]:
+        return load_builtin_catalog(str(code))
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(_BUILTIN_LANGUAGE_SPEC_BY_CODE)
+
+    def __len__(self) -> int:
+        return len(_BUILTIN_LANGUAGE_SPEC_BY_CODE)
+
+
+def _load_builtin_catalogs() -> OrderedDict[str, dict[str, object]]:
     catalogs: OrderedDict[str, dict[str, object]] = OrderedDict()
     expected_keys: frozenset[str] | None = None
     for spec in BUILTIN_LANGUAGE_SPECS:
-        path = root / f"{spec.code}.json"
-        payload = _read_catalog(path)
-        payload_code = str(payload.get("language_code", "") or "")
-        if payload_code != spec.code:
-            raise RuntimeError(
-                f"Built-in UI catalog {path.name} declares {payload_code!r}, expected {spec.code!r}."
-            )
-        entries = _normalized_entries(spec.code, payload)
+        catalog = load_builtin_catalog(spec.code)
+        entries = catalog["translations"]
+        if not isinstance(entries, dict):
+            raise RuntimeError(f"Built-in UI language {spec.code} has no translations object.")
         keys = frozenset(entries)
         if expected_keys is None:
             expected_keys = keys
@@ -89,29 +138,13 @@ def _load_builtin_catalogs() -> OrderedDict[str, dict[str, object]]:
             raise RuntimeError(
                 f"Built-in UI catalog {spec.code} does not match English: " + "; ".join(detail)
             )
-        for source, entry in entries.items():
-            if not isinstance(entry, dict):
-                continue
-            missing_categories = required_plural_categories(spec.code) - set(entry)
-            if missing_categories:
-                raise RuntimeError(
-                    f"Built-in UI plural {spec.code}/{source!r} is missing "
-                    f"{sorted(missing_categories)!r}."
-                )
-        catalogs[spec.code] = {
-            "language_name": spec.display_name,
-            "translations": entries,
-            "plural_rule": spec.plural_rule,
-            "qt_locale": spec.qt_locale,
-            "font_families": spec.font_families,
-            "path": path,
-        }
+        catalogs[spec.code] = catalog
     return catalogs
 
 
-BUILTIN_LANGUAGES = _load_builtin_catalogs()
+BUILTIN_LANGUAGES: Mapping[str, dict[str, object]] = _BuiltinLanguageCatalogs()
 SOURCE_STRING_CATALOGUE = tuple(
-    BUILTIN_LANGUAGES["en"]["translations"].keys()  # type: ignore[union-attr]
+    load_builtin_catalog("en")["translations"].keys()  # type: ignore[union-attr]
 )
 
 # Compatibility names retained for importers while the heuristic fallback is retired.
@@ -165,6 +198,7 @@ __all__ = [
     "_FALLBACK_EXACT_TRANSLATIONS",
     "_FALLBACK_WORD_TRANSLATIONS",
     "builtin_translation_entries",
+    "load_builtin_catalog",
     "localization_resource_root",
     "source_template_fields",
     "template_literals",

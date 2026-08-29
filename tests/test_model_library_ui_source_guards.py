@@ -214,8 +214,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             + Path("cdmw/ui/model_library/panels.py").read_text(encoding="utf-8")
         )
 
-        self.assertIn("controller.state_changed.connect(tab._handle_inline_dotnet_state)", source)
-        self.assertIn("controller.capture_completed.connect(tab._handle_inline_dotnet_capture_completed)", source)
+        self.assertIn("host.controller.state_changed.connect(self._handle_inline_dotnet_state)", source)
+        self.assertIn("host.controller.capture_completed.connect(self._handle_inline_dotnet_capture_completed)", source)
         self.assertNotIn("_inline_d3d11_status_timer = QTimer", source)
         self.assertNotIn("status_file.read_text", source)
 
@@ -234,6 +234,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("self.inline_d3d11_preview_host.load_package(", start_block)
         self.assertIn("resident=bool(self._inline_d3d11_process_running())", start_block)
         self.assertIn("high_quality_textures=False", task_block)
+        self.assertIn("from cdmw.services.model_library_preview import prepare_model_library_inline_preview", task_block)
+        self.assertNotIn("from cdmw.services.model_library_preview import", source[:source.index("class ModelLibraryInlinePreviewMixin")])
         self.assertIn("self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)", loaded_block)
         self.assertIn('if str(state) == "ready"', loaded_block)
         self.assertNotIn("native_d3d11_renderer_command", source)
@@ -658,6 +660,10 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("self.inline_d3d11_preview_host.set_render_tuning(render_settings)", body)
         self.assertNotIn("QProcess", body)
         self.assertNotIn("native_d3d11_renderer_command", body)
+
+        panels_source = Path("cdmw/ui/model_library/panels.py").read_text(encoding="utf-8")
+        self.assertNotIn("from cdmw.ui.preview import", panels_source)
+        self.assertIn("tab.inline_d3d11_preview_host = None", panels_source)
 
     def test_dotnet_controller_owns_launch_retry_and_provenance(self) -> None:
         source = Path("cdmw/ui/preview/dotnet_session.py").read_text(encoding="utf-8")

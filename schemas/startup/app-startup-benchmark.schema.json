@@ -14,7 +14,7 @@
     "ok"
   ],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "generated_at_utc": {"type": "string"},
     "environment": {"type": "object"},
     "configuration": {
@@ -24,7 +24,9 @@
         "first_tab",
         "public_import_budget_ms",
         "required_first_window_improvement_percent",
-        "allowed_first_use_regression_percent"
+        "allowed_first_use_regression_percent",
+        "first_tab_ready_timeout_seconds",
+        "gui_heartbeat_budget_ms"
       ]
     },
     "probes": {
@@ -33,12 +35,21 @@
         "public_facade_import",
         "first_window",
         "first_tab",
+        "warm_process",
         "helper_protocol_ready"
       ],
       "properties": {
         "public_facade_import": {"$ref": "#/$defs/timingProbe"},
         "first_window": {"$ref": "#/$defs/timingProbe"},
         "first_tab": {"$ref": "#/$defs/timingProbe"},
+        "warm_process": {
+          "type": "object",
+          "required": ["first_window", "first_tab"],
+          "properties": {
+            "first_window": {"$ref": "#/$defs/timingProbe"},
+            "first_tab": {"$ref": "#/$defs/timingProbe"}
+          }
+        },
         "helper_protocol_ready": {
           "type": "object",
           "required": ["status"]
@@ -53,6 +64,9 @@
         "public_facade_import_has_no_heavy_modules",
         "first_window_improved_at_least_30_percent",
         "first_tab_regression_within_10_percent",
+        "first_tab_created_every_run",
+        "first_tab_painted_every_run",
+        "first_tab_gui_heartbeat_below_200_ms",
         "helper_protocol_ready_regression_within_10_percent"
       ]
     },

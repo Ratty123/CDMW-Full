@@ -31,7 +31,6 @@ from PySide6.QtWidgets import (
 from cdmw.domain.library.models import DEFAULT_MODEL_MIRROR_URL
 from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_settings
 from cdmw.ui.model_library.settings import MODEL_LIBRARY_FILTER_COLUMNS
-from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 
 
 def build_controls_panel(tab: object) -> QWidget:
@@ -617,12 +616,15 @@ def build_preview_panel(tab: object) -> QWidget:
     inline_render_settings.high_quality_by_default = True
     tab.inline_preview_render_settings = clamp_model_preview_render_settings(inline_render_settings)
     tab.inline_preview_stack = QStackedWidget()
-    tab.inline_d3d11_preview_host = DotNetPreviewHostFrame(
-        profile=DotNetPreviewProfile.PREVIEW,
+    tab.inline_d3d11_preview_host = None
+    tab.inline_preview_placeholder = QLabel(
+        "Select a downloaded or local model to preview it here."
     )
-    tab.inline_d3d11_preview_host.setMinimumHeight(280)
-    tab.inline_preview_stack.addWidget(tab.inline_d3d11_preview_host)
-    tab.inline_preview_stack.setCurrentWidget(tab.inline_d3d11_preview_host)
+    tab.inline_preview_placeholder.setObjectName("HintLabel")
+    tab.inline_preview_placeholder.setAlignment(Qt.AlignCenter)
+    tab.inline_preview_placeholder.setMinimumHeight(280)
+    tab.inline_preview_stack.addWidget(tab.inline_preview_placeholder)
+    tab.inline_preview_stack.setCurrentWidget(tab.inline_preview_placeholder)
     preview_layout.addWidget(tab.inline_preview_stack, stretch=1)
     orientation_controls_layout = QHBoxLayout()
     orientation_controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -650,8 +652,6 @@ def build_preview_panel(tab: object) -> QWidget:
     preview_layout.addWidget(tab.inline_preview_status_label)
     tab.inline_preview_flip_v_checkbox.toggled.connect(tab._handle_inline_preview_flip_v_toggled)
     tab.inline_preview_reset_orientation_button.clicked.connect(tab._handle_inline_preview_orientation_reset_clicked)
-    tab.inline_d3d11_preview_host.controller.state_changed.connect(tab._handle_inline_dotnet_state)
-    tab.inline_d3d11_preview_host.controller.capture_completed.connect(tab._handle_inline_dotnet_capture_completed)
     layout.addWidget(preview_group, stretch=1)
     tab.status_label = QLabel("")
     tab.status_label.setObjectName("HintLabel")

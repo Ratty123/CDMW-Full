@@ -89,6 +89,7 @@ class MeshDotNetExperimentPackage:
     scene_frame: StaticMeshSceneFrame | None = None
     scene_session_id: str = ""
     scene_material_slot_indices: tuple[int, ...] = ()
+    runtime_output_external: bool = False
 
 
 @dataclass(frozen=True, slots=True)

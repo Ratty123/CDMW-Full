@@ -7,7 +7,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QFrame, QWidget
 
 from cdmw.constants import DEFAULT_UI_THEME
-from cdmw.ui.localization import translate_active_ui_text
+from cdmw.services.active_ui_translation import translate_active_ui_text
 from cdmw.ui.themes import UI_THEME_SCHEMES, get_theme
 
 

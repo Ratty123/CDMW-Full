@@ -3,18 +3,22 @@
 Owns the Model Library tab, audit-result presentation, external model discovery
 UI, and model-library preview coordination. Keep slow discovery or preview work
 off the UI thread through the tab task worker. Inline preview preparation lives
-in `cdmw/services/model_library_preview.py`. Model Library auto-preview and
-Preview Here use the inline native D3D11 host by default so loaded models draw
-in the preview pane. The first native inline load uses fast preview textures
-without reducing moderate native-preview geometry, and promotes the D3D11
-widget only after the host reports `loaded`. Archive Browser preview remains an
-explicit manual action.
+in `cdmw/services/model_library_preview.py` and is imported inside that task,
+not while the tab is constructed. Model Library creates the shared
+.NET/Vortice host only when a prepared package is ready, then promotes it after
+the host reports `loaded`; the unopened tab retains a lightweight placeholder.
+Archive Browser preview remains an explicit manual action.
 
 Scene imports (glTF/GLB/OBJ/DAE) normalize texture V, so the preparation step
 stamps that orientation onto the preview meshes before the canonical package is
 written; the Flip V control inverts the same value and rebuilds. Prepared
-packages are cached per source revision and orientation, so re-selecting a model
-or toggling Flip V back reuses the existing package instead of rebuilding it.
+packages are cached by an identity covering source and referenced-resource
+content/revisions, selected ZIP member, render settings, orientation,
+cache/compiler profile and app version. A valid hit is accepted before scene
+import and returns its stored geometry/texture summary with the package, so
+re-selecting a model or toggling Flip V back skips parsing and packaging. An
+unsupported or incomplete dependency shape bypasses durable reuse rather than
+risking stale rendering.
 
 ZIP discovery/extraction and generic Preview/Import path resolution run through
 the Model Library task worker. Results are discarded when the selected row
