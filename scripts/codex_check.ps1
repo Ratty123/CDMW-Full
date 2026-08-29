@@ -148,6 +148,7 @@ $TestsByArea = @{
         "tests/test_texture_native_backend.py",
         "tests/test_texture_workflow_guardrails.py",
         "tests/test_texture_workflow_ui_source_guards.py",
+        "tests/test_recolor_variants_layout.py",
         "tests/test_texture_domain_profiles.py",
         "tests/test_texture_workflow_unavailable_editor.py",
         "tests/test_material_combiner_decode_retry.py",

@@ -216,9 +216,9 @@ COMPACT_PRESENTATION_SPECS: Mapping[str, CompactPresentationSpec] = MappingProxy
                 CompactSplitterRule(
                     _HORIZONTAL,
                     0,
-                    (26, 44, 30),
-                    (220, 300, 240),
-                    (430, None, None),
+                    (24, 56, 20),
+                    (220, 360, 240),
+                    (430, None, 440),
                 ),
             ),
             hidden_attributes=(("log_edit", "section"),),
@@ -577,6 +577,11 @@ def _apply_tool_specific_presentation(window: object, key: str, widget: QWidget)
             set_expanded = getattr(paths_section, "set_expanded", None)
             if callable(set_expanded):
                 set_expanded(True)
+
+    elif key == "recolor_variants":
+        sync_workspace_visibility = getattr(widget, "_sync_workspace_visibility", None)
+        if callable(sync_workspace_visibility):
+            sync_workspace_visibility()
 
     elif key == "texture_editor":
         grid_checkbox = getattr(widget, "grid_checkbox", None)

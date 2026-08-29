@@ -3866,12 +3866,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 658,
+          "line": 668,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1078,
+          "line": 1088,
           "sink": "emit"
         }
       ]
@@ -4301,7 +4301,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 670,
+          "line": 675,
           "sink": "setText"
         },
         {
@@ -5396,7 +5396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 392,
+          "line": 400,
           "sink": "CollapsibleSection"
         }
       ]
@@ -5861,7 +5861,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 876,
+          "line": 886,
           "sink": "setText"
         }
       ]
@@ -5881,7 +5881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 991,
+          "line": 1001,
           "sink": "_set_preview_image"
         }
       ]
@@ -6201,17 +6201,17 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 505,
+          "line": 515,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 612,
+          "line": 622,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 631,
+          "line": 641,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -6881,7 +6881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 739,
+          "line": 749,
           "sink": "failed"
         }
       ]
@@ -6891,7 +6891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 301,
+          "line": 307,
           "sink": "QPushButton"
         }
       ]
@@ -6901,12 +6901,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 811,
+          "line": 821,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1081,
+          "line": 1091,
           "sink": "emit"
         }
       ]
@@ -6916,7 +6916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 210,
+          "line": 212,
           "sink": "EmptyStatePanel"
         }
       ]
@@ -6926,7 +6926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 759,
+          "line": 769,
           "sink": "emit"
         }
       ]
@@ -6936,7 +6936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 720,
+          "line": 730,
           "sink": "_append_log"
         }
       ]
@@ -12631,7 +12631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 355,
+          "line": 363,
           "sink": "addItem"
         }
       ]
@@ -12781,7 +12781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 876,
+          "line": 886,
           "sink": "setText"
         }
       ]
@@ -12791,7 +12791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 990,
+          "line": 1000,
           "sink": "_set_preview_image"
         }
       ]
@@ -13506,12 +13506,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 300,
+          "line": 306,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 438,
+          "line": 448,
           "sink": "QPushButton"
         },
         {
@@ -13811,17 +13811,17 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1148,
+          "line": 1159,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1158,
+          "line": 1169,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1160,
+          "line": 1171,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -13861,7 +13861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 238,
+          "line": 240,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -13966,7 +13966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 225,
+          "line": 227,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -14161,7 +14161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 442,
+          "line": 452,
           "sink": "QPushButton"
         }
       ]
@@ -14286,7 +14286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1149,
+          "line": 1160,
           "sink": "_append_log"
         }
       ]
@@ -15036,7 +15036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1156,
+          "line": 1167,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -15081,7 +15081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1136,
+          "line": 1147,
           "sink": "_append_log"
         }
       ]
@@ -15531,7 +15531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 456,
+          "line": 466,
           "sink": "QCheckBox"
         }
       ]
@@ -17146,7 +17146,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 228,
+          "line": 230,
           "sink": "setHeaderLabels"
         },
         {
@@ -18481,7 +18481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 716,
+          "line": 726,
           "sink": "emit"
         }
       ]
@@ -18551,7 +18551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 178,
+          "line": 180,
           "sink": "QLabel"
         }
       ]
@@ -18861,7 +18861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1089,
+          "line": 1099,
           "sink": "emit"
         }
       ]
@@ -19071,7 +19071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 900,
+          "line": 910,
           "sink": "getColor"
         }
       ]
@@ -19886,7 +19886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 439,
+          "line": 449,
           "sink": "QCheckBox"
         }
       ]
@@ -24541,7 +24541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 456,
+          "line": 466,
           "sink": "QCheckBox"
         }
       ]
@@ -24701,12 +24701,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 278,
+          "line": 282,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 858,
+          "line": 868,
           "sink": "_set_color_swatch"
         },
         {
@@ -24851,7 +24851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1024,
+          "line": 1034,
           "sink": "emit"
         }
       ]
@@ -25266,7 +25266,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 197,
+          "line": 199,
           "sink": "setHeaderLabels"
         },
         {
@@ -26126,7 +26126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 456,
+          "line": 466,
           "sink": "QCheckBox"
         },
         {
@@ -29681,7 +29681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 773,
+          "line": 783,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -30416,7 +30416,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 356,
+          "line": 364,
           "sink": "addItem"
         }
       ]
@@ -30871,7 +30871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1158,
+          "line": 1169,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -30911,7 +30911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1134,
+          "line": 1145,
           "sink": "_append_log"
         }
       ]
@@ -32291,7 +32291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 380,
+          "line": 388,
           "sink": "QPushButton"
         }
       ]
@@ -32761,7 +32761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 647,
+          "line": 657,
           "sink": "warning"
         }
       ]
@@ -32841,7 +32841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 631,
+          "line": 641,
           "sink": "getSaveFileName"
         }
       ]
@@ -33156,7 +33156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 644,
+          "line": 654,
           "sink": "_append_log"
         }
       ]
@@ -34356,7 +34356,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1148,
+          "line": 1159,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -34611,7 +34611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 456,
+          "line": 466,
           "sink": "QCheckBox"
         },
         {
@@ -36796,7 +36796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 299,
+          "line": 305,
           "sink": "setPlaceholderText"
         }
       ]
@@ -38491,7 +38491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 344,
+          "line": 350,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -41561,7 +41561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 379,
+          "line": 387,
           "sink": "QPushButton"
         }
       ]
@@ -41931,7 +41931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 627,
+          "line": 637,
           "sink": "warning"
         }
       ]
@@ -41981,7 +41981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 612,
+          "line": 622,
           "sink": "getOpenFileName"
         }
       ]
@@ -42141,7 +42141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 624,
+          "line": 634,
           "sink": "_append_log"
         }
       ]
@@ -44756,7 +44756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 456,
+          "line": 466,
           "sink": "QCheckBox"
         },
         {
@@ -45501,7 +45501,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 197,
+          "line": 199,
           "sink": "setHeaderLabels"
         },
         {
@@ -48061,7 +48061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 773,
+          "line": 783,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -48616,7 +48616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 447,
+          "line": 457,
           "sink": "CollapsibleSection"
         }
       ]
@@ -49561,7 +49561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 861,
+          "line": 871,
           "sink": "setText"
         }
       ]
@@ -49571,7 +49571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1199,
+          "line": 1210,
           "sink": "setToolTip"
         }
       ]
@@ -49581,7 +49581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 947,
+          "line": 957,
           "sink": "emit"
         }
       ]
@@ -49591,7 +49591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 353,
+          "line": 361,
           "sink": "addItem"
         }
       ]
@@ -49736,12 +49736,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         }
       ]
@@ -53596,7 +53596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 505,
+          "line": 515,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -54811,7 +54811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 701,
+          "line": 706,
           "sink": "setText"
         }
       ]
@@ -55651,12 +55651,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         },
         {
@@ -57191,7 +57191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 210,
+          "line": 212,
           "sink": "EmptyStatePanel"
         }
       ]
@@ -58466,7 +58466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1160,
+          "line": 1171,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -58856,7 +58856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1160,
+          "line": 1171,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -61726,7 +61726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1011,
+          "line": 1021,
           "sink": "emit"
         }
       ]
@@ -61971,7 +61971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 862,
+          "line": 872,
           "sink": "setText"
         }
       ]
@@ -62106,7 +62106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 257,
+          "line": 261,
           "sink": "QPushButton"
         }
       ]
@@ -62221,7 +62221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 445,
+          "line": 455,
           "sink": "QPushButton"
         },
         {
@@ -63361,7 +63361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1043,
+          "line": 1053,
           "sink": "emit"
         }
       ]
@@ -63586,12 +63586,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         }
       ]
@@ -64521,7 +64521,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 432,
+          "line": 440,
           "sink": "FlatSectionPanel"
         },
         {
@@ -64546,7 +64546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 228,
+          "line": 230,
           "sink": "setHeaderLabels"
         },
         {
@@ -66241,7 +66241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 460,
+          "line": 470,
           "sink": "QLabel"
         }
       ]
@@ -68036,7 +68036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 365,
+          "line": 373,
           "sink": "_build_color_row"
         }
       ]
@@ -68046,7 +68046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 366,
+          "line": 374,
           "sink": "_build_color_row"
         }
       ]
@@ -70571,7 +70571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1001,
+          "line": 1011,
           "sink": "emit"
         }
       ]
@@ -70751,7 +70751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 377,
+          "line": 385,
           "sink": "QCheckBox"
         },
         {
@@ -71326,12 +71326,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 188,
+          "line": 190,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 797,
+          "line": 807,
           "sink": "setText"
         }
       ]
@@ -71546,7 +71546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 807,
+          "line": 817,
           "sink": "setText"
         }
       ]
@@ -71556,7 +71556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 801,
+          "line": 811,
           "sink": "setText"
         }
       ]
@@ -71871,7 +71871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 976,
+          "line": 986,
           "sink": "failed"
         }
       ]
@@ -75246,12 +75246,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 519,
+          "line": 529,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 537,
+          "line": 547,
           "sink": "setText"
         }
       ]
@@ -75266,12 +75266,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 727,
+          "line": 737,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 730,
+          "line": 740,
           "sink": "RunCancelled"
         }
       ]
@@ -75281,7 +75281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 755,
+          "line": 765,
           "sink": "emit"
         }
       ]
@@ -75291,7 +75291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 735,
+          "line": 745,
           "sink": "emit"
         }
       ]
@@ -75311,7 +75311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 972,
+          "line": 982,
           "sink": "emit"
         }
       ]
@@ -75321,7 +75321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 965,
+          "line": 975,
           "sink": "ValueError"
         }
       ]
@@ -75371,7 +75371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 648,
+          "line": 658,
           "sink": "emit"
         }
       ]
@@ -75381,7 +75381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 628,
+          "line": 638,
           "sink": "emit"
         }
       ]
@@ -75391,7 +75391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 824,
+          "line": 834,
           "sink": "emit"
         }
       ]
@@ -75401,7 +75401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 609,
+          "line": 619,
           "sink": "emit"
         }
       ]
@@ -75411,12 +75411,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 612,
+          "line": 622,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 631,
+          "line": 641,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -75426,7 +75426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 645,
+          "line": 655,
           "sink": "emit"
         }
       ]
@@ -75436,7 +75436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 625,
+          "line": 635,
           "sink": "emit"
         }
       ]
@@ -75456,7 +75456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1143,
+          "line": 1154,
           "sink": "emit"
         }
       ]
@@ -75466,7 +75466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1150,
+          "line": 1161,
           "sink": "emit"
         }
       ]
@@ -75476,7 +75476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1141,
+          "line": 1152,
           "sink": "emit"
         }
       ]
@@ -75486,7 +75486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1164,
+          "line": 1175,
           "sink": "emit"
         }
       ]
@@ -76711,7 +76711,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 256,
+          "line": 260,
           "sink": "QPushButton"
         }
       ]
@@ -77911,7 +77911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 361,
+          "line": 369,
           "sink": "addItem"
         },
         {
@@ -79841,7 +79841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 228,
+          "line": 230,
           "sink": "setHeaderLabels"
         },
         {
@@ -80361,7 +80361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 382,
+          "line": 390,
           "sink": "QPushButton"
         }
       ]
@@ -82091,7 +82091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 381,
+          "line": 389,
           "sink": "QPushButton"
         }
       ]
@@ -82261,7 +82261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 608,
+          "line": 618,
           "sink": "_append_log"
         }
       ]
@@ -85076,12 +85076,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 944,
+          "line": 954,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1008,
+          "line": 1018,
           "sink": "emit"
         }
       ]
@@ -85706,12 +85706,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 248,
+          "line": 252,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 849,
+          "line": 859,
           "sink": "setText"
         }
       ]
@@ -85921,7 +85921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1085,
+          "line": 1095,
           "sink": "emit"
         }
       ]
@@ -86041,7 +86041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 501,
+          "line": 511,
           "sink": "getExistingDirectory"
         }
       ]
@@ -86071,7 +86071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 505,
+          "line": 515,
           "sink": "getOpenFileName"
         }
       ]
@@ -86306,7 +86306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 510,
+          "line": 520,
           "sink": "getExistingDirectory"
         }
       ]
@@ -86486,7 +86486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 247,
+          "line": 249,
           "sink": "FlatSectionPanel"
         },
         {
@@ -86791,7 +86791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 994,
+          "line": 1004,
           "sink": "emit"
         }
       ]
@@ -86841,7 +86841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1201,
+          "line": 1212,
           "sink": "setToolTip"
         }
       ]
@@ -87156,7 +87156,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 197,
+          "line": 199,
           "sink": "setHeaderLabels"
         },
         {
@@ -87461,7 +87461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 362,
+          "line": 370,
           "sink": "addItem"
         }
       ]
@@ -88816,7 +88816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/presentations.py",
-          "line": 703,
+          "line": 708,
           "sink": "setToolTip"
         }
       ]
@@ -90371,7 +90371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 823,
+          "line": 833,
           "sink": "_append_log"
         }
       ]
@@ -90456,7 +90456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 197,
+          "line": 199,
           "sink": "setHeaderLabels"
         }
       ]
@@ -90476,12 +90476,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         }
       ]
@@ -91461,12 +91461,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 292,
+          "line": 296,
           "sink": "FlatSectionPanel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 302,
+          "line": 308,
           "sink": "QLabel"
         }
       ]
@@ -91476,7 +91476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 725,
+          "line": 735,
           "sink": "FileNotFoundError"
         }
       ]
@@ -91556,12 +91556,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         }
       ]
@@ -92546,7 +92546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1097,
+          "line": 1107,
           "sink": "_append_log"
         }
       ]
@@ -92811,7 +92811,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 197,
+          "line": 199,
           "sink": "setHeaderLabels"
         },
         {
@@ -93346,7 +93346,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 443,
+          "line": 453,
           "sink": "QPushButton"
         },
         {
@@ -93516,7 +93516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1125,
+          "line": 1136,
           "sink": "_append_log"
         }
       ]
@@ -93576,12 +93576,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         },
         {
@@ -94516,17 +94516,17 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 197,
+          "line": 199,
           "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 279,
+          "line": 283,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 859,
+          "line": 869,
           "sink": "_set_color_swatch"
         },
         {
@@ -94706,12 +94706,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         }
       ]
@@ -94776,12 +94776,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         }
       ]
@@ -95261,12 +95261,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         },
         {
@@ -95301,7 +95301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 816,
+          "line": 826,
           "sink": "_append_log"
         }
       ]
@@ -96486,12 +96486,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         }
       ]
@@ -96751,7 +96751,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 352,
+          "line": 360,
           "sink": "addItem"
         }
       ]
@@ -99456,7 +99456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 441,
+          "line": 451,
           "sink": "setToolTip"
         }
       ]
@@ -100011,7 +100011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 360,
+          "line": 368,
           "sink": "addItem"
         },
         {
@@ -100156,12 +100156,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 390,
+          "line": 398,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 408,
+          "line": 416,
           "sink": "QLabel"
         }
       ]
@@ -105396,22 +105396,22 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 754,
+          "line": 764,
           "sink": "_append_log"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 821,
+          "line": 831,
           "sink": "_append_log"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 993,
+          "line": 1003,
           "sink": "_append_log"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1132,
+          "line": 1143,
           "sink": "_append_log"
         },
         {
@@ -109811,7 +109811,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 355,
+          "line": 363,
           "sink": "addItem"
         }
       ]
@@ -113321,7 +113321,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 356,
+          "line": 364,
           "sink": "addItem"
         }
       ]
@@ -200281,7 +200281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 360,
+          "line": 368,
           "sink": "addItem"
         },
         {
@@ -202971,7 +202971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 854,
+          "line": 864,
           "sink": "setText"
         }
       ]
@@ -205401,7 +205401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1156,
+          "line": 1167,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -206496,7 +206496,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 773,
+          "line": 783,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -206851,12 +206851,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 881,
+          "line": 891,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 884,
+          "line": 894,
           "sink": "setText"
         },
         {
@@ -207126,7 +207126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 746,
+          "line": 756,
           "sink": "setText"
         }
       ]
@@ -207601,7 +207601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 773,
+          "line": 783,
           "sink": "QTreeWidgetItem"
         }
       ]

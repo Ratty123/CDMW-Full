@@ -452,7 +452,7 @@ class RecolorVariantTests(unittest.TestCase):
         self.assertIn('QPushButton("Refresh Preview")', tab_source)
         self.assertIn('QPushButton("Open In Editor")', tab_source)
         self.assertIn("def _build_results_section", tab_source)
-        self.assertIn("self.splitter.setStretchFactor(2, 1)", tab_source)
+        self.assertIn("self.splitter.setStretchFactor(2, 0)", tab_source)
         self.assertIn("class _RecolorPreviewLabel", tab_source)
         self.assertIn("QColorDialog.getColor", tab_source)
         self.assertIn('button.setObjectName("RecolorVariantColorPickerButton")', tab_source)
