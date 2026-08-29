@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod headless;
+
 use anyhow::{Context, Result, bail};
 use cdmw_archive::{ArchiveIndex, ArchiveLimits};
 use cdmw_formats::{MeshFormat, decode_mesh};
@@ -12,6 +14,8 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
+
+use headless::run_headless_mesh_check;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -40,6 +44,19 @@ fn main() -> Result<()> {
             )?;
             let manifest = write_mesh_package(&output, &document, None)?;
             print_json(&manifest)?;
+        }
+        "headless-mesh" => {
+            let input = required_path(
+                arguments.next(),
+                "headless-mesh requires an input mesh path",
+            )?;
+            let format = MeshFormat::from_path(&input)?;
+            let bytes =
+                fs::read(&input).with_context(|| format!("failed to read {}", input.display()))?;
+            let decode_started = Instant::now();
+            let document = decode_mesh(&bytes, format)?;
+            let decode_ms = decode_started.elapsed().as_secs_f64() * 1_000.0;
+            print_json(&run_headless_mesh_check(&document, decode_ms)?)?;
         }
         "inspect-texture" => {
             let input = required_path(arguments.next(), "inspect-texture requires a DDS path")?;
@@ -104,7 +121,7 @@ fn print_json(value: &impl Serialize) -> Result<()> {
 
 fn print_help() {
     println!(
-        "CDMW Rust Asset Probe\n\n  inventory <index.pamt>\n  decode-mesh <input.pac|pam|pamlod> <new-output-directory>\n  inspect-texture <input.dds>\n  compare <expected-manifest.json> <actual-manifest.json>\n  create-synthetic <new-output-directory>\n  benchmark-synthetic"
+        "CDMW Rust Asset Probe\n\n  inventory <index.pamt>\n  decode-mesh <input.pac|pam|pamlod> <new-output-directory>\n  headless-mesh <input.pac|pam|pamlod>\n  inspect-texture <input.dds>\n  compare <expected-manifest.json> <actual-manifest.json>\n  create-synthetic <new-output-directory>\n  benchmark-synthetic"
     );
 }
 

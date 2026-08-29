@@ -162,6 +162,15 @@ pub struct AdapterReport {
     pub driver_info: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeadlessRenderReport {
+    pub adapter: AdapterReport,
+    pub frames_rendered: u32,
+    pub modes_rendered: u32,
+    pub viewport_sizes_rendered: u32,
+    pub non_background_pixels: usize,
+}
+
 #[derive(Debug, Error)]
 pub enum RenderError {
     #[error("no Direct3D 12 adapter is available")]
@@ -429,14 +438,7 @@ impl WindowRenderer {
 
     #[must_use]
     pub fn adapter_report(&self) -> AdapterReport {
-        let info = self.adapter.get_info();
-        AdapterReport {
-            name: info.name,
-            backend: format!("{:?}", info.backend),
-            device_type: format!("{:?}", info.device_type),
-            driver: info.driver,
-            driver_info: info.driver_info,
-        }
+        adapter_report(&self.adapter)
     }
 
     pub fn set_snapshot(&mut self, snapshot: &DrawSnapshot) -> Result<(), RenderError> {
@@ -677,44 +679,21 @@ impl WindowRenderer {
                         scissor_bottom.saturating_sub(scissor_y).max(1),
                     );
                 }
-                pass.set_bind_group(0, &self.texture_bind_group, &[]);
-                pass.set_bind_group(1, &self.camera_bind_group, &[]);
-                pass.set_vertex_buffer(0, mesh.vertex.slice(..));
-                match self.view_mode {
-                    ViewMode::TexturedSolid | ViewMode::Solid => {
-                        draw_solid(&mut pass, mesh, &self.solid_pipeline);
-                    }
-                    ViewMode::SolidWire => {
-                        draw_solid(&mut pass, mesh, &self.solid_pipeline);
-                        draw_wire(&mut pass, mesh, &self.wire_pipeline);
-                    }
-                    ViewMode::Wireframe => draw_wire(&mut pass, mesh, &self.wire_pipeline),
-                    ViewMode::Vertices => draw_points(&mut pass, mesh, &self.point_pipeline),
-                    ViewMode::WireVertices => {
-                        draw_wire(&mut pass, mesh, &self.wire_pipeline);
-                        draw_points(&mut pass, mesh, &self.point_pipeline);
-                    }
-                    ViewMode::XRay => {
-                        draw_solid(&mut pass, mesh, &self.xray_pipeline);
-                        draw_wire(&mut pass, mesh, &self.wire_pipeline);
-                    }
-                }
-                if self.show_normals {
-                    draw_overlay_lines(
-                        &mut pass,
-                        &mesh.normal_lines,
-                        mesh.normal_line_vertex_count,
-                        &self.normal_pipeline,
-                    );
-                }
-                if self.show_bounds {
-                    draw_overlay_lines(
-                        &mut pass,
-                        &mesh.bounds_lines,
-                        mesh.bounds_line_vertex_count,
-                        &self.bounds_pipeline,
-                    );
-                }
+                draw_mesh(
+                    &mut pass,
+                    mesh,
+                    &self.texture_bind_group,
+                    &self.camera_bind_group,
+                    &self.solid_pipeline,
+                    &self.wire_pipeline,
+                    &self.point_pipeline,
+                    &self.xray_pipeline,
+                    &self.normal_pipeline,
+                    &self.bounds_pipeline,
+                    self.view_mode,
+                    self.show_normals,
+                    self.show_bounds,
+                );
             }
         }
         if let Some(descriptor) = &screen_descriptor {
@@ -747,6 +726,354 @@ impl WindowRenderer {
         }
         Ok(())
     }
+}
+
+pub async fn run_headless_render_smoke(
+    snapshot: &DrawSnapshot,
+) -> Result<HeadlessRenderReport, RenderError> {
+    let mut instance_descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+    instance_descriptor.backends = wgpu::Backends::DX12;
+    let instance = wgpu::Instance::new(instance_descriptor);
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            force_fallback_adapter: false,
+            compatible_surface: None,
+            apply_limit_buckets: false,
+        })
+        .await
+        .map_err(|_| RenderError::NoAdapter)?;
+    let required_features = if adapter
+        .features()
+        .contains(wgpu::Features::TEXTURE_COMPRESSION_BC)
+    {
+        wgpu::Features::TEXTURE_COMPRESSION_BC
+    } else {
+        wgpu::Features::empty()
+    };
+    let (device, queue) = adapter
+        .request_device(&wgpu::DeviceDescriptor {
+            label: Some("CDMW Rust Mesh Lab headless device"),
+            required_features,
+            required_limits: wgpu::Limits::default(),
+            experimental_features: wgpu::ExperimentalFeatures::disabled(),
+            memory_hints: wgpu::MemoryHints::Performance,
+            trace: wgpu::Trace::Off,
+        })
+        .await
+        .map_err(|error| RenderError::Device(error.to_string()))?;
+    let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+    let format = wgpu::TextureFormat::Bgra8Unorm;
+    let texture_layout = create_texture_bind_group_layout(&device);
+    let (_material_texture, texture_bind_group) =
+        create_default_texture(&device, &queue, &texture_layout);
+    let camera_layout = create_camera_bind_group_layout(&device);
+    let mut camera_uniform = CameraUniform::new();
+    let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("CDMW Rust Mesh Lab headless camera uniform"),
+        contents: bytemuck::bytes_of(&camera_uniform),
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
+    let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("CDMW Rust Mesh Lab headless camera bind group"),
+        layout: &camera_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: camera_buffer.as_entire_binding(),
+        }],
+    });
+    let pipelines = create_pipelines(&device, format, &texture_layout, &camera_layout);
+    let mesh = GpuMeshBuffers::upload(&device, snapshot)?;
+    let modes = [
+        ViewMode::TexturedSolid,
+        ViewMode::Solid,
+        ViewMode::SolidWire,
+        ViewMode::Wireframe,
+        ViewMode::Vertices,
+        ViewMode::WireVertices,
+        ViewMode::XRay,
+    ];
+    let sizes = [(640_u32, 480_u32), (480, 640), (1_280, 720)];
+    let mut frames_rendered = 0_u32;
+    for (width, height) in sizes {
+        let color = create_headless_color_target(&device, format, width, height);
+        let view = color.create_view(&wgpu::TextureViewDescriptor::default());
+        let depth = create_depth_target(&device, width, height);
+        for mode in modes {
+            camera_uniform.view_projection =
+                headless_view_projection(snapshot, width, height).to_cols_array_2d();
+            camera_uniform.solid_mode = u32::from(mode != ViewMode::TexturedSolid);
+            queue.write_buffer(&camera_buffer, 0, bytemuck::bytes_of(&camera_uniform));
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("CDMW Rust Mesh Lab headless frame"),
+            });
+            record_headless_pass(
+                &mut encoder,
+                &view,
+                &depth.view,
+                &mesh,
+                &texture_bind_group,
+                &camera_bind_group,
+                &pipelines,
+                mode,
+            );
+            queue.submit([encoder.finish()]);
+            frames_rendered = frames_rendered.saturating_add(1);
+        }
+    }
+    let (readback, readback_width, readback_height) = render_headless_readback(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &texture_bind_group,
+        &camera_bind_group,
+        &pipelines,
+        snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+    );
+    frames_rendered = frames_rendered.saturating_add(1);
+    device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .map_err(|error| RenderError::Device(format!("headless GPU wait failed: {error}")))?;
+    if let Some(error) = error_scope.pop().await {
+        return Err(RenderError::Device(format!(
+            "headless GPU validation failed: {error}"
+        )));
+    }
+    let non_background_pixels =
+        read_non_background_pixels(&device, &readback, readback_width, readback_height)?;
+    if non_background_pixels == 0 {
+        return Err(RenderError::Device(
+            "headless GPU frame contained only the clear color".to_owned(),
+        ));
+    }
+    Ok(HeadlessRenderReport {
+        adapter: adapter_report(&adapter),
+        frames_rendered,
+        modes_rendered: u32::try_from(modes.len()).map_err(|_| RenderError::ResourceLimit)?,
+        viewport_sizes_rendered: u32::try_from(sizes.len())
+            .map_err(|_| RenderError::ResourceLimit)?,
+        non_background_pixels,
+    })
+}
+
+fn adapter_report(adapter: &wgpu::Adapter) -> AdapterReport {
+    let info = adapter.get_info();
+    AdapterReport {
+        name: info.name,
+        backend: format!("{:?}", info.backend),
+        device_type: format!("{:?}", info.device_type),
+        driver: info.driver,
+        driver_info: info.driver_info,
+    }
+}
+
+fn create_headless_color_target(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    width: u32,
+    height: u32,
+) -> wgpu::Texture {
+    device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("CDMW Rust Mesh Lab headless color target"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    })
+}
+
+fn headless_view_projection(snapshot: &DrawSnapshot, width: u32, height: u32) -> Mat4 {
+    let (minimum, maximum) =
+        mesh_bounds(&snapshot.positions).unwrap_or((Vec3::splat(-1.0), Vec3::ONE));
+    let target = (minimum + maximum) * 0.5;
+    let radius = ((maximum - minimum) * 0.5).length().max(1.0e-4);
+    let field_of_view = 45.0_f32.to_radians();
+    let aspect = (width as f32 / height.max(1) as f32).max(1.0e-4);
+    let half_vertical = field_of_view * 0.5;
+    let half_horizontal = (half_vertical.tan() * aspect).atan();
+    let fit_half_angle = half_vertical.min(half_horizontal).max(1.0e-4);
+    let distance = (radius / fit_half_angle.tan() * 1.25).max(radius * 1.5);
+    let near = (distance * 0.001).max(1.0e-4);
+    let far = (distance + radius * 8.0).max(near + 1.0);
+    Mat4::perspective_rh(field_of_view, aspect, near, far)
+        * Mat4::look_at_rh(target + Vec3::Z * distance, target, Vec3::Y)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_headless_pass(
+    encoder: &mut wgpu::CommandEncoder,
+    color: &wgpu::TextureView,
+    depth: &wgpu::TextureView,
+    mesh: &GpuMeshBuffers,
+    texture_bind_group: &wgpu::BindGroup,
+    camera_bind_group: &wgpu::BindGroup,
+    pipelines: &Pipelines,
+    mode: ViewMode,
+) {
+    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("CDMW Rust Mesh Lab headless viewport"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view: color,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(wgpu::Color {
+                    r: 0.025,
+                    g: 0.03,
+                    b: 0.04,
+                    a: 1.0,
+                }),
+                store: wgpu::StoreOp::Store,
+            },
+            depth_slice: None,
+        })],
+        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            view: depth,
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Clear(1.0),
+                store: wgpu::StoreOp::Store,
+            }),
+            stencil_ops: None,
+        }),
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+    });
+    draw_mesh(
+        &mut pass,
+        mesh,
+        texture_bind_group,
+        camera_bind_group,
+        &pipelines.solid,
+        &pipelines.wire,
+        &pipelines.point,
+        &pipelines.xray,
+        &pipelines.normal,
+        &pipelines.bounds,
+        mode,
+        true,
+        true,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_headless_readback(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    format: wgpu::TextureFormat,
+    mesh: &GpuMeshBuffers,
+    texture_bind_group: &wgpu::BindGroup,
+    camera_bind_group: &wgpu::BindGroup,
+    pipelines: &Pipelines,
+    snapshot: &DrawSnapshot,
+    camera_uniform: &mut CameraUniform,
+    camera_buffer: &wgpu::Buffer,
+) -> (wgpu::Buffer, u32, u32) {
+    let width = 640_u32;
+    let height = 480_u32;
+    let color = create_headless_color_target(device, format, width, height);
+    let view = color.create_view(&wgpu::TextureViewDescriptor::default());
+    let depth = create_depth_target(device, width, height);
+    camera_uniform.view_projection =
+        headless_view_projection(snapshot, width, height).to_cols_array_2d();
+    camera_uniform.solid_mode = 1;
+    queue.write_buffer(camera_buffer, 0, bytemuck::bytes_of(camera_uniform));
+    let bytes_per_row = width * 4;
+    let readback = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("CDMW Rust Mesh Lab headless readback"),
+        size: u64::from(bytes_per_row) * u64::from(height),
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("CDMW Rust Mesh Lab headless readback frame"),
+    });
+    record_headless_pass(
+        &mut encoder,
+        &view,
+        &depth.view,
+        mesh,
+        texture_bind_group,
+        camera_bind_group,
+        pipelines,
+        ViewMode::SolidWire,
+    );
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture: &color,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(height),
+            },
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit([encoder.finish()]);
+    (readback, width, height)
+}
+
+fn read_non_background_pixels(
+    device: &wgpu::Device,
+    readback: &wgpu::Buffer,
+    width: u32,
+    height: u32,
+) -> Result<usize, RenderError> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    readback
+        .slice(..)
+        .map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sender.send(result);
+        });
+    device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .map_err(|error| RenderError::Device(format!("headless readback wait failed: {error}")))?;
+    receiver
+        .recv()
+        .map_err(|error| {
+            RenderError::Device(format!("headless readback callback failed: {error}"))
+        })?
+        .map_err(|error| {
+            RenderError::Device(format!("headless readback mapping failed: {error}"))
+        })?;
+    let mapped = readback.slice(..).get_mapped_range().map_err(|error| {
+        RenderError::Device(format!("headless readback access failed: {error}"))
+    })?;
+    let expected_len = usize::try_from(u64::from(width) * u64::from(height) * 4)
+        .map_err(|_| RenderError::ResourceLimit)?;
+    if mapped.len() != expected_len || mapped.len() < 4 {
+        return Err(RenderError::Device(format!(
+            "headless readback size mismatch: expected {expected_len}, got {}",
+            mapped.len()
+        )));
+    }
+    let background = &mapped[..4];
+    let changed = mapped
+        .chunks_exact(4)
+        .filter(|pixel| *pixel != background)
+        .count();
+    drop(mapped);
+    readback.unmap();
+    Ok(changed)
 }
 
 struct Pipelines {
@@ -983,6 +1310,60 @@ fn draw_overlay_lines<'a>(
     pass.set_pipeline(pipeline);
     pass.set_vertex_buffer(0, vertices.slice(..));
     pass.draw(0..vertex_count, 0..1);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_mesh<'a>(
+    pass: &mut wgpu::RenderPass<'a>,
+    mesh: &'a GpuMeshBuffers,
+    texture_bind_group: &'a wgpu::BindGroup,
+    camera_bind_group: &'a wgpu::BindGroup,
+    solid_pipeline: &'a wgpu::RenderPipeline,
+    wire_pipeline: &'a wgpu::RenderPipeline,
+    point_pipeline: &'a wgpu::RenderPipeline,
+    xray_pipeline: &'a wgpu::RenderPipeline,
+    normal_pipeline: &'a wgpu::RenderPipeline,
+    bounds_pipeline: &'a wgpu::RenderPipeline,
+    view_mode: ViewMode,
+    show_normals: bool,
+    show_bounds: bool,
+) {
+    pass.set_bind_group(0, texture_bind_group, &[]);
+    pass.set_bind_group(1, camera_bind_group, &[]);
+    pass.set_vertex_buffer(0, mesh.vertex.slice(..));
+    match view_mode {
+        ViewMode::TexturedSolid | ViewMode::Solid => draw_solid(pass, mesh, solid_pipeline),
+        ViewMode::SolidWire => {
+            draw_solid(pass, mesh, solid_pipeline);
+            draw_wire(pass, mesh, wire_pipeline);
+        }
+        ViewMode::Wireframe => draw_wire(pass, mesh, wire_pipeline),
+        ViewMode::Vertices => draw_points(pass, mesh, point_pipeline),
+        ViewMode::WireVertices => {
+            draw_wire(pass, mesh, wire_pipeline);
+            draw_points(pass, mesh, point_pipeline);
+        }
+        ViewMode::XRay => {
+            draw_solid(pass, mesh, xray_pipeline);
+            draw_wire(pass, mesh, wire_pipeline);
+        }
+    }
+    if show_normals {
+        draw_overlay_lines(
+            pass,
+            &mesh.normal_lines,
+            mesh.normal_line_vertex_count,
+            normal_pipeline,
+        );
+    }
+    if show_bounds {
+        draw_overlay_lines(
+            pass,
+            &mesh.bounds_lines,
+            mesh.bounds_line_vertex_count,
+            bounds_pipeline,
+        );
+    }
 }
 
 fn normal_line_vertices(snapshot: &DrawSnapshot) -> Vec<GpuVertex> {

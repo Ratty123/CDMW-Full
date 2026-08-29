@@ -2,7 +2,7 @@
 
 CDMW Rust Mesh Lab is a separate Windows-first diagnostic application for testing a native Rust archive, mesh, editing, and `wgpu` architecture. It does not replace the production Mesh Editor and is not linked from CDMW startup.
 
-The current readiness state is **PARTIALLY READY**. The lab builds and launches, opens PA archive roots read-only, browses a virtualized result list, reads archive entries lazily, loads supported PAC/PAM/PAMLOD layouts, renders geometry and a supported explicit 2D DDS reference through Direct3D 12, provides a navigable aspect-correct viewport, routes X-Ray and depth-aware Visible selection plus interactive editing through an in-memory generational mesh, and exports the edited copy as a validated neutral OBJ/MTL directory. Full multi-material/Partial DDS appearance, PAC skin/appearance parity, versioned lab projects, representative performance evidence, and private real-game parity remain incomplete. See [READINESS.md](READINESS.md).
+The current readiness state is **PARTIALLY READY**. The lab builds and launches, opens PA archive roots read-only, browses a virtualized result list, reads archive entries lazily, loads supported PAC/PAM/PAMLOD layouts, renders geometry and a supported explicit 2D DDS reference through Direct3D 12, provides a navigable aspect-correct viewport, routes X-Ray and depth-aware Visible selection plus interactive editing through an in-memory generational mesh, and exports the edited copy as a validated neutral OBJ/MTL directory. Its app flow and offscreen D3D12 renderer can also be exercised without creating a window. Full multi-material/Partial DDS appearance, PAC skin/appearance parity, versioned lab projects, representative performance evidence, and private real-game parity remain incomplete. See [READINESS.md](READINESS.md).
 
 ## Asset-safety notice
 
@@ -80,11 +80,14 @@ The pure-Rust probe can inspect an index, decode a mesh into a neutral binary pa
 Set-Location .\tools\rust_mesh_lab
 cargo run --release -p cdmw_asset_probe -- inventory "D:\Game\pack\archive.pamt"
 cargo run --release -p cdmw_asset_probe -- decode-mesh "D:\Assets\example.pam" "$env:TEMP\cdmw-rust-oracle"
+cargo run --release -p cdmw_asset_probe -- headless-mesh "D:\Assets\example.pac"
 cargo run --release -p cdmw_asset_probe -- inspect-texture "D:\Assets\example.dds"
 cargo run --release -p cdmw_asset_probe -- compare expected\manifest.json actual\manifest.json
 ```
 
 Neutral packages keep numeric arrays in binary files, include typed descriptors and SHA-256 hashes, and never require absolute source paths in the manifest.
+
+`headless-mesh` decodes the supplied file read-only, then runs Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate on fresh in-memory documents. Every scenario must make the intended change, create one history entry, pass mesh invariants, restore the exact baseline through Undo, and reproduce the exact edited fingerprint through Redo. Its JSON timings measure CPU decode/edit/history work; they are not pointer-latency, frame-rate, or visual-parity measurements.
 
 ## Cache and evidence
 
@@ -95,10 +98,11 @@ Use a system temporary directory for private evidence. Do not place game assets,
 ## Validation
 
 ```powershell
-.\scripts\test_rust_mesh_lab.ps1
+.\scripts\codex_check.ps1 -Area rust-mesh-lab-unit
+.\scripts\codex_check.ps1 -Area rust-mesh-lab-gpu
 ```
 
-This runs formatting, Clippy with warnings denied, workspace tests, and a Release workspace build. `cargo deny`, `cargo audit`, and fuzzing are separate optional gates when installed.
+The unit gate runs formatting, Clippy with warnings denied, workspace tests, and a Release workspace build. The GPU gate creates no window: it requires a D3D12 adapter, reuses the live renderer's mesh draw path for all seven preview modes plus Normals and Bounds, renders wide, tall, and 4:3 targets, checks `wgpu` validation scopes, and reads back a frame to reject an all-background result. It proves offscreen execution, not visible usability or appearance parity. `cargo deny`, `cargo audit`, and fuzzing are separate optional gates when installed.
 
 ## Troubleshooting
 

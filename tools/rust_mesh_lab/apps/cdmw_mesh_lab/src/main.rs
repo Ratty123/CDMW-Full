@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
 mod camera;
+#[cfg(test)]
+mod headless_tests;
 mod loader;
 mod viewport;
 

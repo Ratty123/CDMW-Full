@@ -4,7 +4,7 @@
 
 **PARTIALLY READY**
 
-The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12 adapter, renders validated geometry and a supported explicit 2D DDS reference through `wgpu`, opens archive roots read-only, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD candidates, and supports camera navigation plus pointer-driven selection, transform, sculpt, and history workflows on an in-memory generational mesh.
+The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12 adapter, renders validated geometry and a supported explicit 2D DDS reference through `wgpu`, opens archive roots read-only, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD candidates, and supports camera navigation plus pointer-driven selection, transform, sculpt, and history workflows on an in-memory generational mesh. The same app-owned workflows now have no-window construction and behavior coverage, and the shared renderer draw path has an opt-in offscreen D3D12 validation/readback gate.
 
 It is not LAB READY because private real-game parity, complete texture reconstruction/material composition, PAC skinning/appearance, representative stress/performance evidence, cache, versioned lab projects, fuzzing, and source fingerprint sessions remain incomplete.
 
@@ -28,10 +28,13 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots.
 - Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh/normal/bounds buffers, Textured/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes, and independent Normals/Bounds overlays. Bones is visibly disabled until skeleton context exists.
 - egui archive/assets, viewport, inspector, selection/edit, and status surfaces.
+- No-window `LabApplication` construction and egui-frame coverage plus direct app-method tests for every selection shape/domain, Visible/X-Ray routing, camera operation and aspect, all preview modes/overlays, transform/sculpt/topology tools, exact cancel, and Undo/Redo.
+- Offscreen D3D12 renderer coverage using the live mesh draw dispatcher for all seven preview modes with Normals and Bounds across 4:3, portrait, and widescreen targets; a validation error scope and CPU readback reject invalid or all-background output without constructing a window.
+- Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with fresh-document operation/Undo/Redo fingerprints and invariants for Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate.
 - Bounded cancellable latest-wins loader/search worker with stale-result rejection.
 - Versioned neutral binary package and manifest comparison.
 - Explicit neutral OBJ/MTL export of the edited working copy with staging, cancellation checks, reparse, structural comparison, atomic new-directory publication, and no source texture embedding.
-- Synthetic unit tests, formatting, Clippy, and visible Release interaction smoke.
+- Synthetic unit tests, formatting, Clippy, Release workspace build, no-window app coverage, opt-in offscreen GPU coverage, and visible Release interaction smoke.
 - Deterministic synthetic stress covering 100 lasso winding variants, 100 cancelled/restored gestures, and 1,000 mixed replay events with repeatable fingerprints and invariant validation.
 
 ## Incomplete gates
@@ -39,7 +42,7 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 | Gate | State | Consequence |
 |---|---|---|
 | Private archive corpus | Not run | Archive READY cannot be claimed |
-| Real PAC/PAM/PAMLOD parity | Not run | Geometry support remains partial |
+| Real PAC/PAM/PAMLOD parity | One supplied LOD0 PAC exercised; corpus parity not run | Geometry support remains partial |
 | Partial/Sparse DDS reconstruction | Incomplete | Some archive textures cannot decode |
 | Native texture/material binding | Partial | One explicit supported 2D DDS can render; multi-material binding, arrays/cubes, reconstruction, and fallback transcode remain incomplete |
 | PAC skin palette/PAB/PABC/morph | Incomplete | Character appearance parity not proven |
@@ -48,7 +51,7 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 | Neutral export | OBJ/MTL implemented | GLB, skinning/material preservation, and private corpus re-import parity remain incomplete |
 | Persistent cache | Incomplete | No cold/warm cache timing |
 | Interaction stress | Partial | 100 lasso variants, 100 cancellations, 1,000 mixed events, bounded fast-pointer retention, 10,000-point lasso compaction, and a 100,000-element local-query candidate bound pass; per-tool long high-rate/focus-loss/resize and bounded-memory soaks remain unrun |
-| Performance targets | Partial instrumentation | The live inspector now reports last/p95 CPU query and operator cost plus indexed candidates inspected, but no representative PAC latency, FPS, GPU, or memory claim has been measured |
+| Performance targets | Partial instrumentation | The live inspector reports last/p95 CPU query and operator cost plus indexed candidates inspected, and one supplied PAC has CPU headless-edit timings; no representative corpus latency, FPS, GPU, or memory claim has been measured |
 | Fuzzing | Not run | Parser robustness proof incomplete |
 | `cargo deny` / `cargo audit` | Not run yet | License/advisory gate unproven |
 
@@ -66,6 +69,34 @@ One local Release-mode microbenchmark on 2026-08-29 used the redistributable
 This is a synthetic CPU microbenchmark, not representative asset, archive,
 GPU-frame, UI-latency, memory, or real-game proof. It does not satisfy the
 33 ms interaction or stable-60-FPS readiness targets by itself.
+
+## Headless D3D12 renderer proof
+
+The opt-in no-window GPU gate on 2026-08-30 created a Direct3D 12 `wgpu`
+adapter/device and rendered a synthetic triangle through the same mesh draw
+dispatcher used by the live viewport. It submitted Textured, Solid Faces,
+Solid + Wire, Wireframe, Vertices, Wire + Vertices, and X-Ray with Normals and
+Bounds across 640×480, 480×640, and 1280×720 targets, then submitted and read
+back a final Solid + Wire frame: 22 frames total. The D3D12 validation scope was
+empty and the readback contained non-background pixels. No winit window or
+surface was created. This proves offscreen command encoding, pipeline/resource
+compatibility, aspect-dependent camera framing, and observable output; it is
+not visual appearance, pointer latency, frame pacing, or real-PAC GPU proof.
+
+## Supplied PAC headless edit proof
+
+A Release `headless-mesh` run on 2026-08-30 decoded one user-supplied PAC as
+`rust_pac_section_4_pac40`: the file reports four LODs, the supported LOD0 slice
+loaded 13,740 vertices and 25,158 faces, and the warm decode took 4.41 ms. Move,
+Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate each ran on
+fresh in-memory documents; every operation changed the expected fingerprint,
+created one history entry, passed invariants, restored the exact baseline with
+Undo, and reproduced the exact edited fingerprint with Redo. The eight complete
+operation/Undo/Redo scenarios took 870.83 ms; individual operation steps were
+17.76–27.62 ms. A SHA-256 comparison before and after the run confirmed the
+source file was unchanged. These are single-file CPU edit/history measurements,
+not full PAC/PAM/PAMLOD parity, visible selection proof, live pointer latency,
+FPS, GPU, or memory evidence.
 
 ## Visible synthetic interaction proof
 

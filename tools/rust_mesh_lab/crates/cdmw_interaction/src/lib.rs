@@ -731,12 +731,15 @@ impl OperatorController {
                 }
                 SculptTool::Pinch => position + (center - position) * strength.clamp(-1.0, 1.0),
                 SculptTool::Smooth => {
-                    let neighbors = mesh
+                    let mut neighbors = mesh
                         .vertex_neighbors(handle)
-                        .ok_or(MeshError::StaleHandle)?;
+                        .ok_or(MeshError::StaleHandle)?
+                        .into_iter()
+                        .collect::<Vec<_>>();
                     if neighbors.is_empty() {
                         position
                     } else {
+                        neighbors.sort_unstable();
                         let total = neighbors.iter().try_fold(Vec3::ZERO, |sum, neighbor| {
                             mesh.vertex(*neighbor)
                                 .map(|vertex| sum + Vec3::from_array(vertex.position))
@@ -822,7 +825,7 @@ impl OperatorController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cdmw_formats::{MeshFormat, decode_mesh};
+    use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh, decode_mesh};
 
     #[test]
     fn reversed_lasso_winding_selects_the_same_point() -> Result<(), InteractionError> {
@@ -1164,6 +1167,86 @@ mod tests {
         controller.confirm(&mut mesh, &mut history, gesture)?;
         assert_eq!(history.undo_len(), 1);
         assert_eq!(controller.state(), OperatorState::Idle);
+        Ok(())
+    }
+
+    #[test]
+    fn smooth_uses_stable_neighbor_order_for_exact_replay() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let neighbor_x = [1.0e20, 1.0, -1.0e20, 2.0, 1.0e20, -3.0, -1.0e20, 4.0];
+        let mut positions = vec![[0.0, 0.0, 0.0]];
+        positions.extend(
+            neighbor_x
+                .iter()
+                .enumerate()
+                .map(|(index, x)| [*x, index as f32 + 1.0, 0.0]),
+        );
+        let mut indices = Vec::new();
+        for index in 1..=neighbor_x.len() {
+            indices.extend_from_slice(&[
+                0,
+                u32::try_from(index)?,
+                u32::try_from(index % neighbor_x.len() + 1)?,
+            ]);
+        }
+        let vertex_count = positions.len();
+        let document = MeshDocument {
+            format: MeshFormat::Pam,
+            source_sha256: "order-sensitive-synthetic".to_owned(),
+            parser: "test".to_owned(),
+            lod_count_reported: 1,
+            lods: vec![MeshLod {
+                level: 0,
+                submeshes: vec![Submesh {
+                    name: "fan".to_owned(),
+                    material: String::new(),
+                    positions,
+                    normals: vec![[0.0, 1.0, 0.0]; vertex_count],
+                    uvs: vec![[0.0, 0.0]; vertex_count],
+                    indices,
+                    source_vertex_indices: (0..vertex_count)
+                        .map(i32::try_from)
+                        .collect::<Result<Vec<_>, _>>()?,
+                    source_range: SourceRange {
+                        offset: 0,
+                        length: 0,
+                    },
+                    vertex_stride: 12,
+                    layout: "test_fan".to_owned(),
+                }],
+            }],
+            warnings: Vec::new(),
+            structural_fingerprint: "test".to_owned(),
+        };
+        let mut expected = None;
+        for _ in 0..64 {
+            let mut mesh = WorkingMesh::from_document(&document)?;
+            let center = mesh
+                .vertices()
+                .next()
+                .map(|(handle, _)| handle)
+                .ok_or("missing fan center")?;
+            let handles = HashSet::from([center]);
+            let mut controller = OperatorController::default();
+            let gesture = controller.begin(&mesh, "deterministic smooth")?;
+            controller.sculpt(
+                &mut mesh,
+                gesture,
+                SculptTool::Smooth,
+                &handles,
+                Vec3::ZERO,
+                Vec3::ZERO,
+                1.0,
+            )?;
+            let mut history = History::new(1_000_000);
+            controller.confirm(&mut mesh, &mut history, gesture)?;
+            let fingerprint = mesh.structural_fingerprint();
+            if let Some(expected) = &expected {
+                assert_eq!(&fingerprint, expected);
+            } else {
+                expected = Some(fingerprint);
+            }
+        }
         Ok(())
     }
 }
