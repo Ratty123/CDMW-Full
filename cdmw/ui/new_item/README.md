@@ -68,9 +68,13 @@ the tab refreshes its summary from `plan_invalidated` alone, never from the tabl
 own signals (Qt emits one per cell a refill writes), and the tables' signals are
 blocked while they are filled. `build_context` is memoized per template on the
 read-only snapshot, so a validation is set lookups, not a rebuild of the sets. The
-horizontal seven-step header replaces the old summary rail while retaining that
-calculated state in per-step tooltips and accessibility text. Its footer keeps Back,
-`Step N of 7` and Continue stable. Output keeps Build plan and its review in the
+horizontal seven-step header replaces the old summary rail. Only the current page uses
+the accent; clean pages receive a neutral check after they have been visited, and
+untouched future pages keep neutral numbers. Existing validation warnings and blocking
+errors add an explicit attention badge to the current or visited owning step, including
+price and stat-block issues on **Stats & Prices**. Per-step tooltips and accessibility
+text retain the calculated detail. Its footer keeps Back, `Step N of 7` and Continue
+stable. Output keeps Build plan and its review in the
 left column, with every write and install action in the right. Step 5 is a
 non-scrolling full-height page with Perks and Effects tabs. The navigator is a
 compact 46 px row; the outer pages do not

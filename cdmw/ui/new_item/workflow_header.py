@@ -54,6 +54,7 @@ class WorkflowStepState(str, Enum):
     PENDING = "pending"
     ACTIVE = "active"
     COMPLETED = "completed"
+    WARNING = "warning"
     BLOCKED = "blocked"
 
 
@@ -64,6 +65,8 @@ def _coerce_step_state(value: object) -> Optional[WorkflowStepState]:
     aliases = {
         "current": WorkflowStepState.ACTIVE,
         "done": WorkflowStepState.COMPLETED,
+        "attention": WorkflowStepState.WARNING,
+        "review": WorkflowStepState.WARNING,
         "error": WorkflowStepState.BLOCKED,
         "invalid": WorkflowStepState.BLOCKED,
     }
@@ -132,18 +135,20 @@ class _StepButton(QAbstractButton):
         current = self.index == owner.currentRow()
         state = owner.stepState(self.index)
         hovered = self.underMouse()
+        completed = state == WorkflowStepState.COMPLETED
+        attention = state in {WorkflowStepState.WARNING, WorkflowStepState.BLOCKED}
 
         if current:
             circle_fill = active
             circle_text = active_text
             label_color = active
-        elif state == WorkflowStepState.COMPLETED:
-            circle_fill = active
-            circle_text = active_text
+        elif completed:
+            circle_fill = base
+            circle_text = window_text
             label_color = window_text
-        elif state == WorkflowStepState.BLOCKED:
-            circle_fill = owner._warning_background
-            circle_text = owner._warning_text
+        elif attention:
+            circle_fill = base
+            circle_text = button_text
             label_color = owner._warning_text
         else:
             circle_fill = base
@@ -157,7 +162,7 @@ class _StepButton(QAbstractButton):
         painter.setBrush(circle_fill)
         painter.drawEllipse(circle)
 
-        border = active if current else owner._warning_text if state == WorkflowStepState.BLOCKED else mid
+        border = active if current else owner._warning_text if attention else mid
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(border, 1))
         painter.drawEllipse(circle.adjusted(0, 0, -1, -1))
@@ -166,7 +171,19 @@ class _StepButton(QAbstractButton):
         number_font.setBold(True)
         painter.setFont(number_font)
         painter.setPen(circle_text)
-        painter.drawText(circle, Qt.AlignmentFlag.AlignCenter, str(self.index + 1))
+        painter.drawText(circle, Qt.AlignmentFlag.AlignCenter, "✓" if completed else str(self.index + 1))
+
+        if attention:
+            badge = QRect(circle.right() - 4, max(1, circle.top() - 5), 12, 12)
+            painter.setBrush(owner._warning_background)
+            painter.setPen(QPen(owner._warning_text, 1))
+            painter.drawEllipse(badge)
+            badge_font = QFont(self.font())
+            badge_font.setBold(True)
+            badge_font.setPointSizeF(max(6.0, badge_font.pointSizeF() - 1.0))
+            painter.setFont(badge_font)
+            painter.setPen(owner._warning_text)
+            painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "!")
 
         label_rect = QRect(
             circle.right() + 7,
@@ -275,6 +292,7 @@ class WorkflowHeader(QWidget):
         self._labels = values
         self._states = [WorkflowStepState.PENDING for _ in values]
         self._states[0] = WorkflowStepState.ACTIVE
+        self._visited_rows = {0}
         self._progress_position = 0.0
         self._progress_animation = QVariantAnimation(self)
         self._progress_animation.setDuration(180)
@@ -376,10 +394,24 @@ class WorkflowHeader(QWidget):
             button.setProperty("workflowState", state.value)
             button.setProperty("workflowActive", index == self._current_row)
             button.setProperty("workflowCompleted", state == WorkflowStepState.COMPLETED)
+            button.setProperty("workflowWarning", state == WorkflowStepState.WARNING)
             button.setProperty("workflowBlocked", state == WorkflowStepState.BLOCKED)
+            button.setProperty(
+                "workflowAttention",
+                state in {WorkflowStepState.WARNING, WorkflowStepState.BLOCKED},
+            )
+            button.setProperty(
+                "workflowMarker",
+                "warning"
+                if state in {WorkflowStepState.WARNING, WorkflowStepState.BLOCKED}
+                else "check"
+                if state == WorkflowStepState.COMPLETED
+                else "number",
+            )
             button.setProperty("state", state.value)
             button.setProperty("active", index == self._current_row)
             button.setProperty("completed", state == WorkflowStepState.COMPLETED)
+            button.setProperty("warning", state == WorkflowStepState.WARNING)
             button.setProperty("blocked", state == WorkflowStepState.BLOCKED)
             button.setAccessibleDescription(f"{button.text()} ({state.value})")
             button.setChecked(index == self._current_row)
@@ -447,6 +479,13 @@ class WorkflowHeader(QWidget):
             return None
         return self._states[position]
 
+    def wasVisited(self, index: int) -> bool:  # noqa: N802 - QListWidget-style API
+        try:
+            position = int(index)
+        except (TypeError, ValueError):
+            return False
+        return 0 <= position < self.count() and position in self._visited_rows
+
     def setStepState(self, index: int, state: object) -> bool:  # noqa: N802
         try:
             position = int(index)
@@ -485,6 +524,7 @@ class WorkflowHeader(QWidget):
         if self._states[previous] == WorkflowStepState.ACTIVE:
             self._states[previous] = WorkflowStepState.COMPLETED
         self._current_row = target
+        self._visited_rows.add(target)
         self._progress_animation.stop()
         self._progress_tick.stop()
         self._progress_start_position = self._progress_position
@@ -492,7 +532,7 @@ class WorkflowHeader(QWidget):
         self._progress_elapsed.start()
         self._progress_tick.start()
         self._progress_fallback.start(self._progress_animation.duration() + 1)
-        if self._states[target] != WorkflowStepState.BLOCKED:
+        if self._states[target] not in {WorkflowStepState.WARNING, WorkflowStepState.BLOCKED}:
             self._states[target] = WorkflowStepState.ACTIVE
         self._sync_buttons()
         self.currentRowChanged.emit(target)

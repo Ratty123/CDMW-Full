@@ -66,6 +66,43 @@ def _window_package_root(window: object) -> str:
     return str(getattr(window, "archive_package_root", "") or "")
 
 
+def _workflow_step_for_issue(issue: object) -> int:
+    """Return the guided step that owns one existing validation issue."""
+
+    code = str(getattr(issue, "code", "") or "").casefold()
+    field = str(getattr(issue, "field", "") or "").casefold()
+    if code == "template.no_stat_block":
+        return 3
+    if code == "template.no_owned_stems":
+        return 2
+    if code == "placement.price_missing":
+        return 3
+    if code.startswith("template.") or field == "template_key":
+        return 0
+    if code.startswith("model") or field == "model":
+        return 2
+    if code.startswith(("stat.", "buy_price.", "price.", "max_stack.", "enhancement.")) or field in {
+        "stat_edits",
+        "buy_price_edits",
+        "price_edits",
+        "max_stack_count",
+        "enhancement",
+    }:
+        return 3
+    if code.startswith(("effect.", "socket")) or field in {
+        "effect",
+        "effect_scale",
+        "effect_offset",
+        "effect_rotation_degrees",
+        "effect_look",
+        "socket_items",
+    }:
+        return 4
+    if code.startswith(("placement.", "item_groups.")) or field in {"placement", "item_groups"}:
+        return 5
+    return 1
+
+
 class NewItemStudioTab(QWidget):
     """Clone an equipment item into a brand-new one: identity, model, icon, stats, perks, shop, output."""
 
@@ -569,9 +606,12 @@ class NewItemStudioTab(QWidget):
             lines.append(note("Plan: not built yet", WARN))
         self.summary.set_lines(lines, line_chars=RAIL_CHARS)
 
+        identity_blocked = [
+            issue for issue in blocked if _workflow_step_for_issue(issue) == 1
+        ]
         name_context = f"Name: {draft.internal_name or 'not set'}"
-        if blocked:
-            name_context += f"; {len(blocked)} issue(s) block the plan"
+        if identity_blocked:
+            name_context += f"; {len(identity_blocked)} issue(s) block the plan"
         if imported is not None and controller.model_result is None:
             model_context = f"Model: {imported.label}; placement not applied"
         elif imported is not None or controller.model_result is not None:
@@ -598,25 +638,41 @@ class NewItemStudioTab(QWidget):
             distribution_context,
             output_context,
         )
-        step_states = (
-            WorkflowStepState.COMPLETED if template else WorkflowStepState.BLOCKED,
-            WorkflowStepState.BLOCKED
-            if blocked
-            else WorkflowStepState.COMPLETED
-            if draft.internal_name and english
-            else WorkflowStepState.PENDING,
-            WorkflowStepState.PENDING
-            if imported is not None and controller.model_result is None
-            else WorkflowStepState.COMPLETED,
-            WorkflowStepState.COMPLETED,
-            WorkflowStepState.PENDING
-            if self.perks_panel.has_staged_effect_changes()
-            else WorkflowStepState.COMPLETED,
-            WorkflowStepState.COMPLETED
-            if draft.placement_kind.value != "none" and draft.store_name
-            else WorkflowStepState.PENDING,
-            WorkflowStepState.COMPLETED if controller.plan is not None else WorkflowStepState.PENDING,
-        )
+        step_attention: list[Optional[WorkflowStepState]] = [None] * len(step_contexts)
+
+        def mark_attention(index: int, state: WorkflowStepState) -> None:
+            if state == WorkflowStepState.BLOCKED or step_attention[index] is None:
+                step_attention[index] = state
+
+        for issue in issues:
+            if str(getattr(issue, "severity", "error") or "error").casefold() == "info":
+                continue
+            mark_attention(
+                _workflow_step_for_issue(issue),
+                WorkflowStepState.BLOCKED if issue.is_error else WorkflowStepState.WARNING,
+            )
+        if not template:
+            mark_attention(0, WorkflowStepState.BLOCKED)
+        if not draft.internal_name or not english:
+            mark_attention(1, WorkflowStepState.BLOCKED)
+        if imported is not None and controller.model_result is None:
+            mark_attention(2, WorkflowStepState.BLOCKED)
+        if self.perks_panel.has_staged_effect_changes():
+            mark_attention(4, WorkflowStepState.WARNING)
+        if controller.plan is None:
+            mark_attention(6, WorkflowStepState.WARNING)
+
+        current_step = self.steps.currentRow()
+        step_states = []
+        for index, attention in enumerate(step_attention):
+            if index == current_step:
+                step_states.append(attention or WorkflowStepState.ACTIVE)
+            elif not self.steps.wasVisited(index):
+                step_states.append(WorkflowStepState.PENDING)
+            elif attention is not None:
+                step_states.append(attention)
+            else:
+                step_states.append(WorkflowStepState.COMPLETED)
         for index, context in enumerate(step_contexts):
             item = self.steps.item(index)
             if item is None:

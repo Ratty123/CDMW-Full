@@ -106,14 +106,32 @@ class WorkflowHeaderTests(unittest.TestCase):
     def test_navigation_promotes_active_and_completed_semantic_states(self) -> None:
         self.assertEqual(self.header.stepState(0), WorkflowStepState.ACTIVE)
         self.assertEqual(self.header.stepState(1), WorkflowStepState.PENDING)
+        self.assertTrue(self.header.wasVisited(0))
+        self.assertFalse(self.header.wasVisited(1))
 
         self.assertTrue(self.header.setCurrentRow(2))
         self.assertEqual(self.header.stepState(0), WorkflowStepState.COMPLETED)
         self.assertEqual(self.header.stepState(2), WorkflowStepState.ACTIVE)
+        self.assertTrue(self.header.wasVisited(2))
+        self.assertFalse(self.header.wasVisited(1))
         self.assertEqual(self.header.stepButton(0).property("workflowState"), "completed")
         self.assertEqual(self.header.stepButton(2).property("workflowState"), "active")
+        self.assertEqual(self.header.stepButton(0).property("workflowMarker"), "check")
+        self.assertEqual(self.header.stepButton(2).property("workflowMarker"), "number")
         self.assertTrue(self.header.stepButton(2).property("active"))
         self.assertTrue(self.header.stepButton(0).property("completed"))
+
+    def test_warning_state_keeps_the_number_neutral_and_adds_attention_metadata(self) -> None:
+        item = self.header.item(3)
+        self.assertIsNotNone(item)
+        self.assertTrue(item.setState(WorkflowStepState.WARNING))
+        button = self.header.stepButton(3)
+        self.assertEqual(button.property("workflowState"), "warning")
+        self.assertTrue(button.property("workflowWarning"))
+        self.assertTrue(button.property("workflowAttention"))
+        self.assertFalse(button.property("workflowBlocked"))
+        self.assertEqual(button.property("workflowMarker"), "warning")
+        self.assertIn("warning", button.accessibleDescription())
 
     def test_blocked_state_is_painted_and_remains_blocked_when_selected(self) -> None:
         item = self.header.item(4)

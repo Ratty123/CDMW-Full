@@ -313,6 +313,10 @@ class _TabAuthoringMixin:
         issue_codes = {issue.code for issue in tab.controller.validate()}
         self.assertIn("template.no_stat_block", issue_codes)
         self.assertIn("placement.price_missing", issue_codes)
+        tab.show_step(3)
+        self.assertEqual(tab.steps.stepState(3), WorkflowStepState.WARNING)
+        self.assertTrue(tab.steps.stepButton(3).property("workflowAttention"))
+        self.assertEqual(tab.steps.stepButton(3).property("workflowMarker"), "warning")
         tab.close()
         tab.deleteLater()
 
@@ -467,14 +471,14 @@ class _TabAuthoringMixin:
     def test_guided_effect_navigation_applies_discards_or_stays(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
-        self.assertEqual(tab.steps.stepState(0), WorkflowStepState.COMPLETED)
+        self.assertEqual(tab.steps.stepState(0), WorkflowStepState.ACTIVE)
         effects = tab.perks_panel.effects_workspace
         effects._confirm_unreviewed = lambda _reason: True
         tab.show_step(4)
         effects.choose_effect("fx_test_fire")
         self.assertTrue(effects.has_staged_changes())
         self.assertFalse(tab.continue_button.isEnabled())
-        self.assertEqual(tab.steps.stepState(4), WorkflowStepState.PENDING)
+        self.assertEqual(tab.steps.stepState(4), WorkflowStepState.WARNING)
 
         tab._effect_dirty_prompt = lambda: "stay"
         tab.show_step(5)
@@ -495,6 +499,48 @@ class _TabAuthoringMixin:
         self.assertEqual(tab.controller.draft.effect_stem, "fx_test_fire")
         self.assertFalse(effects.has_staged_changes())
         self.assertEqual(tab.steps.stepState(4), WorkflowStepState.COMPLETED)
+        tab.request_shutdown()
+        tab.close()
+        tab.deleteLater()
+
+    def test_guided_header_separates_current_completed_future_and_attention(self) -> None:
+        tab = self._tab()
+        tab.start_snapshot()
+        self.assertEqual(tab.steps.currentRow(), 0)
+        self.assertEqual(tab.steps.stepState(0), WorkflowStepState.BLOCKED)
+        self.assertEqual(
+            [tab.steps.stepState(index) for index in range(1, tab.steps.count())],
+            [WorkflowStepState.PENDING] * 6,
+        )
+        self.assertEqual(
+            [index for index in range(tab.steps.count()) if tab.steps.stepButton(index).property("workflowActive")],
+            [0],
+        )
+        self.assertFalse(any(tab.steps.stepButton(index).property("workflowCompleted") for index in range(1, 7)))
+        self.assertTrue(tab.steps.stepButton(0).property("workflowAttention"))
+
+        tab.show_step(1)
+        self.assertEqual(tab.steps.stepState(0), WorkflowStepState.BLOCKED)
+        self.assertEqual(tab.steps.stepState(1), WorkflowStepState.BLOCKED)
+        tab.prefill_template(TEMPLATE)
+        tab.identity_panel.internal_name.clear()
+        tab.identity_panel.display_name.clear()
+        self.app.processEvents()
+        self.assertEqual(tab.steps.stepState(0), WorkflowStepState.COMPLETED)
+        self.assertEqual(tab.steps.stepState(1), WorkflowStepState.BLOCKED)
+
+        tab.identity_panel.internal_name.setText("Workflow_Test_Item")
+        tab.identity_panel.display_name.setText("Workflow Test Item")
+        tab.show_step(2)
+        self.assertEqual(tab.steps.stepState(1), WorkflowStepState.COMPLETED)
+        self.assertEqual(tab.steps.stepState(2), WorkflowStepState.ACTIVE)
+        self.assertEqual(tab.steps.stepState(3), WorkflowStepState.PENDING)
+        self.assertEqual(tab.steps.stepState(4), WorkflowStepState.PENDING)
+
+        tab.show_step(5)
+        self.assertEqual(tab.steps.stepState(5), WorkflowStepState.WARNING)
+        self.assertTrue(tab.steps.stepButton(5).property("workflowAttention"))
+        self.assertEqual(tab.steps.stepButton(5).property("workflowMarker"), "warning")
         tab.request_shutdown()
         tab.close()
         tab.deleteLater()
