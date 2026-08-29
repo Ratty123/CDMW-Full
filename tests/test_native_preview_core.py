@@ -970,7 +970,7 @@ class NativePreviewCoreTests(unittest.TestCase):
     def test_native_preview_core_treats_eye_cover_as_alpha_eye_surface(self) -> None:
         source = preview_core_source()
 
-        self.assertIn("kNativeMaterialSemanticsVersion = 6", source)
+        self.assertIn("kNativeMaterialSemanticsVersion = 7", source)
         self.assertIn("evidence_contains_eye_surface_token", source)
         self.assertIn("evidence_contains_eye_cutout_surface_token", source)
         self.assertIn('lower.find("eyecover")', source)
@@ -1194,8 +1194,13 @@ class NativePreviewCoreTests(unittest.TestCase):
 
         self.assertIn("binding_owner_submesh_local_index", dispatch)
         self.assertIn("relevant_bindings_for_mesh", dispatch)
+        self.assertIn("binding.material_wrapper_order_authoritative", source)
+        self.assertIn("material_identity_match_score(binding, mesh) < threshold", source)
         self.assertIn("support_binding_rejected_before_scoring", dispatch)
         self.assertIn("decoded_surface_promotes_metal", dispatch)
+        self.assertIn("cd_phw_00_eyecovermaterial_0001_sp.dds", dispatch)
+        self.assertIn("0028 skin selected the eye-cover response map", dispatch)
+        self.assertIn("0028 eye-cover lost its own response map", dispatch)
         self.assertIn("run_material_contract_self_test();", dispatch)
         self.assertIn('\\"material_contracts\\":true', dispatch)
 
@@ -1662,6 +1667,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("if (authoritative_wrapper_match) score += 210;", source)
         self.assertIn("binding.material_wrapper_order_authoritative && identity_score < 120", source)
         self.assertIn("submesh_specific_match && text_score >= 120", source)
+        self.assertIn("conflicting_specific_part && !texture_family_matches_mesh_material", source)
         self.assertIn("extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_index++", source)
 
     def test_native_material_identity_allows_variant_token_bridge_before_rejecting(self) -> None:

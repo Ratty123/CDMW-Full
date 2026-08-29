@@ -692,6 +692,10 @@ static std::vector<const TextureBinding*> relevant_bindings_for_mesh(
         if (scoped_materials.size() <= 1) {
             for (const TextureBinding& binding : bindings) {
                 if (!material_binding_matches_mesh_source(binding, mesh)) continue;
+                if (binding.material_wrapper_order_authoritative) {
+                    const int threshold = normalized_material_key(binding.material_name).empty() ? 42 : 120;
+                    if (material_identity_match_score(binding, mesh) < threshold) continue;
+                }
                 add(&binding);
             }
             return result;

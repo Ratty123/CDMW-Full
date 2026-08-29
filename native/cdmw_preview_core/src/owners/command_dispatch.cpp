@@ -141,6 +141,42 @@ static void run_material_contract_self_test() {
         right_shared_bindings.size() == many_shared_bindings.size(),
         "shared material disappeared above the small-binding threshold");
 
+    NativeSubmesh head_0028_eye_cover;
+    head_0028_eye_cover.name = "CD_PHW_00_Head_00_0028_EyeCover";
+    head_0028_eye_cover.material = "cd_phw_00_head_00_0028_eyecover";
+    head_0028_eye_cover.source_local_submesh_index = 0;
+    NativeSubmesh head_0028_skin;
+    head_0028_skin.name = "CD_PHW_00_Head_00_0028";
+    head_0028_skin.material = "CD_PHW_00_Head_00_0028";
+    head_0028_skin.source_local_submesh_index = 1;
+    TextureBinding head_0028_eye_surface;
+    head_0028_eye_surface.role = "material";
+    head_0028_eye_surface.source_path = "cd_phw_00_eyecovermaterial_0001_sp.dds";
+    head_0028_eye_surface.archive_path = "character/texture/cd_phw_00_eyecovermaterial_0001_sp.dds";
+    head_0028_eye_surface.texture_name = "cd_phw_00_eyecovermaterial_0001_sp.dds";
+    head_0028_eye_surface.material_name = "cd_phw_00_head_00_0028_eyecover";
+    head_0028_eye_surface.material_wrapper_order_authoritative = true;
+    head_0028_eye_surface.material_wrapper_index = 0;
+    const std::vector<NativeSubmesh> head_0028_parts{head_0028_eye_cover, head_0028_skin};
+    const std::vector<TextureBinding> head_0028_bindings{head_0028_eye_surface};
+    require_material_contract(
+        material_identity_match_score(head_0028_bindings.front(), head_0028_skin) == 0,
+        "0028 eye-cover response matched the skin wrapper");
+    require_material_contract(
+        best_binding_for_role(head_0028_bindings, head_0028_skin, "material") == nullptr,
+        "0028 skin selected the eye-cover response map");
+    const auto head_0028_skin_bindings = relevant_bindings_for_mesh(
+        head_0028_bindings,
+        head_0028_parts,
+        head_0028_skin,
+        {});
+    require_material_contract(
+        head_0028_skin_bindings.empty(),
+        "0028 skin retained the eye-cover response binding");
+    require_material_contract(
+        best_binding_for_role(head_0028_bindings, head_0028_eye_cover, "material") == &head_0028_bindings.front(),
+        "0028 eye-cover lost its own response map");
+
     TextureBinding layer_height;
     layer_height.role = "height";
     layer_height.source_path = "detail_height.dds";

@@ -492,15 +492,23 @@ static int material_identity_match_score(const TextureBinding& binding, const Na
             return 220 + std::min(std::max(text_score, 0), 180);
         }
         const std::string mesh_submesh_key = normalized_material_key(mesh.name);
+        const std::string mesh_material_key = normalized_material_key(mesh.material);
         const std::string binding_key = normalized_material_key(binding.material_name);
         const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
+        const bool texture_family_matches_mesh_material = binding_texture_family_is_mesh_material(binding, mesh);
+        const bool conflicting_specific_part =
+            material_identity_has_conflicting_specific_part(binding_key, mesh_material_key, mesh_submesh_key)
+            || material_identity_has_conflicting_specific_part(texture_family_key, mesh_material_key, mesh_submesh_key);
+        if (conflicting_specific_part && !texture_family_matches_mesh_material) {
+            return 0;
+        }
         // A shared material is not a cross-wrapper leak. Without this a second
         // submesh bound to the same material scored zero identity and lost its
         // albedo, because its own name never overlaps the material's name.
         const bool submesh_specific_match =
             material_keys_overlap(binding_key, mesh_submesh_key)
             || material_keys_overlap(texture_family_key, mesh_submesh_key)
-            || binding_texture_family_is_mesh_material(binding, mesh);
+            || texture_family_matches_mesh_material;
         return submesh_specific_match && text_score >= 120 ? std::min(text_score, 220) : 0;
     }
     return text_score;
