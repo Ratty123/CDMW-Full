@@ -311,7 +311,7 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
             grab_attempt.index('{"event": "tool_state", "tool": "orbit"}'),
             grab_attempt.index('_click_button_by_text(form_hwnd, "Grab"'),
         )
-        self.assertIn('_latest_event(mesh_editor_tab, "ready")', helper_identity)
+        self.assertIn('_latest_event(mesh_editor_tab, "protocol_ready")', helper_identity)
         self.assertIn('"provenance"', helper_identity)
         self.assertNotIn('"select_request"', select_attempt)
         self.assertNotIn('"stroke_begin"', grab_attempt)

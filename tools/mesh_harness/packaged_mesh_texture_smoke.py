@@ -1332,8 +1332,8 @@ def _helper_identity(mesh_editor_tab: object) -> dict[str, object]:
     configured = getattr(controller, "_configured_executable", None)
     resolution = resolve_mesh_dotnet_experiment_editor(configured)
     helper_path = Path(resolution.resolved_path) if resolution.resolved_path else None
-    ready = _latest_event(mesh_editor_tab, "ready")
-    provenance = ready.get("provenance", {})
+    protocol_ready = _latest_event(mesh_editor_tab, "protocol_ready")
+    provenance = protocol_ready.get("provenance", {})
     provenance = dict(provenance) if isinstance(provenance, Mapping) else {}
     return {
         "path": str(helper_path or ""),
