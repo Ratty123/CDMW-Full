@@ -35,6 +35,7 @@ struct MaterialUniform {
     _padding_2: u32,
     emissive_color_and_intensity: vec4<f32>,
     surface_factors: vec4<f32>,
+    relief_factors: vec4<f32>,
 };
 
 @group(0) @binding(0) var base_texture: texture_2d<f32>;
@@ -48,6 +49,7 @@ struct MaterialUniform {
 @group(0) @binding(8) var<uniform> material: MaterialUniform;
 @group(0) @binding(9) var specular_texture: texture_2d<f32>;
 @group(0) @binding(10) var opacity_texture: texture_2d<f32>;
+@group(0) @binding(11) var height_texture: texture_2d<f32>;
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
 
 const MATERIAL_BASE_COLOR: u32 = 1u;
@@ -63,6 +65,7 @@ const MATERIAL_SPECULAR_FACTOR: u32 = 512u;
 const MATERIAL_SPECULAR: u32 = 1024u;
 const MATERIAL_OPACITY: u32 = 2048u;
 const MATERIAL_ALPHA_CUTOUT: u32 = 4096u;
+const MATERIAL_HEIGHT: u32 = 8192u;
 
 @vertex
 fn vs_main(
@@ -100,15 +103,37 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
         }
     }
     var surface_normal = normalize(input.normal);
+    let tangent = normalize(input.tangent.xyz - surface_normal * dot(surface_normal, input.tangent.xyz));
+    let bitangent = normalize(cross(surface_normal, tangent)) * input.tangent.w;
     if (material.flags & MATERIAL_NORMAL) != 0u {
         let tangent_xy = textureSample(normal_texture, material_sampler, input.uv).xy * 2.0 - vec2<f32>(1.0);
         let tangent_z = sqrt(max(1.0 - dot(tangent_xy, tangent_xy), 0.0));
-        let tangent = normalize(input.tangent.xyz - surface_normal * dot(surface_normal, input.tangent.xyz));
-        let bitangent = normalize(cross(surface_normal, tangent)) * input.tangent.w;
         surface_normal = normalize(
             tangent * tangent_xy.x
             + bitangent * tangent_xy.y
             + surface_normal * tangent_z);
+    }
+    var height_value = 0.5;
+    if (material.flags & MATERIAL_HEIGHT) != 0u {
+        height_value = textureSample(height_texture, material_sampler, input.uv).r;
+        var height_uv_x = dpdx(input.uv);
+        var height_uv_y = dpdy(input.uv);
+        if dot(height_uv_x, height_uv_x) < 1e-8 {
+            height_uv_x = vec2<f32>(1.0 / 1024.0, 0.0);
+        }
+        if dot(height_uv_y, height_uv_y) < 1e-8 {
+            height_uv_y = vec2<f32>(0.0, 1.0 / 1024.0);
+        }
+        let height_x = textureSample(height_texture, material_sampler, input.uv + height_uv_x).r
+            - textureSample(height_texture, material_sampler, input.uv - height_uv_x).r;
+        let height_y = textureSample(height_texture, material_sampler, input.uv + height_uv_y).r
+            - textureSample(height_texture, material_sampler, input.uv - height_uv_y).r;
+        let height_normal = normalize(
+            surface_normal - tangent * height_x * 2.4 + bitangent * height_y * 2.4);
+        surface_normal = normalize(mix(
+            surface_normal,
+            height_normal,
+            clamp(material.relief_factors.x, 0.0, 1.0)));
     }
 
     var roughness = 0.65;
@@ -133,6 +158,10 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
     if (material.flags & MATERIAL_METALNESS_FACTOR) != 0u
         && material.surface_factors.y > 0.02 {
         metalness = max(metalness, material.surface_factors.y);
+    }
+    if (material.flags & MATERIAL_HEIGHT) != 0u {
+        let height_relief = (height_value - 0.5) * clamp(material.relief_factors.x, 0.0, 1.0);
+        roughness = clamp(roughness - height_relief * 0.10, 0.04, 1.0);
     }
     var occlusion = 1.0;
     if (material.flags & MATERIAL_OCCLUSION) != 0u {
@@ -237,6 +266,7 @@ struct MaterialUniform {
     _padding: [u32; 3],
     emissive_color_and_intensity: [f32; 4],
     surface_factors: [f32; 4],
+    relief_factors: [f32; 4],
 }
 
 const MATERIAL_BASE_COLOR: u32 = 1;
@@ -252,6 +282,7 @@ const MATERIAL_SPECULAR_FACTOR: u32 = 512;
 const MATERIAL_SPECULAR: u32 = 1024;
 const MATERIAL_OPACITY: u32 = 2048;
 const MATERIAL_ALPHA_CUTOUT: u32 = 4096;
+const MATERIAL_HEIGHT: u32 = 8192;
 
 impl CameraUniform {
     fn new() -> Self {
@@ -314,6 +345,7 @@ pub struct MaterialPreviewFactors {
     pub roughness: Option<f32>,
     pub metalness: Option<f32>,
     pub specular: Option<f32>,
+    pub height_scale: Option<f32>,
     pub alpha_cutoff: Option<f32>,
 }
 
@@ -335,6 +367,8 @@ pub struct HeadlessRenderReport {
     pub dielectric_specular_pixels_changed: usize,
     pub glossiness_texture_pixels_changed: usize,
     pub dielectric_glossiness_pixels_changed: usize,
+    pub height_texture_pixels_changed: usize,
+    pub disabled_height_pixels_changed: usize,
     pub opacity_cutout_pixels_removed: usize,
     pub opaque_opacity_pixels_changed: usize,
     pub non_background_pixels: usize,
@@ -405,6 +439,7 @@ struct DefaultMaterialTextures {
     emissive: wgpu::Texture,
     specular: wgpu::Texture,
     opacity: wgpu::Texture,
+    height: wgpu::Texture,
 }
 
 struct GpuMaterialBinding {
@@ -423,6 +458,7 @@ struct MaterialTextureIndices {
     emissive: Option<usize>,
     specular: Option<usize>,
     opacity: Option<usize>,
+    height: Option<usize>,
 }
 
 impl GpuMeshBuffers {
@@ -753,6 +789,7 @@ impl WindowRenderer {
                 | TextureRole::Specular
                 | TextureRole::Glossiness
                 | TextureRole::Opacity
+                | TextureRole::Height
         ) {
             return Err(RenderError::Texture(format!(
                 "the {role:?} role is classified but is not sampled by the current material approximation"
@@ -782,6 +819,7 @@ impl WindowRenderer {
             && factors.roughness.is_none()
             && factors.metalness.is_none()
             && factors.specular.is_none()
+            && factors.height_scale.is_none()
             && factors.alpha_cutoff.is_none()
         {
             return Err(RenderError::Texture(
@@ -799,6 +837,7 @@ impl WindowRenderer {
                 factors.roughness,
                 factors.metalness,
                 factors.specular,
+                factors.height_scale,
                 factors.alpha_cutoff,
             ]
             .into_iter()
@@ -1165,6 +1204,11 @@ pub async fn run_headless_render_smoke(
         ),
         (0_u32, TextureRole::Opacity, synthetic_opacity_dds()),
         (
+            0_u32,
+            TextureRole::Height,
+            cdmw_texture::synthetic::rgba8_checker_dds(),
+        ),
+        (
             1_u32,
             TextureRole::BaseColor,
             synthetic_dds([70, 230, 90, 255]),
@@ -1238,6 +1282,11 @@ pub async fn run_headless_render_smoke(
                         .filter(|index| roles.contains(&material_textures[*index].role)),
                     opacity: if roles.contains(&TextureRole::Opacity) {
                         indices.opacity
+                    } else {
+                        None
+                    },
+                    height: if roles.contains(&TextureRole::Height) {
+                        indices.height
                     } else {
                         None
                     },
@@ -1318,6 +1367,20 @@ pub async fn run_headless_render_smoke(
             ..MaterialPreviewFactors::default()
         },
     );
+    let height_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Height],
+        MaterialPreviewFactors {
+            height_scale: Some(0.85),
+            ..MaterialPreviewFactors::default()
+        },
+    );
+    let disabled_height_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Height],
+        MaterialPreviewFactors {
+            height_scale: Some(0.0),
+            ..MaterialPreviewFactors::default()
+        },
+    );
     let factored_emissive_material_bindings = bindings_for_roles(
         &[TextureRole::BaseColor, TextureRole::Emissive],
         MaterialPreviewFactors {
@@ -1360,6 +1423,7 @@ pub async fn run_headless_render_smoke(
             TextureRole::Specular,
             TextureRole::Glossiness,
             TextureRole::Opacity,
+            TextureRole::Height,
         ],
         MaterialPreviewFactors {
             alpha_cutoff: Some(0.5),
@@ -1498,6 +1562,8 @@ pub async fn run_headless_render_smoke(
         ),
         ("opaque opacity", opaque_opacity_material_bindings),
         ("opacity cutout", opacity_cutout_material_bindings),
+        ("height", height_material_bindings),
+        ("disabled height", disabled_height_material_bindings),
         ("occlusion", base_occlusion_material_bindings),
         ("emissive", base_emissive_material_bindings),
         ("emissive factors", factored_emissive_material_bindings),
@@ -1561,7 +1627,7 @@ pub async fn run_headless_render_smoke(
             "headless GPU frame contained only the clear color".to_owned(),
         ));
     }
-    let mut role_changes = Vec::with_capacity(10);
+    let mut role_changes = Vec::with_capacity(11);
     for (role, reference) in [
         ("base color", "unresolved"),
         ("normal", "base color"),
@@ -1571,6 +1637,7 @@ pub async fn run_headless_render_smoke(
         ("specular", "metalness"),
         ("glossiness", "metalness"),
         ("opacity cutout", "opaque opacity"),
+        ("height", "base color"),
         ("occlusion", "base color"),
         ("emissive", "base color"),
     ] {
@@ -1667,6 +1734,22 @@ pub async fn run_headless_render_smoke(
             "headless glossiness texture changed a dielectric material".to_owned(),
         ));
     }
+    let height_texture_pixels_changed =
+        changed_pixel_count(base_only_pixels, &probe_pixels[probe_index("height")?])?;
+    if height_texture_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless height texture did not change any rendered pixel".to_owned(),
+        ));
+    }
+    let disabled_height_pixels_changed = changed_pixel_count(
+        base_only_pixels,
+        &probe_pixels[probe_index("disabled height")?],
+    )?;
+    if disabled_height_pixels_changed != 0 {
+        return Err(RenderError::Device(
+            "headless height texture changed pixels at an explicit zero scale".to_owned(),
+        ));
+    }
     let opaque_opacity_pixels = &probe_pixels[probe_index("opaque opacity")?];
     let opacity_cutout_pixels = &probe_pixels[probe_index("opacity cutout")?];
     let opaque_opacity_pixels_changed =
@@ -1711,6 +1794,8 @@ pub async fn run_headless_render_smoke(
         dielectric_specular_pixels_changed,
         glossiness_texture_pixels_changed,
         dielectric_glossiness_pixels_changed,
+        height_texture_pixels_changed,
+        disabled_height_pixels_changed,
         opacity_cutout_pixels_removed,
         opaque_opacity_pixels_changed,
         non_background_pixels,
@@ -2366,6 +2451,7 @@ fn resolve_material_bindings<'a>(
                 TextureRole::Emissive => &mut slots.emissive,
                 TextureRole::Specular | TextureRole::Glossiness => &mut slots.specular,
                 TextureRole::Opacity => &mut slots.opacity,
+                TextureRole::Height => &mut slots.height,
                 _ => {
                     return Err(RenderError::Texture(format!(
                         "the {role:?} role is not sampled by the current material approximation"
@@ -2449,6 +2535,17 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.specular = Some(specular);
+            }
+            if let Some(height_scale) = factors.height_scale {
+                if resolved
+                    .height_scale
+                    .is_some_and(|existing| existing.to_bits() != height_scale.to_bits())
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting height scales in LOD {lod_index}"
+                    )));
+                }
+                resolved.height_scale = Some(height_scale);
             }
             if let Some(alpha_cutoff) = factors.alpha_cutoff {
                 if resolved
@@ -2726,6 +2823,16 @@ fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLay
                 },
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 11,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
         ],
     })
 }
@@ -2854,6 +2961,13 @@ fn create_default_material_textures(
             wgpu::TextureFormat::Rgba8Unorm,
             [255, 255, 255, 255],
         ),
+        height: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default height",
+            wgpu::TextureFormat::Rgba8Unorm,
+            [128, 128, 128, 255],
+        ),
     }
 }
 
@@ -2902,6 +3016,10 @@ fn create_material_bind_group(
         .opacity
         .and_then(|index| textures.get(index))
         .map_or(&defaults.opacity, |texture| &texture._texture);
+    let height_texture = indices
+        .height
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.height, |texture| &texture._texture);
     let base_view = base_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let normal_view = normal_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let surface_view = surface_texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -2911,6 +3029,7 @@ fn create_material_bind_group(
     let emissive_view = emissive_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let specular_view = specular_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let opacity_view = opacity_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let height_view = height_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let mut flags = 0;
     if indices.base_color.is_some() {
         flags |= MATERIAL_BASE_COLOR;
@@ -2938,6 +3057,9 @@ fn create_material_bind_group(
     }
     if indices.opacity.is_some() {
         flags |= MATERIAL_OPACITY;
+    }
+    if indices.height.is_some() {
+        flags |= MATERIAL_HEIGHT;
     }
     if factors.roughness.is_some() {
         flags |= MATERIAL_ROUGHNESS_FACTOR;
@@ -2969,6 +3091,7 @@ fn create_material_bind_group(
             factors.specular.unwrap_or(0.0),
             factors.alpha_cutoff.unwrap_or(0.0),
         ],
+        relief_factors: [factors.height_scale.unwrap_or(0.025), 0.0, 0.0, 0.0],
     };
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("CDMW Rust Mesh Lab material uniform"),
@@ -3022,6 +3145,10 @@ fn create_material_bind_group(
             wgpu::BindGroupEntry {
                 binding: 10,
                 resource: wgpu::BindingResource::TextureView(&opacity_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 11,
+                resource: wgpu::BindingResource::TextureView(&height_view),
             },
         ],
     });
@@ -3198,7 +3325,7 @@ mod tests {
 
     #[test]
     fn material_uniform_and_vertex_match_the_wgsl_layout_contracts() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 48);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 64);
         assert_eq!(std::mem::size_of::<GpuVertex>(), 48);
     }
 
@@ -3289,6 +3416,7 @@ mod tests {
             (TextureRole::Emissive, vec![vec![0_u32]]),
             (TextureRole::Specular, vec![vec![0_u32]]),
             (TextureRole::Opacity, vec![vec![0_u32]]),
+            (TextureRole::Height, vec![vec![0_u32]]),
             (TextureRole::BaseColor, vec![vec![1_u32]]),
         ];
         let bindings = resolve_material_bindings(
@@ -3313,12 +3441,13 @@ mod tests {
                         emissive: Some(6),
                         specular: Some(7),
                         opacity: Some(8),
+                        height: Some(9),
                     }
                 ),
                 (
                     1,
                     MaterialTextureIndices {
-                        base_color: Some(9),
+                        base_color: Some(10),
                         ..MaterialTextureIndices::default()
                     }
                 ),
@@ -3420,6 +3549,13 @@ mod tests {
             ),
             (
                 MaterialPreviewFactors {
+                    height_scale: Some(0.09),
+                    ..MaterialPreviewFactors::default()
+                },
+                ownership.clone(),
+            ),
+            (
+                MaterialPreviewFactors {
                     alpha_cutoff: Some(0.08),
                     ..MaterialPreviewFactors::default()
                 },
@@ -3441,6 +3577,7 @@ mod tests {
                 roughness: Some(0.7),
                 metalness: Some(0.8),
                 specular: Some(0.9),
+                height_scale: Some(0.09),
                 alpha_cutoff: Some(0.08),
             })
         );
@@ -3498,6 +3635,16 @@ mod tests {
                 },
                 MaterialPreviewFactors {
                     specular: Some(0.2),
+                    ..MaterialPreviewFactors::default()
+                },
+            ),
+            (
+                MaterialPreviewFactors {
+                    height_scale: Some(0.1),
+                    ..MaterialPreviewFactors::default()
+                },
+                MaterialPreviewFactors {
+                    height_scale: Some(0.2),
                     ..MaterialPreviewFactors::default()
                 },
             ),

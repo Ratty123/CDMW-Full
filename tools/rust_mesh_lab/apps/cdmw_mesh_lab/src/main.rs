@@ -486,6 +486,9 @@ impl LabApplication {
                 if let Some(value) = factors.specular {
                     parts.push(format!("specular {value:.3}"));
                 }
+                if let Some(value) = factors.height_scale {
+                    parts.push(format!("height scale {value:.3}"));
+                }
                 if let Some(value) = factors.alpha_cutoff {
                     let mode = if value > 0.0 { "enabled" } else { "disabled" };
                     parts.push(format!("alpha cutout {mode} · cutoff {value:.3}"));
@@ -528,6 +531,7 @@ impl LabApplication {
                         roughness: factors.roughness,
                         metalness: factors.metalness,
                         specular: factors.specular,
+                        height_scale: factors.height_scale,
                         alpha_cutoff: factors.alpha_cutoff,
                     },
                     &factors.material_indices_by_lod,

@@ -957,6 +957,22 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
                     wrapper_type: "SkinnedMeshMaterialWrapper".to_owned(),
                     submesh_name: "triangle".to_owned(),
                     material_name: "material".to_owned(),
+                    parameter_type: "MaterialParameterFloat".to_owned(),
+                    parameter_name: "_screenSpaceDisplacementScale".to_owned(),
+                    raw_value: Some("0.09".to_owned()),
+                    attributes: vec![("_value".to_owned(), "0.09".to_owned())],
+                    kind: cdmw_texture::MaterialParameterKind::Float,
+                    confidence: cdmw_texture::MaterialParameterConfidence::Explicit,
+                },
+                material_indices_by_lod: vec![vec![0]],
+                preview_semantic: Some("Height scale"),
+            },
+            crate::loader::LoadedMaterialParameter {
+                sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
+                parameter: cdmw_texture::MaterialParameter {
+                    wrapper_type: "SkinnedMeshMaterialWrapper".to_owned(),
+                    submesh_name: "triangle".to_owned(),
+                    material_name: "material".to_owned(),
                     parameter_type: "MaterialParameterColor".to_owned(),
                     parameter_name: "_emissiveColor".to_owned(),
                     raw_value: Some("#204060ff".to_owned()),
@@ -1007,6 +1023,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             roughness: Some(0.75),
             metalness: Some(0.5),
             specular: Some(0.9),
+            height_scale: Some(0.09),
             alpha_cutoff: Some(0.08),
             material_indices_by_lod: vec![vec![0]],
         }],
@@ -1035,12 +1052,12 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
     assert!(ui.reveal("Prepared material factors").is_ok());
     assert!(
         ui.reveal(
-            "emissive color 0.125, 0.251, 0.376 · emissive intensity 2.500 · roughness 0.750 · metalness 0.500 · specular 0.900 · alpha cutout enabled · cutoff 0.080"
+            "emissive color 0.125, 0.251, 0.376 · emissive intensity 2.500 · roughness 0.750 · metalness 0.500 · specular 0.900 · height scale 0.090 · alpha cutout enabled · cutoff 0.080"
         )
             .is_ok()
     );
-    assert!(ui.reveal("Preserved material parameters (3)").is_ok());
-    ui.click("Preserved material parameters (3)")?;
+    assert!(ui.reveal("Preserved material parameters (4)").is_ok());
+    ui.click("Preserved material parameters (4)")?;
     assert!(ui.reveal("_emissiveColor · Color").is_ok());
     assert!(ui.reveal("Value #204060ff").is_ok());
     assert!(
@@ -1055,6 +1072,11 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             "Roughness factor candidate; sampled only for non-conflicting material ownership"
         )
         .is_ok()
+    );
+    assert!(ui.reveal("_screenSpaceDisplacementScale · Float").is_ok());
+    assert!(
+        ui.reveal("Height scale candidate; sampled only for non-conflicting material ownership")
+            .is_ok()
     );
     assert!(ui.reveal("_alphaTest · Boolean").is_ok());
     assert!(

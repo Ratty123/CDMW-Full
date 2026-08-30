@@ -61,6 +61,7 @@ pub struct LoadedMaterialFactors {
     pub roughness: Option<f32>,
     pub metalness: Option<f32>,
     pub specular: Option<f32>,
+    pub height_scale: Option<f32>,
     pub alpha_cutoff: Option<f32>,
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
@@ -949,6 +950,7 @@ enum MaterialFactorClaim {
     Roughness(u32),
     Metalness(u32),
     Specular(u32),
+    HeightScale(u32),
     AlphaCutoff(u32),
 }
 
@@ -964,6 +966,7 @@ fn resolve_material_parameters(
     let mut roughness_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
     let mut metalness_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
     let mut specular_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
+    let mut height_scale_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
     let mut alpha_cutoff_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
 
     for parameter in &sidecar.parameters {
@@ -1017,6 +1020,12 @@ fn resolve_material_parameters(
                                 .or_default()
                                 .insert(value);
                         }
+                        MaterialFactorClaim::HeightScale(value) => {
+                            height_scale_claims
+                                .entry((lod_index, *material))
+                                .or_default()
+                                .insert(value);
+                        }
                         MaterialFactorClaim::AlphaCutoff(value) => {
                             alpha_cutoff_claims
                                 .entry((lod_index, *material))
@@ -1056,11 +1065,13 @@ fn resolve_material_parameters(
     append_material_factor_conflict_warning(&roughness_claims, "roughness", warnings);
     append_material_factor_conflict_warning(&metalness_claims, "metalness", warnings);
     append_material_factor_conflict_warning(&specular_claims, "specular", warnings);
+    append_material_factor_conflict_warning(&height_scale_claims, "height scale", warnings);
     append_material_factor_conflict_warning(&alpha_cutoff_claims, "alpha cutoff", warnings);
 
     let mut grouped = BTreeMap::<
         (
             Option<[u8; 3]>,
+            Option<u32>,
             Option<u32>,
             Option<u32>,
             Option<u32>,
@@ -1086,12 +1097,14 @@ fn resolve_material_parameters(
             let roughness = unique_material_factor_claim(&roughness_claims, key);
             let metalness = unique_material_factor_claim(&metalness_claims, key);
             let specular = unique_material_factor_claim(&specular_claims, key);
+            let height_scale = unique_material_factor_claim(&height_scale_claims, key);
             let alpha_cutoff = unique_material_factor_claim(&alpha_cutoff_claims, key);
             if color.is_none()
                 && intensity.is_none()
                 && roughness.is_none()
                 && metalness.is_none()
                 && specular.is_none()
+                && height_scale.is_none()
                 && alpha_cutoff.is_none()
             {
                 continue;
@@ -1103,6 +1116,7 @@ fn resolve_material_parameters(
                     roughness,
                     metalness,
                     specular,
+                    height_scale,
                     alpha_cutoff,
                 ))
                 .or_insert_with(|| vec![Vec::new(); document.lods.len()])[lod_index]
@@ -1112,7 +1126,10 @@ fn resolve_material_parameters(
     let factors = grouped
         .into_iter()
         .map(
-            |((color, intensity, roughness, metalness, specular, alpha_cutoff), mut ownership)| {
+            |(
+                (color, intensity, roughness, metalness, specular, height_scale, alpha_cutoff),
+                mut ownership,
+            )| {
                 for materials in &mut ownership {
                     materials.sort_unstable();
                     materials.dedup();
@@ -1130,6 +1147,7 @@ fn resolve_material_parameters(
                     roughness: roughness.map(f32::from_bits),
                     metalness: metalness.map(f32::from_bits),
                     specular: specular.map(f32::from_bits),
+                    height_scale: height_scale.map(f32::from_bits),
                     alpha_cutoff: alpha_cutoff.map(f32::from_bits),
                     material_indices_by_lod: ownership,
                 }
@@ -1210,6 +1228,15 @@ fn material_parameter_preview_semantic(parameter: &MaterialParameter) -> Option<
         .any(|name| key.contains(name))
     {
         Some("Specular factor")
+    } else if parameter.kind == MaterialParameterKind::Float
+        && matches!(
+            key.as_str(),
+            "screenspacedisplacementscale"
+                | "detailscreenspacedisplacementscale"
+                | "heightintensity"
+        )
+    {
+        Some("Height scale")
     } else if ["alphatest", "alphaclip", "alphacutout", "cutout"]
         .iter()
         .any(|name| key.contains(name))
@@ -1237,6 +1264,8 @@ fn material_parameter_factor_claim(parameter: &MaterialParameter) -> Option<Mate
             .map(|value| MaterialFactorClaim::Metalness(value.clamp(0.0, 1.0).to_bits())),
         "Specular factor" => scalar_material_parameter_value(parameter)
             .map(|value| MaterialFactorClaim::Specular(value.clamp(0.0, 1.0).to_bits())),
+        "Height scale" => scalar_material_parameter_value(parameter)
+            .map(|value| MaterialFactorClaim::HeightScale(value.clamp(0.0, 1.0).to_bits())),
         "Alpha cutout" => Some(MaterialFactorClaim::AlphaCutoff(
             if material_parameter_enable_flag(parameter) {
                 0.08_f32
@@ -1318,7 +1347,7 @@ fn owned_preview_texture_references(
     for reference in sidecar
         .textures
         .iter()
-        .filter(|reference| !is_preview_sampled_role(reference.role))
+        .filter(|reference| !is_preview_sampled_reference(reference))
     {
         warnings.push(format!(
             "{:?} parameter {} is classified but is not sampled by the current material approximation; {} remains unbound",
@@ -1329,7 +1358,7 @@ fn owned_preview_texture_references(
     for reference in sidecar
         .textures
         .iter()
-        .filter(|reference| is_preview_sampled_role(reference.role))
+        .filter(|reference| is_preview_sampled_reference(reference))
     {
         let ownership = material_indices_for_reference(reference, document);
         if ownership.iter().all(Vec::is_empty) {
@@ -1408,6 +1437,12 @@ fn owned_preview_texture_references(
     grouped.into_values().collect()
 }
 
+fn is_preview_sampled_reference(reference: &MaterialTextureReference) -> bool {
+    is_preview_sampled_role(reference.role)
+        && (reference.role != TextureRole::Height
+            || normalized_parameter_key(&reference.parameter_name) == "heighttexture")
+}
+
 const fn is_preview_sampled_role(role: TextureRole) -> bool {
     matches!(
         role,
@@ -1421,6 +1456,7 @@ const fn is_preview_sampled_role(role: TextureRole) -> bool {
             | TextureRole::Specular
             | TextureRole::Glossiness
             | TextureRole::Opacity
+            | TextureRole::Height
     )
 }
 
@@ -2041,6 +2077,8 @@ mod tests {
             "body_spec.dds",
             "body_opacity.dds",
             "body_gloss.dds",
+            "body_height.dds",
+            "body_wrinkle.dds",
         ] {
             fs::write(
                 texture_directory.join(name),
@@ -2049,21 +2087,47 @@ mod tests {
         }
         fs::write(
             &sidecar,
-            br##"<Root><SkinnedMeshMaterialWrapper _subMeshName="part-0"><Material _materialName="SkinnedMeshEmissive"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_base.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/><MaterialParameterTexture _name="_materialTexture" Value="character/texture/body_sp.dds"/><MaterialParameterTexture _name="_roughnessTexture" Value="character/texture/body_rough.dds"/><MaterialParameterTexture _name="_metalnessTexture" Value="character/texture/body_metal.dds"/><MaterialParameterTexture _name="_ambientOcclusionTexture" Value="character/texture/body_ao.dds"/><MaterialParameterTexture _name="_emissiveIntensityTexture" Value="character/texture/body_emi.dds"/><MaterialParameterTexture _name="_opacityTexture" Value="character/texture/body_opacity.dds"/><MaterialParameterTexture _name="_glossinessTexture" Value="character/texture/body_gloss.dds"/><MaterialParameterColor _name="_emissiveColor" _value="#204060ff"/><MaterialParameterFloat _name="_emissiveIntensity" _value="2.5"/><MaterialParameterBoolean _name="_alphaTest" _value="true"/></Material></SkinnedMeshMaterialWrapper><SkinnedMeshMaterialWrapper _subMeshName="part-1"><Material _materialName="SkinnedMeshStandard"><MaterialParameterTexture _name="_specularTexture" Value="character/texture/body_spec.dds"/></Material></SkinnedMeshMaterialWrapper></Root>"##,
+            br##"<Root>
+              <SkinnedMeshMaterialWrapper _subMeshName="part-0">
+                <Material _materialName="SkinnedMeshEmissive">
+                  <MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_base.dds"/>
+                  <MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/>
+                  <MaterialParameterTexture _name="_materialTexture" Value="character/texture/body_sp.dds"/>
+                  <MaterialParameterTexture _name="_roughnessTexture" Value="character/texture/body_rough.dds"/>
+                  <MaterialParameterTexture _name="_metalnessTexture" Value="character/texture/body_metal.dds"/>
+                  <MaterialParameterTexture _name="_ambientOcclusionTexture" Value="character/texture/body_ao.dds"/>
+                  <MaterialParameterTexture _name="_emissiveIntensityTexture" Value="character/texture/body_emi.dds"/>
+                  <MaterialParameterTexture _name="_opacityTexture" Value="character/texture/body_opacity.dds"/>
+                  <MaterialParameterTexture _name="_glossinessTexture" Value="character/texture/body_gloss.dds"/>
+                  <MaterialParameterTexture _name="_heightTexture" Value="character/texture/body_height.dds"/>
+                  <MaterialParameterTexture _name="_wrinkleDisplacementTexture0" Value="character/texture/body_wrinkle.dds"/>
+                  <MaterialParameterColor _name="_emissiveColor" _value="#204060ff"/>
+                  <MaterialParameterFloat _name="_emissiveIntensity" _value="2.5"/>
+                  <MaterialParameterFloat _name="_screenSpaceDisplacementScale" _value="0.09"/>
+                  <MaterialParameterBoolean _name="_alphaTest" _value="true"/>
+                </Material>
+              </SkinnedMeshMaterialWrapper>
+              <SkinnedMeshMaterialWrapper _subMeshName="part-1">
+                <Material _materialName="SkinnedMeshStandard">
+                  <MaterialParameterTexture _name="_specularTexture" Value="character/texture/body_spec.dds"/>
+                </Material>
+              </SkinnedMeshMaterialWrapper>
+            </Root>"##,
         )?;
 
         let resolved = resolve_direct_texture(
             &mesh,
             &document_with_references(&["fallback.dds", "fallback_2.dds"]),
         )?;
-        assert_eq!(resolved.textures.len(), 10);
-        assert_eq!(resolved.material_parameters.len(), 3);
+        assert_eq!(resolved.textures.len(), 11);
+        assert_eq!(resolved.material_parameters.len(), 4);
         assert_eq!(resolved.material_factors.len(), 1);
         assert_eq!(
             resolved.material_factors[0].material_indices_by_lod,
             vec![vec![0]]
         );
         assert_eq!(resolved.material_factors[0].emissive_intensity, Some(2.5));
+        assert_eq!(resolved.material_factors[0].height_scale, Some(0.09));
         assert_eq!(resolved.material_factors[0].alpha_cutoff, Some(0.08));
         let roles = resolved
             .textures
@@ -2114,11 +2178,21 @@ mod tests {
             roles.get(&TextureRole::Glossiness),
             Some(&cdmw_texture::ColorSpace::Linear)
         );
+        assert_eq!(
+            roles.get(&TextureRole::Height),
+            Some(&cdmw_texture::ColorSpace::Linear)
+        );
         assert!(
             !resolved
                 .warnings
                 .iter()
                 .any(|warning| warning.contains("body_gloss.dds remains unbound"))
+        );
+        assert!(
+            resolved
+                .warnings
+                .iter()
+                .any(|warning| { warning.contains("body_wrinkle.dds remains unbound") })
         );
         Ok(())
     }
@@ -2163,6 +2237,7 @@ mod tests {
                   <MaterialParameterFloat _name="_roughness" _value="0"/>
                   <MaterialParameterByte4 _name="_metallic" _value="128"/>
                   <MaterialParameterFloat _name="_specularAmount" _value="0.9"/>
+                  <MaterialParameterFloat _name="_screenSpaceDisplacementScale" _value="0.09"/>
                   <MaterialParameterBoolean _name="_alphaTest" _value="true"/>
                   <MaterialParameterFuture _name="_future" _value="opaque"/>
                 </Material>
@@ -2172,6 +2247,8 @@ mod tests {
                 <MaterialParameterFloat _name="_glowIntensity" _value="2"/>
                 <MaterialParameterFloat _name="_roughness" _value="0.2"/>
                 <MaterialParameterFloat _name="_scratchRoughness" _value="0.6"/>
+                <MaterialParameterFloat _name="_heightIntensity" _value="0.2"/>
+                <MaterialParameterFloat _name="_detailScreenSpaceDisplacementScale" _value="0.6"/>
               </SkinnedMeshMaterialWrapper>
             </Root>"##,
         )?;
@@ -2182,7 +2259,7 @@ mod tests {
             "character/modelproperty/body.pac_xml",
             &mut warnings,
         );
-        assert_eq!(parameters.len(), 11);
+        assert_eq!(parameters.len(), 14);
         assert_eq!(
             parameters[0].material_indices_by_lod,
             vec![vec![0], vec![1]]
@@ -2204,12 +2281,16 @@ mod tests {
         assert_eq!(factors[0].roughness, Some(0.0));
         assert_eq!(factors[0].metalness, Some(128.0 / 255.0));
         assert_eq!(factors[0].specular, Some(0.9));
+        assert_eq!(factors[0].height_scale, Some(0.09));
         assert_eq!(factors[0].alpha_cutoff, Some(0.08));
         assert!(warnings.iter().any(|warning| {
             warning.contains("material range(s) claim conflicting emissive intensities")
         }));
         assert!(warnings.iter().any(|warning| {
             warning.contains("material range(s) claim conflicting roughness factors")
+        }));
+        assert!(warnings.iter().any(|warning| {
+            warning.contains("material range(s) claim conflicting height scale factors")
         }));
         Ok(())
     }
