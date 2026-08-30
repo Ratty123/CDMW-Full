@@ -273,6 +273,7 @@ fn painted_menus_route_preview_camera_selection_and_lod_controls() -> TestResult
         ViewMode::NormalMap,
         ViewMode::UvChecker,
         ViewMode::BaseAlpha,
+        ViewMode::PartId,
         ViewMode::MaterialResponse,
         ViewMode::LayerMask,
         ViewMode::Solid,

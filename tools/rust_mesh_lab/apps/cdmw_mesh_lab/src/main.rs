@@ -826,6 +826,7 @@ impl LabApplication {
                             ViewMode::NormalMap,
                             ViewMode::UvChecker,
                             ViewMode::BaseAlpha,
+                            ViewMode::PartId,
                             ViewMode::MaterialResponse,
                             ViewMode::LayerMask,
                             ViewMode::Solid,

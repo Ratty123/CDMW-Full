@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use cdmw_mesh::DrawSnapshot;
 use cdmw_texture::{ColorSpace, DdsFormat, TextureRole, plan_2d_upload};
 use glam::{Mat4, Vec2, Vec3};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
 use thiserror::Error;
 use wgpu::util::DeviceExt;
@@ -26,6 +26,7 @@ struct VertexOut {
     @location(1) uv: vec2<f32>,
     @location(2) normal: vec3<f32>,
     @location(3) tangent: vec4<f32>,
+    @location(4) @interpolate(flat) part_id: u32,
 };
 
 struct MaterialUniform {
@@ -77,6 +78,7 @@ fn vs_main(
     @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
     @location(3) tangent: vec4<f32>,
+    @builtin(instance_index) instance_index: u32,
 ) -> VertexOut {
     var out: VertexOut;
     out.position = camera.view_projection * vec4<f32>(position, 1.0);
@@ -84,6 +86,7 @@ fn vs_main(
     out.uv = uv;
     out.normal = normal;
     out.tangent = tangent;
+    out.part_id = instance_index;
     return out;
 }
 
@@ -96,6 +99,10 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
         let checker = (u32(floor(input.uv.x * 16.0)) + u32(floor(input.uv.y * 16.0))) & 1u;
         let value = select(0.08, 0.88, checker != 0u);
         return vec4<f32>(vec3<f32>(value), 1.0);
+    }
+    if camera.view_mode == 8u {
+        let part_id = f32(input.part_id) + 1.0;
+        return vec4<f32>(fract(part_id * vec3<f32>(0.6180339, 0.3819660, 0.7548777)), 1.0);
     }
     if material.flags == 0u {
         return vec4<f32>(input.color, 1.0);
@@ -287,6 +294,7 @@ pub enum ViewMode {
     NormalMap,
     UvChecker,
     BaseAlpha,
+    PartId,
     MaterialResponse,
     LayerMask,
     Solid,
@@ -306,6 +314,7 @@ impl ViewMode {
             Self::NormalMap => "Normal Map",
             Self::UvChecker => "UV Checker",
             Self::BaseAlpha => "Base Alpha",
+            Self::PartId => "Part ID",
             Self::MaterialResponse => "Material Response",
             Self::LayerMask => "Layer Mask",
             Self::Solid => "Solid Faces",
@@ -324,6 +333,7 @@ impl ViewMode {
             Self::NormalMap => 3,
             Self::UvChecker => 4,
             Self::BaseAlpha => 5,
+            Self::PartId => 8,
             Self::MaterialResponse => 6,
             Self::LayerMask => 7,
             Self::Solid
@@ -462,6 +472,7 @@ pub struct HeadlessRenderReport {
     pub non_hair_flow_pixels_changed: usize,
     pub layer_mask_pixels_changed: usize,
     pub layer_mask_channel_pixels_changed: usize,
+    pub part_id_colors_rendered: usize,
     pub opacity_cutout_pixels_removed: usize,
     pub opaque_opacity_pixels_changed: usize,
     pub non_background_pixels: usize,
@@ -507,6 +518,7 @@ pub struct GpuMeshBuffers {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct GpuMaterialRange {
     material: u32,
+    part_id: u32,
     first_index: u32,
     index_count: u32,
 }
@@ -1684,6 +1696,7 @@ pub async fn run_headless_render_smoke(
         ViewMode::NormalMap,
         ViewMode::UvChecker,
         ViewMode::BaseAlpha,
+        ViewMode::PartId,
         ViewMode::MaterialResponse,
         ViewMode::LayerMask,
         ViewMode::Solid,
@@ -1717,6 +1730,7 @@ pub async fn run_headless_render_smoke(
                 &camera_bind_group,
                 &pipelines,
                 mode,
+                true,
             );
             queue.submit([encoder.finish()]);
             frames_rendered = frames_rendered.saturating_add(1);
@@ -1825,11 +1839,26 @@ pub async fn run_headless_render_smoke(
             ),
         ),
     ];
+    let part_id_readback = render_headless_readback(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &default_material_binding.bind_group,
+        &BTreeMap::new(),
+        &camera_bind_group,
+        &pipelines,
+        &render_snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+        ViewMode::PartId,
+    );
     frames_rendered = frames_rendered
         .saturating_add(u32::try_from(readbacks.len()).map_err(|_| RenderError::ResourceLimit)?)
         .saturating_add(
             u32::try_from(layer_mask_readbacks.len()).map_err(|_| RenderError::ResourceLimit)?,
-        );
+        )
+        .saturating_add(1);
     device
         .poll(wgpu::PollType::wait_indefinitely())
         .map_err(|error| RenderError::Device(format!("headless GPU wait failed: {error}")))?;
@@ -1848,6 +1877,12 @@ pub async fn run_headless_render_smoke(
             read_headless_pixels(&device, readback, *width, *height).map(|pixels| (*label, pixels))
         })
         .collect::<Result<BTreeMap<_, _>, _>>()?;
+    let part_id_pixels = read_headless_pixels(
+        &device,
+        &part_id_readback.0,
+        part_id_readback.1,
+        part_id_readback.2,
+    )?;
     let probe_index = |label: &str| {
         probe_bindings
             .iter()
@@ -1886,6 +1921,22 @@ pub async fn run_headless_render_smoke(
             "headless layer-mask channel selector did not change any rendered pixel".to_owned(),
         ));
     }
+    let part_id_background = part_id_pixels.get(..4).ok_or_else(|| {
+        RenderError::Device("headless Part ID frame has no complete pixel".to_owned())
+    })?;
+    let part_id_colors = part_id_pixels
+        .chunks_exact(4)
+        .filter(|pixel| *pixel != part_id_background)
+        .map(|pixel| [pixel[0], pixel[1], pixel[2], pixel[3]])
+        .collect::<BTreeSet<_>>();
+    if part_id_colors.len() < mesh.material_ranges.len() {
+        return Err(RenderError::Device(format!(
+            "headless Part ID view rendered {} distinct owner colors for {} material ranges",
+            part_id_colors.len(),
+            mesh.material_ranges.len()
+        )));
+    }
+    let part_id_colors_rendered = part_id_colors.len();
 
     let mut role_changes = Vec::with_capacity(13);
     for (role, reference) in [
@@ -2080,6 +2131,7 @@ pub async fn run_headless_render_smoke(
         non_hair_flow_pixels_changed,
         layer_mask_pixels_changed,
         layer_mask_channel_pixels_changed,
+        part_id_colors_rendered,
         opacity_cutout_pixels_removed,
         opaque_opacity_pixels_changed,
         non_background_pixels,
@@ -2147,6 +2199,7 @@ fn record_headless_pass(
     camera_bind_group: &wgpu::BindGroup,
     pipelines: &Pipelines,
     mode: ViewMode,
+    show_overlays: bool,
 ) {
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("CDMW Rust Mesh Lab headless viewport"),
@@ -2189,8 +2242,8 @@ fn record_headless_pass(
         &pipelines.normal,
         &pipelines.bounds,
         mode,
-        true,
-        true,
+        show_overlays,
+        show_overlays,
     );
 }
 
@@ -2238,6 +2291,7 @@ fn render_headless_readback(
         camera_bind_group,
         pipelines,
         view_mode,
+        false,
     );
     encoder.copy_texture_to_buffer(
         wgpu::TexelCopyTextureInfo {
@@ -2539,7 +2593,7 @@ fn draw_textured_solid<'a>(
         pass.draw_indexed(
             range.first_index..range.first_index.saturating_add(range.index_count),
             0,
-            0..1,
+            range.part_id..range.part_id + 1,
         );
     }
 }
@@ -2603,6 +2657,7 @@ fn draw_mesh<'a>(
         | ViewMode::NormalMap
         | ViewMode::UvChecker
         | ViewMode::BaseAlpha
+        | ViewMode::PartId
         | ViewMode::MaterialResponse
         | ViewMode::LayerMask => draw_textured_solid(
             pass,
@@ -2998,12 +3053,14 @@ fn material_index_batches(
     let mut indices = Vec::with_capacity(snapshot.indices.len());
     let mut ranges = Vec::with_capacity(grouped.len());
     for (material, material_indices) in grouped {
+        let part_id = u32::try_from(ranges.len()).map_err(|_| RenderError::ResourceLimit)?;
         let first_index = u32::try_from(indices.len()).map_err(|_| RenderError::ResourceLimit)?;
         let index_count =
             u32::try_from(material_indices.len()).map_err(|_| RenderError::ResourceLimit)?;
         indices.extend(material_indices);
         ranges.push(GpuMaterialRange {
             material,
+            part_id,
             first_index,
             index_count,
         });
@@ -3720,6 +3777,7 @@ mod tests {
             ViewMode::NormalMap,
             ViewMode::UvChecker,
             ViewMode::BaseAlpha,
+            ViewMode::PartId,
             ViewMode::MaterialResponse,
             ViewMode::LayerMask,
             ViewMode::Solid,
@@ -3732,7 +3790,7 @@ mod tests {
         .map(ViewMode::label)
         .into_iter()
         .collect::<HashSet<_>>();
-        assert_eq!(labels.len(), 13);
+        assert_eq!(labels.len(), 14);
     }
 
     #[test]
@@ -3781,11 +3839,13 @@ mod tests {
             vec![
                 GpuMaterialRange {
                     material: 3,
+                    part_id: 0,
                     first_index: 0,
                     index_count: 3,
                 },
                 GpuMaterialRange {
                     material: 7,
+                    part_id: 1,
                     first_index: 3,
                     index_count: 6,
                 },
