@@ -117052,7 +117052,7 @@
       ]
     },
     {
-      "key": "history, and all nine physical page/tool controls at 23.956 ms p95. Hardware and WARP D3D11 debug layers were active with zero messages; the run recorded zero foreground or cursor violations and left PAMT/PAZ hashes unchanged. This is focused proof for one GPU and one asset, not broad game-material parity. Overall readiness remains conditionally ready for every-asset, every-command, and every-GPU coverage. Human physical-input soak, renderer process-kill recovery, and exact/free output round trips remain pending.",
+      "key": "history, and all nine physical page/tool controls passing the 50 ms p95 gate. Hardware and WARP D3D11 debug layers were active with zero messages; the run recorded zero foreground or cursor violations and left PAMT/PAZ hashes unchanged. This is focused proof for one GPU and one asset, not broad game-material parity. Overall readiness remains conditionally ready for every-asset, every-command, and every-GPU coverage. Human physical-input soak, renderer process-kill recovery, and exact/free output round trips remain pending.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
