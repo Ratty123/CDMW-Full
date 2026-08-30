@@ -58,6 +58,9 @@ pub struct LoadedMaterialFactors {
     pub sidecar_label: String,
     pub emissive_color: Option<[f32; 3]>,
     pub emissive_intensity: Option<f32>,
+    pub roughness: Option<f32>,
+    pub metalness: Option<f32>,
+    pub specular: Option<f32>,
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
@@ -942,6 +945,9 @@ fn append_dds_warnings(label: &str, metadata: &DdsMetadata, warnings: &mut Vec<S
 enum MaterialFactorClaim {
     EmissiveColor([u8; 3]),
     EmissiveIntensity(u32),
+    Roughness(u32),
+    Metalness(u32),
+    Specular(u32),
 }
 
 fn resolve_material_parameters(
@@ -953,6 +959,9 @@ fn resolve_material_parameters(
     let mut loaded = Vec::with_capacity(sidecar.parameters.len());
     let mut color_claims = BTreeMap::<(usize, u32), BTreeSet<[u8; 3]>>::new();
     let mut intensity_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
+    let mut roughness_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
+    let mut metalness_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
+    let mut specular_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
 
     for parameter in &sidecar.parameters {
         let ownership =
@@ -987,6 +996,24 @@ fn resolve_material_parameters(
                                 .or_default()
                                 .insert(value);
                         }
+                        MaterialFactorClaim::Roughness(value) => {
+                            roughness_claims
+                                .entry((lod_index, *material))
+                                .or_default()
+                                .insert(value);
+                        }
+                        MaterialFactorClaim::Metalness(value) => {
+                            metalness_claims
+                                .entry((lod_index, *material))
+                                .or_default()
+                                .insert(value);
+                        }
+                        MaterialFactorClaim::Specular(value) => {
+                            specular_claims
+                                .entry((lod_index, *material))
+                                .or_default()
+                                .insert(value);
+                        }
                     }
                 }
             }
@@ -1017,8 +1044,20 @@ fn resolve_material_parameters(
             "{intensity_conflicts} material range(s) claim conflicting emissive intensities; only those intensity factors remain unbound"
         ));
     }
+    append_material_factor_conflict_warning(&roughness_claims, "roughness", warnings);
+    append_material_factor_conflict_warning(&metalness_claims, "metalness", warnings);
+    append_material_factor_conflict_warning(&specular_claims, "specular", warnings);
 
-    let mut grouped = BTreeMap::<(Option<[u8; 3]>, Option<u32>), Vec<Vec<u32>>>::new();
+    let mut grouped = BTreeMap::<
+        (
+            Option<[u8; 3]>,
+            Option<u32>,
+            Option<u32>,
+            Option<u32>,
+            Option<u32>,
+        ),
+        Vec<Vec<u32>>,
+    >::new();
     for (lod_index, lod) in document.lods.iter().enumerate() {
         for material_index in 0..lod.submeshes.len() {
             let Ok(material) = u32::try_from(material_index) else {
@@ -1033,37 +1072,73 @@ fn resolve_material_parameters(
                 .get(&key)
                 .filter(|values| values.len() == 1)
                 .and_then(|values| values.first().copied());
-            if color.is_none() && intensity.is_none() {
+            let roughness = unique_material_factor_claim(&roughness_claims, key);
+            let metalness = unique_material_factor_claim(&metalness_claims, key);
+            let specular = unique_material_factor_claim(&specular_claims, key);
+            if color.is_none()
+                && intensity.is_none()
+                && roughness.is_none()
+                && metalness.is_none()
+                && specular.is_none()
+            {
                 continue;
             }
             grouped
-                .entry((color, intensity))
+                .entry((color, intensity, roughness, metalness, specular))
                 .or_insert_with(|| vec![Vec::new(); document.lods.len()])[lod_index]
                 .push(material);
         }
     }
     let factors = grouped
         .into_iter()
-        .map(|((color, intensity), mut ownership)| {
-            for materials in &mut ownership {
-                materials.sort_unstable();
-                materials.dedup();
-            }
-            LoadedMaterialFactors {
-                sidecar_label: sidecar_label.to_owned(),
-                emissive_color: color.map(|value| {
-                    [
-                        f32::from(value[0]) / 255.0,
-                        f32::from(value[1]) / 255.0,
-                        f32::from(value[2]) / 255.0,
-                    ]
-                }),
-                emissive_intensity: intensity.map(f32::from_bits),
-                material_indices_by_lod: ownership,
-            }
-        })
+        .map(
+            |((color, intensity, roughness, metalness, specular), mut ownership)| {
+                for materials in &mut ownership {
+                    materials.sort_unstable();
+                    materials.dedup();
+                }
+                LoadedMaterialFactors {
+                    sidecar_label: sidecar_label.to_owned(),
+                    emissive_color: color.map(|value| {
+                        [
+                            f32::from(value[0]) / 255.0,
+                            f32::from(value[1]) / 255.0,
+                            f32::from(value[2]) / 255.0,
+                        ]
+                    }),
+                    emissive_intensity: intensity.map(f32::from_bits),
+                    roughness: roughness.map(f32::from_bits),
+                    metalness: metalness.map(f32::from_bits),
+                    specular: specular.map(f32::from_bits),
+                    material_indices_by_lod: ownership,
+                }
+            },
+        )
         .collect();
     (loaded, factors)
+}
+
+fn append_material_factor_conflict_warning(
+    claims: &BTreeMap<(usize, u32), BTreeSet<u32>>,
+    label: &str,
+    warnings: &mut Vec<String>,
+) {
+    let conflicts = claims.values().filter(|values| values.len() > 1).count();
+    if conflicts > 0 {
+        warnings.push(format!(
+            "{conflicts} material range(s) claim conflicting {label} factors; only those {label} factors remain unbound"
+        ));
+    }
+}
+
+fn unique_material_factor_claim(
+    claims: &BTreeMap<(usize, u32), BTreeSet<u32>>,
+    key: (usize, u32),
+) -> Option<u32> {
+    claims
+        .get(&key)
+        .filter(|values| values.len() == 1)
+        .and_then(|values| values.first().copied())
 }
 
 fn material_parameter_preview_semantic(parameter: &MaterialParameter) -> Option<&'static str> {
@@ -1090,6 +1165,30 @@ fn material_parameter_preview_semantic(parameter: &MaterialParameter) -> Option<
         .any(|name| key.contains(name))
     {
         Some("Emissive intensity")
+    } else if matches!(
+        parameter.kind,
+        MaterialParameterKind::Float | MaterialParameterKind::Byte4
+    ) && ["roughness", "scratchroughness"]
+        .iter()
+        .any(|name| key.contains(name))
+    {
+        Some("Roughness factor")
+    } else if matches!(
+        parameter.kind,
+        MaterialParameterKind::Float | MaterialParameterKind::Byte4
+    ) && ["metallic", "metalness", "scratchmetallic"]
+        .iter()
+        .any(|name| key.contains(name))
+    {
+        Some("Metalness factor")
+    } else if matches!(
+        parameter.kind,
+        MaterialParameterKind::Float | MaterialParameterKind::Byte4
+    ) && ["specular", "specularamount"]
+        .iter()
+        .any(|name| key.contains(name))
+    {
+        Some("Specular factor")
     } else {
         None
     }
@@ -1105,6 +1204,30 @@ fn material_parameter_factor_claim(parameter: &MaterialParameter) -> Option<Mate
             value
                 .is_finite()
                 .then(|| MaterialFactorClaim::EmissiveIntensity(value.clamp(0.0, 32.0).to_bits()))
+        }
+        "Roughness factor" => scalar_material_parameter_value(parameter)
+            .map(|value| MaterialFactorClaim::Roughness(value.clamp(0.0, 1.0).to_bits())),
+        "Metalness factor" => scalar_material_parameter_value(parameter)
+            .map(|value| MaterialFactorClaim::Metalness(value.clamp(0.0, 1.0).to_bits())),
+        "Specular factor" => scalar_material_parameter_value(parameter)
+            .map(|value| MaterialFactorClaim::Specular(value.clamp(0.0, 1.0).to_bits())),
+        _ => None,
+    }
+}
+
+fn scalar_material_parameter_value(parameter: &MaterialParameter) -> Option<f32> {
+    match parameter.kind {
+        MaterialParameterKind::Float => {
+            let value = parameter.raw_value.as_deref()?.trim().parse::<f32>().ok()?;
+            value.is_finite().then_some(value)
+        }
+        MaterialParameterKind::Byte4 => {
+            let packed = parameter.raw_value.as_deref()?.trim().parse::<u32>().ok()?;
+            packed
+                .to_le_bytes()
+                .into_iter()
+                .max()
+                .map(|value| f32::from(value) / 255.0)
         }
         _ => None,
     }
@@ -1941,7 +2064,7 @@ mod tests {
     }
 
     #[test]
-    fn material_parameters_preserve_unknowns_and_resolve_unique_emissive_factors()
+    fn material_parameters_preserve_unknowns_and_resolve_unique_preview_factors()
     -> Result<(), Box<dyn std::error::Error>> {
         let mut document = document_with_references(&["material-a", "material-b"]);
         let mut second_lod = document.lods[0].clone();
@@ -1954,12 +2077,17 @@ mod tests {
                 <Material _materialName="material-a">
                   <MaterialParameterColor _name="_emissiveColor" _value="#204060ff"/>
                   <MaterialParameterFloat _name="_emissiveIntensity" _value="2.5"/>
+                  <MaterialParameterFloat _name="_roughness" _value="0"/>
+                  <MaterialParameterByte4 _name="_metallic" _value="128"/>
+                  <MaterialParameterFloat _name="_specularAmount" _value="0.9"/>
                   <MaterialParameterFuture _name="_future" _value="opaque"/>
                 </Material>
               </SkinnedMeshMaterialWrapper>
               <SkinnedMeshMaterialWrapper _subMeshName="part-1">
                 <MaterialParameterFloat _name="_emissivePower" _value="1"/>
                 <MaterialParameterFloat _name="_glowIntensity" _value="2"/>
+                <MaterialParameterFloat _name="_roughness" _value="0.2"/>
+                <MaterialParameterFloat _name="_scratchRoughness" _value="0.6"/>
               </SkinnedMeshMaterialWrapper>
             </Root>"##,
         )?;
@@ -1970,14 +2098,18 @@ mod tests {
             "character/modelproperty/body.pac_xml",
             &mut warnings,
         );
-        assert_eq!(parameters.len(), 5);
+        assert_eq!(parameters.len(), 10);
         assert_eq!(
             parameters[0].material_indices_by_lod,
             vec![vec![0], vec![1]]
         );
         assert_eq!(parameters[0].preview_semantic, Some("Emissive color"));
-        assert_eq!(parameters[2].parameter.kind, MaterialParameterKind::Unknown);
-        assert_eq!(parameters[2].preview_semantic, None);
+        let future = parameters
+            .iter()
+            .find(|loaded| loaded.parameter.parameter_name == "_future")
+            .ok_or("missing preserved future parameter")?;
+        assert_eq!(future.parameter.kind, MaterialParameterKind::Unknown);
+        assert_eq!(future.preview_semantic, None);
         assert_eq!(factors.len(), 1);
         assert_eq!(factors[0].material_indices_by_lod, vec![vec![0], vec![1]]);
         assert_eq!(
@@ -1985,8 +2117,14 @@ mod tests {
             Some([32.0 / 255.0, 64.0 / 255.0, 96.0 / 255.0])
         );
         assert_eq!(factors[0].emissive_intensity, Some(2.5));
+        assert_eq!(factors[0].roughness, Some(0.0));
+        assert_eq!(factors[0].metalness, Some(128.0 / 255.0));
+        assert_eq!(factors[0].specular, Some(0.9));
         assert!(warnings.iter().any(|warning| {
             warning.contains("material range(s) claim conflicting emissive intensities")
+        }));
+        assert!(warnings.iter().any(|warning| {
+            warning.contains("material range(s) claim conflicting roughness factors")
         }));
         Ok(())
     }

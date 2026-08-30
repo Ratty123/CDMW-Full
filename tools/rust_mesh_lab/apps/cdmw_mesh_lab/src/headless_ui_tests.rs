@@ -932,26 +932,47 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             archive_compression: Some(cdmw_archive::CompressionOutcome::PartialDds),
             material_indices_by_lod: vec![vec![0]],
         }],
-        material_parameters: vec![crate::loader::LoadedMaterialParameter {
-            sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
-            parameter: cdmw_texture::MaterialParameter {
-                wrapper_type: "SkinnedMeshMaterialWrapper".to_owned(),
-                submesh_name: "triangle".to_owned(),
-                material_name: "material".to_owned(),
-                parameter_type: "MaterialParameterColor".to_owned(),
-                parameter_name: "_emissiveColor".to_owned(),
-                raw_value: Some("#204060ff".to_owned()),
-                attributes: vec![("_value".to_owned(), "#204060ff".to_owned())],
-                kind: cdmw_texture::MaterialParameterKind::Color,
-                confidence: cdmw_texture::MaterialParameterConfidence::Explicit,
+        material_parameters: vec![
+            crate::loader::LoadedMaterialParameter {
+                sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
+                parameter: cdmw_texture::MaterialParameter {
+                    wrapper_type: "SkinnedMeshMaterialWrapper".to_owned(),
+                    submesh_name: "triangle".to_owned(),
+                    material_name: "material".to_owned(),
+                    parameter_type: "MaterialParameterColor".to_owned(),
+                    parameter_name: "_emissiveColor".to_owned(),
+                    raw_value: Some("#204060ff".to_owned()),
+                    attributes: vec![("_value".to_owned(), "#204060ff".to_owned())],
+                    kind: cdmw_texture::MaterialParameterKind::Color,
+                    confidence: cdmw_texture::MaterialParameterConfidence::Explicit,
+                },
+                material_indices_by_lod: vec![vec![0]],
+                preview_semantic: Some("Emissive color"),
             },
-            material_indices_by_lod: vec![vec![0]],
-            preview_semantic: Some("Emissive color"),
-        }],
+            crate::loader::LoadedMaterialParameter {
+                sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
+                parameter: cdmw_texture::MaterialParameter {
+                    wrapper_type: "SkinnedMeshMaterialWrapper".to_owned(),
+                    submesh_name: "triangle".to_owned(),
+                    material_name: "material".to_owned(),
+                    parameter_type: "MaterialParameterFloat".to_owned(),
+                    parameter_name: "_roughness".to_owned(),
+                    raw_value: Some("0.75".to_owned()),
+                    attributes: vec![("_value".to_owned(), "0.75".to_owned())],
+                    kind: cdmw_texture::MaterialParameterKind::Float,
+                    confidence: cdmw_texture::MaterialParameterConfidence::Explicit,
+                },
+                material_indices_by_lod: vec![vec![0]],
+                preview_semantic: Some("Roughness factor"),
+            },
+        ],
         material_factors: vec![crate::loader::LoadedMaterialFactors {
             sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
             emissive_color: Some([32.0 / 255.0, 64.0 / 255.0, 96.0 / 255.0]),
             emissive_intensity: Some(2.5),
+            roughness: Some(0.75),
+            metalness: Some(0.5),
+            specular: Some(0.9),
             material_indices_by_lod: vec![vec![0]],
         }],
     });
@@ -971,16 +992,25 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
     );
     assert!(ui.reveal("Prepared material factors").is_ok());
     assert!(
-        ui.reveal("emissive color 0.125, 0.251, 0.376 · emissive intensity 2.500")
+        ui.reveal(
+            "emissive color 0.125, 0.251, 0.376 · emissive intensity 2.500 · roughness 0.750 · metalness 0.500 · specular 0.900"
+        )
             .is_ok()
     );
-    assert!(ui.reveal("Preserved material parameters (1)").is_ok());
-    ui.click("Preserved material parameters (1)")?;
+    assert!(ui.reveal("Preserved material parameters (2)").is_ok());
+    ui.click("Preserved material parameters (2)")?;
     assert!(ui.reveal("_emissiveColor · Color").is_ok());
     assert!(ui.reveal("Value #204060ff").is_ok());
     assert!(
         ui.reveal(
             "Emissive color candidate; sampled only for non-conflicting ownership with a bound emissive texture"
+        )
+        .is_ok()
+    );
+    assert!(ui.reveal("_roughness · Float").is_ok());
+    assert!(
+        ui.reveal(
+            "Roughness factor candidate; sampled only for non-conflicting material ownership"
         )
         .is_ok()
     );

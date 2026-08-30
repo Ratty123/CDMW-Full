@@ -435,9 +435,15 @@ impl LabApplication {
                 let preview = loaded.preview_semantic.map_or_else(
                     || "Preserved; not sampled by the current material approximation".to_owned(),
                     |semantic| {
-                        format!(
-                            "{semantic} candidate; sampled only for non-conflicting ownership with a bound emissive texture"
-                        )
+                        if semantic.starts_with("Emissive") {
+                            format!(
+                                "{semantic} candidate; sampled only for non-conflicting ownership with a bound emissive texture"
+                            )
+                        } else {
+                            format!(
+                                "{semantic} candidate; sampled only for non-conflicting material ownership"
+                            )
+                        }
                     },
                 );
                 MaterialParameterInspectorEntry {
@@ -461,23 +467,29 @@ impl LabApplication {
         let material_factor_entries = material_factors
             .iter()
             .map(|factors| {
-                let color = factors.emissive_color.map_or_else(
-                    || "default emissive color".to_owned(),
-                    |color| {
-                        format!(
-                            "emissive color {:.3}, {:.3}, {:.3}",
-                            color[0], color[1], color[2]
-                        )
-                    },
-                );
-                let intensity = factors.emissive_intensity.map_or_else(
-                    || "default emissive intensity".to_owned(),
-                    |value| format!("emissive intensity {value:.3}"),
-                );
+                let mut parts = Vec::new();
+                if let Some(color) = factors.emissive_color {
+                    parts.push(format!(
+                        "emissive color {:.3}, {:.3}, {:.3}",
+                        color[0], color[1], color[2]
+                    ));
+                }
+                if let Some(value) = factors.emissive_intensity {
+                    parts.push(format!("emissive intensity {value:.3}"));
+                }
+                if let Some(value) = factors.roughness {
+                    parts.push(format!("roughness {value:.3}"));
+                }
+                if let Some(value) = factors.metalness {
+                    parts.push(format!("metalness {value:.3}"));
+                }
+                if let Some(value) = factors.specular {
+                    parts.push(format!("specular {value:.3}"));
+                }
                 MaterialFactorInspectorEntry {
-                    summary: format!("{color} · {intensity}"),
+                    summary: parts.join(" · "),
                     provenance: format!(
-                        "Explicit sidecar factors · {} · used only with a bound emissive texture",
+                        "Explicit sidecar factors · {} · non-conflicting material ownership; emissive fields also require a bound emissive texture",
                         factors.sidecar_label
                     ),
                     ownership: format_material_ownership(&factors.material_indices_by_lod),
@@ -509,6 +521,9 @@ impl LabApplication {
                     MaterialPreviewFactors {
                         emissive_color: factors.emissive_color,
                         emissive_intensity: factors.emissive_intensity,
+                        roughness: factors.roughness,
+                        metalness: factors.metalness,
+                        specular: factors.specular,
                     },
                     &factors.material_indices_by_lod,
                 ) {

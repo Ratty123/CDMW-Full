@@ -34,6 +34,7 @@ struct MaterialUniform {
     _padding_1: u32,
     _padding_2: u32,
     emissive_color_and_intensity: vec4<f32>,
+    surface_factors: vec4<f32>,
 };
 
 @group(0) @binding(0) var base_texture: texture_2d<f32>;
@@ -54,6 +55,9 @@ const MATERIAL_ROUGHNESS: u32 = 8u;
 const MATERIAL_METALNESS: u32 = 16u;
 const MATERIAL_OCCLUSION: u32 = 32u;
 const MATERIAL_EMISSIVE: u32 = 64u;
+const MATERIAL_ROUGHNESS_FACTOR: u32 = 128u;
+const MATERIAL_METALNESS_FACTOR: u32 = 256u;
+const MATERIAL_SPECULAR_FACTOR: u32 = 512u;
 
 @vertex
 fn vs_main(
@@ -106,6 +110,16 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
     if (material.flags & MATERIAL_METALNESS) != 0u {
         metalness = clamp(textureSample(metalness_texture, material_sampler, input.uv).r, 0.0, 1.0);
     }
+    if (material.flags & MATERIAL_ROUGHNESS_FACTOR) != 0u {
+        let has_source_roughness =
+            (material.flags & (MATERIAL_SURFACE | MATERIAL_ROUGHNESS)) != 0u;
+        let factor_weight = select(0.55, 0.15, has_source_roughness);
+        roughness = clamp(mix(roughness, material.surface_factors.x, factor_weight), 0.04, 1.0);
+    }
+    if (material.flags & MATERIAL_METALNESS_FACTOR) != 0u
+        && material.surface_factors.y > 0.02 {
+        metalness = max(metalness, material.surface_factors.y);
+    }
     var occlusion = 1.0;
     if (material.flags & MATERIAL_OCCLUSION) != 0u {
         occlusion = clamp(textureSample(occlusion_texture, material_sampler, input.uv).r, 0.0, 1.0);
@@ -118,7 +132,12 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
     let ndoth = max(dot(surface_normal, half_vector), 0.0);
     let diffuse = texel.rgb * (0.18 * occlusion + 0.82 * ndotl) * (1.0 - metalness);
     let metal_body = texel.rgb * metalness * (0.10 * occlusion + 0.28 * ndotl);
-    let f0 = mix(vec3<f32>(0.04), texel.rgb, vec3<f32>(metalness));
+    var f0 = mix(vec3<f32>(0.04), texel.rgb, vec3<f32>(metalness));
+    if (material.flags & MATERIAL_SPECULAR_FACTOR) != 0u
+        && material.surface_factors.z > 0.02 {
+        let factored_specular = mix(0.04, material.surface_factors.z, metalness);
+        f0 = max(f0, vec3<f32>(factored_specular));
+    }
     let specular_power = mix(96.0, 8.0, roughness);
     let specular = f0 * pow(ndoth, specular_power) * (0.20 + 0.80 * (1.0 - roughness));
     let environment_specular = f0 * (0.04 + 0.28 * (1.0 - roughness));
@@ -199,6 +218,7 @@ struct MaterialUniform {
     flags: u32,
     _padding: [u32; 3],
     emissive_color_and_intensity: [f32; 4],
+    surface_factors: [f32; 4],
 }
 
 const MATERIAL_BASE_COLOR: u32 = 1;
@@ -208,6 +228,9 @@ const MATERIAL_ROUGHNESS: u32 = 8;
 const MATERIAL_METALNESS: u32 = 16;
 const MATERIAL_OCCLUSION: u32 = 32;
 const MATERIAL_EMISSIVE: u32 = 64;
+const MATERIAL_ROUGHNESS_FACTOR: u32 = 128;
+const MATERIAL_METALNESS_FACTOR: u32 = 256;
+const MATERIAL_SPECULAR_FACTOR: u32 = 512;
 
 impl CameraUniform {
     fn new() -> Self {
@@ -267,6 +290,9 @@ pub struct AdapterReport {
 pub struct MaterialPreviewFactors {
     pub emissive_color: Option<[f32; 3]>,
     pub emissive_intensity: Option<f32>,
+    pub roughness: Option<f32>,
+    pub metalness: Option<f32>,
+    pub specular: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -280,6 +306,9 @@ pub struct HeadlessRenderReport {
     pub material_ranges_rendered: u32,
     pub composed_material_pixels_changed: usize,
     pub emissive_factor_pixels_changed: usize,
+    pub roughness_factor_pixels_changed: usize,
+    pub metalness_factor_pixels_changed: usize,
+    pub specular_factor_pixels_changed: usize,
     pub non_background_pixels: usize,
 }
 
@@ -713,7 +742,12 @@ impl WindowRenderer {
                 "material factors have no owning material range".to_owned(),
             ));
         }
-        if factors.emissive_color.is_none() && factors.emissive_intensity.is_none() {
+        if factors.emissive_color.is_none()
+            && factors.emissive_intensity.is_none()
+            && factors.roughness.is_none()
+            && factors.metalness.is_none()
+            && factors.specular.is_none()
+        {
             return Err(RenderError::Texture(
                 "material factor set contains no sampled value".to_owned(),
             ));
@@ -725,6 +759,10 @@ impl WindowRenderer {
         }) || factors
             .emissive_intensity
             .is_some_and(|value| !value.is_finite() || !(0.0..=32.0).contains(&value))
+            || [factors.roughness, factors.metalness, factors.specular]
+                .into_iter()
+                .flatten()
+                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
         {
             return Err(RenderError::Texture(
                 "material factors contain a non-finite or out-of-range value".to_owned(),
@@ -738,7 +776,7 @@ impl WindowRenderer {
     }
 
     pub fn set_material_lod(&mut self, lod_index: usize) -> Result<usize, RenderError> {
-        let active = match resolve_material_bindings(
+        let mut active = match resolve_material_bindings(
             self.material_textures
                 .iter()
                 .map(|texture| (texture.role, texture.material_indices_by_lod.as_slice())),
@@ -763,6 +801,9 @@ impl WindowRenderer {
             }
         };
         let bound = active.len();
+        for material in factors.keys() {
+            active.entry(*material).or_default();
+        }
         self.active_material_bindings = active
             .into_iter()
             .map(|(material, indices)| {
@@ -1172,6 +1213,29 @@ pub async fn run_headless_render_smoke(
         MaterialPreviewFactors {
             emissive_color: Some([0.05, 0.8, 0.2]),
             emissive_intensity: Some(3.0),
+            ..MaterialPreviewFactors::default()
+        },
+    );
+    let roughness_factor_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor],
+        MaterialPreviewFactors {
+            roughness: Some(0.95),
+            ..MaterialPreviewFactors::default()
+        },
+    );
+    let metalness_factor_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor],
+        MaterialPreviewFactors {
+            metalness: Some(0.85),
+            ..MaterialPreviewFactors::default()
+        },
+    );
+    let metal_specular_factor_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor],
+        MaterialPreviewFactors {
+            metalness: Some(0.85),
+            specular: Some(1.0),
+            ..MaterialPreviewFactors::default()
         },
     );
     let active_material_bindings = bindings_for_roles(
@@ -1312,6 +1376,12 @@ pub async fn run_headless_render_smoke(
         ("occlusion", base_occlusion_material_bindings),
         ("emissive", base_emissive_material_bindings),
         ("emissive factors", factored_emissive_material_bindings),
+        ("roughness factor", roughness_factor_material_bindings),
+        ("metalness factor", metalness_factor_material_bindings),
+        (
+            "metalness and specular factors",
+            metal_specular_factor_material_bindings,
+        ),
         ("composed", active_material_bindings),
     ];
     let readbacks = probe_bindings
@@ -1346,10 +1416,14 @@ pub async fn run_headless_render_smoke(
         .iter()
         .map(|(readback, width, height)| read_headless_pixels(&device, readback, *width, *height))
         .collect::<Result<Vec<_>, _>>()?;
-    let base_only_pixels = &probe_pixels[1];
-    let composed_pixels = probe_pixels.last().ok_or_else(|| {
-        RenderError::Device("headless material proof produced no readback".to_owned())
-    })?;
+    let probe_index = |label: &str| {
+        probe_bindings
+            .iter()
+            .position(|(candidate, _)| *candidate == label)
+            .ok_or_else(|| RenderError::Device(format!("headless {label} probe is missing")))
+    };
+    let base_only_pixels = &probe_pixels[probe_index("base color")?];
+    let composed_pixels = &probe_pixels[probe_index("composed")?];
     let background = composed_pixels.get(..4).ok_or_else(|| {
         RenderError::Device("headless GPU frame has no complete pixel".to_owned())
     })?;
@@ -1362,9 +1436,9 @@ pub async fn run_headless_render_smoke(
             "headless GPU frame contained only the clear color".to_owned(),
         ));
     }
-    let mut role_changes = Vec::with_capacity(probe_bindings.len().saturating_sub(3));
-    for probe_index in 1..probe_bindings.len().saturating_sub(2) {
-        let reference_index = if probe_index == 1 { 0 } else { 1 };
+    let mut role_changes = Vec::with_capacity(7);
+    for probe_index in 1..=7 {
+        let reference_index = usize::from(probe_index != 1);
         role_changes.push((
             probe_bindings[probe_index].0,
             changed_pixel_count(&probe_pixels[reference_index], &probe_pixels[probe_index])?,
@@ -1384,20 +1458,40 @@ pub async fn run_headless_render_smoke(
                 .to_owned(),
         ));
     }
-    let emissive_pixels = probe_pixels
-        .get(probe_pixels.len().saturating_sub(3))
-        .ok_or_else(|| RenderError::Device("headless emissive probe is missing".to_owned()))?;
-    let factored_emissive_pixels = probe_pixels
-        .get(probe_pixels.len().saturating_sub(2))
-        .ok_or_else(|| {
-            RenderError::Device("headless emissive-factor probe is missing".to_owned())
-        })?;
+    let emissive_pixels = &probe_pixels[probe_index("emissive")?];
+    let factored_emissive_pixels = &probe_pixels[probe_index("emissive factors")?];
     let emissive_factor_pixels_changed =
         changed_pixel_count(emissive_pixels, factored_emissive_pixels)?;
     if emissive_factor_pixels_changed == 0 {
         return Err(RenderError::Device(
             "headless emissive color/intensity factors did not change any rendered pixel"
                 .to_owned(),
+        ));
+    }
+    let roughness_factor_pixels_changed = changed_pixel_count(
+        base_only_pixels,
+        &probe_pixels[probe_index("roughness factor")?],
+    )?;
+    if roughness_factor_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless roughness factor did not change any rendered pixel".to_owned(),
+        ));
+    }
+    let metalness_factor_pixels = &probe_pixels[probe_index("metalness factor")?];
+    let metalness_factor_pixels_changed =
+        changed_pixel_count(base_only_pixels, metalness_factor_pixels)?;
+    if metalness_factor_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless metalness factor did not change any rendered pixel".to_owned(),
+        ));
+    }
+    let specular_factor_pixels_changed = changed_pixel_count(
+        metalness_factor_pixels,
+        &probe_pixels[probe_index("metalness and specular factors")?],
+    )?;
+    if specular_factor_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless specular factor did not change any rendered pixel".to_owned(),
         ));
     }
     Ok(HeadlessRenderReport {
@@ -1414,6 +1508,9 @@ pub async fn run_headless_render_smoke(
             .map_err(|_| RenderError::ResourceLimit)?,
         composed_material_pixels_changed,
         emissive_factor_pixels_changed,
+        roughness_factor_pixels_changed,
+        metalness_factor_pixels_changed,
+        specular_factor_pixels_changed,
         non_background_pixels,
     })
 }
@@ -2116,6 +2213,39 @@ fn resolve_material_factors<'a>(
                 }
                 resolved.emissive_intensity = Some(intensity);
             }
+            if let Some(roughness) = factors.roughness {
+                if resolved
+                    .roughness
+                    .is_some_and(|existing| existing.to_bits() != roughness.to_bits())
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting roughness factors in LOD {lod_index}"
+                    )));
+                }
+                resolved.roughness = Some(roughness);
+            }
+            if let Some(metalness) = factors.metalness {
+                if resolved
+                    .metalness
+                    .is_some_and(|existing| existing.to_bits() != metalness.to_bits())
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting metalness factors in LOD {lod_index}"
+                    )));
+                }
+                resolved.metalness = Some(metalness);
+            }
+            if let Some(specular) = factors.specular {
+                if resolved
+                    .specular
+                    .is_some_and(|existing| existing.to_bits() != specular.to_bits())
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting specular factors in LOD {lod_index}"
+                    )));
+                }
+                resolved.specular = Some(specular);
+            }
         }
     }
     Ok(active)
@@ -2544,6 +2674,15 @@ fn create_material_bind_group(
     if indices.emissive.is_some() {
         flags |= MATERIAL_EMISSIVE;
     }
+    if factors.roughness.is_some() {
+        flags |= MATERIAL_ROUGHNESS_FACTOR;
+    }
+    if factors.metalness.is_some() {
+        flags |= MATERIAL_METALNESS_FACTOR;
+    }
+    if factors.specular.is_some() {
+        flags |= MATERIAL_SPECULAR_FACTOR;
+    }
     let uniform = MaterialUniform {
         flags,
         _padding: [0; 3],
@@ -2556,6 +2695,12 @@ fn create_material_bind_group(
                 factors.emissive_intensity.unwrap_or(1.0),
             ]
         },
+        surface_factors: [
+            factors.roughness.unwrap_or(0.0),
+            factors.metalness.unwrap_or(0.0),
+            factors.specular.unwrap_or(0.0),
+            0.0,
+        ],
     };
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("CDMW Rust Mesh Lab material uniform"),
@@ -2777,7 +2922,7 @@ mod tests {
 
     #[test]
     fn material_uniform_and_vertex_match_the_wgsl_layout_contracts() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 32);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 48);
         assert_eq!(std::mem::size_of::<GpuVertex>(), 48);
     }
 
@@ -2922,14 +3067,35 @@ mod tests {
             (
                 MaterialPreviewFactors {
                     emissive_color: Some([0.1, 0.2, 0.3]),
-                    emissive_intensity: None,
+                    ..MaterialPreviewFactors::default()
                 },
                 ownership.clone(),
             ),
             (
                 MaterialPreviewFactors {
-                    emissive_color: None,
                     emissive_intensity: Some(4.0),
+                    ..MaterialPreviewFactors::default()
+                },
+                ownership.clone(),
+            ),
+            (
+                MaterialPreviewFactors {
+                    roughness: Some(0.7),
+                    ..MaterialPreviewFactors::default()
+                },
+                ownership.clone(),
+            ),
+            (
+                MaterialPreviewFactors {
+                    metalness: Some(0.8),
+                    ..MaterialPreviewFactors::default()
+                },
+                ownership.clone(),
+            ),
+            (
+                MaterialPreviewFactors {
+                    specular: Some(0.9),
+                    ..MaterialPreviewFactors::default()
                 },
                 ownership.clone(),
             ),
@@ -2946,23 +3112,26 @@ mod tests {
             Some(&MaterialPreviewFactors {
                 emissive_color: Some([0.1, 0.2, 0.3]),
                 emissive_intensity: Some(4.0),
+                roughness: Some(0.7),
+                metalness: Some(0.8),
+                specular: Some(0.9),
             })
         );
 
         let conflicting = [
             (
                 MaterialPreviewFactors {
-                    emissive_color: None,
                     emissive_intensity: Some(1.0),
+                    ..MaterialPreviewFactors::default()
                 },
                 ownership.clone(),
             ),
             (
                 MaterialPreviewFactors {
-                    emissive_color: None,
                     emissive_intensity: Some(2.0),
+                    ..MaterialPreviewFactors::default()
                 },
-                ownership,
+                ownership.clone(),
             ),
         ];
         assert!(
@@ -2974,6 +3143,50 @@ mod tests {
             )
             .is_err()
         );
+        let surface_conflicts = [
+            (
+                MaterialPreviewFactors {
+                    roughness: Some(0.1),
+                    ..MaterialPreviewFactors::default()
+                },
+                MaterialPreviewFactors {
+                    roughness: Some(0.2),
+                    ..MaterialPreviewFactors::default()
+                },
+            ),
+            (
+                MaterialPreviewFactors {
+                    metalness: Some(0.1),
+                    ..MaterialPreviewFactors::default()
+                },
+                MaterialPreviewFactors {
+                    metalness: Some(0.2),
+                    ..MaterialPreviewFactors::default()
+                },
+            ),
+            (
+                MaterialPreviewFactors {
+                    specular: Some(0.1),
+                    ..MaterialPreviewFactors::default()
+                },
+                MaterialPreviewFactors {
+                    specular: Some(0.2),
+                    ..MaterialPreviewFactors::default()
+                },
+            ),
+        ];
+        for (left, right) in surface_conflicts {
+            let claims = [(left, ownership.clone()), (right, ownership.clone())];
+            assert!(
+                resolve_material_factors(
+                    claims
+                        .iter()
+                        .map(|(factors, ownership)| (*factors, ownership.as_slice())),
+                    0,
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]
