@@ -370,7 +370,7 @@ class ShellAppStartupTests(unittest.TestCase):
         window = _WindowStub()
         app = _AppStub()
         evidence = {
-            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v2",
+            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v3",
             "read_only": True,
             "archive_sources_unchanged": True,
         }
