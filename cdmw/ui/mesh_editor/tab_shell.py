@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel,
-    QPushButton, QTabWidget, QVBoxLayout, QWidget,
+    QPushButton, QSizePolicy, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
@@ -92,6 +92,7 @@ class MeshEditorTabShellMixin(
     def _build_empty_state(self) -> QWidget:
         page = QFrame(self)
         page.setObjectName("MeshEditorEmptyState")
+        page.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         layout = QVBoxLayout(page)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
@@ -294,6 +295,7 @@ class MeshEditorTabShellMixin(
                 widget.setParent(None)
                 widget.deleteLater()
         self.embedded_builder_host_layout.addWidget(builder)
+        self.empty_state.setVisible(False)
         self.workspace_stack.setCurrentWidget(self.embedded_builder_host)
         self.set_native_preview_host(builder.findChild(QWidget, "AlignmentDotNetVorticePreviewHost"))
         self._install_embedded_merged_mesh_editing(builder)
@@ -318,7 +320,8 @@ class MeshEditorTabShellMixin(
                 widget.setParent(None)
         if message:
             self.empty_status_label.setText(message)
-        self.workspace_stack.setCurrentWidget(self.empty_state)
+        self.empty_state.setVisible(True)
+        self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self.update_editor_session_state(None)
     def _install_embedded_merged_mesh_editing(self, builder: QWidget) -> None:
         control_tabs = builder.findChild(QTabWidget, "MeshAlignmentStickyWorkflowTabs")

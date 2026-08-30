@@ -9281,7 +9281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 343,
+          "line": 349,
           "sink": "append_archive_log"
         }
       ]
@@ -9866,7 +9866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 915,
+          "line": 921,
           "sink": "set_status_message"
         }
       ]
@@ -9876,7 +9876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 908,
+          "line": 914,
           "sink": "set_status_message"
         }
       ]
@@ -9886,7 +9886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 906,
+          "line": 912,
           "sink": "set_status_message"
         }
       ]
@@ -11891,7 +11891,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 886,
+          "line": 892,
           "sink": "addButton"
         },
         {
@@ -13766,7 +13766,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 887,
+          "line": 893,
           "sink": "addButton"
         },
         {
@@ -14731,12 +14731,12 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 350,
+          "line": 356,
           "sink": "_update_startup_splash"
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 816,
+          "line": 822,
           "sink": "_update_startup_splash"
         }
       ]
@@ -15066,7 +15066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 347,
+          "line": 353,
           "sink": "append_archive_log"
         }
       ]
@@ -18451,7 +18451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 834,
+          "line": 840,
           "sink": "_update_startup_splash"
         }
       ]
@@ -20931,7 +20931,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 916,
+          "line": 919,
           "sink": "question"
         }
       ]
@@ -24931,7 +24931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 879,
+          "line": 885,
           "sink": "setWindowTitle"
         }
       ]
@@ -24971,7 +24971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 880,
+          "line": 886,
           "sink": "setText"
         }
       ]
@@ -25001,7 +25001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 808,
+          "line": 814,
           "sink": "set_status_message"
         }
       ]
@@ -25011,7 +25011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 798,
+          "line": 804,
           "sink": "set_status_message"
         }
       ]
@@ -27776,7 +27776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 602,
+          "line": 605,
           "sink": "setToolTip"
         }
       ]
@@ -27786,7 +27786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 600,
+          "line": 603,
           "sink": "setToolTip"
         }
       ]
@@ -28336,7 +28336,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 916,
+          "line": 919,
           "sink": "question"
         }
       ]
@@ -29826,7 +29826,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 344,
+          "line": 347,
           "sink": "addTab"
         }
       ]
@@ -38476,7 +38476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 515,
+          "line": 521,
           "sink": "append_archive_log"
         },
         {
@@ -38491,7 +38491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 493,
+          "line": 499,
           "sink": "append_archive_log"
         },
         {
@@ -38511,7 +38511,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 555,
+          "line": 561,
           "sink": "append_log"
         }
       ]
@@ -38521,7 +38521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 545,
+          "line": 551,
           "sink": "append_archive_log"
         },
         {
@@ -38536,7 +38536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 549,
+          "line": 555,
           "sink": "append_log"
         }
       ]
@@ -38546,7 +38546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 552,
+          "line": 558,
           "sink": "append_archive_log"
         },
         {
@@ -38561,7 +38561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 556,
+          "line": 562,
           "sink": "set_status_message"
         }
       ]
@@ -38571,7 +38571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 550,
+          "line": 556,
           "sink": "set_status_message"
         }
       ]
@@ -47901,7 +47901,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 356,
+          "line": 362,
           "sink": "_update_startup_splash"
         }
       ]
@@ -47961,7 +47961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 328,
+          "line": 330,
           "sink": "setText"
         }
       ]
@@ -47981,7 +47981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 790,
+          "line": 793,
           "sink": "emit"
         },
         {
@@ -48031,7 +48031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 87,
+          "line": 88,
           "sink": "setText"
         }
       ]
@@ -51811,7 +51811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 816,
+          "line": 819,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -52101,12 +52101,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 176,
+          "line": 177,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 177,
+          "line": 178,
           "sink": "emit"
         }
       ]
@@ -52116,7 +52116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 923,
+          "line": 926,
           "sink": "emit"
         }
       ]
@@ -52126,7 +52126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 914,
+          "line": 917,
           "sink": "emit"
         }
       ]
@@ -52186,12 +52186,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 349,
+          "line": 351,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 350,
+          "line": 352,
           "sink": "emit"
         }
       ]
@@ -52226,7 +52226,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 883,
+          "line": 886,
           "sink": "RuntimeError"
         }
       ]
@@ -52361,7 +52361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 395,
+          "line": 398,
           "sink": "emit"
         }
       ]
@@ -52371,7 +52371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 91,
+          "line": 92,
           "sink": "emit"
         }
       ]
@@ -52381,7 +52381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 331,
+          "line": 333,
           "sink": "emit"
         }
       ]
@@ -52556,7 +52556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 121,
+          "line": 122,
           "sink": "emit"
         }
       ]
@@ -52641,7 +52641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 875,
+          "line": 878,
           "sink": "emit"
         }
       ]
@@ -54356,7 +54356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 110,
+          "line": 111,
           "sink": "QLabel"
         },
         {
@@ -60146,32 +60146,32 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 724,
+          "line": 727,
           "sink": "_finish_pending_textured_view"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 729,
+          "line": 732,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 795,
+          "line": 798,
           "sink": "_finish_pending_textured_view"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 800,
+          "line": 803,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 815,
+          "line": 818,
           "sink": "_finish_pending_textured_view"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 820,
+          "line": 823,
           "sink": "emit"
         },
         {
@@ -62636,7 +62636,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 888,
+          "line": 894,
           "sink": "addButton"
         }
       ]
@@ -63076,7 +63076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 130,
+          "line": 131,
           "sink": "QPushButton"
         }
       ]
@@ -63731,7 +63731,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 132,
+          "line": 133,
           "sink": "setToolTip"
         }
       ]
@@ -64161,7 +64161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 237,
+          "line": 243,
           "sink": "_update_startup_splash"
         }
       ]
@@ -64276,7 +64276,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 250,
+          "line": 256,
           "sink": "_update_startup_splash"
         }
       ]
@@ -70821,7 +70821,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_splash.py",
-          "line": 87,
+          "line": 88,
           "sink": "set_detail"
         }
       ]
@@ -76501,7 +76501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 534,
+          "line": 540,
           "sink": "append_archive_log"
         },
         {
@@ -80391,7 +80391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 906,
+          "line": 909,
           "sink": "emit"
         }
       ]
@@ -84971,7 +84971,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 898,
+          "line": 904,
           "sink": "getExistingDirectory"
         }
       ]
@@ -86551,7 +86551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 123,
+          "line": 124,
           "sink": "QLabel"
         }
       ]
@@ -88686,7 +88686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 912,
+          "line": 918,
           "sink": "set_status_message"
         }
       ]
@@ -88696,7 +88696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 882,
+          "line": 888,
           "sink": "setInformativeText"
         }
       ]
@@ -89726,7 +89726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 113,
+          "line": 114,
           "sink": "QPushButton"
         }
       ]
@@ -93791,7 +93791,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_splash.py",
-          "line": 46,
+          "line": 47,
           "sink": "python-return:format_startup_splash_detail"
         },
         {
@@ -93946,7 +93946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 335,
+          "line": 341,
           "sink": "append_archive_log"
         }
       ]
@@ -93966,12 +93966,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 310,
+          "line": 316,
           "sink": "append_archive_log"
         },
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 311,
+          "line": 317,
           "sink": "set_status_message"
         }
       ]
@@ -93981,7 +93981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 327,
+          "line": 333,
           "sink": "append_archive_log"
         }
       ]
@@ -93991,7 +93991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 740,
+          "line": 746,
           "sink": "append_archive_log"
         }
       ]
@@ -94001,7 +94001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 647,
+          "line": 653,
           "sink": "append_archive_log"
         }
       ]
@@ -94011,7 +94011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 704,
+          "line": 710,
           "sink": "append_archive_log"
         }
       ]
@@ -94021,7 +94021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 677,
+          "line": 683,
           "sink": "append_archive_log"
         }
       ]
@@ -94041,7 +94041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 809,
+          "line": 815,
           "sink": "append_log"
         }
       ]
@@ -94051,7 +94051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 810,
+          "line": 816,
           "sink": "append_archive_log"
         }
       ]
@@ -96401,7 +96401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 107,
+          "line": 108,
           "sink": "QLabel"
         }
       ]
@@ -103076,7 +103076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_startup.py",
-          "line": 143,
+          "line": 145,
           "sink": "RuntimeError"
         }
       ]
@@ -106211,7 +106211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_controller.py",
-          "line": 243,
+          "line": 249,
           "sink": "append_archive_log"
         }
       ]
@@ -120021,7 +120021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 242,
+          "line": 243,
           "sink": "TypeError"
         }
       ]
@@ -206811,7 +206811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 127,
+          "line": 128,
           "sink": "setText"
         }
       ]
@@ -207946,7 +207946,7 @@
         },
         {
           "path": "cdmw/ui/shell/startup_splash.py",
-          "line": 46,
+          "line": 47,
           "sink": "python-return:format_startup_splash_detail"
         },
         {

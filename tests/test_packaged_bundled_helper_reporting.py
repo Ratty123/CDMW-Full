@@ -94,7 +94,7 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
 
     def test_smoke_result_carries_packaged_texture_evidence(self) -> None:
         evidence = {
-            "schema": "cdmw_packaged_mesh_texture_smoke_v1",
+            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v2",
             "read_only": True,
         }
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -156,30 +156,61 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         self.assertNotEqual(0, empty.returncode)
         self.assertIn("empty bundled_helpers", empty.stderr)
 
-    def test_packaged_texture_gate_requires_both_real_textured_modes(self) -> None:
+    def test_packaged_texture_gate_requires_current_real_controls_and_selection(self) -> None:
         evidence = {
-            "schema": "cdmw_packaged_mesh_texture_smoke_v1",
+            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v2",
             "read_only": True,
             "archive_sources_unchanged": True,
+            "production_route": "MainWindow._launch_archive_mesh_editor_for_entry",
+            "actual_csharp_controls": True,
+            "global_mouse_input_used": False,
             "model_path": "character/model/body.pac",
-            "normal_mode": {
+            "helper": {
+                "path": "C:/app/Cdmw.MeshEditorExperiment.exe",
+                "sha256": "abc123",
+                "process_id": 777,
+            },
+            "application": {
+                "frozen": True,
+                "executable_sha256": "def456",
+                "helper_inside_bundle_root": True,
+            },
+            "viewport_availability": {
+                "before_session": {"standalone_workspace_current": True, "host_visible": True},
+                "before_controls": {"owned": True, "visible": True, "nonzero": True},
+                "after_textured": {"visible": True, "nonzero": True},
+                "after_select": {"visible": True, "nonzero": True},
+                "after_close": {"standalone_workspace_current": True, "host_visible": True},
+            },
+            "solid_textured": {
+                "actual_controls": True,
                 "selected_mode": "textured",
                 "renderer_resources": {
                     "display_mode": "textured",
                     "textures_enabled": True,
                     "live_texture_srvs": 3,
                     "textured_draw_calls": 2,
+                    "draw_counter_source": "renderer.live_metrics.geometry_resources",
                 },
             },
-            "edit_mode": {
-                "selected_mode": "textured",
-                "renderer_resources": {
-                    "display_mode": "textured",
-                    "textures_enabled": True,
-                    "live_texture_srvs": 3,
-                    "textured_draw_calls": 2,
+            "select": {
+                "ok": True,
+                "actual_control": True,
+                "input_backend": "scoped_hwnd_messages_no_global_cursor",
+                "input_target_pid": 777,
+                "overlay": {
+                    "counter_source": "renderer.live_metrics.geometry_resources",
+                    "committed_primitives_before": 0,
+                    "committed_primitives_after": 6,
                 },
+                "capture": {"ok": True},
             },
+            "desktop_input": {
+                "ok": True,
+                "harness_foreground_count": 0,
+                "cursor_on_harness_screen_count": 0,
+            },
+            "capture": {"ok": True},
             "material_update": {"resource_count": 3, "resource_file_count": 3},
             "material_failures": [],
         }
@@ -187,107 +218,64 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         accepted = _run_texture_gate({"evidence": evidence})
         self.assertEqual(0, accepted.returncode, accepted.stderr)
 
-        evidence["edit_mode"]["selected_mode"] = "untextured_faces"
+        evidence["select"]["overlay"]["committed_primitives_after"] = 0
+        no_highlight = _run_texture_gate({"evidence": evidence})
+        self.assertNotEqual(0, no_highlight.returncode)
+        self.assertIn("newly drawn committed selection highlight", no_highlight.stderr)
+        evidence["select"]["overlay"]["committed_primitives_after"] = 6
+
+        evidence["application"]["helper_inside_bundle_root"] = False
+        development_helper = _run_texture_gate({"evidence": evidence})
+        self.assertNotEqual(0, development_helper.returncode)
+        self.assertIn("helper outside that app's unpacked bundle", development_helper.stderr)
+        evidence["application"]["helper_inside_bundle_root"] = True
+
+        evidence["solid_textured"]["selected_mode"] = "untextured_faces"
         rejected = _run_texture_gate({"evidence": evidence})
         self.assertNotEqual(0, rejected.returncode)
         self.assertIn("did not retain Solid (Textured)", rejected.stderr)
 
-    def test_texture_smoke_waits_for_protocol_settle_before_renderer_probe(self) -> None:
-        from tools.mesh_harness import packaged_mesh_texture_smoke as smoke
+    def test_current_texture_smoke_routes_real_controls_without_builder_embedding(self) -> None:
+        source = (REPO_ROOT / "tools" / "mesh_harness" / "packaged_mesh_texture_smoke.py").read_text(
+            encoding="utf-8"
+        )
 
-        class FakeCombo:
-            def __init__(self) -> None:
-                self.index = 0
-                self.values = ("untextured_faces", "textured")
+        self.assertIn("window._launch_archive_mesh_editor_for_entry(entry)", source)
+        self.assertIn('_click_button_by_text(form_hwnd, "Select"', source)
+        self.assertIn('_select_combo_item_by_text(\n        form_hwnd,\n        "Solid (Textured)"', source)
+        self.assertIn('"global_mouse_input_used": False', source)
+        self.assertIn("runtime_event_requested.connect(capture_runtime_event)", source)
+        self.assertNotIn("prompt_archive_static_replacement_options", source)
+        self.assertNotIn("builder_host()", source)
 
-            def findData(self, value: object) -> int:
-                try:
-                    return self.values.index(value)
-                except ValueError:
-                    return -1
+    def test_texture_smoke_reads_live_draws_not_the_cached_diagnostic_snapshot(self) -> None:
+        from tools.mesh_harness.packaged_mesh_texture_smoke import _renderer_texture_state
 
-            def setCurrentIndex(self, index: int) -> None:
-                self.index = index
+        renderer = {
+            "display_mode": "textured",
+            "textures_enabled": True,
+            "geometry_resources": {
+                "live_texture_srvs": 15,
+                "textured_solid_batch_draws": 0,
+                "committed_selection_overlay_primitives": 0,
+            },
+            "live_metrics": {
+                "geometry_resources": {
+                    "textured_solid_batch_draws": 3,
+                    "committed_selection_overlay_primitives": 6,
+                },
+            },
+        }
+        tab = SimpleNamespace(standalone_dotnet_status_payload={"renderer": renderer})
 
-            def currentData(self) -> str:
-                return self.values[self.index]
+        state = _renderer_texture_state(tab)
+        self.assertEqual(3, state["textured_draw_calls"])
+        self.assertEqual(15, state["live_texture_srvs"])
+        self.assertEqual(6, state["committed_selection_overlay_primitives"])
 
-        class FakeTab:
-            standalone_dotnet_pending_textured_view = False
-            standalone_dotnet_scene_pending: object = {"request_id": 1}
-            standalone_dotnet_presentation_pending: object = {"request_id": 2}
-            standalone_dotnet_presentation_queued = True
-            standalone_dotnet_process_generation = 7
-            standalone_dotnet_texture_resources_ready_by_role = {
-                "editable_imported": True,
-                "original_reference": True,
-            }
-            standalone_dotnet_applied_material_generation_by_role = {
-                "editable_imported": 3,
-                "original_reference": 3,
-            }
-            standalone_dotnet_status_payload: dict[str, object] = {}
-
-            def __init__(self) -> None:
-                self.package_active = True
-                self.compile_active = True
-                self.status_requests: list[dict[str, object]] = []
-
-            def _standalone_dotnet_package_worker_active(self) -> bool:
-                return self.package_active
-
-            def _dotnet_material_compile_active(self) -> bool:
-                return self.compile_active
-
-            def _dotnet_target_controller(self) -> object:
-                return SimpleNamespace(
-                    session_view=lambda: SimpleNamespace(session_id="texture-smoke-session")
-                )
-
-            def _send_dotnet_protocol_message(self, payload: dict[str, object]) -> bool:
-                self.status_requests.append(dict(payload))
-                self.standalone_dotnet_status_payload = {
-                    "renderer_status_response": {"request_id": payload["request_id"]},
-                    "renderer": {
-                        "display_mode": "textured",
-                        "textures_enabled": True,
-                        "geometry_resources": {
-                            "live_texture_srvs": 3,
-                            "texture_srv_creates": 3,
-                            "textured_solid_batch_draws": 2,
-                        },
-                    },
-                }
-                return True
-
-        tab = FakeTab()
-        combo = FakeCombo()
-
-        def settle(_app: object, predicate: object, *, label: str, **_kwargs: object) -> float:
-            if label == "Edit Mesh Solid (Textured)":
-                self.assertFalse(predicate())
-                tab.standalone_dotnet_scene_pending = None
-                tab.standalone_dotnet_presentation_pending = None
-                tab.standalone_dotnet_presentation_queued = False
-                tab.package_active = False
-                tab.compile_active = False
-                self.assertTrue(predicate())
-                return 12.0
-            self.assertEqual("Edit Mesh Solid (Textured) renderer textured draw", label)
-            self.assertTrue(predicate())
-            return 1.0
-
-        with mock.patch.object(smoke, "_pump_until", side_effect=settle):
-            result = smoke._select_textured_mode(
-                SimpleNamespace(processEvents=lambda: None),
-                tab,
-                combo,
-                label="Edit Mesh Solid (Textured)",
-            )
-
-        self.assertEqual("textured", result["selected_mode"])
-        self.assertEqual(1, len(tab.status_requests))
-
+        renderer["geometry_resources"]["textured_solid_batch_draws"] = 99
+        renderer["live_metrics"]["geometry_resources"]["textured_solid_batch_draws"] = 0
+        self.assertEqual(0, _renderer_texture_state(tab)["textured_draw_calls"])
 
 if __name__ == "__main__":
     unittest.main()

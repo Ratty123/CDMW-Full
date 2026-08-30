@@ -106,7 +106,7 @@ def test_close_standalone_session_detaches_slow_controller_without_waiting() -> 
     app.processEvents()
 
 
-def test_close_session_button_confirms_edits_and_returns_to_empty_state_without_waiting() -> None:
+def test_close_session_button_confirms_edits_and_keeps_viewport_available_without_waiting() -> None:
     app = QApplication.instance() or QApplication([])
     settings = QSettings("CDMWTests", "MeshEditorCloseSessionButton")
     settings.clear()
@@ -137,7 +137,8 @@ def test_close_session_button_confirms_edits_and_returns_to_empty_state_without_
     assert question.call_count == 2
     assert elapsed < 0.05
     assert tab.standalone_controller is None
-    assert tab.workspace_stack.currentWidget() is tab.empty_state
+    assert tab.workspace_stack.currentWidget() is tab.standalone_workspace
+    assert not tab.empty_state.isHidden()
     assert dispatcher.cancelled
     assert dispatcher.retired == [controller]
     assert not controller.close_called

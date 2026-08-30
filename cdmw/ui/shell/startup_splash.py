@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Callable, Optional
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from cdmw.constants import DEFAULT_UI_THEME
@@ -102,6 +103,8 @@ def create_startup_splash(
         # This startup target needs a shown Win32/D3D11 surface, so its launcher
         # cannot use SW_HIDE. Keep the ordinary splash lifecycle but place the
         # unattended proof outside the desktop along with the main window.
+        startup_splash.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        startup_splash.setWindowFlag(Qt.WindowType.WindowDoesNotAcceptFocus, True)
         startup_splash.move(-32_000, -32_000)
     else:
         startup_splash.center_on_screen()

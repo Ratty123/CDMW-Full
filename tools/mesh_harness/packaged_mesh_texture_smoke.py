@@ -1,33 +1,43 @@
-"""Opt-in packaged proof for Archive Browser -> Mesh Editor textures."""
+"""Packaged proof for the production Mesh Editor viewport, textures, and Select."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import os
-import threading
+import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from types import SimpleNamespace
 
-from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtWidgets import QApplication
 
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.models import ArchiveEntry
-from cdmw.services.modify_original_workspace_service import (
-    ModifyOriginalWorkspacePreparationRequest,
-    prepare_modify_original_workspace,
-    read_modify_original_source_asset,
-)
+from cdmw.services.mesh_dotnet_experiment import resolve_mesh_dotnet_experiment_editor
 from cdmw.ui.archive_browser.mesh_builder_startup_smoke import (
     configure_synthetic_archive_context,
 )
-from cdmw.ui.archive_browser.static_replacement_dialog_prompt import (
-    prompt_archive_static_replacement_options,
+from tools.mesh_harness.constants import (
+    _MK_LBUTTON,
+    _WM_LBUTTONDOWN,
+    _WM_LBUTTONUP,
+    _WM_MOUSEMOVE,
 )
-from cdmw.ui.archive_browser.static_replacement_prompt_preflight import (
-    StaticReplacementPromptPreflightRequest,
-    prepare_static_replacement_prompt_preflight,
+from tools.mesh_harness.real_dotnet_capture import capture_dotnet_viewport
+from tools.mesh_harness.win32_input import (
+    _click_button_by_text,
+    _desktop_input_isolation_evidence,
+    _desktop_input_snapshot,
+    _enumerate_child_windows,
+    _host_window_rect,
+    _scoped_input_target_matches,
+    _select_combo_item_by_text,
+    _send_mouse_message,
+    _show_window_without_activation,
+    _window_process_id,
 )
 
 
@@ -77,118 +87,144 @@ def _pump_until(
     *,
     timeout_seconds: float,
     label: str,
+    desktop_observations: list[Mapping[str, object]] | None = None,
 ) -> float:
     started = time.perf_counter()
     deadline = started + max(0.1, float(timeout_seconds))
     while time.perf_counter() < deadline:
         app.processEvents()
+        if desktop_observations is not None and len(desktop_observations) < 8192:
+            desktop_observations.append(_desktop_input_snapshot())
         if predicate():
             return max(0.0, (time.perf_counter() - started) * 1000.0)
         time.sleep(0.01)
     app.processEvents()
     if predicate():
         return max(0.0, (time.perf_counter() - started) * 1000.0)
-    raise RuntimeError(f"Packaged Mesh Editor texture smoke timed out: {label}.")
+    raise RuntimeError(f"Packaged Mesh Editor smoke timed out: {label}.")
 
 
-def _material_roles_ready(mesh_editor_tab: object) -> bool:
-    ready = getattr(
-        mesh_editor_tab,
-        "standalone_dotnet_texture_resources_ready_by_role",
-        {},
+def _proof_screen(app: QApplication) -> object:
+    requested = str(os.environ.get("CDMW_HARNESS_SCREEN", "") or "").strip()
+    primary = app.primaryScreen()
+    if not requested:
+        return primary
+    screens = list(app.screens() or ())
+    for screen in screens:
+        if str(screen.name() or "").strip().casefold() == requested.casefold():
+            return screen
+    if requested.lstrip("-").isdigit():
+        index = int(requested)
+        if 0 <= index < len(screens):
+            return screens[index]
+    available = ", ".join(
+        f"[{index}] {screen.name()!r}" for index, screen in enumerate(screens)
     )
-    if not isinstance(ready, Mapping):
-        return False
-    return bool(
-        ready.get("editable_imported") is True
-        and ready.get("original_reference") is True
+    raise RuntimeError(
+        f"CDMW_HARNESS_SCREEN={requested!r} matches no screen. "
+        f"Available: {available or '(none)'}."
     )
+
+
+def _place_window_without_activation(
+    window: object,
+    app: QApplication,
+) -> tuple[int, int, int, int]:
+    screen = _proof_screen(app)
+    available = screen.availableGeometry()
+    full = screen.geometry()
+    bounds = (
+        int(full.x()),
+        int(full.y()),
+        int(full.x() + full.width()),
+        int(full.y() + full.height()),
+    )
+    width = max(960, min(1600, int(available.width()) - 48))
+    height = max(640, min(940, int(available.height()) - 48))
+    window.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+    window.setGeometry(int(available.x()) + 24, int(available.y()) + 24, width, height)
+    app.processEvents()
+    if not _show_window_without_activation(int(window.winId())):
+        raise RuntimeError("The packaged app window could not be shown without activation.")
+    app.processEvents()
+    return bounds
+
+
+def _protocol_events(mesh_editor_tab: object) -> tuple[dict[str, object], ...]:
+    return tuple(
+        dict(event)
+        for event in tuple(
+            getattr(mesh_editor_tab, "standalone_dotnet_protocol_events", ()) or ()
+        )
+        if isinstance(event, Mapping)
+    )
+
+
+def _latest_event(
+    mesh_editor_tab: object,
+    event_name: str,
+    *,
+    cursor: int = 0,
+    predicate: Callable[[Mapping[str, object]], bool] | None = None,
+) -> dict[str, object]:
+    for event in reversed(_protocol_events(mesh_editor_tab)[max(0, int(cursor)) :]):
+        if str(event.get("event", "") or "").strip().lower() != event_name:
+            continue
+        if predicate is None or predicate(event):
+            return event
+    return {}
+
+
+def _renderer_state(mesh_editor_tab: object) -> dict[str, object]:
+    status = getattr(mesh_editor_tab, "standalone_dotnet_status_payload", {})
+    renderer = status.get("renderer", {}) if isinstance(status, Mapping) else {}
+    return dict(renderer) if isinstance(renderer, Mapping) else {}
 
 
 def _renderer_texture_state(mesh_editor_tab: object) -> dict[str, object]:
-    status = getattr(mesh_editor_tab, "standalone_dotnet_status_payload", {})
-    renderer = status.get("renderer", {}) if isinstance(status, Mapping) else {}
-    geometry = (
-        renderer.get("geometry_resources", {})
-        if isinstance(renderer, Mapping)
-        else {}
-    )
+    renderer = _renderer_state(mesh_editor_tab)
+    geometry = renderer.get("geometry_resources", {})
     if not isinstance(geometry, Mapping):
         geometry = {}
+    live = renderer.get("live_metrics", {})
+    live_geometry = live.get("geometry_resources", {}) if isinstance(live, Mapping) else {}
+    if not isinstance(live_geometry, Mapping):
+        live_geometry = {}
     result: dict[str, object] = {
-        "display_mode": str(renderer.get("display_mode", "") or "")
-        if isinstance(renderer, Mapping)
-        else "",
-        "textures_enabled": bool(renderer.get("textures_enabled", False))
-        if isinstance(renderer, Mapping)
-        else False,
+        "backend": str(renderer.get("backend", "") or ""),
+        "display_mode": str(renderer.get("display_mode", "") or ""),
+        "textures_enabled": bool(renderer.get("textures_enabled", False)),
+        "viewport": dict(renderer.get("viewport", {}))
+        if isinstance(renderer.get("viewport"), Mapping)
+        else {},
+        "draw_counter_source": "renderer.live_metrics.geometry_resources",
     }
-    for result_key, geometry_key in (
-        ("live_texture_srvs", "live_texture_srvs"),
-        ("texture_srv_creates", "texture_srv_creates"),
-        ("textured_draw_calls", "textured_solid_batch_draws"),
+    for result_key, counters, geometry_key in (
+        ("live_texture_srvs", geometry, "live_texture_srvs"),
+        ("texture_srv_creates", geometry, "texture_srv_creates"),
+        ("textured_draw_calls", live_geometry, "textured_solid_batch_draws"),
+        (
+            "committed_selection_overlay_primitives",
+            live_geometry,
+            "committed_selection_overlay_primitives",
+        ),
     ):
         try:
-            result[result_key] = max(0, int(geometry.get(geometry_key, 0) or 0))
+            result[result_key] = max(0, int(counters.get(geometry_key, 0) or 0))
         except (TypeError, ValueError, OverflowError):
             result[result_key] = 0
     return result
 
 
-def _select_textured_mode(
+def _request_renderer_status(
     app: QApplication,
     mesh_editor_tab: object,
-    viewport_combo: QComboBox,
     *,
     label: str,
+    desktop_observations: list[Mapping[str, object]],
 ) -> dict[str, object]:
-    untextured_index = viewport_combo.findData("untextured_faces")
-    if untextured_index < 0:
-        untextured_index = viewport_combo.findData("untextured_wire")
-    textured_index = viewport_combo.findData("textured")
-    if untextured_index < 0 or textured_index < 0:
-        raise RuntimeError(
-            "Packaged Mesh Editor texture smoke could not find both textured and untextured modes."
-        )
-    viewport_combo.setCurrentIndex(untextured_index)
-    app.processEvents()
-    started = time.perf_counter()
-    viewport_combo.setCurrentIndex(textured_index)
-    settled_ms = _pump_until(
-        app,
-        lambda: (
-            str(viewport_combo.currentData() or "") == "textured"
-            and not bool(
-                getattr(
-                    mesh_editor_tab,
-                    "standalone_dotnet_pending_textured_view",
-                    False,
-                )
-            )
-            and getattr(mesh_editor_tab, "standalone_dotnet_scene_pending", None)
-            is None
-            and getattr(
-                mesh_editor_tab,
-                "standalone_dotnet_presentation_pending",
-                None,
-            )
-            is None
-            and not bool(
-                getattr(
-                    mesh_editor_tab,
-                    "standalone_dotnet_presentation_queued",
-                    False,
-                )
-            )
-            and not bool(mesh_editor_tab._standalone_dotnet_package_worker_active())
-            and not bool(mesh_editor_tab._dotnet_material_compile_active())
-            and _material_roles_ready(mesh_editor_tab)
-        ),
-        timeout_seconds=180.0,
-        label=label,
-    )
-    controller = mesh_editor_tab._dotnet_target_controller()
-    session_id = str(controller.session_view().session_id) if controller is not None else ""
+    target = mesh_editor_tab._dotnet_target_controller()
+    session_id = str(target.session_view().session_id) if target is not None else ""
     status_request_id = int(time.monotonic_ns() & 0x7FFFFFFF) or 1
     if not mesh_editor_tab._send_dotnet_protocol_message(
         {
@@ -200,55 +236,452 @@ def _select_textured_mode(
         }
     ):
         raise RuntimeError(
-            f"Packaged Mesh Editor texture smoke could not request renderer status for {label}."
+            f"Packaged Mesh Editor smoke could not request renderer status for {label}."
         )
     _pump_until(
         app,
-        lambda: (
-            int(
-                (
-                    getattr(mesh_editor_tab, "standalone_dotnet_status_payload", {})
-                    .get("renderer_status_response", {})
-                    .get("request_id", 0)
-                )
-                or 0
+        lambda: int(
+            (
+                getattr(mesh_editor_tab, "standalone_dotnet_status_payload", {})
+                .get("renderer_status_response", {})
+                .get("request_id", 0)
             )
-            == status_request_id
-            and str(_renderer_texture_state(mesh_editor_tab)["display_mode"])
-            == "textured"
-            and _renderer_texture_state(mesh_editor_tab)["textures_enabled"] is True
-            and int(_renderer_texture_state(mesh_editor_tab)["live_texture_srvs"] or 0)
-            > 0
-            and int(_renderer_texture_state(mesh_editor_tab)["textured_draw_calls"] or 0)
-            > 0
-        ),
-        timeout_seconds=30.0,
-        label=f"{label} renderer textured draw",
+            or 0
+        )
+        == status_request_id,
+        timeout_seconds=15.0,
+        label=f"{label} renderer status",
+        desktop_observations=desktop_observations,
     )
-    renderer = _renderer_texture_state(mesh_editor_tab)
-    if int(renderer["live_texture_srvs"] or 0) <= 0:
-        raise RuntimeError(
-            f"Packaged Mesh Editor texture smoke reached {label} without a live texture SRV."
+    return _renderer_texture_state(mesh_editor_tab)
+
+
+def _renderer_reached_textured_draw(renderer: Mapping[str, object]) -> bool:
+    return bool(
+        str(renderer.get("display_mode", "") or "") == "textured"
+        and renderer.get("textures_enabled") is True
+        and int(renderer.get("live_texture_srvs", 0) or 0) > 0
+        and int(renderer.get("textured_draw_calls", 0) or 0) > 0
+    )
+
+
+def _wait_for_textured_renderer(
+    app: QApplication,
+    mesh_editor_tab: object,
+    *,
+    desktop_observations: list[Mapping[str, object]],
+) -> tuple[dict[str, object], float, int]:
+    started = time.perf_counter()
+    deadline = started + 10.0
+    attempts = 0
+    renderer: dict[str, object] = {}
+    while True:
+        attempts += 1
+        renderer = _request_renderer_status(
+            app,
+            mesh_editor_tab,
+            label="production Solid (Textured)",
+            desktop_observations=desktop_observations,
+        )
+        if _renderer_reached_textured_draw(renderer):
+            return renderer, max(0.0, (time.perf_counter() - started) * 1000.0), attempts
+        if time.perf_counter() >= deadline:
+            raise RuntimeError(
+                "The real Solid (Textured) control did not reach a textured "
+                f"D3D11 draw after {attempts} renderer snapshots: {renderer!r}"
+            )
+        next_snapshot = time.perf_counter() + 0.1
+        _pump_until(
+            app,
+            lambda: time.perf_counter() >= next_snapshot,
+            timeout_seconds=0.5,
+            label="next post-paint renderer snapshot",
+            desktop_observations=desktop_observations,
+        )
+
+
+def _viewport_shell_state(mesh_editor_tab: object) -> dict[str, object]:
+    host = getattr(mesh_editor_tab, "standalone_native_host_frame", None)
+    stack = getattr(mesh_editor_tab, "workspace_stack", None)
+    host_rect = _host_window_rect(int(host.winId())) if host is not None else None
+    empty_state = getattr(mesh_editor_tab, "empty_state", None)
+    return {
+        "standalone_workspace_current": bool(
+            stack is not None
+            and stack.currentWidget() is getattr(mesh_editor_tab, "standalone_workspace", None)
+        ),
+        "empty_guidance_visible": bool(empty_state is not None and not empty_state.isHidden()),
+        "host_visible": bool(host is not None and host.isVisible()),
+        "host_rect": list(host_rect) if host_rect else [],
+        "host_size": [int(host.width()), int(host.height())] if host is not None else [0, 0],
+    }
+
+
+def _viewport_window_state(viewport_hwnd: int, expected_pid: int) -> dict[str, object]:
+    rect = _host_window_rect(viewport_hwnd)
+    visible = False
+    if viewport_hwnd and os.name == "nt":
+        import ctypes
+
+        visible = bool(
+            ctypes.windll.user32.IsWindowVisible(ctypes.c_void_p(viewport_hwnd))
         )
     return {
-        "label": label,
-        "selected_mode": str(viewport_combo.currentData() or ""),
-        "settled_ms": round(settled_ms, 3),
-        "total_ms": round(max(0.0, (time.perf_counter() - started) * 1000.0), 3),
-        "renderer_resources": renderer,
-        "roles_ready": dict(
-            getattr(
+        "hwnd": int(viewport_hwnd),
+        "pid": _window_process_id(viewport_hwnd),
+        "expected_pid": int(expected_pid),
+        "owned": _window_process_id(viewport_hwnd) == int(expected_pid),
+        "visible": visible,
+        "rect": list(rect) if rect else [],
+        "nonzero": bool(rect and rect[2] - rect[0] >= 32 and rect[3] - rect[1] >= 32),
+    }
+
+
+def _activate_solid_textured_control(
+    app: QApplication,
+    mesh_editor_tab: object,
+    *,
+    form_hwnd: int,
+    helper_pid: int,
+    desktop_observations: list[Mapping[str, object]],
+) -> dict[str, object]:
+    page_control = _click_button_by_text(form_hwnd, "Viewport", expected_pid=helper_pid)
+    if page_control.get("ok") is not True:
+        raise RuntimeError(f"The real Viewport control could not be pressed: {page_control!r}")
+    app.processEvents()
+
+    untextured_cursor = len(_protocol_events(mesh_editor_tab))
+    untextured_control = _select_combo_item_by_text(
+        form_hwnd,
+        "Faces (No Textures)",
+        expected_pid=helper_pid,
+    )
+    if untextured_control.get("ok") is not True:
+        raise RuntimeError(
+            f"The real preview-mode control could not select Faces (No Textures): {untextured_control!r}"
+        )
+    _pump_until(
+        app,
+        lambda: bool(
+            _latest_event(
                 mesh_editor_tab,
-                "standalone_dotnet_texture_resources_ready_by_role",
-                {},
+                "viewport_display_request",
+                cursor=untextured_cursor,
+                predicate=lambda event: str(event.get("mode", "") or "").lower()
+                == "untextured_faces",
             )
         ),
-        "applied_generation_by_role": dict(
-            getattr(
+        timeout_seconds=10.0,
+        label="actual Faces (No Textures) control request",
+        desktop_observations=desktop_observations,
+    )
+
+    textured_cursor = len(_protocol_events(mesh_editor_tab))
+    textured_control = _select_combo_item_by_text(
+        form_hwnd,
+        "Solid (Textured)",
+        expected_pid=helper_pid,
+    )
+    if textured_control.get("ok") is not True:
+        raise RuntimeError(
+            f"The real preview-mode control could not select Solid (Textured): {textured_control!r}"
+        )
+    control_request_ms = _pump_until(
+        app,
+        lambda: bool(
+            _latest_event(
                 mesh_editor_tab,
-                "standalone_dotnet_applied_material_generation_by_role",
-                {},
+                "viewport_display_request",
+                cursor=textured_cursor,
+                predicate=lambda event: str(event.get("mode", "") or "").lower()
+                == "textured",
             )
+        ),
+        timeout_seconds=10.0,
+        label="actual Solid (Textured) control request",
+        desktop_observations=desktop_observations,
+    )
+    settled_ms = _pump_until(
+        app,
+        lambda: bool(
+            not getattr(mesh_editor_tab, "standalone_dotnet_pending_textured_view", False)
+            and getattr(mesh_editor_tab, "standalone_dotnet_scene_pending", None) is None
+            and getattr(mesh_editor_tab, "standalone_dotnet_presentation_pending", None)
+            is None
+            and not bool(
+                getattr(mesh_editor_tab, "standalone_dotnet_presentation_queued", False)
+            )
+            and not bool(mesh_editor_tab._standalone_dotnet_package_worker_active())
+            and not bool(mesh_editor_tab._dotnet_material_compile_active())
+            and bool(mesh_editor_tab._dotnet_active_material_role_ready())
+        ),
+        timeout_seconds=180.0,
+        label="production Solid (Textured) material settlement",
+        desktop_observations=desktop_observations,
+    )
+    renderer, draw_settled_ms, renderer_status_attempts = _wait_for_textured_renderer(
+        app,
+        mesh_editor_tab,
+        desktop_observations=desktop_observations,
+    )
+    return {
+        "actual_controls": True,
+        "page_control": page_control,
+        "untextured_control": untextured_control,
+        "textured_control": textured_control,
+        "control_request_ms": round(control_request_ms, 3),
+        "settled_ms": round(settled_ms, 3),
+        "draw_settled_ms": round(draw_settled_ms, 3),
+        "renderer_status_attempts": renderer_status_attempts,
+        "selected_mode": "textured",
+        "renderer_resources": renderer,
+        "active_material_role": str(mesh_editor_tab._dotnet_active_material_role()),
+        "required_material_roles": list(mesh_editor_tab._dotnet_required_material_roles()),
+        "roles_ready": dict(
+            getattr(mesh_editor_tab, "standalone_dotnet_texture_resources_ready_by_role", {})
+        ),
+        "applied_generation_by_role": dict(
+            getattr(mesh_editor_tab, "standalone_dotnet_applied_material_generation_by_role", {})
+        ),
+    }
+
+
+def _selection_is_nonempty(payload: Mapping[str, object]) -> bool:
+    if tuple(payload.get("source_indices", ()) or ()):
+        return True
+    for key in ("vertices_by_submesh", "edges_by_submesh", "faces_by_submesh"):
+        values = payload.get(key)
+        if isinstance(values, Mapping) and any(tuple(row or ()) for row in values.values()):
+            return True
+    return False
+
+
+def _query_helper_selection(
+    app: QApplication,
+    mesh_editor_tab: object,
+    *,
+    desktop_observations: list[Mapping[str, object]],
+) -> dict[str, object]:
+    applied: dict[str, object] = {}
+    for _attempt in range(4):
+        cursor = len(_protocol_events(mesh_editor_tab))
+        if not mesh_editor_tab._send_dotnet_protocol_message(
+            {"event": "tool_state", "tool": "select"}
+        ):
+            break
+        _pump_until(
+            app,
+            lambda: bool(_latest_event(mesh_editor_tab, "tool_state_applied", cursor=cursor)),
+            timeout_seconds=5.0,
+            label="selection state readback",
+            desktop_observations=desktop_observations,
+        )
+        applied = _latest_event(mesh_editor_tab, "tool_state_applied", cursor=cursor)
+        local_selection = applied.get("local_selection", {})
+        if isinstance(local_selection, Mapping) and _selection_is_nonempty(local_selection):
+            return applied
+        time.sleep(0.05)
+        app.processEvents()
+    return applied
+
+
+def _exercise_actual_select_control(
+    app: QApplication,
+    mesh_editor_tab: object,
+    *,
+    form_hwnd: int,
+    viewport_hwnd: int,
+    helper_pid: int,
+    desktop_observations: list[Mapping[str, object]],
+) -> dict[str, object]:
+    tool_cursor = len(_protocol_events(mesh_editor_tab))
+    select_control = _click_button_by_text(form_hwnd, "Select", expected_pid=helper_pid)
+    if select_control.get("ok") is not True:
+        raise RuntimeError(f"The real Select control could not be pressed: {select_control!r}")
+    tool_changed_ms = _pump_until(
+        app,
+        lambda: bool(
+            _latest_event(
+                mesh_editor_tab,
+                "tool_changed",
+                cursor=tool_cursor,
+                predicate=lambda event: str(event.get("tool", "") or "").lower()
+                == "select",
+            )
+        ),
+        timeout_seconds=10.0,
+        label="actual Select control tool change",
+        desktop_observations=desktop_observations,
+    )
+    rect = _host_window_rect(viewport_hwnd)
+    if rect is None or not _scoped_input_target_matches(viewport_hwnd, helper_pid):
+        raise RuntimeError("The D3D11 viewport is not a safe helper-owned input target.")
+    width = int(rect[2] - rect[0])
+    height = int(rect[3] - rect[1])
+    if not _show_window_without_activation(viewport_hwnd):
+        raise RuntimeError("The D3D11 viewport could not be shown without activation.")
+
+    attempts: list[dict[str, object]] = []
+    points = (
+        (0.50, 0.50),
+        (0.50, 0.42),
+        (0.45, 0.52),
+        (0.55, 0.52),
+        (0.50, 0.62),
+    )
+    for x_ratio, y_ratio in points:
+        start = (
+            max(2, min(width - 10, int(round(width * x_ratio)))),
+            max(2, min(height - 4, int(round(height * y_ratio)))),
+        )
+        end = (min(width - 2, start[0] + 8), start[1])
+        cursor = len(_protocol_events(mesh_editor_tab))
+        moved = _send_mouse_message(viewport_hwnd, _WM_MOUSEMOVE, *start)
+        down = _send_mouse_message(
+            viewport_hwnd,
+            _WM_LBUTTONDOWN,
+            *start,
+            wparam=_MK_LBUTTON,
+        )
+        drag = bool(
+            down
+            and _send_mouse_message(
+                viewport_hwnd,
+                _WM_MOUSEMOVE,
+                start[0] + 4,
+                start[1],
+                wparam=_MK_LBUTTON,
+            )
+        )
+        up = _send_mouse_message(viewport_hwnd, _WM_LBUTTONUP, *end)
+        _pump_until(
+            app,
+            lambda: bool(
+                _latest_event(
+                    mesh_editor_tab,
+                    "select_request",
+                    cursor=cursor,
+                    predicate=lambda event: str(event.get("phase", "") or "").lower()
+                    == "end",
+                )
+            ),
+            timeout_seconds=5.0,
+            label="physical Select request",
+            desktop_observations=desktop_observations,
+        )
+        terminal = _latest_event(
+            mesh_editor_tab,
+            "select_request",
+            cursor=cursor,
+            predicate=lambda event: str(event.get("phase", "") or "").lower() == "end",
+        )
+        request_id = int(terminal.get("request_id", 0) or 0)
+        ack_ms = _pump_until(
+            app,
+            lambda: bool(
+                _latest_event(
+                    mesh_editor_tab,
+                    "resident_mutation_batch_ack",
+                    cursor=cursor,
+                    predicate=lambda event: int(event.get("request_id", 0) or 0)
+                    == request_id
+                    and str(event.get("status", "") or "").lower()
+                    in {"applied", "already_applied"},
+                )
+            ),
+            timeout_seconds=15.0,
+            label="authoritative Select acknowledgement",
+            desktop_observations=desktop_observations,
+        )
+        acknowledgement = _latest_event(
+            mesh_editor_tab,
+            "resident_mutation_batch_ack",
+            cursor=cursor,
+            predicate=lambda event: int(event.get("request_id", 0) or 0) == request_id,
+        )
+        applied = _query_helper_selection(
+            app,
+            mesh_editor_tab,
+            desktop_observations=desktop_observations,
+        )
+        local_selection = applied.get("local_selection", {})
+        local_selection = (
+            dict(local_selection) if isinstance(local_selection, Mapping) else {}
+        )
+        attempt = {
+            "point": list(start),
+            "mouse_move_sent": bool(moved),
+            "mouse_down_sent": bool(down),
+            "drag_sent": bool(drag),
+            "mouse_up_sent": bool(up),
+            "request_id": request_id,
+            "select_request": terminal,
+            "authority_acknowledgement": acknowledgement,
+            "authority_ack_ms": round(ack_ms, 3),
+            "tool_state_applied": applied,
+            "selection_nonempty": _selection_is_nonempty(local_selection),
+        }
+        attempts.append(attempt)
+        if attempt["selection_nonempty"]:
+            return {
+                "ok": True,
+                "actual_control": True,
+                "select_control": select_control,
+                "tool_changed": _latest_event(
+                    mesh_editor_tab,
+                    "tool_changed",
+                    cursor=tool_cursor,
+                    predicate=lambda event: str(event.get("tool", "") or "").lower()
+                    == "select",
+                ),
+                "tool_changed_ms": round(tool_changed_ms, 3),
+                "input_backend": "scoped_hwnd_messages_no_global_cursor",
+                "input_target_hwnd": int(viewport_hwnd),
+                "input_target_pid": _window_process_id(viewport_hwnd),
+                "attempts": attempts,
+                "selected": local_selection,
+            }
+    raise RuntimeError(
+        "The real Select control armed, but physical helper-owned viewport gestures "
+        f"produced no authoritative mesh selection: {attempts!r}"
+    )
+
+
+def _helper_identity(mesh_editor_tab: object) -> dict[str, object]:
+    host = getattr(mesh_editor_tab, "standalone_native_host_frame", None)
+    controller = getattr(host, "controller", None)
+    configured = getattr(controller, "_configured_executable", None)
+    resolution = resolve_mesh_dotnet_experiment_editor(configured)
+    helper_path = Path(resolution.resolved_path) if resolution.resolved_path else None
+    return {
+        "path": str(helper_path or ""),
+        "sha256": _sha256(helper_path) if helper_path is not None and helper_path.is_file() else "",
+        "source": str(resolution.source or ""),
+        "process_id": int(getattr(controller, "process_id", 0) or 0),
+        "process_generation": int(getattr(controller, "process_generation", 0) or 0),
+        "capabilities": sorted(str(value) for value in getattr(controller, "capabilities", ())),
+        "applied_package_path": str(getattr(controller, "applied_package_path", "") or ""),
+        "serving_prewarm_placeholder": bool(
+            getattr(controller, "serving_prewarm_placeholder", False)
+        ),
+    }
+
+
+def _application_identity(helper: Mapping[str, object]) -> dict[str, object]:
+    executable = Path(sys.executable).resolve()
+    bundle_root_text = str(getattr(sys, "_MEIPASS", "") or "").strip()
+    bundle_root = Path(bundle_root_text).resolve() if bundle_root_text else None
+    helper_path_text = str(helper.get("path", "") or "").strip()
+    helper_path = Path(helper_path_text).resolve() if helper_path_text else None
+    return {
+        "frozen": bool(getattr(sys, "frozen", False)),
+        "executable_path": str(executable),
+        "executable_sha256": _sha256(executable) if executable.is_file() else "",
+        "bundle_root": str(bundle_root or ""),
+        "helper_inside_bundle_root": bool(
+            bundle_root is not None
+            and helper_path is not None
+            and helper_path.is_relative_to(bundle_root)
         ),
     }
 
@@ -257,27 +690,25 @@ def verify_packaged_mesh_texture_smoke_target(
     window: object,
     app: QApplication,
 ) -> dict[str, object]:
-    """Exercise the real user path inside the currently running packaged app."""
+    """Exercise the real direct Mesh Editor route inside the running app."""
 
     source_text = os.environ.get("CDMW_GUI_STARTUP_SMOKE_MESH_ASSET", "").strip()
     if not source_text:
         raise RuntimeError(
-            "Packaged Mesh Editor texture smoke requires CDMW_GUI_STARTUP_SMOKE_MESH_ASSET "
+            "Packaged Mesh Editor smoke requires CDMW_GUI_STARTUP_SMOKE_MESH_ASSET "
             "to name the game root or 0009/0.pamt."
         )
     source = Path(source_text).expanduser().resolve()
     pamt_path = source / "0009" / "0.pamt" if source.is_dir() else source
     if not pamt_path.is_file() or pamt_path.name.casefold() != "0.pamt":
-        raise RuntimeError(
-            f"Packaged Mesh Editor texture smoke could not read PAMT: {pamt_path}"
-        )
+        raise RuntimeError(f"Packaged Mesh Editor smoke could not read PAMT: {pamt_path}")
 
     entries = tuple(parse_archive_pamt(pamt_path))
     by_path, by_basename, by_extension = _entry_indexes(entries)
     entry = next(iter(by_path.get(_normalized_archive_key(_PACKAGED_TEXTURE_SAMPLE), ())), None)
     if not isinstance(entry, ArchiveEntry):
         raise RuntimeError(
-            f"Packaged Mesh Editor texture smoke sample was not found: {_PACKAGED_TEXTURE_SAMPLE}"
+            f"Packaged Mesh Editor smoke sample was not found: {_PACKAGED_TEXTURE_SAMPLE}"
         )
 
     fingerprint_paths = tuple(
@@ -291,145 +722,167 @@ def verify_packaged_mesh_texture_smoke_target(
     fingerprints_before = {str(path): _sha256(path) for path in fingerprint_paths}
     result_path = Path(os.environ.get("CDMW_GUI_STARTUP_SMOKE_RESULT", "")).expanduser()
     output_root = (
-        result_path.parent / "mesh-archive-texture-smoke"
+        result_path.parent / "mesh-editor-production-smoke"
         if str(result_path)
-        else Path(os.environ.get("TEMP", ".")) / "mesh-archive-texture-smoke"
+        else Path(os.environ.get("TEMP", ".")) / "mesh-editor-production-smoke"
     )
     output_root.mkdir(parents=True, exist_ok=True)
 
-    source_data, source_hash = read_modify_original_source_asset(entry)
-    prepared = prepare_modify_original_workspace(
-        ModifyOriginalWorkspacePreparationRequest(
-            entry=entry,
-            workspace_dir=output_root / "workspace",
-            create_workspace=False,
-            include_family_files=False,
-            open_workspace_after_create=False,
-            cleanup_stale_sessions=False,
-            archive_entries_by_normalized_path=by_path,
-            archive_entries_by_basename=by_basename,
-            source_asset_data=source_data,
-            source_asset_sha256=source_hash,
-        ),
-        stop_event=threading.Event(),
-    )
-    preflight = prepare_static_replacement_prompt_preflight(
-        StaticReplacementPromptPreflightRequest(
-            request_id=1,
-            entry=entry,
-            obj_path=prepared["obj_path"],
-            supplemental_files=tuple(prepared.get("supplemental_files", ())),
-            scene_import_result=prepared["scene_import_result"],
-            original_mesh=prepared["original_mesh"],
-            archive_entries_by_normalized_path=by_path,
-            archive_entries_by_basename=by_basename,
-            archive_entries_by_extension=by_extension,
-        ),
-        stop_event=threading.Event(),
-    )
+    desktop_observations: list[Mapping[str, object]] = [_desktop_input_snapshot()]
+    input_timer = QTimer(window)
+    input_timer.setInterval(25)
 
-    configure_synthetic_archive_context(window, entry)
-    window.archive_entries = list(entries)
-    window.archive_entries_by_normalized_path = by_path
-    window.archive_entries_by_basename = by_basename
-    window.archive_entries_by_extension = by_extension
-    window._activate_tool_widget(window.archive_browser_tab)
-    app.processEvents()
+    def sample_desktop_input() -> None:
+        if len(desktop_observations) < 8192:
+            desktop_observations.append(_desktop_input_snapshot())
 
+    input_timer.timeout.connect(sample_desktop_input)
+    input_timer.start()
     events: list[tuple[str, dict[str, object]]] = []
-    original_recorder = window._record_runtime_event
-
-    def capture_runtime_event(event: str, **fields: object) -> object:
-        events.append((event, dict(fields)))
-        return original_recorder(event, **fields)
-
-    window._record_runtime_event = capture_runtime_event
-    existing_dialogs = set(window._modeless_alignment_dialogs)
-    dialog = None
     mesh_editor_tab = window.mesh_editor_tab
-    mesh_event_signal = getattr(mesh_editor_tab, "runtime_event_requested", None)
 
-    def capture_mesh_runtime_event(event: str, fields: object) -> None:
-        events.append(
-            (
-                str(event or ""),
-                dict(fields) if isinstance(fields, Mapping) else {"payload": fields},
-            )
-        )
+    def capture_runtime_event(event: str, fields: dict[str, object]) -> None:
+        events.append((event, dict(fields)))
 
-    if mesh_event_signal is not None:
-        mesh_event_signal.connect(capture_mesh_runtime_event)
+    mesh_editor_tab.runtime_event_requested.connect(capture_runtime_event)
+    form_hwnd = viewport_hwnd = helper_pid = 0
+    harness_screen_bounds = (0, 0, 0, 0)
     try:
-        prompt_archive_static_replacement_options(
-            window,
-            entry,
-            prepared["obj_path"],
-            supplemental_files=tuple(prepared.get("supplemental_files", ())),
-            scene_import_result=prepared["scene_import_result"],
-            original_mesh=prepared["original_mesh"],
-            dialog_title="Packaged Mesh Editor texture smoke",
-            placement_context_note="Read-only packaged texture verification.",
-            defer_original_texture_preview=True,
-            embedded_host=window.mesh_editor_tab.builder_host(),
-            _prepared_prompt_preflight=preflight,
-        )
-        new_dialogs = set(window._modeless_alignment_dialogs) - existing_dialogs
-        if len(new_dialogs) != 1:
+        harness_screen_bounds = _place_window_without_activation(window, app)
+        configure_synthetic_archive_context(window, entry)
+        window.archive_entries = list(entries)
+        window.archive_entries_by_normalized_path = by_path
+        window.archive_entries_by_basename = by_basename
+        window.archive_entries_by_extension = by_extension
+        window.archive_sidecar_entries_by_texture_path = {}
+        window.archive_sidecar_entries_by_texture_basename = {}
+
+        window._activate_tool_widget(mesh_editor_tab)
+        app.processEvents()
+        empty_viewport = _viewport_shell_state(mesh_editor_tab)
+        if not (
+            empty_viewport["standalone_workspace_current"]
+            and empty_viewport["empty_guidance_visible"]
+            and empty_viewport["host_visible"]
+            and empty_viewport["host_size"][0] >= 160
+            and empty_viewport["host_size"][1] >= 120
+        ):
             raise RuntimeError(
-                "Packaged Mesh Editor texture smoke did not open exactly one embedded Builder."
+                f"Mesh Editor did not keep its viewport available before a session: {empty_viewport!r}"
             )
-        dialog = window._modeless_alignment_dialogs[next(iter(new_dialogs))]
-        if str(QApplication.platformName() or "").strip().lower() == "offscreen":
-            # The product's automatic launch intentionally stays disabled on
-            # Qt's offscreen backend. The packaged smoke must explicitly make
-            # the same request that the visible auto-launch callback makes.
-            mesh_editor_tab._start_embedded_dotnet_editor_requested()
-        _pump_until(
+
+        protocol_cursor = len(_protocol_events(mesh_editor_tab))
+        window._launch_archive_mesh_editor_for_entry(entry)
+        load_ms = _pump_until(
             app,
-            lambda: (
-                str(getattr(mesh_editor_tab, "standalone_dotnet_embedded_state", ""))
-                == "ready"
-                and bool(mesh_editor_tab._standalone_dotnet_editor_process_running())
+            lambda: bool(
+                getattr(mesh_editor_tab, "standalone_controller", None) is not None
+                and getattr(mesh_editor_tab, "standalone_native_host_frame", None)
+                is not None
+                and getattr(mesh_editor_tab.standalone_native_host_frame, "controller", None)
+                is not None
+                and mesh_editor_tab.standalone_native_host_frame.controller.is_running
+                and _latest_event(mesh_editor_tab, "ready", cursor=protocol_cursor)
             ),
-            timeout_seconds=90.0,
-            label="resident helper ready",
+            timeout_seconds=120.0,
+            label="production Mesh Editor session and helper ready",
+            desktop_observations=desktop_observations,
         )
-        viewport_combo = dialog.findChild(
-            QComboBox,
-            "MeshAlignmentViewportDisplayModeCombo",
-        )
-        if viewport_combo is None:
-            raise RuntimeError(
-                "Packaged Mesh Editor texture smoke found no Mesh view control."
-            )
-        normal_mode = _select_textured_mode(
+        helper = _helper_identity(mesh_editor_tab)
+        application = _application_identity(helper)
+        helper_pid = int(helper.get("process_id", 0) or 0)
+        renderer = _request_renderer_status(
             app,
             mesh_editor_tab,
-            viewport_combo,
-            label="normal Mesh Editor Solid (Textured)",
+            label="production Mesh Editor ready",
+            desktop_observations=desktop_observations,
+        )
+        viewport = renderer.get("viewport", {})
+        viewport = dict(viewport) if isinstance(viewport, Mapping) else {}
+        form_hwnd = int(viewport.get("form_hwnd", 0) or 0)
+        viewport_hwnd = int(viewport.get("hwnd", 0) or 0)
+        if not form_hwnd or not viewport_hwnd or not helper_pid:
+            raise RuntimeError(
+                f"The production helper did not publish owned form/viewport handles: {renderer!r}"
+            )
+        if _window_process_id(form_hwnd) != helper_pid or _window_process_id(viewport_hwnd) != helper_pid:
+            raise RuntimeError("Published Mesh Editor HWNDs do not belong to the running helper.")
+        viewport_before_controls = _viewport_window_state(viewport_hwnd, helper_pid)
+        if not (
+            viewport_before_controls["owned"]
+            and viewport_before_controls["visible"]
+            and viewport_before_controls["nonzero"]
+        ):
+            raise RuntimeError(
+                f"The production D3D11 viewport is not visibly available: {viewport_before_controls!r}"
+            )
+
+        textured = _activate_solid_textured_control(
+            app,
+            mesh_editor_tab,
+            form_hwnd=form_hwnd,
+            helper_pid=helper_pid,
+            desktop_observations=desktop_observations,
+        )
+        viewport_after_textured = _viewport_window_state(viewport_hwnd, helper_pid)
+        capture_state = SimpleNamespace(
+            app=app,
+            tab=mesh_editor_tab,
+            viewport_hwnd=viewport_hwnd,
+            production_process_pid=helper_pid,
+        )
+        capture_path = output_root / "solid-textured-production-viewport.png"
+        capture = capture_dotnet_viewport(capture_state, capture_path)
+        if capture.get("ok") is not True:
+            raise RuntimeError(f"The production textured viewport could not be captured: {capture!r}")
+        selection_before = _request_renderer_status(
+            app,
+            mesh_editor_tab,
+            label="before actual Select gesture",
+            desktop_observations=desktop_observations,
         )
 
-        edit_checkbox = dialog.findChild(QCheckBox, "MeshEditModeCheckbox")
-        if edit_checkbox is None:
-            raise RuntimeError(
-                "Packaged Mesh Editor texture smoke found no Edit Mesh control."
-            )
-        edit_checkbox.setChecked(True)
-        _pump_until(
-            app,
-            lambda: (
-                edit_checkbox.isChecked()
-                and str(dialog._mesh_editor_embedded_interaction_mode()) == "mesh_edit"
-            ),
-            timeout_seconds=30.0,
-            label="Edit Mesh activation",
-        )
-        edit_mode = _select_textured_mode(
+        selection = _exercise_actual_select_control(
             app,
             mesh_editor_tab,
-            viewport_combo,
-            label="Edit Mesh Solid (Textured)",
+            form_hwnd=form_hwnd,
+            viewport_hwnd=viewport_hwnd,
+            helper_pid=helper_pid,
+            desktop_observations=desktop_observations,
         )
+        selection_capture_path = output_root / "selected-production-viewport.png"
+        selection_capture = capture_dotnet_viewport(capture_state, selection_capture_path)
+        if selection_capture.get("ok") is not True:
+            raise RuntimeError(
+                f"The selected production viewport could not be captured: {selection_capture!r}"
+            )
+        selection_after = _request_renderer_status(
+            app,
+            mesh_editor_tab,
+            label="after actual Select gesture",
+            desktop_observations=desktop_observations,
+        )
+        overlay_before = int(selection_before["committed_selection_overlay_primitives"])
+        overlay_after = int(selection_after["committed_selection_overlay_primitives"])
+        if overlay_after <= overlay_before:
+            raise RuntimeError(
+                "Select was acknowledged, but no new committed selection highlight was drawn: "
+                f"before={overlay_before}, after={overlay_after}."
+            )
+        selection["overlay"] = {
+            "counter_source": "renderer.live_metrics.geometry_resources",
+            "committed_primitives_before": overlay_before,
+            "committed_primitives_after": overlay_after,
+        }
+        selection["capture"] = {**selection_capture, "path": str(selection_capture_path)}
+        viewport_after_select = _viewport_window_state(viewport_hwnd, helper_pid)
+        if not (
+            viewport_after_textured["visible"]
+            and viewport_after_textured["nonzero"]
+            and viewport_after_select["visible"]
+            and viewport_after_select["nonzero"]
+        ):
+            raise RuntimeError("The D3D11 viewport disappeared during a real tool/page transition.")
 
         material_updates = [
             dict(fields)
@@ -447,107 +900,112 @@ def verify_packaged_mesh_texture_smoke_target(
             }
         ]
         if not material_updates:
-            raise RuntimeError(
-                "Packaged Mesh Editor texture smoke observed no resident material update."
-            )
+            raise RuntimeError("Production Mesh Editor emitted no resident material update.")
         latest_update = material_updates[-1]
         if int(latest_update.get("resource_count", 0) or 0) <= 0:
-            raise RuntimeError(
-                "Packaged Mesh Editor texture smoke compiled zero texture resources."
-            )
+            raise RuntimeError("Production Mesh Editor compiled zero texture resources.")
         if int(latest_update.get("resource_file_count", 0) or 0) != int(
             latest_update.get("resource_count", 0) or 0
         ):
-            raise RuntimeError(
-                "Packaged Mesh Editor texture smoke compiled a missing texture resource."
-            )
+            raise RuntimeError("Production Mesh Editor compiled a missing texture resource.")
         if material_failures:
             raise RuntimeError(
-                f"Packaged Mesh Editor texture smoke recorded material failures: {material_failures!r}"
-            )
-        lifecycle = dict(mesh_editor_tab.standalone_dotnet_lifecycle_counts)
-        if int(lifecycle.get("material_state_failed_count", 0) or 0) != 0:
-            raise RuntimeError(
-                "Packaged Mesh Editor texture smoke ended with material-state failures."
+                f"Production Mesh Editor recorded material failures: {material_failures!r}"
             )
 
         fingerprints_after = {str(path): _sha256(path) for path in fingerprint_paths}
         archives_unchanged = fingerprints_before == fingerprints_after
         if not archives_unchanged:
+            raise RuntimeError("Production Mesh Editor smoke changed a source archive.")
+
+        mesh_editor_tab.show_empty_state("Production Mesh Editor smoke complete.")
+        app.processEvents()
+        closed_viewport = _viewport_shell_state(mesh_editor_tab)
+        if not (
+            closed_viewport["standalone_workspace_current"]
+            and closed_viewport["empty_guidance_visible"]
+            and closed_viewport["host_visible"]
+            and closed_viewport["host_size"][0] >= 160
+            and closed_viewport["host_size"][1] >= 120
+        ):
             raise RuntimeError(
-                "Packaged Mesh Editor texture smoke changed a source archive."
+                f"Mesh Editor removed its viewport after closing the session: {closed_viewport!r}"
+            )
+
+        input_timer.stop()
+        desktop_observations.append(_desktop_input_snapshot())
+        desktop_input = _desktop_input_isolation_evidence(
+            desktop_observations,
+            forbidden_hwnds=(int(window.winId()), form_hwnd, viewport_hwnd),
+            harness_screen_bounds=harness_screen_bounds,
+        )
+        if desktop_input.get("ok") is not True:
+            raise RuntimeError(
+                f"The production smoke interfered with desktop input isolation: {desktop_input!r}"
             )
         return {
-            "schema": "cdmw_packaged_mesh_texture_smoke_v1",
+            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v2",
             "read_only": True,
+            "production_route": "MainWindow._launch_archive_mesh_editor_for_entry",
+            "actual_csharp_controls": True,
+            "global_mouse_input_used": False,
             "model_path": entry.path,
             "pamt_path": str(pamt_path),
-            "normal_mode": normal_mode,
-            "edit_mode": edit_mode,
+            "load_ms": round(load_ms, 3),
+            "helper": helper,
+            "application": application,
+            "viewport_availability": {
+                "before_session": empty_viewport,
+                "before_controls": viewport_before_controls,
+                "after_textured": viewport_after_textured,
+                "after_select": viewport_after_select,
+                "after_close": closed_viewport,
+            },
+            "solid_textured": textured,
+            "select": selection,
+            "capture": {**capture, "path": str(capture_path)},
             "material_update": latest_update,
             "material_update_count": len(material_updates),
             "material_failures": material_failures,
-            "lifecycle_counts": lifecycle,
-            "runtime_diagnostics": mesh_editor_tab._embedded_dotnet_runtime_diagnostics(),
+            "lifecycle_counts": dict(mesh_editor_tab.standalone_dotnet_lifecycle_counts),
+            "desktop_input": desktop_input,
+            "harness_screen_bounds": list(harness_screen_bounds),
             "archive_fingerprints_before": fingerprints_before,
             "archive_fingerprints_after": fingerprints_after,
             "archive_sources_unchanged": archives_unchanged,
         }
     except Exception as exc:
-        construction_context = (
-            getattr(dialog, "_cdmw_builder_construction_context", {})
-            if dialog is not None
-            else {}
-        )
-        alignment_state = (
-            construction_context.get("alignment_d3d11_state", {})
-            if isinstance(construction_context, Mapping)
-            else {}
-        )
-        if not isinstance(alignment_state, Mapping):
-            alignment_state = {}
+        input_timer.stop()
+        desktop_observations.append(_desktop_input_snapshot())
         try:
-            runtime_diagnostics = mesh_editor_tab._embedded_dotnet_runtime_diagnostics()
-        except (AttributeError, RuntimeError, TypeError, ValueError) as diagnostics_exc:
-            runtime_diagnostics = {"diagnostics_error": str(diagnostics_exc)}
-        from cdmw.core.texture_native import (
-            directxtex_texture_failure_reports,
-            find_directxtex_texture_binary,
-        )
-
-        fingerprints_after = {
-            str(path): _sha256(path) for path in fingerprint_paths if path.is_file()
-        }
+            desktop_input = _desktop_input_isolation_evidence(
+                desktop_observations,
+                forbidden_hwnds=(int(window.winId()), form_hwnd, viewport_hwnd),
+                harness_screen_bounds=harness_screen_bounds,
+            )
+        except Exception as isolation_exc:
+            desktop_input = {"ok": False, "error": str(isolation_exc)}
         failure_diagnostics = {
-            "schema": "cdmw_packaged_mesh_texture_failure_v1",
+            "schema": "cdmw_packaged_mesh_editor_controls_failure_v2",
             "error": str(exc),
             "model_path": entry.path,
             "pamt_path": str(pamt_path),
-            "embedded_state": str(
-                getattr(mesh_editor_tab, "standalone_dotnet_embedded_state", "") or ""
-            ),
-            "process_running": bool(
-                mesh_editor_tab._standalone_dotnet_editor_process_running()
-            ),
-            "package_worker_active": bool(
-                mesh_editor_tab._standalone_dotnet_package_worker_active()
-            ),
-            "runtime_diagnostics": runtime_diagnostics,
-            "texture_decoder": {
-                "preview_deferred": bool(
-                    os.environ.get("CDMW_DEFER_TEXTURE_PREVIEW", "").strip()
-                ),
-                "helper_path": str(find_directxtex_texture_binary() or ""),
-                "recent_failures": list(
-                    directxtex_texture_failure_reports()[-16:]
-                ),
-            },
-            "status_payload": getattr(
-                mesh_editor_tab, "standalone_dotnet_status_payload", {}
-            ),
-            "lifecycle_counts": getattr(
-                mesh_editor_tab, "standalone_dotnet_lifecycle_counts", {}
-            ),
+            "helper": _helper_identity(mesh_editor_tab),
+            "application": _application_identity(_helper_identity(mesh_editor_tab)),
+            "viewport_shell": _viewport_shell_state(mesh_editor_tab),
+            "renderer": _renderer_texture_state(mesh_editor_tab),
+            "form_hwnd": form_hwnd,
+            "viewport_hwnd": viewport_hwnd,
+            "helper_pid": helper_pid,
+            "controls": list(
+                _enumerate_child_windows(form_hwnd, expected_pid=helper_pid)
+            )
+            if form_hwnd and helper_pid
+            else [],
+            "desktop_input": desktop_input,
+            "harness_screen_bounds": list(harness_screen_bounds),
+            "status_payload": getattr(mesh_editor_tab, "standalone_dotnet_status_payload", {}),
+            "lifecycle_counts": getattr(mesh_editor_tab, "standalone_dotnet_lifecycle_counts", {}),
             "texture_resources_ready_by_role": getattr(
                 mesh_editor_tab,
                 "standalone_dotnet_texture_resources_ready_by_role",
@@ -556,32 +1014,14 @@ def verify_packaged_mesh_texture_smoke_target(
             "material_errors_by_role": getattr(
                 mesh_editor_tab, "standalone_dotnet_material_error_by_role", {}
             ),
-            "alignment_state": {
-                str(key): alignment_state.get(key)
-                for key in (
-                    "request_id",
-                    "preview_loaded",
-                    "resources_loaded",
-                    "preview_pipeline_stage",
-                    "package_quality",
-                    "active_package_quality",
-                    "active_package_display_mode",
-                    "last_cache_event",
-                    "last_cache_reason",
-                    "last_rebuild_reason",
-                    "prepare_ms",
-                    "package_ms",
-                    "loading_percent",
-                    "loading_stage",
-                    "loading_message",
-                )
-            },
+            "recent_protocol_events": _protocol_events(mesh_editor_tab)[-200:],
             "recent_runtime_events": [
-                {"event": event, **fields} for event, fields in events[-160:]
+                {"event": event, **fields} for event, fields in events[-200:]
             ],
             "archive_fingerprints_before": fingerprints_before,
-            "archive_fingerprints_after": fingerprints_after,
-            "archive_sources_unchanged": fingerprints_before == fingerprints_after,
+            "archive_fingerprints_after": {
+                str(path): _sha256(path) for path in fingerprint_paths if path.is_file()
+            },
         }
         failure_path = output_root / "failure-diagnostics.json"
         try:
@@ -595,18 +1035,14 @@ def verify_packaged_mesh_texture_smoke_target(
             ) from exc
         raise RuntimeError(f"{exc} Failure diagnostics: {failure_path}") from exc
     finally:
-        window._record_runtime_event = original_recorder
-        if mesh_event_signal is not None:
-            try:
-                mesh_event_signal.disconnect(capture_mesh_runtime_event)
-            except RuntimeError:
-                pass
-        if dialog is not None:
-            try:
-                dialog.reject()
+        input_timer.stop()
+        mesh_editor_tab.runtime_event_requested.disconnect(capture_runtime_event)
+        try:
+            if getattr(mesh_editor_tab, "standalone_controller", None) is not None:
+                mesh_editor_tab.show_empty_state("Production Mesh Editor smoke stopped.")
                 app.processEvents()
-            except RuntimeError:
-                pass
+        except RuntimeError:
+            pass
 
 
 __all__ = ["verify_packaged_mesh_texture_smoke_target"]

@@ -80,7 +80,10 @@ failures record its bounded snapshot with session, process generation, request,
 base/target/service/renderer revisions and the stable recovery error code.
 The resident strip keeps **Close** at its far edge. It remains available while
 session work is active, confirms before discarding edits, and returns Mesh Editor
-to its empty state through the same nonblocking worker and renderer teardown path.
+to its no-session state through the same nonblocking worker and renderer teardown
+path. The standalone workspace and viewport host remain visible before a session
+and after close; no-session guidance is a compact banner above that workspace,
+not a replacement stack page. Opening an archive or file session hides the banner.
 `start_standalone_native_preview()` and its async counterpart are the live entry
 point into that renderer: they push session and scene state to a running .NET
 editor process, or start one when none is running. The Python D3D11 preview host

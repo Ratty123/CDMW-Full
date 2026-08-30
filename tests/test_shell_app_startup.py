@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -58,6 +59,14 @@ class _WindowStub:
         self.finalized = False
         self.move_calls: list[tuple[int, int]] = []
         self.show_normal_count = 0
+        self.attributes: dict[object, bool] = {}
+        self.window_flags: dict[object, bool] = {}
+
+    def setAttribute(self, attribute: object, value: bool) -> None:
+        self.attributes[attribute] = value
+
+    def setWindowFlag(self, flag: object, value: bool) -> None:
+        self.window_flags[flag] = value
 
     def setWindowIcon(self, icon: QIcon) -> None:
         return
@@ -361,7 +370,7 @@ class ShellAppStartupTests(unittest.TestCase):
         window = _WindowStub()
         app = _AppStub()
         evidence = {
-            "schema": "cdmw_packaged_mesh_texture_smoke_v1",
+            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v2",
             "read_only": True,
             "archive_sources_unchanged": True,
         }
@@ -390,6 +399,8 @@ class ShellAppStartupTests(unittest.TestCase):
         self.assertEqual(evidence, payload["evidence"])
         self.assertEqual([(-32_000, -32_000), (-32_000, -32_000)], window.move_calls)
         self.assertEqual(1, window.show_normal_count)
+        self.assertTrue(window.attributes[Qt.WidgetAttribute.WA_ShowWithoutActivating])
+        self.assertTrue(window.window_flags[Qt.WindowType.WindowDoesNotAcceptFocus])
         self.assertTrue(window.finalized)
 
     def test_finish_gui_startup_smoke_records_target_failure_without_raising(self) -> None:

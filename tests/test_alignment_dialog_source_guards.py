@@ -783,7 +783,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def mount_embedded_builder(self, builder: QWidget) -> None:", mesh_editor_source)
         self.assertIn("self.workspace_stack.setCurrentWidget(self.embedded_builder_host)", mesh_editor_source)
         self.assertIn("def show_empty_state(self, message: str = \"\") -> None:", mesh_editor_source)
-        self.assertIn("self.workspace_stack.setCurrentWidget(self.empty_state)", mesh_editor_source)
+        self.assertIn("root.addWidget(self.empty_state)", mesh_editor_source)
+        self.assertNotIn("self.workspace_stack.addWidget(self.empty_state)", mesh_editor_source)
+        self.assertNotIn("self.workspace_stack.setCurrentWidget(self.empty_state)", mesh_editor_source)
 
         self.assertIn("embedded_host: Optional[QWidget] = None", source)
         self.assertIn("embedded_alignment_builder = embedded_host is not None", source)

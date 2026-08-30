@@ -703,7 +703,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(tab.action_bar.isHidden())
 
         tab.show_empty_state()
-        self.assertIs(tab.workspace_stack.currentWidget(), tab.empty_state)
+        self.assertIs(tab.workspace_stack.currentWidget(), tab.standalone_workspace)
+        self.assertFalse(tab.empty_state.isHidden())
         self.assertTrue(tab.action_bar.isHidden())
         app.processEvents()
         tab.deleteLater()

@@ -68,7 +68,9 @@ $TestsByArea = @{
         "tests/test_settings_tab_flush_persistence.py",
         "tests/test_profile_controller.py",
         "tests/test_asset_authoring_service.py",
-        "tests/test_packaged_bundled_helper_reporting.py"
+        "tests/test_packaged_bundled_helper_reporting.py",
+        "tests/test_shell_app_startup.py",
+        "tests/test_shell_startup_controller.py"
     )
     responsiveness = @(
         "tests/test_attachment_async_io.py",

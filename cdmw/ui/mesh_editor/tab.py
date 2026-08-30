@@ -280,9 +280,11 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         self.mesh_editor_matching_drafts: tuple[object, ...] = ()
         root.addWidget(self.draft_banner)
 
+        self.empty_state = self._build_empty_state()
+        root.addWidget(self.empty_state)
+
         self.workspace_stack = QStackedWidget(self)
         self.workspace_stack.setObjectName("MeshEditorWorkspaceStack")
-        self.empty_state = self._build_empty_state()
         self.standalone_workspace = self._build_standalone_workspace()
         self.embedded_builder_host = QFrame(self)
         self.embedded_builder_host.setObjectName("MeshEditorEmbeddedBuilderHost")
@@ -292,9 +294,9 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         self.embedded_builder_host_layout.setContentsMargins(0, 0, 0, 0)
         self.embedded_builder_host_layout.setSpacing(0)
 
-        self.workspace_stack.addWidget(self.empty_state)
         self.workspace_stack.addWidget(self.standalone_workspace)
         self.workspace_stack.addWidget(self.embedded_builder_host)
+        self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self.character_context_splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.character_context_splitter.setChildrenCollapsible(True)
         self.character_context_splitter.setHandleWidth(8)

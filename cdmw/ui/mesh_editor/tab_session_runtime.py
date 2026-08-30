@@ -83,6 +83,7 @@ class MeshEditorSessionMixin:
         self._set_mesh_editor_character_context_source(entry)
         self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
         self.standalone_mesh_label = str(entry.path)
+        self.empty_state.setVisible(False)
         self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self.standalone_status_label.setText(f"Loading archive mesh: {entry.path}")
         self.update_editor_session_state(None)
@@ -324,6 +325,7 @@ class MeshEditorSessionMixin:
         self.current_archive_selection = target_entry  # type: ignore[assignment]
         self.current_request = None
         self.standalone_mesh_label = str(source_path)
+        self.empty_state.setVisible(False)
         self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self.standalone_status_label.setText(f"Loading Mesh Editor file: {source_path}")
         self.update_editor_session_state(None)
@@ -389,6 +391,7 @@ class MeshEditorSessionMixin:
         self.current_request = None
         self.standalone_mesh_label = str(mesh.path or "mesh").strip() or "mesh"
         self._sync_standalone_compare_combo()
+        self.empty_state.setVisible(False)
         self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self._refresh_standalone_preview()
         self.update_editor_session_state(view, active_selection_mode=self.standalone_controller.active_selection_mode)

@@ -6,7 +6,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+from PySide6.QtCore import Qt
 
 from cdmw.ui.shell.startup_splash import (
     ExternalStartupSplashAdapter,
@@ -298,9 +300,39 @@ class ShellStartupControllerTests(unittest.TestCase):
             splash = create_startup_splash(app, "graphite")
 
         self.assertIs(splash, dialog_type.return_value)
+        splash.setAttribute.assert_called_once_with(
+            Qt.WidgetAttribute.WA_ShowWithoutActivating, True
+        )
+        splash.setWindowFlag.assert_called_once_with(
+            Qt.WindowType.WindowDoesNotAcceptFocus, True
+        )
         splash.move.assert_called_once_with(-32_000, -32_000)
         splash.center_on_screen.assert_not_called()
         splash.show.assert_called_once_with()
+
+    def test_mesh_texture_startup_smoke_does_not_activate_main_window_or_splash(self) -> None:
+        window = SimpleNamespace(
+            isVisible=lambda: False,
+            show=Mock(),
+            raise_=Mock(),
+            activateWindow=Mock(),
+            _record_startup_prompt_event=Mock(),
+            _startup_splash_window=Mock(),
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "CDMW_GUI_STARTUP_SMOKE": "1",
+                "CDMW_GUI_STARTUP_SMOKE_TARGET": "mesh_archive_textures",
+            },
+        ):
+            StartupPromptMixin._show_main_window_after_startup_splash(window)
+
+        window.show.assert_called_once_with()
+        window.raise_.assert_not_called()
+        window.activateWindow.assert_not_called()
+        window._startup_splash_window.raise_.assert_not_called()
+        window._startup_splash_window.activateWindow.assert_not_called()
 
     def test_startup_splash_pump_noops_without_splash(self) -> None:
         pump = make_startup_splash_pump(None)

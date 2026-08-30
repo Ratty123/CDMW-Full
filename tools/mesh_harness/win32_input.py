@@ -3,6 +3,16 @@ from __future__ import annotations
 import ctypes
 import os
 from collections.abc import Mapping
+from ctypes import wintypes
+
+
+_BM_CLICK = 0x00F5
+_CB_GETCURSEL = 0x0147
+_CB_SETCURSEL = 0x014E
+_CB_FINDSTRINGEXACT = 0x0158
+_CBN_SELCHANGE = 1
+_WM_COMMAND = 0x0111
+_SMTO_ABORTIFHUNG = 0x0002
 
 
 def _host_window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
@@ -45,6 +55,253 @@ def _send_mouse_message(
             int(lparam),
         )
     )
+
+
+def _window_text(hwnd: int) -> str:
+    if not hwnd or os.name != "nt":
+        return ""
+    user32 = ctypes.windll.user32
+    try:
+        length = max(0, int(user32.GetWindowTextLengthW(ctypes.c_void_p(hwnd))))
+        buffer = ctypes.create_unicode_buffer(min(4096, length + 1))
+        user32.GetWindowTextW(ctypes.c_void_p(hwnd), buffer, len(buffer))
+        return str(buffer.value or "")
+    except OSError:
+        return ""
+
+
+def _window_class_name(hwnd: int) -> str:
+    if not hwnd or os.name != "nt":
+        return ""
+    buffer = ctypes.create_unicode_buffer(256)
+    try:
+        ctypes.windll.user32.GetClassNameW(
+            ctypes.c_void_p(hwnd), buffer, len(buffer)
+        )
+    except OSError:
+        return ""
+    return str(buffer.value or "")
+
+
+def _enumerate_child_windows(
+    root_hwnd: int,
+    *,
+    expected_pid: int = 0,
+) -> tuple[dict[str, object], ...]:
+    """Describe every descendant HWND owned by the expected helper process."""
+
+    if not root_hwnd or os.name != "nt":
+        return ()
+    user32 = ctypes.windll.user32
+    rows: list[dict[str, object]] = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def collect(hwnd: int, _lparam: int) -> bool:
+        child = int(hwnd or 0)
+        pid = _window_process_id(child)
+        if not expected_pid or pid == int(expected_pid):
+            rows.append(
+                {
+                    "hwnd": child,
+                    "pid": pid,
+                    "text": _window_text(child),
+                    "class_name": _window_class_name(child),
+                    "visible": bool(user32.IsWindowVisible(ctypes.c_void_p(child))),
+                    "enabled": bool(user32.IsWindowEnabled(ctypes.c_void_p(child))),
+                    "rect": list(_host_window_rect(child) or ()),
+                }
+            )
+        return True
+
+    try:
+        user32.EnumChildWindows(ctypes.c_void_p(root_hwnd), collect, 0)
+    except OSError:
+        return ()
+    return tuple(rows)
+
+
+def _send_control_message(
+    hwnd: int,
+    message: int,
+    *,
+    wparam: int = 0,
+    lparam: int = 0,
+    timeout_ms: int = 2_000,
+) -> tuple[bool, int]:
+    """Send one bounded, HWND-scoped control message without global input."""
+
+    if not hwnd or os.name != "nt":
+        return False, 0
+    result = ctypes.c_size_t()
+    pointer_bits = ctypes.sizeof(ctypes.c_void_p) * 8
+    unsigned_wparam = int(wparam) & ((1 << pointer_bits) - 1)
+    try:
+        sent = bool(
+            ctypes.windll.user32.SendMessageTimeoutW(
+                ctypes.c_void_p(hwnd),
+                int(message),
+                ctypes.c_size_t(unsigned_wparam),
+                ctypes.c_void_p(int(lparam)),
+                _SMTO_ABORTIFHUNG,
+                max(1, int(timeout_ms)),
+                ctypes.byref(result),
+            )
+        )
+    except OSError:
+        return False, 0
+    signed_result = ctypes.c_ssize_t(result.value).value
+    return sent, int(signed_result)
+
+
+def _normalized_control_text(value: object) -> str:
+    return " ".join(str(value or "").split()).casefold()
+
+
+def _control_text_matches(actual: object, expected: object) -> bool:
+    normalized_actual = _normalized_control_text(actual)
+    normalized_expected = _normalized_control_text(expected)
+    return bool(
+        normalized_expected
+        and (
+            normalized_actual == normalized_expected
+            or normalized_actual.endswith(f" {normalized_expected}")
+        )
+    )
+
+
+def _click_button_by_text(
+    root_hwnd: int,
+    text: str,
+    *,
+    expected_pid: int,
+) -> dict[str, object]:
+    """Press one real WinForms button while leaving focus and cursor untouched."""
+
+    controls = _enumerate_child_windows(root_hwnd, expected_pid=expected_pid)
+    matches = [
+        row
+        for row in controls
+        if "button" in str(row.get("class_name", "") or "").casefold()
+        and _control_text_matches(row.get("text", ""), text)
+    ]
+    usable = [
+        row for row in matches if row.get("visible") is True and row.get("enabled") is True
+    ]
+    target = usable[0] if len(usable) == 1 else None
+    if target is None:
+        return {
+            "ok": False,
+            "reason": "control_not_unique",
+            "requested_text": text,
+            "matched_count": len(matches),
+            "usable_count": len(usable),
+            "matches": matches,
+        }
+    hwnd = int(target.get("hwnd", 0) or 0)
+    ownership_ok = bool(
+        hwnd
+        and _window_process_id(hwnd) == int(expected_pid)
+        and ctypes.windll.user32.IsWindow(ctypes.c_void_p(hwnd))
+    )
+    sent, _result = (
+        _send_control_message(hwnd, _BM_CLICK) if ownership_ok else (False, 0)
+    )
+    return {
+        "ok": bool(ownership_ok and sent),
+        "requested_text": text,
+        "matched_count": len(matches),
+        "ownership_ok": ownership_ok,
+        "message": "BM_CLICK",
+        **target,
+    }
+
+
+def _combo_item_index(hwnd: int, text: str) -> tuple[bool, int]:
+    buffer = ctypes.create_unicode_buffer(str(text))
+    return _send_control_message(
+        hwnd,
+        _CB_FINDSTRINGEXACT,
+        wparam=-1,
+        lparam=int(ctypes.cast(buffer, ctypes.c_void_p).value or 0),
+    )
+
+
+def _select_combo_item_by_text(
+    root_hwnd: int,
+    text: str,
+    *,
+    expected_pid: int,
+) -> dict[str, object]:
+    """Select a real WinForms combo item and emit its native change notice."""
+
+    controls = _enumerate_child_windows(root_hwnd, expected_pid=expected_pid)
+    candidates: list[tuple[dict[str, object], int]] = []
+    for row in controls:
+        if "combobox" not in str(row.get("class_name", "") or "").casefold():
+            continue
+        hwnd = int(row.get("hwnd", 0) or 0)
+        found, index = _combo_item_index(hwnd, text)
+        if found and index >= 0:
+            candidates.append((row, index))
+    usable = [
+        candidate
+        for candidate in candidates
+        if candidate[0].get("visible") is True and candidate[0].get("enabled") is True
+    ]
+    target = usable[0] if len(usable) == 1 else None
+    if target is None:
+        return {
+            "ok": False,
+            "reason": "combo_not_unique",
+            "requested_text": text,
+            "matched_count": len(candidates),
+            "usable_count": len(usable),
+            "matches": [row for row, _index in candidates],
+        }
+    row, index = target
+    hwnd = int(row.get("hwnd", 0) or 0)
+    ownership_ok = bool(_window_process_id(hwnd) == int(expected_pid))
+    selected, selected_index = (
+        _send_control_message(hwnd, _CB_SETCURSEL, wparam=index)
+        if ownership_ok
+        else (False, -1)
+    )
+    user32 = ctypes.windll.user32
+    get_parent = user32.GetParent
+    get_parent.argtypes = [wintypes.HWND]
+    get_parent.restype = wintypes.HWND
+    parent = int(get_parent(hwnd) or 0)
+    control_id = int(user32.GetDlgCtrlID(ctypes.c_void_p(hwnd))) if parent else 0
+    command_wparam = (control_id & 0xFFFF) | ((_CBN_SELCHANGE & 0xFFFF) << 16)
+    notified, _notification_result = (
+        _send_control_message(
+            parent,
+            _WM_COMMAND,
+            wparam=command_wparam,
+            lparam=hwnd,
+        )
+        if selected and selected_index == index and parent
+        else (False, 0)
+    )
+    current_ok, current_index = _send_control_message(hwnd, _CB_GETCURSEL)
+    return {
+        "ok": bool(
+            ownership_ok
+            and selected
+            and selected_index == index
+            and notified
+            and current_ok
+            and current_index == index
+        ),
+        "requested_text": text,
+        "item_index": index,
+        "current_index": current_index,
+        "matched_count": len(candidates),
+        "ownership_ok": ownership_ok,
+        "selection_message": "CB_SETCURSEL",
+        "notification_message": "WM_COMMAND/CBN_SELCHANGE",
+        **row,
+    }
 
 
 def _desktop_input_snapshot() -> dict[str, object]:

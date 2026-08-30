@@ -59,29 +59,92 @@ function Assert-PackagedMeshTextureEvidence {
         throw "Packaged Mesh Editor texture smoke reported no evidence section."
     }
     $evidence = $Payload.evidence
-    if ([string]$evidence.schema -ne "cdmw_packaged_mesh_texture_smoke_v1") {
+    if ([string]$evidence.schema -ne "cdmw_packaged_mesh_editor_controls_smoke_v2") {
         throw "Packaged Mesh Editor texture smoke returned an unknown evidence schema."
     }
     if ($evidence.read_only -ne $true -or $evidence.archive_sources_unchanged -ne $true) {
         throw "Packaged Mesh Editor texture smoke did not prove read-only archive access."
     }
-    foreach ($modeName in @("normal_mode", "edit_mode")) {
-        $mode = $evidence.$modeName
-        if ([string]$mode.selected_mode -ne "textured") {
-            throw "Packaged Mesh Editor texture smoke did not retain Solid (Textured) in $modeName."
-        }
-        if ([string]$mode.renderer_resources.display_mode -ne "textured") {
-            throw "Packaged Mesh Editor texture smoke renderer did not apply textured mode in $modeName."
-        }
-        if ($mode.renderer_resources.textures_enabled -ne $true) {
-            throw "Packaged Mesh Editor texture smoke renderer disabled texture sampling in $modeName."
-        }
-        if ([int64]$mode.renderer_resources.live_texture_srvs -le 0) {
-            throw "Packaged Mesh Editor texture smoke reported no live texture SRV in $modeName."
-        }
-        if ([int64]$mode.renderer_resources.textured_draw_calls -le 0) {
-            throw "Packaged Mesh Editor texture smoke reported no textured draw call in $modeName."
-        }
+    if (
+        [string]$evidence.production_route -ne "MainWindow._launch_archive_mesh_editor_for_entry" -or
+        $evidence.actual_csharp_controls -ne $true -or
+        $evidence.global_mouse_input_used -ne $false
+    ) {
+        throw "Packaged Mesh Editor smoke did not exercise the production route through real controls without global mouse input."
+    }
+    $viewport = $evidence.viewport_availability
+    if (
+        $viewport.before_session.standalone_workspace_current -ne $true -or
+        $viewport.before_session.host_visible -ne $true -or
+        $viewport.after_close.standalone_workspace_current -ne $true -or
+        $viewport.after_close.host_visible -ne $true -or
+        $viewport.before_controls.owned -ne $true -or
+        $viewport.before_controls.visible -ne $true -or
+        $viewport.before_controls.nonzero -ne $true -or
+        $viewport.after_textured.visible -ne $true -or
+        $viewport.after_textured.nonzero -ne $true -or
+        $viewport.after_select.visible -ne $true -or
+        $viewport.after_select.nonzero -ne $true
+    ) {
+        throw "Packaged Mesh Editor smoke did not keep the viewport visibly available across empty, textured, Select, and closed states."
+    }
+    $mode = $evidence.solid_textured
+    if ($mode.actual_controls -ne $true -or [string]$mode.selected_mode -ne "textured") {
+        throw "Packaged Mesh Editor smoke did not retain Solid (Textured) through the real control."
+    }
+    if ([string]$mode.renderer_resources.display_mode -ne "textured") {
+        throw "Packaged Mesh Editor texture smoke renderer did not apply textured mode."
+    }
+    if ($mode.renderer_resources.textures_enabled -ne $true) {
+        throw "Packaged Mesh Editor texture smoke renderer disabled texture sampling."
+    }
+    if ([int64]$mode.renderer_resources.live_texture_srvs -le 0) {
+        throw "Packaged Mesh Editor texture smoke reported no live texture SRV."
+    }
+    if ([int64]$mode.renderer_resources.textured_draw_calls -le 0) {
+        throw "Packaged Mesh Editor texture smoke reported no textured draw call."
+    }
+    if ([string]$mode.renderer_resources.draw_counter_source -ne "renderer.live_metrics.geometry_resources") {
+        throw "Packaged Mesh Editor texture smoke used cached rather than live draw counters."
+    }
+    if (
+        $evidence.select.ok -ne $true -or
+        $evidence.select.actual_control -ne $true -or
+        [string]$evidence.select.input_backend -ne "scoped_hwnd_messages_no_global_cursor" -or
+        [int64]$evidence.select.input_target_pid -ne [int64]$evidence.helper.process_id
+    ) {
+        throw "Packaged Mesh Editor smoke did not prove the real Select control and authoritative helper-owned selection path."
+    }
+    if (
+        [string]$evidence.select.overlay.counter_source -ne "renderer.live_metrics.geometry_resources" -or
+        [int64]$evidence.select.overlay.committed_primitives_after -le [int64]$evidence.select.overlay.committed_primitives_before -or
+        $evidence.select.capture.ok -ne $true
+    ) {
+        throw "Packaged Mesh Editor smoke did not prove and capture a newly drawn committed selection highlight."
+    }
+    if (
+        $evidence.desktop_input.ok -ne $true -or
+        [int64]$evidence.desktop_input.harness_foreground_count -ne 0 -or
+        [int64]$evidence.desktop_input.cursor_on_harness_screen_count -ne 0
+    ) {
+        throw "Packaged Mesh Editor smoke did not preserve desktop input isolation."
+    }
+    if (
+        [string]::IsNullOrWhiteSpace([string]$evidence.helper.path) -or
+        [string]::IsNullOrWhiteSpace([string]$evidence.helper.sha256) -or
+        [int64]$evidence.helper.process_id -le 0
+    ) {
+        throw "Packaged Mesh Editor smoke did not identify the helper executable it actually ran."
+    }
+    if (
+        $evidence.application.frozen -ne $true -or
+        $evidence.application.helper_inside_bundle_root -ne $true -or
+        [string]::IsNullOrWhiteSpace([string]$evidence.application.executable_sha256)
+    ) {
+        throw "Packaged Mesh Editor smoke used an unfrozen app or a helper outside that app's unpacked bundle."
+    }
+    if ($evidence.capture.ok -ne $true) {
+        throw "Packaged Mesh Editor smoke did not capture the real textured D3D11 viewport."
     }
     if ([int64]$evidence.material_update.resource_count -le 0) {
         throw "Packaged Mesh Editor texture smoke compiled zero texture resources."
@@ -93,10 +156,11 @@ function Assert-PackagedMeshTextureEvidence {
         throw "Packaged Mesh Editor texture smoke recorded material failures."
     }
     Write-Host (
-        "Packaged Mesh Editor textures verified: model={0}, resources={1}, live_srvs={2}" -f `
+        "Packaged Mesh Editor controls verified: model={0}, resources={1}, live_srvs={2}, select_pid={3}" -f `
             [string]$evidence.model_path, `
             [int64]$evidence.material_update.resource_count, `
-            [int64]$evidence.edit_mode.renderer_resources.live_texture_srvs
+            [int64]$evidence.solid_textured.renderer_resources.live_texture_srvs, `
+            [int64]$evidence.select.input_target_pid
     )
 }
 
@@ -223,9 +287,9 @@ function Invoke-PackagedStartupVerification {
             $startParameters["WindowStyle"] = "Hidden"
         }
         # D3D11 must own a genuinely shown HWND to exercise swap-chain painting.
-        # The mesh texture target moves that real window off-screen inside the
-        # app; SW_HIDE here would suppress every frame and test a state the GUI
-        # can never enter instead of validating the packaged renderer.
+        # The mesh texture target shows without activation on its assigned
+        # monitor; SW_HIDE here would suppress every frame and test a state the
+        # GUI can never enter instead of validating the packaged renderer.
         $process = Start-Process @startParameters
         if (-not $process.WaitForExit($Timeout * 1000)) {
             Stop-PackagedStartupProcess -Process $process

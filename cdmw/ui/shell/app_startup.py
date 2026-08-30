@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-from PySide6.QtCore import QObject, QSettings
+from PySide6.QtCore import QObject, QSettings, Qt
 from PySide6.QtWidgets import QApplication
 
 from cdmw.app.startup_smoke import gui_startup_smoke_requested, write_gui_startup_smoke_result
@@ -119,7 +119,9 @@ def finish_gui_startup_smoke_if_requested(window: object, app: QApplication) -> 
         # A hidden Win32 top-level window never receives the first D3D11 paint,
         # which made the packaged texture gate test a permanently suppressed
         # swap chain rather than the executable users run. Keep the real window
-        # lifecycle and dimensions, but place its surface outside the desktop.
+        # lifecycle and dimensions without activating over the reader's app.
+        window.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        window.setWindowFlag(Qt.WindowType.WindowDoesNotAcceptFocus, True)
         window.move(-32_000, -32_000)
     window._release_startup_splash()
     app.processEvents()
@@ -127,7 +129,7 @@ def finish_gui_startup_smoke_if_requested(window: object, app: QApplication) -> 
         # Explicitly establish the shown state after the splash releases.
         # The off-screen window remains a genuine shown HWND, so WinForms and
         # D3D11 receive the same show, embed, resize and paint messages as the
-        # packaged GUI without appearing on the user's desktop.
+        # packaged GUI before the harness places it on its assigned monitor.
         window.showNormal()
         window.move(-32_000, -32_000)
         app.processEvents()
