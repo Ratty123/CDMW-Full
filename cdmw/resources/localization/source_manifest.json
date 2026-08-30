@@ -1321,7 +1321,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayoutDiagnostics.cs",
-          "line": 204,
+          "line": 208,
           "sink": "csharp:.Text="
         }
       ]
@@ -1562,6 +1562,16 @@
       ]
     },
     {
+      "key": ", choose the language, shared theme, and Compact or Classic layout you want. Compact is the first-run default; a saved choice remains authoritative.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": ", one-entry history, and",
       "origins": [
         {
@@ -1622,7 +1632,17 @@
       ]
     },
     {
-      "key": ", process a small batch, then review in",
+      "key": ", resident",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 356,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": ", run",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -1632,12 +1652,12 @@
       ]
     },
     {
-      "key": ", resident",
+      "key": ", set",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 356,
-          "sink": "python-return:_build_archive_mesh_sections"
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -1982,6 +2002,16 @@
       ]
     },
     {
+      "key": ". Test with",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": ". The bundled native DDS helper is selected automatically.",
       "origins": [
         {
@@ -2028,16 +2058,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 356,
           "sink": "python-return:_build_archive_mesh_sections"
-        }
-      ]
-    },
-    {
-      "key": ". Use a tiny test folder first.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -8068,6 +8088,11 @@
           "path": "cdmw/ui/shell/about_controller.py",
           "line": 153,
           "sink": "python-return:_build_about_intro_html"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -15371,7 +15396,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 259,
+          "line": 287,
           "sink": "csharp:Text="
         }
       ]
@@ -18937,16 +18962,6 @@
       ]
     },
     {
-      "key": "Choose an upscaling backend:",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
       "key": "Choose and build a related .pac, .pam, or .pamlod preview inside this HKX editor.",
       "origins": [
         {
@@ -19316,7 +19331,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 192,
+          "line": 220,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         },
         {
@@ -20186,11 +20201,6 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 356,
           "sink": "python-return:_build_archive_mesh_sections"
         },
@@ -20251,7 +20261,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 172,
+          "line": 200,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         },
         {
@@ -21388,11 +21398,6 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 277,
           "sink": "_tree"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -26236,7 +26241,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 196,
+          "line": 224,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -28178,6 +28183,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 50,
           "sink": "python-return:_build_start_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -29826,7 +29836,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 254,
+          "line": 258,
           "sink": "csharp:newLabel{"
         }
       ]
@@ -37187,6 +37197,16 @@
       ]
     },
     {
+      "key": "For",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "For FBX support, Blender is required: the studio converts an FBX with it, and will not import one until it is pointed at a Blender. glTF, GLB, OBJ and DAE need none of this.",
       "origins": [
         {
@@ -38083,6 +38103,11 @@
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 68,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -38896,7 +38921,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 155,
+          "line": 183,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -42567,6 +42592,16 @@
       ]
     },
     {
+      "key": "In",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "In practice, use workflow profiles for the user-facing batch behavior and use planner profiles only when you specifically need to change the planner’s technical assumptions for a matched file or file family.",
       "origins": [
         {
@@ -43351,7 +43386,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 157,
+          "line": 185,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -45187,16 +45222,6 @@
       ]
     },
     {
-      "key": "Keep a safer",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
       "key": "Keep aspect ratio",
       "origins": [
         {
@@ -45228,6 +45253,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_texture_dialogs.py",
           "line": 57,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Keep preserve-first texture policy and automatic rules enabled, preview the plan, and test a small filtered batch before expanding it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -49271,11 +49306,6 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 127,
           "sink": "python-return:_build_workflow_core_sections"
         },
@@ -51186,7 +51216,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 255,
+          "line": 259,
           "sink": "csharp:Text="
         }
       ]
@@ -51196,7 +51226,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 263,
+          "line": 267,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -54991,7 +55021,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 161,
+          "line": 189,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -55126,7 +55156,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 154,
+          "line": 182,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         },
         {
@@ -56038,16 +56068,6 @@
           "path": "cdmw/workers/mesh_editor_workers.py",
           "line": 140,
           "sink": "RuntimeError"
-        }
-      ]
-    },
-    {
-      "key": "Native DDS helper",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -61992,16 +62012,6 @@
       ]
     },
     {
-      "key": "Only after the small batch looks right, expand the folder filter or source root.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
       "key": "Only draws for this spot",
       "origins": [
         {
@@ -62138,11 +62148,6 @@
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
           "line": 416,
           "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -64233,11 +64238,6 @@
           "path": "cdmw/ui/shell/about_controller.py",
           "line": 153,
           "sink": "python-return:_build_about_intro_html"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -68326,7 +68326,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 158,
+          "line": 186,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -71509,11 +71509,6 @@
     {
       "key": "Preview Policy",
       "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 127,
@@ -81161,11 +81156,6 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 127,
           "sink": "python-return:_build_workflow_core_sections"
         }
@@ -82193,11 +82183,6 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 351,
           "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -83403,11 +83388,6 @@
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 102,
           "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -84621,7 +84601,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 153,
+          "line": 181,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -88321,11 +88301,6 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 209,
           "sink": "python-return:_build_workflow_planning_sections"
         }
@@ -88605,11 +88580,6 @@
       "key": "Settings",
       "origins": [
         {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        },
-        {
           "path": "cdmw/ui/shell/menus.py",
           "line": 26,
           "sink": "addAction"
@@ -88697,8 +88667,33 @@
       ]
     },
     {
-      "key": "Settings > Archive Locations",
+      "key": "Settings > Appearance",
       "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Settings > General",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Settings > Paths > Archive Locations",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 356,
@@ -88723,6 +88718,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 356,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Settings > Setup",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -91446,7 +91451,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 156,
+          "line": 184,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         },
         {
@@ -91466,7 +91471,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 180,
+          "line": 208,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -93271,11 +93276,6 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 127,
           "sink": "python-return:_build_workflow_core_sections"
         },
@@ -93363,6 +93363,16 @@
           "path": "tools/placement_studio/window_carry.py",
           "line": 718,
           "sink": "addButton"
+        }
+      ]
+    },
+    {
+      "key": "Start in",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -94786,7 +94796,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 188,
+          "line": 216,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -97026,11 +97036,6 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 628,
           "sink": "python-return:_build_reference_sections"
         },
@@ -97213,6 +97218,11 @@
           "path": "cdmw/ui/shell/about_controller.py",
           "line": 153,
           "sink": "python-return:_build_about_intro_html"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -97976,7 +97986,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 443,
+          "line": 450,
           "sink": "csharp:.Text="
         }
       ]
@@ -99991,7 +100001,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayoutDiagnostics.cs",
-          "line": 203,
+          "line": 207,
           "sink": "csharp:.Text="
         }
       ]
@@ -101326,7 +101336,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 159,
+          "line": 187,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -101591,7 +101601,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 176,
+          "line": 204,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -101748,6 +101758,16 @@
           "path": "cdmw/ui/shell/tool_tabs.py",
           "line": 654,
           "sink": "_add_lazy_shell_tool"
+        }
+      ]
+    },
+    {
+      "key": "Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -104331,6 +104351,11 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 127,
           "sink": "python-return:_build_workflow_core_sections"
         },
@@ -105506,7 +105531,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 160,
+          "line": 188,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         },
         {
@@ -107417,6 +107442,16 @@
       ]
     },
     {
+      "key": "When setup is stable, export an app profile from",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "When should I use Texture Replacer?",
       "origins": [
         {
@@ -107968,11 +108003,6 @@
           "path": "cdmw/ui/shell/about_controller.py",
           "line": 153,
           "sink": "python-return:_build_about_intro_html"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -110472,16 +110502,6 @@
       ]
     },
     {
-      "key": "and run",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
       "key": "and small folder filters are useful for validating a plan without committing to a full output pass.",
       "origins": [
         {
@@ -110882,6 +110902,16 @@
       ]
     },
     {
+      "key": "backend.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "balanced",
       "origins": [
         {
@@ -110963,16 +110993,6 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 143,
           "sink": "Section"
-        }
-      ]
-    },
-    {
-      "key": "before",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -111794,11 +111814,6 @@
     {
       "key": "cd-texture-dx.exe",
       "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 717,
@@ -116142,7 +116157,7 @@
       ]
     },
     {
-      "key": "first run checklist setup paths native dds workspace ncnn chainner policy preview compare",
+      "key": "first run checklist setup appearance language layout archive paths browser tools safety profile texture policy",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -116158,6 +116173,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 717,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "first, then a configured",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -116332,26 +116357,6 @@
       ]
     },
     {
-      "key": "for an already-tested chain.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
-      "key": "for in-app upscale, or",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
       "key": "for name/icon/category-based lookup when the archive path is unknown.",
       "origins": [
         {
@@ -116362,7 +116367,7 @@
       ]
     },
     {
-      "key": "for rebuild testing, direct",
+      "key": "for read-only discovery: scan, filter, preview, inspect Asset Family links, and extract a small sample before opening an authoring tool.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -117127,17 +117132,7 @@
       ]
     },
     {
-      "key": "if you need per-file overrides.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
-      "key": "if you want the app to create the usual working folders.",
+      "key": "if you want the app to create its usual working folders, then review the status of bundled and optional helpers.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -117638,16 +117633,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 717,
           "sink": "python-return:_build_environment_sections"
-        }
-      ]
-    },
-    {
-      "key": "is bundled and used automatically for DDS preview, staging, Compare previews, and rebuild.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -121516,6 +121501,11 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 127,
           "sink": "python-return:_build_workflow_core_sections"
         },
@@ -121553,6 +121543,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 209,
           "sink": "python-return:_build_workflow_planning_sections"
+        }
+      ]
+    },
+    {
+      "key": "or search to choose among the 15 current tools. Mesh, placement, texture, item, icon, and packaging work stay in their dedicated surfaces.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -122568,16 +122568,6 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 405,
           "sink": "QTreeWidgetItem"
-        }
-      ]
-    },
-    {
-      "key": "preset and automatic rules enabled.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -200142,6 +200132,16 @@
       ]
     },
     {
+      "key": "so paths, preferences, language, and layout can be restored together.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "socket",
       "origins": [
         {
@@ -200821,7 +200821,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 184,
+          "line": 212,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         },
         {
@@ -201357,16 +201357,6 @@
       ]
     },
     {
-      "key": "to confirm what the planner will do.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 50,
-          "sink": "python-return:_build_start_sections"
-        }
-      ]
-    },
-    {
       "key": "to create exact-path rules for exceptions near the bottom.",
       "origins": [
         {
@@ -201443,6 +201433,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 356,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "to the Crimson Desert folder or package root before the first Archive Browser scan.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 50,
+          "sink": "python-return:_build_start_sections"
         }
       ]
     },
@@ -205056,7 +205056,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 220,
+          "line": 248,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -206541,7 +206541,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 208,
+          "line": 236,
           "sink": "csharp:AccessibleName="
         }
       ]

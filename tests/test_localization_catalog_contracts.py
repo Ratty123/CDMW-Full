@@ -1291,13 +1291,21 @@ def test_pre_qt_startup_localizer_uses_saved_custom_overlay(tmp_path: Path) -> N
     ) < 48 * 1024
 
 
-def test_generated_manifest_and_catalog_validation_are_current() -> None:
-    packaged = json.loads(
+def _packaged_source_manifest() -> dict[str, object]:
+    return json.loads(
         Path("cdmw/resources/localization/source_manifest.json").read_text(
             encoding="utf-8"
         )
     )
+
+
+def test_generated_manifest_is_current() -> None:
+    packaged = _packaged_source_manifest()
     assert packaged == build_manifest()
+
+
+def test_generated_manifest_contains_reviewed_source_keys() -> None:
+    packaged = _packaged_source_manifest()
     keys = {entry["key"] for entry in packaged["entries"]}
     assert {
         "Workers",
@@ -1345,6 +1353,25 @@ def test_generated_manifest_and_catalog_validation_are_current() -> None:
         "Compatible  ·  {value_0} target",
         "Compatible  ·  {value_0} targets",
         (
+            ", choose the language, shared theme, and Compact or Classic layout "
+            "you want. Compact is the first-run default; a saved choice remains "
+            "authoritative."
+        ),
+        "Settings > Paths > Archive Locations",
+        (
+            "Treat archive patch and install actions as deliberate writes: review "
+            "the target, confirmation, backup, and output mode. Ordinary preview, "
+            "extraction, and loose-package creation do not patch archives."
+        ),
+        (
+            "first run checklist setup appearance language layout archive paths "
+            "browser tools safety profile texture policy"
+        ),
+        (
+            "to the Crimson Desert folder or package root before the first Archive "
+            "Browser scan."
+        ),
+        (
             ". Unsupported controls remain visible but fail closed with their "
             "own policy- and state-specific explanation."
         ),
@@ -1355,8 +1382,23 @@ def test_generated_manifest_and_catalog_validation_are_current() -> None:
             "Original game archives will not be modified."
         ),
     } <= keys
+
+
+def test_generated_manifest_retires_obsolete_source_keys() -> None:
+    packaged = _packaged_source_manifest()
+    keys = {entry["key"] for entry in packaged["entries"]}
     assert "Recolor Variants" not in keys
     assert "Compatible  ·  {value_0} target{value_1}" not in keys
+    assert "Settings > Archive Locations" not in keys
+    assert "Choose an upscaling backend:" not in keys
+    assert (
+        "first run checklist setup paths native dds workspace ncnn chainner "
+        "policy preview compare"
+    ) not in keys
+
+
+def test_generated_manifest_records_expected_origins() -> None:
+    packaged = _packaged_source_manifest()
     entries = {entry["key"]: entry for entry in packaged["entries"]}
     assert any(
         origin["sink"] == "python-return:_preview_match_status_text"
@@ -1426,6 +1468,9 @@ def test_generated_manifest_and_catalog_validation_are_current() -> None:
     assert entries["Updating app colors and preview panes..."]["manual"] is True
     assert entries["No Matching Topics"]["manual"] is True
     assert entries["{count} topics"]["manual"] is True
+
+
+def test_generated_catalog_validation_is_current() -> None:
     assert validate_catalogs() == (14, len(SOURCE_STRING_CATALOGUE))
 
 
@@ -1433,3 +1478,46 @@ def test_html_manifest_keeps_sentence_after_inline_tag() -> None:
     source = "<p><b>Policy</b>. Unsupported controls remain visible.</p>"
 
     assert ". Unsupported controls remain visible." in _html_segments(source)
+
+
+def test_first_run_checklist_uses_reviewed_mode_and_navigation_terms() -> None:
+    disabled = {
+        "de": "Deaktiviert",
+        "es-ES": "Desactivado",
+        "es-419": "Desactivado",
+        "fr": "Désactivé",
+        "it": "Disabilitato",
+        "pt-BR": "Desativado",
+        "pl": "Wyłączone",
+        "ru": "Отключено",
+        "tr": "Devre dışı",
+        "ja": "無効",
+        "ko": "사용 안 함",
+        "zh-Hans": "已禁用",
+        "zh-Hant": "已停用",
+    }
+    for code, expected in disabled.items():
+        localizer = UiLocalizer(
+            language_dir=Path("__unused__"),
+            language_code=code,
+        )
+        assert localizer.translate("Disabled") == expected
+        assert localizer.translate("Settings > Paths > Archive Locations") != (
+            "Settings > Paths > Archive Locations"
+        )
+        assert localizer.translate("Real-ESRGAN NCNN") == "Real-ESRGAN NCNN"
+        assert localizer.translate("chaiNNer") == "chaiNNer"
+        assert localizer.translate("or") != "or"
+        assert localizer.translate("Use the") != "Use the"
+        for source in ("appearance", "blocked", "cancelled", "history", "warning"):
+            assert localizer.translate(source) != source
+
+    assert UiLocalizer(
+        language_dir=Path("__unused__"), language_code="pl"
+    ).translate("General") == "Ogólne"
+    assert UiLocalizer(
+        language_dir=Path("__unused__"), language_code="fr"
+    ).translate("Game / Package") == "Jeu / Paquet"
+    assert UiLocalizer(
+        language_dir=Path("__unused__"), language_code="zh-Hans"
+    ).translate("Game / Package") == "游戏 / 包"
