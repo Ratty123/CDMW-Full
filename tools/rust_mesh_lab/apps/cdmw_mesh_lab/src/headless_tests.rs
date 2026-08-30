@@ -617,6 +617,94 @@ fn every_topology_action_round_trips_geometry_and_selection() -> TestResult {
 }
 
 #[test]
+#[ignore = "requires CDMW_RUST_MESH_PATH to name a caller-supplied mesh"]
+fn caller_selected_mesh_select_linked_is_selection_only_and_undoable() -> TestResult {
+    let path = std::path::PathBuf::from(std::env::var("CDMW_RUST_MESH_PATH")?);
+    let bytes = std::fs::read(&path)?;
+    let format = MeshFormat::from_path(&path)?;
+    let document = decode_mesh(&bytes, format)?;
+    let baseline = WorkingMesh::from_document(&document)?;
+    let geometry_fingerprint = baseline.structural_fingerprint();
+
+    for domain in [
+        SelectionDomain::Vertex,
+        SelectionDomain::Edge,
+        SelectionDomain::Face,
+    ] {
+        let mut mesh = baseline.clone();
+        let (seed, total) = match domain {
+            SelectionDomain::Vertex => {
+                let handle = mesh
+                    .vertices()
+                    .next()
+                    .map(|(handle, _)| handle)
+                    .ok_or("missing vertex")?;
+                (
+                    Selection {
+                        vertices: [handle].into_iter().collect(),
+                        ..Selection::default()
+                    },
+                    mesh.vertices().count(),
+                )
+            }
+            SelectionDomain::Edge => {
+                let handle = mesh
+                    .edges()
+                    .next()
+                    .map(|(handle, _)| handle)
+                    .ok_or("missing edge")?;
+                (
+                    Selection {
+                        edges: [handle].into_iter().collect(),
+                        ..Selection::default()
+                    },
+                    mesh.edges().count(),
+                )
+            }
+            SelectionDomain::Face => {
+                let handle = mesh
+                    .faces()
+                    .next()
+                    .map(|(handle, _)| handle)
+                    .ok_or("missing face")?;
+                (
+                    Selection {
+                        faces: [handle].into_iter().collect(),
+                        ..Selection::default()
+                    },
+                    mesh.faces().count(),
+                )
+            }
+        };
+        mesh.set_selection(seed.clone())?;
+        let before = mesh.clone();
+        let started = std::time::Instant::now();
+        let linked = selection_after_command(&mesh, domain, SelectionCommand::SelectLinked);
+        let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        let linked_count = match domain {
+            SelectionDomain::Vertex => linked.vertices.len(),
+            SelectionDomain::Edge => linked.edges.len(),
+            SelectionDomain::Face => linked.faces.len(),
+        };
+        assert!((1..=total).contains(&linked_count));
+        mesh.set_selection(linked.clone())?;
+        let mut history = History::new(HISTORY_BUDGET_BYTES);
+        history.commit("select linked", before, &mesh)?;
+        history.undo(&mut mesh)?;
+        assert_eq!(mesh.selection, seed);
+        assert_eq!(mesh.structural_fingerprint(), geometry_fingerprint);
+        history.redo(&mut mesh)?;
+        assert_eq!(mesh.selection, linked);
+        assert_eq!(mesh.structural_fingerprint(), geometry_fingerprint);
+        mesh.validate()?;
+        eprintln!(
+            "caller-selected {domain:?} Linked: {linked_count}/{total} elements in {elapsed_ms:.2} ms"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires a local Direct3D 12 adapter"]
 fn offscreen_d3d12_renders_every_mode_without_a_window() -> TestResult {
     let application = triangle_application()?;

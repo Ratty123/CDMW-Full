@@ -41,6 +41,7 @@ pub enum SelectionOperation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectionCommand {
     SelectAll,
+    SelectLinked,
     Invert,
     Grow,
     Shrink,
@@ -479,6 +480,31 @@ fn vertex_selection_after_command(
             .map(|(handle, _)| handle)
             .filter(|handle| !current.contains(handle))
             .collect(),
+        SelectionCommand::SelectLinked => {
+            let mut neighbors_by_vertex = HashMap::<VertexHandle, Vec<VertexHandle>>::new();
+            for (_, edge) in mesh.edges() {
+                neighbors_by_vertex
+                    .entry(edge.vertices[0])
+                    .or_default()
+                    .push(edge.vertices[1]);
+                neighbors_by_vertex
+                    .entry(edge.vertices[1])
+                    .or_default()
+                    .push(edge.vertices[0]);
+            }
+            let mut linked = current.clone();
+            let mut frontier = current.iter().copied().collect::<Vec<_>>();
+            while let Some(handle) = frontier.pop() {
+                if let Some(neighbors) = neighbors_by_vertex.get(&handle) {
+                    for neighbor in neighbors {
+                        if linked.insert(*neighbor) {
+                            frontier.push(*neighbor);
+                        }
+                    }
+                }
+            }
+            linked
+        }
         SelectionCommand::Grow => {
             let mut grown = current.clone();
             for (_, edge) in mesh.edges() {
@@ -518,6 +544,30 @@ fn edge_selection_after_command(
             .map(|(handle, _)| handle)
             .filter(|handle| !current.contains(handle))
             .collect(),
+        SelectionCommand::SelectLinked => {
+            let mut edges_by_vertex = HashMap::<VertexHandle, Vec<EdgeHandle>>::new();
+            for (handle, edge) in mesh.edges() {
+                for vertex in edge.vertices {
+                    edges_by_vertex.entry(vertex).or_default().push(handle);
+                }
+            }
+            let mut linked = current.clone();
+            let mut frontier = current.iter().copied().collect::<Vec<_>>();
+            while let Some(handle) = frontier.pop() {
+                if let Some(edge) = mesh.edge(handle) {
+                    for vertex in edge.vertices {
+                        if let Some(neighbors) = edges_by_vertex.get(&vertex) {
+                            for neighbor in neighbors {
+                                if linked.insert(*neighbor) {
+                                    frontier.push(*neighbor);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            linked
+        }
         SelectionCommand::Grow => {
             let touched_vertices = current
                 .iter()
@@ -570,6 +620,30 @@ fn face_selection_after_command(
             .map(|(handle, _)| handle)
             .filter(|handle| !current.contains(handle))
             .collect(),
+        SelectionCommand::SelectLinked => {
+            let mut edges_by_face = HashMap::<FaceHandle, Vec<EdgeHandle>>::new();
+            for (edge_handle, edge) in mesh.edges() {
+                for face in &edge.faces {
+                    edges_by_face.entry(*face).or_default().push(edge_handle);
+                }
+            }
+            let mut linked = current.clone();
+            let mut frontier = current.iter().copied().collect::<Vec<_>>();
+            while let Some(handle) = frontier.pop() {
+                if let Some(edges) = edges_by_face.get(&handle) {
+                    for edge_handle in edges {
+                        if let Some(edge) = mesh.edge(*edge_handle) {
+                            for neighbor in &edge.faces {
+                                if linked.insert(*neighbor) {
+                                    frontier.push(*neighbor);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            linked
+        }
         SelectionCommand::Grow => {
             let mut grown = current.clone();
             for (_, edge) in mesh.edges() {
@@ -1127,6 +1201,92 @@ mod tests {
         assert!(!inverted_faces.faces.contains(&retained_face));
         assert_eq!(
             selection_after_command(&mesh, SelectionDomain::Face, SelectionCommand::Clear),
+            Selection::default()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn select_linked_stays_inside_the_seeded_component_for_every_domain()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
+        let mut mesh = WorkingMesh::from_document_lod(&document, 1)?;
+        let source_vertices = mesh
+            .vertices()
+            .map(|(handle, _)| handle)
+            .collect::<HashSet<_>>();
+        let source_faces = mesh
+            .faces()
+            .map(|(handle, _)| handle)
+            .collect::<HashSet<_>>();
+        let duplicated_faces = mesh.duplicate_faces(&source_faces)?;
+        assert_eq!(
+            (
+                mesh.vertices().count(),
+                mesh.edges().count(),
+                mesh.faces().count()
+            ),
+            (8, 10, 4)
+        );
+
+        let vertex_seed = *source_vertices
+            .iter()
+            .next()
+            .ok_or("missing source vertex")?;
+        let preserved_face = *duplicated_faces
+            .iter()
+            .next()
+            .ok_or("missing duplicate face")?;
+        mesh.set_selection(Selection {
+            vertices: HashSet::from([vertex_seed]),
+            faces: HashSet::from([preserved_face]),
+            ..Selection::default()
+        })?;
+        let linked_vertices = selection_after_command(
+            &mesh,
+            SelectionDomain::Vertex,
+            SelectionCommand::SelectLinked,
+        );
+        assert_eq!(linked_vertices.vertices, source_vertices);
+        assert_eq!(linked_vertices.faces, HashSet::from([preserved_face]));
+
+        let edge_seed = mesh
+            .edges()
+            .find(|(_, edge)| {
+                edge.vertices
+                    .iter()
+                    .all(|vertex| source_vertices.contains(vertex))
+            })
+            .map(|(handle, _)| handle)
+            .ok_or("missing source edge")?;
+        mesh.set_selection(Selection {
+            edges: HashSet::from([edge_seed]),
+            ..Selection::default()
+        })?;
+        let linked_edges =
+            selection_after_command(&mesh, SelectionDomain::Edge, SelectionCommand::SelectLinked);
+        assert_eq!(linked_edges.edges.len(), 5);
+        assert!(linked_edges.edges.iter().all(|handle| {
+            mesh.edge(*handle).is_some_and(|edge| {
+                edge.vertices
+                    .iter()
+                    .all(|vertex| source_vertices.contains(vertex))
+            })
+        }));
+
+        let face_seed = *source_faces.iter().next().ok_or("missing source face")?;
+        mesh.set_selection(Selection {
+            faces: HashSet::from([face_seed]),
+            ..Selection::default()
+        })?;
+        let linked_faces =
+            selection_after_command(&mesh, SelectionDomain::Face, SelectionCommand::SelectLinked);
+        assert_eq!(linked_faces.faces, source_faces);
+        assert!(linked_faces.faces.is_disjoint(&duplicated_faces));
+
+        mesh.set_selection(Selection::default())?;
+        assert_eq!(
+            selection_after_command(&mesh, SelectionDomain::Face, SelectionCommand::SelectLinked),
             Selection::default()
         );
         Ok(())

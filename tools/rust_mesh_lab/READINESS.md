@@ -25,12 +25,12 @@ It is not LAB READY because private real-game parity, complete layered/dye and b
 - Deterministic click/brush/rectangle/lasso query predicates, stale-snapshot rejection, and a persistent 32-pixel screen grid that bounds local candidate inspection in the interaction crate.
 - User-selectable depth-aware Visible and X-Ray selection. Visible candidates query a projected-triangle BVH with interpolated depth; sculpt brushes always use that surface-only route, and no synchronous GPU readback is used.
 - Viewport-aligned Vertex/Edge/Face Click, Brush, Rectangle, and Lasso selection with visible overlays in either depth mode and Replace/Add/Subtract/Toggle operations.
-- Topology-aware All/Grow/Shrink/Invert commands for Vertex, Edge, and Face domains plus complete Clear. Grow expands one connected ring, Shrink removes elements adjacent to an unselected topological neighbor, Invert changes only the active domain, type-specific All activates and replaces that domain, and every actual command change is one selection-only Undo entry.
+- Topology-aware All/Linked/Grow/Shrink/Invert commands for Vertex, Edge, and Face domains plus complete Clear. Linked expands current seeds through only their vertex-, shared-vertex edge-, or shared-edge face-connected components; Grow expands one ring, Shrink removes elements adjacent to an unselected topological neighbor, Invert changes only the active domain, and type-specific All activates and replaces that domain. Every actual command change is one selection-only Undo entry; a no-op is not recorded.
 - Bounded raw pointer sampling that retains press, intermediate movement, and release when Windows coalesces redraws; long lassos compact deterministically while retaining their final release point, one completed gesture creates one history entry, and Esc/resize/focus loss restores the pre-gesture mesh.
 - Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots.
 - Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh/normal/bounds buffers, Textured/Game Outdoor/Base Color/Normal Map/UV Checker/Base Alpha/Part ID/Material Response/Layer Mask/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes, and independent Normals/Bounds overlays. Game Outdoor is a production-constant-informed lighting comparison inside the approximate shader; Part ID colors actual material-owner ranges without requiring a texture; Layer Mask is a grayscale inspection mode, not layer composition. Bones is visibly disabled until skeleton context exists.
 - egui archive/assets, viewport, inspector, selection/edit, and status surfaces. The viewport and Inspector explicitly label material rendering as approximate. Archive textures report whether their bytes came from Stored, Partial raw, Partial DDS, Sparse DDS, or LZ4 handling; Flow rows retain their source relationship while prepared factors state whether the owner qualifies as a proven hair/fur family; Layer Mask rows retain their exact parameter while prepared factors report R/B selection; actual sampling still requires each DDS binding. A collapsed material-parameter section reports preserved values, owners, confidence, and sampled/unbound state without flooding the default layout.
-- No-window `LabApplication` construction plus 14 painted-control/input tests whose coordinates come from egui's clipped draw output: all fifteen preview modes, LOD menus, overlay and camera controls, texture relationship and material-parameter provenance, 24 selection domain/shape/depth combinations through the bounded raw-pointer route, topology-aware All/Grow/Shrink/Invert/Clear with exact selection history, all seven edit tools, Smooth/Linear/Constant falloff and 1–8 Smooth passes, face Delete/Subdivide/Duplicate, selected-edge Subdivide, Duplicate as New Part, exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input, three resize shapes, Esc/resize cancellation, and dense face-selection fill without per-triangle outline strokes. Lower Inspector controls are verified at 1280×720 and 1000×600.
+- No-window `LabApplication` construction plus 15 painted-control/input tests whose coordinates come from egui's clipped draw output: all fifteen preview modes, LOD menus, overlay and camera controls, texture relationship and material-parameter provenance, 24 selection domain/shape/depth combinations through the bounded raw-pointer route, topology-aware All/Linked/Grow/Shrink/Invert/Clear with exact selection history and disconnected-island isolation, all seven edit tools, Smooth/Linear/Constant falloff and 1–8 Smooth passes, face Delete/Subdivide/Duplicate, selected-edge Subdivide, Duplicate as New Part, exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input, three resize shapes, Esc/resize cancellation, and dense face-selection fill without per-triangle outline strokes. Lower Inspector controls are verified at 1280×720 and 1000×600.
 - Offscreen D3D12 renderer coverage uploads fifteen DDS files with the live plan/upload helper, composes base/normal/packed-material/roughness/metalness/occlusion/emissive/specular/glossiness/opacity/height/flow/layer-mask roles across two base-colored ranges, applies separate explicit emissive, roughness, metalness, metallic-specular, metallic/dielectric Glossiness, opaque/cutout Opacity, positive/zero-scale Height, inactive-non-hair/active-hair Flow, and layer-mask fallback/R/B-channel probes, and exercises all fifteen preview modes with Normals and Bounds across 4:3, portrait, and widescreen targets. A validation error scope and CPU readbacks reject invalid or all-background output, require all thirteen sampled roles to change pixels independently where applicable, require both Specular and Glossiness to change metallic pixels while leaving dielectric pixels identical, require cutout Opacity to remove visible pixels while opaque Opacity remains byte-identical, require Height to change pixels at positive strength while explicit zero remains byte-identical, require Flow to change hair pixels while leaving a non-hair frame byte-identical, require Layer Mask and its R/B selector to change diagnostic pixels, require the overlay-free Part ID probe to produce two owner colors without texture bindings, require overlay-free Game Outdoor to differ from standard Textured lighting, and require each other scalar factor class to change pixels again without constructing a window.
 - Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with fresh-working-mesh operation/Undo/Redo fingerprints and invariants for Move, Grab, Smooth, Inflate, Pinch, face Delete, face Subdivide, selected-edge Subdivide, face Duplicate, and Duplicate as New Part on every decoded LOD.
 - Bounded cancellable latest-wins loader/search worker with stale-result rejection.
@@ -172,16 +172,19 @@ working-set, visible input, real-PAC, frame-pacing, or device-loss soak.
 
 ## Headless painted-control and edit-scope proof
 
-Fourteen no-window tests now construct the real `LabApplication`, discover control
+Fifteen no-window tests now construct the real `LabApplication`, discover control
 coordinates from egui's clipped draw output, and route resulting actions at the
 same post-frame boundary as the Windows runtime. They cover all fifteen preview modes and the LOD
 menus, camera, every selection shape/domain/depth combination, topology-aware
-All/Grow/Shrink/Invert/Clear across all three domains, all seven edit
+All/Linked/Grow/Shrink/Invert/Clear across all three domains, all seven edit
 tools, topology, history, disabled states, high-DPI input, short-window scroll,
 resize, and cancellation. The latest draw-command regression selects 256 faces
 and requires translucent face fills with no individual outline strokes. A
-separate two-triangle-quad regression requires exact connected-ring results,
-selection-only Undo/Redo, and unchanged geometry. The weighted-sculpt regression
+separate two-component regression requires Linked to stop at the seeded island
+for vertices, edges, and faces, restore/replay the one-element seed through
+Undo/Redo, skip repeated no-ops, and leave geometry unchanged. The two-triangle-
+quad regression separately requires exact connected-ring results and selection-
+only Undo/Redo. The weighted-sculpt regression
 chooses Linear falloff and four Smooth passes through painted controls, requires
 nonuniform bounded weights from the real projected brush, proves four passes
 reduce total edge length more than one pass, and restores/replays the exact mesh
@@ -220,6 +223,15 @@ SHA-256 and timestamp comparisons before and after the run confirmed the source
 file was unchanged. These are single-file CPU edit/history measurements, not
 full PAC/PAM/PAMLOD parity, visible selection or LOD-switch proof, live pointer
 latency, FPS, GPU, or memory evidence.
+
+A separate opt-in Debug headless selection test on the same PAC seeded the first
+available handle in each LOD0 domain. Linked selected 246 of 13,740 vertices in
+16.73 ms, 4,545 of 38,885 edges in 30.87 ms, and 2,960 of 25,158 faces in
+22.76 ms. Every domain restored the exact one-element seed through Undo,
+reproduced the linked component through Redo, kept the geometry fingerprint
+unchanged, passed invariants, and left the source SHA-256 unchanged. These are
+single CPU samples through the core selection/history path, not p95, painted-UI,
+pointer-latency, Release-performance, or representative-corpus evidence.
 
 ## Visible synthetic interaction proof
 

@@ -8,6 +8,7 @@ use super::*;
 use crate::headless_tests::{TestResult, triangle_application, two_lod_application};
 use cdmw_interaction::ProjectedHandle;
 use egui::{Event, FullOutput, PointerButton, Pos2, Rect};
+use std::collections::HashSet;
 use winit::event::DeviceId;
 
 struct HeadlessUi {
@@ -482,6 +483,80 @@ fn painted_topology_selection_commands_are_exact_and_undoable() -> TestResult {
     face_ui.click("Shrink")?;
     assert_eq!(selected_count(&face_ui, SelectionDomain::Face)?, 0);
     assert_eq!(face_ui.application.history.undo_len(), 1);
+    Ok(())
+}
+
+#[test]
+fn painted_select_linked_stays_inside_the_seeded_component_and_is_undoable() -> TestResult {
+    for (label, domain, expected_count) in [
+        ("Vertex", SelectionDomain::Vertex, 4),
+        ("Edge", SelectionDomain::Edge, 5),
+        ("Face", SelectionDomain::Face, 2),
+    ] {
+        let mut application = lod_one_application()?;
+        let mesh = application.mesh.as_mut().ok_or("mesh")?;
+        let source_vertices = mesh
+            .vertices()
+            .map(|(handle, _)| handle)
+            .collect::<HashSet<_>>();
+        let source_faces = mesh
+            .faces()
+            .map(|(handle, _)| handle)
+            .collect::<HashSet<_>>();
+        mesh.duplicate_faces(&source_faces)?;
+        let seed = match domain {
+            SelectionDomain::Vertex => Selection {
+                vertices: HashSet::from([*source_vertices.iter().next().ok_or("source vertex")?]),
+                ..Selection::default()
+            },
+            SelectionDomain::Edge => {
+                let edge = mesh
+                    .edges()
+                    .find(|(_, edge)| {
+                        edge.vertices
+                            .iter()
+                            .all(|vertex| source_vertices.contains(vertex))
+                    })
+                    .map(|(handle, _)| handle)
+                    .ok_or("source edge")?;
+                Selection {
+                    edges: HashSet::from([edge]),
+                    ..Selection::default()
+                }
+            }
+            SelectionDomain::Face => Selection {
+                faces: HashSet::from([*source_faces.iter().next().ok_or("source face")?]),
+                ..Selection::default()
+            },
+        };
+        mesh.set_selection(seed.clone())?;
+        let baseline = mesh.structural_fingerprint();
+        let mut ui = HeadlessUi::new(application, egui::vec2(1_280.0, 720.0));
+        ui.click(label)?;
+        ui.click("Linked")?;
+        assert_eq!(selected_count(&ui, domain)?, expected_count);
+        assert_eq!(ui.application.history.undo_len(), 1);
+        let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+        assert_eq!(mesh.structural_fingerprint(), baseline);
+        match domain {
+            SelectionDomain::Vertex => assert_eq!(mesh.selection.vertices, source_vertices),
+            SelectionDomain::Edge => assert!(mesh.selection.edges.iter().all(|handle| {
+                mesh.edge(*handle).is_some_and(|edge| {
+                    edge.vertices
+                        .iter()
+                        .all(|vertex| source_vertices.contains(vertex))
+                })
+            })),
+            SelectionDomain::Face => assert_eq!(mesh.selection.faces, source_faces),
+        }
+        ui.click("Undo")?;
+        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection, seed);
+        ui.click("Redo")?;
+        assert_eq!(selected_count(&ui, domain)?, expected_count);
+        ui.click("Linked")?;
+        assert_eq!(ui.application.history.undo_len(), 1);
+        assert!(ui.application.status.contains("made no change"));
+    }
     Ok(())
 }
 
@@ -1073,6 +1148,7 @@ fn disabled_edit_controls_do_not_activate_or_change_the_mesh() -> TestResult {
         "Move",
         "Rotate",
         "Scale",
+        "Linked",
         "Subdivide Edges",
         "Duplicate as New Part",
         "Delete",

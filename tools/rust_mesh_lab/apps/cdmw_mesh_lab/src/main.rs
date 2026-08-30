@@ -86,6 +86,7 @@ enum UiAction {
     SelectAllVertices,
     SelectAllEdges,
     SelectAllFaces,
+    SelectLinked(SelectionDomain),
     GrowSelection(SelectionDomain),
     ShrinkSelection(SelectionDomain),
     InvertSelection(SelectionDomain),
@@ -998,6 +999,13 @@ impl LabApplication {
                 });
                 ui.horizontal(|ui| {
                     if ui
+                        .add_enabled(active_selection_count > 0, egui::Button::new("Linked"))
+                        .on_disabled_hover_text("Select an element in the active domain first")
+                        .clicked()
+                    {
+                        actions.push(UiAction::SelectLinked(self.selection_domain));
+                    }
+                    if ui
                         .add_enabled(active_selection_count > 0, egui::Button::new("Grow"))
                         .on_disabled_hover_text("Select an element in the active domain first")
                         .clicked()
@@ -1235,6 +1243,14 @@ impl LabApplication {
                         "Select all faces",
                         SelectionDomain::Face,
                         SelectionCommand::SelectAll,
+                    );
+                }
+                UiAction::SelectLinked(domain) => {
+                    self.selection_domain = domain;
+                    self.run_selection_command(
+                        &format!("Select linked {domain:?} component"),
+                        domain,
+                        SelectionCommand::SelectLinked,
                     );
                 }
                 UiAction::GrowSelection(domain) => {
