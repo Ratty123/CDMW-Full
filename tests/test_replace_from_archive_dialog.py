@@ -155,6 +155,9 @@ def test_picker_uses_remote_paging_global_sort_and_target_exclusion() -> None:
         service.result_ready.emit(query_request, "create_query", handle)
         for _ in range(3):
             app.processEvents()
+        assert dialog.status_label.text() == (
+            "1 archive mesh entry matches. Rows load incrementally as you scroll."
+        )
         assert service.page_requests
         page_request, fetch, page_generation = service.page_requests[-1]
         assert page_generation == generation

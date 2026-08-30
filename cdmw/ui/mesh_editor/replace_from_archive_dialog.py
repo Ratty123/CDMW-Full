@@ -525,10 +525,17 @@ class ReplaceFromArchivePickerDialog(QDialog):
             and isinstance(payload, ArchiveQueryHandle)
         ):
             self.model.publish_query(payload, view_mode=ArchiveViewMode.FLAT)
-            self.status_label.setText(
-                f"{payload.total_matches:,} archive mesh entr{'y' if payload.total_matches == 1 else 'ies'} match. "
-                "Rows load incrementally as you scroll."
-            )
+            if payload.total_matches == 1:
+                match_summary = (
+                    "1 archive mesh entry matches. "
+                    "Rows load incrementally as you scroll."
+                )
+            else:
+                match_summary = (
+                    f"{payload.total_matches:,} archive mesh entries match. "
+                    "Rows load incrementally as you scroll."
+                )
+            self.status_label.setText(match_summary)
             QTimer.singleShot(0, self._request_visible_rows)
             return
         if (
