@@ -9,8 +9,8 @@ from typing import Dict, List
 from cdmw.domain.textures.plan import describe_processing_path_kind
 
 
-#: The Create New Item About section; spliced into the section list without growing it.
-NEW_ITEM_STUDIO_SECTION = {
+#: The Create New Item documentation section.
+CREATE_NEW_ITEM_SECTION = {
     "id": "new_item_studio",
     "title": "Create New Item",
     "summary": "Clone an equipment item into a brand-new one: name, stats, model, icon, perks, effect, shop.",
@@ -35,76 +35,96 @@ class AboutDocumentationEnglishMixin:
     """English documentation topic content."""
 
     def _build_about_sections(self) -> List[Dict[str, str]]:
-        readme_path = Path(__file__).resolve().parents[3] / "README.md"
-        notices_path = Path(__file__).resolve().parents[3] / "THIRD_PARTY_NOTICES.md"
-        license_path = Path(__file__).resolve().parents[3] / "LICENSE"
-        readme_text = escape(str(readme_path))
-        notices_text = escape(str(notices_path))
-        license_text = escape(str(license_path))
-        settings_text = escape(str(self.settings_file_path))
-        cache_text = escape(str(self.archive_cache_root))
+        return (
+            self._build_start_sections()
+            + self._build_workflow_core_sections()
+            + self._build_workflow_planning_sections()
+            + self._build_archive_mesh_sections()
+            + self._build_placement_texture_sections()
+            + self._build_utility_sections()
+            + self._build_reference_sections()
+            + self._build_environment_sections()
+        )
+
+    def _build_start_sections(self) -> List[Dict[str, str]]:
         return [
             {
                 "id": "overview",
                 "title": "Overview",
                 "summary": "High-level tour of the app and its main surfaces.",
-                "keywords": "overview about features tabs archive workflow editor replace assistant research text search settings",
+                "keywords": "overview about features tools archive create item model icon mesh placement texture retrofit format translations research search settings",
                 "html": """
-                <p>The app is split into major work areas rather than one single pipeline.</p>
-                <ul>
-                  <li><b>Texture Workflow</b>: batch loose DDS processing, optional upscaling, DDS rebuild, compare, and mod-ready loose export.</li>
-                  <li><b>Archive Browser</b>: archive scanning, filtering, preview, extraction, research, dependency export, and one <b>Open in Mesh Editor</b> command for meshes.</li>
-                  <li><b>Mesh Editor</b>: direct geometry, topology, normals, rigging, Morph &amp; Refit, UV-coordinate, transform, review, and mesh-only output work. Textures are read-only in Mesh View.</li>
-                  <li><b>Model Library</b>: scan and preview local/importable models, or send one to Create New Item.</li>
-                  <li><b>Icon Creator</b>: prepare item-icon source images and package compatible icon replacements.</li>
-                  <li><b>Texture Editor</b>: layered visible-texture editing and direct workflow handoff.</li>
-                  <li><b>Texture Replacer</b>: guided one-off replacement packaging for edited PNG/DDS files.</li>
-                  <li><b>Research</b>: grouped texture families, unknown-resolution work, DDS analysis, references, reports, and notes.</li>
-                  <li><b>Text Search</b>: text-like archive/loose-file search with preview and export.</li>
-                  <li><b>Profile, Settings, and Window</b>: full app preference export/import, startup/performance/preview controls, language files, and detachable work tabs.</li>
-                </ul>
-                <p>If you are new to the app, start with <a href="topic:workflow_overview">Texture Workflow</a> and then review <a href="topic:compare_review">Compare &amp; Review</a>.</p>
+                <p>Crimson Desert Mod Workbench exposes 15 tools, grouped by the job you want to complete. Use the <a href="topic:documentation_index">Documentation Index</a> for the complete reference or search across every topic from the field above.</p>
+                <table>
+                  <tr><th>Area</th><th>Tools</th></tr>
+                  <tr><td>Assets</td><td><a href="topic:new_item_studio">Create New Item</a>, <a href="topic:archive_browser">Archive Browser</a>, <a href="topic:model_library">Model Library</a>, and <a href="topic:icon_creator">Icon Creator</a></td></tr>
+                  <tr><td>Mesh &amp; Placement</td><td><a href="topic:mesh_editor">Mesh Editor</a> and <a href="topic:placement_studio">Placement &amp; Animations</a></td></tr>
+                  <tr><td>Textures</td><td><a href="topic:workflow_overview">Texture Workflow</a>, <a href="topic:replace_assistant">Texture Replacer</a>, <a href="topic:texture_recolor">Texture Recolor</a>, and <a href="topic:texture_editor">Texture Editor</a></td></tr>
+                  <tr><td>Utilities</td><td><a href="topic:mod_package_retrofit">Retrofit/Repackage</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
+                </table>
+                <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
                 """,
             },
             {
-                "id": "quick_start",
-                "title": "Quick Start",
-                "summary": "Fast orientation for choosing the correct first workflow.",
-                "keywords": "quick start start here setup first run guide archive texture replace editor research text search",
-                "html": """
-                <p>Choose the first path based on what you are trying to do. You can move between tools later; the point is to avoid starting with the largest batch workflow when a smaller guided path is safer.</p>
-                <ul>
-                  <li><b>Browse game files</b>: use <a href="topic:archive_browser">Archive Browser</a> to scan packages, filter, preview, and extract.</li>
-                  <li><b>Edit a game mesh</b>: select a supported mesh in Archive Browser and choose <b>Open in Mesh Editor</b>. Geometry tools are ready immediately; use Mesh View for read-only textured review.</li>
-                  <li><b>Batch-process loose DDS files</b>: use <a href="topic:workflow_overview">Texture Workflow</a>, run a small subset, then review in <a href="topic:compare_review">Compare</a>.</li>
-                  <li><b>Replace one already-edited texture</b>: use <a href="topic:replace_assistant">Texture Replacer</a> so the original DDS controls rebuild metadata and output path.</li>
-                  <li><b>Edit a visible texture inside the app</b>: use <a href="topic:texture_editor">Texture Editor</a>, then send the flattened PNG onward.</li>
-                  <li><b>Understand a texture family</b>: use <a href="topic:research">Research</a> for grouped sets, classification, references, analysis, and notes.</li>
-                  <li><b>Find text, XML, JSON, Lua, or config strings</b>: use <a href="topic:text_search">Text Search</a>.</li>
-                </ul>
-                <p>For a first session, use the bundled <b>cd-texture-dx.exe</b> DDS helper, scan a small source set, avoid technical-map upscaling, and compare output before exporting anything larger.</p>
-                """,
+                "id": "documentation_index",
+                "title": "Documentation Index",
+                "summary": "A complete, grouped index of every current documentation topic.",
+                "keywords": "documentation index contents all topics wiki reference",
+                "html": "",
             },
             {
                 "id": "first_run_checklist",
                 "title": "First Run Checklist",
                 "summary": "Setup checklist for paths, tools, policy, and first test output.",
-                "keywords": "first run checklist setup paths native dds workspace ncnn chainner policy preview compare",
+                "keywords": "first run checklist setup appearance language layout archive paths browser tools safety profile texture policy",
                 "html": """
                 <ol>
-                  <li>Open <b>Settings</b> and run <b>Init Workspace</b> if you want the app to create the usual working folders.</li>
-                  <li><b>Native DDS helper</b>: <code>cd-texture-dx.exe</code> is bundled and used automatically for DDS preview, staging, Compare previews, and rebuild.</li>
-                  <li>Set <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. Use a tiny test folder first.</li>
-                  <li>Choose an upscaling backend: <b>Disabled</b> for rebuild testing, direct <b>Real-ESRGAN NCNN</b> for in-app upscale, or <b>chaiNNer</b> for an already-tested chain.</li>
-                  <li>Keep a safer <b>Texture Policy</b> preset and automatic rules enabled.</li>
-                  <li>Review <b>Workflow Profiles</b>, <b>Ordered Rules</b>, and <b>Matched Files</b> if you need per-file overrides.</li>
-                  <li>Click <b>Preview Policy</b> before <b>Start</b> to confirm what the planner will do.</li>
-                  <li>Run <b>Scan</b>, process a small batch, then review in <b>Compare</b>.</li>
-                  <li>Only after the small batch looks right, expand the folder filter or source root.</li>
+                  <li>In <b>Settings &gt; Appearance</b>, choose the language, shared theme, and Compact or Classic layout you want. Compact is the first-run default; a saved choice remains authoritative.</li>
+                  <li>In <b>Settings &gt; Setup</b>, run <b>Init Workspace</b> if you want the app to create its usual working folders, then review the status of bundled and optional helpers.</li>
+                  <li>In <b>Settings &gt; Paths &gt; Archive Locations</b>, set <b>Game / Package</b> to the Crimson Desert folder or package root before the first Archive Browser scan.</li>
+                  <li>Start in <b>Archive Browser</b> for read-only discovery: scan, filter, preview, inspect Asset Family links, and extract a small sample before opening an authoring tool.</li>
+                  <li>Use the <a href="topic:documentation_index">Documentation Index</a> or search to choose among the 15 current tools. Mesh, placement, texture, item, icon, and packaging work stay in their dedicated surfaces.</li>
+                  <li>For <b>Texture Workflow</b>, set <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. Test with <b>Disabled</b> first, then a configured <b>Real-ESRGAN NCNN</b> or <b>chaiNNer</b> backend.</li>
+                  <li>Keep preserve-first texture policy and automatic rules enabled, preview the plan, and test a small filtered batch before expanding it.</li>
+                  <li>Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.</li>
+                  <li>When setup is stable, export an app profile from <b>Settings &gt; General</b> so paths, preferences, language, and layout can be restored together.</li>
                 </ol>
                 <p>If anything fails, open <a href="topic:troubleshooting">Troubleshooting &amp; Limits</a> and check the Live Log before changing many settings at once.</p>
                 """,
             },
+            CREATE_NEW_ITEM_SECTION,
+            {
+                "id": "model_library",
+                "title": "Model Library",
+                "summary": "Scan, preview, and hand an importable model to Create New Item.",
+                "keywords": "model library scan preview import download local model create new item",
+                "html": """
+                <p><b>Model Library</b> keeps reusable model discovery separate from archive inspection. Scan configured locations, inspect the available preview and metadata, then choose <b>Use in Create New Item</b> to carry the resolved model into the guided authoring workflow.</p>
+                <ul>
+                  <li>Use filters and preview before selecting a source; the library does not silently overwrite a shipped asset.</li>
+                  <li>Models that require a download or import are resolved before Create New Item opens its Model step.</li>
+                  <li>Placement, material review, output planning, and any archive-changing decision remain in Create New Item.</li>
+                </ul>
+                """,
+            },
+            {
+                "id": "icon_creator",
+                "title": "Icon Creator",
+                "summary": "Prepare item-icon images and build compatible icon replacement packages.",
+                "keywords": "icon creator item image source crop fit dds package replacement send to",
+                "html": """
+                <p><b>Icon Creator</b> turns a source image into an item-icon asset using a compatible archive target as the format and path authority.</p>
+                <ul>
+                  <li>Choose or send in an image, review its fit, and use the target icon's dimensions and DDS contract.</li>
+                  <li>Generate a replacement package for an existing icon, or let Create New Item use the result for a new equipment identity.</li>
+                  <li>Texture Editor can send a flattened result directly to Icon Creator from its <b>Send To</b> menu.</li>
+                </ul>
+                """,
+            },
+        ]
+
+    def _build_workflow_core_sections(self) -> List[Dict[str, str]]:
+        return [
             {
                 "id": "workflow_overview",
                 "title": "Texture Workflow",
@@ -183,6 +203,10 @@ class AboutDocumentationEnglishMixin:
                 </ul>
                 """,
             },
+        ]
+
+    def _build_workflow_planning_sections(self) -> List[Dict[str, str]]:
+        return [
             {
                 "id": "workflow_planner_profiles",
                 "title": "Planner Profiles",
@@ -326,6 +350,10 @@ class AboutDocumentationEnglishMixin:
                 </ul>
                 """,
             },
+        ]
+
+    def _build_archive_mesh_sections(self) -> List[Dict[str, str]]:
+        return [
             {
                 "id": "archive_browser",
                 "title": "Archive Browser",
@@ -354,7 +382,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
                   <li>Use <b>Edit HKX</b> and <b>Choose Placement Source</b> for socket/prefab-driven placement swaps. Pick the visible source <code>.pac</code> when possible; the picker uses a static geometry thumbnail so browsing candidates does not depend on a nested live model view.</li>
                   <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
-                  <li>Use the dedicated Texture Workflow, Texture Replacer, Recolor Variants, and Texture Editor tabs directly for texture work; Archive Browser does not author or hand off textures.</li>
+                  <li>Use the dedicated Texture Workflow, Texture Replacer, Texture Recolor, and Texture Editor tabs directly for texture work; Archive Browser does not author or hand off textures.</li>
                 </ul>
                 <p>Not every archive format is editable. Browsing and preview support is broader than patch support, so use the visible actions beside the preview to see what is currently available for the selected entry.</p>
                 """,
@@ -367,7 +395,7 @@ class AboutDocumentationEnglishMixin:
                 "html": """
                 <h4>Scan packages</h4>
                 <ol>
-                  <li>Set the package root in <b>Settings &gt; Archive Locations</b>. This should be the Crimson Desert folder or package root that contains the game archive files.</li>
+                  <li>Set the package root in <b>Settings &gt; Paths &gt; Archive Locations</b>. This should be the Crimson Desert folder or package root that contains the game archive files.</li>
                   <li>Click <b>Scan</b>. Use the cached result on repeat scans when the package files have not changed.</li>
                   <li>Use flat view when searching broadly and tree view when following folders.</li>
                 </ol>
@@ -404,22 +432,31 @@ class AboutDocumentationEnglishMixin:
                 """,
             },
             {
-                "id": "mesh_media_guides",
-                "title": "Mesh Editor, Audio & Media Guides",
-                "summary": "Direct mesh editing and safe output, plus audio, video, and sidecar files.",
-                "keywords": "mesh editor direct authoring replace from archive pam pamlod pac object transform solid textured overlay export audio wem bnk video bk2 sidecar app xml pac xml",
+                "id": "mesh_editor",
+                "title": "Mesh Editor",
+                "summary": "Permanent standalone viewport, resident native interaction, capability-gated LOD0 authoring, review, and safe mesh output.",
+                "keywords": "mesh editor viewport standalone workspace no-session guidance select move grab smooth inflate pinch undo redo resident native interaction solid textured authoring exact game asset free edit replace from archive pam pamlod pac object transform overlay export sidecar app xml pac xml",
                 "html": """
-                <h4>Open and edit a mesh</h4>
+                <p>The <b>Mesh Editor</b> always keeps its standalone workspace and viewport available. Before a model is opened, and after a session is closed, compact no-session guidance appears above that workspace instead of replacing it. Opening an archive, file, standalone, or embedded Builder session hides the guidance.</p>
+                <h4>Open and author a mesh</h4>
                 <ol>
                   <li>Select a supported <code>.pam</code>, <code>.pamlod</code>, or <code>.pac</code> in Archive Browser.</li>
-                  <li>Choose <b>Open in Mesh Editor</b>. The exact archive bytes are validated off the UI thread and the resident authoring controls are visible immediately.</li>
-                  <li>Edit selection, geometry, topology, normals/tangents, rigging, Morph &amp; Refit, or UV coordinates. Use Original/Edited review and the one Mesh View selector, including <b>Solid (Textured)</b>.</li>
+                  <li>Choose <b>Open in Mesh Editor</b>. The exact archive bytes are validated off the UI thread and loaded into the permanent viewport.</li>
+                  <li>Use <b>Select</b> with vertex, wire, or face selection and the available Click, Brush, Rectangle, and Lasso controls. Use <b>Move</b>, <b>Grab</b>, <b>Smooth</b>, <b>Inflate</b>, or <b>Pinch</b> when the active session exposes that resident operation.</li>
+                  <li>Edit capability-gated LOD0 geometry, topology, normals/tangents, rigging, Morph &amp; Refit, UV coordinates, or transforms. Each control reports its own availability reason. Use Original/Edited review and <b>Solid (Textured)</b> for source-texture inspection.</li>
                 </ol>
-                <div class="doc-callout"><b>Mesh-only boundary:</b> material and texture names are diagnostics. Mesh Editor does not replace, recolour, assign, copy, or open textures. If textured rendering cannot bind a source DDS, it falls back visibly to untextured drawing and geometry editing stays available.</div>
+                <div class="doc-callout"><b>Mesh-only boundary:</b> material and texture names are diagnostics. Mesh Editor does not replace, recolour, assign, copy, or open textures. If <b>Solid (Textured)</b> cannot bind a source DDS, it falls back visibly to untextured drawing and geometry editing stays available.</div>
                 <h4>Object Transform</h4>
                 <ul>
                   <li>Location, rotation, XYZ or linked scale, tilt steps, and reset buttons affect every mesh part without changing selection.</li>
                   <li>Rotation and scale use the fixed centre of the original source bounds. Each completed gesture is one undoable history action, and drafts restore both geometry and controls.</li>
+                </ul>
+                <h4>Resident interaction and history</h4>
+                <ul>
+                  <li><b>Select</b>, <b>Move</b>, <b>Grab</b>, <b>Smooth</b>, <b>Inflate</b>, and <b>Pinch</b> use the resident <code>cdmw-mesh-core</code> interaction session. Opening a tool changes its panel without replacing, resizing, or flickering the permanent viewport.</li>
+                  <li>Brush selection and editing accumulate against one immutable gesture baseline. Releasing a completed gesture commits exactly one <code>MeshService</code> history entry; cancellation restores the baseline.</li>
+                  <li><b>Undo</b> and <b>Redo</b> restore the authoritative service state, resynchronise the native mirror, and re-arm the available modal tools. A recovery or stale revision keeps authoring disabled until that resynchronisation is complete.</li>
+                  <li>Native-format sessions use the <b>Exact Game Asset</b> policy; imported rebuild sessions use <b>Free Edit</b>. Unsupported controls remain visible but fail closed with their own policy- and state-specific explanation.</li>
                 </ul>
                 <h4>Save and build</h4>
                 <table>
@@ -435,7 +472,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>New assets and textures</h4>
                 <ul>
                   <li>From Model Library, <b>Use in Create New Item</b> resolves or downloads the model and opens Create New Item's Model step.</li>
-                  <li>Use Texture Workflow, Texture Replacer, Recolor Variants, or Texture Editor directly for texture work. Those dedicated tabs are unchanged.</li>
+                  <li>Use Texture Workflow, Texture Replacer, Texture Recolor, or Texture Editor directly for texture work. Those dedicated tabs are unchanged.</li>
                 </ul>
                 <h4>HKX placement and socket workflows</h4>
                 <ul>
@@ -444,11 +481,25 @@ class AboutDocumentationEnglishMixin:
                   <li>The placement source picker uses a static geometry thumbnail for source candidates. This keeps browsing stable while still confirming that the selected source is the expected model.</li>
                   <li><b>Compare Placement</b> verifies the resolved prefab/socket/HKX context before packaging. <b>Edit Socket Values</b> is available when the recovered socket XML can be safely shown and written as loose output.</li>
                 </ul>
-                <h4>Audio, video, and text-like media</h4>
+                <div class="doc-callout doc-warning"><b>Current evidence boundary:</b> the direct production route and executable native-contract gates cover the permanent viewport, <b>Solid (Textured)</b>, <b>Select</b>, resident <b>Move</b>/<b>Grab</b>/<b>Smooth</b>/<b>Inflate</b>/<b>Pinch</b>, one-entry history, and <b>Undo</b>/<b>Redo</b> resynchronisation. Release packaging rejects a helper/DLL identity mismatch. The required portable onefile sweep passed on visible hardware with a real PAC: 15 live texture resources, <b>Solid (Textured)</b>, <b>Select</b>, all nine tool/page continuity cases at or below 50 ms p95, and <b>Grab</b>/<b>Undo</b>/<b>Redo</b>. This remains focused regression proof, not broad game-material parity. Overall readiness is conditionally ready because a separate automation-only off-screen Select-to-Viewport jump measured 288.868 ms and the D3D11 debug layer could not be exercised without Windows Graphics Tools. Human physical-input soak, renderer process-kill recovery, and exact/free output round trips remain pending.</div>
+                """,
+            },
+        ]
+
+    def _build_placement_texture_sections(self) -> List[Dict[str, str]]:
+        return [
+            {
+                "id": "placement_studio",
+                "title": "Placement & Animations",
+                "summary": "Move equipment, change sockets, retarget draw/stow clips, and package the result.",
+                "keywords": "placement animations weapon armour socket viewport draw stow retarget hkx pac package cdumm dmm jmm",
+                "html": """
+                <p><b>Placement &amp; Animations</b> is the focused workspace for changing where a weapon or piece of armour sits and how its draw/stow animation route behaves.</p>
                 <ul>
-                  <li>Preview supported audio/video where the local system codecs allow it.</li>
-                  <li>Use soundbank summaries to inspect <code>.bnk</code> structure.</li>
-                  <li>Use Text Search or Archive Preview for text-like formats before extracting large groups.</li>
+                  <li>Review the target in the viewport, adjust supported placement values, and route it to another compatible socket.</li>
+                  <li>Retarget supported draw/stow animation references without presenting unsupported full animation authoring as safe.</li>
+                  <li>Compare the resolved source and target context before writing output.</li>
+                  <li>Package reviewed changes for CDUMM, DMM, or JMM; unsupported graph swaps or variable-length binary edits remain outside the bounded workflow.</li>
                 </ul>
                 """,
             },
@@ -482,6 +533,24 @@ class AboutDocumentationEnglishMixin:
                 """,
             },
             {
+                "id": "texture_recolor",
+                "title": "Texture Recolor",
+                "summary": "Build reviewed colour variants while preserving the established texture and package routes.",
+                "keywords": "texture recolor colour color variant palette source review package",
+                "html": """
+                <p><b>Texture Recolor</b> creates colour variants from a chosen source texture without turning the operation into an unrelated batch rebuild.</p>
+                <ul>
+                  <li>Choose the source, adjust the supported colour treatment, and review the visible result before export.</li>
+                  <li>Keep technical-map warnings in view; recolouring is intended for suitable visible textures.</li>
+                  <li>Finished variants continue through the existing Texture Workflow and mod-package output routes.</li>
+                </ul>
+                """,
+            },
+        ]
+
+    def _build_utility_sections(self) -> List[Dict[str, str]]:
+        return [
+            {
                 "id": "research",
                 "title": "Research",
                 "summary": "Texture-family inspection, unknown-resolution, DDS QA, reports, and notes.",
@@ -509,7 +578,54 @@ class AboutDocumentationEnglishMixin:
                   <li>Export matched results while preserving folder structure.</li>
                 </ul>
                 """,
-            }, NEW_ITEM_STUDIO_SECTION,
+            },
+            {
+                "id": "mod_package_retrofit",
+                "title": "Retrofit/Repackage",
+                "summary": "Inspect and normalize an existing loose mod for supported manager layouts.",
+                "keywords": "retrofit repackage mod package normalize inspect loose manager cdumm dmm jmm manifest",
+                "html": """
+                <p><b>Retrofit/Repackage</b> is for an existing loose mod whose files or metadata need to be inspected and normalized for a supported manager layout.</p>
+                <ul>
+                  <li>Open the existing mod, review detected files and metadata, and choose the intended target layout.</li>
+                  <li>Write the repackaged result as a separate output rather than mutating shipped game archives.</li>
+                  <li>Use the generated manager metadata and folder report to review the result before installation.</li>
+                </ul>
+                """,
+            },
+            {
+                "id": "format_explorer",
+                "title": "Format Explorer",
+                "summary": "See what each game format can do, why the claim is supported, and where to edit it.",
+                "keywords": "format explorer extension files read write support evidence remaining capability manifest edit tool",
+                "html": """
+                <p><b>Format Explorer</b> answers what a game format is, how far the current build can read or write it, and which Workbench tool owns the supported edit path.</p>
+                <ul>
+                  <li>Search or filter by extension and area, or show only formats that are currently editable.</li>
+                  <li>Select a row to read its evidence and remaining limitations instead of treating a status colour as proof.</li>
+                  <li>Tool links route directly to the owning workspace. The data comes from the same capability manifest as the project decode report, so the two surfaces share one source of truth.</li>
+                </ul>
+                """,
+            },
+            {
+                "id": "translation_studio",
+                "title": "Translations",
+                "summary": "Search and edit game PALOC text with reference-language context, then export a mod.",
+                "keywords": "translations translation studio paloc language reference search group edit revert ai export mod",
+                "html": """
+                <p><b>Translations</b> is the game-text workspace for searchable <code>.paloc</code> tables. It keeps one working language and one optional reference language in view while edits remain separate until export.</p>
+                <ul>
+                  <li>Choose a language and optional reference, load them, then search keys and text or filter by group.</li>
+                  <li>Double-click the Text column to edit. Highlighting, original-text tooltips, <b>Revert line</b>, <b>Edited only</b>, and <b>Reset all</b> keep the change set explicit.</li>
+                  <li>Optional bring-your-own-key AI translation is available from its own settings; ordinary manual editing does not require it.</li>
+                  <li>Export writes the edited language as a mod for the selected supported manager. The shipped archive table is not changed by normal editing.</li>
+                </ul>
+                """,
+            },
+        ]
+
+    def _build_reference_sections(self) -> List[Dict[str, str]]:
+        return [
             {
                 "id": "mod_packaging",
                 "title": "Mod Packaging & Output",
@@ -541,14 +657,13 @@ class AboutDocumentationEnglishMixin:
                   <li>Profiles do not save open archives, active documents, or per-tab project sessions.</li>
                   <li><b>Export Diagnostics</b> includes the same profile payload plus logs, cache summaries, chain analysis, crash context when available, a paste-ready issue summary, README, license, and third-party notices. Reports stay local until you export and share them.</li>
                 </ul>
-                <p>Settings has six pages in its left-hand list: <b>Setup</b>, <b>Startup</b>, <b>Paths</b>, <b>Performance</b>, <b>Appearance</b>, and <b>Safety</b>.</p>
+                <p>Settings has five pages in its left-hand list: <b>Setup</b>, <b>General</b>, <b>Paths</b>, <b>Performance</b>, and <b>Appearance</b>.</p>
                 <ul>
                   <li><b>Settings / Setup</b> holds workspace initialization, external tool discovery, and asset-authoring helper status.</li>
-                  <li><b>Settings / Startup</b> controls archive auto-load, cache preference, and last-tab restore. Archive filters start neutral after launch.</li>
+                  <li><b>Settings / General</b> combines archive auto-load, cache preference, last-tab restore, cleanup confirmations, diagnostic context, verbose Archive Browser logging, and direct profile import/export. Archive filters start neutral after launch.</li>
                   <li><b>Settings / Paths</b> holds workflow roots, archive locations, game/package roots, and extraction roots.</li>
                   <li><b>Settings / Performance</b> controls workload presets, archive-list batching/native helper use, optional DDS related-file indexing, preview caches, and .NET/Vortice preview package caching.</li>
-                  <li><b>Settings / Appearance</b> controls layout, the shared theme, pane-size memory, built-in Spanish/German/custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults.</li>
-                  <li><b>Settings / Safety</b> controls cleanup confirmations and extra local diagnostic context.</li>
+                  <li><b>Settings / Appearance</b> controls layout, the shared theme, pane-size memory, all 14 built-in app languages plus imported custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults. <b>Preview Settings...</b> opens the existing full preview-settings window and reuses the same live controls and stored values.</li>
                 </ul>
                 <p>Language export writes a JSON file with English keys and translated values. Keep keys unchanged, edit only values, then import the file from Settings / Appearance.</p>
                 """,
@@ -559,13 +674,14 @@ class AboutDocumentationEnglishMixin:
                 "summary": "Detachable work tabs, saved geometry, and layout memory.",
                 "keywords": "window layout detach attach tab geometry splitter restore detached tool",
                 "html": """
-                <p>The <b>Window</b> menu lets heavy work areas run in their own top-level windows while keeping their original navigation slots available.</p>
+                <p>The <b>Window</b> menu lets detachable work areas run in their own top-level windows while keeping their original navigation slots available.</p>
                 <ul>
                   <li><b>Detach Current Tool</b> moves the current detachable tool into a separate window and leaves a placeholder behind.</li>
                   <li><b>Reattach Current Tool</b> and <b>Reattach All Tools</b> return detached tools to their original tab groups.</li>
                   <li>Detached windows remember their geometry under <code>window/detached/&lt;tool&gt;/geometry</code>. The main window stores <code>window/geometry</code>.</li>
                   <li><b>Settings / Appearance</b> controls whether pane sizes and splitters are remembered across sessions.</li>
-                  <li>Every tool can be detached: Texture Workflow, Texture Replacer, Recolor Variants, Texture Editor, Archive Browser, Mesh Editor, Model Library, Research, Text Search, Icon Creator, Retrofit/Repackage, and Settings. Each one can be restored from its placeholder or the Window menu.</li>
+                  <li>The 14 detachable surfaces are Create New Item, Archive Browser, Model Library, Icon Creator, Mesh Editor, Placement &amp; Animations, Texture Workflow, Texture Replacer, Texture Recolor, Texture Editor, Retrofit/Repackage, Research, Text Search, and Settings.</li>
+                  <li><b>Format Explorer</b> and <b>Translations</b> stay anchored in Tools and are not presented as detachable workspaces.</li>
                   <li>The bottom half of the <b>Window</b> menu lists a <b>Show &lt;tool&gt;</b> entry per tool. It selects the tool's tab, or raises its window when the tool is detached.</li>
                 </ul>
                 """,
@@ -587,6 +703,18 @@ class AboutDocumentationEnglishMixin:
                 <p>If you are not sure what a file is, classify or inspect it in Research before assigning an aggressive workflow profile.</p>
                 """,
             },
+        ]
+
+    def _build_environment_sections(self) -> List[Dict[str, str]]:
+        readme_path = Path(__file__).resolve().parents[3] / "README.md"
+        notices_path = Path(__file__).resolve().parents[3] / "THIRD_PARTY_NOTICES.md"
+        license_path = Path(__file__).resolve().parents[3] / "LICENSE"
+        readme_text = escape(str(readme_path))
+        notices_text = escape(str(notices_path))
+        license_text = escape(str(license_path))
+        settings_text = escape(str(self.settings_file_path))
+        cache_text = escape(str(self.archive_cache_root))
+        return [
             {
                 "id": "settings_files",
                 "title": "Settings, Files & Dependencies",

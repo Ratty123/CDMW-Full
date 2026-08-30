@@ -10,26 +10,10 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QTabWidget, QVBo
 
 from cdmw.ui.shell.lazy_tool_tab import LazyToolTab, as_label
 from cdmw.ui.shell.tab_registry import DetachedToolWindow
-from cdmw.ui.widgets import QuickStartDialog
 
 
 class NavigationControllerMixin:
     """Route tool activation and detach/attach tool tabs."""
-
-    def focus_quick_start_sections(self, *, include_chainner: bool) -> None:
-        if include_chainner:
-            self._activate_tool_widget(self.workflow_tab)
-        else:
-            self._activate_tool_widget(self.settings_tab)
-            if hasattr(self.settings_tab, "show_settings_section"):
-                self.settings_tab.show_settings_section("setup")
-        self.setup_section.set_expanded(True)
-        self.paths_section.set_expanded(True)
-        self.archive_locations_section.set_expanded(True)
-        self.settings_section.set_expanded(False)
-        self.dds_output_section.set_expanded(False)
-        self.filters_section.set_expanded(False)
-        self.chainner_section.set_expanded(include_chainner)
 
     def focus_archive_locations(self) -> None:
         self._activate_tool_widget(self.settings_tab)
@@ -39,11 +23,6 @@ class NavigationControllerMixin:
         self.setup_section.set_expanded(False)
         self.paths_section.set_expanded(False)
         self.archive_package_root_edit.setFocus()
-
-    def show_quick_start_dialog(self) -> None:
-        dialog = QuickStartDialog(self)
-        self.ui_localizer.apply(dialog)
-        dialog.exec()
 
     def _find_tool_tab_widget(self, widget: QWidget) -> Optional[QTabWidget]:
         if self.main_tabs.indexOf(widget) >= 0:

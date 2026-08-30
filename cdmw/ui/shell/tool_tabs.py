@@ -668,7 +668,7 @@ class ShellToolTabsMixin:
         self._initialize_archive_cache_status_chip()
         self._register_detachable_tool("texture_workflow", self.workflow_tab, "Texture Workflow")
         self._register_detachable_tool("replace_assistant", self.replace_assistant_tab, "Texture Replacer")
-        self._register_detachable_tool("recolor_variants", self.recolor_variants_tab, "Recolor Variants")
+        self._register_detachable_tool("recolor_variants", self.recolor_variants_tab, "Texture Recolor")
         self._register_detachable_tool("texture_editor", self.texture_editor_tab, "Texture Editor")
         self._register_detachable_tool("archive_browser", self.archive_browser_tab, "Archive Browser")
         self._register_detachable_tool("mesh_editor", self.mesh_editor_tab, "Mesh Editor")

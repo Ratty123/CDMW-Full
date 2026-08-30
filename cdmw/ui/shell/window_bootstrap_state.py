@@ -148,7 +148,7 @@ class ShellWindowBootstrapStateMixin:
         self.current_theme_key = active_shell_theme_key(self.settings, self.shell_variant)
         self.app_state.current_theme_key = self.current_theme_key
         self.archive_model_renderer_backend = ARCHIVE_MODEL_RENDERER_DEFAULT
-        self.show_quick_start_on_launch = (
+        self.show_first_run_guide_on_launch = (
             not self.settings.contains("ui/startup_setup_shown")
             or not str(self.settings.value("archive/package_root", "") or "").strip()
         )

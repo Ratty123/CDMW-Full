@@ -795,7 +795,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         ]
         menu_positions = [source.index(marker) for marker in menu_order]
         self.assertEqual(menu_positions, sorted(menu_positions))
-        self.assertIn('self.quick_start_menu_action = self.help_menu.addAction("Quick Start")', source)
+        self.assertNotIn("quick_start_menu_action", source)
         self.assertIn('self.open_documentation_action = self.help_menu.addAction("Documentation")', source)
         self.assertIn("self.open_settings_action.triggered.connect(self.show_settings)", source)
         self.assertIn("def show_settings(self, _checked: bool = False) -> None:", source)
@@ -866,7 +866,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('target = {"startup": "general", "safety": "general"}.get(target, target)', settings_source)
         self.assertIn("self.setup_page_layout.insertWidget(2, setup_section)", settings_source)
         self.assertIn("toggle_button.setVisible(False)", settings_source)
-        self.assertIn("self.setup_section.set_expanded(True)", navigation_source)
+        self.assertIn("self.setup_section.set_expanded(False)", navigation_source)
         self.assertIn("self.paths_page_layout.insertWidget(2, paths_section)", settings_source)
         self.assertIn("self.paths_page_layout.insertWidget(3, archive_locations_section)", settings_source)
         self.assertNotIn("restore_archive_filters_checkbox", settings_source)
@@ -887,7 +887,6 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.archive_startup_autoload_defer_preview = True", startup_source)
         self.assertIn("defer_default_selection=defer_default_selection", main_behavior_source)
         self.assertIn("def show_settings_section(self, key: str) -> None:", settings_source)
-        self.assertIn('self.settings_tab.show_settings_section("setup")', navigation_source)
         self.assertIn('self.settings_tab.show_settings_section("paths")', navigation_source)
 
     def test_archive_browser_has_item_finder_scope_dialog(self) -> None:
@@ -998,7 +997,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("dialog.show()", prompt_body)
         self.assertNotIn("dialog.exec()", prompt_body)
         self.assertIn("thread.wait(0)", prompt_body)
-        self.assertIn("self.show_quick_start_on_launch = False", prompt_body)
+        self.assertIn("self.show_first_run_guide_on_launch = False", prompt_body)
         self.assertIn('self.settings.setValue("archive/package_root", selected_path)', prompt_body)
         self.assertIn('os.environ["CDMW_DEFER_TEXTURE_PREVIEW"] = "1"', prompt_body)
         self.assertIn("startup_path_prompt_accepted", prompt_body)
@@ -1041,7 +1040,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("after_autodetect=self._show_first_run_guide_if_needed", startup_body)
         self.assertLess(
             startup_body.index("self._prompt_for_archive_package_root_if_missing("),
-            startup_body.index("self.show_quick_start_dialog()"),
+            startup_body.index('self.show_documentation_dialog(topic_id="first_run_checklist")'),
         )
 
         scan_start = source.index("    def scan_archives(")

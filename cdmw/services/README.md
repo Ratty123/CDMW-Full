@@ -32,7 +32,16 @@ weapon-swap, and index operations.
 
 `mesh_workflow_service.py` and `texture_workflow_service.py` expose the UI's
 mesh/native and texture/recolor coordination surfaces without eager imports.
-Focused material-sidecar, text-search, Replace Assistant, HKX-edit, and startup
+`mesh_service_resident_transaction.py` is the trust boundary for terminal
+gestures from the packaged .NET/Vortice Mesh Editor. It validates the
+shared-memory descriptor, session identity, revisions, topology generation,
+tool/payload kind, and bounds before committing sparse geometry or selection
+changes to `MeshService`. One accepted gesture creates one history entry;
+stale, malformed, or rejected transactions fail closed. The helper keeps its
+native result provisional until the correlated host decision, and accepted,
+rejected, Undo, and Redo decisions resynchronize the resident
+`cdmw_mesh_core` mirror.
+Focused material-sidecar, text-search, Texture Replacer, HKX-edit, and startup
 splash services provide the same boundary for their owning features. UI code
 does not import `cdmw.core`, `cdmw.modding`, or `cdmw.rendering` directly.
 
@@ -55,7 +64,7 @@ component versions are opt-in discovery probes so normal startup does not run
 external tools.
 
 `new_item_service.py`, `new_item_snapshot.py` and `new_item_planning.py` are the
-New Item Studio's boundary: a read-only snapshot of the tables a brand-new item
+Create New Item's boundary: a read-only snapshot of the tables a brand-new item
 touches, the plan that composes the core format owners into patches and
 additions, a loose-mod or archive-group export, and installs that go through
 `ArchiveMutationService` and refuse while the game runs. Overlay install,

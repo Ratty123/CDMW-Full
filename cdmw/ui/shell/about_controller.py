@@ -75,76 +75,15 @@ class AboutControllerMixin:
     def _build_about_overview_html(self) -> str:
         return self._build_about_intro_html() + """
             <h3>Application Areas</h3>
-            <ul>
-              <li><b>Texture Workflow</b>: batch processing, review, DDS rebuild, and mod-ready export.</li>
-              <li><b>Archive Browser</b>: game-file search, preview, extraction, references, and direct opening of supported meshes.</li>
-              <li><b>Mesh Editor</b>: mesh-only geometry authoring with read-only textured review and safe file/mod/overlay outputs.</li>
-              <li><b>Model Library and Icon Creator</b>: models route to Create New Item; icon helpers prepare item-icon packages.</li>
-              <li><b>Texture Editor</b>: visible texture edits with handoff back to workflow/replacement tools.</li>
-              <li><b>Texture Replacer</b>: guided one-off replacement packaging.</li>
-              <li><b>Research and Text Search</b>: inspect file families, references, strings, and notes.</li>
-              <li><b>Profile, Settings, and Window</b>: portable app profiles, language/theme/performance preferences, and detachable work tabs.</li>
-            </ul>
+            <p>The current build exposes 15 tools across Assets, Mesh &amp; Placement, Textures, and Utilities: Create New Item, Archive Browser, Model Library, Icon Creator, Mesh Editor, Placement &amp; Animations, Texture Workflow, Texture Replacer, Texture Recolor, Texture Editor, Retrofit/Repackage, Format Explorer, Translations, Research, and Text Search.</p>
             <p>Use <b>Help &gt; Documentation</b> for the full searchable guide.</p>
             """
 
     def _build_about_overview_html_es(self) -> str:
-        return f"""
-            <p><b>{APP_TITLE} v{APP_VERSION}</b> es una herramienta de escritorio de Windows para explorar archivos de Crimson Desert, previsualizar recursos, aplicar parches compatibles, reconstruir DDS, editar texturas visibles, preparar reemplazos, investigar y buscar texto.</p>
-            <p>Usa la busqueda y la lista de temas de la izquierda, o abre directamente:
-            <a href="topic:quick_start">Inicio rapido</a>,
-            <a href="topic:first_run_checklist">Lista de primera ejecucion</a>,
-            <a href="topic:workflow_overview">Flujo de texturas</a>,
-            <a href="topic:archive_browser">Explorador de archivos</a>,
-            <a href="topic:mesh_media_guides">Editor de mallas</a>,
-            <a href="topic:texture_editor">Editor de texturas</a>,
-            <a href="topic:replace_assistant">Asistente de reemplazo</a>,
-            <a href="topic:mod_packaging">Empaquetado mod-ready</a>,
-            <a href="topic:faq">FAQ</a>,
-            <a href="topic:troubleshooting">Solucion de problemas</a>.
-            </p>
-            <h3>Areas de la aplicacion</h3>
-            <ul>
-              <li><b>Flujo de texturas</b>: proceso por lotes, revision, reconstruccion DDS y exportacion mod-ready.</li>
-              <li><b>Explorador de archivos</b>: busqueda, vista previa, extraccion, referencias y apertura directa de mallas compatibles.</li>
-              <li><b>Editor de mallas</b>: edicion geometrica solamente, revision con texturas de solo lectura y salidas seguras de archivo, mod u overlay.</li>
-              <li><b>Biblioteca de modelos y creador de iconos</b>: los modelos se envian a Crear objeto nuevo; el creador prepara iconos de items.</li>
-              <li><b>Editor de texturas</b>: ediciones de texturas visibles con envio a flujo o reemplazo.</li>
-              <li><b>Asistente de reemplazo</b>: empaquetado guiado para reemplazos individuales.</li>
-              <li><b>Investigacion y busqueda de texto</b>: inspeccion de familias de archivos, referencias, cadenas y notas.</li>
-              <li><b>Perfil, configuracion y ventana</b>: perfiles portables, idioma, tema, rendimiento y pestanas separables.</li>
-            </ul>
-            <p>Usa <b>Ayuda &gt; Documentacion</b> para abrir la guia completa con busqueda.</p>
-            """
+        return self._build_about_overview_html()
 
     def _build_about_overview_html_de(self) -> str:
-        return f"""
-            <p><b>{APP_TITLE} v{APP_VERSION}</b> ist ein Windows-Desktopwerkzeug fuer Crimson-Desert-Archive: Browsing, Vorschau, kompatibles Patchen, DDS-Neuaufbau, sichtbare Texturbearbeitung, Ersatzpakete, Recherche und Textsuche.</p>
-            <p>Nutze Suche und Themenliste links, oder springe direkt zu:
-            <a href="topic:quick_start">Schnellstart</a>,
-            <a href="topic:first_run_checklist">Erster-Lauf-Checkliste</a>,
-            <a href="topic:workflow_overview">Textur-Workflow</a>,
-            <a href="topic:archive_browser">Archiv-Browser</a>,
-            <a href="topic:mesh_media_guides">Mesh-Editor</a>,
-            <a href="topic:texture_editor">Textur-Editor</a>,
-            <a href="topic:replace_assistant">Ersetzungsassistent</a>,
-            <a href="topic:mod_packaging">Mod-fertige Pakete</a>,
-            <a href="topic:faq">FAQ</a>,
-            <a href="topic:troubleshooting">Fehlerbehebung</a>.
-            </p>
-            <h3>Anwendungsbereiche</h3>
-            <ul>
-              <li><b>Textur-Workflow</b>: Stapelverarbeitung, Pruefung, DDS-Neuaufbau und mod-fertiger Export.</li>
-              <li><b>Archiv-Browser</b>: Suche, Vorschau, Extraktion, Referenzen und direktes Oeffnen kompatibler Meshes.</li>
-              <li><b>Mesh-Editor</b>: reine Geometriebearbeitung, schreibgeschuetzte Texturkontrolle und sichere Datei-/Mod-/Overlay-Ausgaben.</li>
-              <li><b>Modellbibliothek und Icon Creator</b>: Modelle gehen an Neuen Gegenstand erstellen; der Icon Creator bereitet Item-Icons vor.</li>
-              <li><b>Textur-Editor</b>: sichtbare Texturbearbeitung mit Uebergabe an Workflow oder Ersetzung.</li>
-              <li><b>Ersetzungsassistent</b>: gefuehrte Einzelersatz-Paketierung.</li>
-              <li><b>Recherche und Textsuche</b>: Dateifamilien, Referenzen, Strings und Notizen pruefen.</li>
-              <li><b>Profil, Einstellungen und Fenster</b>: portable Profile, Sprache, Theme, Leistung und abtrennbare Arbeitstabs.</li>
-            </ul>
-            <p>Nutze <b>Hilfe &gt; Dokumentation</b> fuer die vollstaendige durchsuchbare Anleitung.</p>
-            """
+        return self._build_about_overview_html()
 
     def _build_about_page(self) -> QWidget:
         page = QWidget()
@@ -182,8 +121,6 @@ class AboutControllerMixin:
         overview_browser.anchorClicked.connect(self._handle_about_page_link)
         overview_html = self._build_about_overview_html()
         overview_browser.setProperty("_i18n_source_html", overview_html)
-        overview_browser.setProperty("_i18n_html_es", self._build_about_overview_html_es())
-        overview_browser.setProperty("_i18n_html_de", self._build_about_overview_html_de())
         overview_browser.setHtml(overview_html)
         overview_layout.addWidget(overview_browser)
         about_tabs.addTab(overview_page, "Overview")
@@ -215,18 +152,26 @@ class AboutControllerMixin:
     def _build_about_intro_html(self) -> str:
         return f"""
         <p><b>{APP_TITLE} v{APP_VERSION}</b> is a Windows desktop tool for Crimson Desert archive browsing and preview, supported archive patching, DDS rebuild workflows, visible-texture editing, replacement packaging, research, and text search.</p>
-        <p>Use the search box and topic list on the left, or jump straight to:
-        <a href="topic:quick_start">Quick Start</a>,
+        <p>Use the indexed side menu, press <b>Ctrl+K</b> to search every topic, or jump straight to:
+        <a href="topic:documentation_index">Documentation Index</a>,
         <a href="topic:first_run_checklist">First Run Checklist</a>,
+        <a href="topic:new_item_studio">Create New Item</a>,
+        <a href="topic:model_library">Model Library</a>,
+        <a href="topic:icon_creator">Icon Creator</a>,
         <a href="topic:workflow_overview">Texture Workflow</a>,
         <a href="topic:workflow_profiles">Workflow Profiles</a>,
         <a href="topic:workflow_rules">Ordered Rules</a>,
         <a href="topic:workflow_planner_profiles">Planner Profiles</a>,
         <a href="topic:workflow_planner_paths">Planner Paths</a>,
         <a href="topic:archive_browser">Archive Browser</a>,
-        <a href="topic:mesh_media_guides">Mesh Editor</a>,
+        <a href="topic:mesh_editor">Mesh Editor</a>,
+        <a href="topic:placement_studio">Placement &amp; Animations</a>,
         <a href="topic:texture_editor">Texture Editor</a>,
         <a href="topic:replace_assistant">Texture Replacer</a>,
+        <a href="topic:texture_recolor">Texture Recolor</a>,
+        <a href="topic:mod_package_retrofit">Retrofit/Repackage</a>,
+        <a href="topic:format_explorer">Format Explorer</a>,
+        <a href="topic:translation_studio">Translations</a>,
         <a href="topic:research">Research</a>,
         <a href="topic:text_search">Text Search</a>,
         <a href="topic:mod_packaging">Mod Packaging</a>,

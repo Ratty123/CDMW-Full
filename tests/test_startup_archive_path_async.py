@@ -40,7 +40,7 @@ class _StartupPromptHarness(StartupPromptMixin, QWidget):
         QWidget.__init__(self)
         self.settings = settings
         self.current_theme_key = "graphite"
-        self.show_quick_start_on_launch = True
+        self.show_first_run_guide_on_launch = True
         self.archive_package_root_edit = QLineEdit(self)
         self.probe_button = QPushButton("Probe", self)
         layout = QVBoxLayout(self)

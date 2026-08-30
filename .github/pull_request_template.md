@@ -16,12 +16,19 @@ What problem does this solve, or what workflow does it improve?
 ## What To Check
 
 - affected area(s):
-  - [ ] Texture Workflow
-  - [ ] Replace Assistant
+  - [ ] Create New Item
   - [ ] Archive Browser
+  - [ ] Model Library / Icon Creator
+  - [ ] Mesh Editor
+  - [ ] Placement & Animations
+  - [ ] Texture Workflow
+  - [ ] Texture Replacer / Texture Recolor / Texture Editor
+  - [ ] Retrofit/Repackage
+  - [ ] Format Explorer / Translations
   - [ ] Research
   - [ ] Text Search
   - [ ] Settings
+  - [ ] Shell / Documentation
 
 - verification:
   - [ ] I tested the changed workflow locally

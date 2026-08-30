@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from cdmw.constants import APP_VERSION
+from cdmw.ui.shell.about_documentation import AboutDocumentationMixin
 from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
 
 
@@ -36,6 +37,23 @@ README_TOOL_NAMES_BY_KEY = {
     "translation_studio": "Translations",
     "research": "Research",
     "text_search": "Text Search",
+}
+DOCUMENTATION_TOPIC_BY_TOOL_KEY = {
+    "archive_browser": "archive_browser",
+    "model_library": "model_library",
+    "item_icons": "icon_creator",
+    "new_item_studio": "new_item_studio",
+    "mesh_editor": "mesh_editor",
+    "placement_studio": "placement_studio",
+    "texture_workflow": "workflow_overview",
+    "replace_assistant": "replace_assistant",
+    "recolor_variants": "texture_recolor",
+    "texture_editor": "texture_editor",
+    "mod_package_retrofit": "mod_package_retrofit",
+    "format_explorer": "format_explorer",
+    "translation_studio": "translation_studio",
+    "research": "research",
+    "text_search": "text_search",
 }
 
 
@@ -185,3 +203,40 @@ def test_readme_lists_the_exact_current_tool_inventory() -> None:
     assert "\n- [Create New Item](#create-new-item)\n" in readme
     assert "\n## Create New Item\n" in readme
     assert "\n## Placement & Animations\n" in readme
+
+
+def test_in_app_documentation_covers_the_exact_current_tool_inventory() -> None:
+    class _DocumentationSource(AboutDocumentationMixin):
+        settings_file_path = ROOT / "settings.cfg"
+        archive_cache_root = ROOT / "cache"
+
+        @staticmethod
+        def _build_about_intro_html() -> str:
+            return "<p>Documentation.</p>"
+
+    _title, intro, sections = _DocumentationSource()._build_about_document_for_language("en")
+    section_titles = {section["id"]: section["title"] for section in sections}
+
+    assert set(DOCUMENTATION_TOPIC_BY_TOOL_KEY) == {
+        spec.key for spec in COMPACT_TOOL_SPECS
+    }
+    for tool_key, topic_id in DOCUMENTATION_TOPIC_BY_TOOL_KEY.items():
+        assert section_titles[topic_id] == README_TOOL_NAMES_BY_KEY[tool_key]
+    assert "quick_start" not in section_titles
+    assert "documentation_index" in section_titles
+    first_run_html = next(
+        str(section["html"])
+        for section in sections
+        if section["id"] == "first_run_checklist"
+    )
+    assert "Settings &gt; Appearance" in first_run_html
+    assert "Settings &gt; Paths &gt; Archive Locations" in first_run_html
+    assert 'href="topic:documentation_index"' in first_run_html
+    assert "Settings &gt; Archive Locations" not in first_run_html
+    linked_topics = set(
+        re.findall(
+            r'href="topic:([A-Za-z0-9_-]+)"',
+            intro + "".join(str(section.get("html", "")) for section in sections),
+        )
+    )
+    assert linked_topics <= set(section_titles)

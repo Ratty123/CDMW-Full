@@ -8,7 +8,7 @@ Keep feature UI controls outside this package. UI packages host previews and
 display state; rendering code owns resource contracts, material synthesis, and
 native preview preparation.
 
-Archive Browser, Model Library, Mesh Editor and New Item Studio converge on the
+Archive Browser, Model Library, Mesh Editor and Create New Item converge on the
 same schema-v8 package and material contracts. A caller may publish bare
 geometry while Preview Core prepares canonical textures, but the later package
 promotion must keep the resident process and camera. The .NET/Vortice host owns

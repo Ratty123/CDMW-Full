@@ -88,11 +88,12 @@ flowchart TD
 ```
 
 Most Classic workspaces can be detached and restored from the Window menu;
-Format Explorer and Translations stay anchored in Tools. The diagram is the
-default **Classic Workspace**. Settings also offers a
-restart-selected **Compact Workspace** that presents the same 15 tool widgets in
-a four-category rail with a compact status strip and Activity drawer; it does
-not create a second set of services, workers, previews, or saved tool state.
+Format Explorer and Translations stay anchored in Tools. The diagram shows the
+**Classic Workspace** alternative. First run defaults to the restart-selected
+**Compact Workspace**, which presents the same 15 tool widgets in a four-category
+rail with a compact status strip and Activity drawer. An existing Compact or
+Classic choice remains authoritative, and neither layout creates a second set of
+services, workers, previews, or saved tool state.
 
 | Workspace | What you can do |
 |---|---|
@@ -100,7 +101,7 @@ not create a second set of services, workers, previews, or saved tool state.
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
 | **Model Library** | Scan and preview local or importable models, then send a selected model directly into Create New Item. |
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
-| **Mesh Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with the game's layered materials composited as layers, inspect referenced textures, and use capability-gated LOD0 authoring through the native edit core: vertex/wire/face selection with brush, rectangle and lasso, same-count transforms and brushes, exact Face Delete where provenance is valid, morph profiles with per-garment refit, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview. Unsupported exact-output operations stay disabled with their reason. |
+| **Mesh Editor** | Work in a permanent standalone viewport that remains available before and after a session. Open `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with layered materials, inspect referenced textures, and use capability-gated LOD0 authoring through the resident native interaction session: Select, Move, Grab, Smooth, Inflate, Pinch, one-entry gesture history, authoritative Undo/Redo resynchronisation, exact Face Delete where provenance is valid, morph profiles with per-garment refit, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview. Exact Game Asset and Free Edit controls stay visible but fail closed with their own reason when unavailable. |
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
 | **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` native DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
 | **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
@@ -482,7 +483,7 @@ the Bazel migration notes.
 cdmw/                    application code
   app/                   bootstrap, startup routing, single-instance handling
   ui/shell/              MainWindow, tabs, controllers, close/diagnostics
-  ui/shell/compact/      optional rail layout around the same tool widgets
+  ui/shell/compact/      first-run rail layout around the same tool widgets
   ui/<feature>/          archive, new item, texture, mesh, research workspaces
   ui/preview/            shared Qt host and resident preview session controller
   services/              coordination boundaries, no PySide widget imports

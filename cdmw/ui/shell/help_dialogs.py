@@ -1,291 +1,41 @@
-"""Shell help/about dialogs."""
+"""Searchable in-app documentation dialog."""
 
 from __future__ import annotations
 
+from html import escape
 import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl
-from PySide6.QtGui import QBrush, QDesktopServices, QFont, QPalette, QTextCursor
+from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QFont, QKeySequence, QShortcut, QTextCursor
 from PySide6.QtWidgets import (
     QDialog,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
-    QSizePolicy,
     QSplitter,
     QTextBrowser,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-_QUICK_START_HTML_ES = """
-<h3>Que cubre esta app</h3>
-<p><b>Crimson Desert Mod Workbench</b> es una herramienta de archivos y archivos sueltos para Crimson Desert. Cubre extraccion, investigacion, edicion, reconstruccion DDS, escalado opcional, comparacion y exportacion suelta lista para mods.</p>
-<ul>
-  <li><b>Explorador de archivos</b>: escanear .pamt/.paz, previsualizar recursos compatibles, filtrar, clasificar y extraer a carpetas sueltas.</li>
-  <li><b>Editor de mallas</b>: abrir una malla compatible directamente desde el archivo para editar geometria, topologia, normales, rigging, Morph &amp; Refit, coordenadas UV y transformacion del objeto. Las texturas son de solo lectura en Vista de malla.</li>
-  <li><b>Flujo de texturas</b>: escanear DDS sueltos, convertir DDS a PNG si hace falta, escalar opcionalmente, reconstruir DDS, comparar resultados y exportar salida mod-ready.</li>
-  <li><b>Editor de texturas</b>: abrir imagenes para edicion visible por capas y enviar la salida plana al flujo de reconstruccion.</li>
-  <li><b>Asistente de reemplazo</b>: tomar PNG/DDS editados, asociarlos con el DDS original del juego, reconstruir la salida corregida y preparar carpetas mod-ready.</li>
-  <li><b>Investigacion</b>: inspeccionar familias de texturas, clasificaciones desconocidas, referencias, analisis DDS, informes y notas locales.</li>
-  <li><b>Busqueda de texto</b>: buscar archivos de texto de archivo o sueltos, como .xml, .json, .cfg y .lua.</li>
-  <li><b>Configuracion</b>: guardar tema, densidad, cache, estado de layout, confirmaciones y preferencias de inicio.</li>
-</ul>
-<h3>Configuracion inicial recomendada</h3>
-<ol>
-  <li>Crea una carpeta dedicada para la app y coloca alli el <b>.exe</b> portable para mantener juntos configuracion, cache, herramientas y workspace.</li>
-  <li>Abre <b>Configuracion &gt; Ubicaciones de archivo</b> y define la ruta del juego/paquete de Crimson Desert. Usa deteccion automatica si aplica.</li>
-  <li>Abre <b>Configuracion &gt; Setup</b> y haz clic en <b>Inicializar espacio</b>.</li>
-  <li>Usa la herramienta DDS nativa <b>cd-texture-dx.exe</b> incluida para vista previa y reconstruccion.</li>
-  <li>Define <b>Raiz DDS original</b>, <b>Raiz PNG</b> y <b>Raiz de salida</b>. Activa staging DDS solo si quieres una carpeta PNG previa al escalado.</li>
-  <li>Elige un backend de escalado: desactivado, <b>Real-ESRGAN NCNN</b> directo o <b>chaiNNer</b>.</li>
-  <li>Empieza con una politica de texturas segura y deja las reglas automaticas activadas para preservar mapas tecnicos riesgosos.</li>
-  <li>Revisa perfiles, reglas y coincidencias antes de ejecutar un lote.</li>
-  <li>Usa <b>Vista de politica</b> antes de <b>Iniciar</b> para revisar la accion planeada por textura.</li>
-  <li>Ejecuta un subconjunto pequeno primero y revisa el resultado en <b>Comparar</b>.</li>
-  <li>Si ya editaste una textura fuera de la app, usa <b>Asistente de reemplazo</b>.</li>
-  <li>Para mallas, selecciona una .pam/.pamlod/.pac compatible en <b>Explorador de archivos</b> y elige <b>Abrir en el Editor de mallas</b>. Los controles de edicion aparecen de inmediato.</li>
-</ol>
-<h3>Guia rapida de mallas</h3>
-<ul>
-  <li><b>Exportar OBJ/FBX</b>: util para inspeccionar o editar externamente. OBJ es la base de round-trip cuando la app puede escribir los metadatos necesarios.</li>
-  <li><b>Transformacion del objeto</b>: mueve todas las partes alrededor del centro fijo de los limites originales. Cada gesto completado de ubicacion, rotacion, escala, inclinacion o reinicio es un paso de Deshacer.</li>
-  <li><b>Solido (con texturas)</b>: revisa la geometria editada con las texturas heredadas del origen. Si falla el enlace, vuelve a una vista sin texturas sin bloquear la edicion.</li>
-  <li><b>Exportar archivo de malla</b>: escribe de forma atomica la malla reconstruida y el informe.</li>
-  <li><b>Construir mod</b>: crea una carpeta suelta solo de malla o un paquete overlay de grupo de archivo DMM.</li>
-  <li><b>Instalar como overlay</b>: confirma el cambio exacto, crea copias de seguridad y publica la lista de montaje al final. Nunca parchea los archivos PAMT/PAZ distribuidos.</li>
-</ul>
-<h3>Areas principales</h3>
-<ul>
-  <li><b>Configuracion / Setup</b>: creacion de workspace, herramientas externas, enlaces de ayuda e importadores.</li>
-  <li><b>Configuracion / Rutas</b>: origen, staging, PNG, salida y raices de exportacion mod-ready.</li>
-  <li><b>Salida DDS</b>: formato, tamano, mips y staging globales.</li>
-  <li><b>Perfiles, reglas y coincidencias</b>: planificacion reutilizable por archivo.</li>
-  <li><b>Escalado</b>: backend, politica, controles NCNN y notas.</li>
-  <li><b>Comparar</b>: revision lado a lado antes de lotes grandes.</li>
-</ul>
-<h3>Nota sobre cache de sidecars</h3>
-<p>Crear el cache global de sidecars puede tardar mucho en archivos grandes. Mejora referencias inversas DDS, conexiones de texturas de modelos y busqueda de sidecars/materiales. Si lo activas, deja que termine; se configura en <b>Configuracion &gt; Rendimiento</b>.</p>
-<h3>Advertencia sobre texturas tecnicas</h3>
-<p>Las texturas visibles de color no son iguales que mapas tecnicos. Altura, desplazamiento, normales, mascaras, vectores y otros DDS sensibles son mas riesgosos al pasar por PNG.</p>
-<ul>
-  <li>Empieza con un preajuste seguro.</li>
-  <li>Manten las reglas automaticas activadas.</li>
-  <li>Revisa perfiles y rutas del planificador antes de forzar mapas tecnicos por la ruta PNG visible.</li>
-</ul>
-<h3>Documentacion</h3>
-<p><b>Ayuda &gt; Documentacion</b> abre un navegador de documentacion con busqueda y temas de flujo, perfiles y rutas del planificador.</p>
-"""
-
-
-_QUICK_START_HTML_DE = """
-<h3>Was diese App abdeckt</h3>
-<p><b>Crimson Desert Mod Workbench</b> ist ein Archiv- und Loose-File-Werkzeug fuer Crimson Desert. Es deckt Extraktion, Research, Bearbeitung, DDS-Neuaufbau, optionales Upscaling, Vergleich und mod-fertigen Loose-Export ab.</p>
-<ul>
-  <li><b>Archiv-Browser</b>: .pamt/.paz scannen, unterstuetzte Assets anzeigen, filtern, klassifizieren und in lose Ordner extrahieren.</li>
-  <li><b>Mesh-Editor</b>: eine unterstuetzte Archiv-Mesh direkt fuer Geometrie, Topologie, Normalen, Rigging, Morph &amp; Refit, UV-Koordinaten und Objekttransformationen oeffnen. Texturen sind in der Mesh-Ansicht schreibgeschuetzt.</li>
-  <li><b>Textur-Workflow</b>: lose DDS scannen, DDS bei Bedarf zu PNG konvertieren, optional hochskalieren, DDS neu erstellen, Ergebnisse vergleichen und mod-fertige Ausgabe exportieren.</li>
-  <li><b>Textur-Editor</b>: Bilder fuer sichtbare Ebenenbearbeitung oeffnen und die flache Ausgabe zurueck in den Neuaufbau senden.</li>
-  <li><b>Ersetzungsassistent</b>: bearbeitete PNG/DDS mit dem Original-DDS abgleichen, korrigierte Ausgabe neu erstellen und mod-fertige Ordner vorbereiten.</li>
-  <li><b>Recherche</b>: Texturfamilien, unbekannte Klassifizierungen, Referenzen, DDS-Analyse, Berichte und lokale Notizen pruefen.</li>
-  <li><b>Textsuche</b>: Archiv- oder lose Textdateien wie .xml, .json, .cfg und .lua durchsuchen.</li>
-  <li><b>Einstellungen</b>: Theme, Dichte, Cache, Layoutstatus, Bestaetigungen und Startpraeferenzen speichern.</li>
-</ul>
-<h3>Empfohlene Starteinrichtung</h3>
-<ol>
-  <li>Erstelle einen eigenen Ordner fuer die App und lege die portable <b>.exe</b> dort ab, damit Konfiguration, Cache, Tools und Workspace zusammen bleiben.</li>
-  <li>Oeffne <b>Einstellungen &gt; Archiv-Orte</b> und setze den Crimson-Desert-Spiel-/Paketpfad. Nutze Auto-Erkennung, wenn moeglich.</li>
-  <li>Oeffne <b>Einstellungen &gt; Einrichtung</b> und klicke auf <b>Arbeitsbereich einrichten</b>.</li>
-  <li>Nutze das gebuendelte native DDS-Werkzeug <b>cd-texture-dx.exe</b> fuer Vorschau und Neuaufbau.</li>
-  <li>Setze <b>Original-DDS-Stamm</b>, <b>PNG-Stamm</b> und <b>Ausgabe-Stamm</b>. Aktiviere DDS-Staging nur fuer einen separaten PNG-Staging-Ordner.</li>
-  <li>Waehle ein Upscaling-Backend: deaktiviert, direktes <b>Real-ESRGAN NCNN</b> oder <b>chaiNNer</b>.</li>
-  <li>Starte mit einer sicheren Textur-Richtlinie und lasse automatische Regeln aktiv, damit riskante technische Maps erhalten bleiben.</li>
-  <li>Pruefe Profile, Regeln und Treffer, bevor du einen Stapellauf startest.</li>
-  <li>Nutze <b>Richtlinienvorschau</b> vor <b>Start</b>, um die geplante Aktion pro Textur zu pruefen.</li>
-  <li>Fuehre zuerst eine kleine Auswahl aus und pruefe das Ergebnis in <b>Vergleichen</b>.</li>
-  <li>Wenn du eine Textur bereits extern bearbeitet hast, nutze den <b>Ersetzungsassistent</b>.</li>
-  <li>Fuer Meshes eine unterstuetzte .pam/.pamlod/.pac im <b>Archiv-Browser</b> waehlen und <b>Im Mesh-Editor oeffnen</b>. Die Bearbeitungswerkzeuge sind sofort sichtbar.</li>
-</ol>
-<h3>Schnellguide fuer Meshes</h3>
-<ul>
-  <li><b>OBJ/FBX exportieren</b>: nuetzlich fuer Inspektion oder externe Bearbeitung. OBJ ist die Roundtrip-Basis, wenn die App die noetigen Metadaten schreiben kann.</li>
-  <li><b>Objekttransformation</b>: bewegt alle Teile um das feste Zentrum der urspruenglichen Quellgrenzen. Jede abgeschlossene Positions-, Rotations-, Skalierungs-, Neigungs- oder Reset-Geste ist ein Rueckgaengig-Schritt.</li>
-  <li><b>Solid (texturiert)</b>: zeigt die bearbeitete Geometrie mit geerbten Quelltexturen. Ein Bindefehler faellt sichtbar auf untexturierte Darstellung zurueck, ohne die Bearbeitung zu blockieren.</li>
-  <li><b>Mesh-Datei exportieren</b>: schreibt die neu gebaute Mesh und den Bericht atomar.</li>
-  <li><b>Mod bauen</b>: erstellt einen losen Mesh-Ordner oder ein DMM-Archivgruppen-Overlay-Paket.</li>
-  <li><b>Als Overlay installieren</b>: bestaetigt die exakte Aenderung, sichert und publiziert die Mount-Liste zuletzt. Ausgelieferte PAMT-/PAZ-Archive werden nie gepatcht.</li>
-</ul>
-<h3>Hauptbereiche</h3>
-<ul>
-  <li><b>Einstellungen / Einrichtung</b>: Workspace-Erstellung, externe Tools, Hilfelinks und Importhelfer.</li>
-  <li><b>Einstellungen / Pfade</b>: Quelle, Staging, PNG, Ausgabe und mod-fertige Exportstaemme.</li>
-  <li><b>DDS-Ausgabe</b>: globale Format-, Groessen-, Mip- und Staging-Regeln.</li>
-  <li><b>Profile, Regeln und Treffer</b>: wiederverwendbare Planung pro Datei.</li>
-  <li><b>Upscaling</b>: Backend, Richtlinie, NCNN-Steuerung und Notizen.</li>
-  <li><b>Vergleichen</b>: Seit-an-Seit-Pruefung vor groesseren Laeufen.</li>
-</ul>
-<h3>Hinweis zum Sidecar-Cache</h3>
-<p>Der globale Sidecar-Cache kann bei grossen Archiven lange dauern. Er verbessert DDS-Rueckreferenzen, Modell-Textur-Verbindungen und Material-Sidecar-Suche. Wenn du ihn aktivierst, lass den ersten Lauf fertig werden; die Optionen findest du unter <b>Einstellungen &gt; Leistung</b>.</p>
-<h3>Warnung zu technischen Texturen</h3>
-<p>Sichtbare Farbtexturen sind nicht dasselbe wie technische Maps. Hoehe, Displacement, Normalen, Masken, Vektoren und andere empfindliche DDS-Dateien sind riskanter, wenn sie ueber PNG laufen.</p>
-<ul>
-  <li>Starte mit einem sicheren Preset.</li>
-  <li>Lasse automatische Regeln aktiv.</li>
-  <li>Pruefe Planerprofile und Planerpfade, bevor technische Maps in den sichtbaren PNG-Pfad gezwungen werden.</li>
-</ul>
-<h3>Dokumentation</h3>
-<p><b>Hilfe &gt; Dokumentation</b> oeffnet einen durchsuchbaren Dokumentationsbrowser mit Workflow-Themen, Profilen und Planerpfaden.</p>
-"""
-
-
-class QuickStartDialog(QDialog):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent_window = parent
-        self.setWindowTitle("Startup Setup")
-        self.setMinimumSize(560, 460)
-        self.resize(720, 560)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(10)
-
-        title_label = QLabel("Startup setup guide")
-        title_font = QFont(self.font())
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        layout.addWidget(title_label)
-
-        intro_label = QLabel(
-            "Start by putting the portable EXE in its own app folder, setting the Crimson Desert game/package path in Settings > Archive Locations, then clicking Init Workspace. DDS preview and rebuild use the bundled cd-texture-dx.exe helper."
-        )
-        intro_label.setObjectName("HintLabel")
-        intro_label.setWordWrap(True)
-        layout.addWidget(intro_label)
-
-        self.browser = QTextBrowser()
-        self.browser.setOpenExternalLinks(False)
-        self.browser.setReadOnly(True)
-        quick_start_html = (
-            """
-            <h3>What This App Covers</h3>
-            <p><b>Crimson Desert Mod Workbench</b> is a read-only archive and loose-file workflow tool for Crimson Desert. It is built around extraction, research, editing, DDS rebuild, optional upscaling, comparison, and mod-ready loose export.</p>
-            <ul>
-              <li><b>Archive Browser</b>: scan <b>.pamt/.paz</b>, preview supported assets, filter, classify, and extract to loose folders.</li>
-              <li><b>Mesh Editor</b>: open a supported archive mesh directly for geometry, topology, normals, rigging, Morph &amp; Refit, UV-coordinate and object-transform work; textures remain read-only in Mesh View.</li>
-              <li><b>Texture Workflow</b>: scan loose DDS files, convert DDS to PNG when needed, optionally upscale, rebuild DDS, compare results, and export loose mod output.</li>
-              <li><b>Texture Editor</b>: open images directly for layered visible-texture editing and send flattened output back into the rebuild flow.</li>
-              <li><b>Texture Replacer</b>: take edited PNG/DDS files, match them to the original game DDS, rebuild corrected output, and prepare mod-ready folders.</li>
-              <li><b>Model Library</b>: scan and preview local/importable models, then use one in Create New Item.</li>
-              <li><b>Icon Creator</b>: manage icon source images and generate compatible item-icon packages from archive targets.</li>
-              <li><b>Research</b>: inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local notes.</li>
-              <li><b>Text Search</b>: search archive or loose text-like files such as <b>.xml</b>, <b>.json</b>, <b>.cfg</b>, and <b>.lua</b>.</li>
-              <li><b>Settings</b>: store theme, density, cache behavior, remembered layout state, confirmations, and startup preferences beside the EXE.</li>
-            </ul>
-            <h3>Recommended Startup Setup</h3>
-            <ol>
-              <li>Create or choose a dedicated folder for the app, then place the portable <b>.exe</b> there so config, cache, tools, and workspace folders stay together.</li>
-              <li>Open <b>Settings &gt; Paths &gt; Archive Locations</b> and set the Crimson Desert game/package path. Use <b>Auto-detect</b> if the game is in a common install location.</li>
-              <li>Open <b>Settings &gt; Setup</b> and click <b>Init Workspace</b>.</li>
-              <li>Use the bundled native DDS helper <b>cd-texture-dx.exe</b> for preview and rebuild.</li>
-              <li>Confirm <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. Enable DDS staging only if you want a separate pre-upscale PNG staging folder.</li>
-              <li>Choose an upscaling backend in <b>Upscaling</b>: disabled, direct <b>Real-ESRGAN NCNN</b>, or <b>chaiNNer</b>.</li>
-              <li>Keep a safer <b>Texture Policy</b> preset first and leave automatic rules enabled so risky technical DDS files are preserved instead of pushed through the visible PNG path.</li>
-              <li>Open <b>Profiles, Rules &amp; Matches</b> and review the starter workflow assignments before running a batch.</li>
-              <li>Use <b>Preview Policy</b> before <b>Start</b> if you want to inspect the planned per-texture action.</li>
-              <li>Click <b>Scan</b> in the Texture Workflow tab.</li>
-              <li>Run a small subset first, then review the output in <b>Compare</b> before trying a larger batch.</li>
-              <li>If you already edited a texture outside the app, use <b>Texture Replacer</b> instead of the batch workflow.</li>
-              <li>If you want to edit visible textures inside the app, open them in <b>Texture Editor</b> and then send the flattened result back into <b>Texture Replacer</b> or <b>Texture Workflow</b>.</li>
-              <li>For mesh work, select a <b>.pam</b>, <b>.pamlod</b>, or <b>.pac</b> in <b>Archive Browser</b> and choose <b>Open in Mesh Editor</b>. The edit controls are ready immediately.</li>
-            </ol>
-            <h3>Mesh Quick Guide</h3>
-            <ul>
-              <li><b>Export OBJ/FBX</b>: use this for inspection or external editing. OBJ is the round-trip baseline when the app can write the companion metadata needed for import.</li>
-              <li><b>Object Transform</b>: moves every part around the fixed source-bounds centre; each completed location, rotation, scale, tilt, or reset gesture is one Undo step.</li>
-              <li><b>Solid (Textured)</b>: reviews the edited geometry with inherited source textures. A bind failure falls back to an untextured mode and does not block mesh editing.</li>
-              <li><b>Export Mesh File</b>: atomically writes the rebuilt mesh and report.</li>
-              <li><b>Build Mod</b>: writes a mesh-only loose folder or DMM archive-group package.</li>
-              <li><b>Install as Overlay</b>: shows the exact mount change and backup targets, confirms, writes the mount list last, and provides receipt-based restore. It never patches shipped PAMT/PAZ archives.</li>
-            </ul>
-            <h3>Pick The Right Starting Path</h3>
-            <ul>
-              <li><b>I want to look inside the game files</b>: open <b>Archive Browser</b>, choose a package root, scan, filter, preview, and extract selected files.</li>
-              <li><b>I want to edit a game mesh</b>: use <b>Open in Mesh Editor</b> from Archive Browser. For a new model or asset, use <b>Create New Item</b>.</li>
-              <li><b>I want to batch-process loose DDS files</b>: use <b>Texture Workflow</b> with a small folder first, then review in <b>Compare</b>.</li>
-              <li><b>I already edited one texture</b>: use <b>Texture Replacer</b> so the original DDS controls format, dimensions, mips, and output path.</li>
-              <li><b>I want to edit inside the app</b>: use <b>Texture Editor</b>, save a project if you need layers later, then export or send the flattened PNG onward.</li>
-              <li><b>I need to understand what a texture family is</b>: use <b>Research</b> for grouped sets, classifications, references, analysis, and notes.</li>
-              <li><b>I am searching for XML, JSON, Lua, or config strings</b>: use <b>Text Search</b> against archives or loose folders.</li>
-            </ul>
-            <h3>Sidecar Cache Note</h3>
-            <p>Building the global sidecar cache is intentionally optional because it can be expensive on large archives. It improves DDS related-file discovery, reverse references, mesh texture connections, and material-sidecar lookup. If you enable it, let the first run finish even when it takes a long time. Configure sidecar indexing and worker count in <b>Settings &gt; Performance</b>.</p>
-            <h3>Safety Reminders</h3>
-            <p>Visible color textures are not the same as technical maps. Height, displacement, normals, masks, vectors, and other precision-sensitive DDS files are riskier to push through PNG intermediates.</p>
-            <ul>
-              <li>Start with a safer preset.</li>
-              <li>Keep automatic rules enabled.</li>
-              <li>Use preview-only paths before writing mesh or archive output.</li>
-              <li>Open Documentation for detailed field references, recipes, troubleshooting, and FAQs.</li>
-            </ul>
-            <h3>Where Details Live</h3>
-            <p><b>Help &gt; Documentation</b> is topic-based and searchable. Use it for direct mesh editing and safe outputs, archive guides, Texture Workflow profiles and rules, Texture Editor tools, Texture Replacer packaging, Research, Text Search, settings, troubleshooting, and FAQs.</p>
-            """
-        )
-        self.browser.setFont(self.font())
-        self.browser.document().setDefaultFont(self.font())
-        self.browser.setProperty("_i18n_source_html", quick_start_html)
-        self.browser.setProperty("_i18n_html_es", _QUICK_START_HTML_ES)
-        self.browser.setProperty("_i18n_html_de", _QUICK_START_HTML_DE)
-        self.browser.setHtml(quick_start_html)
-        layout.addWidget(self.browser, stretch=1)
-
-        button_row = QHBoxLayout()
-        button_row.setSpacing(8)
-        self.open_archive_locations_button = QPushButton("Open Archive Locations")
-        self.open_setup_button = QPushButton("Open Setup && Paths")
-        self.open_chainner_button = QPushButton("Open chaiNNer Setup")
-        self.open_docs_button = QPushButton("Open Documentation")
-        self.close_button = QPushButton("Close")
-        button_row.addWidget(self.open_archive_locations_button)
-        button_row.addWidget(self.open_setup_button)
-        button_row.addWidget(self.open_chainner_button)
-        button_row.addWidget(self.open_docs_button)
-        button_row.addStretch(1)
-        button_row.addWidget(self.close_button)
-        layout.addLayout(button_row)
-
-        self.open_archive_locations_button.clicked.connect(self._open_archive_locations)
-        self.open_setup_button.clicked.connect(self._open_setup)
-        self.open_chainner_button.clicked.connect(self._open_chainner_setup)
-        self.open_docs_button.clicked.connect(self._open_docs)
-        self.close_button.clicked.connect(self.accept)
-
-    def _open_setup(self) -> None:
-        self.parent_window.focus_quick_start_sections(include_chainner=False)
-        self.accept()
-
-    def _open_chainner_setup(self) -> None:
-        self.parent_window.focus_quick_start_sections(include_chainner=True)
-        self.accept()
-
-    def _open_archive_locations(self) -> None:
-        self.parent_window.focus_archive_locations()
-        self.accept()
-
-    def _open_docs(self) -> None:
-        parent_window = self.parent_window
-        self.accept()
-        if parent_window is not None and hasattr(parent_window, "show_documentation_dialog"):
-            QTimer.singleShot(0, lambda: parent_window.show_documentation_dialog(topic_id="overview"))
-
 
 class AboutDialog(QDialog):
+    """Topic-based documentation browser with indexed navigation and history."""
+
+    _CATEGORY_ORDER = {
+        "Start Here": 0,
+        "Assets & Creation": 1,
+        "Mesh & Placement": 2,
+        "Textures": 3,
+        "Utilities": 4,
+        "Reference": 5,
+        "Other": 99,
+    }
+
     def __init__(
         self,
         parent,
@@ -297,35 +47,80 @@ class AboutDialog(QDialog):
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.setMinimumSize(840, 560)
-        self.resize(1080, 720)
+        self.setMinimumSize(900, 600)
+        self.resize(1180, 760)
+        self.intro_html = intro_html
         self._sections: List[Dict[str, str]] = [dict(section) for section in sections]
-        self._filtered_sections: List[Dict[str, str]] = list(self._sections)
-        self._initial_section_id = initial_section_id.strip()
+        self._sections_by_id = {
+            str(section.get("id", "") or "").strip(): section
+            for section in self._sections
+            if str(section.get("id", "") or "").strip()
+        }
+        self._filtered_sections: List[Dict[str, str]] = []
+        self._topic_items: Dict[str, QTreeWidgetItem] = {}
+        self._history: List[str] = []
+        self._history_index = -1
+        self._navigating_history = False
+        self._search_index = {
+            section_id: self._topic_search_text(section)
+            for section_id, section in self._sections_by_id.items()
+        }
 
+        self._build_interface(title)
+
+        self.search_edit.textChanged.connect(self._refresh_navigation)
+        self.topic_tree.currentItemChanged.connect(self._handle_topic_changed)
+        self.browser.anchorClicked.connect(self._handle_anchor_clicked)
+        self.home_button.clicked.connect(lambda: self.select_section("overview"))
+        self.back_button.clicked.connect(self._go_back)
+        self.forward_button.clicked.connect(self._go_forward)
+        self._search_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
+        self._search_shortcut.activated.connect(self._focus_search)
+
+        self._refresh_navigation()
+        initial_id = initial_section_id.strip()
+        if initial_id and initial_id in self._sections_by_id:
+            self.select_section(initial_id)
+        elif "overview" in self._sections_by_id:
+            self.select_section("overview")
+        else:
+            self._select_first_topic()
+
+    def _build_interface(self, title: str) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
+        header_text = QVBoxLayout()
+        header_text.setSpacing(2)
         title_label = QLabel(title)
+        title_label.setObjectName("DocumentationTitle")
         title_font = QFont(self.font())
         title_font.setBold(True)
+        title_font.setPointSize(max(title_font.pointSize() + 3, 13))
         title_label.setFont(title_font)
-        layout.addWidget(title_label)
-
-        self.intro_html = intro_html
-        guide_label = QLabel(
-            "Search or choose a topic on the left. The reader shows one topic at a time so longer documentation stays navigable."
+        header_text.addWidget(title_label)
+        subtitle_label = QLabel(
+            "Browse the complete Workbench reference, search every topic, or follow links between related workflows."
         )
-        guide_label.setObjectName("HintLabel")
-        guide_label.setWordWrap(True)
-        layout.addWidget(guide_label)
+        subtitle_label.setObjectName("HintLabel")
+        subtitle_label.setWordWrap(True)
+        header_text.addWidget(subtitle_label)
+        layout.addLayout(header_text)
 
         search_row = QHBoxLayout()
         search_row.setSpacing(8)
-        search_label = QLabel("Search")
+        search_label = QLabel("Search documentation")
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Search topics, fields, tabs, planner paths, planner profiles...")
+        self.search_edit.setObjectName("DocumentationSearch")
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.setPlaceholderText(
+            "Search tools, actions, file formats, settings, or workflows..."
+        )
+        self.search_edit.setAccessibleName("Search documentation")
+        self.search_edit.setToolTip(
+            "Search all topic titles, summaries, keywords, and content. Press Ctrl+K to focus."
+        )
         self.topic_count_label = QLabel("")
         self.topic_count_label.setObjectName("HintLabel")
         search_row.addWidget(search_label)
@@ -334,34 +129,69 @@ class AboutDialog(QDialog):
         layout.addLayout(search_row)
 
         splitter = QSplitter(Qt.Horizontal)
+        splitter.setObjectName("DocumentationSplitter")
         splitter.setChildrenCollapsible(False)
         layout.addWidget(splitter, stretch=1)
 
-        topic_panel = QWidget()
-        topic_layout = QVBoxLayout(topic_panel)
-        topic_layout.setContentsMargins(0, 0, 0, 0)
-        topic_layout.setSpacing(8)
-        topic_hint = QLabel("Choose a documentation topic or search by feature name.")
-        topic_hint.setObjectName("HintLabel")
-        topic_hint.setWordWrap(True)
-        topic_layout.addWidget(topic_hint)
-        self.topic_list = QListWidget()
-        self.topic_list.setAlternatingRowColors(True)
-        self.topic_list.setProperty("_i18n_translate_items", True)
-        topic_layout.addWidget(self.topic_list, stretch=1)
-        splitter.addWidget(topic_panel)
+        navigation_panel = QWidget()
+        navigation_layout = QVBoxLayout(navigation_panel)
+        navigation_layout.setContentsMargins(0, 0, 0, 0)
+        navigation_layout.setSpacing(8)
+        navigation_title = QLabel("CONTENTS")
+        navigation_title.setObjectName("DocumentationNavigationTitle")
+        navigation_font = QFont(self.font())
+        navigation_font.setBold(True)
+        navigation_title.setFont(navigation_font)
+        navigation_layout.addWidget(navigation_title)
+
+        self.topic_tree = QTreeWidget()
+        self.topic_tree.setObjectName("DocumentationNavigation")
+        self.topic_tree.setAccessibleName("Documentation contents")
+        self.topic_tree.setHeaderHidden(True)
+        self.topic_tree.setRootIsDecorated(True)
+        self.topic_tree.setUniformRowHeights(True)
+        self.topic_tree.setExpandsOnDoubleClick(True)
+        navigation_layout.addWidget(self.topic_tree, stretch=1)
+        splitter.addWidget(navigation_panel)
+
+        reader_panel = QWidget()
+        reader_layout = QVBoxLayout(reader_panel)
+        reader_layout.setContentsMargins(0, 0, 0, 0)
+        reader_layout.setSpacing(8)
+        reader_toolbar = QHBoxLayout()
+        reader_toolbar.setSpacing(6)
+        self.home_button = QPushButton("Home")
+        self.home_button.setObjectName("DocumentationHomeButton")
+        self.home_button.setToolTip("Open the documentation overview.")
+        self.back_button = QPushButton("Back")
+        self.back_button.setObjectName("DocumentationBackButton")
+        self.back_button.setToolTip("Go to the previous topic.")
+        self.forward_button = QPushButton("Forward")
+        self.forward_button.setObjectName("DocumentationForwardButton")
+        self.forward_button.setToolTip("Go to the next topic.")
+        self.breadcrumb_label = QLabel("")
+        self.breadcrumb_label.setObjectName("HintLabel")
+        self.breadcrumb_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        reader_toolbar.addWidget(self.home_button)
+        reader_toolbar.addWidget(self.back_button)
+        reader_toolbar.addWidget(self.forward_button)
+        reader_toolbar.addWidget(self.breadcrumb_label, stretch=1)
+        reader_layout.addLayout(reader_toolbar)
 
         self.browser = QTextBrowser()
+        self.browser.setObjectName("DocumentationReader")
+        self.browser.setAccessibleName("Documentation article")
         self.browser.setReadOnly(True)
         self.browser.setOpenLinks(False)
         self.browser.setOpenExternalLinks(False)
         self.browser.setFont(self.font())
         self.browser.document().setDefaultFont(self.font())
         self.browser.setProperty("_i18n_source_html", "")
-        splitter.addWidget(self.browser)
+        reader_layout.addWidget(self.browser, stretch=1)
+        splitter.addWidget(reader_panel)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([260, 760])
+        splitter.setSizes([300, 820])
 
         button_row = QHBoxLayout()
         button_row.addStretch(1)
@@ -370,261 +200,360 @@ class AboutDialog(QDialog):
         button_row.addWidget(close_button)
         layout.addLayout(button_row)
 
-        self.search_edit.textChanged.connect(self._refresh_topic_list)
-        self.topic_list.currentItemChanged.connect(self._handle_topic_changed)
-        self.browser.anchorClicked.connect(self._handle_anchor_clicked)
+    def _focus_search(self) -> None:
+        self.search_edit.setFocus(Qt.ShortcutFocusReason)
+        self.search_edit.selectAll()
 
-        self._refresh_topic_list()
-        if self._initial_section_id:
-            self.select_section(self._initial_section_id)
-        elif self.topic_list.count() > 0:
-            self._select_first_topic()
+    def _localizer(self):
+        return getattr(self.parent(), "ui_localizer", None)
 
-    def _build_document_html(self, title: str, intro_html: str) -> str:
-        section_html: List[str] = []
-        for section in self._sections:
-            section_id = str(section.get("id", "") or "").strip()
-            section_title = str(section.get("title", "") or "").strip()
-            section_body = str(section.get("html", "") or "")
-            if not section_id or not section_title:
-                continue
-            section_html.append(
-                f"<a name=\"{section_id}\"></a><h2>{section_title}</h2>{section_body}"
-            )
-        return (
-            f"<h3>{title}</h3>{intro_html}"
-            "<hr/>"
-            + "<hr/>".join(section_html)
-        )
+    def _translate_text(self, source: str) -> str:
+        translator = getattr(self._localizer(), "translate", None)
+        if callable(translator):
+            return str(translator(source))
+        return source
 
-    def _build_section_html(self, section: Dict[str, str]) -> str:
-        section_id = str(section.get("id", "") or "").strip()
-        section_title = str(section.get("title", "") or "").strip() or "Documentation"
-        section_summary = str(section.get("summary", "") or "").strip()
-        section_body = str(section.get("html", "") or "")
-        category = self._section_category(section)
-        summary_html = f"<p><i>{section_summary}</i></p>" if section_summary else ""
-        category_html = f"<p><b>{category}</b></p>" if category else ""
-        css = """
-        <style>
-        h2 { margin-top: 0; }
-        h4 { margin-bottom: 4px; }
-        table { border-collapse: collapse; width: 100%; margin: 8px 0 12px 0; }
-        th, td { border: 1px solid #6b7280; padding: 5px 7px; vertical-align: top; }
-        th { background: rgba(127, 127, 127, 0.18); font-weight: 600; }
-        .doc-callout { border-left: 4px solid #3b82f6; padding: 7px 10px; margin: 8px 0; background: rgba(59, 130, 246, 0.10); }
-        .doc-warning { border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.12); }
-        .doc-danger { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.10); }
-        .doc-ok { border-left-color: #22c55e; background: rgba(34, 197, 94, 0.10); }
-        .pill { border: 1px solid #6b7280; border-radius: 4px; padding: 1px 4px; white-space: nowrap; }
-        </style>
-        """
-        if section_id == "overview":
-            return f"{css}<h2>{section_title}</h2>{category_html}{summary_html}{self.intro_html}<hr/>{section_body}"
-        return f"{css}<h2>{section_title}</h2>{category_html}{summary_html}{section_body}"
+    def _translate_rendered(self, source: str) -> str:
+        translator = getattr(self._localizer(), "translate_rendered", None)
+        if callable(translator):
+            return str(translator(source))
+        return self._translate_text(source)
 
-    @staticmethod
-    def _topic_search_text(section: Dict[str, str]) -> str:
-        title = str(section.get("title", "") or "")
-        keywords = str(section.get("keywords", "") or "")
-        body = str(section.get("html", "") or "")
-        plain_body = re.sub(r"<[^>]+>", " ", body)
-        return f"{title}\n{keywords}\n{plain_body}".lower()
+    def _set_browser_html(self, source_html: str) -> None:
+        self.browser.setProperty("_i18n_source_html", source_html)
+        self.browser.setProperty("_i18n_rendered_html", None)
+        self.browser.setHtml(source_html)
+        apply_localization = getattr(self._localizer(), "apply", None)
+        if callable(apply_localization):
+            apply_localization(self.browser)
 
     @staticmethod
     def _section_category(section: Dict[str, str]) -> str:
-        category = str(section.get("category", "") or "").strip()
-        if category:
-            return category
+        explicit = str(section.get("category", "") or "").strip()
+        if explicit:
+            return explicit
         section_id = str(section.get("id", "") or "").strip()
-        if section_id in {"overview", "quick_start", "first_run_checklist", "faq"}:
+        if section_id in {"overview", "documentation_index", "first_run_checklist", "faq"}:
             return "Start Here"
-        if section_id.startswith("workflow_") or section_id in {"dds_output", "upscaling_backends", "texture_workflow_guides", "compare_review"}:
-            return "Texture Workflow"
-        if section_id in {"archive_browser", "archive_guides", "mesh_media_guides"}:
-            return "Archive Browser"
-        if section_id in {"texture_editor", "replace_assistant", "research", "text_search"}:
-            return "Tools"
-        if section_id in {"mod_packaging", "safety", "settings_files", "troubleshooting"}:
+        if section_id in {
+            "model_library",
+            "icon_creator",
+            "new_item_studio",
+            "archive_browser",
+            "archive_guides",
+        }:
+            return "Assets & Creation"
+        if section_id in {"mesh_editor", "placement_studio"}:
+            return "Mesh & Placement"
+        if section_id.startswith("workflow_") or section_id in {
+            "dds_output",
+            "upscaling_backends",
+            "texture_workflow_guides",
+            "compare_review",
+            "texture_editor",
+            "replace_assistant",
+            "texture_recolor",
+        }:
+            return "Textures"
+        if section_id in {
+            "mod_package_retrofit",
+            "format_explorer",
+            "translation_studio",
+            "research",
+            "text_search",
+        }:
+            return "Utilities"
+        if section_id in {
+            "mod_packaging",
+            "profile_settings",
+            "window_layout",
+            "safety",
+            "settings_files",
+            "troubleshooting",
+        }:
             return "Reference"
         return "Other"
 
-    @staticmethod
-    def _category_sort_key(category: str) -> Tuple[int, str]:
-        order = {
-            "Start Here": 0,
-            "Texture Workflow": 1,
-            "Archive Browser": 2,
-            "Tools": 3,
-            "Reference": 4,
-            "Other": 99,
-        }
-        return (order.get(category, 50), category.lower())
+    @classmethod
+    def _category_sort_key(cls, category: str) -> Tuple[int, str]:
+        return (cls._CATEGORY_ORDER.get(category, 50), category.casefold())
 
-    def _localized_category_label(self, category: str) -> str:
-        language_code = self._current_language_code()
-        labels = {
-            "es": {
-                "Start Here": "Primeros pasos",
-                "Texture Workflow": "Flujo de texturas",
-                "Archive Browser": "Explorador de archivos",
-                "Tools": "Herramientas",
-                "Reference": "Referencia",
-                "Other": "Otros",
-            },
-            "de": {
-                "Start Here": "Start",
-                "Texture Workflow": "Textur-Workflow",
-                "Archive Browser": "Archiv-Browser",
-                "Tools": "Werkzeuge",
-                "Reference": "Referenz",
-                "Other": "Weitere Themen",
-            },
-        }
-        return labels.get(language_code, {}).get(category, category)
-
-    def _add_topic_group_header(self, category: str) -> None:
-        item = QListWidgetItem("")
-        item.setFlags(Qt.NoItemFlags)
-        item.setData(Qt.UserRole, "")
-        item.setSizeHint(QSize(0, 30))
-        self.topic_list.addItem(item)
-
-        header_widget = QWidget()
-        header_widget.setAttribute(Qt.WA_TransparentForMouseEvents)
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(8, 5, 8, 3)
-        header_layout.setSpacing(8)
-
-        label = QLabel(self._localized_category_label(category).upper())
-        label_font = QFont(self.topic_list.font())
-        label_font.setBold(True)
-        label_font.setPointSize(max(8, label_font.pointSize() - 1))
-        label.setFont(label_font)
-        label.setAttribute(Qt.WA_TransparentForMouseEvents)
-
-        divider = QFrame()
-        divider.setFrameShape(QFrame.HLine)
-        divider.setFrameShadow(QFrame.Plain)
-        divider.setAttribute(Qt.WA_TransparentForMouseEvents)
-        divider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-        palette = self.topic_list.palette()
-        muted = palette.color(QPalette.Disabled, QPalette.Text)
-        if not muted.isValid():
-            muted = palette.color(QPalette.Text)
-        divider_color = palette.color(QPalette.Mid)
-        if not divider_color.isValid():
-            divider_color = muted
-        label.setStyleSheet(f"color: {muted.name()};")
-        divider.setStyleSheet(f"color: {divider_color.name()}; background: {divider_color.name()}; max-height: 1px;")
-
-        header_layout.addWidget(label, stretch=0)
-        header_layout.addWidget(divider, stretch=1)
-        self.topic_list.setItemWidget(item, header_widget)
-
-    def _refresh_topic_list(self) -> None:
-        query = self.search_edit.text().strip().lower()
-        current_section_id = self.current_section_id()
-        self._filtered_sections = [
-            section
-            for section in self._sections
-            if not query or query in self._topic_search_text(section)
+    def _plain_localized_body(self, section: Dict[str, str]) -> str:
+        body = str(section.get("html", "") or "")
+        fragments = [
+            self._translate_rendered(fragment.strip())
+            for fragment in re.split(r"<[^>]+>", body)
+            if fragment.strip()
         ]
-        self.topic_list.blockSignals(True)
-        self.topic_list.clear()
-        grouped_sections: Dict[str, List[Dict[str, str]]] = {}
+        return " ".join(fragments)
+
+    def _topic_search_text(self, section: Dict[str, str]) -> str:
+        source_fields = [
+            str(section.get("title", "") or ""),
+            str(section.get("summary", "") or ""),
+            str(section.get("keywords", "") or ""),
+            re.sub(r"<[^>]+>", " ", str(section.get("html", "") or "")),
+        ]
+        localized_fields = [
+            self._translate_rendered(str(section.get("title", "") or "")),
+            self._translate_rendered(str(section.get("summary", "") or "")),
+            self._translate_rendered(str(section.get("keywords", "") or "")),
+            self._plain_localized_body(section),
+        ]
+        return re.sub(r"\s+", " ", " ".join(source_fields + localized_fields)).casefold()
+
+    def _search_score(self, section: Dict[str, str], tokens: Sequence[str]) -> int:
+        title = str(section.get("title", "") or "").casefold()
+        localized_title = self._translate_rendered(
+            str(section.get("title", "") or "")
+        ).casefold()
+        keywords = str(section.get("keywords", "") or "").casefold()
+        summary = str(section.get("summary", "") or "").casefold()
+        score = 0
+        for token in tokens:
+            if token in title or token in localized_title:
+                score += 12
+            if token in keywords:
+                score += 6
+            if token in summary:
+                score += 3
+            score += 1
+        return score
+
+    def _refresh_navigation(self) -> None:
+        query = self.search_edit.text().strip()
+        tokens = [
+            token
+            for token in re.findall(r"[\w.+#/-]+", query.casefold())
+            if token
+        ]
+        current_id = self.current_section_id()
+        if not current_id and self._history_index >= 0:
+            current_id = self._history[self._history_index]
+        ranked: List[Tuple[int, int, Dict[str, str]]] = []
+        for position, section in enumerate(self._sections):
+            section_id = str(section.get("id", "") or "")
+            search_text = self._search_index.get(section_id, "")
+            if tokens and not all(token in search_text for token in tokens):
+                continue
+            ranked.append((self._search_score(section, tokens), position, section))
+        if tokens:
+            ranked.sort(key=lambda value: (-value[0], value[1]))
+        self._filtered_sections = [section for _score, _position, section in ranked]
+
+        self.topic_tree.blockSignals(True)
+        self.topic_tree.clear()
+        self._topic_items.clear()
+        grouped: Dict[str, List[Dict[str, str]]] = {}
         for section in self._filtered_sections:
-            grouped_sections.setdefault(self._section_category(section), []).append(section)
-        for category in sorted(grouped_sections, key=self._category_sort_key):
-            self._add_topic_group_header(category)
-            for section in grouped_sections[category]:
-                item = QListWidgetItem(str(section.get("title", "") or "Untitled"))
-                item.setData(Qt.UserRole, str(section.get("id", "") or ""))
-                item.setForeground(QBrush(self.topic_list.palette().color(QPalette.Text)))
+            grouped.setdefault(self._section_category(section), []).append(section)
+        for category in sorted(grouped, key=self._category_sort_key):
+            category_item = QTreeWidgetItem([self._translate_text(category)])
+            category_item.setData(0, Qt.UserRole, "")
+            category_item.setFlags(category_item.flags() & ~Qt.ItemIsSelectable)
+            category_font = QFont(self.topic_tree.font())
+            category_font.setBold(True)
+            category_item.setFont(0, category_font)
+            self.topic_tree.addTopLevelItem(category_item)
+            for section in grouped[category]:
+                section_id = str(section.get("id", "") or "")
+                source_title = str(section.get("title", "") or "Untitled")
+                topic_item = QTreeWidgetItem([self._translate_text(source_title)])
+                topic_item.setData(0, Qt.UserRole, section_id)
                 summary = str(section.get("summary", "") or "")
                 if summary:
-                    item.setToolTip(summary)
-                self.topic_list.addItem(item)
-        self.topic_list.blockSignals(False)
-        self.topic_count_label.setText(self._format_topic_count(len(self._filtered_sections)))
+                    topic_item.setToolTip(0, self._translate_rendered(summary))
+                category_item.addChild(topic_item)
+                self._topic_items[section_id] = topic_item
+            category_item.setExpanded(True)
+        self.topic_tree.blockSignals(False)
+        self.topic_count_label.setText(
+            self._format_topic_count(len(self._filtered_sections))
+        )
+
         if not self._filtered_sections:
-            self.browser.setHtml(
-                "<h2>No Matching Topics</h2><p>Try a broader search term such as <b>DDS</b>, <b>archive</b>, <b>profile</b>, <b>replace</b>, or <b>FAQ</b>.</p>"
+            self.breadcrumb_label.clear()
+            self._set_browser_html(
+                self._styled_html(
+                    "<h2>No Matching Topics</h2>"
+                    "<p>No topic contains every search word. Try fewer words or search for a tool, action, file format, or setting.</p>"
+                )
             )
             return
-        if current_section_id:
-            for index in range(self.topic_list.count()):
-                item = self.topic_list.item(index)
-                if str(item.data(Qt.UserRole) or "") == current_section_id:
-                    self.topic_list.setCurrentItem(item)
-                    return
-        self._select_first_topic()
-
-    def _select_first_topic(self) -> None:
-        for index in range(self.topic_list.count()):
-            item = self.topic_list.item(index)
-            if str(item.data(Qt.UserRole) or ""):
-                self.topic_list.setCurrentItem(item)
-                return
-
-    def _current_language_code(self) -> str:
-        parent = self.parent()
-        localizer = getattr(parent, "ui_localizer", None)
-        return str(getattr(localizer, "language_code", "en") or "en").strip().lower()
+        if current_id in self._topic_items:
+            self.topic_tree.setCurrentItem(self._topic_items[current_id])
+        elif tokens:
+            self._select_first_topic()
 
     def _format_topic_count(self, count: int) -> str:
-        language_code = self._current_language_code()
-        if language_code == "es":
-            return f"{count} tema" if count == 1 else f"{count} temas"
-        if language_code == "de":
-            return f"{count} Thema" if count == 1 else f"{count} Themen"
+        formatter = getattr(self._localizer(), "format_plural", None)
+        if callable(formatter):
+            return str(formatter("{count} topics", count))
         return f"{count} topic" if count == 1 else f"{count} topics"
 
+    def _select_first_topic(self) -> None:
+        if not self._filtered_sections:
+            return
+        first_id = str(self._filtered_sections[0].get("id", "") or "")
+        item = self._topic_items.get(first_id)
+        if item is not None:
+            self.topic_tree.setCurrentItem(item)
+
     def current_section_id(self) -> str:
-        item = self.topic_list.currentItem()
+        item = self.topic_tree.currentItem()
         if item is None:
             return ""
-        return str(item.data(Qt.UserRole) or "")
+        return str(item.data(0, Qt.UserRole) or "")
 
     def select_section(self, section_id: str) -> None:
         target_id = section_id.strip()
-        if not target_id:
+        if not target_id or target_id not in self._sections_by_id:
             return
-        for index in range(self.topic_list.count()):
-            item = self.topic_list.item(index)
-            if str(item.data(Qt.UserRole) or "") == target_id:
-                self.topic_list.setCurrentItem(item)
-                self._render_section(target_id)
-                return
-        self.search_edit.clear()
-        for index in range(self.topic_list.count()):
-            item = self.topic_list.item(index)
-            if str(item.data(Qt.UserRole) or "") == target_id:
-                self.topic_list.setCurrentItem(item)
-                self._render_section(target_id)
-                return
+        if target_id not in self._topic_items:
+            self.search_edit.clear()
+        item = self._topic_items.get(target_id)
+        if item is None:
+            return
+        if self.current_section_id() == target_id:
+            self._render_section(target_id)
+            return
+        self.topic_tree.setCurrentItem(item)
 
-    def _handle_topic_changed(self, current: Optional[QListWidgetItem], _previous: Optional[QListWidgetItem]) -> None:
+    def _handle_topic_changed(
+        self,
+        current: Optional[QTreeWidgetItem],
+        _previous: Optional[QTreeWidgetItem],
+    ) -> None:
         if current is None:
             return
-        self._render_section(str(current.data(Qt.UserRole) or ""))
+        section_id = str(current.data(0, Qt.UserRole) or "")
+        if section_id:
+            self._render_section(section_id)
 
-    def _scroll_to_section(self, section_id: str) -> None:
-        if not section_id:
+    @staticmethod
+    def _styled_html(content: str) -> str:
+        return f"""
+        <style>
+        body {{ line-height: 1.45; }}
+        h2 {{ margin-top: 0; margin-bottom: 4px; }}
+        h3 {{ margin-top: 20px; margin-bottom: 5px; }}
+        h4 {{ margin-bottom: 4px; }}
+        a {{ text-decoration: none; }}
+        table {{ border-collapse: collapse; width: 100%; margin: 8px 0 12px 0; }}
+        th, td {{ border: 1px solid #6b7280; padding: 6px 8px; vertical-align: top; }}
+        th {{ background: rgba(127, 127, 127, 0.18); font-weight: 600; }}
+        .doc-meta {{ opacity: 0.76; margin-top: 0; }}
+        .doc-index-item {{ margin: 3px 0 9px 0; }}
+        .doc-summary {{ opacity: 0.82; }}
+        .doc-callout {{ border-left: 4px solid #3b82f6; padding: 7px 10px; margin: 8px 0; background: rgba(59, 130, 246, 0.10); }}
+        .doc-warning {{ border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.12); }}
+        .doc-danger {{ border-left-color: #ef4444; background: rgba(239, 68, 68, 0.10); }}
+        .doc-ok {{ border-left-color: #22c55e; background: rgba(34, 197, 94, 0.10); }}
+        .pill {{ border: 1px solid #6b7280; border-radius: 4px; padding: 1px 4px; white-space: nowrap; }}
+        </style>
+        {content}
+        """
+
+    def _build_index_html(self) -> str:
+        grouped: Dict[str, List[Dict[str, str]]] = {}
+        for section in self._sections:
+            section_id = str(section.get("id", "") or "")
+            if section_id in {"overview", "documentation_index"}:
+                continue
+            grouped.setdefault(self._section_category(section), []).append(section)
+        parts = [
+            "<p>Every current Workbench topic is listed here. Use the sidebar to browse by area or press <b>Ctrl+K</b> to search the full index.</p>"
+        ]
+        for category in sorted(grouped, key=self._category_sort_key):
+            parts.append(f"<h3>{escape(category)}</h3>")
+            for section in grouped[category]:
+                section_id = escape(
+                    str(section.get("id", "") or ""), quote=True
+                )
+                title = escape(str(section.get("title", "") or "Untitled"))
+                summary = escape(str(section.get("summary", "") or ""))
+                summary_html = (
+                    f'<br/><span class="doc-summary">{summary}</span>'
+                    if summary
+                    else ""
+                )
+                parts.append(
+                    f'<p class="doc-index-item"><a href="topic:{section_id}"><b>{title}</b></a>{summary_html}</p>'
+                )
+        return "".join(parts)
+
+    def _build_section_html(self, section: Dict[str, str]) -> str:
+        section_id = str(section.get("id", "") or "").strip()
+        section_title = str(
+            section.get("title", "") or "Documentation"
+        ).strip()
+        section_summary = str(section.get("summary", "") or "").strip()
+        category = self._section_category(section)
+        section_body = (
+            self._build_index_html()
+            if section_id == "documentation_index"
+            else str(section.get("html", "") or "")
+        )
+        summary_html = (
+            f"<p><i>{section_summary}</i></p>" if section_summary else ""
+        )
+        category_html = f'<p class="doc-meta">{category}</p>'
+        intro = f"{self.intro_html}<hr/>" if section_id == "overview" else ""
+        return self._styled_html(
+            f"<h2>{section_title}</h2>{category_html}{summary_html}{intro}{section_body}"
+        )
+
+    def _record_history(self, section_id: str) -> None:
+        if self._navigating_history:
             return
-        QTimer.singleShot(0, lambda: self.browser.scrollToAnchor(section_id))
+        if (
+            self._history_index >= 0
+            and self._history[self._history_index] == section_id
+        ):
+            return
+        del self._history[self._history_index + 1 :]
+        self._history.append(section_id)
+        self._history_index = len(self._history) - 1
+
+    def _update_history_buttons(self) -> None:
+        self.back_button.setEnabled(self._history_index > 0)
+        self.forward_button.setEnabled(
+            0 <= self._history_index < len(self._history) - 1
+        )
+
+    def _go_back(self) -> None:
+        if self._history_index <= 0:
+            return
+        self._history_index -= 1
+        self._navigate_history()
+
+    def _go_forward(self) -> None:
+        if self._history_index < 0 or self._history_index >= len(self._history) - 1:
+            return
+        self._history_index += 1
+        self._navigate_history()
+
+    def _navigate_history(self) -> None:
+        self._navigating_history = True
+        try:
+            self.select_section(self._history[self._history_index])
+        finally:
+            self._navigating_history = False
+        self._update_history_buttons()
 
     def _render_section(self, section_id: str) -> None:
-        if not section_id:
+        section = self._sections_by_id.get(section_id)
+        if section is None:
             return
-        for section in self._sections:
-            if str(section.get("id", "") or "") == section_id:
-                html = self._build_section_html(section)
-                self.browser.setProperty("_i18n_source_html", html)
-                self.browser.setHtml(html)
-                QTimer.singleShot(0, lambda: self.browser.moveCursor(QTextCursor.Start))
-                return
+        self._record_history(section_id)
+        category = self._translate_text(self._section_category(section))
+        title = self._translate_text(
+            str(section.get("title", "") or "Documentation")
+        )
+        self.breadcrumb_label.setText(f"{category}  /  {title}")
+        self._set_browser_html(self._build_section_html(section))
+        self._update_history_buttons()
+        QTimer.singleShot(0, lambda: self.browser.moveCursor(QTextCursor.Start))
 
     def _handle_anchor_clicked(self, url: QUrl) -> None:
         if url.scheme() in {"http", "https"}:

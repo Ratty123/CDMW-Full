@@ -298,7 +298,7 @@ from cdmw.ui.text_preview_widgets import (
 
 
 
-from cdmw.ui.shell.help_dialogs import AboutDialog, QuickStartDialog
+from cdmw.ui.shell.help_dialogs import AboutDialog
 
 
 _MODEL_PREVIEW_COMPAT_EXPORTS = {

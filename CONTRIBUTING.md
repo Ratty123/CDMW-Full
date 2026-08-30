@@ -47,7 +47,7 @@ Please try to:
 
 - keep the scope narrow
 - explain user-facing behavior changes clearly
-- mention any affected workflows such as `Texture Workflow`, `Replace Assistant`, `Research`, or `Archive Browser`
+- mention any affected workflows such as `Texture Workflow`, `Texture Replacer`, `Research`, or `Archive Browser`
 - avoid unrelated cleanup in the same PR
 
 ## Project Scope

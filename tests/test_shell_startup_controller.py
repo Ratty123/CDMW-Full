@@ -78,7 +78,7 @@ class _RemoteStartupDispatchWindow(StartupPromptMixin):
         self._startup_archive_path_prompt_accepted = True
         self._startup_archive_autoload_dispatched = False
         self._previous_session_unclean = False
-        self.show_quick_start_on_launch = False
+        self.show_first_run_guide_on_launch = False
         self.worker_thread = None
         self.archive_entries: list[object] = []
         self.archive_package_root_edit = SimpleNamespace(text=lambda: str(package_root))
@@ -515,6 +515,24 @@ class ShellStartupControllerTests(unittest.TestCase):
             )
 
         self.assertEqual(["splash", "warning"], calls)
+
+    def test_first_run_guide_opens_the_documentation_checklist(self) -> None:
+        settings = Mock()
+        show_documentation = Mock()
+        window = SimpleNamespace(
+            show_first_run_guide_on_launch=True,
+            _startup_archive_path_prompt_handled=False,
+            archive_package_root_edit=SimpleNamespace(text=lambda: "C:/game"),
+            settings=settings,
+            show_documentation_dialog=show_documentation,
+        )
+
+        StartupPromptMixin._show_first_run_guide_if_needed(window)
+
+        self.assertFalse(window.show_first_run_guide_on_launch)
+        settings.setValue.assert_called_once_with("ui/startup_setup_shown", True)
+        settings.sync.assert_called_once_with()
+        show_documentation.assert_called_once_with(topic_id="first_run_checklist")
 
 
 if __name__ == "__main__":

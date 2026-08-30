@@ -30,7 +30,6 @@ class ShellMenusMixin:
         self.attach_all_tools_action = self.window_menu.addAction("Reattach All Tools")
         self.window_menu.addSeparator()
         self.help_menu = menu_bar.addMenu("Help")
-        self.quick_start_menu_action = self.help_menu.addAction("Quick Start")
         self.open_documentation_action = self.help_menu.addAction("Documentation")
         self.help_menu.addSeparator()
         self.export_diagnostics_action = self.help_menu.addAction("Export Diagnostics...")

@@ -140,7 +140,6 @@ class LogControllerMixin:
         self.open_crash_reports_action.setEnabled(not busy)
         self.open_settings_action.setEnabled(not busy)
         self.mod_package_tool_action.setEnabled(not busy)
-        self.quick_start_menu_action.setEnabled(not busy)
         self.open_documentation_action.setEnabled(not busy)
         self.open_about_action.setEnabled(not busy)
         self.left_panel.setEnabled(not busy)

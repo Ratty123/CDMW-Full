@@ -13,6 +13,7 @@ $Python = if (Test-Path -LiteralPath $VenvPython) { $VenvPython } else { "python
 $TestsByArea = @{
     smoke = @(
         "tests/test_runtime_dependency_smoke.py",
+        "tests/test_restructure_runtime_regression_smoke.py",
         # Fast executable C# behavior, not a source-string contract. The helper
         # is built below before pytest for both ordinary main pushes and mesh-unit.
         "tests/test_dotnet_resident_mutation_batch_contract.py",
@@ -35,6 +36,7 @@ $TestsByArea = @{
         "tests/test_window_feature_controller.py",
         "tests/test_localization_catalog_contracts.py",
         "tests/test_localization_runtime_owner.py",
+        "tests/test_documentation_dialog.py",
         "tests/test_character_context.py",
         "tests/test_compact_shell.py",
         "tests/test_compact_shell_presentations.py",

@@ -12,18 +12,6 @@
     "reason": "Nonvisual Mesh Editor construction harness; excluded developer output."
   },
   {
-    "path": "cdmw/ui/shell/about_documentation_de.py",
-    "symbol": "language_specific_help_source",
-    "source": "*",
-    "reason": "Legacy authored German help source; the canonical 14-language catalog is generated from the English help document."
-  },
-  {
-    "path": "cdmw/ui/shell/about_documentation_es.py",
-    "symbol": "language_specific_help_source",
-    "source": "*",
-    "reason": "Legacy authored Spanish help source; the canonical 14-language catalog is generated from the English help document."
-  },
-  {
     "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
     "symbol": "chainner_override_edit",
     "source": "{\n  \"inputs\": {\n    \"your_override_id\": \"${png_root}\"\n  }\n}",

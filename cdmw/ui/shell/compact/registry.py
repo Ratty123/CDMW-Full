@@ -24,7 +24,7 @@ COMPACT_TOOL_SPECS = (
     CompactToolSpec("placement_studio", "Placement & Animations", "Authoring", "person"),
     CompactToolSpec("texture_workflow", "Upscale Textures", "Textures", "layers"),
     CompactToolSpec("replace_assistant", "Replace Textures", "Textures", "swap"),
-    CompactToolSpec("recolor_variants", "Recolor Variants", "Textures", "droplet"),
+    CompactToolSpec("recolor_variants", "Texture Recolor", "Textures", "droplet"),
     CompactToolSpec("texture_editor", "Texture Editor", "Textures", "brush"),
     CompactToolSpec("mod_package_retrofit", "Repackage Mods", "Utilities", "package"),
     CompactToolSpec("format_explorer", "Inspect File Formats", "Utilities", "document"),

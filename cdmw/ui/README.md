@@ -5,8 +5,9 @@ wiring; `cdmw/ui/<feature>/` packages own feature workspaces; `cdmw/ui/tools/`
 owns utility tools such as Retrofit/Repackage Mods. Top-level legacy
 modules such as `*_tab.py` stay compatibility wrappers while internals move.
 
-`shell/compact/` is an optional presentation around the same registered tool
-widgets and activation paths; Classic remains the default. `new_item/` owns the
+`shell/compact/` is the first-run presentation around the same registered tool
+widgets and activation paths; an existing Compact or Classic choice remains
+authoritative. `new_item/` owns the
 guided Create New Item UI and its latest-wins preview/task controllers. Neither
 package duplicates business rules, archive writers, or renderer ownership.
 

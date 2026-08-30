@@ -20,7 +20,6 @@ class ShellSignalWiringMixin:
         self.copy_problem_summary_action.triggered.connect(self.copy_latest_problem_summary)
         self.open_crash_reports_action.triggered.connect(self.open_crash_reports_folder)
         self.open_settings_action.triggered.connect(self.show_settings)
-        self.quick_start_menu_action.triggered.connect(self.show_quick_start_dialog)
         self.open_documentation_action.triggered.connect(self.show_documentation_dialog)
         self.open_about_action.triggered.connect(self.show_about_dialog)
         self.support_corner_button.clicked.connect(self.show_support_dialog)

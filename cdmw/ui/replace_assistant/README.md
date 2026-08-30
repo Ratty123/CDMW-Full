@@ -1,7 +1,9 @@
-# Replace Assistant
+# Texture Replacer
 
-Owns Replace Assistant UI panels, queue/review presentation, preview controls,
+Owns Texture Replacer UI panels, queue/review presentation, preview controls,
 settings, and worker handoff for replacement package building.
+
+The internal package name remains `replace_assistant` for compatibility.
 
 Keep core replacement planning and payload logic outside this UI package. Use
 `cdmw/core/replace_assistant.py`, `cdmw/core/replace_assistant_package.py`,
@@ -13,7 +15,7 @@ Unresolved items keep no inferred destination and require Choose Archive
 Original. Package builds preserve the matched package/game path, then route that
 same payload through every selected manager profile.
 
-When the standalone archive backend is the displayed backend, Replace Assistant
+When the standalone archive backend is the displayed backend, Texture Replacer
 keeps its local Original DDS filesystem index but never receives the global
 archive entry list. Auto Match resolves bounded exact-path candidates first and
 then bounded basename candidates through the worker. Choose Archive Original is

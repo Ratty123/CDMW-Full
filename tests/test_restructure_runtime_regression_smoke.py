@@ -215,7 +215,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             package_root = Path(temp_dir)
             inspected_roots: list[Path] = []
             self.window.archive_package_root_edit.setText(str(package_root))
-            self.window.show_quick_start_on_launch = False
+            self.window.show_first_run_guide_on_launch = False
             self.window._previous_session_unclean = False
             self.window.worker_thread = None
             self.window.archive_entries = []

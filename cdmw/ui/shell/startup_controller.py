@@ -303,7 +303,7 @@ class StartupPromptMixin:
         if bool(getattr(self, "_startup_archive_path_prompt_open", False)):
             QTimer.singleShot(250, self._maybe_autoload_archive_on_startup)
             return
-        if self.show_quick_start_on_launch:
+        if self.show_first_run_guide_on_launch:
             self._write_heartbeat("running")
             self._release_startup_splash()
             return
@@ -566,7 +566,7 @@ class StartupPromptMixin:
         if self._startup_benchmark_enabled():
             package_root_text = self.archive_package_root_edit.text().strip()
             return bool(package_root_text and Path(package_root_text).expanduser().exists())
-        if self.show_quick_start_on_launch:
+        if self.show_first_run_guide_on_launch:
             return False
         if getattr(self, "_previous_session_unclean", False) and not self._startup_benchmark_enabled():
             return False
@@ -590,7 +590,7 @@ class StartupPromptMixin:
         package_root_text = os.environ.get("CDMW_BENCHMARK_PACKAGE_ROOT", "").strip()
         if package_root_text:
             self.archive_package_root_edit.setText(package_root_text)
-        self.show_quick_start_on_launch = False
+        self.show_first_run_guide_on_launch = False
         self.archive_startup_hold_until_ready = True
         self.archive_startup_saved_filter_apply_pending = False
         self.archive_startup_saved_filter_state = {}
@@ -747,7 +747,7 @@ class StartupPromptMixin:
         QTimer.singleShot(700, self.close)
 
     def _show_first_run_guide_if_needed(self) -> None:
-        if not self.show_quick_start_on_launch:
+        if not self.show_first_run_guide_on_launch:
             return
         if bool(getattr(self, "_startup_archive_path_prompt_handled", False)):
             return
@@ -757,16 +757,15 @@ class StartupPromptMixin:
                 after_autodetect=self._show_first_run_guide_if_needed,
             ):
                 return
-        self.show_quick_start_on_launch = False
+        self.show_first_run_guide_on_launch = False
         self.settings.setValue("ui/startup_setup_shown", True)
         self.settings.sync()
-        self.focus_archive_locations()
-        self.show_quick_start_dialog()
+        self.show_documentation_dialog(topic_id="first_run_checklist")
 
     def _startup_archive_path_prompt_needed(self) -> bool:
         if self._startup_benchmark_enabled() or os.environ.get("CDMW_GUI_STARTUP_SMOKE") == "1":
             return False
-        if not self.show_quick_start_on_launch:
+        if not self.show_first_run_guide_on_launch:
             return False
         return not bool(self.archive_package_root_edit.text().strip())
 
@@ -805,7 +804,7 @@ class StartupPromptMixin:
             self._record_startup_prompt_event("startup_path_prompt_skipped")
         else:
             self.archive_package_root_edit.setText(selected_path)
-            self.show_quick_start_on_launch = False
+            self.show_first_run_guide_on_launch = False
             self._startup_archive_path_prompt_accepted = True
             self.settings.setValue("ui/startup_setup_shown", True)
             self.settings.setValue("archive/package_root", selected_path)

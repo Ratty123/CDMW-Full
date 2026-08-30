@@ -15,7 +15,7 @@ Asset authoring workers cover OpenImageIO metadata, convert, and diff tasks.
 Mesh Editor topology workers execute Delete/Subdivide/Refine through service
 bridges off the UI thread; the normal edit math path is native-first through
 `native/cdmw_mesh_core`.
-`new_item_workers.py` shapes the New Item Studio's snapshot, plan, export and
+`new_item_workers.py` shapes Create New Item's snapshot, plan, export and
 install as `(log, stop_event)` tasks for the utility runner; the service does
 the work and the tab only sees results. Effect catalogue and resident package
 preparation use separate cancellable latest-wins lanes. Imported model roots are

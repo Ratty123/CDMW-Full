@@ -34,11 +34,19 @@ work belongs in `cdmw/workers/`. `MainWindow` has only `QMainWindow` as a base;
 shell/archive/texture/mesh behavior is supplied by owned controllers and the
 compatibility provider registry.
 
+`Help > Documentation` is the app's wiki surface. It uses a hierarchical topic
+tree, a generated all-topic index, multi-word relevance search with `Ctrl+K`,
+article links, breadcrumbs, and back/forward history. English topic data in
+`about_documentation_en.py` is the single source; all 14 built-in languages use
+the shared localization catalog instead of maintaining separate translated
+topic copies.
+
 Settings font sizes are exact user preferences; responsive screen scaling may
 compact spacing and control metrics, but it does not rewrite the chosen UI or
-list font size. The seven-page Settings navigation is a top-aligned,
-content-sized rail whose width follows its translated labels instead of taking
-a fixed sidebar width and full-window height.
+list font size. The five-page Settings navigation—Setup, General, Paths,
+Performance, and Appearance—is a top-aligned, content-sized rail whose width
+follows its translated labels instead of taking a fixed sidebar width and
+full-window height.
 
 All 19 application themes use semantic palette roles for shared and
 feature-owned chrome. Feature surfaces may retain intentional content colours

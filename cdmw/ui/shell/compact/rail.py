@@ -205,8 +205,6 @@ class CompactWorkspaceRail(QFrame):
         overflow_menu.addAction(owner.profile_menu.menuAction())
         overflow_menu.addAction(owner.window_menu.menuAction())
         overflow_menu.addSeparator()
-        owner.mod_package_tool_action.setText("Repackage Mods")
-        overflow_menu.addAction(owner.mod_package_tool_action)
         overflow_menu.addAction(owner.export_diagnostics_action)
         overflow_menu.addSeparator()
         overflow_menu.addAction(owner.open_about_action)

@@ -192,8 +192,8 @@ jobs:
 
       # Focused area gates run before a change is committed. The remote push
       # gate owns assembled shell, manifest, localization and Qt-lifetime smoke;
-      # repeating every one of roughly 9,800 tests here delayed all feedback by
-      # about an hour without preventing the already-pushed commit.
+      # repeating the complete suite here delayed all feedback by about an hour
+      # without preventing the already-pushed commit.
       - name: Run fast main-push validation
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
         shell: pwsh

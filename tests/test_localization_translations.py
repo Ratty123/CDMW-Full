@@ -299,40 +299,35 @@ def test_builtin_fallback_leaves_code_like_text_alone() -> None:
     assert german.translate(code_like) == code_like
 
 
-def test_quick_start_and_documentation_cover_direct_mesh_editing() -> None:
+def test_documentation_covers_current_mesh_editor_behavior() -> None:
     help_dialogs_source = Path("cdmw/ui/shell/help_dialogs.py").read_text(encoding="utf-8")
-    main_window_source = _source("cdmw/ui/shell/app_window.py") + "\n" + _about_documentation_source()
+    main_window_source = _about_documentation_source()
 
-    assert "Mesh Quick Guide" in help_dialogs_source
-    assert "Guia rapida de mallas" in help_dialogs_source
-    assert "Schnellguide fuer Meshes" in help_dialogs_source
-    assert "Open in Mesh Editor" in help_dialogs_source
-    assert "Abrir en el Editor de mallas" in help_dialogs_source
-    assert "Im Mesh-Editor oeffnen" in help_dialogs_source
-    assert "Object Transform" in help_dialogs_source
-    assert "Transformacion del objeto" in help_dialogs_source
-    assert "Objekttransformation" in help_dialogs_source
-    assert "Solid (Textured)" in help_dialogs_source
-    assert "Solido (con texturas)" in help_dialogs_source
-    assert "Solid (texturiert)" in help_dialogs_source
+    assert "standalone workspace and viewport" in main_window_source
+    assert "no-session guidance" in main_window_source
+    assert "Open in Mesh Editor" in main_window_source
+    assert "Object Transform" in main_window_source
+    assert "Solid (Textured)" in main_window_source
+    assert "<b>Select</b>" in main_window_source
+    assert "resident <code>cdmw-mesh-core</code> interaction session" in main_window_source
+    assert "one <code>MeshService</code> history entry" in main_window_source
+    assert "resynchronise the native mirror" in main_window_source
+    assert "<b>Exact Game Asset</b>" in main_window_source
+    assert "<b>Free Edit</b>" in main_window_source
+    assert "conditionally ready" in main_window_source
+    assert "QuickStartDialog" not in help_dialogs_source
     assert "Import DDS Preview" not in help_dialogs_source
     assert "Swap With In-Game Mesh" not in main_window_source
 
 
-def test_archive_browser_documentation_covers_current_functionality_in_supported_languages() -> None:
+def test_archive_browser_documentation_covers_current_functionality() -> None:
     main_window_source = _about_documentation_source()
 
     assert "active mod/original/shadowed duplicate status" in main_window_source
     assert "static geometry thumbnail so browsing candidates" in main_window_source
     assert "Item Finder" in main_window_source
 
-    assert "mod activo" in main_window_source
-    assert "miniatura estatica de geometria" in main_window_source
     assert "Intercambio masivo de colocacion" not in main_window_source
-
-    assert "Aktiver Mod" in main_window_source
-    assert "statische Geometrie-Miniatur" in main_window_source
-    assert "HKX-Platzierung" in main_window_source
 
 
 def test_profile_window_and_documentation_cover_current_settings_scope() -> None:
@@ -356,8 +351,6 @@ def test_profile_window_and_documentation_cover_current_settings_scope() -> None
     )
     assert "one app-wide snapshot, not a separate profile per tab" in main_window_source
     assert "Profiles do not save open archives, active documents, or per-tab project sessions." in main_window_source
-    assert "no perfiles separados por pestana" in main_window_source
-    assert "keine getrennten Profile pro Tab" in main_window_source
     assert "Profile &gt; Export Profile" in main_window_source
     assert "Window &amp; Layout" in main_window_source
     assert "window/detached/&lt;tool&gt;/geometry" in main_window_source
@@ -392,9 +385,7 @@ def test_documentation_and_readme_cover_current_mesh_and_texture_workflows() -> 
     assert "True Source Authority</b>" not in main_window_source
     assert "Material Authority Manual</b>" not in main_window_source
     assert "Intercambio de armadura de apariencia" not in main_window_source
-    assert "Solido (con texturas)" in main_window_source
     assert "Appearance-Ruestungs-Swap" not in main_window_source
-    assert "Solid (texturiert)" in main_window_source
 
     assert "OBJ/DAE/glTF/GLB import preview" in readme_source
     assert "bundled `cd-texture-dx.exe` native" in readme_source
@@ -451,16 +442,42 @@ def test_mnemonic_translation_leaves_a_real_accelerator_alone() -> None:
 
 
 def test_supported_documentation_languages_cover_all_topic_ids() -> None:
-    english_block = Path("cdmw/ui/shell/about_documentation_en.py").read_text(encoding="utf-8")
-    spanish_block = Path("cdmw/ui/shell/about_documentation_es.py").read_text(encoding="utf-8")
-    german_block = Path("cdmw/ui/shell/about_documentation_de.py").read_text(encoding="utf-8")
+    from cdmw.ui.shell.about_documentation import AboutDocumentationMixin
 
-    english_ids = set(re.findall(r'"id"\s*:\s*"([^"]+)"', english_block))
-    assert set(re.findall(r'"id"\s*:\s*"([^"]+)"', spanish_block)) == english_ids
-    assert set(re.findall(r'"id"\s*:\s*"([^"]+)"', german_block)) == english_ids
+    class _DocumentationSource(AboutDocumentationMixin):
+        settings_file_path = Path("settings.cfg")
+        archive_cache_root = Path("cache")
 
-    for required in ("first_run_checklist", "texture_workflow_guides", "mod_packaging", "safety", "faq"):
-        assert required in english_ids
+        @staticmethod
+        def _build_about_intro_html() -> str:
+            return "<p>Documentation.</p>"
+
+    source = _DocumentationSource()
+    topic_sets = []
+    for language_code in ("en", "de", "es-ES", "es-419", "ja", "zh-Hans"):
+        title, _intro, sections = source._build_about_document_for_language(language_code)
+        assert title == "Documentation"
+        topic_sets.append({section["id"] for section in sections})
+
+    assert all(topic_ids == topic_sets[0] for topic_ids in topic_sets[1:])
+    for required in (
+        "documentation_index",
+        "first_run_checklist",
+        "new_item_studio",
+        "model_library",
+        "icon_creator",
+        "mesh_editor",
+        "placement_studio",
+        "texture_recolor",
+        "mod_package_retrofit",
+        "format_explorer",
+        "translation_studio",
+        "mod_packaging",
+        "safety",
+        "faq",
+    ):
+        assert required in topic_sets[0]
+    assert "quick_start" not in topic_sets[0]
 
 
 def test_help_about_surfaces_have_localized_html_and_documentation_route() -> None:
@@ -469,8 +486,9 @@ def test_help_about_surfaces_have_localized_html_and_documentation_route() -> No
 
     assert "def _build_about_overview_html_es" in main_window_source
     assert "def _build_about_overview_html_de" in main_window_source
-    assert 'overview_browser.setProperty("_i18n_html_es"' in main_window_source
-    assert 'overview_browser.setProperty("_i18n_html_de"' in main_window_source
-    assert 'hasattr(parent_window, "show_documentation_dialog")' in help_dialogs_source
-    assert 'parent_window.show_documentation_dialog(topic_id="overview")' in help_dialogs_source
-    assert 'parent_window.show_about_dialog(topic_id="overview")' not in help_dialogs_source
+    assert 'overview_browser.setProperty("_i18n_html_es"' not in main_window_source
+    assert 'overview_browser.setProperty("_i18n_html_de"' not in main_window_source
+    assert "self._build_about_sections()" in main_window_source
+    assert "QTreeWidget" in help_dialogs_source
+    assert "def _build_index_html" in help_dialogs_source
+    assert "apply_localization(self.browser)" in help_dialogs_source

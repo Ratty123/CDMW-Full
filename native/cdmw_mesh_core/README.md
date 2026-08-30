@@ -17,8 +17,22 @@ cdmw-mesh-core mesh-editor-session-json job.json report.json
 cdmw-mesh-core --version
 ```
 
-Python keeps the service/session/history boundary and falls back to existing
-Python geometry code when this helper is missing or reports an error.
+Python keeps the service/session/history authority. Batch commands can use
+their documented Python compatibility paths, but active resident-interaction
+failures fail closed instead of silently switching mutation authority.
+
+The packaged .NET/Vortice Mesh Editor uses the exported
+`resident_interaction_abi_v1` in `cdmw-mesh-core.dll` for live
+Select/Move/Grab/Smooth/Inflate/Pinch input. ABI v1 exposes identity and struct
+size probes plus open, close, sync, begin, update, end, cancel, authoritative
+decision, and vertex-read operations. Each gesture accumulates against its
+immutable begin-state baseline and publishes one bounded shared-memory sparse
+terminal transaction. `MeshService` validates and commits that transaction as
+one history entry; the host then acknowledges acceptance or rejection, while
+Undo and Redo authoritatively resynchronize mesh, selection, and topology
+revisions. Packaged startup verifies the DLL hash, ABI version and contract,
+header hash, and backend identity before enabling these controls.
+
 `mesh-editor-session-json` is the resident Edit Mesh protocol. It stores live
 submeshes, selection masks, undo/redo history, topology revisions, and sparse
 delta report sidecars in C++. `apply` accepts `stroke_phase` (`begin`, `update`,
