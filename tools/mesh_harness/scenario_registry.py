@@ -62,7 +62,7 @@ _ROWS = (
     ),
     _scenario("service-smoke", scenario_role="service_regression", expected_backend="native-mesh-core-or-python-fallback"),
     _scenario("asset-authoring-discovery", scenario_role="helper_discovery"),
-    _scenario("asset-authoring-mesh-health", scenario_role="authoring_report", expected_backend="python+optional-meshoptimizer"),
+    _scenario("asset-authoring-mesh-health", scenario_role="authoring_report", expected_backend="python"),
     _scenario("asset-authoring-uv-report", scenario_role="authoring_report", expected_backend="python+optional-xatlas"),
     _scenario("asset-authoring-tangent-report", scenario_role="authoring_report", expected_backend="native-mesh-core-or-python-fallback"),
     _scenario("asset-authoring-openimageio-report", scenario_role="authoring_report", expected_backend="python+optional-openimageio"),

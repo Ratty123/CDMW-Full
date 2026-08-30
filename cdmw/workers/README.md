@@ -11,8 +11,7 @@ policy in services/domain and keep UI rendering decisions in UI packages.
 `CancellationToken.raise_if_cancelled()` raises the shared
 `cdmw.domain.cancellation.RunCancelled`, also exposed by legacy
 `cdmw.models` and core compatibility imports.
-Asset authoring workers cover Material Maker export plus OpenImageIO metadata,
-convert, and diff tasks.
+Asset authoring workers cover OpenImageIO metadata, convert, and diff tasks.
 Mesh Editor topology workers execute Delete/Subdivide/Refine through service
 bridges off the UI thread; the normal edit math path is native-first through
 `native/cdmw_mesh_core`.

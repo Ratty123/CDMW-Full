@@ -1812,7 +1812,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertNotIn('out << ",\\"source_vertex_indices\\":["', preview_update_body)
         vertex_update_start = mesh_core_source.index("std::string preview_vertex_update_groups_report_json")
-        vertex_update_body = mesh_core_source[vertex_update_start: mesh_core_source.index("std::string string_from_ufbx", vertex_update_start)]
+        vertex_update_body = mesh_core_source[vertex_update_start: mesh_core_source.index("std::string tangent_backend_summary", vertex_update_start)]
         self.assertIn("const std::vector<int> source_vertex_map = mesh_source_vertex_map_from_item(item, vertices.size());", vertex_update_body)
         self.assertIn('const bool changed_all_vertices = bool_or(item.get("changed_all_vertices"), false);', vertex_update_body)
         self.assertIn('const int changed_vertex_start = int_or(item.get("changed_vertex_start"), -1);', vertex_update_body)
@@ -5061,7 +5061,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn('tuple(getattr(submesh, "source_vertex_offsets", ()) or ())', cleanup_body)
         cleanup_native_start = native_core_source.index("std::vector<SubmeshCleanupResult> run_cleanup")
         cleanup_native_body = native_core_source[
-            cleanup_native_start: native_core_source.index("std::vector<SubmeshOptimizeResult> run_optimize", cleanup_native_start)
+            cleanup_native_start: native_core_source.index("Vec2 rotate_uv", cleanup_native_start)
         ]
         self.assertIn("mesh_vertices_from_item(item)", cleanup_native_body)
         self.assertIn("mesh_faces_from_item(item, vertices.size())", cleanup_native_body)
@@ -5146,7 +5146,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("recompute_submesh_normals(submesh)", apply_cleanup_body)
         auto_uv_start = mesh_native_source.index("def native_mesh_auto_uv_report(")
         auto_uv_body = mesh_native_source[
-            auto_uv_start: mesh_native_source.index("def native_scene_import_report(", auto_uv_start)
+            auto_uv_start: mesh_native_source.index("def apply_native_mesh_auto_uv(", auto_uv_start)
         ]
         self.assertIn("session_id = _ensure_native_mesh_session_submesh", auto_uv_body)
         self.assertIn('item["session_id"] = session_id', auto_uv_body)
@@ -5197,20 +5197,6 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             apply_auto_uv_body.index("parsed_changed_ordered = _changed_vertices_from_report_item(item, len(parsed_uvs))"),
             apply_auto_uv_body.index("old_uvs = () if has_native_changed_vertices else"),
         )
-        optimize_start = mesh_native_source.index("def native_mesh_optimization_report(")
-        optimize_body = mesh_native_source[
-            optimize_start: mesh_native_source.index("def apply_native_mesh_auto_uv(", optimize_start)
-        ]
-        self.assertIn("session_id = _ensure_native_mesh_session_submesh", optimize_body)
-        self.assertIn('item["session_id"] = session_id', optimize_body)
-        self.assertIn('item["vertices_binary"] = _write_vec3_binary_payload', optimize_body)
-        self.assertIn('item["faces_binary"] = _write_face_binary_payload', optimize_body)
-        self.assertLess(
-            optimize_body.index("session_id = _ensure_native_mesh_session_submesh"),
-            optimize_body.index("faces = _face_json("),
-        )
-        self.assertNotIn('"vertices": [_vec3_json(vertex) for vertex in submesh.vertices]', optimize_body)
-        self.assertNotIn('"faces": faces', optimize_body)
         uv_transform_start = mesh_native_source.index("def apply_native_mesh_uv_transform(")
         uv_transform_body = mesh_native_source[
             uv_transform_start: mesh_native_source.index("def _topology_edit_submeshes(", uv_transform_start)
@@ -5248,15 +5234,6 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_merge_changed_vertices(", apply_uv_body)
         self.assertIn("parsed_changed_ordered,", apply_uv_body)
         self.assertNotIn("parsed_changed = set(parsed_changed_ordered)", apply_uv_body)
-        optimize_native_start = native_core_source.index("std::vector<SubmeshOptimizeResult> run_optimize")
-        optimize_native_body = native_core_source[
-            optimize_native_start: native_core_source.index("std::vector<SubmeshUvTransformResult> run_uv_transform", optimize_native_start)
-        ]
-        self.assertIn("mesh_vertices_from_item(item)", optimize_native_body)
-        self.assertIn("mesh_faces_from_item(item, vertices.size())", optimize_native_body)
-        self.assertNotIn('vertices_from_binary_or_json(item, "vertices_binary", "vertices")', optimize_native_body)
-        self.assertNotIn("faces_from_binary_or_json(item, vertices.size())", optimize_native_body)
-        self.assertNotIn("vertices_from_json(item.get(\"vertices\"))", optimize_native_body)
         uv_native_start = native_core_source.index("std::vector<SubmeshUvTransformResult> run_uv_transform")
         uv_native_body = native_core_source[uv_native_start: native_core_source.index("Vec3 face_normal", uv_native_start)]
         self.assertIn("result.uvs = mesh_uvs_from_item(item)", uv_native_body)
@@ -5513,7 +5490,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("merge_submeshes_report_json", native_core_source)
         self.assertIn('"merge-submeshes-json"', native_core_source)
         native_merge_start = native_core_source.index("std::string merge_submeshes_report_json")
-        native_merge_body = native_core_source[native_merge_start: native_core_source.index("std::string string_from_ufbx", native_merge_start)]
+        native_merge_body = native_core_source[native_merge_start: native_core_source.index("std::string tangent_backend_summary", native_merge_start)]
         self.assertIn("compute_smooth_normals(merged_vertices, merged_faces)", native_merge_body)
         self.assertIn("face[0] + base", native_merge_body)
         self.assertIn("write_vec3_binary_descriptor(out, vertices_path", native_merge_body)
@@ -5821,7 +5798,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("clamp_input_uv", native_core_source)
         self.assertIn("input UV outside allowed bounds", native_core_source)
         affine_start = native_core_source.index("std::string affine_transform_report_json")
-        affine_body = native_core_source[affine_start: native_core_source.index("std::string string_from_ufbx", affine_start)]
+        affine_body = native_core_source[affine_start: native_core_source.index("std::string tangent_backend_summary", affine_start)]
         self.assertIn("position_matrix", affine_body)
         self.assertIn("source_part_adjustment", affine_body)
         self.assertIn("transform_vertex(vertex, source_part_transform)", affine_body)

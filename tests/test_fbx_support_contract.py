@@ -9,12 +9,9 @@ already agrees with itself:
 * mesh **export** to FBX is supported, with or without an armature;
 * the external-model **audit** reads FBX material metadata only, and says that
   geometry import still needs another format;
-* the scene-import report can parse FBX through native ufbx, but reports rig and
-  animation as report-only and degrades to `ufbx_unavailable` without it.
 
-The risk is drift: a filter gaining `.fbx` without a parser, or a parser landing
-without the filters and messages following. This pins all four surfaces
-together so any half-move fails here.
+The risk is drift: a filter gaining `.fbx` without a parser. This pins the
+supported surfaces together so any half-move fails here.
 """
 
 from __future__ import annotations

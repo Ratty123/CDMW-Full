@@ -14,8 +14,6 @@ cdmw-mesh-core morph-apply-json job.json report.json
 cdmw-mesh-core cleanup-json job.json report.json
 cdmw-mesh-core edit-json job.json report.json
 cdmw-mesh-core mesh-editor-session-json job.json report.json
-cdmw-mesh-core optimize-json job.json report.json
-cdmw-mesh-core import-scene-json job.json report.json
 cdmw-mesh-core --version
 ```
 
@@ -115,12 +113,4 @@ vertex remap, chart counts, and topology deltas. Python can apply the output
 through undoable Mesh Edit UV commands, and topology-changing output is gated by
 an explicit command flag. Its optional `auto_uv.padding` pixel value is passed
 to xatlas chart packing; the compatibility default remains zero.
-`import-scene-json` uses bundled ufbx for read-only FBX scene evidence: mesh,
-material, texture, rig, and animation counts are reported while Crimson
-compatibility remains unmapped until a target asset assignment exists.
-`optimize-json` uses bundled meshoptimizer for vertex-cache/overdraw ordering
-and opt-in simplification reports. It returns before/after vertex, index,
-triangle, cache, overdraw, fetch, and error metrics plus optimized faces; Python
-keeps this report preflight-only until an undoable apply path is explicitly
-wired.
 

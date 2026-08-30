@@ -20,13 +20,13 @@ _APP = QApplication.instance() or QApplication([])
 def _report(*, version: str = "", version_status: str = "not_checked") -> dict[str, object]:
     return {
         "helpers": {
-            "material_maker": {
-                "key": "material_maker",
-                "label": "Material Maker",
+            "openimageio": {
+                "key": "openimageio",
+                "label": "OpenImageIO",
                 "status": "available",
                 "version": version,
                 "version_status": version_status,
-                "path": "C:/tools/material_maker.exe",
+                "path": "C:/app/openimageio/oiiotool.exe",
             },
             "xatlas": {
                 "key": "xatlas",
@@ -71,7 +71,10 @@ class SettingsTabAssetAuthoringTests(unittest.TestCase):
         _APP.processEvents()
         text = tab.asset_authoring_helper_status_label.text()
 
-        self.assertIn("Material Maker: available", text)
+        self.assertIn("OpenImageIO: available", text)
+        self.assertNotIn("Material Maker", text)
+        self.assertNotIn("ufbx", text)
+        self.assertNotIn("meshoptimizer", text)
         self.assertIn("version not checked", text)
         self.assertIn("xatlas: unavailable", text)
         self.assertEqual([{"include_versions": False}], service.calls)
@@ -93,9 +96,9 @@ class SettingsTabAssetAuthoringTests(unittest.TestCase):
     def test_settings_tab_can_display_exact_helper_versions_from_report(self) -> None:
         tab = self._settings_tab(_AssetAuthoringServiceStub())
 
-        tab._apply_asset_authoring_helper_report(_report(version="Material Maker 1.4.0", version_status="ok"))
+        tab._apply_asset_authoring_helper_report(_report(version="OpenImageIO 3.0.6", version_status="ok"))
 
-        self.assertIn("Material Maker 1.4.0", tab.asset_authoring_helper_status_label.text())
+        self.assertIn("OpenImageIO 3.0.6", tab.asset_authoring_helper_status_label.text())
 
     def test_settings_tab_shows_bundled_mesh_backends_as_available(self) -> None:
         text = _asset_authoring_helper_status_text(

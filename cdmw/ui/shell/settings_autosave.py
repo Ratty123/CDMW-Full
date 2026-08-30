@@ -112,8 +112,6 @@ class SettingsAutosaveMixin:
 
     def _connect_asset_authoring_panel_auto_save(self) -> None:
         for line_edit in (
-            self.material_maker_project_edit,
-            self.material_maker_export_dir_edit,
             self.openimageio_source_path_edit,
             self.openimageio_output_path_edit,
             self.openimageio_compare_path_edit,

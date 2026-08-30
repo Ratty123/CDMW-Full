@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import json
 import importlib.util
 import math
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -15,47 +13,19 @@ from typing import Mapping, Sequence
 
 from cdmw.modding.mesh_native_core import find_native_mesh_core_binary
 from cdmw.services.bundled_helper_availability import bundled_helper_path
-from cdmw.services.process_job_service import breakaway_creation_flags
 
 
 ASSET_AUTHORING_DISCOVERY_SCHEMA = "cdmw_asset_authoring_discovery_v1"
-ASSET_AUTHORING_TEXTURE_SET_SCHEMA = "cdmw_asset_authoring_texture_set_v1"
 ASSET_AUTHORING_SCENE_IMPORT_SCHEMA = "cdmw_asset_authoring_scene_import_v1"
 ASSET_AUTHORING_MESH_HEALTH_SCHEMA = "cdmw_asset_authoring_mesh_health_v1"
-ASSET_AUTHORING_MESH_OPTIMIZATION_SCHEMA = "cdmw_asset_authoring_mesh_optimization_v1"
 ASSET_AUTHORING_SOURCE_IMAGE_SCHEMA = "cdmw_asset_authoring_source_image_v1"
 ASSET_AUTHORING_UV_REPORT_SCHEMA = "cdmw_asset_authoring_uv_report_v1"
 ASSET_AUTHORING_TANGENT_REPORT_SCHEMA = "cdmw_asset_authoring_tangent_report_v1"
-MATERIAL_MAKER_EXPORT_TEMPLATE_SETTING = "asset_authoring/material_maker_export_template"
-MATERIAL_MAKER_EXPORT_TEMPLATE_ENV = "CDMW_MATERIAL_MAKER_EXPORT_TEMPLATE"
 
-_SOURCE_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".tga", ".tif", ".tiff", ".exr", ".psd", ".bmp", ".webp"})
 _OPENIMAGEIO_SOURCE_SUFFIXES = frozenset({".psd", ".tga", ".exr", ".tif", ".tiff", ".ptx", ".ptex"})
 _EXISTING_IMAGE_WORKFLOW_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".bmp", ".dds"})
-_CHANNEL_ALIASES = {
-    "base_color": frozenset({"basecolor", "basecolour", "albedo", "diffuse", "base"}),
-    "normal": frozenset({"normal", "normals", "nrm"}),
-    "roughness": frozenset({"roughness", "rough"}),
-    "metallic": frozenset({"metallic", "metalness", "metal"}),
-    "ao": frozenset({"ao", "ambientocclusion", "occlusion"}),
-    "height": frozenset({"height", "displacement", "disp", "bump"}),
-    "mask": frozenset({"mask", "masks", "orm", "rma", "mra", "arm", "packedmask", "materialmask"}),
-    "recolor": frozenset({"recolor", "recolour", "recolorvariant", "recolourvariant", "tint", "colormask", "colourmask"}),
-}
-_CHANNEL_SEMANTICS = {
-    "base_color": ("color", "albedo", "color_default", "srgb"),
-    "normal": ("normal", "normal", "normal_bc5", "linear"),
-    "roughness": ("roughness", "roughness", "scalar_high_precision_bc4", "linear"),
-    "metallic": ("mask", "metallic", "scalar_high_precision_bc4", "linear"),
-    "ao": ("mask", "ao", "scalar_high_precision_bc4", "linear"),
-    "height": ("height", "height", "scalar_high_precision_bc4", "linear"),
-    "mask": ("mask", "mask", "packed_mask_preserve_layout", "linear"),
-    "recolor": ("mask", "recolor_variant", "packed_mask_preserve_layout", "linear"),
-}
 _CDMW_MESH_CORE_BACKEND_LABELS = {
     "xatlas": "bundled in CDMW Mesh Core",
-    "ufbx": "bundled in CDMW Mesh Core",
-    "meshoptimizer": "bundled in CDMW Mesh Core",
 }
 
 
@@ -89,11 +59,6 @@ _HELPERS = (
             "mikktspace-tangents",
             "cleanup-json",
             "edit-json",
-            "optimize-json",
-            "meshoptimizer-optimize",
-            "meshoptimizer-simplify",
-            "import-scene-json",
-            "ufbx-fbx-import",
         ),
         bundled=True,
         package_safe=True,
@@ -106,37 +71,6 @@ _HELPERS = (
         env_key="CDMW_XATLAS_BIN",
         executables=("xatlas", "xatlas-cli"),
         capabilities=("auto_uv", "uv_atlas_report"),
-        package_safe=False,
-    ),
-    AssetAuthoringHelperSpec(
-        key="material_maker",
-        label="Material Maker",
-        role="external material graph handoff/export",
-        setting_key="asset_authoring/material_maker_path",
-        env_key="CDMW_MATERIAL_MAKER_BIN",
-        executables=("material_maker", "Material Maker"),
-        capabilities=("open_project", "export_texture_set"),
-        package_safe=False,
-    ),
-    AssetAuthoringHelperSpec(
-        key="ufbx",
-        label="ufbx",
-        role="future FBX/OBJ import bridge",
-        setting_key="asset_authoring/ufbx_path",
-        env_key="CDMW_UFBX_BIN",
-        executables=("ufbx",),
-        module="ufbx",
-        capabilities=("import_fbx", "import_obj", "scene_report"),
-        package_safe=False,
-    ),
-    AssetAuthoringHelperSpec(
-        key="meshoptimizer",
-        label="meshoptimizer",
-        role="optional external simplification/optimization comparator; bundled backend lives in cdmw_mesh_core",
-        setting_key="asset_authoring/meshoptimizer_path",
-        env_key="CDMW_MESHOPTIMIZER_BIN",
-        executables=("meshoptimizer", "gltfpack"),
-        capabilities=("simplify", "optimize_vertices", "optimize_indices"),
         package_safe=False,
     ),
     AssetAuthoringHelperSpec(
@@ -184,230 +118,9 @@ class AssetAuthoringService:
             "fixtures": asset_authoring_fixture_manifest(),
         }
 
-    def material_maker_project_command(
-        self,
-        project_path: Path | str,
-        configured_paths: Mapping[str, object] | None = None,
-    ) -> dict[str, object]:
-        helper = _helper_report(_helper_spec("material_maker"), self.settings, _configured_mapping(configured_paths))
-        if helper["status"] != "available":
-            return {
-                "status": helper["status"],
-                "helper": helper,
-                "argv": [],
-                "can_launch": False,
-                "message": "Material Maker executable is not configured or detected.",
-            }
-        project = Path(project_path).expanduser()
-        return {
-            "status": "ready",
-            "helper": helper,
-            "project_path": str(project),
-            "argv": [str(helper["path"]), str(project)],
-            "can_launch": True,
-        }
-
-    def open_material_maker_project(
-        self,
-        project_path: Path | str,
-        configured_paths: Mapping[str, object] | None = None,
-    ) -> dict[str, object]:
-        command = self.material_maker_project_command(project_path, configured_paths)
-        if not command.get("can_launch"):
-            return command
-        # An external editor the user works in directly, so it breaks out of
-        # the kill-on-close job rather than dying with the workbench.
-        process = subprocess.Popen(
-            tuple(str(part) for part in command["argv"]),
-            cwd=str(Path(project_path).expanduser().parent),
-            creationflags=breakaway_creation_flags(),
-        )
-        return {**command, "status": "launched", "pid": process.pid}
-
-    def material_maker_export_command(
-        self,
-        project_path: Path | str,
-        output_dir: Path | str,
-        configured_paths: Mapping[str, object] | None = None,
-    ) -> dict[str, object]:
-        paths = _configured_mapping(configured_paths)
-        helper = _helper_report(_helper_spec("material_maker"), self.settings, paths)
-        if helper["status"] != "available":
-            return {
-                "status": helper["status"],
-                "helper": helper,
-                "argv": [],
-                "can_run": False,
-                "message": "Material Maker executable is not configured or detected.",
-            }
-        template = _configured_text(
-            "material_maker_export_template",
-            MATERIAL_MAKER_EXPORT_TEMPLATE_SETTING,
-            MATERIAL_MAKER_EXPORT_TEMPLATE_ENV,
-            self.settings,
-            paths,
-        )
-        if not template:
-            return {
-                "status": "cli_export_unconfigured",
-                "helper": helper,
-                "argv": [],
-                "can_run": False,
-                "message": f"Configure {MATERIAL_MAKER_EXPORT_TEMPLATE_SETTING} before running Material Maker export.",
-            }
-        project = Path(project_path).expanduser()
-        output = Path(output_dir).expanduser()
-        replacements = {"exe": str(helper["path"]), "project": str(project), "output": str(output)}
-        return {
-            "status": "ready",
-            "helper": helper,
-            "project_path": str(project),
-            "output_dir": str(output),
-            "argv": _argv_from_template(template, replacements),
-            "can_run": True,
-        }
-
-    def run_material_maker_export(
-        self,
-        project_path: Path | str,
-        output_dir: Path | str,
-        configured_paths: Mapping[str, object] | None = None,
-        timeout_s: float | None = None,
-    ) -> dict[str, object]:
-        command = self.material_maker_export_command(project_path, output_dir, configured_paths)
-        if not command.get("can_run"):
-            return command
-        Path(output_dir).expanduser().mkdir(parents=True, exist_ok=True)
-        completed = subprocess.run(
-            tuple(str(part) for part in command["argv"]),
-            cwd=str(Path(output_dir).expanduser()),
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
-        )
-        return {
-            **command,
-            "status": "ok" if completed.returncode == 0 else "failed",
-            "returncode": completed.returncode,
-            "stdout": completed.stdout,
-            "stderr": completed.stderr,
-        }
-
-    def ingest_exported_texture_set(
-        self,
-        export_dir: Path | str,
-        *,
-        material_name: str = "",
-        channel_overrides: Mapping[str, object] | None = None,
-    ) -> dict[str, object]:
-        root = Path(export_dir).expanduser()
-        if not root.is_dir():
-            return {
-                "schema": ASSET_AUTHORING_TEXTURE_SET_SCHEMA,
-                "status": "missing_export_dir",
-                "export_dir": str(root),
-                "material_name": str(material_name or root.name),
-                "channels": {},
-                "unmapped": [],
-                "warnings": [f"Export folder does not exist: {root}"],
-                "dds_authority": "cdmw_directxtex",
-            }
-
-        overrides = _normalized_channel_overrides(channel_overrides)
-        channels: dict[str, dict[str, object]] = {}
-        unmapped: list[str] = []
-        warnings: list[str] = []
-        for path in sorted(root.iterdir(), key=lambda candidate: candidate.name.lower()):
-            if not path.is_file() or path.suffix.lower() not in _SOURCE_IMAGE_SUFFIXES:
-                continue
-            channel = _texture_channel_for_path(path, overrides)
-            if not channel:
-                unmapped.append(str(path))
-                continue
-            if channel in channels:
-                warnings.append(f"Duplicate {channel} map skipped: {path.name}")
-                continue
-            texture_type, semantic_subtype, profile_hint, colorspace = _CHANNEL_SEMANTICS[channel]
-            channels[channel] = {
-                "channel": channel,
-                "path": str(path),
-                "source_role": "review_intermediate",
-                "texture_type": texture_type,
-                "semantic_subtype": semantic_subtype,
-                "profile_hint": profile_hint,
-                "colorspace": colorspace,
-                "dds_authority": "cdmw_directxtex",
-            }
-
-        status = "ok" if channels else "empty"
-        return {
-            "schema": ASSET_AUTHORING_TEXTURE_SET_SCHEMA,
-            "status": status,
-            "export_dir": str(root),
-            "material_name": str(material_name or root.name),
-            "channels": channels,
-            "unmapped": unmapped,
-            "warnings": warnings,
-            "dds_authority": "cdmw_directxtex",
-            "policy": "Source maps are review intermediates; DDS output remains owned by CDMW/DirectXTex.",
-        }
-
-    def scene_import_report(
-        self,
-        source_path: Path | str,
-        configured_paths: Mapping[str, object] | None = None,
-    ) -> dict[str, object]:
+    def scene_import_report(self, source_path: Path | str) -> dict[str, object]:
         source = Path(source_path).expanduser()
         suffix = source.suffix.lower()
-        if suffix == ".fbx":
-            helper = _helper_report(_helper_spec("cdmw_mesh_core"), self.settings, _configured_mapping(configured_paths))
-            try:
-                from cdmw.modding.mesh_native_core import native_scene_import_report
-
-                native_report = native_scene_import_report(source)
-            except Exception as exc:
-                native_report = None
-                native_error = str(exc)
-            else:
-                native_error = ""
-            if isinstance(native_report, Mapping) and str(native_report.get("status") or "").lower() == "ok":
-                return {
-                    "schema": ASSET_AUTHORING_SCENE_IMPORT_SCHEMA,
-                    "status": "ok",
-                    "source_path": str(source),
-                    "source_format": "fbx",
-                    "backend": "ufbx",
-                    "helper": helper,
-                    "native_import": native_report,
-                    "crimson_compatibility": "unmapped",
-                    "mesh": dict(native_report.get("mesh") or {}),
-                    "materials": _ufbx_material_hints(native_report),
-                    "texture_hints": _ufbx_texture_hints(native_report),
-                    "skeleton_hints": dict(native_report.get("skeleton_hints") or {}),
-                    "unsupported": list(tuple(native_report.get("unsupported") or ())),
-                    "diagnostics": list(tuple(native_report.get("diagnostics") or ())),
-                    "policy": "FBX imports are source data until mapped to a known Crimson target asset.",
-                }
-            return {
-                "schema": ASSET_AUTHORING_SCENE_IMPORT_SCHEMA,
-                "status": "unsupported",
-                "source_path": str(source),
-                "source_format": "fbx",
-                "backend": "ufbx_unavailable",
-                "helper": helper,
-                "crimson_compatibility": "unmapped",
-                "mesh": {},
-                "materials": [],
-                "texture_hints": [],
-                "skeleton_hints": {
-                    "has_skinning": False,
-                    "rig_status": "fbx_import_backend_unavailable",
-                    "animation_status": "fbx_import_backend_unavailable",
-                },
-                "unsupported": ["fbx_mesh_import_unavailable", "fbx_skeleton_import_unavailable", "fbx_animation_import_unavailable"],
-                "diagnostics": [native_error or "FBX import needs the bundled cdmw_mesh_core ufbx bridge to be built and available."],
-            }
         try:
             from cdmw.modding.scene_importer import import_scene_mesh_with_report
 
@@ -469,35 +182,6 @@ class AssetAuthoringService:
             "topology": topology,
             "warnings": warnings,
             "policy": "Mesh health reports are preflight-only; cleanup must be applied through undoable mesh edit operations.",
-        }
-
-    def mesh_optimization_report(
-        self,
-        mesh: object,
-        *,
-        original_mesh: object | None = None,
-        simplify_ratio: float = 1.0,
-        target_error: float = 0.01,
-    ) -> dict[str, object]:
-        ratio = _bounded_float(simplify_ratio, 1.0, 0.0, 1.0)
-        error = _bounded_float(target_error, 0.01, 0.0, 1.0)
-        native = _native_mesh_optimization_report(mesh, ratio, error)
-        topology = _mesh_topology_delta(original_mesh, mesh) if original_mesh is not None else {"available": False}
-        warnings = _mesh_optimization_warnings(native, topology, ratio)
-        native_ok = native.get("status") == "ok"
-        return {
-            "schema": ASSET_AUTHORING_MESH_OPTIMIZATION_SCHEMA,
-            "status": "issues_found" if native_ok and warnings else ("ok" if native_ok else "unavailable"),
-            "mutates": False,
-            "simplification": {
-                "opt_in": ratio < 1.0,
-                "target_ratio": ratio,
-                "target_error": error,
-            },
-            "native_optimization": native,
-            "topology": topology,
-            "warnings": warnings,
-            "policy": "Mesh optimization reports are preflight-only; simplification is opt-in and package output stays conservative for unsafe topology changes.",
         }
 
     def uv_authoring_report(
@@ -951,23 +635,6 @@ def _configured_path(
     return Path(text).expanduser() if text else None
 
 
-def _configured_text(
-    short_key: str,
-    setting_key: str,
-    env_key: str,
-    settings: object | None,
-    configured_paths: Mapping[str, object],
-) -> object:
-    raw = configured_paths.get(short_key, configured_paths.get(setting_key, ""))
-    if not raw and env_key:
-        raw = os.environ.get(env_key, "")
-    if not raw and setting_key and settings is not None:
-        value = getattr(settings, "value", None)
-        if callable(value):
-            raw = value(setting_key, "")
-    return raw or ""
-
-
 def _external_path(spec: AssetAuthoringHelperSpec, configured_path: Path | None) -> tuple[Path | None, str]:
     if configured_path is not None:
         return (configured_path if configured_path.is_file() else None), "configured"
@@ -1052,65 +719,6 @@ def _helper_version_from_output(spec: AssetAuthoringHelperSpec, stdout: str, std
     return spec.label if spec.module and not spec.executables else ""
 
 
-def _argv_from_template(template: object, replacements: Mapping[str, str]) -> list[str]:
-    if isinstance(template, Sequence) and not isinstance(template, (str, bytes, bytearray)):
-        return [str(part).format(**replacements) for part in template if str(part).strip()]
-    text = str(template or "").strip()
-    if not text:
-        return []
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
-        parts = shlex.split(text, posix=os.name != "nt")
-    else:
-        if isinstance(parsed, list):
-            parts = [str(part) for part in parsed]
-        else:
-            parts = shlex.split(text, posix=os.name != "nt")
-    return [part.format(**replacements) for part in parts if str(part).strip()]
-
-
-def _normalized_channel_overrides(channel_overrides: Mapping[str, object] | None) -> dict[str, str]:
-    overrides: dict[str, str] = {}
-    for raw_key, raw_channel in (channel_overrides or {}).items():
-        channel = _normalize_channel(str(raw_channel or ""))
-        if channel:
-            overrides[_filename_key(raw_key)] = channel
-    return overrides
-
-
-def _texture_channel_for_path(path: Path, overrides: Mapping[str, str]) -> str:
-    for key in (path.name, path.stem):
-        override = overrides.get(_filename_key(key))
-        if override:
-            return override
-    stem = _split_texture_name(path.stem)
-    compact = "".join(stem)
-    token_set = set(stem)
-    for channel in ("recolor", "base_color", "normal", "roughness", "metallic", "ao", "height", "mask"):
-        aliases = _CHANNEL_ALIASES[channel]
-        if compact in aliases or aliases.intersection(token_set) or any(alias in compact for alias in aliases if len(alias) > 3):
-            return channel
-    return ""
-
-
-def _normalize_channel(channel: str) -> str:
-    compact = "".join(_split_texture_name(channel))
-    for key, aliases in _CHANNEL_ALIASES.items():
-        if compact == key.replace("_", "") or compact in aliases:
-            return key
-    return ""
-
-
-def _filename_key(value: object) -> str:
-    return str(value or "").replace("\\", "/").rsplit("/", 1)[-1].lower()
-
-
-def _split_texture_name(name: str) -> tuple[str, ...]:
-    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", str(name or ""))
-    return tuple(token for token in re.split(r"[^a-z0-9]+", spaced.lower()) if token)
-
-
 def _scene_mesh_summary(mesh: object) -> dict[str, object]:
     submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
     return {
@@ -1144,18 +752,6 @@ def _scene_submesh_summary(index: int, submesh: object) -> dict[str, object]:
         "has_tangents": len(tuple(getattr(submesh, "tangents", ()) or ())) == len(vertices) if vertices else False,
         "has_skinning": bool(getattr(submesh, "bone_indices", ()) or getattr(submesh, "bone_weights", ())),
     }
-
-
-def _ufbx_material_hints(native_report: Mapping[str, object]) -> list[dict[str, object]]:
-    materials = native_report.get("materials")
-    names = tuple(materials.get("names", ()) if isinstance(materials, Mapping) else ())
-    return [{"name": str(name), "source": "ufbx"} for name in names]
-
-
-def _ufbx_texture_hints(native_report: Mapping[str, object]) -> list[dict[str, object]]:
-    textures = native_report.get("texture_hints")
-    files = tuple(textures.get("files", ()) if isinstance(textures, Mapping) else ())
-    return [{"kind": "referenced", "path": str(path), "source": "ufbx"} for path in files]
 
 
 def _scene_material_hints(scene_result: object) -> list[dict[str, object]]:
@@ -1465,45 +1061,6 @@ def _native_auto_uv_report(mesh: object, atlas_size: tuple[int, int]) -> dict[st
         "unwrap_backend": "xatlas",
         "message": "cdmw_mesh_core auto-uv-json is unavailable.",
     }
-
-
-def _native_mesh_optimization_report(mesh: object, simplify_ratio: float, target_error: float) -> dict[str, object]:
-    try:
-        from cdmw.modding.mesh_native_core import native_mesh_optimization_report
-
-        submesh_indices = set(range(len(tuple(getattr(mesh, "submeshes", ()) or ()))))
-        report = native_mesh_optimization_report(
-            mesh,  # type: ignore[arg-type]
-            submesh_indices,
-            simplify_ratio=simplify_ratio,
-            target_error=target_error,
-        )
-    except Exception as exc:
-        return {"status": "error", "optimization_backend": "meshoptimizer", "message": str(exc)}
-    if isinstance(report, dict):
-        return report
-    return {
-        "status": "unavailable",
-        "optimization_backend": "meshoptimizer",
-        "message": "cdmw_mesh_core optimize-json is unavailable.",
-    }
-
-
-def _mesh_optimization_warnings(
-    native: Mapping[str, object],
-    topology: Mapping[str, object],
-    simplify_ratio: float,
-) -> list[str]:
-    warnings: list[str] = []
-    if native.get("status") not in {"ok", "OK"}:
-        warnings.append("Native meshoptimizer report is unavailable.")
-    if simplify_ratio < 1.0 and not bool(native.get("topology_changed", False)):
-        warnings.append("Simplification requested but native output did not reduce triangle/index topology.")
-    if bool(native.get("topology_changed", False)):
-        warnings.append("Native simplification changes index topology; review before package output.")
-    if bool(topology.get("topology_changed", False)):
-        warnings.append("Current mesh topology differs from original; optimize output should be reviewed.")
-    return warnings
 
 
 def _uv_authoring_warnings(
@@ -1847,11 +1404,9 @@ def _mesh_topology_summary(mesh: object) -> dict[str, int]:
 __all__ = [
     "ASSET_AUTHORING_DISCOVERY_SCHEMA",
     "ASSET_AUTHORING_MESH_HEALTH_SCHEMA",
-    "ASSET_AUTHORING_MESH_OPTIMIZATION_SCHEMA",
     "ASSET_AUTHORING_SCENE_IMPORT_SCHEMA",
     "ASSET_AUTHORING_SOURCE_IMAGE_SCHEMA",
     "ASSET_AUTHORING_TANGENT_REPORT_SCHEMA",
-    "ASSET_AUTHORING_TEXTURE_SET_SCHEMA",
     "ASSET_AUTHORING_UV_REPORT_SCHEMA",
     "AssetAuthoringService",
     "asset_authoring_discovery_report",

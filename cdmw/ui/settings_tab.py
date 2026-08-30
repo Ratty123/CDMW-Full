@@ -1025,12 +1025,12 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         safety_layout.addWidget(self.capture_crash_details_checkbox)
         self.safety_page_layout.addWidget(safety_group)
 
-        asset_authoring_group = QGroupBox("Asset Authoring Helpers")
+        asset_authoring_group = QGroupBox("Asset Authoring Components")
         asset_authoring_layout = QVBoxLayout(asset_authoring_group)
         asset_authoring_layout.setContentsMargins(12, 14, 12, 12)
         asset_authoring_layout.setSpacing(8)
         asset_authoring_hint = QLabel(
-            "Optional helpers are detected here. Missing helpers do not block startup or package output."
+            "Bundled authoring components are detected here. Missing components do not block startup or package output."
         )
         asset_authoring_hint.setWordWrap(True)
         asset_authoring_hint.setObjectName("HintLabel")

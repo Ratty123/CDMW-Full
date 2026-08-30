@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from cdmw.services.asset_authoring_service import ASSET_AUTHORING_MESH_HEALTH_SCHEMA
-from cdmw.services.asset_authoring_service import ASSET_AUTHORING_MESH_OPTIMIZATION_SCHEMA
 from cdmw.services.asset_authoring_service import ASSET_AUTHORING_SOURCE_IMAGE_SCHEMA
 from cdmw.services.asset_authoring_service import ASSET_AUTHORING_TANGENT_REPORT_SCHEMA
 from cdmw.services.asset_authoring_service import ASSET_AUTHORING_UV_REPORT_SCHEMA
@@ -52,16 +51,8 @@ def run_asset_authoring_mesh_health(output_dir: Path) -> dict[str, object]:
 
     authoring = AssetAuthoringService()
     report = authoring.mesh_health_report(edited_mesh, original_mesh=original_mesh)
-    optimization_report = authoring.mesh_optimization_report(
-        edited_mesh,
-        original_mesh=original_mesh,
-        simplify_ratio=0.5,
-        target_error=0.02,
-    )
     report_path = output_dir / "asset_authoring_mesh_health.json"
-    optimization_path = output_dir / "asset_authoring_mesh_optimization.json"
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
-    optimization_path.write_text(json.dumps(optimization_report, indent=2, sort_keys=True), encoding="utf-8")
     totals = report.get("totals", {})
     topology = report.get("topology", {})
     topology_changed = isinstance(topology, Mapping) and bool(topology.get("topology_changed"))
@@ -73,14 +64,10 @@ def run_asset_authoring_mesh_health(output_dir: Path) -> dict[str, object]:
             and int(totals.get("degenerate_faces", 0) or 0) >= 1
             and int(totals.get("invalid_indices", 0) or 0) >= 1
             and topology_changed
-            and optimization_report.get("schema") == ASSET_AUTHORING_MESH_OPTIMIZATION_SCHEMA
-            and not bool(optimization_report.get("mutates", True))
         ),
         "report_path": str(report_path),
-        "optimization_report_path": str(optimization_path),
         "totals": totals,
         "topology_changed": topology_changed,
-        "optimization_status": str(optimization_report.get("status") or ""),
     }
 
 def run_asset_authoring_uv_report(output_dir: Path) -> dict[str, object]:

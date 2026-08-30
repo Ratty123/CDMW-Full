@@ -199,18 +199,10 @@ def tangent_basis_report() -> Dict[str, object]:
 
 
 def import_preflight_report() -> Dict[str, object]:
-    ufbx = {"status": "python_module_detected" if _module_available("ufbx") else "not_detected", "path": ""}
     return {
         "schema_version": ASSET_FIDELITY_PREFLIGHT_SCHEMA_VERSION,
         "policy": "validators/bridges only; not Crimson binary truth",
-        "adapters": {
-            "ufbx": {
-                **ufbx,
-                "bundled_feasibility": "not_bundled",
-                "role": "health_report_only",
-                "checks": ["FBX skinning", "blend shapes", "embedded textures", "PBR material mapping"],
-            },
-        },
+        "adapters": {},
     }
 
 
@@ -366,7 +358,7 @@ def mesh_health_report(manifest: Mapping[str, object] | None = None, *, package_
     weld_candidate_vertices = sum(_safe_int(item.get("weld_candidate_vertices"), 0) for item in batch_health)
     return {
         "schema_version": ASSET_FIDELITY_PREFLIGHT_SCHEMA_VERSION,
-        "style": "meshoptimizer_gltf_transform_health_report",
+        "style": "builtin_gltf_transform_health_report",
         "status": "builtin_report_only",
         "vertex_count": vertex_count,
         "face_count": face_count,
@@ -388,7 +380,6 @@ def mesh_health_report(manifest: Mapping[str, object] | None = None, *, package_
             "LOD/simplify candidate",
         ],
         "external_backends": {
-            "meshoptimizer": {"status": "not_bundled", "role": "future_optional"},
             "glTF-Transform": {"status": "not_bundled", "role": "future_optional"},
         },
     }

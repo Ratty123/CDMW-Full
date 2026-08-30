@@ -46,14 +46,13 @@ loose-package patching. `ModelLibraryService` coordinates local scans, SQLite
 catalogues, downloads, and ZIP/import-path resolution. Their UI callers keep
 slow requests in existing cancellable workers.
 
-`asset_authoring_service.py` owns optional helper discovery, Material Maker
-command handoff, review-only texture-set ingest, source scene import reports,
-UV/tangent authoring reports, pre-mutation mesh health reports, and OpenImageIO
-source image handoff commands for asset-authoring tools. Missing helpers are
-reported as unavailable/configured-missing and must not break startup.
-Generated/source maps stay intermediates; DDS output remains on the existing
-CDMW/DirectXTex paths. Exact helper versions are opt-in discovery probes so
-normal startup does not run external tools.
+`asset_authoring_service.py` owns discovery for active Mesh Core, xatlas, and
+OpenImageIO components, plus source scene import, UV/tangent authoring, and
+pre-mutation mesh health reports. Missing components are reported as
+unavailable/configured-missing and must not break startup. Source maps stay
+intermediates; DDS output remains on the existing CDMW/DirectXTex paths. Exact
+component versions are opt-in discovery probes so normal startup does not run
+external tools.
 
 `new_item_service.py`, `new_item_snapshot.py` and `new_item_planning.py` are the
 New Item Studio's boundary: a read-only snapshot of the tables a brand-new item

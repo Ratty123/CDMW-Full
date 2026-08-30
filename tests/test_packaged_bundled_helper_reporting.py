@@ -118,7 +118,8 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         keys = {entry["key"] for entry in snapshot}
         self.assertIn("openimageio", keys)
         self.assertIn("cdmw_mesh_core", keys)
-        self.assertNotIn("material_maker", keys)
+        for removed in ("material_maker", "ufbx", "meshoptimizer"):
+            self.assertNotIn(removed, keys)
         for entry in snapshot:
             self.assertEqual({"key", "status", "source", "path"}, set(entry))
 

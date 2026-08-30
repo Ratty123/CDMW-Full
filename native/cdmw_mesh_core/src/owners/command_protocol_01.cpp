@@ -493,38 +493,6 @@ int edit_json_command(const std::string& job_path, const std::string& report_pat
     }
 }
 
-int optimize_json_command(const std::string& job_path, const std::string& report_path) {
-    try {
-        JsonParser parser(read_text_file(job_path));
-        const JsonValue root = parser.parse();
-        write_text_file(report_path, optimize_report_json(run_optimize(root)));
-        return 0;
-    } catch (const std::exception& exc) {
-        try {
-            write_text_file(report_path, error_report_json(exc.what()));
-        } catch (...) {
-        }
-        std::cerr << exc.what() << "\n";
-        return 2;
-    }
-}
-
-int import_scene_json_command(const std::string& job_path, const std::string& report_path) {
-    try {
-        JsonParser parser(read_text_file(job_path));
-        const JsonValue root = parser.parse();
-        write_text_file(report_path, import_scene_report_json(root));
-        return 0;
-    } catch (const std::exception& exc) {
-        try {
-            write_text_file(report_path, error_report_json(exc.what()));
-        } catch (...) {
-        }
-        std::cerr << exc.what() << "\n";
-        return 2;
-    }
-}
-
 int preview_identity_json_command(const std::string& job_path, const std::string& report_path) {
     try {
         JsonParser parser(read_text_file(job_path));
@@ -684,8 +652,6 @@ int mesh_core_json_command(const std::string& command, const std::string& job_pa
     if (command == "fbx-export-json") return fbx_export_json_command(job_path, report_path);
     if (command == "cleanup-json") return cleanup_json_command(job_path, report_path);
     if (command == "edit-json") return edit_json_command(job_path, report_path);
-    if (command == "optimize-json") return optimize_json_command(job_path, report_path);
-    if (command == "import-scene-json") return import_scene_json_command(job_path, report_path);
     if (command == "preview-identity-json") return preview_identity_json_command(job_path, report_path);
     if (command == "preview-model-json") return preview_model_json_command(job_path, report_path);
     if (command == "preview-geometry-json") return preview_geometry_json_command(job_path, report_path);

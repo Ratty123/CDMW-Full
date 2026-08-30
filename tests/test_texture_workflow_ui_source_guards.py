@@ -31,7 +31,7 @@ README = REPO_ROOT / "README.md"
 
 
 class TextureWorkflowUiSourceGuards(unittest.TestCase):
-    def test_material_maker_panel_uses_worker_and_existing_preview_refresh(self) -> None:
+    def test_asset_authoring_panel_uses_openimageio_worker_and_persistence(self) -> None:
         panel_source = TEXTURE_WORKFLOW_ASSET_AUTHORING_PANEL.read_text(encoding="utf-8")
         settings_panel_source = TEXTURE_WORKFLOW_SETTINGS_PANEL.read_text(encoding="utf-8")
         autosave_source = SETTINGS_AUTOSAVE.read_text(encoding="utf-8")
@@ -41,21 +41,20 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         )
 
         self.assertIn("class TextureWorkflowAssetAuthoringPanelMixin", panel_source)
-        self.assertIn("MaterialMakerExportWorker", panel_source)
         self.assertIn("OpenImageIOTaskWorker", panel_source)
+        self.assertNotIn("MaterialMakerExportWorker", panel_source)
+        self.assertNotIn("Material Maker", panel_source)
         self.assertIn("QThread(self)", panel_source)
         self.assertIn("self.utility_worker = worker", panel_source)
-        self.assertIn("worker.progress_changed.connect(self._handle_material_maker_export_progress)", panel_source)
         self.assertIn("worker.completed.connect(self._handle_openimageio_task_complete)", panel_source)
         self.assertIn("thread.finished.connect(self._cleanup_worker_refs)", panel_source)
-        self.assertIn("service.open_material_maker_project", panel_source)
-        self.assertIn("refresh_compare_list(select_current=True)", panel_source)
-        self.assertIn("_force_refresh_current_model_preview_assets", panel_source)
+        self.assertIn("_queue_current_compare_preview_if_visible", panel_source)
         self.assertNotIn("subprocess", panel_source)
         self.assertIn("class TextureWorkflowSettingsPanelMixin(TextureWorkflowAssetAuthoringPanelMixin)", settings_panel_source)
-        self.assertIn("self.material_maker_project_edit", autosave_source)
+        self.assertNotIn("self.material_maker_project_edit", autosave_source)
+        self.assertIn("self.openimageio_source_path_edit", autosave_source)
         self.assertIn("self.asset_authoring_section,", autosave_source)
-        self.assertIn('"asset_authoring/material_maker_project_path"', persistence_source)
+        self.assertNotIn('"asset_authoring/material_maker_project_path"', persistence_source)
         self.assertIn('"asset_authoring/oiio_source_path"', persistence_source)
         self.assertIn('"sections/asset_authoring_expanded"', persistence_source)
 

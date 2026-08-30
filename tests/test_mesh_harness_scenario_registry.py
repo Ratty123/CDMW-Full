@@ -60,7 +60,7 @@ def test_registry_validation_rejects_non_vortice_production_or_default_legacy() 
 
 def test_nonvisual_harness_metadata_names_optional_backends_truthfully() -> None:
     assert scenario_metadata("service-smoke").expected_backend == "native-mesh-core-or-python-fallback"
-    assert scenario_metadata("asset-authoring-mesh-health").expected_backend == "python+optional-meshoptimizer"
+    assert scenario_metadata("asset-authoring-mesh-health").expected_backend == "python"
     assert scenario_metadata("asset-authoring-uv-report").expected_backend == "python+optional-xatlas"
     assert scenario_metadata("real-archive-app-workflow-smoke").expected_backend == "qt-offscreen+python"
     load = scenario_metadata("real-archive-mesh-editor-load-smoke")

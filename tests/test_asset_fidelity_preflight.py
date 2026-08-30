@@ -71,6 +71,7 @@ class AssetFidelityPreflightTests(unittest.TestCase):
         )
 
         self.assertIn("dds_encoder_matrix", manifest)
+        self.assertEqual({}, manifest["import_validators"]["adapters"])
         self.assertEqual(1, manifest["mesh_health"]["missing_uv_batches"])
         self.assertEqual(1, manifest["mesh_health"]["missing_tangent_batches"])
         self.assertEqual("green_up_asset_inverted_for_directx_preview", manifest["normal_y_policy"]["normal_y_mode"])

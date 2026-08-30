@@ -65,12 +65,6 @@ def finish_texture_workflow_panel_body(shell, panel: str) -> None:
 
 def load_asset_authoring_panel_settings(shell, defaults) -> None:
     del defaults
-    shell.material_maker_project_edit.setText(
-        str(shell.settings.value("asset_authoring/material_maker_project_path", "") or "")
-    )
-    shell.material_maker_export_dir_edit.setText(
-        str(shell.settings.value("asset_authoring/material_maker_export_dir", "") or "")
-    )
     shell.openimageio_source_path_edit.setText(
         str(shell.settings.value("asset_authoring/oiio_source_path", "") or "")
     )

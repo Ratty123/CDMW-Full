@@ -647,32 +647,6 @@ struct SubmeshCleanupResult {
     bool suppress_index_map_report = false;
 };
 
-struct OptimizationStats {
-    double cache_acmr = 0.0;
-    double cache_atvr = 0.0;
-    double overdraw = 0.0;
-    double overfetch = 0.0;
-};
-
-struct SubmeshOptimizeResult {
-    int index = -1;
-    std::vector<std::array<int, 3>> faces;
-    int input_vertex_count = 0;
-    int input_index_count = 0;
-    int input_triangle_count = 0;
-    int output_index_count = 0;
-    int output_triangle_count = 0;
-    int referenced_vertex_count = 0;
-    int fetch_vertex_count = 0;
-    double target_ratio = 1.0;
-    double target_error = 0.01;
-    double result_error = 0.0;
-    bool simplified = false;
-    bool topology_changed = false;
-    OptimizationStats before;
-    OptimizationStats after;
-};
-
 struct VertexBlend {
     int index = -1;
     int left = -1;

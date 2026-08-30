@@ -484,8 +484,6 @@ from cdmw.modding.mesh_native_normals import (
 
 from cdmw.modding.mesh_native_uv import (
     native_mesh_auto_uv_report as native_mesh_auto_uv_report,
-    native_scene_import_report as native_scene_import_report,
-    native_mesh_optimization_report as native_mesh_optimization_report,
     apply_native_mesh_auto_uv as apply_native_mesh_auto_uv,
     apply_native_mesh_uv_transform as apply_native_mesh_uv_transform,
     apply_native_mesh_uv_transform_submeshes as apply_native_mesh_uv_transform_submeshes,
@@ -708,9 +706,7 @@ __all__ = [
     "native_mesh_editor_session_preview_vertex_update_groups",
     "native_mesh_editor_session_selection_from_report",
     "native_mesh_editor_session_selection_groups_from_report",
-    "native_mesh_optimization_report",
     "native_mesh_history_delta_positions",
-    "native_scene_import_report",
     "prune_native_mesh_selection",
     "restore_native_mesh_submeshes_from_mesh",
     "restore_native_mesh_submesh_snapshot",

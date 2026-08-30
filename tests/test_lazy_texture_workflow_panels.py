@@ -58,7 +58,7 @@ class LazyTextureWorkflowPanelTests(unittest.TestCase):
         window, settings = self._window(
             {
                 "settings/dry_run": True,
-                "asset_authoring/material_maker_project_path": "C:/assets/material.mm",
+                "asset_authoring/oiio_source_path": "C:/assets/source.exr",
                 "dds_output/custom_width": 2048,
                 "settings/include_filters": "characters/*",
                 "chainner/exe_path": "C:/tools/chainner.exe",
@@ -66,7 +66,7 @@ class LazyTextureWorkflowPanelTests(unittest.TestCase):
         )
         panels = (
             (window.settings_section, "dry_run_checkbox"),
-            (window.asset_authoring_section, "material_maker_project_edit"),
+            (window.asset_authoring_section, "openimageio_source_path_edit"),
             (window.dds_output_section, "dds_custom_width_spin"),
             (window.filters_section, "filters_edit"),
             (window.chainner_section, "chainner_exe_path_edit"),
@@ -79,13 +79,13 @@ class LazyTextureWorkflowPanelTests(unittest.TestCase):
             section.set_expanded(True)
 
         self.assertTrue(window.dry_run_checkbox.isChecked())
-        self.assertEqual("C:/assets/material.mm", window.material_maker_project_edit.text())
+        self.assertEqual("C:/assets/source.exr", window.openimageio_source_path_edit.text())
         self.assertEqual(2048, window.dds_custom_width_spin.value())
         self.assertEqual("characters/*", window.filters_edit.toPlainText())
         self.assertEqual("C:/tools/chainner.exe", window.chainner_exe_path_edit.text())
 
         window._save_settings()
-        self.assertEqual("C:/assets/material.mm", settings.value("asset_authoring/material_maker_project_path"))
+        self.assertEqual("C:/assets/source.exr", settings.value("asset_authoring/oiio_source_path"))
 
     def test_persisted_expanded_panel_is_ready_during_window_construction(self) -> None:
         window, _settings = self._window(

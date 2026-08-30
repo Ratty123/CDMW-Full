@@ -114,8 +114,6 @@ class SettingsPersistenceMixin:
         self.settings.setValue("paths/dds_staging_root", self.dds_staging_root_edit.text())
         self.settings.setValue("paths/output_root", self.output_root_edit.text())
         if self.asset_authoring_section.is_body_built():
-            self.settings.setValue("asset_authoring/material_maker_project_path", self.material_maker_project_edit.text())
-            self.settings.setValue("asset_authoring/material_maker_export_dir", self.material_maker_export_dir_edit.text())
             self.settings.setValue("asset_authoring/oiio_source_path", self.openimageio_source_path_edit.text())
             self.settings.setValue("asset_authoring/oiio_output_path", self.openimageio_output_path_edit.text())
             self.settings.setValue("asset_authoring/oiio_compare_path", self.openimageio_compare_path_edit.text())

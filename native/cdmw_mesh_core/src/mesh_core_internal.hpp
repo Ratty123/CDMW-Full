@@ -26,9 +26,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "meshoptimizer.h"
 #include "mikktspace.h"
-#include "ufbx.h"
 #include "xatlas.h"
 
 #include "mesh_core.hpp"
