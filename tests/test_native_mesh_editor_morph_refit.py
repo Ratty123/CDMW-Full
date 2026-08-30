@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
+import json
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -11,6 +14,7 @@ from cdmw.domain.mesh import (
     MeshMorphRule,
     build_weighted_morph_selection,
     generate_procedural_morph_fields,
+    mesh_topology_fingerprint,
     procedural_morph_pivot,
 )
 from cdmw.modding import mesh_native_core
@@ -836,3 +840,213 @@ def test_refit_clearance_relief_pushes_a_stationary_garment_out_of_a_moving_driv
         for axis in range(3)
     )
     assert signed_clearance == pytest.approx((2.0**0.5) * 0.01)
+
+
+def test_morph_runtime_snapshot_is_file_backed_exact_and_restores_without_recomposition() -> None:
+    mesh = _driver_garment_mesh()
+    source_session = _open(mesh)
+    target_session = ""
+    snapshot: dict[str, object] | None = None
+    try:
+        _command(source_session, "morph_upload", _profile_payload(mesh))
+        _command(source_session, "morph_set_driver", {"submesh_indices": [0, 1]})
+        _command(source_session, "morph_bind", {"garment_submesh_indices": [2]})
+        _command(
+            source_session,
+            "morph_configure_refit",
+            {
+                "garment_submesh_indices": [2],
+                "enabled": True,
+                "intensity_percent": 125.0,
+                "mode": "rigid",
+                "clearance_percent": 1.0,
+            },
+        )
+        _change(source_session, 75.0, "end", "snapshot-source")
+        source_geometry = _snapshot(mesh, source_session)
+        snapshot = mesh_native_core.create_native_mesh_editor_morph_runtime_snapshot(
+            source_session,
+            timeout_seconds=15.0,
+        )
+        assert snapshot is not None
+        snapshot_path = Path(str(snapshot["path"]))
+        snapshot_bytes = snapshot_path.read_bytes()
+        snapshot_document = json.loads(snapshot_bytes)
+        runtime = snapshot_document["runtime"]
+        refit = runtime["refit"]
+
+        assert snapshot["schema"] == "cdmw_mesh_editor_morph_runtime_snapshot_v1"
+        assert snapshot["source_session_id"] == source_session
+        assert snapshot["byte_length"] == len(snapshot_bytes)
+        assert snapshot["sha256"] == hashlib.sha256(snapshot_bytes).hexdigest()
+        assert snapshot["topology_digest"] == snapshot_document["topology_digest"]
+        assert snapshot["topology_digest"] == mesh_topology_fingerprint(mesh)
+        assert snapshot["retained_bytes"] == snapshot_document["retained_bytes"]
+        assert snapshot_document["topology_digest_algorithm"] == "sha256"
+        assert runtime["profile"]["fields"][0]["deltas"] == [[0, 0, 1]] * 3
+        assert runtime["values"] == {"lift": 75}
+        assert {item["submesh_index"] for item in runtime["current_layer"]} == {0, 1, 2}
+        assert {item["submesh_index"] for item in refit["driver_baseline_positions"]} == {0, 1}
+        assert len(refit["bindings"]) == len(mesh.submeshes[2].vertices)
+        assert all(
+            {
+                "driver_vertices",
+                "barycentric",
+                "distance",
+                "baseline_normal",
+                "normal_height",
+                "rigid_local_offset",
+                "rigid_frame_valid",
+            }.issubset(binding)
+            for binding in refit["bindings"]
+        )
+        assert refit["garment_settings"] == [
+            {
+                "submesh_index": 2,
+                "enabled": True,
+                "intensity_percent": 125,
+                "mode": "rigid",
+                "clearance_percent": 1,
+            }
+        ]
+
+        restored_source = mesh_native_core.restore_native_mesh_editor_morph_runtime_snapshot(
+            source_session,
+            snapshot,
+            timeout_seconds=15.0,
+        )
+        assert restored_source is not None
+        assert restored_source["geometry_recomposed"] is False
+        assert restored_source["history_cleared"] is True
+        assert restored_source["gesture_cleared"] is True
+        after_source_restore = _snapshot(mesh, source_session)
+        for index in range(len(source_geometry.submeshes)):
+            _assert_positions_close(
+                after_source_restore.submeshes[index].vertices,
+                source_geometry.submeshes[index].vertices,
+            )
+        assert mesh_native_core.undo_native_mesh_editor_session(
+            source_session,
+            timeout_seconds=10.0,
+        ) is None
+
+        mesh_native_core.close_native_mesh_editor_session(source_session)
+        source_session = ""
+        mesh_native_core.invalidate_native_mesh_session_submeshes(
+            source_geometry,
+            range(len(source_geometry.submeshes)),
+        )
+        target_session = _open(source_geometry)
+        _command(target_session, "morph_upload", _profile_payload(source_geometry))
+        _change(target_session, 0.0, "end", "target-history")
+        before_restore = _snapshot(source_geometry, target_session)
+        restored_target = mesh_native_core.restore_native_mesh_editor_morph_runtime_snapshot(
+            target_session,
+            snapshot,
+            timeout_seconds=15.0,
+        )
+        after_restore = _snapshot(source_geometry, target_session)
+        state = _state(target_session)
+
+        assert restored_target is not None
+        assert restored_target["geometry_recomposed"] is False
+        for index in range(len(before_restore.submeshes)):
+            _assert_positions_close(
+                after_restore.submeshes[index].vertices,
+                before_restore.submeshes[index].vertices,
+            )
+        assert state["profile_id"] == "body"
+        assert state["values"] == {"lift": 75}
+        assert state["refit"]["bound_vertex_count"] == len(mesh.submeshes[2].vertices)  # type: ignore[index]
+        assert state["refit"]["garment_settings"] == [  # type: ignore[index]
+            {
+                "submesh_index": 2,
+                "enabled": True,
+                "intensity_percent": 125,
+                "mode": "rigid",
+                "clearance_percent": 1,
+            }
+        ]
+        assert mesh_native_core.undo_native_mesh_editor_session(
+            target_session,
+            timeout_seconds=10.0,
+        ) is None
+
+        _change(target_session, 50.0, "end", "after-restore")
+        after_change = _snapshot(source_geometry, target_session)
+        for driver_index in (0, 1):
+            _assert_positions_close(
+                after_change.submeshes[driver_index].vertices,
+                [(x, y, z + 0.5) for x, y, z in mesh.submeshes[driver_index].vertices],
+            )
+        _assert_positions_close(
+            after_change.submeshes[2].vertices,
+            [(x, y, z + 0.625) for x, y, z in mesh.submeshes[2].vertices],
+        )
+    finally:
+        if source_session:
+            mesh_native_core.close_native_mesh_editor_session(source_session)
+        if target_session:
+            mesh_native_core.close_native_mesh_editor_session(target_session)
+        if snapshot is not None:
+            snapshot_path = Path(str(snapshot["path"]))
+            assert mesh_native_core.dispose_native_mesh_editor_morph_runtime_snapshot(
+                snapshot,
+                timeout_seconds=10.0,
+            )
+            assert not snapshot_path.exists()
+
+
+def test_morph_runtime_snapshot_rejects_busy_capture_and_topology_mismatch_atomically() -> None:
+    mesh = _driver_garment_mesh()
+    source_session = _open(mesh)
+    target_session = ""
+    snapshot: dict[str, object] | None = None
+    try:
+        _command(source_session, "morph_upload", _profile_payload(mesh))
+        _change(source_session, 25.0, "begin", "busy-snapshot")
+        assert mesh_native_core.create_native_mesh_editor_morph_runtime_snapshot(
+            source_session,
+            timeout_seconds=10.0,
+        ) is None
+        assert _state(source_session)["busy"] is True
+        _change(source_session, 25.0, "cancel", "busy-snapshot")
+        snapshot = mesh_native_core.create_native_mesh_editor_morph_runtime_snapshot(
+            source_session,
+            timeout_seconds=15.0,
+        )
+        assert snapshot is not None
+
+        mismatched = deepcopy(mesh)
+        mismatched.submeshes[0].faces[0] = (0, 2, 1)
+        mesh_native_core.invalidate_native_mesh_session_submeshes(
+            mismatched,
+            range(len(mismatched.submeshes)),
+        )
+        target_session = _open(mismatched)
+        before_state = _state(target_session)
+        before_geometry = _snapshot(mismatched, target_session)
+        assert mesh_native_core.restore_native_mesh_editor_morph_runtime_snapshot(
+            target_session,
+            snapshot,
+            timeout_seconds=15.0,
+        ) is None
+        after_state = _state(target_session)
+        after_geometry = _snapshot(mismatched, target_session)
+
+        assert after_state == before_state
+        for index in range(len(before_geometry.submeshes)):
+            _assert_positions_close(
+                after_geometry.submeshes[index].vertices,
+                before_geometry.submeshes[index].vertices,
+            )
+            assert after_geometry.submeshes[index].faces == before_geometry.submeshes[index].faces
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(source_session)
+        if target_session:
+            mesh_native_core.close_native_mesh_editor_session(target_session)
+        if snapshot is not None:
+            assert mesh_native_core.dispose_native_mesh_editor_morph_runtime_snapshot(
+                snapshot,
+                timeout_seconds=10.0,
+            )

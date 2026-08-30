@@ -15,6 +15,9 @@ std::string run_mesh_editor_session(const JsonValue& root) {
     if (command == "close") {
         return mesh_editor_close_session_report(session_id, native_session_id, started);
     }
+    if (command == "morph_snapshot_dispose") {
+        return mesh_editor_morph_snapshot_dispose_report(root, session_id, started);
+    }
 
     auto found = g_mesh_editor_sessions.find(session_id);
     if (found == g_mesh_editor_sessions.end()) {
@@ -26,6 +29,12 @@ std::string run_mesh_editor_session(const JsonValue& root) {
     }
     if (command == "morph_state") {
         return mesh_editor_morph_state_session_report(session_id, session, started);
+    }
+    if (command == "morph_snapshot_create") {
+        return mesh_editor_morph_snapshot_create_session_report(root, session_id, session, started);
+    }
+    if (command == "morph_snapshot_restore") {
+        return mesh_editor_morph_snapshot_restore_session_report(root, session_id, session, started);
     }
     if (command == "morph_upload") {
         return mesh_editor_morph_upload_session_report(root, session_id, session, started);

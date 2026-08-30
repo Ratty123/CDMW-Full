@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 from importlib import import_module
 import os
 from pathlib import Path
 import tempfile
 import threading
 from typing import Iterable, Mapping, Sequence
+from uuid import uuid4
 
 from cdmw.modding.mesh_native_binary_io import _read_i32_components_binary_report_payload, _read_int_binary_report_payload, _write_vec3_binary_payload
 from cdmw.modding.mesh_native_core_blend_helpers import _edge_list, _int_list
@@ -46,6 +48,10 @@ def _native_preview_delta_output_dir() -> str:
 
 def _native_preview_delta_output_path(suffix: str = ".bin") -> str:
     return _facade_attr("_native_preview_delta_output_path")(suffix)
+
+
+def _release_native_preview_delta_path(path: str | Path) -> bool:
+    return bool(_facade_attr("dispose_native_mesh_history_delta")({"path": str(path)}))
 
 
 def _native_selection_preview_group(*args, **kwargs):
@@ -614,6 +620,166 @@ def export_native_mesh_editor_session_snapshot(
         stop_event=stop_event,
         timeout_seconds=timeout_seconds,
     )
+
+
+_MORPH_RUNTIME_SNAPSHOT_SCHEMA = "cdmw_mesh_editor_morph_runtime_snapshot_v1"
+_MORPH_RUNTIME_SNAPSHOT_SUFFIX = "_morph_runtime_snapshot.json"
+_MORPH_RUNTIME_SNAPSHOT_MAX_BYTES = 256 * 1024 * 1024
+
+
+def _morph_runtime_snapshot_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validated_morph_runtime_snapshot_descriptor(
+    value: object,
+) -> dict[str, object] | None:
+    if not isinstance(value, Mapping):
+        return None
+    try:
+        if str(value.get("schema") or "") != _MORPH_RUNTIME_SNAPSHOT_SCHEMA:
+            return None
+        if int(value.get("version") or 0) != 1:
+            return None
+        snapshot_id = str(value.get("snapshot_id") or "").strip()
+        source_session_id = str(value.get("source_session_id") or "").strip()
+        raw_path = str(value.get("path") or "").strip()
+        sha256 = str(value.get("sha256") or "").strip().lower()
+        topology_digest = str(value.get("topology_digest") or "").strip().lower()
+        byte_length = int(value.get("byte_length") or 0)
+        retained_bytes = int(value.get("retained_bytes") or 0)
+        if not snapshot_id or len(snapshot_id) > 128 or not source_session_id:
+            return None
+        if len(sha256) != 64 or any(ch not in "0123456789abcdef" for ch in sha256):
+            return None
+        if len(topology_digest) != 64 or any(ch not in "0123456789abcdef" for ch in topology_digest):
+            return None
+        if not 0 < retained_bytes <= byte_length <= _MORPH_RUNTIME_SNAPSHOT_MAX_BYTES:
+            return None
+        path = Path(raw_path).resolve(strict=True)
+        temp_root = Path(tempfile.gettempdir()).resolve(strict=True)
+        if path.parent != temp_root:
+            return None
+        if not path.name.startswith("cdmw_mesh_preview_delta_") or not path.name.endswith(
+            _MORPH_RUNTIME_SNAPSHOT_SUFFIX
+        ):
+            return None
+        if not path.is_file() or path.stat().st_size != byte_length:
+            return None
+        if _morph_runtime_snapshot_sha256(path) != sha256:
+            return None
+    except (OSError, OverflowError, TypeError, ValueError):
+        return None
+    return {
+        "schema": _MORPH_RUNTIME_SNAPSHOT_SCHEMA,
+        "version": 1,
+        "snapshot_id": snapshot_id,
+        "source_session_id": source_session_id,
+        "path": str(path),
+        "byte_length": byte_length,
+        "sha256": sha256,
+        "topology_digest": topology_digest,
+        "retained_bytes": retained_bytes,
+    }
+
+
+def create_native_mesh_editor_morph_runtime_snapshot(
+    session_id: str,
+    *,
+    stop_event: threading.Event | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object] | None:
+    """Capture the exact resident Morph/Refit runtime into one owned file."""
+
+    session_text = str(session_id or "").strip()
+    if not session_text:
+        return None
+    path = Path(_native_preview_delta_output_path(_MORPH_RUNTIME_SNAPSHOT_SUFFIX))
+    retained = False
+    try:
+        path.unlink(missing_ok=True)
+        report = native_mesh_editor_session_command(
+            "morph_snapshot_create",
+            session_text,
+            {
+                "snapshot_id": uuid4().hex,
+                "snapshot_output_path": str(path),
+            },
+            stop_event=stop_event,
+            timeout_seconds=timeout_seconds,
+        )
+        descriptor = _validated_morph_runtime_snapshot_descriptor(
+            report.get("snapshot") if isinstance(report, Mapping) else None
+        )
+        if descriptor is None or Path(str(descriptor["path"])) != path.resolve():
+            return None
+        retained = True
+        return descriptor
+    except (OSError, OverflowError, RuntimeError, ValueError):
+        return None
+    finally:
+        if not retained:
+            _release_native_preview_delta_path(path)
+
+
+def restore_native_mesh_editor_morph_runtime_snapshot(
+    session_id: str,
+    snapshot: Mapping[str, object],
+    *,
+    stop_event: threading.Event | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object] | None:
+    """Restore runtime state directly; resident geometry is intentionally untouched."""
+
+    descriptor = _validated_morph_runtime_snapshot_descriptor(snapshot)
+    session_text = str(session_id or "").strip()
+    if descriptor is None or not session_text:
+        return None
+    return native_mesh_editor_session_command(
+        "morph_snapshot_restore",
+        session_text,
+        {
+            "snapshot_id": descriptor["snapshot_id"],
+            "snapshot_path": descriptor["path"],
+            "snapshot_byte_length": descriptor["byte_length"],
+            "snapshot_sha256": descriptor["sha256"],
+        },
+        stop_event=stop_event,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def dispose_native_mesh_editor_morph_runtime_snapshot(
+    snapshot: Mapping[str, object],
+    *,
+    stop_event: threading.Event | None = None,
+    timeout_seconds: float = 5.0,
+) -> bool:
+    """Validate and remove one app-owned Morph/Refit runtime snapshot."""
+
+    descriptor = _validated_morph_runtime_snapshot_descriptor(snapshot)
+    if descriptor is None:
+        return False
+    report = native_mesh_editor_session_command(
+        "morph_snapshot_dispose",
+        str(descriptor["source_session_id"]),
+        {
+            "snapshot_id": descriptor["snapshot_id"],
+            "snapshot_path": descriptor["path"],
+            "snapshot_byte_length": descriptor["byte_length"],
+            "snapshot_sha256": descriptor["sha256"],
+        },
+        stop_event=stop_event,
+        timeout_seconds=timeout_seconds,
+    )
+    if not isinstance(report, Mapping) or report.get("disposed") is not True:
+        return False
+    _release_native_preview_delta_path(str(descriptor["path"]))
+    return True
 
 
 def export_native_mesh_editor_session_to_mesh(

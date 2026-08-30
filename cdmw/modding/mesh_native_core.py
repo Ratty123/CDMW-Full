@@ -393,6 +393,15 @@ from cdmw.modding.mesh_native_session_api import redo_native_mesh_editor_session
 from cdmw.modding.mesh_native_session_api import export_native_mesh_editor_session_snapshot as export_native_mesh_editor_session_snapshot
 
 
+from cdmw.modding.mesh_native_session_api import create_native_mesh_editor_morph_runtime_snapshot as create_native_mesh_editor_morph_runtime_snapshot
+
+
+from cdmw.modding.mesh_native_session_api import restore_native_mesh_editor_morph_runtime_snapshot as restore_native_mesh_editor_morph_runtime_snapshot
+
+
+from cdmw.modding.mesh_native_session_api import dispose_native_mesh_editor_morph_runtime_snapshot as dispose_native_mesh_editor_morph_runtime_snapshot
+
+
 from cdmw.modding.mesh_native_session_api import export_native_mesh_editor_session_to_mesh as export_native_mesh_editor_session_to_mesh
 
 
@@ -636,6 +645,7 @@ __all__ = [
     "apply_native_mesh_affine_transform_submeshes",
     "apply_native_mesh_editor_session",
     "copy_native_mesh_editor_session",
+    "create_native_mesh_editor_morph_runtime_snapshot",
     "apply_native_mesh_bridge",
     "apply_native_mesh_brush",
     "apply_native_mesh_brush_binary_selection",
@@ -689,6 +699,7 @@ __all__ = [
     "decimate_native_mesh_preview_submeshes",
     "default_native_mesh_core_path",
     "dispose_native_mesh_history_delta",
+    "dispose_native_mesh_editor_morph_runtime_snapshot",
     "dispose_native_mesh_sparse_vertex_snapshot",
     "dispose_native_mesh_submesh_snapshot",
     "export_native_fbx",
@@ -709,6 +720,7 @@ __all__ = [
     "native_mesh_history_delta_positions",
     "prune_native_mesh_selection",
     "restore_native_mesh_submeshes_from_mesh",
+    "restore_native_mesh_editor_morph_runtime_snapshot",
     "restore_native_mesh_submesh_snapshot",
     "open_native_mesh_editor_session",
     "redo_native_mesh_editor_session",
