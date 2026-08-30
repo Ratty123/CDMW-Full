@@ -734,7 +734,10 @@ class GuidedEffectsWorkspace(QWidget):
                 self.compatibility_label.setText(str(getattr(compatibility, "message", "Compatible")))
             else:
                 count = len(targets)
-                self.compatibility_label.setText(f"Compatible  ·  {count} target{'s' if count != 1 else ''}")
+                if count == 1:
+                    self.compatibility_label.setText(f"Compatible  ·  {count} target")
+                else:
+                    self.compatibility_label.setText(f"Compatible  ·  {count} targets")
         else:
             self.compatibility_label.setText("\n".join(compatibility.errors))
 

@@ -223,6 +223,25 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertTrue(workspace.selection_detail.isVisibleTo(workspace))
         self.assertEqual(workspace.selection_detail.text(), "fx_fire_hit")
 
+    def test_compatibility_target_count_uses_complete_plural_messages(self) -> None:
+        workspace, controller, _confirmations = self._workspace()
+        controller.effect_target_compatibility = lambda _stem: SimpleNamespace(
+            supported=True,
+            target_prefabs=("one",),
+            errors=(),
+        )
+        workspace.choose_effect("fx_fire_hit")
+        self.app.processEvents()
+        self.assertEqual(workspace.compatibility_label.text(), "Compatible  ·  1 target")
+
+        controller.effect_target_compatibility = lambda _stem: SimpleNamespace(
+            supported=True,
+            target_prefabs=("one", "two"),
+            errors=(),
+        )
+        workspace._refresh_compatibility()
+        self.assertEqual(workspace.compatibility_label.text(), "Compatible  ·  2 targets")
+
     def test_the_virtual_model_keeps_all_six_thousand_rows(self) -> None:
         model = EffectLibraryModel()
         rows = tuple(EffectLibraryRow.from_stem(f"fx_{index:04d}", None) for index in range(6000))
