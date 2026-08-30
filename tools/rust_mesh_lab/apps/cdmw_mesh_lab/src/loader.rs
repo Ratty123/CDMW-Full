@@ -1355,10 +1355,11 @@ fn owned_preview_texture_references(
     let mut claims = BTreeMap::<(usize, u32, TextureRole), BTreeSet<String>>::new();
     for candidate in &candidates {
         let normalized = normalize_virtual_path(&candidate.reference.path);
+        let slot = preview_sampling_slot(candidate.reference.role);
         for (lod_index, materials) in candidate.material_indices_by_lod.iter().enumerate() {
             for material in materials {
                 claims
-                    .entry((lod_index, *material, candidate.reference.role))
+                    .entry((lod_index, *material, slot))
                     .or_default()
                     .insert(normalized.clone());
             }
@@ -1376,10 +1377,13 @@ fn owned_preview_texture_references(
     }
 
     let mut grouped = BTreeMap::<(TextureRole, String), OwnedTextureReference>::new();
+    let mut claimed_owners = BTreeSet::<(usize, u32, TextureRole)>::new();
     for mut candidate in candidates {
+        let slot = preview_sampling_slot(candidate.reference.role);
         for (lod_index, materials) in candidate.material_indices_by_lod.iter_mut().enumerate() {
             materials.retain(|material| {
-                !ambiguous.contains(&(lod_index, *material, candidate.reference.role))
+                let owner = (lod_index, *material, slot);
+                !ambiguous.contains(&owner) && claimed_owners.insert(owner)
             });
         }
         if candidate.material_indices_by_lod.iter().all(Vec::is_empty) {
@@ -1415,8 +1419,16 @@ const fn is_preview_sampled_role(role: TextureRole) -> bool {
             | TextureRole::Occlusion
             | TextureRole::Emissive
             | TextureRole::Specular
+            | TextureRole::Glossiness
             | TextureRole::Opacity
     )
+}
+
+const fn preview_sampling_slot(role: TextureRole) -> TextureRole {
+    match role {
+        TextureRole::Glossiness => TextureRole::Specular,
+        other => other,
+    }
 }
 
 fn material_indices_for_reference(
@@ -2028,6 +2040,7 @@ mod tests {
             "body_emi.dds",
             "body_spec.dds",
             "body_opacity.dds",
+            "body_gloss.dds",
         ] {
             fs::write(
                 texture_directory.join(name),
@@ -2036,11 +2049,14 @@ mod tests {
         }
         fs::write(
             &sidecar,
-            br##"<SkinnedMeshMaterialWrapper _subMeshName="part-0"><Material _materialName="SkinnedMeshEmissive"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_base.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/><MaterialParameterTexture _name="_materialTexture" Value="character/texture/body_sp.dds"/><MaterialParameterTexture _name="_roughnessTexture" Value="character/texture/body_rough.dds"/><MaterialParameterTexture _name="_metalnessTexture" Value="character/texture/body_metal.dds"/><MaterialParameterTexture _name="_ambientOcclusionTexture" Value="character/texture/body_ao.dds"/><MaterialParameterTexture _name="_emissiveIntensityTexture" Value="character/texture/body_emi.dds"/><MaterialParameterTexture _name="_specularTexture" Value="character/texture/body_spec.dds"/><MaterialParameterTexture _name="_opacityTexture" Value="character/texture/body_opacity.dds"/><MaterialParameterTexture _name="_glossinessTexture" Value="character/texture/body_gloss.dds"/><MaterialParameterColor _name="_emissiveColor" _value="#204060ff"/><MaterialParameterFloat _name="_emissiveIntensity" _value="2.5"/><MaterialParameterBoolean _name="_alphaTest" _value="true"/></Material></SkinnedMeshMaterialWrapper>"##,
+            br##"<Root><SkinnedMeshMaterialWrapper _subMeshName="part-0"><Material _materialName="SkinnedMeshEmissive"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_base.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/><MaterialParameterTexture _name="_materialTexture" Value="character/texture/body_sp.dds"/><MaterialParameterTexture _name="_roughnessTexture" Value="character/texture/body_rough.dds"/><MaterialParameterTexture _name="_metalnessTexture" Value="character/texture/body_metal.dds"/><MaterialParameterTexture _name="_ambientOcclusionTexture" Value="character/texture/body_ao.dds"/><MaterialParameterTexture _name="_emissiveIntensityTexture" Value="character/texture/body_emi.dds"/><MaterialParameterTexture _name="_opacityTexture" Value="character/texture/body_opacity.dds"/><MaterialParameterTexture _name="_glossinessTexture" Value="character/texture/body_gloss.dds"/><MaterialParameterColor _name="_emissiveColor" _value="#204060ff"/><MaterialParameterFloat _name="_emissiveIntensity" _value="2.5"/><MaterialParameterBoolean _name="_alphaTest" _value="true"/></Material></SkinnedMeshMaterialWrapper><SkinnedMeshMaterialWrapper _subMeshName="part-1"><Material _materialName="SkinnedMeshStandard"><MaterialParameterTexture _name="_specularTexture" Value="character/texture/body_spec.dds"/></Material></SkinnedMeshMaterialWrapper></Root>"##,
         )?;
 
-        let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
-        assert_eq!(resolved.textures.len(), 9);
+        let resolved = resolve_direct_texture(
+            &mesh,
+            &document_with_references(&["fallback.dds", "fallback_2.dds"]),
+        )?;
+        assert_eq!(resolved.textures.len(), 10);
         assert_eq!(resolved.material_parameters.len(), 3);
         assert_eq!(resolved.material_factors.len(), 1);
         assert_eq!(
@@ -2053,7 +2069,8 @@ mod tests {
             .textures
             .iter()
             .map(|texture| {
-                assert_eq!(texture.material_indices_by_lod, vec![vec![0]]);
+                let expected_owner = u32::from(texture.role == TextureRole::Specular);
+                assert_eq!(texture.material_indices_by_lod, vec![vec![expected_owner]]);
                 (texture.role, texture.metadata.color_space)
             })
             .collect::<BTreeMap<_, _>>();
@@ -2093,10 +2110,16 @@ mod tests {
             roles.get(&TextureRole::Opacity),
             Some(&cdmw_texture::ColorSpace::Linear)
         );
-        assert!(resolved.warnings.iter().any(|warning| {
-            warning.contains("Glossiness parameter _glossinessTexture")
-                && warning.contains("body_gloss.dds remains unbound")
-        }));
+        assert_eq!(
+            roles.get(&TextureRole::Glossiness),
+            Some(&cdmw_texture::ColorSpace::Linear)
+        );
+        assert!(
+            !resolved
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("body_gloss.dds remains unbound"))
+        );
         Ok(())
     }
 
@@ -2268,6 +2291,34 @@ mod tests {
         fs::write(
             &sidecar,
             br#"<SkinnedMeshMaterialWrapper><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_a.dds"/><MaterialParameterTexture _name="_overlayColorTexture" Value="character/texture/body_b.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/></SkinnedMeshMaterialWrapper>"#,
+        )?;
+
+        let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
+        assert_eq!(resolved.textures.len(), 1);
+        assert_eq!(resolved.textures[0].role, TextureRole::Normal);
+        assert_eq!(resolved.textures[0].material_indices_by_lod, vec![vec![0]]);
+        assert!(
+            resolved
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("claim more than one distinct texture"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn specular_and_glossiness_conflicts_share_one_preview_slot()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (_tree, mesh, sidecar, texture_directory) = direct_fixture("gloss-conflict")?;
+        for name in ["body_spec.dds", "body_gloss.dds", "body_n.dds"] {
+            fs::write(
+                texture_directory.join(name),
+                cdmw_texture::synthetic::rgba8_checker_dds(),
+            )?;
+        }
+        fs::write(
+            &sidecar,
+            br#"<SkinnedMeshMaterialWrapper><MaterialParameterTexture _name="_specularTexture" Value="character/texture/body_spec.dds"/><MaterialParameterTexture _name="_glossinessTexture" Value="character/texture/body_gloss.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/></SkinnedMeshMaterialWrapper>"#,
         )?;
 
         let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;

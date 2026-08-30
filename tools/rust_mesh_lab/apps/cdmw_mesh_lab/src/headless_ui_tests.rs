@@ -912,26 +912,44 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
         cdmw_formats::MeshFormat::Pam,
     )?;
     let mesh = WorkingMesh::from_document(&document)?;
-    let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
-    let metadata = cdmw_texture::inspect_dds(&bytes, cdmw_texture::TextureRole::BaseColor)?;
+    let base_bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+    let base_metadata =
+        cdmw_texture::inspect_dds(&base_bytes, cdmw_texture::TextureRole::BaseColor)?;
+    let glossiness_bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+    let glossiness_metadata =
+        cdmw_texture::inspect_dds(&glossiness_bytes, cdmw_texture::TextureRole::Glossiness)?;
     let mut application = LabApplication::new(None, None);
     application.install_loaded_mesh(crate::loader::LoadedMesh {
         path: PathBuf::from("character/model/body.pam"),
         document,
         mesh,
         other_lod_meshes: Vec::new(),
-        textures: vec![crate::loader::LoadedTexture {
-            label: "character/texture/body.dds".to_owned(),
-            metadata,
-            bytes,
-            role: cdmw_texture::TextureRole::BaseColor,
-            requested_reference: "character/texture/body.dds".to_owned(),
-            parameter_name: Some("_baseColorTexture".to_owned()),
-            sidecar_label: Some("character/modelproperty/body.pam_xml".to_owned()),
-            resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
-            archive_compression: Some(cdmw_archive::CompressionOutcome::PartialDds),
-            material_indices_by_lod: vec![vec![0]],
-        }],
+        textures: vec![
+            crate::loader::LoadedTexture {
+                label: "character/texture/body.dds".to_owned(),
+                metadata: base_metadata,
+                bytes: base_bytes,
+                role: cdmw_texture::TextureRole::BaseColor,
+                requested_reference: "character/texture/body.dds".to_owned(),
+                parameter_name: Some("_baseColorTexture".to_owned()),
+                sidecar_label: Some("character/modelproperty/body.pam_xml".to_owned()),
+                resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
+                archive_compression: Some(cdmw_archive::CompressionOutcome::PartialDds),
+                material_indices_by_lod: vec![vec![0]],
+            },
+            crate::loader::LoadedTexture {
+                label: "character/texture/body_gloss.dds".to_owned(),
+                metadata: glossiness_metadata,
+                bytes: glossiness_bytes,
+                role: cdmw_texture::TextureRole::Glossiness,
+                requested_reference: "character/texture/body_gloss.dds".to_owned(),
+                parameter_name: Some("_glossinessTexture".to_owned()),
+                sidecar_label: Some("character/modelproperty/body.pam_xml".to_owned()),
+                resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
+                archive_compression: Some(cdmw_archive::CompressionOutcome::Stored),
+                material_indices_by_lod: vec![vec![0]],
+            },
+        ],
         material_parameters: vec![
             crate::loader::LoadedMaterialParameter {
                 sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
@@ -1003,6 +1021,13 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
         .is_ok()
     );
     assert!(ui.reveal("Material ranges LOD0: 0").is_ok());
+    assert!(ui.reveal("character/texture/body_gloss.dds").is_ok());
+    assert!(
+        ui.reveal(
+            "Role Glossiness · Reference character/texture/body_gloss.dds · Resolved via ExplicitVirtualPath · Parameter _glossinessTexture · Sidecar character/modelproperty/body.pam_xml · Archive decode Stored"
+        )
+        .is_ok()
+    );
     assert!(
         ui.reveal("Renderer: approximate material preview (not Crimson Desert shader parity)")
             .is_ok()

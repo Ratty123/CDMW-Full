@@ -333,6 +333,8 @@ pub struct HeadlessRenderReport {
     pub specular_factor_pixels_changed: usize,
     pub specular_texture_pixels_changed: usize,
     pub dielectric_specular_pixels_changed: usize,
+    pub glossiness_texture_pixels_changed: usize,
+    pub dielectric_glossiness_pixels_changed: usize,
     pub opacity_cutout_pixels_removed: usize,
     pub opaque_opacity_pixels_changed: usize,
     pub non_background_pixels: usize,
@@ -749,6 +751,7 @@ impl WindowRenderer {
                 | TextureRole::Occlusion
                 | TextureRole::Emissive
                 | TextureRole::Specular
+                | TextureRole::Glossiness
                 | TextureRole::Opacity
         ) {
             return Err(RenderError::Texture(format!(
@@ -1166,6 +1169,16 @@ pub async fn run_headless_render_smoke(
             TextureRole::BaseColor,
             synthetic_dds([70, 230, 90, 255]),
         ),
+        (
+            1_u32,
+            TextureRole::Metalness,
+            synthetic_dds([220, 0, 0, 255]),
+        ),
+        (
+            1_u32,
+            TextureRole::Glossiness,
+            synthetic_dds([230, 160, 40, 255]),
+        ),
     ] {
         let texture = upload_dds_texture(&device, &queue, &bytes, role)?;
         material_textures.push(GpuMaterialTexture {
@@ -1220,11 +1233,9 @@ pub async fn run_headless_render_smoke(
                     } else {
                         None
                     },
-                    specular: if roles.contains(&TextureRole::Specular) {
-                        indices.specular
-                    } else {
-                        None
-                    },
+                    specular: indices
+                        .specular
+                        .filter(|index| roles.contains(&material_textures[*index].role)),
                     opacity: if roles.contains(&TextureRole::Opacity) {
                         indices.opacity
                     } else {
@@ -1284,6 +1295,18 @@ pub async fn run_headless_render_smoke(
         &[TextureRole::BaseColor, TextureRole::Specular],
         MaterialPreviewFactors::default(),
     );
+    let glossiness_material_bindings = bindings_for_roles(
+        &[
+            TextureRole::BaseColor,
+            TextureRole::Metalness,
+            TextureRole::Glossiness,
+        ],
+        MaterialPreviewFactors::default(),
+    );
+    let dielectric_glossiness_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Glossiness],
+        MaterialPreviewFactors::default(),
+    );
     let opaque_opacity_material_bindings = bindings_for_roles(
         &[TextureRole::BaseColor, TextureRole::Opacity],
         MaterialPreviewFactors::default(),
@@ -1335,6 +1358,7 @@ pub async fn run_headless_render_smoke(
             TextureRole::Occlusion,
             TextureRole::Emissive,
             TextureRole::Specular,
+            TextureRole::Glossiness,
             TextureRole::Opacity,
         ],
         MaterialPreviewFactors {
@@ -1467,6 +1491,11 @@ pub async fn run_headless_render_smoke(
         ("metalness", base_metalness_material_bindings),
         ("specular", base_specular_material_bindings),
         ("dielectric specular", dielectric_specular_material_bindings),
+        ("glossiness", glossiness_material_bindings),
+        (
+            "dielectric glossiness",
+            dielectric_glossiness_material_bindings,
+        ),
         ("opaque opacity", opaque_opacity_material_bindings),
         ("opacity cutout", opacity_cutout_material_bindings),
         ("occlusion", base_occlusion_material_bindings),
@@ -1532,7 +1561,7 @@ pub async fn run_headless_render_smoke(
             "headless GPU frame contained only the clear color".to_owned(),
         ));
     }
-    let mut role_changes = Vec::with_capacity(9);
+    let mut role_changes = Vec::with_capacity(10);
     for (role, reference) in [
         ("base color", "unresolved"),
         ("normal", "base color"),
@@ -1540,6 +1569,7 @@ pub async fn run_headless_render_smoke(
         ("roughness", "base color"),
         ("metalness", "base color"),
         ("specular", "metalness"),
+        ("glossiness", "metalness"),
         ("opacity cutout", "opaque opacity"),
         ("occlusion", "base color"),
         ("emissive", "base color"),
@@ -1619,6 +1649,24 @@ pub async fn run_headless_render_smoke(
             "headless specular texture changed a dielectric material".to_owned(),
         ));
     }
+    let glossiness_texture_pixels_changed = changed_pixel_count(
+        &probe_pixels[probe_index("metalness")?],
+        &probe_pixels[probe_index("glossiness")?],
+    )?;
+    if glossiness_texture_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless glossiness texture did not change any rendered pixel".to_owned(),
+        ));
+    }
+    let dielectric_glossiness_pixels_changed = changed_pixel_count(
+        base_only_pixels,
+        &probe_pixels[probe_index("dielectric glossiness")?],
+    )?;
+    if dielectric_glossiness_pixels_changed != 0 {
+        return Err(RenderError::Device(
+            "headless glossiness texture changed a dielectric material".to_owned(),
+        ));
+    }
     let opaque_opacity_pixels = &probe_pixels[probe_index("opaque opacity")?];
     let opacity_cutout_pixels = &probe_pixels[probe_index("opacity cutout")?];
     let opaque_opacity_pixels_changed =
@@ -1661,6 +1709,8 @@ pub async fn run_headless_render_smoke(
         specular_factor_pixels_changed,
         specular_texture_pixels_changed,
         dielectric_specular_pixels_changed,
+        glossiness_texture_pixels_changed,
+        dielectric_glossiness_pixels_changed,
         opacity_cutout_pixels_removed,
         opaque_opacity_pixels_changed,
         non_background_pixels,
@@ -2314,7 +2364,7 @@ fn resolve_material_bindings<'a>(
                 TextureRole::Metalness => &mut slots.metalness,
                 TextureRole::Occlusion => &mut slots.occlusion,
                 TextureRole::Emissive => &mut slots.emissive,
-                TextureRole::Specular => &mut slots.specular,
+                TextureRole::Specular | TextureRole::Glossiness => &mut slots.specular,
                 TextureRole::Opacity => &mut slots.opacity,
                 _ => {
                     return Err(RenderError::Texture(format!(
@@ -3295,6 +3345,19 @@ mod tests {
         assert!(
             resolve_material_bindings(
                 conflicting_specular
+                    .iter()
+                    .map(|(role, ownership)| (*role, ownership.as_slice())),
+                0
+            )
+            .is_err()
+        );
+        let conflicting_specular_alias = [
+            (TextureRole::Specular, vec![vec![0_u32]]),
+            (TextureRole::Glossiness, vec![vec![0_u32]]),
+        ];
+        assert!(
+            resolve_material_bindings(
+                conflicting_specular_alias
                     .iter()
                     .map(|(role, ownership)| (*role, ownership.as_slice())),
                 0
