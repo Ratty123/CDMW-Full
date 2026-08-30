@@ -40,6 +40,10 @@ pub enum ReplayEvent {
         face_ordinals: Vec<usize>,
         distance: f32,
     },
+    InsetFaces {
+        face_ordinals: Vec<usize>,
+        amount: f32,
+    },
     Undo,
     Redo,
 }
@@ -142,6 +146,14 @@ pub fn run_replay(
                 let before = mesh.clone();
                 let _ = mesh.extrude_faces(&face_handles(mesh, face_ordinals)?, *distance)?;
                 history.commit("replay extrude faces", before, mesh)?;
+            }
+            ReplayEvent::InsetFaces {
+                face_ordinals,
+                amount,
+            } => {
+                let before = mesh.clone();
+                let _ = mesh.inset_faces(&face_handles(mesh, face_ordinals)?, *amount)?;
+                history.commit("replay inset faces individually", before, mesh)?;
             }
             ReplayEvent::Undo => history.undo(mesh)?,
             ReplayEvent::Redo => history.redo(mesh)?,

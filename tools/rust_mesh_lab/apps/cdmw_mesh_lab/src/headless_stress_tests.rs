@@ -441,7 +441,7 @@ fn run_mixed_session() -> Result<(String, usize, usize), Box<dyn std::error::Err
     let mut application = triangle_application()?;
     application.history = History::new(STRESS_HISTORY_BUDGET_BYTES);
     for index in 0..1_000 {
-        match index % 16 {
+        match index % 17 {
             0 => run_lasso_once(
                 &mut application,
                 SelectionDomain::Vertex,
@@ -484,7 +484,7 @@ fn run_mixed_session() -> Result<(String, usize, usize), Box<dyn std::error::Err
             6 => sculpt_stroke(&mut application, ViewportTool::Pinch, 2, false, 1.0)?,
             7..=9 => {
                 application.select_all_faces();
-                let action = match index % 16 {
+                let action = match index % 17 {
                     7 => UiAction::DuplicateFaces,
                     8 => UiAction::SubdivideFaces,
                     _ => UiAction::DeleteFaces,
@@ -615,6 +615,27 @@ fn run_mixed_session() -> Result<(String, usize, usize), Box<dyn std::error::Err
                     .ok_or("missing mesh")?
                     .structural_fingerprint();
                 application.handle_actions(vec![UiAction::ExtrudeFaces]);
+                application.handle_actions(vec![UiAction::Undo]);
+                assert_eq!(
+                    application
+                        .mesh
+                        .as_ref()
+                        .ok_or("missing mesh")?
+                        .structural_fingerprint(),
+                    before
+                );
+                application.handle_actions(vec![UiAction::Redo]);
+                application.handle_actions(vec![UiAction::Undo]);
+            }
+            15 => {
+                application.select_all_faces();
+                application.inset_amount = 0.2;
+                let before = application
+                    .mesh
+                    .as_ref()
+                    .ok_or("missing mesh")?
+                    .structural_fingerprint();
+                application.handle_actions(vec![UiAction::InsetFaces]);
                 application.handle_actions(vec![UiAction::Undo]);
                 assert_eq!(
                     application

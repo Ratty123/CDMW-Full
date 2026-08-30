@@ -100,6 +100,7 @@ enum UiAction {
     DuplicateFaces,
     DuplicateFacesToNewSubmesh,
     ExtrudeFaces,
+    InsetFaces,
     Undo,
     Redo,
     ExportObj,
@@ -198,6 +199,7 @@ struct LabApplication {
     brush_falloff: BrushFalloff,
     smooth_iterations: u32,
     extrude_distance: f32,
+    inset_amount: f32,
     selection_gesture: Option<SelectionGesture>,
     edit_gesture: Option<EditGesture>,
     projection: Option<ViewportProjection>,
@@ -274,6 +276,7 @@ impl LabApplication {
             brush_falloff: BrushFalloff::Smooth,
             smooth_iterations: 1,
             extrude_distance: 0.02,
+            inset_amount: 0.15,
             selection_gesture: None,
             edit_gesture: None,
             projection: None,
@@ -1128,6 +1131,18 @@ impl LabApplication {
                     )
                     .on_hover_text("Positive distance along the selected faces' vertex normals");
                 });
+                ui.horizontal(|ui| {
+                    ui.label("Inset amount");
+                    ui.add(
+                        egui::DragValue::new(&mut self.inset_amount)
+                            .speed(0.01)
+                            .range(0.01..=0.95)
+                            .max_decimals(3),
+                    )
+                    .on_hover_text(
+                        "Fraction from each source corner toward that face's center; faces inset individually",
+                    );
+                });
                 ui.horizontal_wrapped(|ui| {
                     if ui
                         .add_enabled(selected_edges > 0, egui::Button::new("Subdivide Edges"))
@@ -1145,6 +1160,7 @@ impl LabApplication {
                             UiAction::DuplicateFacesToNewSubmesh,
                         ),
                         ("Extrude", UiAction::ExtrudeFaces),
+                        ("Inset Individual", UiAction::InsetFaces),
                     ] {
                         if ui
                             .add_enabled(selected_faces > 0, egui::Button::new(label))
@@ -1344,6 +1360,13 @@ impl LabApplication {
                     self.run_topology("Extrude faces", |mesh, faces| {
                         publish_mesh = true;
                         mesh.extrude_faces(faces, distance).map(|_| ())
+                    })
+                }
+                UiAction::InsetFaces => {
+                    let amount = self.inset_amount;
+                    self.run_topology("Inset faces individually", |mesh, faces| {
+                        publish_mesh = true;
+                        mesh.inset_faces(faces, amount).map(|_| ())
                     })
                 }
                 UiAction::Undo => {

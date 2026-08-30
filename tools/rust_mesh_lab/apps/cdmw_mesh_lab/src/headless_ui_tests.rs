@@ -626,10 +626,13 @@ fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
         ("Duplicate", 2, None),
         ("Duplicate as New Part", 2, Some(1)),
         ("Extrude", 7, None),
+        ("Inset Individual", 7, None),
     ] {
         let mut ui = HeadlessUi::new(triangle_application()?, egui::vec2(1_280.0, 720.0));
         if label == "Extrude" {
             ui.application.extrude_distance = 0.25;
+        } else if label == "Inset Individual" {
+            ui.application.inset_amount = 0.25;
         }
         ui.click("All Faces")?;
         let source_vertices = ui
@@ -653,7 +656,7 @@ fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
             .ok_or("mesh")?
             .selection
             .clone();
-        let source_face = if label == "Extrude" {
+        let source_face = if matches!(label, "Extrude" | "Inset Individual") {
             let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
             let handle = *selection.faces.iter().next().ok_or("selected face")?;
             Some(mesh.face(handle).cloned().ok_or("selected face")?)
@@ -672,16 +675,20 @@ fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
                     .is_some_and(|face| face.submesh == expected_submesh && face.material == 0)
             }));
         }
-        if label == "Extrude" {
+        if matches!(label, "Extrude" | "Inset Individual") {
             let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
             for (handle, source) in &source_vertices {
                 assert_eq!(mesh.vertex(*handle), Some(source));
             }
             assert_eq!(mesh.selection.faces.len(), 1);
+        }
+        if label == "Extrude" {
+            let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
             let cap = mesh
                 .face(*mesh.selection.faces.iter().next().ok_or("cap")?)
                 .ok_or("cap")?;
             for (source_handle, cap_handle) in source_face
+                .as_ref()
                 .ok_or("source face")?
                 .vertices
                 .into_iter()
@@ -695,6 +702,34 @@ fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
                 assert_eq!(
                     Vec3::from_array(cap_vertex.position),
                     Vec3::from_array(source.position) + direction * 0.25
+                );
+            }
+        }
+        if label == "Inset Individual" {
+            let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+            let source_face = source_face.as_ref().ok_or("source face")?;
+            let centroid = source_face
+                .vertices
+                .iter()
+                .map(|handle| {
+                    source_vertices
+                        .get(handle)
+                        .map(|vertex| Vec3::from_array(vertex.position))
+                        .ok_or("source vertex")
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .sum::<Vec3>()
+                / 3.0;
+            let cap = mesh
+                .face(*mesh.selection.faces.iter().next().ok_or("cap")?)
+                .ok_or("cap")?;
+            for (source_handle, cap_handle) in source_face.vertices.into_iter().zip(cap.vertices) {
+                let source = source_vertices.get(&source_handle).ok_or("source vertex")?;
+                let cap_vertex = mesh.vertex(cap_handle).ok_or("cap vertex")?;
+                assert_eq!(
+                    Vec3::from_array(cap_vertex.position),
+                    Vec3::from_array(source.position).lerp(centroid, 0.25)
                 );
             }
         }
@@ -1197,6 +1232,7 @@ fn disabled_edit_controls_do_not_activate_or_change_the_mesh() -> TestResult {
         "Subdivide Edges",
         "Duplicate as New Part",
         "Extrude",
+        "Inset Individual",
         "Delete",
         "Subdivide",
         "Duplicate",

@@ -2,7 +2,7 @@
 
 use cdmw_evidence::sha256_bytes;
 use cdmw_formats::{MeshDocument, Submesh};
-use glam::{Quat, Vec3};
+use glam::{Quat, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 use slotmap::{Key, SecondaryMap, SlotMap, new_key_type};
 use std::collections::{HashMap, HashSet};
@@ -613,6 +613,115 @@ impl WorkingMesh {
                     vertices,
                     submesh,
                     material,
+                    provenance: Provenance::Generated { operation },
+                });
+            }
+        }
+        draft.selection = Selection {
+            faces: caps.clone(),
+            ..Selection::default()
+        };
+        draft.finish_topology_operation()?;
+        *self = draft;
+        Ok(caps)
+    }
+
+    pub fn inset_faces(
+        &mut self,
+        handles: &HashSet<FaceHandle>,
+        amount: f32,
+    ) -> Result<HashSet<FaceHandle>, MeshError> {
+        if handles.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        if !amount.is_finite() || amount <= 0.0 || amount >= 1.0 {
+            return Err(MeshError::Invariant(
+                "inset amount must be finite and strictly between zero and one".to_owned(),
+            ));
+        }
+
+        let mut draft = self.clone();
+        let operation = draft.next_operation();
+        let mut ordered_handles = handles.iter().copied().collect::<Vec<_>>();
+        ordered_handles.sort_by_key(|handle| handle.data().as_ffi());
+        let originals = ordered_handles
+            .into_iter()
+            .map(|handle| {
+                draft
+                    .faces
+                    .get(handle)
+                    .cloned()
+                    .map(|face| (handle, face))
+                    .ok_or(MeshError::StaleHandle)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut caps = HashSet::new();
+        for (handle, face) in originals {
+            let source_vertices = face.vertices.map(|source| {
+                draft
+                    .vertices
+                    .get(source)
+                    .cloned()
+                    .ok_or(MeshError::StaleHandle)
+            });
+            let [source_a, source_b, source_c] = source_vertices;
+            let source_vertices = [source_a?, source_b?, source_c?];
+            let position_centroid = source_vertices
+                .iter()
+                .map(|vertex| Vec3::from_array(vertex.position))
+                .sum::<Vec3>()
+                / 3.0;
+            let uv_centroid = source_vertices
+                .iter()
+                .map(|vertex| Vec2::from_array(vertex.uv))
+                .sum::<Vec2>()
+                / 3.0;
+            if !position_centroid.is_finite() || !uv_centroid.is_finite() {
+                return Err(MeshError::Invariant(
+                    "inset source attributes are not finite".to_owned(),
+                ));
+            }
+
+            let mut inset_vertices = face.vertices;
+            for (index, source) in source_vertices.into_iter().enumerate() {
+                let position = Vec3::from_array(source.position).lerp(position_centroid, amount);
+                let uv = Vec2::from_array(source.uv).lerp(uv_centroid, amount);
+                if !position.is_finite() || !uv.is_finite() {
+                    return Err(MeshError::Invariant(
+                        "inset attributes are not finite".to_owned(),
+                    ));
+                }
+                inset_vertices[index] = draft.vertices.insert(Vertex {
+                    position: position.to_array(),
+                    normal: source.normal,
+                    uv: uv.to_array(),
+                    provenance: Provenance::Generated { operation },
+                });
+            }
+
+            let _ = draft.faces.remove(handle).ok_or(MeshError::StaleHandle)?;
+            let [a, b, c] = face.vertices;
+            let [inset_a, inset_b, inset_c] = inset_vertices;
+            let cap = draft.faces.insert(Face {
+                vertices: inset_vertices,
+                submesh: face.submesh,
+                material: face.material,
+                provenance: Provenance::Generated { operation },
+            });
+            caps.insert(cap);
+            for vertices in [
+                [a, b, inset_b],
+                [a, inset_b, inset_a],
+                [b, c, inset_c],
+                [b, inset_c, inset_b],
+                [c, a, inset_a],
+                [c, inset_a, inset_c],
+            ] {
+                draft.faces.insert(Face {
+                    vertices,
+                    submesh: face.submesh,
+                    material: face.material,
                     provenance: Provenance::Generated { operation },
                 });
             }
@@ -1778,6 +1887,147 @@ mod tests {
     }
 
     #[test]
+    fn inset_face_builds_an_inward_cap_and_six_owner_preserving_ring_faces() -> Result<(), MeshError>
+    {
+        let mut mesh = two_triangle_quad();
+        let source_vertices = mesh
+            .vertices
+            .iter()
+            .map(|(handle, vertex)| (handle, vertex.clone()))
+            .collect::<HashMap<_, _>>();
+        let selected = mesh.faces.keys().next().ok_or(MeshError::InvalidSource)?;
+        let selected_face = mesh
+            .faces
+            .get_mut(selected)
+            .ok_or(MeshError::InvalidSource)?;
+        selected_face.submesh = 2;
+        selected_face.material = 7;
+        let source_face = mesh
+            .face(selected)
+            .cloned()
+            .ok_or(MeshError::InvalidSource)?;
+        let unselected = mesh
+            .faces
+            .iter()
+            .find(|(handle, _)| *handle != selected)
+            .map(|(handle, face)| (handle, face.clone()))
+            .ok_or(MeshError::InvalidSource)?;
+        let position_centroid = source_face
+            .vertices
+            .iter()
+            .map(|handle| {
+                source_vertices
+                    .get(handle)
+                    .map(|vertex| Vec3::from_array(vertex.position))
+                    .ok_or(MeshError::InvalidSource)
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .sum::<Vec3>()
+            / 3.0;
+        let uv_centroid = source_face
+            .vertices
+            .iter()
+            .map(|handle| {
+                source_vertices
+                    .get(handle)
+                    .map(|vertex| Vec2::from_array(vertex.uv))
+                    .ok_or(MeshError::InvalidSource)
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .sum::<Vec2>()
+            / 3.0;
+
+        let caps = mesh.inset_faces(&HashSet::from([selected]), 0.25)?;
+        assert_eq!(caps.len(), 1);
+        assert_eq!(mesh.selection.faces, caps);
+        assert_eq!(mesh.vertices.len(), 7);
+        assert_eq!(mesh.faces.len(), 8);
+        assert_eq!(mesh.face(unselected.0), Some(&unselected.1));
+        for (handle, source) in &source_vertices {
+            assert_eq!(mesh.vertex(*handle), Some(source));
+        }
+
+        let cap = mesh
+            .face(*caps.iter().next().ok_or(MeshError::InvalidSource)?)
+            .ok_or(MeshError::InvalidSource)?;
+        assert_eq!(cap.submesh, source_face.submesh);
+        assert_eq!(cap.material, source_face.material);
+        assert_eq!(cap.provenance, Provenance::Generated { operation: 1 });
+        for (source_handle, cap_handle) in source_face.vertices.into_iter().zip(cap.vertices) {
+            let source = source_vertices
+                .get(&source_handle)
+                .ok_or(MeshError::InvalidSource)?;
+            let cap_vertex = mesh.vertex(cap_handle).ok_or(MeshError::InvalidSource)?;
+            assert_eq!(cap_vertex.normal, source.normal);
+            assert_eq!(
+                Vec3::from_array(cap_vertex.position),
+                Vec3::from_array(source.position).lerp(position_centroid, 0.25)
+            );
+            assert_eq!(
+                Vec2::from_array(cap_vertex.uv),
+                Vec2::from_array(source.uv).lerp(uv_centroid, 0.25)
+            );
+            assert_eq!(
+                cap_vertex.provenance,
+                Provenance::Generated { operation: 1 }
+            );
+        }
+        let ring_faces = mesh
+            .faces()
+            .filter(|(handle, _)| *handle != unselected.0 && !caps.contains(handle))
+            .collect::<Vec<_>>();
+        assert_eq!(ring_faces.len(), 6);
+        for (_, ring) in ring_faces {
+            assert_eq!(ring.submesh, source_face.submesh);
+            assert_eq!(ring.material, source_face.material);
+            assert_eq!(ring.provenance, Provenance::Generated { operation: 1 });
+            let [Some(a), Some(b), Some(c)] = ring.vertices.map(|handle| {
+                mesh.vertex(handle)
+                    .map(|vertex| Vec3::from_array(vertex.position))
+            }) else {
+                return Err(MeshError::InvalidSource);
+            };
+            assert!((b - a).cross(c - a).length_squared() > 0.0);
+        }
+        mesh.validate()
+    }
+
+    #[test]
+    fn inset_selected_faces_individually_keeps_separate_caps() -> Result<(), MeshError> {
+        let mut mesh = two_triangle_quad();
+        let source_vertices = mesh
+            .vertices
+            .iter()
+            .map(|(handle, vertex)| (handle, vertex.clone()))
+            .collect::<HashMap<_, _>>();
+        let selected = mesh.faces.keys().collect::<HashSet<_>>();
+        let caps = mesh.inset_faces(&selected, 0.2)?;
+
+        assert_eq!(caps.len(), 2);
+        assert_eq!(mesh.selection.faces, caps);
+        assert_eq!(mesh.vertices.len(), 10);
+        assert_eq!(mesh.faces.len(), 14);
+        for (handle, source) in &source_vertices {
+            assert_eq!(mesh.vertex(*handle), Some(source));
+        }
+        let cap_vertex_sets = caps
+            .iter()
+            .map(|handle| {
+                mesh.face(*handle)
+                    .map(|face| face.vertices.into_iter().collect::<HashSet<_>>())
+                    .ok_or(MeshError::InvalidSource)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        assert_eq!(cap_vertex_sets.len(), 2);
+        assert!(cap_vertex_sets[0].is_disjoint(&cap_vertex_sets[1]));
+        let source_handles = source_vertices.keys().copied().collect::<HashSet<_>>();
+        assert!(mesh.selected_vertex_scope().is_disjoint(&source_handles));
+        mesh.validate()
+    }
+
+    #[test]
     fn failed_topology_operations_leave_the_exact_working_state() -> Result<(), MeshError> {
         let mut duplicate_mesh = triangle();
         let duplicate_face = duplicate_mesh
@@ -1818,6 +2068,15 @@ mod tests {
         );
         assert_exact_working_state(&extrude_mesh, &extrude_before);
 
+        let mut inset_mesh = duplicate_before.clone();
+        let inset_before = inset_mesh.clone();
+        assert!(
+            inset_mesh
+                .inset_faces(&HashSet::from([duplicate_face]), 0.25)
+                .is_err()
+        );
+        assert_exact_working_state(&inset_mesh, &inset_before);
+
         let mut invalid_distance = triangle();
         let invalid_distance_face = invalid_distance
             .faces
@@ -1832,6 +2091,40 @@ mod tests {
             ));
             assert_exact_working_state(&invalid_distance, &invalid_distance_before);
         }
+
+        let mut invalid_amount = triangle();
+        let invalid_amount_face = invalid_amount
+            .faces
+            .keys()
+            .next()
+            .ok_or(MeshError::InvalidSource)?;
+        let invalid_amount_before = invalid_amount.clone();
+        for amount in [0.0, -1.0, 1.0, 1.1, f32::NAN, f32::INFINITY] {
+            assert!(matches!(
+                invalid_amount.inset_faces(&HashSet::from([invalid_amount_face]), amount),
+                Err(MeshError::Invariant(_))
+            ));
+            assert_exact_working_state(&invalid_amount, &invalid_amount_before);
+        }
+        assert!(matches!(
+            invalid_amount.inset_faces(&HashSet::new(), 0.25),
+            Err(MeshError::EmptyOperation)
+        ));
+        assert_exact_working_state(&invalid_amount, &invalid_amount_before);
+
+        let mut stale_inset = triangle();
+        let stale_face = stale_inset
+            .faces
+            .keys()
+            .next()
+            .ok_or(MeshError::InvalidSource)?;
+        stale_inset.delete_faces(&HashSet::from([stale_face]))?;
+        let stale_before = stale_inset.clone();
+        assert!(matches!(
+            stale_inset.inset_faces(&HashSet::from([stale_face]), 0.25),
+            Err(MeshError::StaleHandle)
+        ));
+        assert_exact_working_state(&stale_inset, &stale_before);
 
         let mut invalid_normal = triangle();
         let invalid_normal_face = invalid_normal
