@@ -28,6 +28,7 @@ from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
 from cdmw.ui.archive_browser.remote_model import RemoteArchiveBrowserModel, RemoteChildrenFetch
 from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
 from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge, compare_archive_shadow_page
+from cdmw.ui.archive_browser.remote_window_identity import normalize_archive_remote_path
 
 
 _APPLICATION: QApplication | None = None
@@ -226,6 +227,80 @@ def test_v2_bridge_maps_real_progress_contract_fields() -> None:
     )
 
     assert updates == [(17, 40, "Fingerprint scan: 0009/0.pamt")]
+
+
+def test_structure_paths_share_normalization_across_requests_and_paged_results() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    window.archive_structure_filter_state = "warming"
+    window.archive_structure_filter_children = {}
+    window.archive_structure_filter_pending_value = ""
+    window._current_archive_structure_filter_value = lambda: ""
+    rebuilds: list[tuple[str, bool]] = []
+    window._rebuild_archive_structure_filter_controls = (
+        lambda selected="", *, defer_missing_children=False: rebuilds.append(
+            (selected, defer_missing_children)
+        )
+    )
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge._controller._current_session = ArchiveSessionHandle(
+        "session-a",
+        "C:/Game",
+        "fingerprint",
+        4,
+        2,
+        True,
+    )
+    bridge._structure_requests_enabled = True
+    requests: list[tuple[str, int]] = []
+    bridge._controller.request_structure_children = (
+        lambda parent="", *, offset=0: requests.append((parent, offset))
+    )
+
+    assert normalize_archive_remote_path("\\ROOT\\Characters/") == "root/characters"
+    assert normalize_archive_remote_path("///") == ""
+    bridge.request_structure_children("\\")
+    bridge.request_structure_children("\\ROOT\\Characters/")
+
+    bridge._handle_structure_children(
+        "ROOT\\Characters/",
+        ArchiveChildrenResult(
+            "session-a",
+            "",
+            (
+                ArchiveChildNode("Root\\Characters\\Heads/", "Heads", True, 3),
+                ArchiveChildNode("ROOT/CHARACTERS/01", "01", True, 2),
+            ),
+            False,
+            offset=0,
+            total_children=3,
+            next_offset=2,
+        ),
+    )
+    bridge._handle_structure_children(
+        "root/characters",
+        ArchiveChildrenResult(
+            "session-a",
+            "",
+            (
+                ArchiveChildNode("/root/characters/HEADS", "HEADS", True, 4),
+                ArchiveChildNode("root/characters/readme.txt", "readme.txt", False, 1),
+            ),
+            False,
+            offset=2,
+            total_children=3,
+            next_offset=None,
+        ),
+    )
+    bridge.request_structure_children("/ROOT/CHARACTERS/")
+
+    assert requests == [("", 0), ("root/characters", 0), ("root/characters", 2)]
+    assert window.archive_structure_filter_children["root/characters"] == [
+        ("root/characters/01", 2),
+        ("root/characters/heads", 4),
+    ]
+    assert window.archive_structure_filter_state == "ready"
+    assert rebuilds == [("", True)]
 
 
 def test_v2_bridge_resets_each_operation_and_scales_query_progress_separately() -> None:

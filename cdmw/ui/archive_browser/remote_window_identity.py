@@ -23,8 +23,8 @@ def legacy_identity(entry: ArchiveEntry | None) -> ArchiveDurableIdentity | None
 def legacy_identity_key(entry: ArchiveEntry) -> tuple[object, ...]:
     identity = entry.identity
     return (
-        _normalized(identity.normalized_path),
-        _normalized(identity.source_pamt),
+        normalize_archive_remote_path(identity.normalized_path),
+        normalize_archive_remote_path(identity.source_pamt),
         int(identity.paz_index),
         int(identity.entry_offset),
     )
@@ -33,7 +33,7 @@ def legacy_identity_key(entry: ArchiveEntry) -> tuple[object, ...]:
 def base_index_identity_key(entry: ArchiveEntry) -> tuple[object, ...]:
     identity = entry.identity
     return (
-        _normalized(identity.normalized_path),
+        normalize_archive_remote_path(identity.normalized_path),
         str(identity.source_pamt).replace("\\", "/"),
         int(identity.entry_offset),
     )
@@ -42,8 +42,8 @@ def base_index_identity_key(entry: ArchiveEntry) -> tuple[object, ...]:
 def dto_identity_key(entry: ArchiveEntryDto) -> tuple[object, ...]:
     identity = entry.identity
     return (
-        _normalized(identity.normalized_path),
-        _normalized(identity.source_pamt),
+        normalize_archive_remote_path(identity.normalized_path),
+        normalize_archive_remote_path(identity.source_pamt),
         int(identity.paz_index),
         int(identity.archive_offset),
     )
@@ -60,7 +60,9 @@ def workflow_path(entry: ArchiveEntryDto) -> str:
     return f"{package_root}/{normalized_path}"
 
 
-def _normalized(value: object) -> str:
+def normalize_archive_remote_path(value: object) -> str:
+    """Return the canonical key used by remote archive structure paths."""
+
     return str(value or "").replace("\\", "/").strip("/").casefold()
 
 
@@ -69,6 +71,7 @@ __all__ = [
     "dto_identity_key",
     "legacy_identity",
     "legacy_identity_key",
+    "normalize_archive_remote_path",
     "structure_sort_key",
     "workflow_path",
 ]

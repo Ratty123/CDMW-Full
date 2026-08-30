@@ -35,6 +35,7 @@ from cdmw.ui.archive_browser.remote_window_identity import (
     dto_identity_key as _dto_identity_key,
     legacy_identity as _legacy_identity,
     legacy_identity_key as _legacy_identity_key,
+    normalize_archive_remote_path,
     structure_sort_key as _structure_sort_key,
     workflow_path as _workflow_path,
 )
@@ -573,7 +574,7 @@ class ArchiveRemoteWindowBridge(QObject):
     def request_structure_children(self, parent_path: str = "") -> None:
         if not self.structure_requests_ready or self._controller.current_session is None:
             return
-        parent = _normalized(parent_path)
+        parent = normalize_archive_remote_path(parent_path)
         if parent in self._structure_loaded:
             return
         self._window.archive_structure_filter_state = "warming"
@@ -759,12 +760,15 @@ class ArchiveRemoteWindowBridge(QObject):
     def _handle_structure_children(self, parent_path: str, result: ArchiveChildrenResult) -> None:
         if not self._display_v2:
             return
-        parent = _normalized(parent_path)
+        parent = normalize_archive_remote_path(parent_path)
         rows = self._structure_rows.setdefault(parent, [])
         if result.offset == 0:
             rows.clear()
         folder_nodes = [child for child in result.children if child.is_folder]
-        rows.extend((_normalized(child.key), int(child.match_count)) for child in folder_nodes)
+        rows.extend(
+            (normalize_archive_remote_path(child.key), int(child.match_count))
+            for child in folder_nodes
+        )
         if (
             result.next_offset is not None
             and result.children
