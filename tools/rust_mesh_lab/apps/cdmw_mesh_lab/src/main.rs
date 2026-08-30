@@ -358,6 +358,16 @@ impl LabApplication {
                 if let Some(sidecar) = &texture.sidecar_label {
                     parts.push(format!("Sidecar {sidecar}"));
                 }
+                if let Some(compression) = texture.archive_compression {
+                    let label = match compression {
+                        cdmw_archive::CompressionOutcome::Stored => "Stored",
+                        cdmw_archive::CompressionOutcome::PartialRaw => "Partial raw",
+                        cdmw_archive::CompressionOutcome::PartialDds => "Partial DDS",
+                        cdmw_archive::CompressionOutcome::SparseDds => "Sparse DDS",
+                        cdmw_archive::CompressionOutcome::Lz4 => "LZ4",
+                    };
+                    parts.push(format!("Archive decode {label}"));
+                }
                 let ownership = texture
                     .material_indices_by_lod
                     .iter()

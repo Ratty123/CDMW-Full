@@ -7,12 +7,12 @@ This inventory records the local CDMW contracts examined at implementation time.
 | Format | Current Rust level | Local CDMW owner used as oracle | Limits and remaining proof |
 |---|---|---|---|
 | Archive `.pamt` index | Structural read | `cdmw/core/archive_format.py`, `cdmw/core/archive_scan_cache.py` | Header/table/path/payload bounds are checked; mount order from `meta/0.papgt` is not ported |
-| Numbered `.paz` payload | Lazy read | `cdmw/core/archive_extraction.py` | Stored and LZ4 entries decode; Partial raw is classified; Partial DDS/PAR and Sparse DDS reconstruction remain incomplete |
-| PAC | Geometry read, LOD0 | `cdmw/modding/mesh_parser.py`, `native/cdmw_preview_core/src/owners/geometry_pac.cpp` | PAR sections, descriptors, candidate strides/UV offsets, packed normals, topology; skin palettes, extra influences, LOD1+, and appearance parity incomplete |
+| Numbered `.paz` payload | Lazy read | `cdmw/core/archive_extraction.py` | Stored and LZ4 entries decode; supported type-1 DDS reconstructs from sibling `meta/0.pathc`, supported type-0 Sparse DDS pads to its validated declared size, and non-DDS type 1 remains classified as Partial raw; Partial PAR remains incomplete |
+| PAC | Geometry read, proven LOD0-LOD3 mappings | `cdmw/modding/mesh_parser.py`, `native/cdmw_preview_core/src/owners/geometry_pac.cpp` | PAR sections, descriptors, candidate strides/UV offsets, packed normals, topology; skin palettes, extra influences, declared LOD4+, and appearance parity incomplete |
 | PAM | Geometry read | `cdmw/modding/mesh_parser.py`, `native/cdmw_preview_core/src/owners/geometry_static.cpp` | Proven quantized candidate layouts; global/scan fallback variants incomplete |
 | PAMLOD | Geometry read | same static owners | Declared LOD groups and proven quantized groups; unsupported groups fail visibly |
-| DDS | Metadata read and direct 2D GPU upload | `cdmw/core/archive_extraction.py`, `cdmw/core/dds_resource_limits.py` | Legacy/DX10 metadata and common BC/R/RG/RGBA/BGRA formats; arrays/cubes, Partial/Sparse reconstruction, fallback transcode, and multi-material composition incomplete |
-| PAC XML / PAM XML / PAMLOD XML | Relationship target only | material sidecar owners | XML parameter parsing not native yet |
+| DDS | Metadata read, supported archive reconstruction, and direct 2D GPU upload | `cdmw/core/archive_extraction.py`, `cdmw/core/dds_resource_limits.py` | Legacy/DX10 metadata and common BC/R/RG/RGBA/BGRA formats; bounded Partial and Sparse reconstruction is synthetically proven for supported 2D entries, while arrays/cubes and fallback transcode remain incomplete |
+| PAC XML / PAM XML / PAMLOD XML | Bounded texture-relationship read | material sidecar owners | Wrapper/submesh/shader/texture-parameter provenance is native; scalar/vector factors, layers, specular/gloss rendering, and alpha policy remain incomplete |
 | PAMI / APP XML / Prefab-data XML | Relationship target only | appearance/material owners | Native semantic parsing not implemented |
 | PAB | Unsupported in Rust | `cdmw/modding/skeleton_parser.py` | No skeleton overlay parity yet |
 | PABC | Unsupported in Rust | `cdmw/modding/skeleton_variation_parser.py` | No variation application parity yet |
@@ -36,8 +36,8 @@ The low flag nibble is compression type; the next nibble is encryption type. Cur
 
 | Value | Compression | Rust behavior |
 |---:|---|---|
-| 0 | None | Stored bytes |
-| 1 | Partial | Classified as Partial raw; format-specific reconstruction incomplete |
+| 0 | None | Stored bytes when sizes agree; a `.dds` size mismatch reconstructs as Sparse DDS by validating its header and zero-padding to the bounded declared original size; other mismatches fail closed |
+| 1 | Partial | A `.dds` entry reconstructs from its exact virtual-path record in sibling `meta/0.pathc`; non-DDS data remains classified as Partial raw, and Partial PAR remains incomplete |
 | 2 | LZ4 block | Native `lz4_flex` decode with exact expected size |
 | 3 | Zlib | Unsupported, fail closed |
 | 4 | QuickLZ | Unsupported, fail closed |
@@ -45,6 +45,8 @@ The low flag nibble is compression type; the next nibble is encryption type. Cur
 Encryption type 3 uses the current filename-derived ChaCha20 contract. Rust uses the maintained RustCrypto `chacha20` implementation in legacy mode, ports only the proven lookup3 seed/key/nonce derivation, and does not implement its own cipher primitive. Types 1, 2, and unknown values fail closed.
 
 Archive discovery recursively finds `.pamt` index candidates, ignores top-level `cdmods`, sorts deterministically, validates every numbered payload identity and range, and does not read entry payloads during browsing. `meta/0.papgt` mount ordering remains a parity gap.
+
+Partial DDS reconstruction parses the bounded PATHC fixed header, texture-header, checksum, entry, collision, and filename tables; resolves the exact normalized virtual path with the current lookup3 contract; validates the legacy/DX10 2D header and mip plan; and decodes the supported single-chunk or first-four-mip LZ4 layout. Payload chunk sizes override stale PATHC block-size metadata only under the same bounded plausibility rule as current CDMW. Missing or ambiguous PATHC records, malformed tables, unsupported texture shapes, truncated blocks, and outputs above the caller's active limit fail before publication. Reconstruction is in memory and leaves the PAZ and PATHC files byte-exact. Synthetic cross-implementation fixtures require exact reconstructed SHA-256 values `c9096e57e46707bd071a94b7274c6e8af0ddf01766137a186b58e993893b21a5` (Partial) and `2880a12980fe3145ebafbe2a3d9cf177337608e9037db99a9d5e717ecfc522cb` (Sparse); private archive-corpus parity is not yet proven.
 
 ## PAC contract
 
@@ -56,11 +58,11 @@ The Rust PAC reader currently requires:
 - section 0 with a LOD count from 1 through 10;
 - descriptor patterns currently proven by the native preview core;
 - finite bounds and counts below 200,000 vertices and 20,000,000 indices per descriptor;
-- one validated geometry section and candidate vertex layout;
+- one validated geometry section and candidate vertex layout for every accepted section 4→LOD0 through section 1→LOD3 mapping;
 - every index inside its submesh vertex count;
 - finite decoded positions, UVs, and normals.
 
-Candidate vertex strides are 32, 36, 40, 44, and 48 bytes with the locally accepted UV-offset family and the packed normal at byte 16. LOD0 positions use the existing PAC extent decoder; packed 10:10:10 normals use the current component reorder.
+Candidate vertex strides are 32, 36, 40, 44, and 48 bytes with the locally accepted UV-offset family and the packed normal at byte 16. Positions use the existing PAC extent decoder; packed 10:10:10 normals use the current component reorder.
 
 This is not yet PAC skinning parity. Bone indices, weights, palettes, rigid attachment context, and extra influence gates remain explicit readiness blockers.
 

@@ -1,6 +1,6 @@
 use cdmw_archive::{
-    ArchiveCatalog, ArchiveLimits, CancellationToken, CatalogProgress, open_archive_root,
-    read_entry_unverified,
+    ArchiveCatalog, ArchiveLimits, CancellationToken, CatalogProgress, CompressionOutcome,
+    DecodedEntry, open_archive_root, read_entry_unverified,
 };
 use cdmw_asset_graph::{AssetIndex, AssetRelation, RelationKind, ResolutionMethod};
 use cdmw_formats::{MeshDocument, MeshFormat, decode_mesh};
@@ -38,6 +38,7 @@ pub struct LoadedTexture {
     pub parameter_name: Option<String>,
     pub sidecar_label: Option<String>,
     pub resolution_method: ResolutionMethod,
+    pub archive_compression: Option<CompressionOutcome>,
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
@@ -580,7 +581,7 @@ fn resolve_archive_texture(
         MATERIAL_SIDECAR_MAX_BYTES,
         cancellation,
     ) {
-        Ok(bytes) => bytes,
+        Ok(decoded) => decoded.bytes,
         Err(error) => {
             cancellation
                 .check()
@@ -650,13 +651,13 @@ fn resolve_archive_texture(
             ));
             continue;
         };
-        let bytes = match read_catalog_entry(
+        let decoded = match read_catalog_entry(
             catalog,
             texture_entry,
             DDS_MAX_PAYLOAD_BYTES,
             cancellation,
         ) {
-            Ok(bytes) => bytes,
+            Ok(decoded) => decoded,
             Err(error) => {
                 cancellation
                     .check()
@@ -667,7 +668,7 @@ fn resolve_archive_texture(
                 continue;
             }
         };
-        let metadata = match inspect_dds(&bytes, reference.role) {
+        let metadata = match inspect_dds(&decoded.bytes, reference.role) {
             Ok(metadata) => metadata,
             Err(error) => {
                 result.warnings.push(format!(
@@ -686,12 +687,13 @@ fn resolve_archive_texture(
         result.textures.push(LoadedTexture {
             label: target.to_owned(),
             metadata,
-            bytes,
+            bytes: decoded.bytes,
             role: reference.role,
             requested_reference: reference.path.clone(),
             parameter_name: Some(reference.parameter_name.clone()),
             sidecar_label: Some(sidecar_target.to_owned()),
             resolution_method: relation.method,
+            archive_compression: Some(decoded.compression),
             material_indices_by_lod: owned.material_indices_by_lod,
         });
     }
@@ -802,8 +804,8 @@ fn resolve_archive_fallback(
         ));
         return Ok(());
     };
-    let bytes = match read_catalog_entry(catalog, entry, DDS_MAX_PAYLOAD_BYTES, cancellation) {
-        Ok(bytes) => bytes,
+    let decoded = match read_catalog_entry(catalog, entry, DDS_MAX_PAYLOAD_BYTES, cancellation) {
+        Ok(decoded) => decoded,
         Err(error) => {
             cancellation
                 .check()
@@ -814,7 +816,7 @@ fn resolve_archive_fallback(
             return Ok(());
         }
     };
-    let metadata = match inspect_dds(&bytes, TextureRole::BaseColor) {
+    let metadata = match inspect_dds(&decoded.bytes, TextureRole::BaseColor) {
         Ok(metadata) => metadata,
         Err(error) => {
             result.warnings.push(format!(
@@ -831,12 +833,13 @@ fn resolve_archive_fallback(
     result.textures.push(LoadedTexture {
         label: target.to_owned(),
         metadata,
-        bytes,
+        bytes: decoded.bytes,
         role: TextureRole::BaseColor,
         requested_reference: reference.clone(),
         parameter_name: None,
         sidecar_label: None,
         resolution_method: relation.method,
+        archive_compression: Some(decoded.compression),
         material_indices_by_lod: all_material_indices(document),
     });
     Ok(())
@@ -887,6 +890,7 @@ fn load_direct_dds(
             .then(|| reference.parameter_name.clone()),
         sidecar_label: sidecar_path.map(|path| path.to_string_lossy().replace('\\', "/")),
         resolution_method: method,
+        archive_compression: None,
         material_indices_by_lod,
     })
 }
@@ -1224,7 +1228,7 @@ fn read_catalog_entry(
     entry: &cdmw_archive::CatalogEntry,
     max_bytes: usize,
     cancellation: &CancellationToken,
-) -> Result<Vec<u8>, String> {
+) -> Result<DecodedEntry, String> {
     cancellation.check().map_err(|error| error.to_string())?;
     let declared_size = entry.entry.original_size.max(entry.entry.stored_size);
     if declared_size > max_bytes as u64 {
@@ -1239,13 +1243,13 @@ fn read_catalog_entry(
         .ok_or_else(|| "asset relation references a missing archive index".to_owned())?
         .parent()
         .ok_or_else(|| "archive index has no payload directory".to_owned())?;
-    let decoded = read_entry_unverified(
-        payload_root,
-        &entry.entry,
-        ArchiveLimits::default(),
-        cancellation,
-    )
-    .map_err(|error| error.to_string())?;
+    let decode_limits = ArchiveLimits {
+        max_entry_bytes: u64::try_from(max_bytes)
+            .map_err(|_| format!("{max_bytes}-byte decode limit is not representable"))?,
+        ..ArchiveLimits::default()
+    };
+    let decoded = read_entry_unverified(payload_root, &entry.entry, decode_limits, cancellation)
+        .map_err(|error| error.to_string())?;
     cancellation.check().map_err(|error| error.to_string())?;
     if decoded.bytes.len() > max_bytes {
         return Err(format!(
@@ -1254,7 +1258,7 @@ fn read_catalog_entry(
             decoded.bytes.len()
         ));
     }
-    Ok(decoded.bytes)
+    Ok(decoded)
 }
 
 fn read_bounded_file(path: &Path, max_bytes: usize, kind: &str) -> Result<Vec<u8>, String> {
@@ -1443,6 +1447,41 @@ mod tests {
         }
     }
 
+    fn synthetic_partial_dds_header(block_size: u32) -> Vec<u8> {
+        let mut header = vec![0_u8; 0x80];
+        header[0..4].copy_from_slice(b"DDS ");
+        header[4..8].copy_from_slice(&124_u32.to_le_bytes());
+        header[8..12].copy_from_slice(&0x0008_1007_u32.to_le_bytes());
+        header[12..16].copy_from_slice(&4_u32.to_le_bytes());
+        header[16..20].copy_from_slice(&4_u32.to_le_bytes());
+        header[20..24].copy_from_slice(&8_u32.to_le_bytes());
+        header[28..32].copy_from_slice(&1_u32.to_le_bytes());
+        header[32..36].copy_from_slice(&block_size.to_le_bytes());
+        header[36..40].copy_from_slice(&block_size.to_le_bytes());
+        header[76..80].copy_from_slice(&32_u32.to_le_bytes());
+        header[80..84].copy_from_slice(&4_u32.to_le_bytes());
+        header[84..88].copy_from_slice(b"DXT1");
+        header[108..112].copy_from_slice(&0x0000_1000_u32.to_le_bytes());
+        header
+    }
+
+    fn synthetic_pathc_header(texture_header: &[u8]) -> Vec<u8> {
+        let mut pathc = Vec::new();
+        pathc.extend_from_slice(&0_u32.to_le_bytes());
+        pathc.extend_from_slice(&0_u32.to_le_bytes());
+        pathc.extend_from_slice(&128_u32.to_le_bytes());
+        pathc.extend_from_slice(&1_u32.to_le_bytes());
+        pathc.extend_from_slice(&1_u32.to_le_bytes());
+        pathc.extend_from_slice(&0_u32.to_le_bytes());
+        pathc.extend_from_slice(&0_u32.to_le_bytes());
+        pathc.extend_from_slice(texture_header);
+        pathc.extend_from_slice(&0x54e1_1b82_u32.to_le_bytes());
+        pathc.extend_from_slice(&0_u16.to_le_bytes());
+        pathc.extend_from_slice(&0_u16.to_le_bytes());
+        pathc.extend_from_slice(&[0_u8; 16]);
+        pathc
+    }
+
     fn direct_fixture(
         label: &str,
     ) -> Result<(TempTree, PathBuf, PathBuf, PathBuf), Box<dyn std::error::Error>> {
@@ -1485,8 +1524,55 @@ mod tests {
         assert_eq!(texture.requested_reference, "character/texture/body.dds");
         assert_eq!(texture.parameter_name.as_deref(), Some("_baseColorTexture"));
         assert!(texture.sidecar_label.is_some());
+        assert_eq!(texture.archive_compression, None);
         assert_eq!(texture.role, TextureRole::BaseColor);
         assert_eq!(texture.material_indices_by_lod, vec![vec![0]]);
+        Ok(())
+    }
+
+    #[test]
+    fn archive_reader_reconstructs_uploadable_partial_dds_without_modifying_sources()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let tree = TempTree::new("partial-dds-loader")?;
+        let payload_root = tree.0.join("base");
+        let meta_root = tree.0.join("meta");
+        fs::create_dir_all(&payload_root)?;
+        fs::create_dir_all(&meta_root)?;
+        let header = synthetic_partial_dds_header(8);
+        let mut payload = header.clone();
+        payload.extend_from_slice(&[1_u8, 2, 3, 4, 5, 6, 7, 8]);
+        let pathc = synthetic_pathc_header(&header);
+        let payload_path = payload_root.join("0.paz");
+        let pathc_path = meta_root.join("0.pathc");
+        fs::write(&payload_path, &payload)?;
+        fs::write(&pathc_path, &pathc)?;
+        let catalog = ArchiveCatalog {
+            root: tree.0.clone(),
+            indexes: vec![payload_root.join("0.pamt")],
+            entries: Vec::new(),
+            warnings: Vec::new(),
+        };
+        let entry = cdmw_archive::CatalogEntry {
+            index_id: 0,
+            entry: cdmw_archive::ArchiveEntry {
+                virtual_path: "texture/test.dds".to_owned(),
+                payload_index: 0,
+                offset: 0,
+                stored_size: u64::try_from(payload.len())?,
+                original_size: u64::try_from(payload.len() + 1)?,
+                flags: 1,
+            },
+        };
+
+        let decoded = read_catalog_entry(&catalog, &entry, 256, &CancellationToken::default())?;
+        assert_eq!(
+            decoded.compression,
+            cdmw_archive::CompressionOutcome::PartialDds
+        );
+        assert_eq!(decoded.bytes, payload);
+        assert!(inspect_dds(&decoded.bytes, TextureRole::BaseColor).is_ok());
+        assert_eq!(fs::read(payload_path)?, payload);
+        assert_eq!(fs::read(pathc_path)?, pathc);
         Ok(())
     }
 

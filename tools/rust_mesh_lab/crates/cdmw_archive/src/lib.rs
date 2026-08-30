@@ -16,6 +16,12 @@ pub const DEFAULT_MAX_INDEX_BYTES: u64 = 512 * 1024 * 1024;
 pub const DEFAULT_MAX_ENTRY_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const LOOKUP3_INIT: u32 = 0x000c_5ede;
 const CHACHA_IV_XOR: u32 = 0x6061_6263;
+const DDS_MAGIC: &[u8; 4] = b"DDS ";
+const DDS_LEGACY_HEADER_BYTES: usize = 0x80;
+const DDS_DX10_HEADER_BYTES: usize = 0x94;
+const DDS_MAX_DIMENSION: u32 = 16_384;
+const PATHC_FIXED_HEADER_BYTES: usize = 28;
+const PATHC_MAX_TEXTURE_HEADER_BYTES: usize = 4_096;
 const CHACHA_XOR_DELTAS: [u32; 8] = [
     0,
     0x0a0a_0a0a,
@@ -146,6 +152,8 @@ pub struct DecodedEntry {
 pub enum CompressionOutcome {
     Stored,
     PartialRaw,
+    PartialDds,
+    SparseDds,
     Lz4,
 }
 
@@ -192,6 +200,10 @@ pub enum ArchiveError {
     UnsupportedEncryption(u8),
     #[error("LZ4 block failed: {0}")]
     Lz4(String),
+    #[error("Partial DDS reconstruction failed: {0}")]
+    PartialDds(String),
+    #[error("Sparse DDS reconstruction failed: {0}")]
+    SparseDds(String),
     #[error("decoded entry size mismatch: expected {expected}, actual {actual}")]
     DecodedSize { expected: u64, actual: u64 },
     #[error("operation cancelled")]
@@ -444,6 +456,14 @@ pub fn read_entry_unverified(
         (bytes, CompressionOutcome::Stored)
     } else {
         match entry.compression_type() {
+            0 => (
+                reconstruct_sparse_dds(entry, bytes, limits.max_entry_bytes)?,
+                CompressionOutcome::SparseDds,
+            ),
+            1 if entry.extension().eq_ignore_ascii_case(".dds") => (
+                reconstruct_partial_dds(payload_root, entry, &bytes, limits, cancellation)?,
+                CompressionOutcome::PartialDds,
+            ),
             1 => (bytes, CompressionOutcome::PartialRaw),
             2 => {
                 let expected = usize::try_from(entry.original_size).map_err(|_| {
@@ -459,8 +479,10 @@ pub fn read_entry_unverified(
             other => return Err(ArchiveError::UnsupportedCompression(other)),
         }
     };
-    if !matches!(compression, CompressionOutcome::PartialRaw)
-        && entry.original_size > 0
+    if !matches!(
+        compression,
+        CompressionOutcome::PartialRaw | CompressionOutcome::PartialDds
+    ) && entry.original_size > 0
         && u64::try_from(bytes.len()).ok() != Some(entry.original_size)
     {
         return Err(ArchiveError::DecodedSize {
@@ -472,6 +494,579 @@ pub fn read_entry_unverified(
         bytes,
         compression,
         encryption,
+    })
+}
+
+#[derive(Debug, Clone)]
+struct PathcEntry {
+    texture_header_index: u16,
+    compressed_block_infos: [u8; 16],
+}
+
+#[derive(Debug)]
+struct PathcCollisionEntry {
+    filename_offset: usize,
+    entry: PathcEntry,
+}
+
+#[derive(Debug)]
+struct PathcCollection {
+    header_size: usize,
+    headers: Vec<Vec<u8>>,
+    entries: HashMap<u32, PathcEntry>,
+    collisions: HashMap<String, PathcEntry>,
+}
+
+impl PathcCollection {
+    fn parse(bytes: &[u8], max_records: usize) -> Result<Self, ArchiveError> {
+        if bytes.len() < PATHC_FIXED_HEADER_BYTES {
+            return Err(ArchiveError::PartialDds(
+                "PATHC file is smaller than its fixed header".to_owned(),
+            ));
+        }
+        let header_size = usize::try_from(read_u32(bytes, 8, "PATHC fixed header")?)
+            .map_err(|_| ArchiveError::CountOverflow)?;
+        if !(DDS_LEGACY_HEADER_BYTES..=PATHC_MAX_TEXTURE_HEADER_BYTES).contains(&header_size) {
+            return Err(ArchiveError::PartialDds(format!(
+                "PATHC texture header size {header_size} is unsupported"
+            )));
+        }
+        let header_count = usize::try_from(read_u32(bytes, 12, "PATHC fixed header")?)
+            .map_err(|_| ArchiveError::CountOverflow)?;
+        let entry_count = usize::try_from(read_u32(bytes, 16, "PATHC fixed header")?)
+            .map_err(|_| ArchiveError::CountOverflow)?;
+        let collision_count = usize::try_from(read_u32(bytes, 20, "PATHC fixed header")?)
+            .map_err(|_| ArchiveError::CountOverflow)?;
+        let filenames_length = usize::try_from(read_u32(bytes, 24, "PATHC fixed header")?)
+            .map_err(|_| ArchiveError::CountOverflow)?;
+        let record_count = header_count
+            .checked_add(entry_count)
+            .and_then(|value| value.checked_add(collision_count))
+            .ok_or(ArchiveError::CountOverflow)?;
+        if record_count > max_records {
+            return Err(ArchiveError::PartialDds(format!(
+                "PATHC contains {record_count} records, above the configured limit {max_records}"
+            )));
+        }
+        let expected_bytes = PATHC_FIXED_HEADER_BYTES
+            .checked_add(
+                header_count
+                    .checked_mul(header_size)
+                    .ok_or(ArchiveError::CountOverflow)?,
+            )
+            .and_then(|value| value.checked_add(entry_count.checked_mul(4)?))
+            .and_then(|value| value.checked_add(entry_count.checked_mul(20)?))
+            .and_then(|value| value.checked_add(collision_count.checked_mul(24)?))
+            .and_then(|value| value.checked_add(filenames_length))
+            .ok_or(ArchiveError::CountOverflow)?;
+        if expected_bytes > bytes.len() {
+            return Err(ArchiveError::PartialDds(format!(
+                "PATHC tables require {expected_bytes} bytes but only {} are present",
+                bytes.len()
+            )));
+        }
+
+        let mut cursor = Cursor {
+            bytes,
+            offset: PATHC_FIXED_HEADER_BYTES,
+        };
+        let mut headers = Vec::with_capacity(header_count);
+        for _ in 0..header_count {
+            headers.push(
+                cursor
+                    .take(header_size, "PATHC texture header table")?
+                    .to_vec(),
+            );
+        }
+        let mut checksums = Vec::with_capacity(entry_count);
+        for _ in 0..entry_count {
+            checksums.push(cursor.u32("PATHC checksum table")?);
+        }
+        let mut entries = HashMap::with_capacity(entry_count);
+        for checksum in checksums {
+            let row = cursor.take(20, "PATHC entry table")?;
+            let texture_header_index = read_u16(row, 0, "PATHC entry table")?;
+            let compressed_block_infos = row
+                .get(4..20)
+                .ok_or(ArchiveError::Truncated("PATHC entry table"))?
+                .try_into()
+                .map_err(|_| ArchiveError::Truncated("PATHC entry table"))?;
+            entries.insert(
+                checksum,
+                PathcEntry {
+                    texture_header_index,
+                    compressed_block_infos,
+                },
+            );
+        }
+        let mut collision_rows = Vec::with_capacity(collision_count);
+        for _ in 0..collision_count {
+            let row = cursor.take(24, "PATHC collision table")?;
+            let filename_offset = usize::try_from(read_u32(row, 0, "PATHC collision table")?)
+                .map_err(|_| ArchiveError::CountOverflow)?;
+            let texture_header_index = read_u16(row, 4, "PATHC collision table")?;
+            let compressed_block_infos = row
+                .get(8..24)
+                .ok_or(ArchiveError::Truncated("PATHC collision table"))?
+                .try_into()
+                .map_err(|_| ArchiveError::Truncated("PATHC collision table"))?;
+            collision_rows.push(PathcCollisionEntry {
+                filename_offset,
+                entry: PathcEntry {
+                    texture_header_index,
+                    compressed_block_infos,
+                },
+            });
+        }
+        let filenames = cursor.take(filenames_length, "PATHC filename table")?;
+        let mut collisions = HashMap::with_capacity(collision_rows.len());
+        for collision in collision_rows {
+            let Some(remainder) = filenames.get(collision.filename_offset..) else {
+                continue;
+            };
+            let end = remainder
+                .iter()
+                .position(|value| *value == 0)
+                .unwrap_or(remainder.len());
+            let path =
+                std::str::from_utf8(remainder.get(..end).unwrap_or_default()).map_err(|_| {
+                    ArchiveError::PartialDds(
+                        "PATHC collision filename is not valid UTF-8".to_owned(),
+                    )
+                })?;
+            let normalized = path.replace('\\', "/").trim_start_matches('/').to_owned();
+            if !normalized.is_empty() {
+                collisions.insert(normalized, collision.entry);
+            }
+        }
+        Ok(Self {
+            header_size,
+            headers,
+            entries,
+            collisions,
+        })
+    }
+
+    fn header_for(&self, virtual_path: &str) -> Result<Vec<u8>, ArchiveError> {
+        let normalized = virtual_path
+            .replace('\\', "/")
+            .trim_start_matches('/')
+            .to_owned();
+        let lookup_path = format!("/{normalized}");
+        let direct = self
+            .entries
+            .get(&hashlittle(lookup_path.as_bytes(), LOOKUP3_INIT))
+            .ok_or_else(|| {
+                ArchiveError::PartialDds(format!("PATHC has no entry for {virtual_path}"))
+            })?;
+        let entry = if direct.texture_header_index == u16::MAX {
+            self.collisions.get(&normalized).ok_or_else(|| {
+                ArchiveError::PartialDds(format!(
+                    "PATHC collision table has no entry for {virtual_path}"
+                ))
+            })?
+        } else {
+            direct
+        };
+        let mut header = self
+            .headers
+            .get(usize::from(entry.texture_header_index))
+            .cloned()
+            .ok_or_else(|| {
+                ArchiveError::PartialDds(format!(
+                    "PATHC texture header index {} is outside its table",
+                    entry.texture_header_index
+                ))
+            })?;
+        if self.header_size == DDS_DX10_HEADER_BYTES {
+            let destination = header.get_mut(0x20..0x30).ok_or_else(|| {
+                ArchiveError::PartialDds("PATHC DX10 texture header is truncated".to_owned())
+            })?;
+            destination.copy_from_slice(&entry.compressed_block_infos);
+        }
+        Ok(header)
+    }
+}
+
+fn read_pathc_collection(
+    payload_root: &Path,
+    limits: ArchiveLimits,
+) -> Result<PathcCollection, ArchiveError> {
+    let archive_root = payload_root.parent().ok_or_else(|| {
+        ArchiveError::PartialDds(format!(
+            "archive payload directory {} has no package parent",
+            payload_root.display()
+        ))
+    })?;
+    let path = archive_root.join("meta").join("0.pathc");
+    let metadata = fs::metadata(&path).map_err(|error| {
+        ArchiveError::PartialDds(format!(
+            "metadata file {} is unavailable: {error}",
+            path.display()
+        ))
+    })?;
+    if metadata.len() > limits.max_index_bytes {
+        return Err(ArchiveError::PartialDds(format!(
+            "metadata file {} exceeds the {}-byte limit",
+            path.display(),
+            limits.max_index_bytes
+        )));
+    }
+    let bytes = fs::read(&path).map_err(|error| {
+        ArchiveError::PartialDds(format!(
+            "failed to read metadata file {}: {error}",
+            path.display()
+        ))
+    })?;
+    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > limits.max_index_bytes {
+        return Err(ArchiveError::PartialDds(format!(
+            "metadata file {} grew beyond the {}-byte limit while it was read",
+            path.display(),
+            limits.max_index_bytes
+        )));
+    }
+    PathcCollection::parse(&bytes, limits.max_entries)
+}
+
+fn reconstruct_partial_dds(
+    payload_root: &Path,
+    entry: &ArchiveEntry,
+    payload: &[u8],
+    limits: ArchiveLimits,
+    cancellation: &CancellationToken,
+) -> Result<Vec<u8>, ArchiveError> {
+    cancellation.check()?;
+    let collection = read_pathc_collection(payload_root, limits)?;
+    let header = collection.header_for(&entry.virtual_path)?;
+    if header.len() < DDS_LEGACY_HEADER_BYTES
+        || header.get(..4) != Some(DDS_MAGIC.as_slice())
+        || read_u32(&header, 4, "Partial DDS header")? != 124
+    {
+        return Err(ArchiveError::PartialDds(
+            "PATHC texture header is missing or invalid".to_owned(),
+        ));
+    }
+    let height = read_u32(&header, 12, "Partial DDS header")?;
+    let width = read_u32(&header, 16, "Partial DDS header")?;
+    let pitch_or_linear_size = read_u32(&header, 20, "Partial DDS header")?;
+    let depth = read_u32(&header, 24, "Partial DDS header")?;
+    let mip_count = read_u32(&header, 28, "Partial DDS header")?.max(1);
+    validate_dds_dimensions(width, height, depth, mip_count, "Partial DDS")
+        .map_err(ArchiveError::PartialDds)?;
+    let reserved = (0..11)
+        .map(|index| read_u32(&header, 32 + index * 4, "Partial DDS header"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let pixel_flags = read_u32(&header, 80, "Partial DDS pixel format")?;
+    let four_cc: [u8; 4] = header
+        .get(84..88)
+        .ok_or(ArchiveError::Truncated("Partial DDS pixel format"))?
+        .try_into()
+        .map_err(|_| ArchiveError::Truncated("Partial DDS pixel format"))?;
+    let rgb_bit_count = read_u32(&header, 88, "Partial DDS pixel format")?;
+    let caps2 = read_u32(&header, 112, "Partial DDS caps")?;
+    let is_dx10 = &four_cc == b"DX10";
+    let header_size = if is_dx10 {
+        DDS_DX10_HEADER_BYTES
+    } else {
+        DDS_LEGACY_HEADER_BYTES
+    };
+    if header.len() < header_size || payload.len() < header_size {
+        return Err(ArchiveError::PartialDds(
+            "texture header or payload is truncated".to_owned(),
+        ));
+    }
+    let dxgi_format = if is_dx10 {
+        read_u32(&header, 0x80, "Partial DDS DX10 header")?
+    } else {
+        0
+    };
+    let array_size = if is_dx10 {
+        read_u32(&header, 0x8c, "Partial DDS DX10 header")?
+    } else {
+        1
+    };
+    let single_chunk = (is_dx10 && array_size >= 2) || mip_count <= 5 || caps2 != 0 || depth >= 2;
+    let mut compressed_sizes = Vec::new();
+    let mut decoded_sizes = Vec::new();
+    if single_chunk {
+        compressed_sizes
+            .push(usize::try_from(reserved[0]).map_err(|_| ArchiveError::CountOverflow)?);
+        decoded_sizes.push(usize::try_from(reserved[1]).map_err(|_| ArchiveError::CountOverflow)?);
+    } else {
+        compressed_sizes.extend(
+            reserved
+                .iter()
+                .take(4)
+                .map(|value| usize::try_from(*value).map_err(|_| ArchiveError::CountOverflow))
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+        let mut mip_width = width;
+        let mut mip_height = height;
+        for mip_level in 0..mip_count.min(4) {
+            decoded_sizes.push(dds_surface_size(
+                mip_width,
+                mip_height,
+                dxgi_format,
+                four_cc,
+                pixel_flags,
+                rgb_bit_count,
+                pitch_or_linear_size,
+                mip_level,
+            )?);
+            mip_width = (mip_width >> 1).max(1);
+            mip_height = (mip_height >> 1).max(1);
+        }
+    }
+
+    if payload.get(..4) == Some(DDS_MAGIC.as_slice()) {
+        let payload_reserved = (0..11)
+            .map(|index| read_u32(payload, 32 + index * 4, "Partial DDS payload header"))
+            .collect::<Result<Vec<_>, _>>()?;
+        let payload_compressed = payload_reserved
+            .iter()
+            .take(compressed_sizes.len())
+            .map(|value| usize::try_from(*value).map_err(|_| ArchiveError::CountOverflow))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut payload_decoded = decoded_sizes.clone();
+        if single_chunk {
+            payload_decoded = vec![
+                usize::try_from(payload_reserved[1]).map_err(|_| ArchiveError::CountOverflow)?,
+            ];
+        }
+        let payload_bytes = checked_sum(&payload_compressed)?;
+        let payload_decoded_bytes = checked_sum(&payload_decoded)?;
+        let current_bytes = checked_sum(&compressed_sizes)?;
+        let available_payload = payload.len().saturating_sub(header_size);
+        if payload_bytes > 0
+            && payload_decoded_bytes > 0
+            && payload_bytes <= payload_decoded_bytes
+            && payload_bytes <= available_payload
+            && (current_bytes == 0
+                || current_bytes > available_payload
+                || payload_bytes < current_bytes)
+        {
+            compressed_sizes = payload_compressed;
+            if single_chunk {
+                decoded_sizes = payload_decoded;
+            }
+        }
+    }
+
+    let maximum_output =
+        usize::try_from(limits.max_entry_bytes).map_err(|_| ArchiveError::CountOverflow)?;
+    let mut source_offset = header_size;
+    let mut output_size = header_size;
+    for (&compressed_size, &decoded_size) in compressed_sizes.iter().zip(&decoded_sizes) {
+        if compressed_size == 0 || decoded_size == 0 {
+            continue;
+        }
+        source_offset = source_offset
+            .checked_add(compressed_size)
+            .ok_or(ArchiveError::CountOverflow)?;
+        if source_offset > payload.len() {
+            return Err(ArchiveError::PartialDds(
+                "compressed block is truncated".to_owned(),
+            ));
+        }
+        output_size = output_size
+            .checked_add(decoded_size)
+            .ok_or(ArchiveError::CountOverflow)?;
+        if output_size > maximum_output {
+            return Err(ArchiveError::PartialDds(format!(
+                "decoded output exceeds the {}-byte limit",
+                limits.max_entry_bytes
+            )));
+        }
+    }
+    output_size = output_size
+        .checked_add(payload.len().saturating_sub(source_offset))
+        .ok_or(ArchiveError::CountOverflow)?;
+    if output_size > maximum_output {
+        return Err(ArchiveError::PartialDds(format!(
+            "decoded output exceeds the {}-byte limit",
+            limits.max_entry_bytes
+        )));
+    }
+
+    let mut output = Vec::with_capacity(output_size);
+    output.extend_from_slice(
+        header
+            .get(..header_size)
+            .ok_or(ArchiveError::Truncated("Partial DDS texture header"))?,
+    );
+    source_offset = header_size;
+    for (&compressed_size, &decoded_size) in compressed_sizes.iter().zip(&decoded_sizes) {
+        if compressed_size == 0 || decoded_size == 0 {
+            continue;
+        }
+        cancellation.check()?;
+        let end = source_offset
+            .checked_add(compressed_size)
+            .ok_or(ArchiveError::CountOverflow)?;
+        let block = payload
+            .get(source_offset..end)
+            .ok_or_else(|| ArchiveError::PartialDds("compressed block is truncated".to_owned()))?;
+        if compressed_size == decoded_size {
+            output.extend_from_slice(block);
+        } else {
+            let decoded = lz4_flex::block::decompress(block, decoded_size)
+                .map_err(|error| ArchiveError::PartialDds(format!("LZ4 block failed: {error}")))?;
+            if decoded.len() != decoded_size {
+                return Err(ArchiveError::PartialDds(format!(
+                    "LZ4 block decoded to {} bytes instead of {decoded_size}",
+                    decoded.len()
+                )));
+            }
+            output.extend_from_slice(&decoded);
+        }
+        source_offset = end;
+    }
+    if let Some(trailing) = payload.get(source_offset..) {
+        output.extend_from_slice(trailing);
+    }
+    cancellation.check()?;
+    Ok(output)
+}
+
+fn reconstruct_sparse_dds(
+    entry: &ArchiveEntry,
+    mut payload: Vec<u8>,
+    max_entry_bytes: u64,
+) -> Result<Vec<u8>, ArchiveError> {
+    if !entry.extension().eq_ignore_ascii_case(".dds")
+        || payload.get(..4) != Some(DDS_MAGIC.as_slice())
+    {
+        return Err(ArchiveError::UnsupportedCompression(0));
+    }
+    if payload.len() < DDS_LEGACY_HEADER_BYTES {
+        return Err(ArchiveError::SparseDds(
+            "DDS header is truncated".to_owned(),
+        ));
+    }
+    let height = read_u32(&payload, 12, "Sparse DDS header")?;
+    let width = read_u32(&payload, 16, "Sparse DDS header")?;
+    let depth = read_u32(&payload, 24, "Sparse DDS header")?;
+    let mip_count = read_u32(&payload, 28, "Sparse DDS header")?.max(1);
+    validate_dds_dimensions(width, height, depth, mip_count, "Sparse DDS")
+        .map_err(ArchiveError::SparseDds)?;
+    if entry.original_size > max_entry_bytes {
+        return Err(ArchiveError::SparseDds(format!(
+            "output exceeds the {max_entry_bytes}-byte limit"
+        )));
+    }
+    let output_size = usize::try_from(entry.original_size).map_err(|_| {
+        ArchiveError::SparseDds("declared output size is not representable".to_owned())
+    })?;
+    if output_size <= payload.len() {
+        return Err(ArchiveError::SparseDds(format!(
+            "declared output size {output_size} is not larger than the {} stored bytes",
+            payload.len()
+        )));
+    }
+    payload.resize(output_size, 0);
+    Ok(payload)
+}
+
+fn validate_dds_dimensions(
+    width: u32,
+    height: u32,
+    depth: u32,
+    mip_count: u32,
+    label: &str,
+) -> Result<(), String> {
+    if width == 0
+        || height == 0
+        || width > DDS_MAX_DIMENSION
+        || height > DDS_MAX_DIMENSION
+        || depth > DDS_MAX_DIMENSION
+    {
+        return Err(format!(
+            "{label} dimensions {width}x{height}x{depth} are invalid"
+        ));
+    }
+    let maximum_mips = 32_u32.saturating_sub(width.max(height).leading_zeros());
+    if mip_count == 0 || mip_count > maximum_mips {
+        return Err(format!(
+            "{label} mip count {mip_count} is invalid for {width}x{height}"
+        ));
+    }
+    Ok(())
+}
+
+fn dds_surface_size(
+    width: u32,
+    height: u32,
+    dxgi_format: u32,
+    four_cc: [u8; 4],
+    pixel_flags: u32,
+    rgb_bit_count: u32,
+    pitch_or_linear_size: u32,
+    mip_level: u32,
+) -> Result<usize, ArchiveError> {
+    let bytes_per_block = match dxgi_format {
+        71 | 72 | 80 | 81 => Some(8_u32),
+        74 | 75 | 77 | 78 | 83 | 84 | 94 | 95 | 96 | 98 | 99 => Some(16_u32),
+        _ => match four_cc.map(|value| value.to_ascii_lowercase()) {
+            value
+                if value == *b"dxt1"
+                    || value == *b"bc4u"
+                    || value == *b"bc4s"
+                    || value == *b"ati1" =>
+            {
+                Some(8)
+            }
+            value
+                if value == *b"dxt3"
+                    || value == *b"dxt5"
+                    || value == *b"bc5u"
+                    || value == *b"bc5s"
+                    || value == *b"ati2"
+                    || value == *b"rxgb" =>
+            {
+                Some(16)
+            }
+            _ => None,
+        },
+    };
+    if let Some(bytes_per_block) = bytes_per_block {
+        let block_width = width.saturating_add(3).checked_div(4).unwrap_or(0).max(1);
+        let block_height = height.saturating_add(3).checked_div(4).unwrap_or(0).max(1);
+        return usize::try_from(
+            u64::from(block_width)
+                .checked_mul(u64::from(block_height))
+                .and_then(|value| value.checked_mul(u64::from(bytes_per_block)))
+                .ok_or(ArchiveError::CountOverflow)?,
+        )
+        .map_err(|_| ArchiveError::CountOverflow);
+    }
+    const RAW_PIXEL_FLAGS: u32 = 0x1 | 0x2 | 0x40 | 0x2_0000;
+    if pixel_flags & RAW_PIXEL_FLAGS != 0 && rgb_bit_count > 0 && rgb_bit_count.is_multiple_of(8) {
+        return usize::try_from(
+            u64::from(width)
+                .checked_mul(u64::from(height))
+                .and_then(|value| value.checked_mul(u64::from(rgb_bit_count / 8)))
+                .ok_or(ArchiveError::CountOverflow)?,
+        )
+        .map_err(|_| ArchiveError::CountOverflow);
+    }
+    if pitch_or_linear_size > 0 {
+        let pitch = (pitch_or_linear_size >> mip_level.min(31)).max(1);
+        return usize::try_from(
+            u64::from(pitch)
+                .checked_mul(u64::from(height))
+                .ok_or(ArchiveError::CountOverflow)?,
+        )
+        .map_err(|_| ArchiveError::CountOverflow);
+    }
+    Err(ArchiveError::PartialDds(format!(
+        "unsupported pixel format DXGI={dxgi_format} FOURCC={:?}",
+        String::from_utf8_lossy(&four_cc)
+    )))
+}
+
+fn checked_sum(values: &[usize]) -> Result<usize, ArchiveError> {
+    values.iter().try_fold(0_usize, |total, value| {
+        total.checked_add(*value).ok_or(ArchiveError::CountOverflow)
     })
 }
 
@@ -664,17 +1259,17 @@ fn hashlittle(data: &[u8], init: u32) -> u32 {
 }
 
 fn mix(mut a: u32, mut b: u32, mut c: u32) -> (u32, u32, u32) {
-    a = (a ^ c.rotate_left(4)).wrapping_sub(c);
+    a = a.wrapping_sub(c) ^ c.rotate_left(4);
     c = c.wrapping_add(b);
-    b = (b ^ a.rotate_left(6)).wrapping_sub(a);
+    b = b.wrapping_sub(a) ^ a.rotate_left(6);
     a = a.wrapping_add(c);
-    c = (c ^ b.rotate_left(8)).wrapping_sub(b);
+    c = c.wrapping_sub(b) ^ b.rotate_left(8);
     b = b.wrapping_add(a);
-    a = (a ^ c.rotate_left(16)).wrapping_sub(c);
+    a = a.wrapping_sub(c) ^ c.rotate_left(16);
     c = c.wrapping_add(b);
-    b = (b ^ a.rotate_left(19)).wrapping_sub(a);
+    b = b.wrapping_sub(a) ^ a.rotate_left(19);
     a = a.wrapping_add(c);
-    c = (c ^ b.rotate_left(4)).wrapping_sub(b);
+    c = c.wrapping_sub(b) ^ b.rotate_left(4);
     b = b.wrapping_add(a);
     (a, b, c)
 }
@@ -897,6 +1492,73 @@ mod tests {
         bytes
     }
 
+    fn synthetic_dxt1_header(compressed_size: u32, decoded_size: u32) -> Vec<u8> {
+        let mut header = vec![0_u8; DDS_LEGACY_HEADER_BYTES];
+        header[0..4].copy_from_slice(DDS_MAGIC);
+        header[4..8].copy_from_slice(&124_u32.to_le_bytes());
+        header[8..12].copy_from_slice(&0x0008_1007_u32.to_le_bytes());
+        header[12..16].copy_from_slice(&4_u32.to_le_bytes());
+        header[16..20].copy_from_slice(&4_u32.to_le_bytes());
+        header[20..24].copy_from_slice(&8_u32.to_le_bytes());
+        header[28..32].copy_from_slice(&1_u32.to_le_bytes());
+        header[32..36].copy_from_slice(&compressed_size.to_le_bytes());
+        header[36..40].copy_from_slice(&decoded_size.to_le_bytes());
+        header[76..80].copy_from_slice(&32_u32.to_le_bytes());
+        header[80..84].copy_from_slice(&4_u32.to_le_bytes());
+        header[84..88].copy_from_slice(b"DXT1");
+        header[108..112].copy_from_slice(&0x0000_1000_u32.to_le_bytes());
+        header
+    }
+
+    fn synthetic_pathc(virtual_path: &str, texture_header: &[u8]) -> Vec<u8> {
+        let mut pathc = Vec::new();
+        pathc.extend_from_slice(&0_u32.to_le_bytes());
+        pathc.extend_from_slice(&0_u32.to_le_bytes());
+        pathc.extend_from_slice(
+            &u32::try_from(texture_header.len())
+                .unwrap_or(u32::MAX)
+                .to_le_bytes(),
+        );
+        pathc.extend_from_slice(&1_u32.to_le_bytes());
+        pathc.extend_from_slice(&1_u32.to_le_bytes());
+        pathc.extend_from_slice(&0_u32.to_le_bytes());
+        pathc.extend_from_slice(&0_u32.to_le_bytes());
+        pathc.extend_from_slice(texture_header);
+        let normalized = virtual_path.replace('\\', "/");
+        let lookup = format!("/{}", normalized.trim_start_matches('/'));
+        pathc.extend_from_slice(&hashlittle(lookup.as_bytes(), LOOKUP3_INIT).to_le_bytes());
+        pathc.extend_from_slice(&0_u16.to_le_bytes());
+        pathc.extend_from_slice(&0_u16.to_le_bytes());
+        pathc.extend_from_slice(&[0_u8; 16]);
+        pathc
+    }
+
+    fn partial_dds_fixture(
+        pathc_decoded_size: u32,
+        payload_decoded_size: u32,
+    ) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+        let pixels = vec![7_u8; 64];
+        // Current CDMW Python oracle: lz4.block.compress(pixels, store_size=False).
+        let compressed = vec![
+            0x1f, 0x07, 0x01, 0x00, 0x27, 0x50, 0x07, 0x07, 0x07, 0x07, 0x07,
+        ];
+        let payload_compressed_size = u32::try_from(compressed.len()).unwrap_or(u32::MAX);
+        let pathc_compressed_size = if pathc_decoded_size == payload_decoded_size {
+            payload_compressed_size
+        } else {
+            payload_compressed_size.saturating_add(1)
+        };
+        let pathc_header = synthetic_dxt1_header(pathc_compressed_size, pathc_decoded_size);
+        let payload_header = synthetic_dxt1_header(payload_compressed_size, payload_decoded_size);
+        let mut payload = payload_header;
+        payload.extend_from_slice(&compressed);
+        (
+            payload,
+            synthetic_pathc("texture/test.dds", &pathc_header),
+            pixels,
+        )
+    }
+
     #[test]
     fn parses_current_pamt_table_contract() -> Result<(), ArchiveError> {
         let index = ArchiveIndex::parse(&synthetic_index(0), ArchiveLimits::default())?;
@@ -941,12 +1603,54 @@ mod tests {
     }
 
     #[test]
+    fn lookup3_matches_the_existing_pathc_contract_vector() {
+        assert_eq!(hashlittle(b"/texture/test.dds", LOOKUP3_INIT), 0x54e1_1b82);
+    }
+
+    #[test]
+    fn lookup3_matches_current_cdmw_at_block_boundaries() {
+        let vectors = [
+            (0_usize, 0xdeba_1dcd),
+            (1, 0x2679_4444),
+            (4, 0xf467_23ed),
+            (5, 0x849e_0ed4),
+            (8, 0xbb92_ca7f),
+            (9, 0x74df_c7f5),
+            (12, 0x38c3_433f),
+            (13, 0xe61e_ab3a),
+            (24, 0x7735_2176),
+            (25, 0x9927_5788),
+            (64, 0xa5f5_4175),
+        ];
+        for (length, expected) in vectors {
+            let bytes = (0..length)
+                .map(|value| u8::try_from(value).unwrap_or_default())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                hashlittle(&bytes, LOOKUP3_INIT),
+                expected,
+                "length {length}"
+            );
+        }
+    }
+
+    #[test]
     fn chacha20_filename_contract_matches_the_current_cdmw_oracle() {
         let mut bytes = (0_u8..64).collect::<Vec<_>>();
         crypt_chacha20_filename(&mut bytes, "hero.pac");
         assert_eq!(
             encode_hex(&bytes),
             "2b114314891124692792a8b52f4a6eaf0efc4db35400b1cd80ca5eb351e84650184a07632033dc524e62ff59eeca7725221cec9a94f1eaf32cd67ba340266384"
+        );
+    }
+
+    #[test]
+    fn chacha20_long_filename_contract_matches_the_current_cdmw_oracle() {
+        let mut bytes = (0_u8..64).collect::<Vec<_>>();
+        crypt_chacha20_filename(&mut bytes, "character_body.dds");
+        assert_eq!(
+            encode_hex(&bytes),
+            "afbefc5edbd087c93a7ebc8bec48c6f55bae8f90241967c49fe42a08e41386fbaa9feaea8b1ef62be023ee92c4985ecaffe8bb731ef306054541f04dd067cd1d"
         );
     }
 
@@ -970,6 +1674,171 @@ mod tests {
         assert_eq!(decoded.bytes, original);
         assert_eq!(decoded.compression, CompressionOutcome::Lz4);
         assert_eq!(before, after);
+        Ok(())
+    }
+
+    #[test]
+    fn partial_dds_uses_pathc_and_payload_chunk_authority_without_modifying_sources()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let payload_root = root.path().join("base");
+        let meta_root = root.path().join("meta");
+        fs::create_dir_all(&payload_root)?;
+        fs::create_dir_all(&meta_root)?;
+        let (payload, pathc, pixels) = partial_dds_fixture(4_096, 64);
+        let payload_path = payload_root.join("0.paz");
+        let pathc_path = meta_root.join("0.pathc");
+        fs::write(&payload_path, &payload)?;
+        fs::write(&pathc_path, &pathc)?;
+        let entry = ArchiveEntry {
+            virtual_path: "texture/test.dds".to_owned(),
+            payload_index: 0,
+            offset: 0,
+            stored_size: u64::try_from(payload.len())?,
+            original_size: u64::try_from(DDS_LEGACY_HEADER_BYTES + pixels.len())?,
+            flags: 1,
+        };
+        let token = CancellationToken::default();
+        let (decoded, before, after) =
+            read_entry(&payload_root, &entry, ArchiveLimits::default(), &token)?;
+        assert_eq!(decoded.compression, CompressionOutcome::PartialDds);
+        assert_eq!(decoded.bytes.get(..4), Some(DDS_MAGIC.as_slice()));
+        assert_eq!(
+            decoded.bytes.get(DDS_LEGACY_HEADER_BYTES..),
+            Some(pixels.as_slice())
+        );
+        assert_eq!(
+            cdmw_evidence::sha256_bytes(&decoded.bytes),
+            "c9096e57e46707bd071a94b7274c6e8af0ddf01766137a186b58e993893b21a5"
+        );
+        assert_eq!(before, after);
+        assert_eq!(fs::read(payload_path)?, payload);
+        assert_eq!(fs::read(pathc_path)?, pathc);
+        Ok(())
+    }
+
+    #[test]
+    fn pathc_record_counts_respect_the_active_limit() {
+        let header = synthetic_dxt1_header(8, 8);
+        let pathc = synthetic_pathc("texture/test.dds", &header);
+        assert!(matches!(
+            PathcCollection::parse(&pathc, 1),
+            Err(ArchiveError::PartialDds(message))
+                if message.contains("2 records") && message.contains("limit 1")
+        ));
+    }
+
+    #[test]
+    fn partial_dds_rejects_missing_metadata_and_truncated_blocks()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let payload_root = root.path().join("base");
+        fs::create_dir_all(&payload_root)?;
+        let (payload, pathc, pixels) = partial_dds_fixture(64, 64);
+        fs::write(payload_root.join("0.paz"), &payload)?;
+        let entry = ArchiveEntry {
+            virtual_path: "texture/test.dds".to_owned(),
+            payload_index: 0,
+            offset: 0,
+            stored_size: u64::try_from(payload.len())?,
+            original_size: u64::try_from(DDS_LEGACY_HEADER_BYTES + pixels.len())?,
+            flags: 1,
+        };
+        let token = CancellationToken::default();
+        assert!(matches!(
+            read_entry_unverified(
+                &payload_root,
+                &entry,
+                ArchiveLimits::default(),
+                &token
+            ),
+            Err(ArchiveError::PartialDds(message)) if message.contains("unavailable")
+        ));
+
+        let meta_root = root.path().join("meta");
+        fs::create_dir_all(&meta_root)?;
+        fs::write(meta_root.join("0.pathc"), pathc)?;
+        let truncated_length = payload.len().saturating_sub(1);
+        fs::write(payload_root.join("0.paz"), &payload[..truncated_length])?;
+        let truncated_entry = ArchiveEntry {
+            stored_size: u64::try_from(truncated_length)?,
+            ..entry
+        };
+        assert!(matches!(
+            read_entry_unverified(
+                &payload_root,
+                &truncated_entry,
+                ArchiveLimits::default(),
+                &token
+            ),
+            Err(ArchiveError::PartialDds(message)) if message.contains("truncated")
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn partial_dds_rejects_declared_output_above_the_active_limit()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let payload_root = root.path().join("base");
+        let meta_root = root.path().join("meta");
+        fs::create_dir_all(&payload_root)?;
+        fs::create_dir_all(&meta_root)?;
+        let (payload, pathc, _) = partial_dds_fixture(300, 300);
+        fs::write(payload_root.join("0.paz"), &payload)?;
+        fs::write(meta_root.join("0.pathc"), pathc)?;
+        let entry = ArchiveEntry {
+            virtual_path: "texture/test.dds".to_owned(),
+            payload_index: 0,
+            offset: 0,
+            stored_size: u64::try_from(payload.len())?,
+            original_size: 136,
+            flags: 1,
+        };
+        let token = CancellationToken::default();
+        let limits = ArchiveLimits {
+            max_entry_bytes: 256,
+            ..ArchiveLimits::default()
+        };
+        assert!(matches!(
+            read_entry_unverified(&payload_root, &entry, limits, &token),
+            Err(ArchiveError::PartialDds(message)) if message.contains("256-byte limit")
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn sparse_dds_padding_is_bounded_and_preserves_the_stored_prefix()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let header = synthetic_dxt1_header(0, 0);
+        let mut stored = header;
+        stored.extend_from_slice(&[9_u8, 8, 7, 6]);
+        fs::write(root.path().join("0.paz"), &stored)?;
+        let entry = ArchiveEntry {
+            virtual_path: "texture/sparse.dds".to_owned(),
+            payload_index: 0,
+            offset: 0,
+            stored_size: u64::try_from(stored.len())?,
+            original_size: u64::try_from(stored.len() + 4)?,
+            flags: 0,
+        };
+        let token = CancellationToken::default();
+        let (decoded, before, after) =
+            read_entry(root.path(), &entry, ArchiveLimits::default(), &token)?;
+        assert_eq!(decoded.compression, CompressionOutcome::SparseDds);
+        assert_eq!(decoded.bytes.len(), stored.len() + 4);
+        assert_eq!(decoded.bytes.get(..stored.len()), Some(stored.as_slice()));
+        assert_eq!(
+            decoded.bytes.get(stored.len()..),
+            Some([0_u8; 4].as_slice())
+        );
+        assert_eq!(
+            cdmw_evidence::sha256_bytes(&decoded.bytes),
+            "2880a12980fe3145ebafbe2a3d9cf177337608e9037db99a9d5e717ecfc522cb"
+        );
+        assert_eq!(before, after);
+        assert_eq!(fs::read(root.path().join("0.paz"))?, stored);
         Ok(())
     }
 

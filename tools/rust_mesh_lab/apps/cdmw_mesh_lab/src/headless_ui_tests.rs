@@ -929,6 +929,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             parameter_name: Some("_baseColorTexture".to_owned()),
             sidecar_label: Some("character/modelproperty/body.pam_xml".to_owned()),
             resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
+            archive_compression: Some(cdmw_archive::CompressionOutcome::PartialDds),
             material_indices_by_lod: vec![vec![0]],
         }],
     });
@@ -937,7 +938,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
     assert!(ui.reveal("character/texture/body.dds").is_ok());
     assert!(
         ui.reveal(
-            "Role BaseColor · Reference character/texture/body.dds · Resolved via ExplicitVirtualPath · Parameter _baseColorTexture · Sidecar character/modelproperty/body.pam_xml"
+            "Role BaseColor · Reference character/texture/body.dds · Resolved via ExplicitVirtualPath · Parameter _baseColorTexture · Sidecar character/modelproperty/body.pam_xml · Archive decode Partial DDS"
         )
         .is_ok()
     );
