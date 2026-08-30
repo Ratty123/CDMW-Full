@@ -29,7 +29,7 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots.
 - Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh/normal/bounds buffers, Textured/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes, and independent Normals/Bounds overlays. Bones is visibly disabled until skeleton context exists.
 - egui archive/assets, viewport, inspector, selection/edit, and status surfaces.
-- No-window `LabApplication` construction and egui-frame coverage plus direct app-method tests for every selection shape/domain, Visible/X-Ray routing, camera operation and aspect, all preview modes/overlays, transform/sculpt/topology tools, exact cancel, and Undo/Redo.
+- No-window `LabApplication` construction plus 11 painted-control/input tests whose coordinates come from egui's clipped draw output: preview/LOD menus, overlay and camera controls, 24 selection domain/shape/depth combinations through the bounded raw-pointer route, all seven edit tools, three topology actions, exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input, three resize shapes, Esc/resize cancellation, and dense face-selection fill without per-triangle outline strokes. Lower Inspector controls are verified at 1280×720 and 1000×600.
 - Offscreen D3D12 renderer coverage using the live mesh draw dispatcher for all seven preview modes with Normals and Bounds across 4:3, portrait, and widescreen targets; a validation error scope and CPU readback reject invalid or all-background output without constructing a window.
 - Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with fresh-working-mesh operation/Undo/Redo fingerprints and invariants for Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate on every decoded LOD.
 - Bounded cancellable latest-wins loader/search worker with stale-result rejection.
@@ -54,6 +54,18 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 | Performance targets | Partial instrumentation | The live inspector reports last/p95 CPU query and operator cost plus indexed candidates inspected, and one supplied PAC has CPU headless-edit timings; no representative corpus latency, FPS, GPU, or memory claim has been measured |
 | Fuzzing | Not run | Parser robustness proof incomplete |
 | `cargo deny` / `cargo audit` | Not run yet | License/advisory gate unproven |
+
+## Texture-complete goal remains open
+
+Loading the mesh shape is not appearance parity. Lab readiness still requires
+the asset graph to resolve all authoritative material relationships, rebuild
+Partial/Sparse DDS content, upload every supported texture role and subresource,
+apply correct sRGB/linear handling (especially for normal maps), bind multiple
+materials to their owning submeshes, and show an explicit placeholder or
+ambiguity error when resolution is not authoritative. The current rainbow
+surface is a normal-based material approximation, not the character's loaded
+skin texture. One explicit supported 2D DDS path is implemented; it must not be
+reported as complete texture loading.
 
 ## Synthetic Release measurement
 
@@ -106,6 +118,21 @@ resident; accounting now covers both stacks and releases Redo bytes only when a
 new commit discards them. This is deterministic synthetic app stress, not an OS
 working-set, visible input, real-PAC, frame-pacing, or device-loss soak.
 
+## Headless painted-control and edit-scope proof
+
+Eleven no-window tests now construct the real `LabApplication`, discover control
+coordinates from egui's clipped draw output, and route resulting actions at the
+same post-frame boundary as the Windows runtime. They cover the preview and LOD
+menus, camera, every selection shape/domain/depth combination, all seven edit
+tools, topology, history, disabled states, high-DPI input, short-window scroll,
+resize, and cancellation. The latest draw-command regression selects 256 faces
+and requires translucent face fills with no individual outline strokes; it
+failed when every selected triangle was outlined. Mesh regressions separately
+require deformation positions and normals to remain exact outside the affected
+one-ring, and topology operations to preserve normals on surviving source
+vertices. These checks inspect application state and egui draw commands, not
+native pixels or visible appearance.
+
 ## Supplied PAC headless edit proof
 
 A Release `headless-mesh` run on 2026-08-30 decoded one user-supplied PAC as
@@ -121,10 +148,11 @@ section-to-LOD mapping as the production parser, and their counts matched:
 
 Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate each
 ran on fresh working meshes for every LOD. Every operation changed the expected
-fingerprint, created one history entry, passed invariants, restored the exact
-baseline with Undo, and reproduced the exact edited fingerprint with Redo.
-The single warm decode took 3.81 ms and all 32 complete operation/Undo/Redo
-scenarios took 623.22 ms. LOD3 contains three source edges shared by four faces;
+fingerprint, preserved every position and normal outside its permitted scope,
+created one history entry, passed invariants, restored the exact baseline with
+Undo, and reproduced the exact edited fingerprint with Redo. The single warm
+decode took 3.59 ms and all 32 complete operation/Undo/Redo scenarios took
+617.66 ms. LOD3 contains three source edges shared by four faces;
 the production parser confirmed those incidences, and the Rust graph now
 preserves them instead of imposing an unsupported two-face limit. A focused
 synthetic regression failed under the old limit and passed after the correction.

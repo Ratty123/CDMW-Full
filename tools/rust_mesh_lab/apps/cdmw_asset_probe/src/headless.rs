@@ -1,9 +1,9 @@
 use anyhow::{Context, Result, ensure};
 use cdmw_formats::MeshDocument;
-use cdmw_mesh::WorkingMesh;
+use cdmw_mesh::{VertexHandle, WorkingMesh};
 use cdmw_replay::{ReplayEvent, ReplayReport, ReplaySculptTool, run_replay};
 use serde::Serialize;
-use std::time::Instant;
+use std::{collections::HashSet, time::Instant};
 
 const HISTORY_BUDGET_BYTES: usize = 512 * 1024 * 1024;
 
@@ -34,6 +34,8 @@ pub struct HeadlessScenarioReport {
     pub final_faces: usize,
     pub history_entries: usize,
     pub exact_undo_redo: bool,
+    pub out_of_scope_positions_preserved: bool,
+    pub out_of_scope_normals_preserved: bool,
     pub invariants_passed: bool,
 }
 
@@ -69,16 +71,8 @@ pub fn run_headless_mesh_check(
             "headless LOD {} requires editable triangle geometry",
             lod.level
         );
-        let baseline_fingerprint = lod_baseline.structural_fingerprint();
         for (name, event) in scenario_events(lod_vertex_count) {
-            reports.push(run_scenario(
-                document,
-                lod_index,
-                lod.level,
-                &baseline_fingerprint,
-                name,
-                event,
-            )?);
+            reports.push(run_scenario(&lod_baseline, lod.level, name, event)?);
         }
     }
     Ok(HeadlessMeshReport {
@@ -169,24 +163,21 @@ fn scenario_events(vertex_count: usize) -> [(&'static str, ReplayEvent); 8] {
 }
 
 fn run_scenario(
-    document: &MeshDocument,
-    lod_index: usize,
+    baseline: &WorkingMesh,
     lod_level: u32,
-    baseline_fingerprint: &str,
     name: &'static str,
     event: ReplayEvent,
 ) -> Result<HeadlessScenarioReport> {
-    let (operation, operation_ms) = run_variant(document, lod_index, std::slice::from_ref(&event))?;
+    let baseline_fingerprint = baseline.structural_fingerprint();
+    let (operation, operation_mesh, operation_ms) =
+        run_variant(baseline, std::slice::from_ref(&event))?;
     ensure!(
         operation.final_fingerprint != baseline_fingerprint,
         "headless LOD {lod_level} {name} scenario made no geometry change"
     );
-    let (undo, undo_ms) = run_variant(document, lod_index, &[event.clone(), ReplayEvent::Undo])?;
-    let (redo, redo_ms) = run_variant(
-        document,
-        lod_index,
-        &[event, ReplayEvent::Undo, ReplayEvent::Redo],
-    )?;
+    verify_out_of_scope_preservation(baseline, &operation_mesh, &event, lod_level, name)?;
+    let (undo, _, undo_ms) = run_variant(baseline, &[event.clone(), ReplayEvent::Undo])?;
+    let (redo, _, redo_ms) = run_variant(baseline, &[event, ReplayEvent::Undo, ReplayEvent::Redo])?;
     let exact_undo_redo = undo.final_fingerprint == baseline_fingerprint
         && redo.final_fingerprint == operation.final_fingerprint;
     ensure!(
@@ -214,21 +205,117 @@ fn run_scenario(
         final_faces: operation.final_faces,
         history_entries: operation.history_entries,
         exact_undo_redo,
+        out_of_scope_positions_preserved: true,
+        out_of_scope_normals_preserved: true,
         invariants_passed: true,
     })
 }
 
+fn verify_out_of_scope_preservation(
+    baseline: &WorkingMesh,
+    edited: &WorkingMesh,
+    event: &ReplayEvent,
+    lod_level: u32,
+    name: &str,
+) -> Result<()> {
+    let mut position_scope = HashSet::new();
+    let mut normal_scope = HashSet::new();
+    let mut permitted_removals = HashSet::new();
+    match event {
+        ReplayEvent::Translate {
+            vertex_ordinals, ..
+        }
+        | ReplayEvent::Sculpt {
+            vertex_ordinals, ..
+        } => {
+            position_scope = vertex_handles_at_ordinals(baseline, vertex_ordinals)?;
+            for (_, face) in baseline.faces() {
+                if face
+                    .vertices
+                    .iter()
+                    .any(|handle| position_scope.contains(handle))
+                {
+                    normal_scope.extend(face.vertices);
+                }
+            }
+        }
+        ReplayEvent::DeleteFaces { face_ordinals } => {
+            permitted_removals = face_vertices_at_ordinals(baseline, face_ordinals)?;
+        }
+        ReplayEvent::SubdivideFaces { .. } | ReplayEvent::DuplicateFaces { .. } => {}
+        ReplayEvent::Undo | ReplayEvent::Redo => {
+            anyhow::bail!("locality verification requires an edit event")
+        }
+    }
+
+    for (handle, before) in baseline.vertices() {
+        let Some(after) = edited.vertex(handle) else {
+            ensure!(
+                permitted_removals.contains(&handle),
+                "headless LOD {lod_level} {name} removed an out-of-scope vertex {handle:?}"
+            );
+            continue;
+        };
+        if !position_scope.contains(&handle) {
+            ensure!(
+                after.position == before.position,
+                "headless LOD {lod_level} {name} changed an out-of-scope position {handle:?}"
+            );
+        }
+        if !normal_scope.contains(&handle) {
+            ensure!(
+                after.normal == before.normal,
+                "headless LOD {lod_level} {name} changed an out-of-scope normal {handle:?}"
+            );
+        }
+    }
+    Ok(())
+}
+
+fn vertex_handles_at_ordinals(
+    mesh: &WorkingMesh,
+    ordinals: &[usize],
+) -> Result<HashSet<VertexHandle>> {
+    let handles = mesh
+        .vertices()
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    ordinals
+        .iter()
+        .map(|ordinal| {
+            handles
+                .get(*ordinal)
+                .copied()
+                .with_context(|| format!("vertex ordinal {ordinal} does not exist"))
+        })
+        .collect()
+}
+
+fn face_vertices_at_ordinals(
+    mesh: &WorkingMesh,
+    ordinals: &[usize],
+) -> Result<HashSet<VertexHandle>> {
+    let faces = mesh.faces().map(|(_, face)| face).collect::<Vec<_>>();
+    let mut vertices = HashSet::new();
+    for ordinal in ordinals {
+        let face = faces
+            .get(*ordinal)
+            .with_context(|| format!("face ordinal {ordinal} does not exist"))?;
+        vertices.extend(face.vertices);
+    }
+    Ok(vertices)
+}
+
 fn run_variant(
-    document: &MeshDocument,
-    lod_index: usize,
+    baseline: &WorkingMesh,
     events: &[ReplayEvent],
-) -> Result<(ReplayReport, f64)> {
-    let mut mesh = WorkingMesh::from_document_lod(document, lod_index)?;
+) -> Result<(ReplayReport, WorkingMesh, f64)> {
+    let mut mesh = baseline.clone();
     let started = Instant::now();
     let report = run_replay(&mut mesh, events, HISTORY_BUDGET_BYTES)
         .with_context(|| format!("headless replay failed after {} event(s)", events.len()))?;
     mesh.validate()?;
-    Ok((report, started.elapsed().as_secs_f64() * 1_000.0))
+    Ok((report, mesh, started.elapsed().as_secs_f64() * 1_000.0))
 }
 
 #[cfg(test)]
@@ -262,7 +349,10 @@ mod tests {
             report
                 .scenarios
                 .iter()
-                .all(|scenario| scenario.exact_undo_redo && scenario.invariants_passed)
+                .all(|scenario| scenario.exact_undo_redo
+                    && scenario.out_of_scope_positions_preserved
+                    && scenario.out_of_scope_normals_preserved
+                    && scenario.invariants_passed)
         );
         Ok(())
     }

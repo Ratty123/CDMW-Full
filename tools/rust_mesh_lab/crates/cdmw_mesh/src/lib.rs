@@ -206,17 +206,23 @@ impl WorkingMesh {
         if positions.is_empty() {
             return Err(MeshError::EmptyOperation);
         }
+        if positions
+            .values()
+            .flatten()
+            .any(|component| !component.is_finite())
+        {
+            return Err(MeshError::Invariant("non-finite deformation".to_owned()));
+        }
+        let changed = positions.keys().copied().collect::<HashSet<_>>();
+        let normal_scope = self.normal_scope_for_position_changes(&changed)?;
         for (handle, position) in positions {
-            if position.iter().any(|component| !component.is_finite()) {
-                return Err(MeshError::Invariant("non-finite deformation".to_owned()));
-            }
             self.vertices
                 .get_mut(*handle)
                 .ok_or(MeshError::StaleHandle)?
                 .position = *position;
         }
         self.geometry_revision = self.geometry_revision.saturating_add(1);
-        self.recompute_normals()?;
+        self.recompute_normals_for(&normal_scope)?;
         self.validate()
     }
 
@@ -310,16 +316,17 @@ impl WorkingMesh {
         if handles.is_empty() {
             return Err(MeshError::EmptyOperation);
         }
-        for handle in handles {
-            let vertex = self
-                .vertices
-                .get_mut(*handle)
-                .ok_or(MeshError::StaleHandle)?;
-            vertex.position = (Vec3::from_array(vertex.position) + delta).to_array();
-        }
-        self.geometry_revision = self.geometry_revision.saturating_add(1);
-        self.recompute_normals()?;
-        self.validate()
+        let positions = handles
+            .iter()
+            .map(|handle| {
+                let vertex = self.vertices.get(*handle).ok_or(MeshError::StaleHandle)?;
+                Ok((
+                    *handle,
+                    (Vec3::from_array(vertex.position) + delta).to_array(),
+                ))
+            })
+            .collect::<Result<HashMap<_, _>, MeshError>>()?;
+        self.apply_positions(&positions)
     }
 
     pub fn rotate_vertices(
@@ -535,7 +542,6 @@ impl WorkingMesh {
         self.selection_revision = self.selection_revision.saturating_add(1);
         self.remove_unreferenced_vertices();
         self.rebuild_edges()?;
-        self.recompute_normals()?;
         self.selection
             .vertices
             .retain(|handle| self.vertices.contains_key(*handle));
@@ -583,12 +589,36 @@ impl WorkingMesh {
         Ok(())
     }
 
-    fn recompute_normals(&mut self) -> Result<(), MeshError> {
+    fn normal_scope_for_position_changes(
+        &self,
+        changed: &HashSet<VertexHandle>,
+    ) -> Result<HashSet<VertexHandle>, MeshError> {
+        if changed
+            .iter()
+            .any(|handle| !self.vertices.contains_key(*handle))
+        {
+            return Err(MeshError::StaleHandle);
+        }
+        Ok(self
+            .faces
+            .values()
+            .filter(|face| face.vertices.iter().any(|handle| changed.contains(handle)))
+            .flat_map(|face| face.vertices)
+            .collect())
+    }
+
+    fn recompute_normals_for(&mut self, scope: &HashSet<VertexHandle>) -> Result<(), MeshError> {
         let mut accumulators: SecondaryMap<VertexHandle, Vec3> = SecondaryMap::new();
-        for handle in self.vertices.keys() {
-            accumulators.insert(handle, Vec3::ZERO);
+        for handle in scope {
+            if !self.vertices.contains_key(*handle) {
+                return Err(MeshError::StaleHandle);
+            }
+            accumulators.insert(*handle, Vec3::ZERO);
         }
         for face in self.faces.values() {
+            if !face.vertices.iter().any(|handle| scope.contains(handle)) {
+                continue;
+            }
             let a = Vec3::from_array(
                 self.vertices
                     .get(face.vertices[0])
@@ -609,17 +639,24 @@ impl WorkingMesh {
             );
             let normal = (b - a).cross(c - a);
             for handle in face.vertices {
-                let value = accumulators.get_mut(handle).ok_or(MeshError::StaleHandle)?;
-                *value += normal;
+                if let Some(value) = accumulators.get_mut(handle) {
+                    *value += normal;
+                }
             }
         }
-        for (handle, vertex) in &mut self.vertices {
-            vertex.normal = accumulators
-                .get(handle)
-                .copied()
-                .unwrap_or(Vec3::Y)
+        for handle in scope {
+            let vertex = self
+                .vertices
+                .get_mut(*handle)
+                .ok_or(MeshError::StaleHandle)?;
+            let fallback = Vec3::from_array(vertex.normal)
                 .try_normalize()
-                .unwrap_or(Vec3::Y)
+                .unwrap_or(Vec3::Y);
+            vertex.normal = accumulators
+                .get(*handle)
+                .copied()
+                .and_then(Vec3::try_normalize)
+                .unwrap_or(fallback)
                 .to_array();
         }
         Ok(())
@@ -883,6 +920,38 @@ mod tests {
                 element: 0,
             },
         });
+        mesh.rebuild_edges()
+            .unwrap_or_else(|error| panic!("edge rebuild failed: {error}"));
+        mesh
+    }
+
+    fn two_disconnected_triangles() -> WorkingMesh {
+        let mut mesh = WorkingMesh::empty();
+        for (submesh, offset, normal) in [
+            (0, Vec3::ZERO, [1.0, 0.0, 0.0]),
+            (1, Vec3::new(10.0, 0.0, 0.0), [0.0, 1.0, 0.0]),
+        ] {
+            let vertices = [Vec3::ZERO, Vec3::X, Vec3::Y].map(|position| {
+                mesh.vertices.insert(Vertex {
+                    position: (position + offset).to_array(),
+                    normal,
+                    uv: [0.0, 0.0],
+                    provenance: Provenance::Source {
+                        submesh,
+                        element: 0,
+                    },
+                })
+            });
+            mesh.faces.insert(Face {
+                vertices,
+                submesh,
+                material: submesh,
+                provenance: Provenance::Source {
+                    submesh,
+                    element: 0,
+                },
+            });
+        }
         mesh.rebuild_edges()
             .unwrap_or_else(|error| panic!("edge rebuild failed: {error}"));
         mesh
@@ -1160,5 +1229,82 @@ mod tests {
             Vec3::from_array(vertex.position).distance(Vec3::new(0.0, 2.0, 0.0)) < 1.0e-5
         }));
         mesh.validate()
+    }
+
+    #[test]
+    fn deformation_preserves_positions_and_normals_outside_the_affected_one_ring()
+    -> Result<(), MeshError> {
+        let mut mesh = two_disconnected_triangles();
+        let changed = mesh
+            .vertices()
+            .find_map(|(handle, vertex)| {
+                (vertex.provenance
+                    == Provenance::Source {
+                        submesh: 0,
+                        element: 0,
+                    })
+                .then_some(handle)
+            })
+            .ok_or(MeshError::InvalidSource)?;
+        let untouched = mesh
+            .vertices()
+            .filter(|(_, vertex)| {
+                vertex.provenance
+                    == Provenance::Source {
+                        submesh: 1,
+                        element: 0,
+                    }
+            })
+            .map(|(handle, vertex)| (handle, vertex.clone()))
+            .collect::<Vec<_>>();
+        let mut position = mesh.vertex(changed).ok_or(MeshError::StaleHandle)?.position;
+        position[2] += 0.25;
+        mesh.apply_positions(&HashMap::from([(changed, position)]))?;
+        for (handle, vertex) in untouched {
+            assert_eq!(mesh.vertex(handle), Some(&vertex));
+        }
+        assert!(
+            mesh.vertices()
+                .filter(|(_, vertex)| vertex.provenance
+                    == Provenance::Source {
+                        submesh: 0,
+                        element: 0
+                    })
+                .all(|(_, vertex)| vertex.normal != [1.0, 0.0, 0.0])
+        );
+        mesh.validate()
+    }
+
+    #[test]
+    fn topology_operations_preserve_existing_source_normals_outside_their_generated_vertices()
+    -> Result<(), MeshError> {
+        for operation in ["delete", "duplicate", "subdivide"] {
+            let mut mesh = two_disconnected_triangles();
+            let selected = mesh
+                .faces()
+                .find_map(|(handle, face)| (face.submesh == 0).then_some(handle))
+                .ok_or(MeshError::InvalidSource)?;
+            let originals = mesh
+                .vertices()
+                .map(|(handle, vertex)| (handle, vertex.normal))
+                .collect::<Vec<_>>();
+            match operation {
+                "delete" => mesh.delete_faces(&HashSet::from([selected]))?,
+                "duplicate" => {
+                    mesh.duplicate_faces(&HashSet::from([selected]))?;
+                }
+                "subdivide" => {
+                    mesh.subdivide_faces(&HashSet::from([selected]))?;
+                }
+                _ => unreachable!(),
+            }
+            for (handle, normal) in originals {
+                if let Some(vertex) = mesh.vertex(handle) {
+                    assert_eq!(vertex.normal, normal, "{operation} changed {handle:?}");
+                }
+            }
+            mesh.validate()?;
+        }
+        Ok(())
     }
 }

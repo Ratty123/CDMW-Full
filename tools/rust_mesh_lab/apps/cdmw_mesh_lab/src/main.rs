@@ -5,6 +5,8 @@ mod camera;
 mod headless_stress_tests;
 #[cfg(test)]
 mod headless_tests;
+#[cfg(test)]
+mod headless_ui_tests;
 mod loader;
 mod viewport;
 
@@ -39,6 +41,7 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 const LATENCY_SAMPLE_WINDOW: usize = 256;
 const HISTORY_BUDGET_BYTES: usize = 512 * 1024 * 1024;
+const DETAILED_FACE_OUTLINE_LIMIT: usize = 128;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -465,6 +468,7 @@ impl LabApplication {
             .resizable(true)
             .show(root_ui, |ui| {
                 ui.heading("Inspector");
+                egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.label(RichText::new(&self.source_label).strong());
                 if let Some(document) = &self.document {
                     let active_lod = document.lods.get(self.active_lod_index);
@@ -818,6 +822,7 @@ impl LabApplication {
                 {
                     actions.push(UiAction::ExportObj);
                 }
+                });
             });
         egui::CentralPanel::no_frame().show(root_ui, |ui| {
             let rectangle = ui.max_rect();
@@ -1538,6 +1543,12 @@ impl LabApplication {
                     }
                     gesture.pivot = center_of_handles(mesh, &gesture.handles)
                         .ok_or(cdmw_interaction::InteractionError::InvalidShape)?;
+                    if gesture.tool == ViewportTool::Pinch {
+                        gesture.pivot = self
+                            .camera
+                            .point_on_view_plane(point, gesture.pivot, rectangle)
+                            .ok_or(cdmw_interaction::InteractionError::InvalidShape)?;
+                    }
                     let tool = gesture
                         .tool
                         .sculpt_tool()
@@ -1684,6 +1695,7 @@ impl LabApplication {
             }
         }
         let detailed_faces = mesh.selection.faces.len() <= 4_000;
+        let outline_faces = mesh.selection.faces.len() <= DETAILED_FACE_OUTLINE_LIMIT;
         for handle in &mesh.selection.faces {
             let Some(face) = mesh.face(*handle) else {
                 continue;
@@ -1701,7 +1713,11 @@ impl LabApplication {
                 painter.add(egui::Shape::convex_polygon(
                     points,
                     Color32::from_rgba_unmultiplied(255, 125, 25, 72),
-                    Stroke::new(1.0, Color32::from_rgb(255, 145, 35)),
+                    if outline_faces {
+                        Stroke::new(1.0, Color32::from_rgb(255, 145, 35))
+                    } else {
+                        Stroke::NONE
+                    },
                 ));
             } else {
                 let center = points

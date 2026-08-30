@@ -190,6 +190,25 @@ impl OrbitCamera {
         self.right() * delta.x * units - self.up() * delta.y * units
     }
 
+    /// Intersect a screen point with the camera-facing plane through `plane_point`.
+    #[must_use]
+    pub fn point_on_view_plane(
+        &self,
+        point: Vec2,
+        plane_point: Vec3,
+        rectangle: Rect,
+    ) -> Option<Vec3> {
+        if !point.is_finite() {
+            return None;
+        }
+        let projected = self.project(plane_point, rectangle)?;
+        let depth = (plane_point - self.eye()).dot(self.forward());
+        let units = 2.0 * depth * (FIELD_OF_VIEW_Y * 0.5).tan() / rectangle.height();
+        let delta = point - projected.screen;
+        let result = plane_point + self.right() * delta.x * units - self.up() * delta.y * units;
+        result.is_finite().then_some(result)
+    }
+
     #[must_use]
     pub fn axis_drag_delta(
         &self,
@@ -307,5 +326,41 @@ mod tests {
         assert!(delta.x > 0.0);
         assert!(delta.y.abs() < 1.0e-6);
         assert!(delta.z.abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn brush_center_projects_back_to_the_pointer_at_the_eligible_depth() {
+        let mut camera = OrbitCamera::default();
+        for view in [StandardView::Front, StandardView::Right, StandardView::Top] {
+            camera.set_standard_view(view);
+            for viewport in [rectangle(1_200.0, 400.0), rectangle(400.0, 1_200.0)] {
+                let anchor = camera.target() + camera.forward() * 0.4 + camera.right() * 0.2;
+                let projected = camera.project(anchor, viewport).unwrap();
+                let pointer = projected.screen + Vec2::new(35.0, -21.0);
+                let center = camera
+                    .point_on_view_plane(pointer, anchor, viewport)
+                    .unwrap();
+                let result = camera.project(center, viewport).unwrap();
+                assert!(result.screen.distance(pointer) < 0.005);
+                assert!((center - anchor).dot(camera.forward()).abs() < 1.0e-5);
+                assert!((result.depth - projected.depth).abs() < 1.0e-5);
+            }
+        }
+        let viewport = rectangle(800.0, 600.0);
+        assert!(
+            camera
+                .point_on_view_plane(Vec2::splat(f32::NAN), Vec3::ZERO, viewport)
+                .is_none()
+        );
+        assert!(
+            camera
+                .point_on_view_plane(Vec2::ZERO, camera.eye() - camera.forward(), viewport)
+                .is_none()
+        );
+        assert!(
+            camera
+                .point_on_view_plane(Vec2::ZERO, Vec3::ZERO, rectangle(0.0, 0.0))
+                .is_none()
+        );
     }
 }

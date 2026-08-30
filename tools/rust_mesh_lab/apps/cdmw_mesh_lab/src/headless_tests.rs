@@ -25,7 +25,7 @@ pub(super) fn triangle_application() -> Result<LabApplication, Box<dyn std::erro
     Ok(application)
 }
 
-fn two_lod_application() -> Result<LabApplication, Box<dyn std::error::Error>> {
+pub(super) fn two_lod_application() -> Result<LabApplication, Box<dyn std::error::Error>> {
     let document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
     let cancellation = cdmw_archive::CancellationToken::default();
     let mut meshes = crate::loader::build_lod_meshes(&document, &cancellation)?.into_iter();
