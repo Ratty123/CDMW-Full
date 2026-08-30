@@ -965,6 +965,22 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
                 material_indices_by_lod: vec![vec![0]],
                 preview_semantic: Some("Roughness factor"),
             },
+            crate::loader::LoadedMaterialParameter {
+                sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
+                parameter: cdmw_texture::MaterialParameter {
+                    wrapper_type: "SkinnedMeshMaterialWrapper".to_owned(),
+                    submesh_name: "triangle".to_owned(),
+                    material_name: "material".to_owned(),
+                    parameter_type: "MaterialParameterBoolean".to_owned(),
+                    parameter_name: "_alphaTest".to_owned(),
+                    raw_value: Some("true".to_owned()),
+                    attributes: vec![("_value".to_owned(), "true".to_owned())],
+                    kind: cdmw_texture::MaterialParameterKind::Boolean,
+                    confidence: cdmw_texture::MaterialParameterConfidence::Explicit,
+                },
+                material_indices_by_lod: vec![vec![0]],
+                preview_semantic: Some("Alpha cutout"),
+            },
         ],
         material_factors: vec![crate::loader::LoadedMaterialFactors {
             sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
@@ -973,6 +989,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             roughness: Some(0.75),
             metalness: Some(0.5),
             specular: Some(0.9),
+            alpha_cutoff: Some(0.08),
             material_indices_by_lod: vec![vec![0]],
         }],
     });
@@ -993,12 +1010,12 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
     assert!(ui.reveal("Prepared material factors").is_ok());
     assert!(
         ui.reveal(
-            "emissive color 0.125, 0.251, 0.376 · emissive intensity 2.500 · roughness 0.750 · metalness 0.500 · specular 0.900"
+            "emissive color 0.125, 0.251, 0.376 · emissive intensity 2.500 · roughness 0.750 · metalness 0.500 · specular 0.900 · alpha cutout enabled · cutoff 0.080"
         )
             .is_ok()
     );
-    assert!(ui.reveal("Preserved material parameters (2)").is_ok());
-    ui.click("Preserved material parameters (2)")?;
+    assert!(ui.reveal("Preserved material parameters (3)").is_ok());
+    ui.click("Preserved material parameters (3)")?;
     assert!(ui.reveal("_emissiveColor · Color").is_ok());
     assert!(ui.reveal("Value #204060ff").is_ok());
     assert!(
@@ -1013,6 +1030,11 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             "Roughness factor candidate; sampled only for non-conflicting material ownership"
         )
         .is_ok()
+    );
+    assert!(ui.reveal("_alphaTest · Boolean").is_ok());
+    assert!(
+        ui.reveal("Alpha cutout candidate; sampled only for non-conflicting material ownership")
+            .is_ok()
     );
     Ok(())
 }

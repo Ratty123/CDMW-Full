@@ -47,6 +47,7 @@ struct MaterialUniform {
 @group(0) @binding(7) var material_sampler: sampler;
 @group(0) @binding(8) var<uniform> material: MaterialUniform;
 @group(0) @binding(9) var specular_texture: texture_2d<f32>;
+@group(0) @binding(10) var opacity_texture: texture_2d<f32>;
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
 
 const MATERIAL_BASE_COLOR: u32 = 1u;
@@ -60,6 +61,8 @@ const MATERIAL_ROUGHNESS_FACTOR: u32 = 128u;
 const MATERIAL_METALNESS_FACTOR: u32 = 256u;
 const MATERIAL_SPECULAR_FACTOR: u32 = 512u;
 const MATERIAL_SPECULAR: u32 = 1024u;
+const MATERIAL_OPACITY: u32 = 2048u;
+const MATERIAL_ALPHA_CUTOUT: u32 = 4096u;
 
 @vertex
 fn vs_main(
@@ -87,6 +90,15 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
     }
 
     let texel = textureSample(base_texture, material_sampler, input.uv);
+    if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u {
+        var material_alpha = texel.a;
+        if (material.flags & MATERIAL_OPACITY) != 0u {
+            material_alpha = textureSample(opacity_texture, material_sampler, input.uv).r;
+        }
+        if material_alpha < material.surface_factors.w {
+            discard;
+        }
+    }
     var surface_normal = normalize(input.normal);
     if (material.flags & MATERIAL_NORMAL) != 0u {
         let tangent_xy = textureSample(normal_texture, material_sampler, input.uv).xy * 2.0 - vec2<f32>(1.0);
@@ -238,6 +250,8 @@ const MATERIAL_ROUGHNESS_FACTOR: u32 = 128;
 const MATERIAL_METALNESS_FACTOR: u32 = 256;
 const MATERIAL_SPECULAR_FACTOR: u32 = 512;
 const MATERIAL_SPECULAR: u32 = 1024;
+const MATERIAL_OPACITY: u32 = 2048;
+const MATERIAL_ALPHA_CUTOUT: u32 = 4096;
 
 impl CameraUniform {
     fn new() -> Self {
@@ -300,6 +314,7 @@ pub struct MaterialPreviewFactors {
     pub roughness: Option<f32>,
     pub metalness: Option<f32>,
     pub specular: Option<f32>,
+    pub alpha_cutoff: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -318,6 +333,8 @@ pub struct HeadlessRenderReport {
     pub specular_factor_pixels_changed: usize,
     pub specular_texture_pixels_changed: usize,
     pub dielectric_specular_pixels_changed: usize,
+    pub opacity_cutout_pixels_removed: usize,
+    pub opaque_opacity_pixels_changed: usize,
     pub non_background_pixels: usize,
 }
 
@@ -385,6 +402,7 @@ struct DefaultMaterialTextures {
     occlusion: wgpu::Texture,
     emissive: wgpu::Texture,
     specular: wgpu::Texture,
+    opacity: wgpu::Texture,
 }
 
 struct GpuMaterialBinding {
@@ -402,6 +420,7 @@ struct MaterialTextureIndices {
     occlusion: Option<usize>,
     emissive: Option<usize>,
     specular: Option<usize>,
+    opacity: Option<usize>,
 }
 
 impl GpuMeshBuffers {
@@ -730,6 +749,7 @@ impl WindowRenderer {
                 | TextureRole::Occlusion
                 | TextureRole::Emissive
                 | TextureRole::Specular
+                | TextureRole::Opacity
         ) {
             return Err(RenderError::Texture(format!(
                 "the {role:?} role is classified but is not sampled by the current material approximation"
@@ -759,6 +779,7 @@ impl WindowRenderer {
             && factors.roughness.is_none()
             && factors.metalness.is_none()
             && factors.specular.is_none()
+            && factors.alpha_cutoff.is_none()
         {
             return Err(RenderError::Texture(
                 "material factor set contains no sampled value".to_owned(),
@@ -771,10 +792,15 @@ impl WindowRenderer {
         }) || factors
             .emissive_intensity
             .is_some_and(|value| !value.is_finite() || !(0.0..=32.0).contains(&value))
-            || [factors.roughness, factors.metalness, factors.specular]
-                .into_iter()
-                .flatten()
-                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+            || [
+                factors.roughness,
+                factors.metalness,
+                factors.specular,
+                factors.alpha_cutoff,
+            ]
+            .into_iter()
+            .flatten()
+            .any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
         {
             return Err(RenderError::Texture(
                 "material factors contain a non-finite or out-of-range value".to_owned(),
@@ -1082,6 +1108,16 @@ pub async fn run_headless_render_smoke(
         }
         bytes
     };
+    let synthetic_opacity_dds = || {
+        let mut bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+        if let Some(pixels) = bytes.get_mut(148..164) {
+            for (index, pixel) in pixels.chunks_exact_mut(4).enumerate() {
+                let opacity = if index.is_multiple_of(2) { 0 } else { 255 };
+                pixel.copy_from_slice(&[opacity, opacity, opacity, 255]);
+            }
+        }
+        bytes
+    };
     let mut material_textures = Vec::new();
     for (material, role, bytes) in [
         (
@@ -1124,6 +1160,7 @@ pub async fn run_headless_render_smoke(
             TextureRole::Specular,
             synthetic_dds([250, 180, 60, 255]),
         ),
+        (0_u32, TextureRole::Opacity, synthetic_opacity_dds()),
         (
             1_u32,
             TextureRole::BaseColor,
@@ -1188,6 +1225,11 @@ pub async fn run_headless_render_smoke(
                     } else {
                         None
                     },
+                    opacity: if roles.contains(&TextureRole::Opacity) {
+                        indices.opacity
+                    } else {
+                        None
+                    },
                 };
                 (
                     *material,
@@ -1242,6 +1284,17 @@ pub async fn run_headless_render_smoke(
         &[TextureRole::BaseColor, TextureRole::Specular],
         MaterialPreviewFactors::default(),
     );
+    let opaque_opacity_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Opacity],
+        MaterialPreviewFactors::default(),
+    );
+    let opacity_cutout_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Opacity],
+        MaterialPreviewFactors {
+            alpha_cutoff: Some(0.5),
+            ..MaterialPreviewFactors::default()
+        },
+    );
     let factored_emissive_material_bindings = bindings_for_roles(
         &[TextureRole::BaseColor, TextureRole::Emissive],
         MaterialPreviewFactors {
@@ -1282,8 +1335,12 @@ pub async fn run_headless_render_smoke(
             TextureRole::Occlusion,
             TextureRole::Emissive,
             TextureRole::Specular,
+            TextureRole::Opacity,
         ],
-        MaterialPreviewFactors::default(),
+        MaterialPreviewFactors {
+            alpha_cutoff: Some(0.5),
+            ..MaterialPreviewFactors::default()
+        },
     );
     let camera_layout = create_camera_bind_group_layout(&device);
     let mut camera_uniform = CameraUniform::new();
@@ -1410,6 +1467,8 @@ pub async fn run_headless_render_smoke(
         ("metalness", base_metalness_material_bindings),
         ("specular", base_specular_material_bindings),
         ("dielectric specular", dielectric_specular_material_bindings),
+        ("opaque opacity", opaque_opacity_material_bindings),
+        ("opacity cutout", opacity_cutout_material_bindings),
         ("occlusion", base_occlusion_material_bindings),
         ("emissive", base_emissive_material_bindings),
         ("emissive factors", factored_emissive_material_bindings),
@@ -1473,7 +1532,7 @@ pub async fn run_headless_render_smoke(
             "headless GPU frame contained only the clear color".to_owned(),
         ));
     }
-    let mut role_changes = Vec::with_capacity(8);
+    let mut role_changes = Vec::with_capacity(9);
     for (role, reference) in [
         ("base color", "unresolved"),
         ("normal", "base color"),
@@ -1481,6 +1540,7 @@ pub async fn run_headless_render_smoke(
         ("roughness", "base color"),
         ("metalness", "base color"),
         ("specular", "metalness"),
+        ("opacity cutout", "opaque opacity"),
         ("occlusion", "base color"),
         ("emissive", "base color"),
     ] {
@@ -1559,6 +1619,29 @@ pub async fn run_headless_render_smoke(
             "headless specular texture changed a dielectric material".to_owned(),
         ));
     }
+    let opaque_opacity_pixels = &probe_pixels[probe_index("opaque opacity")?];
+    let opacity_cutout_pixels = &probe_pixels[probe_index("opacity cutout")?];
+    let opaque_opacity_pixels_changed =
+        changed_pixel_count(base_only_pixels, opaque_opacity_pixels)?;
+    if opaque_opacity_pixels_changed != 0 {
+        return Err(RenderError::Device(
+            "headless opacity texture changed an explicitly opaque material".to_owned(),
+        ));
+    }
+    let opacity_cutout_pixels_changed =
+        changed_pixel_count(opaque_opacity_pixels, opacity_cutout_pixels)?;
+    let opacity_cutout_pixels_removed = opaque_opacity_pixels
+        .chunks_exact(4)
+        .zip(opacity_cutout_pixels.chunks_exact(4))
+        .filter(|(opaque, cutout)| *opaque != background && *cutout == background)
+        .count();
+    if opacity_cutout_pixels_removed == 0
+        || opacity_cutout_pixels_removed != opacity_cutout_pixels_changed
+    {
+        return Err(RenderError::Device(format!(
+            "headless opacity cutout removed {opacity_cutout_pixels_removed} of {opacity_cutout_pixels_changed} changed pixels"
+        )));
+    }
     Ok(HeadlessRenderReport {
         adapter: adapter_report(&adapter),
         frames_rendered,
@@ -1578,6 +1661,8 @@ pub async fn run_headless_render_smoke(
         specular_factor_pixels_changed,
         specular_texture_pixels_changed,
         dielectric_specular_pixels_changed,
+        opacity_cutout_pixels_removed,
+        opaque_opacity_pixels_changed,
         non_background_pixels,
     })
 }
@@ -2230,6 +2315,7 @@ fn resolve_material_bindings<'a>(
                 TextureRole::Occlusion => &mut slots.occlusion,
                 TextureRole::Emissive => &mut slots.emissive,
                 TextureRole::Specular => &mut slots.specular,
+                TextureRole::Opacity => &mut slots.opacity,
                 _ => {
                     return Err(RenderError::Texture(format!(
                         "the {role:?} role is not sampled by the current material approximation"
@@ -2313,6 +2399,17 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.specular = Some(specular);
+            }
+            if let Some(alpha_cutoff) = factors.alpha_cutoff {
+                if resolved
+                    .alpha_cutoff
+                    .is_some_and(|existing| existing.to_bits() != alpha_cutoff.to_bits())
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting alpha cutoffs in LOD {lod_index}"
+                    )));
+                }
+                resolved.alpha_cutoff = Some(alpha_cutoff);
             }
         }
     }
@@ -2569,6 +2666,16 @@ fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLay
                 },
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 10,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
         ],
     })
 }
@@ -2690,6 +2797,13 @@ fn create_default_material_textures(
             wgpu::TextureFormat::Rgba8Unorm,
             [0, 0, 0, 255],
         ),
+        opacity: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default opacity",
+            wgpu::TextureFormat::Rgba8Unorm,
+            [255, 255, 255, 255],
+        ),
     }
 }
 
@@ -2734,6 +2848,10 @@ fn create_material_bind_group(
         .specular
         .and_then(|index| textures.get(index))
         .map_or(&defaults.specular, |texture| &texture._texture);
+    let opacity_texture = indices
+        .opacity
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.opacity, |texture| &texture._texture);
     let base_view = base_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let normal_view = normal_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let surface_view = surface_texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -2742,6 +2860,7 @@ fn create_material_bind_group(
     let occlusion_view = occlusion_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let emissive_view = emissive_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let specular_view = specular_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let opacity_view = opacity_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let mut flags = 0;
     if indices.base_color.is_some() {
         flags |= MATERIAL_BASE_COLOR;
@@ -2767,6 +2886,9 @@ fn create_material_bind_group(
     if indices.specular.is_some() {
         flags |= MATERIAL_SPECULAR;
     }
+    if indices.opacity.is_some() {
+        flags |= MATERIAL_OPACITY;
+    }
     if factors.roughness.is_some() {
         flags |= MATERIAL_ROUGHNESS_FACTOR;
     }
@@ -2775,6 +2897,9 @@ fn create_material_bind_group(
     }
     if factors.specular.is_some() {
         flags |= MATERIAL_SPECULAR_FACTOR;
+    }
+    if factors.alpha_cutoff.is_some_and(|cutoff| cutoff > 0.0) {
+        flags |= MATERIAL_ALPHA_CUTOUT;
     }
     let uniform = MaterialUniform {
         flags,
@@ -2792,7 +2917,7 @@ fn create_material_bind_group(
             factors.roughness.unwrap_or(0.0),
             factors.metalness.unwrap_or(0.0),
             factors.specular.unwrap_or(0.0),
-            0.0,
+            factors.alpha_cutoff.unwrap_or(0.0),
         ],
     };
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -2843,6 +2968,10 @@ fn create_material_bind_group(
             wgpu::BindGroupEntry {
                 binding: 9,
                 resource: wgpu::BindingResource::TextureView(&specular_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 10,
+                resource: wgpu::BindingResource::TextureView(&opacity_view),
             },
         ],
     });
@@ -3109,6 +3238,7 @@ mod tests {
             (TextureRole::Occlusion, vec![vec![0_u32]]),
             (TextureRole::Emissive, vec![vec![0_u32]]),
             (TextureRole::Specular, vec![vec![0_u32]]),
+            (TextureRole::Opacity, vec![vec![0_u32]]),
             (TextureRole::BaseColor, vec![vec![1_u32]]),
         ];
         let bindings = resolve_material_bindings(
@@ -3132,12 +3262,13 @@ mod tests {
                         occlusion: Some(5),
                         emissive: Some(6),
                         specular: Some(7),
+                        opacity: Some(8),
                     }
                 ),
                 (
                     1,
                     MaterialTextureIndices {
-                        base_color: Some(8),
+                        base_color: Some(9),
                         ..MaterialTextureIndices::default()
                     }
                 ),
@@ -3164,6 +3295,19 @@ mod tests {
         assert!(
             resolve_material_bindings(
                 conflicting_specular
+                    .iter()
+                    .map(|(role, ownership)| (*role, ownership.as_slice())),
+                0
+            )
+            .is_err()
+        );
+        let conflicting_opacity = [
+            (TextureRole::Opacity, vec![vec![0_u32]]),
+            (TextureRole::Opacity, vec![vec![0_u32]]),
+        ];
+        assert!(
+            resolve_material_bindings(
+                conflicting_opacity
                     .iter()
                     .map(|(role, ownership)| (*role, ownership.as_slice())),
                 0
@@ -3211,6 +3355,13 @@ mod tests {
                 },
                 ownership.clone(),
             ),
+            (
+                MaterialPreviewFactors {
+                    alpha_cutoff: Some(0.08),
+                    ..MaterialPreviewFactors::default()
+                },
+                ownership.clone(),
+            ),
         ];
         let resolved = resolve_material_factors(
             distinct
@@ -3227,6 +3378,7 @@ mod tests {
                 roughness: Some(0.7),
                 metalness: Some(0.8),
                 specular: Some(0.9),
+                alpha_cutoff: Some(0.08),
             })
         );
 
@@ -3283,6 +3435,16 @@ mod tests {
                 },
                 MaterialPreviewFactors {
                     specular: Some(0.2),
+                    ..MaterialPreviewFactors::default()
+                },
+            ),
+            (
+                MaterialPreviewFactors {
+                    alpha_cutoff: Some(0.1),
+                    ..MaterialPreviewFactors::default()
+                },
+                MaterialPreviewFactors {
+                    alpha_cutoff: Some(0.2),
                     ..MaterialPreviewFactors::default()
                 },
             ),

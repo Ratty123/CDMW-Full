@@ -61,6 +61,7 @@ pub struct LoadedMaterialFactors {
     pub roughness: Option<f32>,
     pub metalness: Option<f32>,
     pub specular: Option<f32>,
+    pub alpha_cutoff: Option<f32>,
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
@@ -948,6 +949,7 @@ enum MaterialFactorClaim {
     Roughness(u32),
     Metalness(u32),
     Specular(u32),
+    AlphaCutoff(u32),
 }
 
 fn resolve_material_parameters(
@@ -962,6 +964,7 @@ fn resolve_material_parameters(
     let mut roughness_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
     let mut metalness_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
     let mut specular_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
+    let mut alpha_cutoff_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
 
     for parameter in &sidecar.parameters {
         let ownership =
@@ -1014,6 +1017,12 @@ fn resolve_material_parameters(
                                 .or_default()
                                 .insert(value);
                         }
+                        MaterialFactorClaim::AlphaCutoff(value) => {
+                            alpha_cutoff_claims
+                                .entry((lod_index, *material))
+                                .or_default()
+                                .insert(value);
+                        }
                     }
                 }
             }
@@ -1047,10 +1056,12 @@ fn resolve_material_parameters(
     append_material_factor_conflict_warning(&roughness_claims, "roughness", warnings);
     append_material_factor_conflict_warning(&metalness_claims, "metalness", warnings);
     append_material_factor_conflict_warning(&specular_claims, "specular", warnings);
+    append_material_factor_conflict_warning(&alpha_cutoff_claims, "alpha cutoff", warnings);
 
     let mut grouped = BTreeMap::<
         (
             Option<[u8; 3]>,
+            Option<u32>,
             Option<u32>,
             Option<u32>,
             Option<u32>,
@@ -1075,16 +1086,25 @@ fn resolve_material_parameters(
             let roughness = unique_material_factor_claim(&roughness_claims, key);
             let metalness = unique_material_factor_claim(&metalness_claims, key);
             let specular = unique_material_factor_claim(&specular_claims, key);
+            let alpha_cutoff = unique_material_factor_claim(&alpha_cutoff_claims, key);
             if color.is_none()
                 && intensity.is_none()
                 && roughness.is_none()
                 && metalness.is_none()
                 && specular.is_none()
+                && alpha_cutoff.is_none()
             {
                 continue;
             }
             grouped
-                .entry((color, intensity, roughness, metalness, specular))
+                .entry((
+                    color,
+                    intensity,
+                    roughness,
+                    metalness,
+                    specular,
+                    alpha_cutoff,
+                ))
                 .or_insert_with(|| vec![Vec::new(); document.lods.len()])[lod_index]
                 .push(material);
         }
@@ -1092,7 +1112,7 @@ fn resolve_material_parameters(
     let factors = grouped
         .into_iter()
         .map(
-            |((color, intensity, roughness, metalness, specular), mut ownership)| {
+            |((color, intensity, roughness, metalness, specular, alpha_cutoff), mut ownership)| {
                 for materials in &mut ownership {
                     materials.sort_unstable();
                     materials.dedup();
@@ -1110,6 +1130,7 @@ fn resolve_material_parameters(
                     roughness: roughness.map(f32::from_bits),
                     metalness: metalness.map(f32::from_bits),
                     specular: specular.map(f32::from_bits),
+                    alpha_cutoff: alpha_cutoff.map(f32::from_bits),
                     material_indices_by_lod: ownership,
                 }
             },
@@ -1189,6 +1210,11 @@ fn material_parameter_preview_semantic(parameter: &MaterialParameter) -> Option<
         .any(|name| key.contains(name))
     {
         Some("Specular factor")
+    } else if ["alphatest", "alphaclip", "alphacutout", "cutout"]
+        .iter()
+        .any(|name| key.contains(name))
+    {
+        Some("Alpha cutout")
     } else {
         None
     }
@@ -1211,8 +1237,33 @@ fn material_parameter_factor_claim(parameter: &MaterialParameter) -> Option<Mate
             .map(|value| MaterialFactorClaim::Metalness(value.clamp(0.0, 1.0).to_bits())),
         "Specular factor" => scalar_material_parameter_value(parameter)
             .map(|value| MaterialFactorClaim::Specular(value.clamp(0.0, 1.0).to_bits())),
+        "Alpha cutout" => Some(MaterialFactorClaim::AlphaCutoff(
+            if material_parameter_enable_flag(parameter) {
+                0.08_f32
+            } else {
+                0.0
+            }
+            .to_bits(),
+        )),
         _ => None,
     }
+}
+
+fn material_parameter_enable_flag(parameter: &MaterialParameter) -> bool {
+    let Some(raw_value) = parameter.raw_value.as_deref() else {
+        return true;
+    };
+    let value = raw_value.trim().to_ascii_lowercase();
+    if value.is_empty() || matches!(value.as_str(), "true" | "yes" | "on") {
+        return true;
+    }
+    if matches!(value.as_str(), "false" | "no" | "off") {
+        return false;
+    }
+    if let Ok(numeric) = value.parse::<f32>() {
+        return numeric.abs() > 0.0001;
+    }
+    value != "0"
 }
 
 fn scalar_material_parameter_value(parameter: &MaterialParameter) -> Option<f32> {
@@ -1364,6 +1415,7 @@ const fn is_preview_sampled_role(role: TextureRole) -> bool {
             | TextureRole::Occlusion
             | TextureRole::Emissive
             | TextureRole::Specular
+            | TextureRole::Opacity
     )
 }
 
@@ -1975,6 +2027,7 @@ mod tests {
             "body_ao.dds",
             "body_emi.dds",
             "body_spec.dds",
+            "body_opacity.dds",
         ] {
             fs::write(
                 texture_directory.join(name),
@@ -1983,18 +2036,19 @@ mod tests {
         }
         fs::write(
             &sidecar,
-            br##"<SkinnedMeshMaterialWrapper _subMeshName="part-0"><Material _materialName="SkinnedMeshEmissive"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_base.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/><MaterialParameterTexture _name="_materialTexture" Value="character/texture/body_sp.dds"/><MaterialParameterTexture _name="_roughnessTexture" Value="character/texture/body_rough.dds"/><MaterialParameterTexture _name="_metalnessTexture" Value="character/texture/body_metal.dds"/><MaterialParameterTexture _name="_ambientOcclusionTexture" Value="character/texture/body_ao.dds"/><MaterialParameterTexture _name="_emissiveIntensityTexture" Value="character/texture/body_emi.dds"/><MaterialParameterTexture _name="_specularTexture" Value="character/texture/body_spec.dds"/><MaterialParameterTexture _name="_glossinessTexture" Value="character/texture/body_gloss.dds"/><MaterialParameterColor _name="_emissiveColor" _value="#204060ff"/><MaterialParameterFloat _name="_emissiveIntensity" _value="2.5"/></Material></SkinnedMeshMaterialWrapper>"##,
+            br##"<SkinnedMeshMaterialWrapper _subMeshName="part-0"><Material _materialName="SkinnedMeshEmissive"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_base.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/><MaterialParameterTexture _name="_materialTexture" Value="character/texture/body_sp.dds"/><MaterialParameterTexture _name="_roughnessTexture" Value="character/texture/body_rough.dds"/><MaterialParameterTexture _name="_metalnessTexture" Value="character/texture/body_metal.dds"/><MaterialParameterTexture _name="_ambientOcclusionTexture" Value="character/texture/body_ao.dds"/><MaterialParameterTexture _name="_emissiveIntensityTexture" Value="character/texture/body_emi.dds"/><MaterialParameterTexture _name="_specularTexture" Value="character/texture/body_spec.dds"/><MaterialParameterTexture _name="_opacityTexture" Value="character/texture/body_opacity.dds"/><MaterialParameterTexture _name="_glossinessTexture" Value="character/texture/body_gloss.dds"/><MaterialParameterColor _name="_emissiveColor" _value="#204060ff"/><MaterialParameterFloat _name="_emissiveIntensity" _value="2.5"/><MaterialParameterBoolean _name="_alphaTest" _value="true"/></Material></SkinnedMeshMaterialWrapper>"##,
         )?;
 
         let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
-        assert_eq!(resolved.textures.len(), 8);
-        assert_eq!(resolved.material_parameters.len(), 2);
+        assert_eq!(resolved.textures.len(), 9);
+        assert_eq!(resolved.material_parameters.len(), 3);
         assert_eq!(resolved.material_factors.len(), 1);
         assert_eq!(
             resolved.material_factors[0].material_indices_by_lod,
             vec![vec![0]]
         );
         assert_eq!(resolved.material_factors[0].emissive_intensity, Some(2.5));
+        assert_eq!(resolved.material_factors[0].alpha_cutoff, Some(0.08));
         let roles = resolved
             .textures
             .iter()
@@ -2033,6 +2087,10 @@ mod tests {
         );
         assert_eq!(
             roles.get(&TextureRole::Specular),
+            Some(&cdmw_texture::ColorSpace::Linear)
+        );
+        assert_eq!(
+            roles.get(&TextureRole::Opacity),
             Some(&cdmw_texture::ColorSpace::Linear)
         );
         assert!(resolved.warnings.iter().any(|warning| {
@@ -2082,6 +2140,7 @@ mod tests {
                   <MaterialParameterFloat _name="_roughness" _value="0"/>
                   <MaterialParameterByte4 _name="_metallic" _value="128"/>
                   <MaterialParameterFloat _name="_specularAmount" _value="0.9"/>
+                  <MaterialParameterBoolean _name="_alphaTest" _value="true"/>
                   <MaterialParameterFuture _name="_future" _value="opaque"/>
                 </Material>
               </SkinnedMeshMaterialWrapper>
@@ -2100,7 +2159,7 @@ mod tests {
             "character/modelproperty/body.pac_xml",
             &mut warnings,
         );
-        assert_eq!(parameters.len(), 10);
+        assert_eq!(parameters.len(), 11);
         assert_eq!(
             parameters[0].material_indices_by_lod,
             vec![vec![0], vec![1]]
@@ -2122,6 +2181,7 @@ mod tests {
         assert_eq!(factors[0].roughness, Some(0.0));
         assert_eq!(factors[0].metalness, Some(128.0 / 255.0));
         assert_eq!(factors[0].specular, Some(0.9));
+        assert_eq!(factors[0].alpha_cutoff, Some(0.08));
         assert!(warnings.iter().any(|warning| {
             warning.contains("material range(s) claim conflicting emissive intensities")
         }));
@@ -2129,6 +2189,40 @@ mod tests {
             warning.contains("material range(s) claim conflicting roughness factors")
         }));
         Ok(())
+    }
+
+    #[test]
+    fn alpha_cutout_parameters_follow_production_enable_flag_semantics() {
+        let parameter = |raw_value: Option<&str>| MaterialParameter {
+            wrapper_type: "SkinnedMeshMaterialWrapper".to_owned(),
+            submesh_name: "part-0".to_owned(),
+            material_name: "material-a".to_owned(),
+            parameter_type: "MaterialParameterBoolean".to_owned(),
+            parameter_name: "_alphaTest".to_owned(),
+            raw_value: raw_value.map(str::to_owned),
+            attributes: Vec::new(),
+            kind: MaterialParameterKind::Boolean,
+            confidence: cdmw_texture::MaterialParameterConfidence::Explicit,
+        };
+        for value in [
+            None,
+            Some(""),
+            Some("true"),
+            Some("yes"),
+            Some("on"),
+            Some("1"),
+        ] {
+            assert!(material_parameter_enable_flag(&parameter(value)));
+        }
+        for value in [
+            Some("false"),
+            Some("no"),
+            Some("off"),
+            Some("0"),
+            Some("0.00001"),
+        ] {
+            assert!(!material_parameter_enable_flag(&parameter(value)));
+        }
     }
 
     #[test]

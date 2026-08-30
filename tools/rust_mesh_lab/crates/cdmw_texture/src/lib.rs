@@ -1006,6 +1006,10 @@ mod tests {
             TextureRole::Emissive
         );
         assert_eq!(
+            TextureRole::from_parameter_name("_opacityTexture"),
+            TextureRole::Opacity
+        );
+        assert_eq!(
             TextureRole::from_parameter_name("_colorBlendingMaskTexture"),
             TextureRole::Unknown
         );
