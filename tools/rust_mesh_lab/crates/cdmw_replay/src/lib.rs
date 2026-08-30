@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use cdmw_interaction::{InteractionError, OperatorController, SculptTool};
-use cdmw_mesh::{FaceHandle, History, MeshError, VertexHandle, WorkingMesh};
+use cdmw_mesh::{EdgeHandle, FaceHandle, History, MeshError, VertexHandle, WorkingMesh};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -26,6 +26,9 @@ pub enum ReplayEvent {
     },
     SubdivideFaces {
         face_ordinals: Vec<usize>,
+    },
+    SubdivideEdges {
+        edge_ordinals: Vec<usize>,
     },
     DuplicateFaces {
         face_ordinals: Vec<usize>,
@@ -110,6 +113,11 @@ pub fn run_replay(
                 let _ = mesh.subdivide_faces(&face_handles(mesh, face_ordinals)?)?;
                 history.commit("replay subdivide", before, mesh)?;
             }
+            ReplayEvent::SubdivideEdges { edge_ordinals } => {
+                let before = mesh.clone();
+                let _ = mesh.subdivide_edges(&edge_handles(mesh, edge_ordinals)?)?;
+                history.commit("replay subdivide edges", before, mesh)?;
+            }
             ReplayEvent::DuplicateFaces { face_ordinals } => {
                 let before = mesh.clone();
                 let _ = mesh.duplicate_faces(&face_handles(mesh, face_ordinals)?)?;
@@ -152,6 +160,13 @@ fn face_handles(
     ordinals: &[usize],
 ) -> Result<HashSet<FaceHandle>, ReplayError> {
     ordinal_handles(mesh.faces().map(|(handle, _)| handle), ordinals)
+}
+
+fn edge_handles(
+    mesh: &WorkingMesh,
+    ordinals: &[usize],
+) -> Result<HashSet<EdgeHandle>, ReplayError> {
+    ordinal_handles(mesh.edges().map(|(handle, _)| handle), ordinals)
 }
 
 fn ordinal_handles<T: Copy + Eq + std::hash::Hash>(

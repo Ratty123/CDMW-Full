@@ -30,9 +30,9 @@ It is not LAB READY because private real-game parity, complete layered/dye and b
 - Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots.
 - Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh/normal/bounds buffers, Textured/Game Outdoor/Base Color/Normal Map/UV Checker/Base Alpha/Part ID/Material Response/Layer Mask/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes, and independent Normals/Bounds overlays. Game Outdoor is a production-constant-informed lighting comparison inside the approximate shader; Part ID colors actual material-owner ranges without requiring a texture; Layer Mask is a grayscale inspection mode, not layer composition. Bones is visibly disabled until skeleton context exists.
 - egui archive/assets, viewport, inspector, selection/edit, and status surfaces. The viewport and Inspector explicitly label material rendering as approximate. Archive textures report whether their bytes came from Stored, Partial raw, Partial DDS, Sparse DDS, or LZ4 handling; Flow rows retain their source relationship while prepared factors state whether the owner qualifies as a proven hair/fur family; Layer Mask rows retain their exact parameter while prepared factors report R/B selection; actual sampling still requires each DDS binding. A collapsed material-parameter section reports preserved values, owners, confidence, and sampled/unbound state without flooding the default layout.
-- No-window `LabApplication` construction plus 14 painted-control/input tests whose coordinates come from egui's clipped draw output: all fifteen preview modes, LOD menus, overlay and camera controls, texture relationship and material-parameter provenance, 24 selection domain/shape/depth combinations through the bounded raw-pointer route, topology-aware All/Grow/Shrink/Invert/Clear with exact selection history, all seven edit tools, Smooth/Linear/Constant falloff and 1–8 Smooth passes, three topology actions, exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input, three resize shapes, Esc/resize cancellation, and dense face-selection fill without per-triangle outline strokes. Lower Inspector controls are verified at 1280×720 and 1000×600.
+- No-window `LabApplication` construction plus 14 painted-control/input tests whose coordinates come from egui's clipped draw output: all fifteen preview modes, LOD menus, overlay and camera controls, texture relationship and material-parameter provenance, 24 selection domain/shape/depth combinations through the bounded raw-pointer route, topology-aware All/Grow/Shrink/Invert/Clear with exact selection history, all seven edit tools, Smooth/Linear/Constant falloff and 1–8 Smooth passes, face Delete/Subdivide/Duplicate plus selected-edge Subdivide, exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input, three resize shapes, Esc/resize cancellation, and dense face-selection fill without per-triangle outline strokes. Lower Inspector controls are verified at 1280×720 and 1000×600.
 - Offscreen D3D12 renderer coverage uploads fifteen DDS files with the live plan/upload helper, composes base/normal/packed-material/roughness/metalness/occlusion/emissive/specular/glossiness/opacity/height/flow/layer-mask roles across two base-colored ranges, applies separate explicit emissive, roughness, metalness, metallic-specular, metallic/dielectric Glossiness, opaque/cutout Opacity, positive/zero-scale Height, inactive-non-hair/active-hair Flow, and layer-mask fallback/R/B-channel probes, and exercises all fifteen preview modes with Normals and Bounds across 4:3, portrait, and widescreen targets. A validation error scope and CPU readbacks reject invalid or all-background output, require all thirteen sampled roles to change pixels independently where applicable, require both Specular and Glossiness to change metallic pixels while leaving dielectric pixels identical, require cutout Opacity to remove visible pixels while opaque Opacity remains byte-identical, require Height to change pixels at positive strength while explicit zero remains byte-identical, require Flow to change hair pixels while leaving a non-hair frame byte-identical, require Layer Mask and its R/B selector to change diagnostic pixels, require the overlay-free Part ID probe to produce two owner colors without texture bindings, require overlay-free Game Outdoor to differ from standard Textured lighting, and require each other scalar factor class to change pixels again without constructing a window.
-- Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with fresh-working-mesh operation/Undo/Redo fingerprints and invariants for Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate on every decoded LOD.
+- Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with fresh-working-mesh operation/Undo/Redo fingerprints and invariants for Move, Grab, Smooth, Inflate, Pinch, face Delete, face Subdivide, selected-edge Subdivide, and face Duplicate on every decoded LOD.
 - Bounded cancellable latest-wins loader/search worker with stale-result rejection.
 - Versioned neutral binary package and manifest comparison.
 - Explicit neutral OBJ/MTL export of the edited working copy with staging, cancellation checks, reparse, structural comparison, atomic new-directory publication, and no source texture embedding.
@@ -199,18 +199,19 @@ section-to-LOD mapping as the production parser, and their counts matched:
 
 | LOD | Vertices | Faces | Edit families passed |
 |---|---:|---:|---:|
-| 0 | 13,740 | 25,158 | 8/8 |
-| 1 | 1,938 | 3,030 | 8/8 |
-| 2 | 609 | 778 | 8/8 |
-| 3 | 337 | 429 | 8/8 |
+| 0 | 13,740 | 25,158 | 9/9 |
+| 1 | 1,938 | 3,030 | 9/9 |
+| 2 | 609 | 778 | 9/9 |
+| 3 | 337 | 429 | 9/9 |
 
-Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate each
-ran on fresh working meshes for every LOD. Every operation changed the expected
+Move, Grab, Smooth, Inflate, Pinch, face Delete, face Subdivide, selected-edge
+Subdivide, and face Duplicate each ran on fresh working meshes for every LOD.
+Every operation changed the expected
 fingerprint, preserved every position and normal outside its permitted scope,
 created one history entry, passed invariants, restored the exact baseline with
 Undo, and reproduced the exact edited fingerprint with Redo. The single warm
-decode took 3.59 ms and all 32 complete operation/Undo/Redo scenarios took
-617.66 ms. LOD3 contains three source edges shared by four faces;
+decode took 3.34 ms and all 36 complete operation/Undo/Redo scenarios took
+573.66 ms. LOD3 contains three source edges shared by four faces;
 the production parser confirmed those incidences, and the Rust graph now
 preserves them instead of imposing an unsupported two-face limit. A focused
 synthetic regression failed under the old limit and passed after the correction.

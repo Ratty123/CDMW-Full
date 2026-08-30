@@ -575,6 +575,29 @@ fn every_topology_action_round_trips_geometry_and_selection() -> TestResult {
         assert_eq!(mesh.structural_fingerprint(), changed);
         mesh.validate()?;
     }
+
+    let mut application = triangle_application()?;
+    application.handle_actions(vec![UiAction::SelectAllEdges]);
+    let mesh = application.mesh.as_ref().ok_or("missing mesh")?;
+    let before = mesh.structural_fingerprint();
+    let selection_before = mesh.selection.clone();
+    assert_eq!(selection_before.edges.len(), 3);
+    application.handle_actions(vec![UiAction::SubdivideEdges]);
+    let mesh = application.mesh.as_ref().ok_or("missing mesh")?;
+    let changed = mesh.structural_fingerprint();
+    assert_ne!(changed, before);
+    assert_eq!(mesh.faces().count(), 4);
+    assert_eq!(mesh.selection.edges.len(), 6);
+    assert_eq!(application.history.undo_len(), 2);
+    application.handle_actions(vec![UiAction::Undo]);
+    let mesh = application.mesh.as_ref().ok_or("missing mesh")?;
+    assert_eq!(mesh.structural_fingerprint(), before);
+    assert_eq!(mesh.selection, selection_before);
+    application.handle_actions(vec![UiAction::Redo]);
+    let mesh = application.mesh.as_ref().ok_or("missing mesh")?;
+    assert_eq!(mesh.structural_fingerprint(), changed);
+    assert_eq!(mesh.selection.edges.len(), 6);
+    mesh.validate()?;
     Ok(())
 }
 

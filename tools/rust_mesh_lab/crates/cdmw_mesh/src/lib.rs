@@ -510,6 +510,72 @@ impl WorkingMesh {
         Ok(created)
     }
 
+    pub fn subdivide_edges(
+        &mut self,
+        handles: &HashSet<EdgeHandle>,
+    ) -> Result<HashSet<EdgeHandle>, MeshError> {
+        if handles.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        let mut draft = self.clone();
+        let operation = draft.next_operation();
+        let mut ordered_handles = handles.iter().copied().collect::<Vec<_>>();
+        ordered_handles.sort_by_key(|handle| handle.data().as_ffi());
+        let originals = ordered_handles
+            .into_iter()
+            .map(|handle| {
+                draft
+                    .edges
+                    .get(handle)
+                    .map(|edge| edge.vertices)
+                    .ok_or(MeshError::StaleHandle)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut midpoint_by_edge = HashMap::new();
+        let mut child_pairs = Vec::with_capacity(originals.len().saturating_mul(2));
+        for [first, second] in originals {
+            let midpoint = draft.midpoint(first, second, operation, &mut midpoint_by_edge)?;
+            child_pairs.push(ordered_pair(first, midpoint));
+            child_pairs.push(ordered_pair(midpoint, second));
+        }
+        let mut affected = draft
+            .faces
+            .iter()
+            .filter(|(_, face)| {
+                triangle_edges(face.vertices)
+                    .into_iter()
+                    .any(|pair| midpoint_by_edge.contains_key(&pair))
+            })
+            .map(|(handle, face)| (handle, face.clone()))
+            .collect::<Vec<_>>();
+        affected.sort_by_key(|(handle, _)| handle.data().as_ffi());
+        for (handle, face) in affected {
+            let triangles = split_triangle_with_midpoints(face.vertices, &midpoint_by_edge)?;
+            let _ = draft.faces.remove(handle).ok_or(MeshError::StaleHandle)?;
+            for vertices in triangles {
+                draft.faces.insert(Face {
+                    vertices,
+                    submesh: face.submesh,
+                    material: face.material,
+                    provenance: Provenance::Generated { operation },
+                });
+            }
+        }
+        draft.selection = Selection::default();
+        draft.finish_topology_operation()?;
+        let selected = child_pairs
+            .into_iter()
+            .map(|pair| {
+                draft.edge_by_pair.get(&pair).copied().ok_or_else(|| {
+                    MeshError::Invariant("subdivided child edge is missing".to_owned())
+                })
+            })
+            .collect::<Result<HashSet<_>, _>>()?;
+        draft.selection.edges = selected.clone();
+        *self = draft;
+        Ok(selected)
+    }
+
     fn midpoint(
         &mut self,
         first: VertexHandle,
@@ -776,6 +842,40 @@ fn ordered_pair(first: VertexHandle, second: VertexHandle) -> (VertexHandle, Ver
     } else {
         (second, first)
     }
+}
+
+fn triangle_edges(vertices: [VertexHandle; 3]) -> [(VertexHandle, VertexHandle); 3] {
+    [
+        ordered_pair(vertices[0], vertices[1]),
+        ordered_pair(vertices[1], vertices[2]),
+        ordered_pair(vertices[2], vertices[0]),
+    ]
+}
+
+fn split_triangle_with_midpoints(
+    vertices: [VertexHandle; 3],
+    midpoint_by_edge: &HashMap<(VertexHandle, VertexHandle), VertexHandle>,
+) -> Result<Vec<[VertexHandle; 3]>, MeshError> {
+    let [a, b, c] = vertices;
+    let [ab_pair, bc_pair, ca_pair] = triangle_edges(vertices);
+    let ab = midpoint_by_edge.get(&ab_pair).copied();
+    let bc = midpoint_by_edge.get(&bc_pair).copied();
+    let ca = midpoint_by_edge.get(&ca_pair).copied();
+    let triangles = match (ab, bc, ca) {
+        (Some(ab), None, None) => vec![[a, ab, c], [ab, b, c]],
+        (None, Some(bc), None) => vec![[b, bc, a], [bc, c, a]],
+        (None, None, Some(ca)) => vec![[c, ca, b], [ca, a, b]],
+        (Some(ab), Some(bc), None) => vec![[a, ab, c], [ab, bc, c], [ab, b, bc]],
+        (None, Some(bc), Some(ca)) => vec![[b, bc, a], [bc, ca, a], [bc, c, ca]],
+        (Some(ab), None, Some(ca)) => vec![[c, ca, b], [ca, ab, b], [ca, a, ab]],
+        (Some(ab), Some(bc), Some(ca)) => vec![[a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]],
+        (None, None, None) => {
+            return Err(MeshError::Invariant(
+                "subdivision face has no selected edge".to_owned(),
+            ));
+        }
+    };
+    Ok(triangles)
 }
 
 #[derive(Debug, Clone)]
@@ -1066,12 +1166,32 @@ mod tests {
             });
         }
         mesh.rebuild_edges()?;
-        let shared_edge = mesh
+        let shared_edge = *mesh
             .edge_by_pair
             .get(&ordered_pair(shared_a, shared_b))
-            .and_then(|handle| mesh.edges.get(*handle))
             .ok_or(MeshError::InvalidSource)?;
-        assert_eq!(shared_edge.faces.len(), 4);
+        assert_eq!(
+            mesh.edge(shared_edge)
+                .ok_or(MeshError::InvalidSource)?
+                .faces
+                .len(),
+            4
+        );
+        mesh.validate()?;
+
+        let children = mesh.subdivide_edges(&HashSet::from([shared_edge]))?;
+        assert_eq!(mesh.faces.len(), 8);
+        assert_eq!(mesh.vertices.len(), 7);
+        assert_eq!(children.len(), 2);
+        for child in children {
+            assert_eq!(
+                mesh.edge(child)
+                    .ok_or(MeshError::InvalidSource)?
+                    .faces
+                    .len(),
+                4
+            );
+        }
         mesh.validate()?;
 
         let selected = HashSet::from([mesh.faces.keys().next().ok_or(MeshError::InvalidSource)?]);
@@ -1089,6 +1209,127 @@ mod tests {
         assert_eq!(mesh.vertices.len(), 6);
         assert_eq!(mesh.selection.faces, created);
         mesh.validate()
+    }
+
+    #[test]
+    fn subdivide_edge_interpolates_attributes_and_selects_both_children() -> Result<(), MeshError> {
+        let mut mesh = triangle();
+        let source_vertices = mesh
+            .vertices
+            .iter()
+            .map(|(handle, vertex)| (handle, vertex.clone()))
+            .collect::<HashMap<_, _>>();
+        let edge_handle = mesh.edges.keys().next().ok_or(MeshError::InvalidSource)?;
+        let edge = mesh
+            .edges
+            .get(edge_handle)
+            .cloned()
+            .ok_or(MeshError::InvalidSource)?;
+        let face = mesh
+            .faces
+            .values()
+            .next()
+            .cloned()
+            .ok_or(MeshError::InvalidSource)?;
+        let children = mesh.subdivide_edges(&HashSet::from([edge_handle]))?;
+        assert_eq!(mesh.faces.len(), 2);
+        assert_eq!(mesh.vertices.len(), 4);
+        assert_eq!(children.len(), 2);
+        assert_eq!(mesh.selection.edges, children);
+        let (midpoint_handle, midpoint) = mesh
+            .vertices
+            .iter()
+            .find(|(handle, _)| !source_vertices.contains_key(handle))
+            .ok_or(MeshError::InvalidSource)?;
+        let first = &source_vertices[&edge.vertices[0]];
+        let second = &source_vertices[&edge.vertices[1]];
+        assert_eq!(
+            Vec3::from_array(midpoint.position),
+            (Vec3::from_array(first.position) + Vec3::from_array(second.position)) * 0.5
+        );
+        assert_eq!(
+            midpoint.uv,
+            [
+                (first.uv[0] + second.uv[0]) * 0.5,
+                (first.uv[1] + second.uv[1]) * 0.5,
+            ]
+        );
+        assert_eq!(midpoint.provenance, Provenance::Generated { operation: 1 });
+        for (handle, vertex) in source_vertices {
+            assert_eq!(mesh.vertex(handle), Some(&vertex));
+        }
+        for (_, split_face) in mesh.faces() {
+            assert_eq!(split_face.submesh, face.submesh);
+            assert_eq!(split_face.material, face.material);
+        }
+        for child in &children {
+            let child = mesh.edge(*child).ok_or(MeshError::InvalidSource)?;
+            assert!(child.vertices.contains(&midpoint_handle));
+            assert!(
+                child.vertices.contains(&edge.vertices[0])
+                    || child.vertices.contains(&edge.vertices[1])
+            );
+        }
+        mesh.validate()
+    }
+
+    #[test]
+    fn every_selected_edge_pattern_preserves_triangle_winding() -> Result<(), MeshError> {
+        for mask in 1_u8..8 {
+            let mut mesh = triangle();
+            let mut edges = mesh.edges.keys().collect::<Vec<_>>();
+            edges.sort_by_key(|handle| handle.data().as_ffi());
+            let selected = edges
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, handle)| ((mask & (1 << index)) != 0).then_some(handle))
+                .collect::<HashSet<_>>();
+            let selected_count = selected.len();
+            mesh.subdivide_edges(&selected)?;
+            assert_eq!(mesh.faces.len(), selected_count + 1);
+            for (_, face) in mesh.faces() {
+                let a = Vec3::from_array(
+                    mesh.vertex(face.vertices[0])
+                        .ok_or(MeshError::InvalidSource)?
+                        .position,
+                );
+                let b = Vec3::from_array(
+                    mesh.vertex(face.vertices[1])
+                        .ok_or(MeshError::InvalidSource)?
+                        .position,
+                );
+                let c = Vec3::from_array(
+                    mesh.vertex(face.vertices[2])
+                        .ok_or(MeshError::InvalidSource)?
+                        .position,
+                );
+                assert!((b - a).cross(c - a).z > 0.0);
+            }
+            mesh.validate()?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn subdividing_all_triangle_edges_is_atomic_and_rejects_stale_handles() -> Result<(), MeshError>
+    {
+        let mut mesh = triangle();
+        let selected = mesh.edges.keys().collect::<HashSet<_>>();
+        let stale = *selected.iter().next().ok_or(MeshError::InvalidSource)?;
+        let children = mesh.subdivide_edges(&selected)?;
+        assert_eq!(mesh.faces.len(), 4);
+        assert_eq!(mesh.vertices.len(), 6);
+        assert_eq!(children.len(), 6);
+        assert_eq!(mesh.selection.edges, children);
+        mesh.validate()?;
+
+        let before_stale_attempt = mesh.clone();
+        assert!(matches!(
+            mesh.subdivide_edges(&HashSet::from([stale])),
+            Err(MeshError::StaleHandle)
+        ));
+        assert_exact_working_state(&mesh, &before_stale_attempt);
+        Ok(())
     }
 
     #[test]

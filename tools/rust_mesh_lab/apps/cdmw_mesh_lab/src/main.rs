@@ -94,6 +94,7 @@ enum UiAction {
     FrameSelected,
     StandardView(StandardView),
     DeleteFaces,
+    SubdivideEdges,
     SubdivideFaces,
     DuplicateFaces,
     Undo,
@@ -1105,7 +1106,14 @@ impl LabApplication {
                     }
                 }
                 ui.label("Drag the gizmo for transforms; drag over the surface for sculpt tools. Esc cancels the active gesture.");
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .add_enabled(selected_edges > 0, egui::Button::new("Subdivide Edges"))
+                        .on_disabled_hover_text("Select one or more edges first")
+                        .clicked()
+                    {
+                        actions.push(UiAction::SubdivideEdges);
+                    }
                     for (label, action) in [
                         ("Delete", UiAction::DeleteFaces),
                         ("Subdivide", UiAction::SubdivideFaces),
@@ -1274,6 +1282,12 @@ impl LabApplication {
                 }
                 UiAction::DeleteFaces => {
                     self.run_topology("Delete faces", |mesh, faces| mesh.delete_faces(faces));
+                    publish_mesh = true;
+                }
+                UiAction::SubdivideEdges => {
+                    self.run_edge_topology("Subdivide edges", |mesh, edges| {
+                        mesh.subdivide_edges(edges).map(|_| ())
+                    });
                     publish_mesh = true;
                 }
                 UiAction::SubdivideFaces => self.run_topology("Subdivide faces", |mesh, faces| {
@@ -1523,6 +1537,25 @@ impl LabApplication {
         let faces = mesh.selection.faces.clone();
         let before = mesh.clone();
         match operation(mesh, &faces).and_then(|()| self.history.commit(label, before, mesh)) {
+            Ok(()) => self.status = format!("{label} committed as one undo entry"),
+            Err(error) => self.status = error.to_string(),
+        }
+    }
+
+    fn run_edge_topology(
+        &mut self,
+        label: &str,
+        operation: impl FnOnce(
+            &mut WorkingMesh,
+            &std::collections::HashSet<cdmw_mesh::EdgeHandle>,
+        ) -> Result<(), cdmw_mesh::MeshError>,
+    ) {
+        let Some(mesh) = &mut self.mesh else {
+            return;
+        };
+        let edges = mesh.selection.edges.clone();
+        let before = mesh.clone();
+        match operation(mesh, &edges).and_then(|()| self.history.commit(label, before, mesh)) {
             Ok(()) => self.status = format!("{label} committed as one undo entry"),
             Err(error) => self.status = error.to_string(),
         }

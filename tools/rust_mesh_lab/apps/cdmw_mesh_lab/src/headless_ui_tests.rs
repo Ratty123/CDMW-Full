@@ -597,6 +597,39 @@ fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
         );
         ui.application.mesh.as_ref().ok_or("mesh")?.validate()?;
     }
+
+    let mut ui = HeadlessUi::new(triangle_application()?, egui::vec2(1_280.0, 720.0));
+    ui.click("All Edges")?;
+    let baseline = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .structural_fingerprint();
+    let selection = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .selection
+        .clone();
+    assert_eq!(selection.edges.len(), 3);
+    ui.click("Subdivide Edges")?;
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    let edited = mesh.structural_fingerprint();
+    assert_ne!(baseline, edited);
+    assert_eq!(mesh.faces().count(), 4);
+    assert_eq!(mesh.selection.edges.len(), 6);
+    assert_eq!(ui.application.selection_domain, SelectionDomain::Edge);
+    ui.click("Undo")?;
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(mesh.structural_fingerprint(), baseline);
+    assert_eq!(mesh.selection, selection);
+    ui.click("Redo")?;
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(mesh.structural_fingerprint(), edited);
+    assert_eq!(mesh.selection.edges.len(), 6);
+    mesh.validate()?;
     Ok(())
 }
 
@@ -1021,6 +1054,7 @@ fn disabled_edit_controls_do_not_activate_or_change_the_mesh() -> TestResult {
         "Move",
         "Rotate",
         "Scale",
+        "Subdivide Edges",
         "Delete",
         "Subdivide",
         "Duplicate",
