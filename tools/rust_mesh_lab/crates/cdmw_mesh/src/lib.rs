@@ -76,6 +76,7 @@ pub struct DrawSnapshot {
     pub normals: Vec<[f32; 3]>,
     pub uvs: Vec<[f32; 2]>,
     pub indices: Vec<u32>,
+    pub triangle_materials: Vec<u32>,
     pub selected_vertices: Vec<u32>,
     pub fingerprint: String,
 }
@@ -725,12 +726,14 @@ impl WorkingMesh {
             uvs.push(vertex.uv);
         }
         let mut indices = Vec::with_capacity(self.faces.len().saturating_mul(3));
+        let mut triangle_materials = Vec::with_capacity(self.faces.len());
         for face in self.faces.values() {
             for handle in face.vertices {
                 if let Some(index) = handles.get(&handle) {
                     indices.push(*index);
                 }
             }
+            triangle_materials.push(face.material);
         }
         let selected_vertices = self
             .selection
@@ -755,6 +758,7 @@ impl WorkingMesh {
             normals,
             uvs,
             indices,
+            triangle_materials,
             selected_vertices,
             fingerprint: sha256_bytes(&bytes),
         }
@@ -1003,6 +1007,13 @@ mod tests {
             Err(MeshError::MissingLod)
         ));
         Ok(())
+    }
+
+    #[test]
+    fn draw_snapshot_preserves_one_material_owner_per_triangle() {
+        let snapshot = two_disconnected_triangles().draw_snapshot();
+        assert_eq!(snapshot.indices.len(), 6);
+        assert_eq!(snapshot.triangle_materials, vec![0, 1]);
     }
 
     #[test]

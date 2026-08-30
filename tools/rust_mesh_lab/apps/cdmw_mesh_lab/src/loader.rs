@@ -11,7 +11,7 @@ use cdmw_texture::{
     MaterialTextureReference, TextureRole, inspect_dds, parse_material_sidecar,
 };
 use crossbeam_channel::{Receiver, Sender, TrySendError, bounded};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -25,7 +25,7 @@ pub struct LoadedMesh {
     pub document: MeshDocument,
     pub mesh: WorkingMesh,
     pub other_lod_meshes: Vec<WorkingMesh>,
-    pub texture: Option<LoadedTexture>,
+    pub textures: Vec<LoadedTexture>,
 }
 
 #[derive(Debug)]
@@ -38,11 +38,12 @@ pub struct LoadedTexture {
     pub parameter_name: Option<String>,
     pub sidecar_label: Option<String>,
     pub resolution_method: ResolutionMethod,
+    pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
 #[derive(Debug, Default)]
 struct TextureLoadResult {
-    texture: Option<LoadedTexture>,
+    textures: Vec<LoadedTexture>,
     warnings: Vec<String>,
 }
 
@@ -382,7 +383,7 @@ fn load_archive_mesh(
         document,
         mesh,
         other_lod_meshes,
-        texture: texture_result.texture,
+        textures: texture_result.textures,
     })
 }
 
@@ -406,7 +407,7 @@ fn load_mesh(path: PathBuf, cancellation: &CancellationToken) -> Result<LoadedMe
         document,
         mesh,
         other_lod_meshes,
-        texture: texture_result.texture,
+        textures: texture_result.textures,
     })
 }
 
@@ -474,48 +475,45 @@ fn resolve_direct_texture(
                 .iter()
                 .map(|warning| format!("Material sidecar {}: {warning}", sidecar_path.display())),
         );
-        let references = unique_base_color_references(&sidecar);
+        let references = owned_base_color_references(&sidecar, document, &mut result.warnings);
         if references.is_empty() {
             result.warnings.push(format!(
-                "Material sidecar {} has no base-color texture reference; viewport keeps the material approximation",
+                "Material sidecar {} has no unambiguous base-color ownership; viewport keeps the material approximation for unresolved material ranges",
                 sidecar_path.display()
             ));
             return Ok(result);
         }
-        if references.len() > 1 {
-            result.warnings.push(format!(
-                "Material sidecar {} contains {} distinct base-color textures; multi-material binding is not ready, so no texture was selected",
-                sidecar_path.display(),
-                references.len()
-            ));
-            return Ok(result);
-        }
-        let reference = references[0];
-        match resolve_direct_reference(sidecar_path, &reference.path) {
-            DirectReferenceResolution::Resolved(path, method) => {
-                result.texture = load_direct_dds(
-                    &path,
-                    reference,
-                    Some(sidecar_path),
-                    method,
-                    &mut result.warnings,
-                );
+        for owned in references {
+            let reference = &owned.reference;
+            match resolve_direct_reference(sidecar_path, &reference.path) {
+                DirectReferenceResolution::Resolved(path, method) => {
+                    if let Some(texture) = load_direct_dds(
+                        &path,
+                        reference,
+                        Some(sidecar_path),
+                        method,
+                        owned.material_indices_by_lod,
+                        &mut result.warnings,
+                    ) {
+                        result.textures.push(texture);
+                    }
+                }
+                DirectReferenceResolution::Missing => result.warnings.push(format!(
+                    "Material sidecar {} requests {}, but no matching DDS exists; its material ranges keep the approximation",
+                    sidecar_path.display(),
+                    reference.path
+                )),
+                DirectReferenceResolution::Ambiguous(count) => result.warnings.push(format!(
+                    "Material sidecar {} requests {}, but {count} local files match; its material ranges keep the approximation",
+                    sidecar_path.display(),
+                    reference.path
+                )),
+                DirectReferenceResolution::Rejected(reason) => result.warnings.push(format!(
+                    "Material sidecar {} contains a rejected texture reference {}: {reason}",
+                    sidecar_path.display(),
+                    reference.path
+                )),
             }
-            DirectReferenceResolution::Missing => result.warnings.push(format!(
-                "Material sidecar {} requests {}, but no matching DDS exists; viewport keeps the material approximation",
-                sidecar_path.display(),
-                reference.path
-            )),
-            DirectReferenceResolution::Ambiguous(count) => result.warnings.push(format!(
-                "Material sidecar {} requests {}, but {count} local files match; no texture was selected",
-                sidecar_path.display(),
-                reference.path
-            )),
-            DirectReferenceResolution::Rejected(reason) => result.warnings.push(format!(
-                "Material sidecar {} contains a rejected texture reference {}: {reason}",
-                sidecar_path.display(),
-                reference.path
-            )),
         }
         return Ok(result);
     }
@@ -608,97 +606,95 @@ fn resolve_archive_texture(
             .iter()
             .map(|warning| format!("Material sidecar {sidecar_target}: {warning}")),
     );
-    let references = unique_base_color_references(&sidecar);
+    let references = owned_base_color_references(&sidecar, document, &mut result.warnings);
     if references.is_empty() {
         result.warnings.push(format!(
-            "Material sidecar {sidecar_target} has no base-color texture reference; viewport keeps the material approximation"
+            "Material sidecar {sidecar_target} has no unambiguous base-color ownership; unresolved material ranges keep the approximation"
         ));
         return Ok(result);
     }
-    if references.len() > 1 {
-        result.warnings.push(format!(
-            "Material sidecar {sidecar_target} contains {} distinct base-color textures; multi-material binding is not ready, so no texture was selected",
-            references.len()
-        ));
-        return Ok(result);
-    }
-    let reference = references[0];
-    if !is_safe_virtual_reference(&reference.path) {
-        result.warnings.push(format!(
-            "Material sidecar {sidecar_target} contains a rejected texture reference {}; no texture was selected",
-            reference.path
-        ));
-        return Ok(result);
-    }
-    let relation = resolve_archive_relation(
-        catalog,
-        sidecar_target,
-        &reference.path,
-        relation_kind(reference.role),
-        &["dds"],
-    );
-    let Some(target) = relation.target_virtual_path.as_deref() else {
-        result.warnings.push(unresolved_relation_warning(
+    for owned in references {
+        let reference = &owned.reference;
+        if !is_safe_virtual_reference(&reference.path) {
+            result.warnings.push(format!(
+                "Material sidecar {sidecar_target} contains a rejected texture reference {}; its material ranges keep the approximation",
+                reference.path
+            ));
+            continue;
+        }
+        let relation = resolve_archive_relation(
+            catalog,
             sidecar_target,
             &reference.path,
-            &relation,
-        ));
-        return Ok(result);
-    };
-    if !relation.target_format_supported {
+            relation_kind(reference.role),
+            &["dds"],
+        );
+        let Some(target) = relation.target_virtual_path.as_deref() else {
+            result.warnings.push(unresolved_relation_warning(
+                sidecar_target,
+                &reference.path,
+                &relation,
+            ));
+            continue;
+        };
+        if !relation.target_format_supported {
+            result.warnings.push(format!(
+                "Material sidecar {sidecar_target} resolves {} to {target}, but it is not a DDS texture",
+                reference.path
+            ));
+            continue;
+        }
+        let Some(texture_entry) = unique_catalog_entry(catalog, target) else {
+            result.warnings.push(format!(
+                "Texture target {target} is duplicated in the archive catalog; its material ranges keep the approximation"
+            ));
+            continue;
+        };
+        let bytes = match read_catalog_entry(
+            catalog,
+            texture_entry,
+            DDS_MAX_PAYLOAD_BYTES,
+            cancellation,
+        ) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                cancellation
+                    .check()
+                    .map_err(|cancelled| cancelled.to_string())?;
+                result.warnings.push(format!(
+                    "Resolved DDS {target} could not be read: {error}; its material ranges keep the approximation"
+                ));
+                continue;
+            }
+        };
+        let metadata = match inspect_dds(&bytes, reference.role) {
+            Ok(metadata) => metadata,
+            Err(error) => {
+                result.warnings.push(format!(
+                    "Resolved DDS {target} is not directly uploadable: {error}; its material ranges keep the approximation"
+                ));
+                continue;
+            }
+        };
+        append_dds_warnings(target, &metadata, &mut result.warnings);
         result.warnings.push(format!(
-            "Material sidecar {sidecar_target} resolves {} to {target}, but it is not a DDS texture",
-            reference.path
+            "Viewport texture resolved {sidecar_target} parameter {} to {target} through {:?} for {} material range(s) in LOD0",
+            reference.parameter_name,
+            relation.method,
+            owned.material_indices_by_lod.first().map_or(0, Vec::len)
         ));
-        return Ok(result);
+        result.textures.push(LoadedTexture {
+            label: target.to_owned(),
+            metadata,
+            bytes,
+            role: reference.role,
+            requested_reference: reference.path.clone(),
+            parameter_name: Some(reference.parameter_name.clone()),
+            sidecar_label: Some(sidecar_target.to_owned()),
+            resolution_method: relation.method,
+            material_indices_by_lod: owned.material_indices_by_lod,
+        });
     }
-    let Some(texture_entry) = unique_catalog_entry(catalog, target) else {
-        result.warnings.push(format!(
-            "Texture target {target} is duplicated in the archive catalog; no texture was selected"
-        ));
-        return Ok(result);
-    };
-    let bytes = match read_catalog_entry(
-        catalog,
-        texture_entry,
-        DDS_MAX_PAYLOAD_BYTES,
-        cancellation,
-    ) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            cancellation
-                .check()
-                .map_err(|cancelled| cancelled.to_string())?;
-            result.warnings.push(format!(
-                "Resolved DDS {target} could not be read: {error}; viewport keeps the material approximation"
-            ));
-            return Ok(result);
-        }
-    };
-    let metadata = match inspect_dds(&bytes, reference.role) {
-        Ok(metadata) => metadata,
-        Err(error) => {
-            result.warnings.push(format!(
-                "Resolved DDS {target} is not directly uploadable: {error}; viewport keeps the material approximation"
-            ));
-            return Ok(result);
-        }
-    };
-    append_dds_warnings(target, &metadata, &mut result.warnings);
-    result.warnings.push(format!(
-        "Viewport texture resolved {sidecar_target} parameter {} to {target} through {:?}; it is selected for the one shared base-color binding",
-        reference.parameter_name, relation.method
-    ));
-    result.texture = Some(LoadedTexture {
-        label: target.to_owned(),
-        metadata,
-        bytes,
-        role: reference.role,
-        requested_reference: reference.path.clone(),
-        parameter_name: Some(reference.parameter_name.clone()),
-        sidecar_label: Some(sidecar_target.to_owned()),
-        resolution_method: relation.method,
-    });
     Ok(result)
 }
 
@@ -733,13 +729,16 @@ fn resolve_direct_fallback(
                 path: reference.clone(),
                 role: TextureRole::BaseColor,
             };
-            result.texture = load_direct_dds(
+            if let Some(texture) = load_direct_dds(
                 &path,
                 &inferred,
                 None,
                 method,
+                all_material_indices(document),
                 &mut result.warnings,
-            );
+            ) {
+                result.textures.push(texture);
+            }
         }
         DirectReferenceResolution::Missing => result.warnings.push(format!(
             "Decoded DDS reference {reference} was not found; viewport keeps the material approximation"
@@ -829,7 +828,7 @@ fn resolve_archive_fallback(
         "Viewport texture uses decoded mesh reference {reference} resolved to {target} through {:?}; no material sidecar ownership was available",
         relation.method
     ));
-    result.texture = Some(LoadedTexture {
+    result.textures.push(LoadedTexture {
         label: target.to_owned(),
         metadata,
         bytes,
@@ -838,6 +837,7 @@ fn resolve_archive_fallback(
         parameter_name: None,
         sidecar_label: None,
         resolution_method: relation.method,
+        material_indices_by_lod: all_material_indices(document),
     });
     Ok(())
 }
@@ -847,6 +847,7 @@ fn load_direct_dds(
     reference: &MaterialTextureReference,
     sidecar_path: Option<&Path>,
     method: ResolutionMethod,
+    material_indices_by_lod: Vec<Vec<u32>>,
     warnings: &mut Vec<String>,
 ) -> Option<LoadedTexture> {
     let bytes = match read_bounded_file(path, DDS_MAX_PAYLOAD_BYTES, "DDS") {
@@ -871,9 +872,10 @@ fn load_direct_dds(
     };
     let label = path.to_string_lossy().replace('\\', "/");
     append_dds_warnings(&label, &metadata, warnings);
+    let lod0_range_count = material_indices_by_lod.first().map_or(0, Vec::len);
     warnings.push(format!(
-        "Viewport texture resolved {} to {} through {method:?}; it is selected for the one shared base-color binding",
-        reference.path, label
+        "Viewport texture resolved {} to {} through {method:?} for {lod0_range_count} material range(s) in LOD0",
+        reference.path, label,
     ));
     Some(LoadedTexture {
         label,
@@ -885,6 +887,7 @@ fn load_direct_dds(
             .then(|| reference.parameter_name.clone()),
         sidecar_label: sidecar_path.map(|path| path.to_string_lossy().replace('\\', "/")),
         resolution_method: method,
+        material_indices_by_lod,
     })
 }
 
@@ -897,18 +900,131 @@ fn append_dds_warnings(label: &str, metadata: &DdsMetadata, warnings: &mut Vec<S
     );
 }
 
-fn unique_base_color_references(sidecar: &MaterialSidecar) -> Vec<&MaterialTextureReference> {
-    let mut references = BTreeMap::new();
+#[derive(Debug, Clone)]
+struct OwnedTextureReference {
+    reference: MaterialTextureReference,
+    material_indices_by_lod: Vec<Vec<u32>>,
+}
+
+fn owned_base_color_references(
+    sidecar: &MaterialSidecar,
+    document: &MeshDocument,
+    warnings: &mut Vec<String>,
+) -> Vec<OwnedTextureReference> {
+    let mut candidates = Vec::new();
     for reference in sidecar
         .textures
         .iter()
         .filter(|reference| reference.role == TextureRole::BaseColor)
     {
-        references
-            .entry(normalize_virtual_path(&reference.path))
-            .or_insert(reference);
+        let ownership = material_indices_for_reference(reference, document);
+        if ownership.iter().all(Vec::is_empty) {
+            let owner = if !reference.submesh_name.trim().is_empty() {
+                format!("submesh {}", reference.submesh_name)
+            } else if !reference.material_name.trim().is_empty() {
+                format!("material {}", reference.material_name)
+            } else {
+                "an unnamed multi-submesh owner".to_owned()
+            };
+            warnings.push(format!(
+                "Base-color parameter {} for {owner} does not match a decoded material range; {} remains unbound",
+                reference.parameter_name, reference.path
+            ));
+            continue;
+        }
+        candidates.push(OwnedTextureReference {
+            reference: reference.clone(),
+            material_indices_by_lod: ownership,
+        });
     }
-    references.into_values().collect()
+
+    let mut claims = BTreeMap::<(usize, u32), BTreeSet<String>>::new();
+    for candidate in &candidates {
+        let normalized = normalize_virtual_path(&candidate.reference.path);
+        for (lod_index, materials) in candidate.material_indices_by_lod.iter().enumerate() {
+            for material in materials {
+                claims
+                    .entry((lod_index, *material))
+                    .or_default()
+                    .insert(normalized.clone());
+            }
+        }
+    }
+    let ambiguous = claims
+        .into_iter()
+        .filter_map(|(owner, paths)| (paths.len() > 1).then_some(owner))
+        .collect::<BTreeSet<_>>();
+    if !ambiguous.is_empty() {
+        warnings.push(format!(
+            "{} decoded material range(s) claim more than one distinct base-color texture; only those ranges keep the approximation",
+            ambiguous.len()
+        ));
+    }
+
+    let mut grouped = BTreeMap::<String, OwnedTextureReference>::new();
+    for mut candidate in candidates {
+        for (lod_index, materials) in candidate.material_indices_by_lod.iter_mut().enumerate() {
+            materials.retain(|material| !ambiguous.contains(&(lod_index, *material)));
+        }
+        if candidate.material_indices_by_lod.iter().all(Vec::is_empty) {
+            continue;
+        }
+        let normalized = normalize_virtual_path(&candidate.reference.path);
+        if let Some(existing) = grouped.get_mut(&normalized) {
+            for (existing_materials, candidate_materials) in existing
+                .material_indices_by_lod
+                .iter_mut()
+                .zip(candidate.material_indices_by_lod)
+            {
+                existing_materials.extend(candidate_materials);
+                existing_materials.sort_unstable();
+                existing_materials.dedup();
+            }
+        } else {
+            grouped.insert(normalized, candidate);
+        }
+    }
+    grouped.into_values().collect()
+}
+
+fn material_indices_for_reference(
+    reference: &MaterialTextureReference,
+    document: &MeshDocument,
+) -> Vec<Vec<u32>> {
+    document
+        .lods
+        .iter()
+        .map(|lod| {
+            lod.submeshes
+                .iter()
+                .enumerate()
+                .filter(|(_, submesh)| {
+                    if !reference.submesh_name.trim().is_empty() {
+                        submesh.name.eq_ignore_ascii_case(&reference.submesh_name)
+                    } else if !reference.material_name.trim().is_empty() {
+                        submesh
+                            .material
+                            .eq_ignore_ascii_case(&reference.material_name)
+                    } else {
+                        lod.submeshes.len() == 1
+                    }
+                })
+                .filter_map(|(index, _)| u32::try_from(index).ok())
+                .collect()
+        })
+        .collect()
+}
+
+fn all_material_indices(document: &MeshDocument) -> Vec<Vec<u32>> {
+    document
+        .lods
+        .iter()
+        .map(|lod| {
+            (0..lod.submeshes.len())
+                .filter_map(|index| u32::try_from(index).ok())
+                .collect()
+        })
+        .collect()
 }
 
 fn direct_material_sidecars(mesh_path: &Path) -> Vec<PathBuf> {
@@ -1329,16 +1445,73 @@ mod tests {
         )?;
         fs::write(
             &sidecar,
-            br#"<SkinnedMeshMaterialWrapper _subMeshName="Body"><Material _materialName="SkinnedMeshStandard"><MaterialParameterTexture _name="_baseColorTexture"><ResourceReferencePath_ITexture _path="character/texture/body.dds"/></MaterialParameterTexture></Material></SkinnedMeshMaterialWrapper>"#,
+            br#"<SkinnedMeshMaterialWrapper _subMeshName="part-0"><Material _materialName="SkinnedMeshStandard"><MaterialParameterTexture _name="_baseColorTexture"><ResourceReferencePath_ITexture _path="character/texture/body.dds"/></MaterialParameterTexture></Material></SkinnedMeshMaterialWrapper>"#,
         )?;
 
         let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
-        let texture = resolved.texture.ok_or("missing explicit texture")?;
+        let texture = resolved
+            .textures
+            .first()
+            .ok_or("missing explicit texture")?;
         assert!(paths_equal(Path::new(&texture.label), &expected));
         assert_eq!(texture.requested_reference, "character/texture/body.dds");
         assert_eq!(texture.parameter_name.as_deref(), Some("_baseColorTexture"));
         assert!(texture.sidecar_label.is_some());
         assert_eq!(texture.role, TextureRole::BaseColor);
+        assert_eq!(texture.material_indices_by_lod, vec![vec![0]]);
+        Ok(())
+    }
+
+    #[test]
+    fn distinct_submesh_base_colors_keep_distinct_material_owners()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (_tree, mesh, sidecar, texture_directory) = direct_fixture("multi-material")?;
+        for name in ["body_a.dds", "body_b.dds"] {
+            fs::write(
+                texture_directory.join(name),
+                cdmw_texture::synthetic::rgba8_checker_dds(),
+            )?;
+        }
+        fs::write(
+            &sidecar,
+            br#"<Root><SkinnedMeshMaterialWrapper _subMeshName="part-0"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_a.dds"/></SkinnedMeshMaterialWrapper><SkinnedMeshMaterialWrapper _subMeshName="part-1"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_b.dds"/></SkinnedMeshMaterialWrapper></Root>"#,
+        )?;
+
+        let resolved = resolve_direct_texture(
+            &mesh,
+            &document_with_references(&["decoded_a.dds", "decoded_b.dds"]),
+        )?;
+        assert_eq!(resolved.textures.len(), 2);
+        let mut owners = resolved
+            .textures
+            .iter()
+            .map(|texture| texture.material_indices_by_lod[0].clone())
+            .collect::<Vec<_>>();
+        owners.sort();
+        assert_eq!(owners, vec![vec![0], vec![1]]);
+        Ok(())
+    }
+
+    #[test]
+    fn material_ownership_follows_submesh_names_when_lod_order_changes()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut document = document_with_references(&["decoded_a.dds", "decoded_b.dds"]);
+        let mut second_lod = document.lods[0].clone();
+        second_lod.level = 1;
+        second_lod.submeshes.reverse();
+        document.lods.push(second_lod);
+        let sidecar = parse_material_sidecar(
+            br#"<Root><SkinnedMeshMaterialWrapper _subMeshName="part-0"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_a.dds"/></SkinnedMeshMaterialWrapper><SkinnedMeshMaterialWrapper _subMeshName="part-1"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_b.dds"/></SkinnedMeshMaterialWrapper></Root>"#,
+        )?;
+        let mut warnings = Vec::new();
+        let owned = owned_base_color_references(&sidecar, &document, &mut warnings);
+        assert!(warnings.is_empty());
+        assert_eq!(owned.len(), 2);
+        let first = owned
+            .iter()
+            .find(|owned| owned.reference.path.ends_with("body_a.dds"))
+            .ok_or("missing first base color")?;
+        assert_eq!(first.material_indices_by_lod, vec![vec![0], vec![1]]);
         Ok(())
     }
 
@@ -1362,12 +1535,12 @@ mod tests {
         )?;
 
         let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
-        assert!(resolved.texture.is_none());
+        assert!(resolved.textures.is_empty());
         assert!(
             resolved
                 .warnings
                 .iter()
-                .any(|warning| warning.contains("2 distinct base-color textures"))
+                .any(|warning| warning.contains("claim more than one distinct base-color"))
         );
         Ok(())
     }
@@ -1386,7 +1559,7 @@ mod tests {
         )?;
 
         let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
-        assert!(resolved.texture.is_none());
+        assert!(resolved.textures.is_empty());
         assert!(
             resolved
                 .warnings
@@ -1404,7 +1577,10 @@ mod tests {
         fs::write(&expected, cdmw_texture::synthetic::rgba8_checker_dds())?;
 
         let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
-        let texture = resolved.texture.ok_or("missing fallback texture")?;
+        let texture = resolved
+            .textures
+            .first()
+            .ok_or("missing fallback texture")?;
         assert!(paths_equal(Path::new(&texture.label), &expected));
         assert!(texture.sidecar_label.is_none());
         assert!(
@@ -1509,14 +1685,14 @@ mod tests {
         if direct_material_sidecars(&loaded.path).is_empty()
             && texture_references(&loaded.document).is_empty()
         {
-            assert!(loaded.texture.is_none());
+            assert!(loaded.textures.is_empty());
             assert!(loaded.document.warnings.iter().any(|warning| {
                 warning.contains("No same-stem material sidecar")
                     || warning.contains("No decoded DDS reference")
             }));
         }
         assert!(
-            loaded.texture.is_some()
+            !loaded.textures.is_empty()
                 || loaded.document.warnings.iter().any(|warning| {
                     let lowered = warning.to_ascii_lowercase();
                     lowered.contains("texture") || lowered.contains("material sidecar")

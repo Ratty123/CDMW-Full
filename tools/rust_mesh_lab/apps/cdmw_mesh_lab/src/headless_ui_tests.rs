@@ -920,7 +920,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
         document,
         mesh,
         other_lod_meshes: Vec::new(),
-        texture: Some(crate::loader::LoadedTexture {
+        textures: vec![crate::loader::LoadedTexture {
             label: "character/texture/body.dds".to_owned(),
             metadata,
             bytes,
@@ -929,10 +929,11 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             parameter_name: Some("_baseColorTexture".to_owned()),
             sidecar_label: Some("character/modelproperty/body.pam_xml".to_owned()),
             resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
-        }),
+            material_indices_by_lod: vec![vec![0]],
+        }],
     });
     let mut ui = HeadlessUi::new(application, egui::vec2(1_280.0, 900.0));
-    assert!(ui.reveal("Resolved texture").is_ok());
+    assert!(ui.reveal("Resolved base textures").is_ok());
     assert!(ui.reveal("character/texture/body.dds").is_ok());
     assert!(
         ui.reveal(
@@ -940,5 +941,6 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
         )
         .is_ok()
     );
+    assert!(ui.reveal("Material ranges LOD0: 0").is_ok());
     Ok(())
 }

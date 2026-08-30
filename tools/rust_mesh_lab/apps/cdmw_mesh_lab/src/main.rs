@@ -99,6 +99,13 @@ struct LodSession {
     history: History,
 }
 
+struct TextureInspectorEntry {
+    label: String,
+    metadata: DdsMetadata,
+    provenance: String,
+    ownership: String,
+}
+
 struct LabApplication {
     window: Option<Arc<Window>>,
     renderer: Option<WindowRenderer>,
@@ -115,9 +122,7 @@ struct LabApplication {
     mesh: Option<WorkingMesh>,
     active_lod_index: usize,
     lod_sessions: Vec<Option<LodSession>>,
-    texture_metadata: Option<DdsMetadata>,
-    texture_label: Option<String>,
-    texture_provenance: Option<String>,
+    texture_entries: Vec<TextureInspectorEntry>,
     source_label: String,
     status: String,
     history: History,
@@ -188,9 +193,7 @@ impl LabApplication {
             mesh: None,
             active_lod_index: 0,
             lod_sessions: Vec::new(),
-            texture_metadata: None,
-            texture_label: None,
-            texture_provenance: None,
+            texture_entries: Vec::new(),
             source_label: "No asset loaded".to_owned(),
             status,
             history: History::new(HISTORY_BUDGET_BYTES),
@@ -320,7 +323,7 @@ impl LabApplication {
             document,
             mesh,
             other_lod_meshes,
-            texture,
+            textures,
         } = loaded;
         let editable_lod_count = other_lod_meshes.len().saturating_add(1);
         debug_assert_eq!(editable_lod_count, document.lods.len());
@@ -341,31 +344,86 @@ impl LabApplication {
         self.raw_primary_captured = false;
         self.raw_orbit_captured = false;
         self.raw_pan_captured = false;
-        let mut texture_uploaded = false;
+        let texture_entries = textures
+            .iter()
+            .map(|texture| {
+                let mut parts = vec![
+                    format!("Role {:?}", texture.role),
+                    format!("Reference {}", texture.requested_reference),
+                    format!("Resolved via {:?}", texture.resolution_method),
+                ];
+                if let Some(parameter) = &texture.parameter_name {
+                    parts.push(format!("Parameter {parameter}"));
+                }
+                if let Some(sidecar) = &texture.sidecar_label {
+                    parts.push(format!("Sidecar {sidecar}"));
+                }
+                let ownership = texture
+                    .material_indices_by_lod
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, materials)| !materials.is_empty())
+                    .map(|(lod, materials)| {
+                        format!(
+                            "LOD{lod}: {}",
+                            materials
+                                .iter()
+                                .map(u32::to_string)
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" · ");
+                TextureInspectorEntry {
+                    label: texture.label.clone(),
+                    metadata: texture.metadata.clone(),
+                    provenance: parts.join(" · "),
+                    ownership,
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut texture_upload_count = 0_usize;
+        let mut bound_material_count = 0_usize;
+        let mut gpu_errors = Vec::new();
         if let Some(renderer) = &mut self.renderer {
             renderer.reset_texture();
             renderer.set_view_mode(self.view_mode);
             if let Some(rectangle) = self.viewport_rect {
                 renderer.set_camera(self.camera.view_projection(rectangle));
             }
-            if let Some(texture) = &texture {
-                match renderer.set_dds_texture(&texture.bytes, texture.role) {
-                    Ok(()) => texture_uploaded = true,
-                    Err(error) => self.status = format!("DDS GPU upload failed: {error}"),
+            for texture in &textures {
+                match renderer.add_dds_texture(
+                    &texture.bytes,
+                    texture.role,
+                    &texture.material_indices_by_lod,
+                ) {
+                    Ok(()) => texture_upload_count = texture_upload_count.saturating_add(1),
+                    Err(error) => gpu_errors.push(error.to_string()),
                 }
             }
+            match renderer.set_material_lod(0) {
+                Ok(count) => bound_material_count = count,
+                Err(error) => gpu_errors.push(error.to_string()),
+            }
             if let Err(error) = renderer.set_snapshot(&mesh.draw_snapshot()) {
-                self.status = format!("GPU upload failed: {error}");
+                gpu_errors.push(format!("mesh upload failed: {error}"));
             }
         }
-        if texture_uploaded && let Some(texture) = &texture {
-            self.status.push_str(
-                format!(
-                    " · textured {}×{} {:?}",
-                    texture.metadata.width, texture.metadata.height, texture.metadata.format
-                )
-                .as_str(),
-            );
+        if texture_upload_count > 0 {
+            self.status.push_str(&format!(
+                " · {texture_upload_count} base texture(s) uploaded for {bound_material_count} LOD0 material range(s)"
+            ));
+        }
+        if let Some(error) = gpu_errors.first() {
+            self.status.push_str(&format!(
+                " · GPU warning: {error}{}",
+                if gpu_errors.len() > 1 {
+                    format!(" (+{} more)", gpu_errors.len() - 1)
+                } else {
+                    String::new()
+                }
+            ));
         }
         self.history = History::new(per_lod_history_budget);
         self.operator = OperatorController::default();
@@ -386,22 +444,7 @@ impl LabApplication {
             }));
         self.document = Some(document);
         self.mesh = Some(mesh);
-        self.texture_label = texture.as_ref().map(|texture| texture.label.clone());
-        self.texture_provenance = texture.as_ref().map(|texture| {
-            let mut parts = vec![
-                format!("Role {:?}", texture.role),
-                format!("Reference {}", texture.requested_reference),
-                format!("Resolved via {:?}", texture.resolution_method),
-            ];
-            if let Some(parameter) = &texture.parameter_name {
-                parts.push(format!("Parameter {parameter}"));
-            }
-            if let Some(sidecar) = &texture.sidecar_label {
-                parts.push(format!("Sidecar {sidecar}"));
-            }
-            parts.join(" · ")
-        });
-        self.texture_metadata = texture.map(|texture| texture.metadata);
+        self.texture_entries = texture_entries;
     }
 
     fn draw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
@@ -535,22 +578,24 @@ impl LabApplication {
                     for warning in &document.warnings {
                         ui.colored_label(Color32::YELLOW, warning);
                     }
-                    if let (Some(label), Some(texture)) =
-                        (&self.texture_label, &self.texture_metadata)
-                    {
+                    if !self.texture_entries.is_empty() {
                         ui.separator();
-                        ui.label(RichText::new("Resolved texture").strong());
-                        ui.label(label);
-                        ui.label(format!(
-                            "{} × {} · {:?} · {:?} · {} mip(s)",
-                            texture.width,
-                            texture.height,
-                            texture.format,
-                            texture.color_space,
-                            texture.mip_count
-                        ));
-                        if let Some(provenance) = &self.texture_provenance {
-                            ui.label(provenance);
+                        ui.label(RichText::new("Resolved base textures").strong());
+                        for (index, texture) in self.texture_entries.iter().enumerate() {
+                            if index > 0 {
+                                ui.add_space(4.0);
+                            }
+                            ui.label(&texture.label);
+                            ui.label(format!(
+                                "{} × {} · {:?} · {:?} · {} mip(s)",
+                                texture.metadata.width,
+                                texture.metadata.height,
+                                texture.metadata.format,
+                                texture.metadata.color_space,
+                                texture.metadata.mip_count
+                            ));
+                            ui.label(&texture.provenance);
+                            ui.label(format!("Material ranges {}", texture.ownership));
                         }
                     }
                 }
@@ -1052,6 +1097,17 @@ impl LabApplication {
                 mesh.vertices().count(),
                 mesh.faces().count()
             );
+        }
+        if let Some(renderer) = &mut self.renderer {
+            match renderer.set_material_lod(target_index) {
+                Ok(count) if count > 0 => self
+                    .status
+                    .push_str(&format!(" · {count} material range(s) textured")),
+                Ok(_) => {}
+                Err(error) => self
+                    .status
+                    .push_str(&format!(" · texture binding warning: {error}")),
+            }
         }
         self.publish_mesh_snapshot();
     }
