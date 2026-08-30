@@ -8,7 +8,7 @@ use super::*;
 use crate::headless_tests::{TestResult, triangle_application, two_lod_application};
 use cdmw_interaction::ProjectedHandle;
 use egui::{Event, FullOutput, PointerButton, Pos2, Rect};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use winit::event::DeviceId;
 
 struct HeadlessUi {
@@ -625,9 +625,21 @@ fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
         ("Subdivide", 4, None),
         ("Duplicate", 2, None),
         ("Duplicate as New Part", 2, Some(1)),
+        ("Extrude", 7, None),
     ] {
         let mut ui = HeadlessUi::new(triangle_application()?, egui::vec2(1_280.0, 720.0));
+        if label == "Extrude" {
+            ui.application.extrude_distance = 0.25;
+        }
         ui.click("All Faces")?;
+        let source_vertices = ui
+            .application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .vertices()
+            .map(|(handle, vertex)| (handle, vertex.clone()))
+            .collect::<HashMap<_, _>>();
         let baseline = ui
             .application
             .mesh
@@ -641,6 +653,13 @@ fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
             .ok_or("mesh")?
             .selection
             .clone();
+        let source_face = if label == "Extrude" {
+            let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+            let handle = *selection.faces.iter().next().ok_or("selected face")?;
+            Some(mesh.face(handle).cloned().ok_or("selected face")?)
+        } else {
+            None
+        };
         ui.click(label)?;
         assert_eq!(
             ui.application.mesh.as_ref().ok_or("mesh")?.faces().count(),
@@ -652,6 +671,32 @@ fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
                 mesh.face(*handle)
                     .is_some_and(|face| face.submesh == expected_submesh && face.material == 0)
             }));
+        }
+        if label == "Extrude" {
+            let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+            for (handle, source) in &source_vertices {
+                assert_eq!(mesh.vertex(*handle), Some(source));
+            }
+            assert_eq!(mesh.selection.faces.len(), 1);
+            let cap = mesh
+                .face(*mesh.selection.faces.iter().next().ok_or("cap")?)
+                .ok_or("cap")?;
+            for (source_handle, cap_handle) in source_face
+                .ok_or("source face")?
+                .vertices
+                .into_iter()
+                .zip(cap.vertices)
+            {
+                let source = source_vertices.get(&source_handle).ok_or("source vertex")?;
+                let direction = Vec3::from_array(source.normal)
+                    .try_normalize()
+                    .ok_or("source normal")?;
+                let cap_vertex = mesh.vertex(cap_handle).ok_or("cap vertex")?;
+                assert_eq!(
+                    Vec3::from_array(cap_vertex.position),
+                    Vec3::from_array(source.position) + direction * 0.25
+                );
+            }
         }
         let edited = ui
             .application
@@ -1151,6 +1196,7 @@ fn disabled_edit_controls_do_not_activate_or_change_the_mesh() -> TestResult {
         "Linked",
         "Subdivide Edges",
         "Duplicate as New Part",
+        "Extrude",
         "Delete",
         "Subdivide",
         "Duplicate",

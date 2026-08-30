@@ -55,7 +55,7 @@ pub fn run_headless_mesh_check(
         "headless mesh check requires at least one face"
     );
     let started = Instant::now();
-    let mut reports = Vec::with_capacity(document.lods.len().saturating_mul(10));
+    let mut reports = Vec::with_capacity(document.lods.len().saturating_mul(11));
     for (lod_index, lod) in document.lods.iter().enumerate() {
         let lod_baseline =
             WorkingMesh::from_document_lod(document, lod_index).with_context(|| {
@@ -91,7 +91,7 @@ pub fn run_headless_mesh_check(
     })
 }
 
-fn scenario_events(vertex_count: usize) -> [(&'static str, ReplayEvent); 10] {
+fn scenario_events(vertex_count: usize) -> [(&'static str, ReplayEvent); 11] {
     let vertex_ordinals = (0..vertex_count.min(64)).collect::<Vec<_>>();
     [
         (
@@ -169,6 +169,13 @@ fn scenario_events(vertex_count: usize) -> [(&'static str, ReplayEvent); 10] {
             "duplicate_face_to_new_submesh",
             ReplayEvent::DuplicateFacesToNewSubmesh {
                 face_ordinals: vec![0],
+            },
+        ),
+        (
+            "extrude_face",
+            ReplayEvent::ExtrudeFaces {
+                face_ordinals: vec![0],
+                distance: 0.0005,
             },
         ),
     ]
@@ -257,7 +264,8 @@ fn verify_out_of_scope_preservation(
         ReplayEvent::SubdivideFaces { .. }
         | ReplayEvent::SubdivideEdges { .. }
         | ReplayEvent::DuplicateFaces { .. }
-        | ReplayEvent::DuplicateFacesToNewSubmesh { .. } => {}
+        | ReplayEvent::DuplicateFacesToNewSubmesh { .. }
+        | ReplayEvent::ExtrudeFaces { .. } => {}
         ReplayEvent::Undo | ReplayEvent::Redo => {
             anyhow::bail!("locality verification requires an edit event")
         }
@@ -343,14 +351,14 @@ mod tests {
         let document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
         let report = run_headless_mesh_check(&document, 0.0)?;
         assert_eq!(report.lods_loaded, 2);
-        assert_eq!(report.scenarios.len(), 20);
+        assert_eq!(report.scenarios.len(), 22);
         assert_eq!(
             report
                 .scenarios
                 .iter()
                 .filter(|scenario| scenario.lod_level == 0)
                 .count(),
-            10
+            11
         );
         assert_eq!(
             report
@@ -358,7 +366,7 @@ mod tests {
                 .iter()
                 .filter(|scenario| scenario.lod_level == 1)
                 .count(),
-            10
+            11
         );
         assert!(
             report

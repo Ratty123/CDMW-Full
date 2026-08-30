@@ -36,6 +36,10 @@ pub enum ReplayEvent {
     DuplicateFacesToNewSubmesh {
         face_ordinals: Vec<usize>,
     },
+    ExtrudeFaces {
+        face_ordinals: Vec<usize>,
+        distance: f32,
+    },
     Undo,
     Redo,
 }
@@ -130,6 +134,14 @@ pub fn run_replay(
                 let before = mesh.clone();
                 let _ = mesh.duplicate_faces_to_new_submesh(&face_handles(mesh, face_ordinals)?)?;
                 history.commit("replay duplicate as new submesh", before, mesh)?;
+            }
+            ReplayEvent::ExtrudeFaces {
+                face_ordinals,
+                distance,
+            } => {
+                let before = mesh.clone();
+                let _ = mesh.extrude_faces(&face_handles(mesh, face_ordinals)?, *distance)?;
+                history.commit("replay extrude faces", before, mesh)?;
             }
             ReplayEvent::Undo => history.undo(mesh)?,
             ReplayEvent::Redo => history.redo(mesh)?,

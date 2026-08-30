@@ -552,6 +552,7 @@ fn every_topology_action_round_trips_geometry_and_selection() -> TestResult {
         UiAction::DuplicateFaces,
         UiAction::DuplicateFacesToNewSubmesh,
         UiAction::SubdivideFaces,
+        UiAction::ExtrudeFaces,
         UiAction::DeleteFaces,
     ] {
         let expects_new_submesh = matches!(action, UiAction::DuplicateFacesToNewSubmesh);

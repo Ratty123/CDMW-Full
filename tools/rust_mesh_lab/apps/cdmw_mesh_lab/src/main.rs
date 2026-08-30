@@ -99,6 +99,7 @@ enum UiAction {
     SubdivideFaces,
     DuplicateFaces,
     DuplicateFacesToNewSubmesh,
+    ExtrudeFaces,
     Undo,
     Redo,
     ExportObj,
@@ -196,6 +197,7 @@ struct LabApplication {
     brush_strength: f32,
     brush_falloff: BrushFalloff,
     smooth_iterations: u32,
+    extrude_distance: f32,
     selection_gesture: Option<SelectionGesture>,
     edit_gesture: Option<EditGesture>,
     projection: Option<ViewportProjection>,
@@ -271,6 +273,7 @@ impl LabApplication {
             brush_strength: 0.18,
             brush_falloff: BrushFalloff::Smooth,
             smooth_iterations: 1,
+            extrude_distance: 0.02,
             selection_gesture: None,
             edit_gesture: None,
             projection: None,
@@ -1115,6 +1118,16 @@ impl LabApplication {
                     }
                 }
                 ui.label("Drag the gizmo for transforms; drag over the surface for sculpt tools. Esc cancels the active gesture.");
+                ui.horizontal(|ui| {
+                    ui.label("Extrude distance");
+                    ui.add(
+                        egui::DragValue::new(&mut self.extrude_distance)
+                            .speed(0.001)
+                            .range(0.000_01..=1_000_000.0)
+                            .max_decimals(6),
+                    )
+                    .on_hover_text("Positive distance along the selected faces' vertex normals");
+                });
                 ui.horizontal_wrapped(|ui| {
                     if ui
                         .add_enabled(selected_edges > 0, egui::Button::new("Subdivide Edges"))
@@ -1131,6 +1144,7 @@ impl LabApplication {
                             "Duplicate as New Part",
                             UiAction::DuplicateFacesToNewSubmesh,
                         ),
+                        ("Extrude", UiAction::ExtrudeFaces),
                     ] {
                         if ui
                             .add_enabled(selected_faces > 0, egui::Button::new(label))
@@ -1323,6 +1337,13 @@ impl LabApplication {
                     self.run_topology("Duplicate faces as new part", |mesh, faces| {
                         publish_mesh = true;
                         mesh.duplicate_faces_to_new_submesh(faces).map(|_| ())
+                    })
+                }
+                UiAction::ExtrudeFaces => {
+                    let distance = self.extrude_distance;
+                    self.run_topology("Extrude faces", |mesh, faces| {
+                        publish_mesh = true;
+                        mesh.extrude_faces(faces, distance).map(|_| ())
                     })
                 }
                 UiAction::Undo => {

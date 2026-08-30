@@ -489,6 +489,143 @@ impl WorkingMesh {
         Ok(duplicated)
     }
 
+    pub fn extrude_faces(
+        &mut self,
+        handles: &HashSet<FaceHandle>,
+        distance: f32,
+    ) -> Result<HashSet<FaceHandle>, MeshError> {
+        if handles.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        if !distance.is_finite() || distance <= 1.0e-6 {
+            return Err(MeshError::Invariant(
+                "extrude distance must be finite and positive".to_owned(),
+            ));
+        }
+
+        let mut draft = self.clone();
+        let operation = draft.next_operation();
+        let mut ordered_handles = handles.iter().copied().collect::<Vec<_>>();
+        ordered_handles.sort_by_key(|handle| handle.data().as_ffi());
+        let originals = ordered_handles
+            .into_iter()
+            .map(|handle| {
+                draft
+                    .faces
+                    .get(handle)
+                    .cloned()
+                    .map(|face| (handle, face))
+                    .ok_or(MeshError::StaleHandle)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut ordered_source_handles = originals
+            .iter()
+            .flat_map(|(_, face)| face.vertices)
+            .collect::<Vec<_>>();
+        ordered_source_handles.sort_by_key(|handle| handle.data().as_ffi());
+        ordered_source_handles.dedup();
+        let mut cap_vertex_by_source = HashMap::new();
+        for source_handle in ordered_source_handles {
+            let source = draft
+                .vertices
+                .get(source_handle)
+                .cloned()
+                .ok_or(MeshError::StaleHandle)?;
+            let direction = Vec3::from_array(source.normal)
+                .try_normalize()
+                .ok_or_else(|| {
+                    MeshError::Invariant("extrude vertex normal is invalid".to_owned())
+                })?;
+            let position = Vec3::from_array(source.position) + direction * distance;
+            if !position.is_finite() {
+                return Err(MeshError::Invariant(
+                    "extrude position is not finite".to_owned(),
+                ));
+            }
+            let cap = draft.vertices.insert(Vertex {
+                position: position.to_array(),
+                normal: source.normal,
+                uv: source.uv,
+                provenance: Provenance::Generated { operation },
+            });
+            cap_vertex_by_source.insert(source_handle, cap);
+        }
+
+        let mut boundary_pairs = HashSet::new();
+        let mut boundaries = Vec::new();
+        for (_, face) in &originals {
+            for (first, second) in [
+                (face.vertices[0], face.vertices[1]),
+                (face.vertices[1], face.vertices[2]),
+                (face.vertices[2], face.vertices[0]),
+            ] {
+                let pair = ordered_pair(first, second);
+                let edge_handle = draft
+                    .edge_by_pair
+                    .get(&pair)
+                    .copied()
+                    .ok_or(MeshError::StaleHandle)?;
+                let edge = draft.edges.get(edge_handle).ok_or(MeshError::StaleHandle)?;
+                let selected_incidence = edge
+                    .faces
+                    .iter()
+                    .filter(|handle| handles.contains(handle))
+                    .count();
+                let is_boundary = edge.faces.len() == 1 || selected_incidence < edge.faces.len();
+                if is_boundary && boundary_pairs.insert(pair) {
+                    boundaries.push((first, second, face.submesh, face.material));
+                }
+            }
+        }
+
+        for (handle, _) in &originals {
+            let _ = draft.faces.remove(*handle).ok_or(MeshError::StaleHandle)?;
+        }
+        let mut caps = HashSet::new();
+        for (_, face) in originals {
+            let cap_vertex = |source| {
+                cap_vertex_by_source.get(&source).copied().ok_or_else(|| {
+                    MeshError::Invariant("extrude cap mapping is incomplete".to_owned())
+                })
+            };
+            let vertices = [
+                cap_vertex(face.vertices[0])?,
+                cap_vertex(face.vertices[1])?,
+                cap_vertex(face.vertices[2])?,
+            ];
+            caps.insert(draft.faces.insert(Face {
+                vertices,
+                submesh: face.submesh,
+                material: face.material,
+                provenance: Provenance::Generated { operation },
+            }));
+        }
+        for (first, second, submesh, material) in boundaries {
+            let cap_first = cap_vertex_by_source.get(&first).copied().ok_or_else(|| {
+                MeshError::Invariant("extrude boundary mapping is incomplete".to_owned())
+            })?;
+            let cap_second = cap_vertex_by_source.get(&second).copied().ok_or_else(|| {
+                MeshError::Invariant("extrude boundary mapping is incomplete".to_owned())
+            })?;
+            for vertices in [[first, second, cap_second], [first, cap_second, cap_first]] {
+                draft.faces.insert(Face {
+                    vertices,
+                    submesh,
+                    material,
+                    provenance: Provenance::Generated { operation },
+                });
+            }
+        }
+        draft.selection = Selection {
+            faces: caps.clone(),
+            ..Selection::default()
+        };
+        draft.finish_topology_operation()?;
+        *self = draft;
+        Ok(caps)
+    }
+
     pub fn subdivide_faces(
         &mut self,
         handles: &HashSet<FaceHandle>,
@@ -1525,6 +1662,122 @@ mod tests {
     }
 
     #[test]
+    fn extrude_face_builds_a_moved_cap_and_three_boundary_walls() -> Result<(), MeshError> {
+        let mut mesh = two_triangle_quad();
+        let source_vertices = mesh
+            .vertices
+            .iter()
+            .map(|(handle, vertex)| (handle, vertex.clone()))
+            .collect::<HashMap<_, _>>();
+        let selected = mesh.faces.keys().next().ok_or(MeshError::InvalidSource)?;
+        let selected_face = mesh
+            .faces
+            .get_mut(selected)
+            .ok_or(MeshError::InvalidSource)?;
+        selected_face.submesh = 2;
+        selected_face.material = 7;
+        let source_face = mesh
+            .face(selected)
+            .cloned()
+            .ok_or(MeshError::InvalidSource)?;
+        let unselected = mesh
+            .faces
+            .iter()
+            .find(|(handle, _)| *handle != selected)
+            .map(|(handle, face)| (handle, face.clone()))
+            .ok_or(MeshError::InvalidSource)?;
+
+        let caps = mesh.extrude_faces(&HashSet::from([selected]), 0.25)?;
+        assert_eq!(caps.len(), 1);
+        assert_eq!(mesh.selection.faces, caps);
+        assert_eq!(mesh.vertices.len(), 7);
+        assert_eq!(mesh.faces.len(), 8);
+        assert_eq!(mesh.face(unselected.0), Some(&unselected.1));
+        for (handle, source) in &source_vertices {
+            assert_eq!(mesh.vertex(*handle), Some(source));
+        }
+
+        let cap = mesh
+            .face(*caps.iter().next().ok_or(MeshError::InvalidSource)?)
+            .ok_or(MeshError::InvalidSource)?;
+        assert_eq!(cap.submesh, source_face.submesh);
+        assert_eq!(cap.material, source_face.material);
+        for (source_handle, cap_handle) in source_face.vertices.into_iter().zip(cap.vertices) {
+            let source = source_vertices
+                .get(&source_handle)
+                .ok_or(MeshError::InvalidSource)?;
+            let cap_vertex = mesh.vertex(cap_handle).ok_or(MeshError::InvalidSource)?;
+            assert_eq!(cap_vertex.normal, source.normal);
+            assert_eq!(cap_vertex.uv, source.uv);
+            assert_eq!(
+                Vec3::from_array(cap_vertex.position),
+                Vec3::from_array(source.position) + Vec3::Z * 0.25
+            );
+            assert_eq!(
+                cap_vertex.provenance,
+                Provenance::Generated { operation: 1 }
+            );
+        }
+        let sides = mesh
+            .faces()
+            .filter(|(handle, _)| *handle != unselected.0 && !caps.contains(handle))
+            .collect::<Vec<_>>();
+        assert_eq!(sides.len(), 6);
+        for (_, side) in sides {
+            assert_eq!(side.submesh, source_face.submesh);
+            assert_eq!(side.material, source_face.material);
+            let [Some(a), Some(b), Some(c)] = side.vertices.map(|handle| {
+                mesh.vertex(handle)
+                    .map(|vertex| Vec3::from_array(vertex.position))
+            }) else {
+                return Err(MeshError::InvalidSource);
+            };
+            assert!((b - a).cross(c - a).length_squared() > 0.0);
+        }
+        mesh.validate()
+    }
+
+    #[test]
+    fn extrude_region_shares_cap_vertices_and_skips_the_internal_wall() -> Result<(), MeshError> {
+        let mut mesh = two_triangle_quad();
+        let source_vertices = mesh.vertices.keys().collect::<HashSet<_>>();
+        let selected = mesh.faces.keys().collect::<HashSet<_>>();
+        let caps = mesh.extrude_faces(&selected, 0.5)?;
+
+        assert_eq!(caps.len(), 2);
+        assert_eq!(mesh.selection.faces, caps);
+        assert_eq!(mesh.vertices.len(), 8);
+        assert_eq!(mesh.faces.len(), 10);
+        let cap_vertices = mesh.selected_vertex_scope();
+        assert_eq!(cap_vertices.len(), 4);
+        assert!(cap_vertices.is_disjoint(&source_vertices));
+        assert_eq!(
+            mesh.edges
+                .values()
+                .filter(|edge| edge.faces.len() == 2
+                    && edge.faces.iter().all(|face| caps.contains(face)))
+                .count(),
+            1
+        );
+        assert_eq!(
+            mesh.faces
+                .values()
+                .filter(|face| {
+                    face.vertices
+                        .iter()
+                        .any(|vertex| source_vertices.contains(vertex))
+                        && face
+                            .vertices
+                            .iter()
+                            .any(|vertex| cap_vertices.contains(vertex))
+                })
+                .count(),
+            8
+        );
+        mesh.validate()
+    }
+
+    #[test]
     fn failed_topology_operations_leave_the_exact_working_state() -> Result<(), MeshError> {
         let mut duplicate_mesh = triangle();
         let duplicate_face = duplicate_mesh
@@ -1555,6 +1808,52 @@ mod tests {
             Err(MeshError::Invariant(_))
         ));
         assert_exact_working_state(&subdivide_mesh, &subdivide_before);
+
+        let mut extrude_mesh = duplicate_before.clone();
+        let extrude_before = extrude_mesh.clone();
+        assert!(
+            extrude_mesh
+                .extrude_faces(&HashSet::from([duplicate_face]), 0.25)
+                .is_err()
+        );
+        assert_exact_working_state(&extrude_mesh, &extrude_before);
+
+        let mut invalid_distance = triangle();
+        let invalid_distance_face = invalid_distance
+            .faces
+            .keys()
+            .next()
+            .ok_or(MeshError::InvalidSource)?;
+        let invalid_distance_before = invalid_distance.clone();
+        for distance in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+            assert!(matches!(
+                invalid_distance.extrude_faces(&HashSet::from([invalid_distance_face]), distance),
+                Err(MeshError::Invariant(_))
+            ));
+            assert_exact_working_state(&invalid_distance, &invalid_distance_before);
+        }
+
+        let mut invalid_normal = triangle();
+        let invalid_normal_face = invalid_normal
+            .faces
+            .keys()
+            .next()
+            .ok_or(MeshError::InvalidSource)?;
+        let invalid_normal_vertex = invalid_normal
+            .face(invalid_normal_face)
+            .ok_or(MeshError::InvalidSource)?
+            .vertices[0];
+        invalid_normal
+            .vertices
+            .get_mut(invalid_normal_vertex)
+            .ok_or(MeshError::InvalidSource)?
+            .normal = [0.0; 3];
+        let invalid_normal_before = invalid_normal.clone();
+        assert!(matches!(
+            invalid_normal.extrude_faces(&HashSet::from([invalid_normal_face]), 0.25),
+            Err(MeshError::Invariant(_))
+        ));
+        assert_exact_working_state(&invalid_normal, &invalid_normal_before);
 
         let mut exhausted_submesh = triangle();
         let exhausted_face = exhausted_submesh
