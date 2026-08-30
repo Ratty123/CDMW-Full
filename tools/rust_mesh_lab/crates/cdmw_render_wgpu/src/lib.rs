@@ -2,7 +2,7 @@
 
 use bytemuck::{Pod, Zeroable};
 use cdmw_mesh::DrawSnapshot;
-use cdmw_texture::{DdsFormat, TextureRole, plan_2d_upload};
+use cdmw_texture::{ColorSpace, DdsFormat, TextureRole, plan_2d_upload};
 use glam::{Mat4, Vec3};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -168,6 +168,7 @@ pub struct HeadlessRenderReport {
     pub frames_rendered: u32,
     pub modes_rendered: u32,
     pub viewport_sizes_rendered: u32,
+    pub dds_textures_uploaded: u32,
     pub non_background_pixels: usize,
 }
 
@@ -489,57 +490,7 @@ impl WindowRenderer {
     }
 
     pub fn set_dds_texture(&mut self, bytes: &[u8], role: TextureRole) -> Result<(), RenderError> {
-        let plan =
-            plan_2d_upload(bytes, role).map_err(|error| RenderError::Texture(error.to_string()))?;
-        let format = map_dds_format(&plan.metadata.format)?;
-        if format.is_compressed()
-            && !self
-                .device
-                .features()
-                .contains(wgpu::Features::TEXTURE_COMPRESSION_BC)
-        {
-            return Err(RenderError::Texture(
-                "selected adapter does not support BC texture upload".to_owned(),
-            ));
-        }
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("CDMW Rust Mesh Lab DDS"),
-            size: wgpu::Extent3d {
-                width: plan.metadata.width,
-                height: plan.metadata.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: plan.metadata.mip_count,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        for level in &plan.levels {
-            let data = bytes
-                .get(level.byte_offset..level.byte_offset.saturating_add(level.byte_length))
-                .ok_or_else(|| RenderError::Texture("DDS upload slice is truncated".to_owned()))?;
-            self.queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &texture,
-                    mip_level: level.level,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                data,
-                wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(level.bytes_per_row),
-                    rows_per_image: Some(level.rows_per_image),
-                },
-                wgpu::Extent3d {
-                    width: level.width,
-                    height: level.height,
-                    depth_or_array_layers: 1,
-                },
-            );
-        }
+        let texture = upload_dds_texture(&self.device, &self.queue, bytes, role)?;
         self.texture_bind_group =
             create_texture_bind_group(&self.device, &self.texture_bind_group_layout, &texture);
         self.material_texture = texture;
@@ -774,8 +725,13 @@ pub async fn run_headless_render_smoke(
     let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
     let format = wgpu::TextureFormat::Bgra8Unorm;
     let texture_layout = create_texture_bind_group_layout(&device);
-    let (_material_texture, texture_bind_group) =
-        create_default_texture(&device, &queue, &texture_layout);
+    let material_texture = upload_dds_texture(
+        &device,
+        &queue,
+        &cdmw_texture::synthetic::rgba8_checker_dds(),
+        TextureRole::BaseColor,
+    )?;
+    let texture_bind_group = create_texture_bind_group(&device, &texture_layout, &material_texture);
     let camera_layout = create_camera_bind_group_layout(&device);
     let mut camera_uniform = CameraUniform::new();
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -877,6 +833,7 @@ pub async fn run_headless_render_smoke(
         modes_rendered: u32::try_from(modes.len()).map_err(|_| RenderError::ResourceLimit)?,
         viewport_sizes_rendered: u32::try_from(sizes.len())
             .map_err(|_| RenderError::ResourceLimit)?,
+        dds_textures_uploaded: 1,
         non_background_pixels,
     })
 }
@@ -1584,28 +1541,122 @@ fn create_texture_bind_group(
     })
 }
 
-fn map_dds_format(format: &DdsFormat) -> Result<wgpu::TextureFormat, RenderError> {
+fn upload_dds_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    bytes: &[u8],
+    role: TextureRole,
+) -> Result<wgpu::Texture, RenderError> {
+    let plan =
+        plan_2d_upload(bytes, role).map_err(|error| RenderError::Texture(error.to_string()))?;
+    let format = map_dds_format(&plan.metadata.format, plan.metadata.color_space)?;
+    if format.is_compressed()
+        && !device
+            .features()
+            .contains(wgpu::Features::TEXTURE_COMPRESSION_BC)
+    {
+        return Err(RenderError::Texture(
+            "selected adapter does not support BC texture upload".to_owned(),
+        ));
+    }
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("CDMW Rust Mesh Lab DDS"),
+        size: wgpu::Extent3d {
+            width: plan.metadata.width,
+            height: plan.metadata.height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: plan.metadata.mip_count,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    for level in &plan.levels {
+        let data = bytes
+            .get(level.byte_offset..level.byte_offset.saturating_add(level.byte_length))
+            .ok_or_else(|| RenderError::Texture("DDS upload slice is truncated".to_owned()))?;
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: level.level,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            data,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(level.bytes_per_row),
+                rows_per_image: Some(level.rows_per_image),
+            },
+            wgpu::Extent3d {
+                width: level.width,
+                height: level.height,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+    Ok(texture)
+}
+
+fn map_dds_format(
+    format: &DdsFormat,
+    color_space: ColorSpace,
+) -> Result<wgpu::TextureFormat, RenderError> {
+    let supports_srgb = matches!(
+        format,
+        DdsFormat::Bc1Unorm
+            | DdsFormat::Bc1Srgb
+            | DdsFormat::Bc2Unorm
+            | DdsFormat::Bc2Srgb
+            | DdsFormat::Bc3Unorm
+            | DdsFormat::Bc3Srgb
+            | DdsFormat::Bc7Unorm
+            | DdsFormat::Bc7Srgb
+            | DdsFormat::Rgba8Unorm
+            | DdsFormat::Rgba8Srgb
+            | DdsFormat::Bgra8Unorm
+            | DdsFormat::Bgra8Srgb
+    );
+    if color_space == ColorSpace::Srgb && !supports_srgb {
+        return Err(RenderError::Texture(format!(
+            "DDS format {format:?} has no sRGB wgpu sampling variant"
+        )));
+    }
     let mapped = match format {
-        DdsFormat::Bc1Unorm => wgpu::TextureFormat::Bc1RgbaUnorm,
-        DdsFormat::Bc1Srgb => wgpu::TextureFormat::Bc1RgbaUnormSrgb,
-        DdsFormat::Bc2Unorm => wgpu::TextureFormat::Bc2RgbaUnorm,
-        DdsFormat::Bc2Srgb => wgpu::TextureFormat::Bc2RgbaUnormSrgb,
-        DdsFormat::Bc3Unorm => wgpu::TextureFormat::Bc3RgbaUnorm,
-        DdsFormat::Bc3Srgb => wgpu::TextureFormat::Bc3RgbaUnormSrgb,
+        DdsFormat::Bc1Unorm | DdsFormat::Bc1Srgb => match color_space {
+            ColorSpace::Srgb => wgpu::TextureFormat::Bc1RgbaUnormSrgb,
+            ColorSpace::Linear => wgpu::TextureFormat::Bc1RgbaUnorm,
+        },
+        DdsFormat::Bc2Unorm | DdsFormat::Bc2Srgb => match color_space {
+            ColorSpace::Srgb => wgpu::TextureFormat::Bc2RgbaUnormSrgb,
+            ColorSpace::Linear => wgpu::TextureFormat::Bc2RgbaUnorm,
+        },
+        DdsFormat::Bc3Unorm | DdsFormat::Bc3Srgb => match color_space {
+            ColorSpace::Srgb => wgpu::TextureFormat::Bc3RgbaUnormSrgb,
+            ColorSpace::Linear => wgpu::TextureFormat::Bc3RgbaUnorm,
+        },
         DdsFormat::Bc4Unorm => wgpu::TextureFormat::Bc4RUnorm,
         DdsFormat::Bc4Snorm => wgpu::TextureFormat::Bc4RSnorm,
         DdsFormat::Bc5Unorm => wgpu::TextureFormat::Bc5RgUnorm,
         DdsFormat::Bc5Snorm => wgpu::TextureFormat::Bc5RgSnorm,
         DdsFormat::Bc6hUnsignedFloat => wgpu::TextureFormat::Bc6hRgbUfloat,
         DdsFormat::Bc6hSignedFloat => wgpu::TextureFormat::Bc6hRgbFloat,
-        DdsFormat::Bc7Unorm => wgpu::TextureFormat::Bc7RgbaUnorm,
-        DdsFormat::Bc7Srgb => wgpu::TextureFormat::Bc7RgbaUnormSrgb,
+        DdsFormat::Bc7Unorm | DdsFormat::Bc7Srgb => match color_space {
+            ColorSpace::Srgb => wgpu::TextureFormat::Bc7RgbaUnormSrgb,
+            ColorSpace::Linear => wgpu::TextureFormat::Bc7RgbaUnorm,
+        },
         DdsFormat::R8Unorm => wgpu::TextureFormat::R8Unorm,
         DdsFormat::Rg8Unorm => wgpu::TextureFormat::Rg8Unorm,
-        DdsFormat::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
-        DdsFormat::Rgba8Srgb => wgpu::TextureFormat::Rgba8UnormSrgb,
-        DdsFormat::Bgra8Unorm => wgpu::TextureFormat::Bgra8Unorm,
-        DdsFormat::Bgra8Srgb => wgpu::TextureFormat::Bgra8UnormSrgb,
+        DdsFormat::Rgba8Unorm | DdsFormat::Rgba8Srgb => match color_space {
+            ColorSpace::Srgb => wgpu::TextureFormat::Rgba8UnormSrgb,
+            ColorSpace::Linear => wgpu::TextureFormat::Rgba8Unorm,
+        },
+        DdsFormat::Bgra8Unorm | DdsFormat::Bgra8Srgb => match color_space {
+            ColorSpace::Srgb => wgpu::TextureFormat::Bgra8UnormSrgb,
+            ColorSpace::Linear => wgpu::TextureFormat::Bgra8Unorm,
+        },
         DdsFormat::Rgba16Float => wgpu::TextureFormat::Rgba16Float,
         DdsFormat::Rgba32Float => wgpu::TextureFormat::Rgba32Float,
         DdsFormat::Unknown { .. } => {
@@ -1620,6 +1671,18 @@ fn map_dds_format(format: &DdsFormat) -> Result<wgpu::TextureFormat, RenderError
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn legacy_dxt1() -> Vec<u8> {
+        let mut bytes = vec![0_u8; 128 + 8];
+        bytes[..4].copy_from_slice(b"DDS ");
+        bytes[4..8].copy_from_slice(&124_u32.to_le_bytes());
+        bytes[12..16].copy_from_slice(&4_u32.to_le_bytes());
+        bytes[16..20].copy_from_slice(&4_u32.to_le_bytes());
+        bytes[28..32].copy_from_slice(&1_u32.to_le_bytes());
+        bytes[76..80].copy_from_slice(&32_u32.to_le_bytes());
+        bytes[84..88].copy_from_slice(b"DXT1");
+        bytes
+    }
 
     #[test]
     fn shared_triangle_edges_are_uploaded_once() {
@@ -1658,6 +1721,31 @@ mod tests {
         .into_iter()
         .collect::<HashSet<_>>();
         assert_eq!(labels.len(), 7);
+    }
+
+    #[test]
+    fn legacy_dxt1_base_color_uses_the_srgb_gpu_format() {
+        let plan = plan_2d_upload(&legacy_dxt1(), TextureRole::BaseColor)
+            .expect("legacy DXT1 upload plan");
+        assert_eq!(plan.metadata.color_space, ColorSpace::Srgb);
+        assert_eq!(
+            map_dds_format(&plan.metadata.format, plan.metadata.color_space)
+                .expect("sRGB BC1 mapping"),
+            wgpu::TextureFormat::Bc1RgbaUnormSrgb
+        );
+    }
+
+    #[test]
+    fn an_srgb_normal_map_is_sampled_as_linear() {
+        assert_eq!(
+            map_dds_format(&DdsFormat::Bc7Srgb, ColorSpace::Linear).expect("linear BC7 mapping"),
+            wgpu::TextureFormat::Bc7RgbaUnorm
+        );
+    }
+
+    #[test]
+    fn formats_without_an_srgb_variant_are_rejected_for_srgb_sampling() {
+        assert!(map_dds_format(&DdsFormat::Bc5Unorm, ColorSpace::Srgb).is_err());
     }
 
     #[test]

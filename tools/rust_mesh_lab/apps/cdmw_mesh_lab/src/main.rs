@@ -19,7 +19,7 @@ use cdmw_interaction::{
 };
 use cdmw_mesh::{History, Selection, VertexHandle, WorkingMesh};
 use cdmw_render_wgpu::{ViewMode, WindowRenderer};
-use cdmw_texture::{DdsMetadata, TextureRole};
+use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
 use glam::{Quat, Vec2, Vec3};
 use loader::{LoadEvent, LoadedMesh, Loader};
@@ -117,6 +117,7 @@ struct LabApplication {
     lod_sessions: Vec<Option<LodSession>>,
     texture_metadata: Option<DdsMetadata>,
     texture_label: Option<String>,
+    texture_provenance: Option<String>,
     source_label: String,
     status: String,
     history: History,
@@ -189,6 +190,7 @@ impl LabApplication {
             lod_sessions: Vec::new(),
             texture_metadata: None,
             texture_label: None,
+            texture_provenance: None,
             source_label: "No asset loaded".to_owned(),
             status,
             history: History::new(HISTORY_BUDGET_BYTES),
@@ -339,22 +341,24 @@ impl LabApplication {
         self.raw_primary_captured = false;
         self.raw_orbit_captured = false;
         self.raw_pan_captured = false;
+        let mut texture_uploaded = false;
         if let Some(renderer) = &mut self.renderer {
             renderer.reset_texture();
             renderer.set_view_mode(self.view_mode);
             if let Some(rectangle) = self.viewport_rect {
                 renderer.set_camera(self.camera.view_projection(rectangle));
             }
-            if let Some(texture) = &texture
-                && let Err(error) = renderer.set_dds_texture(&texture.bytes, TextureRole::BaseColor)
-            {
-                self.status = format!("DDS GPU upload failed: {error}");
+            if let Some(texture) = &texture {
+                match renderer.set_dds_texture(&texture.bytes, texture.role) {
+                    Ok(()) => texture_uploaded = true,
+                    Err(error) => self.status = format!("DDS GPU upload failed: {error}"),
+                }
             }
             if let Err(error) = renderer.set_snapshot(&mesh.draw_snapshot()) {
                 self.status = format!("GPU upload failed: {error}");
             }
         }
-        if let Some(texture) = &texture {
+        if texture_uploaded && let Some(texture) = &texture {
             self.status.push_str(
                 format!(
                     " · textured {}×{} {:?}",
@@ -383,6 +387,20 @@ impl LabApplication {
         self.document = Some(document);
         self.mesh = Some(mesh);
         self.texture_label = texture.as_ref().map(|texture| texture.label.clone());
+        self.texture_provenance = texture.as_ref().map(|texture| {
+            let mut parts = vec![
+                format!("Role {:?}", texture.role),
+                format!("Reference {}", texture.requested_reference),
+                format!("Resolved via {:?}", texture.resolution_method),
+            ];
+            if let Some(parameter) = &texture.parameter_name {
+                parts.push(format!("Parameter {parameter}"));
+            }
+            if let Some(sidecar) = &texture.sidecar_label {
+                parts.push(format!("Sidecar {sidecar}"));
+            }
+            parts.join(" · ")
+        });
         self.texture_metadata = texture.map(|texture| texture.metadata);
     }
 
@@ -521,7 +539,7 @@ impl LabApplication {
                         (&self.texture_label, &self.texture_metadata)
                     {
                         ui.separator();
-                        ui.label(RichText::new("Viewport texture").strong());
+                        ui.label(RichText::new("Resolved texture").strong());
                         ui.label(label);
                         ui.label(format!(
                             "{} × {} · {:?} · {:?} · {} mip(s)",
@@ -531,6 +549,9 @@ impl LabApplication {
                             texture.color_space,
                             texture.mip_count
                         ));
+                        if let Some(provenance) = &self.texture_provenance {
+                            ui.label(provenance);
+                        }
                     }
                 }
                 if let Some(index) = self.selected_archive_entry

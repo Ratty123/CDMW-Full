@@ -4,7 +4,7 @@
 
 **PARTIALLY READY**
 
-The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12 adapter, renders validated geometry and a supported explicit 2D DDS reference through `wgpu`, opens archive roots read-only, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD candidates, and supports camera navigation plus pointer-driven selection, transform, sculpt, and history workflows on an in-memory generational mesh. The same app-owned workflows now have no-window construction and behavior coverage, and the shared renderer draw path has an opt-in offscreen D3D12 validation/readback gate.
+The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12 adapter, renders validated geometry and one uniquely resolved sidecar base-color DDS through `wgpu`, opens archive roots read-only, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD candidates, and supports camera navigation plus pointer-driven selection, transform, sculpt, and history workflows on an in-memory generational mesh. The same app-owned workflows now have no-window construction and behavior coverage, and the shared DDS upload plus renderer draw path has an opt-in offscreen D3D12 validation/readback gate.
 
 It is not LAB READY because private real-game parity, complete texture reconstruction/material composition, PAC skinning/appearance, representative stress/performance evidence, cache, versioned lab projects, fuzzing, and source fingerprint sessions remain incomplete.
 
@@ -16,8 +16,8 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Stored and LZ4 entry decode; filename-derived ChaCha20 type 3 support.
 - PAC/PAM/PAMLOD geometry foundations with fail-closed layout validation.
 - Proven PAC section-to-LOD decoding and an **Editable LOD** selector. The worker prepares every decoded LOD, and switching preserves independent geometry, selection, and Undo/Redo state without multiplying the 512 MiB history budget. Non-manifold source edges retain all incident faces rather than rejecting an otherwise valid lower LOD.
-- DDS legacy/DX10 metadata, common format/color-space classification, bounded mip planning, and direct supported 2D `wgpu` upload.
-- Exact/relative/unambiguous asset relation resolver.
+- DDS legacy/DX10 metadata, bounded mip planning, role-authoritative color-space classification, and direct supported 2D `wgpu` upload. Base/emissive roles select an sRGB GPU format; technical roles select linear even when the file header carries an sRGB variant, and impossible sRGB/format combinations fail closed.
+- Bounded material-sidecar scanning preserves wrapper type, submesh, shader/material name, texture parameter, original path, inferred role, and unknown texture references across common attribute spellings. Direct and archive loaders derive same-stem material sidecars, prefer one explicit sidecar base-color reference over decoded-name fallback, and use exact/relative/unambiguous asset relations without selecting ambiguous basenames.
 - Immutable decoded source document and separate editable working document.
 - Generational vertex/edge/face handles and topology generation.
 - Interactive Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch plus atomic face Delete, Subdivide, Duplicate, Undo, and Redo; topology failures leave the complete working state unchanged and generated subdivision/duplicate faces become the deterministic selection.
@@ -29,8 +29,8 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 - Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots.
 - Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh/normal/bounds buffers, Textured/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes, and independent Normals/Bounds overlays. Bones is visibly disabled until skeleton context exists.
 - egui archive/assets, viewport, inspector, selection/edit, and status surfaces.
-- No-window `LabApplication` construction plus 11 painted-control/input tests whose coordinates come from egui's clipped draw output: preview/LOD menus, overlay and camera controls, 24 selection domain/shape/depth combinations through the bounded raw-pointer route, all seven edit tools, three topology actions, exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input, three resize shapes, Esc/resize cancellation, and dense face-selection fill without per-triangle outline strokes. Lower Inspector controls are verified at 1280×720 and 1000×600.
-- Offscreen D3D12 renderer coverage using the live mesh draw dispatcher for all seven preview modes with Normals and Bounds across 4:3, portrait, and widescreen targets; a validation error scope and CPU readback reject invalid or all-background output without constructing a window.
+- No-window `LabApplication` construction plus 12 painted-control/input tests whose coordinates come from egui's clipped draw output: preview/LOD menus, overlay and camera controls, texture relationship provenance, 24 selection domain/shape/depth combinations through the bounded raw-pointer route, all seven edit tools, three topology actions, exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input, three resize shapes, Esc/resize cancellation, and dense face-selection fill without per-triangle outline strokes. Lower Inspector controls are verified at 1280×720 and 1000×600.
+- Offscreen D3D12 renderer coverage using the live DDS plan/upload/bind helper and mesh draw dispatcher for all seven preview modes with Normals and Bounds across 4:3, portrait, and widescreen targets; a validation error scope and CPU readback reject invalid or all-background output without constructing a window.
 - Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with fresh-working-mesh operation/Undo/Redo fingerprints and invariants for Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate on every decoded LOD.
 - Bounded cancellable latest-wins loader/search worker with stale-result rejection.
 - Versioned neutral binary package and manifest comparison.
@@ -45,7 +45,7 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 | Private archive corpus | Not run | Archive READY cannot be claimed |
 | Real PAC/PAM/PAMLOD parity | All four LODs of one supplied PAC exercised; corpus parity not run | Geometry support remains partial |
 | Partial/Sparse DDS reconstruction | Incomplete | Some archive textures cannot decode |
-| Native texture/material binding | Partial | One explicit supported 2D DDS can render; multi-material binding, arrays/cubes, reconstruction, and fallback transcode remain incomplete |
+| Native texture/material binding | Partial | One unique sidecar base-color DDS can render with role-correct color space; multiple owning textures deliberately keep the placeholder until per-submesh binding exists, and arrays/cubes, reconstruction, other sampled roles, and fallback transcode remain incomplete |
 | PAC skin palette/PAB/PABC/morph | Incomplete | Character appearance parity not proven |
 | Lab project | Incomplete | Camera/tool/history persistence is not published yet |
 | Neutral export | OBJ/MTL implemented | GLB, skinning/material preservation, and private corpus re-import parity remain incomplete |
@@ -57,15 +57,32 @@ It is not LAB READY because private real-game parity, complete texture reconstru
 
 ## Texture-complete goal remains open
 
-Loading the mesh shape is not appearance parity. Lab readiness still requires
-the asset graph to resolve all authoritative material relationships, rebuild
-Partial/Sparse DDS content, upload every supported texture role and subresource,
-apply correct sRGB/linear handling (especially for normal maps), bind multiple
-materials to their owning submeshes, and show an explicit placeholder or
-ambiguity error when resolution is not authoritative. The current rainbow
-surface is a normal-based material approximation, not the character's loaded
-skin texture. One explicit supported 2D DDS path is implemented; it must not be
-reported as complete texture loading.
+Loading the mesh shape is not appearance parity. The lab now parses material
+sidecar texture ownership, resolves one unique base-color relationship, applies
+role-correct sRGB/linear upload mapping, and keeps an explained placeholder for
+missing or ambiguous relationships. Lab readiness still requires the asset
+graph to resolve every authoritative material relationship, rebuild
+Partial/Sparse DDS content, sample every supported texture role and subresource,
+and bind multiple materials to their owning submeshes. The current rainbow
+surface is the normal-based material approximation whenever no single
+authoritative base color can bind; it is not the character's loaded skin
+texture. This partial path must not be reported as complete texture loading.
+
+## Synthetic texture-resolution proof
+
+No-window unit fixtures use an extracted `character/model`, `modelproperty`, and
+`texture` layout. They require the explicit sidecar base color to outrank a
+valid decoded fallback, refuse two distinct sidecar base colors, refuse a
+missing explicit DDS instead of falling back, and retain one decoded reference
+only when no sidecar exists. Parser fixtures cover nested and self-closing
+texture parameters, common path/name attribute variants, XML entities, role
+classification, and malformed-but-bounded parameter recovery. Renderer tests
+require legacy DXT1 base color to map to BC1 sRGB, an sRGB-declared normal to map
+to linear BC7, and unsupported sRGB format combinations to fail. The opt-in
+offscreen D3D12 gate uploads and samples a synthetic DDS through the live helper
+before its 22-frame validation/readback pass. This is synthetic relationship
+and GPU execution proof, not evidence that the supplied PAC has a material
+sidecar or that a private archive reproduces its full appearance.
 
 ## Synthetic Release measurement
 

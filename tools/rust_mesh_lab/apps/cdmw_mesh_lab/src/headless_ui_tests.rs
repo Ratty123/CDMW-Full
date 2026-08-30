@@ -904,3 +904,41 @@ fn dense_face_selection_uses_a_fill_without_radiating_triangle_outlines() -> Tes
     assert!(face_paths.iter().all(|path| path.stroke.width == 0.0));
     Ok(())
 }
+
+#[test]
+fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
+    let document = cdmw_formats::decode_mesh(
+        &cdmw_formats::synthetic::triangle_pam("fallback.dds"),
+        cdmw_formats::MeshFormat::Pam,
+    )?;
+    let mesh = WorkingMesh::from_document(&document)?;
+    let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+    let metadata = cdmw_texture::inspect_dds(&bytes, cdmw_texture::TextureRole::BaseColor)?;
+    let mut application = LabApplication::new(None, None);
+    application.install_loaded_mesh(crate::loader::LoadedMesh {
+        path: PathBuf::from("character/model/body.pam"),
+        document,
+        mesh,
+        other_lod_meshes: Vec::new(),
+        texture: Some(crate::loader::LoadedTexture {
+            label: "character/texture/body.dds".to_owned(),
+            metadata,
+            bytes,
+            role: cdmw_texture::TextureRole::BaseColor,
+            requested_reference: "character/texture/body.dds".to_owned(),
+            parameter_name: Some("_baseColorTexture".to_owned()),
+            sidecar_label: Some("character/modelproperty/body.pam_xml".to_owned()),
+            resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
+        }),
+    });
+    let mut ui = HeadlessUi::new(application, egui::vec2(1_280.0, 900.0));
+    assert!(ui.reveal("Resolved texture").is_ok());
+    assert!(ui.reveal("character/texture/body.dds").is_ok());
+    assert!(
+        ui.reveal(
+            "Role BaseColor · Reference character/texture/body.dds · Resolved via ExplicitVirtualPath · Parameter _baseColorTexture · Sidecar character/modelproperty/body.pam_xml"
+        )
+        .is_ok()
+    );
+    Ok(())
+}

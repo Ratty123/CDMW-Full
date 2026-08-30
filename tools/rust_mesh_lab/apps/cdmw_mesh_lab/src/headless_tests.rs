@@ -582,6 +582,7 @@ fn offscreen_d3d12_renders_every_mode_without_a_window() -> TestResult {
     assert_eq!(report.modes_rendered, 7);
     assert_eq!(report.viewport_sizes_rendered, 3);
     assert_eq!(report.frames_rendered, 22);
+    assert_eq!(report.dds_textures_uploaded, 1);
     assert!(report.non_background_pixels > 0);
     Ok(())
 }

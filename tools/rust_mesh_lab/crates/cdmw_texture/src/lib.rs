@@ -6,6 +6,7 @@ use thiserror::Error;
 
 pub const DDS_MAX_DIMENSION: u32 = 16_384;
 pub const DDS_MAX_PAYLOAD_BYTES: usize = 512 * 1024 * 1024;
+pub const MATERIAL_SIDECAR_MAX_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -20,6 +21,55 @@ pub enum TextureRole {
     Opacity,
     Height,
     Unknown,
+}
+
+impl TextureRole {
+    #[must_use]
+    pub fn from_parameter_name(value: &str) -> Self {
+        let normalized = value
+            .chars()
+            .filter(char::is_ascii_alphanumeric)
+            .flat_map(char::to_lowercase)
+            .collect::<String>();
+        if normalized.contains("normal") {
+            Self::Normal
+        } else if normalized.contains("roughness") {
+            Self::Roughness
+        } else if normalized.contains("metalness") || normalized.contains("metallic") {
+            Self::Metalness
+        } else if normalized.contains("ambientocclusion")
+            || normalized.contains("occlusion")
+            || normalized == "aotexture"
+        {
+            Self::Occlusion
+        } else if normalized.contains("emissive") {
+            Self::Emissive
+        } else if normalized.contains("opacity") || normalized.contains("alpha") {
+            Self::Opacity
+        } else if normalized.contains("height") || normalized.contains("displacement") {
+            Self::Height
+        } else if normalized.contains("materialtexture")
+            || normalized.contains("specular")
+            || normalized.contains("gloss")
+            || normalized == "sptexture"
+        {
+            Self::Material
+        } else if normalized.contains("mask")
+            || normalized.contains("blend")
+            || normalized == "rgbtexture"
+        {
+            Self::Unknown
+        } else if normalized.contains("basecolor")
+            || normalized.contains("overlaycolor")
+            || normalized.contains("diffuse")
+            || normalized.contains("albedo")
+            || normalized.ends_with("colortexture")
+        {
+            Self::BaseColor
+        } else {
+            Self::Unknown
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,6 +136,30 @@ pub struct DdsMipLevel {
 pub struct DdsUploadPlan {
     pub metadata: DdsMetadata,
     pub levels: Vec<DdsMipLevel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MaterialTextureReference {
+    pub wrapper_type: String,
+    pub submesh_name: String,
+    pub material_name: String,
+    pub parameter_name: String,
+    pub path: String,
+    pub role: TextureRole,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MaterialSidecar {
+    pub textures: Vec<MaterialTextureReference>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Error)]
+pub enum MaterialSidecarError {
+    #[error("material sidecar exceeds the {MATERIAL_SIDECAR_MAX_BYTES}-byte resource limit")]
+    ResourceLimit,
+    #[error("material sidecar is not valid UTF-8")]
+    InvalidEncoding,
 }
 
 #[derive(Debug, Error)]
@@ -179,7 +253,7 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         (None, 1, 128)
     };
     let format = map_format(&four_cc, dxgi);
-    let color_space = if matches!(
+    let header_is_srgb = matches!(
         format,
         DdsFormat::Bc1Srgb
             | DdsFormat::Bc2Srgb
@@ -187,13 +261,25 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
             | DdsFormat::Bc7Srgb
             | DdsFormat::Rgba8Srgb
             | DdsFormat::Bgra8Srgb
-    ) || matches!(role, TextureRole::BaseColor | TextureRole::Emissive)
-    {
-        ColorSpace::Srgb
-    } else {
-        ColorSpace::Linear
+    );
+    let color_space = match role {
+        TextureRole::BaseColor | TextureRole::Emissive => ColorSpace::Srgb,
+        TextureRole::Normal
+        | TextureRole::Material
+        | TextureRole::Roughness
+        | TextureRole::Metalness
+        | TextureRole::Occlusion
+        | TextureRole::Opacity
+        | TextureRole::Height => ColorSpace::Linear,
+        TextureRole::Unknown if header_is_srgb => ColorSpace::Srgb,
+        TextureRole::Unknown => ColorSpace::Linear,
     };
     let mut warnings = Vec::new();
+    if header_is_srgb && color_space == ColorSpace::Linear {
+        warnings.push(format!(
+            "DDS sRGB header is overridden to linear sampling for the {role:?} texture role"
+        ));
+    }
     if matches!(format, DdsFormat::Unknown { .. }) {
         warnings.push("DDS metadata is readable, but native decode/upload support is not proven for this format".to_owned());
     }
@@ -210,6 +296,354 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         payload_offset,
         warnings,
     })
+}
+
+pub fn parse_material_sidecar(bytes: &[u8]) -> Result<MaterialSidecar, MaterialSidecarError> {
+    if bytes.len() > MATERIAL_SIDECAR_MAX_BYTES {
+        return Err(MaterialSidecarError::ResourceLimit);
+    }
+    let text = std::str::from_utf8(bytes).map_err(|_| MaterialSidecarError::InvalidEncoding)?;
+    let mut textures = Vec::new();
+    let mut warnings = Vec::new();
+    let mut wrappers = Vec::<WrapperContext>::new();
+    let mut materials = Vec::<String>::new();
+    let mut parameters = Vec::<ParameterContext>::new();
+    let mut cursor = 0_usize;
+
+    while let Some(start_offset) = text.get(cursor..).and_then(|rest| rest.find('<')) {
+        let start = cursor.saturating_add(start_offset);
+        if text
+            .get(start..)
+            .is_some_and(|remaining| remaining.starts_with("<!--"))
+        {
+            if let Some(end_offset) = text
+                .get(start.saturating_add(4)..)
+                .and_then(|remaining| remaining.find("-->"))
+            {
+                cursor = start
+                    .saturating_add(4)
+                    .saturating_add(end_offset)
+                    .saturating_add(3);
+                continue;
+            }
+            warnings.push("material sidecar ends inside an XML comment".to_owned());
+            break;
+        }
+        let Some(end) = find_xml_tag_end(text, start.saturating_add(1)) else {
+            warnings.push("material sidecar ends inside an XML tag".to_owned());
+            break;
+        };
+        cursor = end.saturating_add(1);
+        let Some(tag_text) = text.get(start.saturating_add(1)..end) else {
+            continue;
+        };
+        let Some(tag) = parse_xml_tag(tag_text) else {
+            continue;
+        };
+        let lowered = tag.name.to_ascii_lowercase();
+
+        if tag.closing {
+            if lowered == "materialparametertexture" {
+                if let Some(parameter) = parameters.pop() {
+                    finish_parameter(parameter, &mut textures, &mut warnings);
+                }
+            } else if lowered == "material" {
+                let _ = materials.pop();
+            } else if lowered.ends_with("materialwrapper") {
+                let _ = wrappers.pop();
+            }
+            continue;
+        }
+
+        if lowered.ends_with("materialwrapper") {
+            wrappers.push(WrapperContext {
+                wrapper_type: tag.name.clone(),
+                submesh_name: attribute(&tag.attributes, &["_subMeshName", "subMeshName"])
+                    .unwrap_or_default(),
+            });
+            if tag.self_closing {
+                let _ = wrappers.pop();
+            }
+            continue;
+        }
+        if lowered == "material" {
+            materials.push(
+                attribute(
+                    &tag.attributes,
+                    &["_materialName", "materialName", "shader", "Shader"],
+                )
+                .unwrap_or_default(),
+            );
+            if tag.self_closing {
+                let _ = materials.pop();
+            }
+            continue;
+        }
+        if lowered == "materialparametertexture" {
+            let wrapper = wrappers.last().cloned().unwrap_or_default();
+            let parameter_name =
+                attribute(&tag.attributes, &["StringItemID", "_name", "Name", "name"])
+                    .unwrap_or_else(|| "(unnamed)".to_owned());
+            let parameter = ParameterContext {
+                wrapper,
+                material_name: materials.last().cloned().unwrap_or_default(),
+                parameter_name,
+                path: texture_path_attribute(&tag.attributes),
+            };
+            if tag.self_closing {
+                finish_parameter(parameter, &mut textures, &mut warnings);
+            } else {
+                parameters.push(parameter);
+            }
+            continue;
+        }
+        if lowered == "resourcereferencepath_itexture" {
+            let path = texture_path_attribute(&tag.attributes);
+            if let Some(parameter) = parameters.last_mut() {
+                if let Some(path) = path {
+                    if parameter
+                        .path
+                        .as_ref()
+                        .is_some_and(|existing| !existing.eq_ignore_ascii_case(&path))
+                    {
+                        warnings.push(format!(
+                            "texture parameter {} contains more than one path; the first path is preserved",
+                            parameter.parameter_name
+                        ));
+                    } else if parameter.path.is_none() {
+                        parameter.path = Some(path);
+                    }
+                }
+            } else if let Some(path) = path {
+                let wrapper = wrappers.last().cloned().unwrap_or_default();
+                textures.push(MaterialTextureReference {
+                    wrapper_type: wrapper.wrapper_type,
+                    submesh_name: wrapper.submesh_name,
+                    material_name: materials.last().cloned().unwrap_or_default(),
+                    parameter_name: "(unknown)".to_owned(),
+                    path,
+                    role: TextureRole::Unknown,
+                });
+            }
+        }
+    }
+
+    if !parameters.is_empty() {
+        warnings.push(format!(
+            "recovered {} unterminated material texture parameter(s)",
+            parameters.len()
+        ));
+    }
+    while let Some(parameter) = parameters.pop() {
+        finish_parameter(parameter, &mut textures, &mut warnings);
+    }
+    Ok(MaterialSidecar { textures, warnings })
+}
+
+#[derive(Debug, Clone, Default)]
+struct WrapperContext {
+    wrapper_type: String,
+    submesh_name: String,
+}
+
+#[derive(Debug)]
+struct ParameterContext {
+    wrapper: WrapperContext,
+    material_name: String,
+    parameter_name: String,
+    path: Option<String>,
+}
+
+#[derive(Debug)]
+struct XmlTag {
+    name: String,
+    attributes: Vec<(String, String)>,
+    closing: bool,
+    self_closing: bool,
+}
+
+fn finish_parameter(
+    parameter: ParameterContext,
+    textures: &mut Vec<MaterialTextureReference>,
+    warnings: &mut Vec<String>,
+) {
+    let Some(path) = parameter.path.filter(|value| !value.trim().is_empty()) else {
+        warnings.push(format!(
+            "texture parameter {} has no resource path",
+            parameter.parameter_name
+        ));
+        return;
+    };
+    textures.push(MaterialTextureReference {
+        wrapper_type: parameter.wrapper.wrapper_type,
+        submesh_name: parameter.wrapper.submesh_name,
+        material_name: parameter.material_name,
+        role: TextureRole::from_parameter_name(&parameter.parameter_name),
+        parameter_name: parameter.parameter_name,
+        path,
+    });
+}
+
+fn find_xml_tag_end(text: &str, mut cursor: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let mut quote = None;
+    while let Some(value) = bytes.get(cursor).copied() {
+        match (quote, value) {
+            (Some(active), current) if active == current => quote = None,
+            (None, b'\'' | b'"') => quote = Some(value),
+            (None, b'>') => return Some(cursor),
+            _ => {}
+        }
+        cursor = cursor.saturating_add(1);
+    }
+    None
+}
+
+fn parse_xml_tag(value: &str) -> Option<XmlTag> {
+    let mut trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.starts_with('!') || trimmed.starts_with('?') {
+        return None;
+    }
+    let closing = trimmed.starts_with('/');
+    if closing {
+        trimmed = trimmed.get(1..)?.trim_start();
+    }
+    let self_closing = !closing && trimmed.ends_with('/');
+    if self_closing {
+        trimmed = trimmed.get(..trimmed.len().saturating_sub(1))?.trim_end();
+    }
+    let name_end = trimmed.find(char::is_whitespace).unwrap_or(trimmed.len());
+    let name = trimmed.get(..name_end)?.trim();
+    if name.is_empty() {
+        return None;
+    }
+    let attributes = if closing {
+        Vec::new()
+    } else {
+        parse_xml_attributes(trimmed.get(name_end..).unwrap_or_default())
+    };
+    Some(XmlTag {
+        name: name.to_owned(),
+        attributes,
+        closing,
+        self_closing,
+    })
+}
+
+fn parse_xml_attributes(value: &str) -> Vec<(String, String)> {
+    let bytes = value.as_bytes();
+    let mut attributes = Vec::new();
+    let mut cursor = 0_usize;
+    while cursor < bytes.len() {
+        while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+            cursor = cursor.saturating_add(1);
+        }
+        let key_start = cursor;
+        while bytes
+            .get(cursor)
+            .is_some_and(|value| !value.is_ascii_whitespace() && *value != b'=')
+        {
+            cursor = cursor.saturating_add(1);
+        }
+        let key_end = cursor;
+        while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+            cursor = cursor.saturating_add(1);
+        }
+        if bytes.get(cursor) != Some(&b'=') {
+            cursor = cursor.saturating_add(1);
+            continue;
+        }
+        cursor = cursor.saturating_add(1);
+        while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+            cursor = cursor.saturating_add(1);
+        }
+        let quote = bytes.get(cursor).copied();
+        let (value_start, value_end) = if matches!(quote, Some(b'\'' | b'"')) {
+            cursor = cursor.saturating_add(1);
+            let start = cursor;
+            while bytes.get(cursor).is_some_and(|value| Some(*value) != quote) {
+                cursor = cursor.saturating_add(1);
+            }
+            let end = cursor;
+            cursor = cursor.saturating_add(1);
+            (start, end)
+        } else {
+            let start = cursor;
+            while bytes
+                .get(cursor)
+                .is_some_and(|value| !value.is_ascii_whitespace())
+            {
+                cursor = cursor.saturating_add(1);
+            }
+            (start, cursor)
+        };
+        if let (Some(key), Some(attribute_value)) = (
+            value.get(key_start..key_end),
+            value.get(value_start..value_end),
+        ) && !key.is_empty()
+        {
+            attributes.push((key.to_owned(), decode_xml_entities(attribute_value)));
+        }
+    }
+    attributes
+}
+
+fn decode_xml_entities(value: &str) -> String {
+    let mut decoded = String::with_capacity(value.len());
+    let mut cursor = 0_usize;
+    while let Some(relative_start) = value.get(cursor..).and_then(|rest| rest.find('&')) {
+        let start = cursor.saturating_add(relative_start);
+        decoded.push_str(value.get(cursor..start).unwrap_or_default());
+        let Some(relative_end) = value
+            .get(start.saturating_add(1)..)
+            .and_then(|rest| rest.find(';'))
+            .filter(|offset| *offset <= 12)
+        else {
+            decoded.push('&');
+            cursor = start.saturating_add(1);
+            continue;
+        };
+        let end = start.saturating_add(1).saturating_add(relative_end);
+        let entity = value.get(start.saturating_add(1)..end).unwrap_or_default();
+        let replacement = match entity {
+            "amp" => Some('&'),
+            "quot" => Some('"'),
+            "apos" => Some('\''),
+            "lt" => Some('<'),
+            "gt" => Some('>'),
+            numeric if numeric.starts_with("#x") => u32::from_str_radix(&numeric[2..], 16)
+                .ok()
+                .and_then(char::from_u32),
+            numeric if numeric.starts_with('#') => {
+                numeric[1..].parse().ok().and_then(char::from_u32)
+            }
+            _ => None,
+        };
+        if let Some(replacement) = replacement {
+            decoded.push(replacement);
+        } else {
+            decoded.push_str(value.get(start..=end).unwrap_or_default());
+        }
+        cursor = end.saturating_add(1);
+    }
+    decoded.push_str(value.get(cursor..).unwrap_or_default());
+    decoded
+}
+
+fn attribute(attributes: &[(String, String)], names: &[&str]) -> Option<String> {
+    names.iter().find_map(|name| {
+        attributes
+            .iter()
+            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.clone())
+    })
+}
+
+fn texture_path_attribute(attributes: &[(String, String)]) -> Option<String> {
+    attribute(
+        attributes,
+        &["_path", "path", "Path", "_value", "value", "Value"],
+    )
 }
 
 fn validate_dimensions(width: u32, height: u32, mip_count: u32) -> Result<(), TextureError> {
@@ -382,6 +816,28 @@ mod tests {
     }
 
     #[test]
+    fn technical_role_overrides_an_srgb_dds_header() -> Result<(), TextureError> {
+        let metadata = inspect_dds(&dds_dx10(99), TextureRole::Normal)?;
+        assert_eq!(metadata.format, DdsFormat::Bc7Srgb);
+        assert_eq!(metadata.color_space, ColorSpace::Linear);
+        assert!(
+            metadata
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("overridden to linear"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_role_honors_an_srgb_dds_header() -> Result<(), TextureError> {
+        let metadata = inspect_dds(&dds_dx10(99), TextureRole::Unknown)?;
+        assert_eq!(metadata.color_space, ColorSpace::Srgb);
+        assert!(metadata.warnings.is_empty());
+        Ok(())
+    }
+
+    #[test]
     fn bc7_upload_plan_bounds_each_mip() -> Result<(), TextureError> {
         let mut bytes = dds_dx10(98);
         bytes.resize(148 + 16, 0x5a);
@@ -391,5 +847,96 @@ mod tests {
         assert_eq!(plan.levels[0].byte_length, 16);
         assert_eq!(plan.levels[0].bytes_per_row, 16);
         Ok(())
+    }
+
+    #[test]
+    fn texture_parameter_roles_are_conservative() {
+        assert_eq!(
+            TextureRole::from_parameter_name("_baseColorTexture"),
+            TextureRole::BaseColor
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_overlayColorTexture"),
+            TextureRole::BaseColor
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_normalTexture"),
+            TextureRole::Normal
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_materialTexture"),
+            TextureRole::Material
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_colorBlendingMaskTexture"),
+            TextureRole::Unknown
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_rgbTexture"),
+            TextureRole::Unknown
+        );
+    }
+
+    #[test]
+    fn material_sidecar_preserves_wrapper_shader_parameter_and_path()
+    -> Result<(), MaterialSidecarError> {
+        let sidecar = parse_material_sidecar(
+            br#"<Root>
+                <SkinnedMeshMaterialWrapper _subMeshName="Body &amp; Cloth">
+                  <Material _materialName="SkinnedMeshStandard_Ver2">
+                    <MaterialParameterTexture StringItemID="_baseColorTexture" _name="ignored">
+                      <ResourceReferencePath_ITexture _path="character/texture/body&amp;skin.dds"/>
+                    </MaterialParameterTexture>
+                    <MaterialParameterTexture Name="_normalTexture" Value="character/texture/body_n.dds"/>
+                  </Material>
+                </SkinnedMeshMaterialWrapper>
+              </Root>"#,
+        )?;
+        assert!(sidecar.warnings.is_empty());
+        assert_eq!(sidecar.textures.len(), 2);
+        assert_eq!(
+            sidecar.textures[0].wrapper_type,
+            "SkinnedMeshMaterialWrapper"
+        );
+        assert_eq!(sidecar.textures[0].submesh_name, "Body & Cloth");
+        assert_eq!(
+            sidecar.textures[0].material_name,
+            "SkinnedMeshStandard_Ver2"
+        );
+        assert_eq!(sidecar.textures[0].parameter_name, "_baseColorTexture");
+        assert_eq!(sidecar.textures[0].path, "character/texture/body&skin.dds");
+        assert_eq!(sidecar.textures[0].role, TextureRole::BaseColor);
+        assert_eq!(sidecar.textures[1].role, TextureRole::Normal);
+        Ok(())
+    }
+
+    #[test]
+    fn material_sidecar_recovers_an_unterminated_texture_parameter()
+    -> Result<(), MaterialSidecarError> {
+        let sidecar = parse_material_sidecar(
+            br#"<CDMaterialWrapper _subMeshName="Body"><MaterialParameterTexture _name="_baseColorTexture"><ResourceReferencePath_ITexture value="body.dds"/>"#,
+        )?;
+        assert_eq!(sidecar.textures.len(), 1);
+        assert_eq!(sidecar.textures[0].wrapper_type, "CDMaterialWrapper");
+        assert_eq!(sidecar.textures[0].role, TextureRole::BaseColor);
+        assert!(
+            sidecar
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("unterminated"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn material_sidecar_rejects_oversized_and_non_utf8_inputs() {
+        assert!(matches!(
+            parse_material_sidecar(&vec![0_u8; MATERIAL_SIDECAR_MAX_BYTES + 1]),
+            Err(MaterialSidecarError::ResourceLimit)
+        ));
+        assert!(matches!(
+            parse_material_sidecar(&[0xff]),
+            Err(MaterialSidecarError::InvalidEncoding)
+        ));
     }
 }
