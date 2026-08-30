@@ -1101,12 +1101,12 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 822,
+          "line": 834,
           "sink": "_create_float_spin"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 830,
+          "line": 842,
           "sink": "_create_float_spin"
         }
       ]
@@ -1161,12 +1161,12 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 713,
+          "line": 725,
           "sink": "_create_int_spin"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 723,
+          "line": 735,
           "sink": "_create_int_spin"
         }
       ]
@@ -2136,7 +2136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 477,
+          "line": 480,
           "sink": "addItem"
         }
       ]
@@ -2146,7 +2146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 480,
+          "line": 483,
           "sink": "addItem"
         }
       ]
@@ -2321,7 +2321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 478,
+          "line": 481,
           "sink": "addItem"
         }
       ]
@@ -2331,7 +2331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 641,
+          "line": 653,
           "sink": "QGroupBox"
         }
       ]
@@ -2471,7 +2471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 479,
+          "line": 482,
           "sink": "addItem"
         }
       ]
@@ -5406,7 +5406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 789,
+          "line": 801,
           "sink": "QGroupBox"
         }
       ]
@@ -5951,7 +5951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 612,
+          "line": 611,
           "sink": "addItem"
         }
       ]
@@ -6806,7 +6806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 800,
+          "line": 812,
           "sink": "addRow"
         }
       ]
@@ -7286,7 +7286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 742,
+          "line": 754,
           "sink": "addRow"
         }
       ]
@@ -8201,7 +8201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1381,
+          "line": 1393,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -8281,7 +8281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1381,
+          "line": 1393,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -8291,7 +8291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1381,
+          "line": 1393,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -8341,7 +8341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1381,
+          "line": 1393,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -8781,7 +8781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 461,
+          "line": 464,
           "sink": "_performance_group"
         }
       ]
@@ -10831,7 +10831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1016,
+          "line": 1028,
           "sink": "QGroupBox"
         }
       ]
@@ -11751,7 +11751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 476,
+          "line": 479,
           "sink": "addItem"
         }
       ]
@@ -11811,7 +11811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 529,
+          "line": 530,
           "sink": "addItem"
         }
       ]
@@ -12641,7 +12641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 442,
+          "line": 447,
           "sink": "addItem"
         }
       ]
@@ -12651,7 +12651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 611,
+          "line": 610,
           "sink": "addItem"
         }
       ]
@@ -12661,7 +12661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 575,
+          "line": 574,
           "sink": "addItem"
         }
       ]
@@ -16126,7 +16126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 561,
+          "line": 562,
           "sink": "_add_performance_row"
         }
       ]
@@ -17171,7 +17171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 872,
+          "line": 884,
           "sink": "addRow"
         }
       ]
@@ -17181,7 +17181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 865,
+          "line": 877,
           "sink": "addRow"
         }
       ]
@@ -17416,7 +17416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 990,
+          "line": 1002,
           "sink": "QLabel"
         }
       ]
@@ -22386,7 +22386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1003,
+          "line": 1015,
           "sink": "QCheckBox"
         }
       ]
@@ -22396,7 +22396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1004,
+          "line": 1016,
           "sink": "QCheckBox"
         }
       ]
@@ -23016,7 +23016,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 779,
+          "line": 791,
           "sink": "addRow"
         }
       ]
@@ -23101,7 +23101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 653,
+          "line": 665,
           "sink": "setToolTip"
         }
       ]
@@ -25551,7 +25551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 588,
+          "line": 587,
           "sink": "setToolTip"
         }
       ]
@@ -25621,7 +25621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 491,
+          "line": 494,
           "sink": "setToolTip"
         }
       ]
@@ -25646,12 +25646,12 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 481,
+          "line": 484,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 578,
+          "line": 577,
           "sink": "addItem"
         }
       ]
@@ -27856,7 +27856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 814,
+          "line": 826,
           "sink": "addRow"
         }
       ]
@@ -28051,7 +28051,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 685,
+          "line": 697,
           "sink": "QCheckBox"
         }
       ]
@@ -28076,7 +28076,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 683,
+          "line": 695,
           "sink": "QCheckBox"
         }
       ]
@@ -28096,7 +28096,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 684,
+          "line": 696,
           "sink": "QCheckBox"
         }
       ]
@@ -28111,7 +28111,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 692,
+          "line": 704,
           "sink": "QCheckBox"
         }
       ]
@@ -28131,7 +28131,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 691,
+          "line": 703,
           "sink": "QCheckBox"
         }
       ]
@@ -29406,7 +29406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 616,
+          "line": 615,
           "sink": "setToolTip"
         }
       ]
@@ -31106,12 +31106,12 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 516,
+          "line": 517,
           "sink": "QCheckBox"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 557,
+          "line": 558,
           "sink": "QCheckBox"
         },
         {
@@ -31136,7 +31136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 463,
+          "line": 466,
           "sink": "QCheckBox"
         }
       ]
@@ -35061,7 +35061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 443,
+          "line": 448,
           "sink": "addItem"
         }
       ]
@@ -35071,7 +35071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1008,
+          "line": 1020,
           "sink": "setToolTip"
         }
       ]
@@ -37646,7 +37646,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 686,
+          "line": 698,
           "sink": "QCheckBox"
         }
       ]
@@ -40511,7 +40511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 858,
+          "line": 870,
           "sink": "addRow"
         }
       ]
@@ -40531,7 +40531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 921,
+          "line": 933,
           "sink": "addRow"
         }
       ]
@@ -40616,7 +40616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1025,
+          "line": 1037,
           "sink": "QLabel"
         }
       ]
@@ -40791,7 +40791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 576,
+          "line": 575,
           "sink": "addItem"
         }
       ]
@@ -40851,7 +40851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 739,
+          "line": 751,
           "sink": "setToolTip"
         }
       ]
@@ -41146,7 +41146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 581,
+          "line": 580,
           "sink": "setToolTip"
         }
       ]
@@ -41756,7 +41756,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 689,
+          "line": 701,
           "sink": "QCheckBox"
         }
       ]
@@ -41771,7 +41771,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 688,
+          "line": 700,
           "sink": "QCheckBox"
         }
       ]
@@ -41796,7 +41796,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 687,
+          "line": 699,
           "sink": "QCheckBox"
         }
       ]
@@ -41821,7 +41821,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 690,
+          "line": 702,
           "sink": "QCheckBox"
         }
       ]
@@ -41991,7 +41991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 549,
+          "line": 550,
           "sink": "_add_performance_row"
         }
       ]
@@ -42001,7 +42001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 451,
+          "line": 456,
           "sink": "_add_performance_row"
         }
       ]
@@ -42011,7 +42011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 619,
+          "line": 618,
           "sink": "_add_performance_row"
         }
       ]
@@ -42021,7 +42021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 467,
+          "line": 470,
           "sink": "_add_performance_row"
         }
       ]
@@ -42031,7 +42031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 601,
+          "line": 600,
           "sink": "_add_performance_row"
         }
       ]
@@ -42041,7 +42041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 631,
+          "line": 630,
           "sink": "_add_performance_row"
         }
       ]
@@ -42051,7 +42051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 504,
+          "line": 507,
           "sink": "_add_performance_row"
         }
       ]
@@ -42061,7 +42061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 520,
+          "line": 521,
           "sink": "_add_performance_row"
         }
       ]
@@ -42071,7 +42071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 561,
+          "line": 562,
           "sink": "_add_performance_row"
         }
       ]
@@ -43296,7 +43296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1005,
+          "line": 1017,
           "sink": "QCheckBox"
         }
       ]
@@ -44496,7 +44496,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 764,
+          "line": 776,
           "sink": "QCheckBox"
         }
       ]
@@ -44531,7 +44531,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 765,
+          "line": 777,
           "sink": "QCheckBox"
         }
       ]
@@ -44546,7 +44546,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 773,
+          "line": 785,
           "sink": "QCheckBox"
         }
       ]
@@ -44561,7 +44561,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 774,
+          "line": 786,
           "sink": "QCheckBox"
         }
       ]
@@ -47751,7 +47751,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 646,
+          "line": 658,
           "sink": "QCheckBox"
         }
       ]
@@ -49066,7 +49066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 574,
+          "line": 573,
           "sink": "addItem"
         }
       ]
@@ -49086,7 +49086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 444,
+          "line": 449,
           "sink": "addItem"
         }
       ]
@@ -49106,7 +49106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 732,
+          "line": 744,
           "sink": "addRow"
         }
       ]
@@ -49326,7 +49326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 530,
+          "line": 531,
           "sink": "addItem"
         }
       ]
@@ -49346,7 +49346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 534,
+          "line": 535,
           "sink": "setToolTip"
         }
       ]
@@ -50636,7 +50636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 577,
+          "line": 576,
           "sink": "addItem"
         }
       ]
@@ -50686,7 +50686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 719,
+          "line": 731,
           "sink": "setToolTip"
         }
       ]
@@ -56806,7 +56806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 467,
+          "line": 470,
           "sink": "_add_performance_row"
         }
       ]
@@ -61096,7 +61096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 851,
+          "line": 863,
           "sink": "addRow"
         }
       ]
@@ -61106,7 +61106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 844,
+          "line": 856,
           "sink": "addRow"
         }
       ]
@@ -62221,7 +62221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 610,
+          "line": 609,
           "sink": "addItem"
         }
       ]
@@ -64586,7 +64586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1020,
+          "line": 1032,
           "sink": "QLabel"
         }
       ]
@@ -64671,7 +64671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 517,
+          "line": 518,
           "sink": "setToolTip"
         }
       ]
@@ -64731,7 +64731,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 749,
+          "line": 761,
           "sink": "addRow"
         }
       ]
@@ -65416,7 +65416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 440,
+          "line": 445,
           "sink": "_performance_group"
         }
       ]
@@ -66816,7 +66816,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 756,
+          "line": 768,
           "sink": "addRow"
         }
       ]
@@ -71616,7 +71616,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 451,
+          "line": 456,
           "sink": "_add_performance_row"
         },
         {
@@ -71791,7 +71791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 571,
+          "line": 570,
           "sink": "_performance_group"
         }
       ]
@@ -72296,7 +72296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 631,
+          "line": 630,
           "sink": "_add_performance_row"
         }
       ]
@@ -72791,7 +72791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 722,
+          "line": 734,
           "sink": "addRow"
         }
       ]
@@ -73216,7 +73216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 558,
+          "line": 559,
           "sink": "setToolTip"
         }
       ]
@@ -76431,7 +76431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 414,
+          "line": 418,
           "sink": "QLabel"
         }
       ]
@@ -76441,7 +76441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 464,
+          "line": 467,
           "sink": "setToolTip"
         }
       ]
@@ -77481,7 +77481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1028,
+          "line": 1040,
           "sink": "QPushButton"
         }
       ]
@@ -77936,7 +77936,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 514,
+          "line": 515,
           "sink": "_performance_group"
         }
       ]
@@ -78156,7 +78156,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 601,
+          "line": 600,
           "sink": "_add_performance_row"
         }
       ]
@@ -79741,7 +79741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 981,
+          "line": 993,
           "sink": "QPushButton"
         }
       ]
@@ -80711,7 +80711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 982,
+          "line": 994,
           "sink": "setToolTip"
         }
       ]
@@ -82326,7 +82326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 484,
+          "line": 487,
           "sink": "setToolTip"
         }
       ]
@@ -82346,7 +82346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 504,
+          "line": 507,
           "sink": "_add_performance_row"
         }
       ]
@@ -82676,7 +82676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1029,
+          "line": 1041,
           "sink": "setToolTip"
         }
       ]
@@ -82871,7 +82871,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 999,
+          "line": 1011,
           "sink": "QGroupBox"
         },
         {
@@ -88781,7 +88781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 448,
+          "line": 453,
           "sink": "setToolTip"
         }
       ]
@@ -89266,7 +89266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 900,
+          "line": 912,
           "sink": "addRow"
         }
       ]
@@ -89276,7 +89276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 914,
+          "line": 926,
           "sink": "addRow"
         }
       ]
@@ -89286,7 +89286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 907,
+          "line": 919,
           "sink": "addRow"
         }
       ]
@@ -89931,7 +89931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 627,
+          "line": 626,
           "sink": "QCheckBox"
         }
       ]
@@ -90146,7 +90146,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 693,
+          "line": 705,
           "sink": "QCheckBox"
         }
       ]
@@ -90541,7 +90541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 628,
+          "line": 627,
           "sink": "setToolTip"
         }
       ]
@@ -90896,7 +90896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 520,
+          "line": 521,
           "sink": "_add_performance_row"
         }
       ]
@@ -92416,7 +92416,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 712,
+          "line": 724,
           "sink": "addRow"
         }
       ]
@@ -93211,7 +93211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 879,
+          "line": 891,
           "sink": "addRow"
         }
       ]
@@ -93241,7 +93241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 893,
+          "line": 905,
           "sink": "addRow"
         }
       ]
@@ -93251,7 +93251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 886,
+          "line": 898,
           "sink": "addRow"
         }
       ]
@@ -98036,7 +98036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 729,
+          "line": 741,
           "sink": "setToolTip"
         }
       ]
@@ -100456,7 +100456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1044,
+          "line": 1056,
           "sink": "QLabel"
         }
       ]
@@ -100466,7 +100466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 780,
+          "line": 792,
           "sink": "QLabel"
         }
       ]
@@ -103606,7 +103606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1381,
+          "line": 1393,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -103621,7 +103621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1381,
+          "line": 1393,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -103681,12 +103681,12 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1381,
+          "line": 1393,
           "sink": "python-return:_appearance_change_payload"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1381,
+          "line": 1393,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -104666,7 +104666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 647,
+          "line": 659,
           "sink": "QCheckBox"
         }
       ]
@@ -108276,7 +108276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 549,
+          "line": 550,
           "sink": "_add_performance_row"
         }
       ]
@@ -108711,7 +108711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 807,
+          "line": 819,
           "sink": "addRow"
         }
       ]
@@ -110611,7 +110611,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 612,
+          "line": 611,
           "sink": "addItem"
         }
       ]
@@ -111306,7 +111306,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 611,
+          "line": 610,
           "sink": "addItem"
         }
       ]
@@ -114911,7 +114911,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 2162,
+          "line": 2174,
           "sink": "python-return:current_language_code"
         }
       ]
@@ -121686,7 +121686,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 610,
+          "line": 609,
           "sink": "addItem"
         },
         {
@@ -203411,7 +203411,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 733,
+          "line": 745,
           "sink": "_create_int_spin"
         },
         {

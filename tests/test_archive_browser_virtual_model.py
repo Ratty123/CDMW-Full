@@ -18,7 +18,7 @@ from cdmw.ui.archive_browser_model import ArchiveBrowserModel, ArchiveBrowserRow
 from cdmw.ui.settings_tab import SettingsTab
 from cdmw.workers.archive_filter_workers import ArchiveFilterWorker
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QGroupBox, QLabel, QWidget
 
 
 _APP = QApplication.instance() or QApplication([])
@@ -318,6 +318,64 @@ class ArchivePerformanceSettingsTabTests(unittest.TestCase):
         self.addCleanup(tab.deleteLater)
         return tab
 
+    def test_performance_page_uses_aligned_card_grid(self) -> None:
+        tab = self._settings_tab()
+        tab.resize(1600, 900)
+        tab.show_settings_section("performance")
+        tab.show()
+        _APP.processEvents()
+        self.addCleanup(tab.hide)
+
+        host = tab.findChild(QWidget, "SettingsPerformanceHost")
+        content = tab.findChild(QWidget, "SettingsPerformanceContent")
+        grid_widget = tab.findChild(QWidget, "SettingsPerformanceGrid")
+        self.assertIsNotNone(host)
+        self.assertIsNotNone(content)
+        self.assertIsNotNone(grid_widget)
+        assert host is not None
+        assert content is not None
+        assert grid_widget is not None
+        self.assertEqual(1480, content.maximumWidth())
+        self.assertGreater(content.width(), 1200)
+        self.assertLessEqual(content.width(), host.width())
+
+        grid = grid_widget.layout()
+        self.assertIsInstance(grid, QGridLayout)
+        assert isinstance(grid, QGridLayout)
+        cards = {
+            card.title(): card
+            for card in grid_widget.findChildren(
+                QGroupBox,
+                "SettingsPerformanceCard",
+                Qt.FindDirectChildrenOnly,
+            )
+        }
+        expected_positions = {
+            "Overall Workload": (0, 0, 1, 1),
+            "Archive List Loading": (0, 1, 1, 1),
+            "Related-File Indexing": (1, 0, 1, 1),
+            "Preview Caches": (1, 1, 1, 1),
+        }
+        self.assertEqual(set(expected_positions), set(cards))
+        for title, expected_position in expected_positions.items():
+            self.assertEqual(expected_position, grid.getItemPosition(grid.indexOf(cards[title])))
+
+        rows = grid_widget.findChildren(QFrame, "SettingsPerformanceRow")
+        self.assertEqual(9, len(rows))
+        self.assertEqual(4, sum(bool(row.property("firstRow")) for row in rows))
+        for row in rows:
+            row_layout = row.layout()
+            self.assertIsInstance(row_layout, QGridLayout)
+            assert isinstance(row_layout, QGridLayout)
+            field = row.findChild(QLabel, "SettingsPerformanceField", Qt.FindDirectChildrenOnly)
+            note = row.findChild(QLabel, "SettingsPerformanceNote", Qt.FindDirectChildrenOnly)
+            self.assertIsNotNone(field)
+            self.assertIsNotNone(note)
+            assert field is not None
+            assert note is not None
+            self.assertEqual((0, 0, 1, 1), row_layout.getItemPosition(row_layout.indexOf(field)))
+            self.assertEqual((1, 0, 1, 2), row_layout.getItemPosition(row_layout.indexOf(note)))
+
     def test_numeric_performance_presets_keep_auto_and_custom_values_clear(self) -> None:
         tab = self._settings_tab()
         tab.sync_archive_performance_controls(
@@ -592,6 +650,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
     def test_settings_expose_performance_page_and_new_fields(self) -> None:
         source = Path("cdmw/ui/settings_tab.py").read_text(encoding="utf-8")
         dialog_source = Path("cdmw/ui/model_preview_settings_dialog.py").read_text(encoding="utf-8")
+        theme_source = Path("cdmw/ui/themes.py").read_text(encoding="utf-8")
         self.assertIn('"Performance"', source)
         self.assertIn('workload_group, workload_layout = _performance_group("Overall Workload")', source)
         self.assertIn('archive_list_group, archive_list_layout = _performance_group("Archive List Loading")', source)
@@ -601,33 +660,18 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("SettingsPerformanceOverview", source)
         self.assertIn("SettingsPerformanceField", source)
         self.assertIn("SettingsPerformanceNote", source)
-        self.assertIn("note.setMinimumWidth(260)", source)
-        self.assertIn("note.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)", source)
-        self.assertNotIn("wrapped_height = note.fontMetrics().boundingRect", source)
-        self.assertNotIn("note.setMaximumWidth(430)", source)
-        self.assertIn("group.setMinimumWidth(520)", source)
+        self.assertIn('group.setObjectName("SettingsPerformanceCard")', source)
+        self.assertIn("group.setMinimumWidth(440)", source)
         self.assertIn("group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)", source)
-        self.assertNotIn("group.setMaximumWidth(600)", source)
-        self.assertIn("grid.setColumnStretch(1, 1)", source)
-        self.assertIn("performance_overview.setMinimumWidth(720)", source)
-        self.assertIn("performance_overview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)", source)
-        self.assertIn("performance_grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)", source)
-        self.assertNotIn("performance_grid_widget.setMaximumWidth(1212)", source)
-        self.assertIn("field_layout.addWidget(control, alignment=Qt.AlignLeft | Qt.AlignTop)", source)
-        self.assertIn("field_layout.addWidget(note_widget)", source)
-        self.assertIn("grid.addWidget(field_body, row, 1)", source)
-        self.assertIn("grid.setRowMinimumHeight(row, 72)", source)
-        self.assertIn("performance_columns = QHBoxLayout(performance_grid_widget)", source)
-        self.assertIn("left_performance_column = QVBoxLayout()", source)
-        self.assertIn("right_performance_column = QVBoxLayout()", source)
-        self.assertIn("left_performance_column.setAlignment(Qt.AlignTop)", source)
-        self.assertIn("right_performance_column.setAlignment(Qt.AlignTop)", source)
-        self.assertIn("performance_columns.addLayout(left_performance_column, 1)", source)
-        self.assertIn("performance_columns.addLayout(right_performance_column, 1)", source)
-        self.assertIn("left_performance_column.addWidget(workload_group)", source)
-        self.assertIn("right_performance_column.addWidget(archive_list_group)", source)
-        self.assertIn("left_performance_column.addWidget(related_index_group)", source)
-        self.assertIn("right_performance_column.addWidget(preview_cache_group)", source)
+        self.assertIn('row_widget.setObjectName("SettingsPerformanceRow")', source)
+        self.assertIn('performance_host.setObjectName("SettingsPerformanceHost")', source)
+        self.assertIn('performance_content.setObjectName("SettingsPerformanceContent")', source)
+        self.assertIn("performance_content.setMaximumWidth(1480)", source)
+        self.assertIn('performance_grid_widget.setObjectName("SettingsPerformanceGrid")', source)
+        self.assertIn("performance_grid = QGridLayout(performance_grid_widget)", source)
+        self.assertIn("QGroupBox#SettingsPerformanceCard", theme_source)
+        self.assertIn("QFrame#SettingsPerformanceRow", theme_source)
+        self.assertIn('QFrame#SettingsPerformanceRow[firstRow="true"]', theme_source)
         self.assertIn("Recommended start: Balanced preset", source)
         self.assertIn("Balanced (recommended)", source)
         self.assertIn("Faster indexing (more CPU / possible lag)", source)

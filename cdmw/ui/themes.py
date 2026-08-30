@@ -733,10 +733,39 @@ def _app_status_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> st
     QLabel#SettingsPerformanceOverview {{
         color: {theme["text_strong"]};
         background: {theme["field_alt"]};
-        border: 1px solid {theme["border"]};
-        border-radius: 4px;
-        padding: 6px 8px;
+        border: 1px solid {theme["border_strong"]};
+        border-left: 3px solid {theme["accent"]};
+        border-radius: 6px;
+        padding: 9px 12px;
         font-weight: 600;
+    }}
+    QGroupBox#SettingsPerformanceCard {{
+        color: {theme["text"]};
+        background: {theme["surface_alt"]};
+        border: 1px solid {theme["border_strong"]};
+        border-radius: 7px;
+        margin-top: {max(20, metrics["group_margin_top"] + 7)}px;
+        padding-top: {max(8, metrics["group_pad_top"])}px;
+        font-weight: 400;
+    }}
+    QGroupBox#SettingsPerformanceCard::title {{
+        subcontrol-origin: margin;
+        subcontrol-position: top left;
+        left: 12px;
+        top: 0px;
+        margin: 0px;
+        padding: 1px {metrics["group_title_pad_x"] + 3}px 2px {metrics["group_title_pad_x"] + 3}px;
+        color: {theme["text_strong"]};
+        background: {theme["surface"]};
+        font-weight: 700;
+    }}
+    QFrame#SettingsPerformanceRow {{
+        background: transparent;
+        border: none;
+        border-top: 1px solid {theme["border"]};
+    }}
+    QFrame#SettingsPerformanceRow[firstRow="true"] {{
+        border-top: none;
     }}
     QLabel#SettingsPerformanceField {{
         color: {theme["text_strong"]};
@@ -744,8 +773,9 @@ def _app_status_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> st
         font-weight: 600;
     }}
     QLabel#SettingsPerformanceNote {{
-        color: {theme["text"]};
+        color: {theme["text_muted"]};
         background: transparent;
+        font-weight: 400;
     }}
     QLabel#ArchivePreviewHealthLabel {{
         color: {theme["text_muted"]};
