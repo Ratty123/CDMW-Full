@@ -282,6 +282,11 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         )[0]
         self.assertIn('"resident_interaction_transaction"', select_attempt)
         self.assertIn('event_name="resident_interaction_transaction"', grab_attempt)
+        self.assertIn('{"event": "tool_state", "tool": "orbit"}', grab_attempt)
+        self.assertLess(
+            grab_attempt.index('{"event": "tool_state", "tool": "orbit"}'),
+            grab_attempt.index('_click_button_by_text(form_hwnd, "Grab"'),
+        )
         self.assertNotIn('"select_request"', select_attempt)
         self.assertNotIn('"stroke_begin"', grab_attempt)
         self.assertNotIn('event_name="stroke_end"', grab_attempt)

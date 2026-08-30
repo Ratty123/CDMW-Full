@@ -1032,6 +1032,32 @@ def _perform_actual_grab(
     start: tuple[int, int],
     desktop_observations: list[Mapping[str, object]],
 ) -> dict[str, object]:
+    rail_cursor = len(_protocol_events(mesh_editor_tab))
+    if not mesh_editor_tab._send_dotnet_protocol_message(
+        {"event": "tool_state", "tool": "orbit"}
+    ):
+        raise RuntimeError("The production helper rejected the scoped Orbit rail reset.")
+    rail_reset_ms = _pump_until(
+        app,
+        lambda: bool(
+            _latest_event(
+                mesh_editor_tab,
+                "tool_state_applied",
+                cursor=rail_cursor,
+                predicate=lambda event: str(event.get("tool", "") or "").lower()
+                == "orbit",
+            )
+        ),
+        timeout_seconds=5.0,
+        label="visible Grab rail reset",
+        desktop_observations=desktop_observations,
+    )
+    rail_reset = _latest_event(
+        mesh_editor_tab,
+        "tool_state_applied",
+        cursor=rail_cursor,
+        predicate=lambda event: str(event.get("tool", "") or "").lower() == "orbit",
+    )
     tool_cursor = len(_protocol_events(mesh_editor_tab))
     grab_control = _click_button_by_text(form_hwnd, "Grab", expected_pid=helper_pid)
     if grab_control.get("ok") is not True:
@@ -1113,6 +1139,8 @@ def _perform_actual_grab(
     return {
         "ok": bool(moved and down and up),
         "actual_control": grab_control,
+        "visible_control_rail_reset": rail_reset,
+        "visible_control_rail_reset_ms": round(rail_reset_ms, 3),
         "input_backend": "scoped_hwnd_messages_no_global_cursor",
         "start": [start_x, start_y],
         "drag_points": drag_points,
