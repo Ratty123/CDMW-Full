@@ -14,7 +14,7 @@ This inventory records the local CDMW contracts examined at implementation time.
 | DDS | Metadata read, supported archive reconstruction, and direct 2D GPU upload | `cdmw/core/archive_extraction.py`, `cdmw/core/dds_resource_limits.py` | Legacy/DX10 metadata and common BC/R/RG/RGBA/BGRA formats; bounded Partial and Sparse reconstruction is synthetically proven for supported 2D entries, while arrays/cubes and fallback transcode remain incomplete |
 | PAC XML / PAM XML / PAMLOD XML | Bounded texture/material-parameter read | material sidecar owners | Wrapper/submesh/shader/texture provenance plus typed/unknown parameter names, raw values, attributes, and explicit/incomplete confidence are native. Base, normal, packed/separate surface, occlusion, emissive, metallic-only Specular or legacy Glossiness/Smoothness through one shared response slot, explicit-cutout Opacity, exact global `_heightTexture`, qualified hair Flow, and diagnostic Layer Mask references are sampled per material owner. Glossiness retains its declared role and is not inverted into roughness because the production selector declares no component contract. Height is linear and uses R-channel fragment-normal/roughness relief around neutral 0.5; unique finite `_screenSpaceDisplacementScale`, `_detailScreenSpaceDisplacementScale`, or `_heightIntensity` values clamp to 0–1, otherwise the preview uses the current 0.025 default. Explicit zero disables the effect. Wrinkle, detail, parallax, and layer displacement references remain unbound; no vertex displacement is claimed. Flow is linear, preserves `_flowTexture`, SSDM, or direction provenance, and supplies two-channel strand direction only when the owning material identifies a proven `SkinnedMeshHair`, `SkinnedMeshFur`, or `AnimalHair` family; non-hair Flow remains classified and bound without changing pixels. Exact `_colorBlendingMaskTexture` and `_detailMaskTexture` references are linear Layer Mask evidence with production R/B selectors; the grayscale diagnostic does not compose dye/detail layers or modify lit output. Unique explicit Float/Byte4 roughness, metallic/metalness, and specular factors are sampled per owner; hex emissive color and finite float intensity are sampled with a bound emissive texture. Explicit `AlphaTest`/`AlphaClip`/`AlphaCutout`/`Cutout` enable state selects the current approximate 0.08 cutout threshold and Opacity red-channel coverage, falling back to base-color alpha. Remaining scalar/vector factors, actual layers/dyes, channel-authoritative opacity, blend transparency, and non-global displacement semantics remain incomplete |
 | PAMI / APP XML / Prefab-data XML | Relationship target only | appearance/material owners | Native semantic parsing not implemented |
-| PAB | Unsupported in Rust | `cdmw/modding/skeleton_parser.py` | No skeleton overlay parity yet |
+| PAB | Fixed-layout read and hierarchy overlay | `cdmw/modding/skeleton_parser.py` | Synthetic source-port proof only; heuristic legacy scan, private corpus parity, PAC palette/weight binding, pose, and writeback are not implemented |
 | PABC | Unsupported in Rust | `cdmw/modding/skeleton_variation_parser.py` | No variation application parity yet |
 | Morph-target PAMT | Explicitly distinct, unsupported | `cdmw/core/archive_mesh_appearance.py` | Never passed to the archive-index decoder based on extension alone |
 | Meshinfo | Unsupported metadata | current preview owners | No unproven table authority is claimed |
@@ -80,6 +80,20 @@ PAMLOD uses declared LOD count at byte 0, geometry offset at byte 4, bounds at b
 
 Static positions are quantized `u16` values over the declared bounds. UVs are binary16 values when the accepted stride carries them. Missing normals are recomputed deterministically from validated triangles.
 
+## PAB contract
+
+The Rust PAB reader is read-only and accepts only the current fixed local contract:
+
+- `PAR ` magic and a complete 22-byte header;
+- little-endian `u16` bone count at byte 20, limited to 4,096;
+- one sequential record per bone: `u32` name hash, one-byte name length, name bytes, signed `i32` parent (`-1` root), bind and inverse-bind 4×4 float matrices, two duplicate matrices that are validated but not retained, float3 scale, float4 quaternion, and float3 position;
+- finite decoded matrix/transform values;
+- parent indices inside the declared count, no self-parent, at least one root for a non-empty hierarchy, and no parent cycle.
+
+The immutable result retains source hash, semantic fingerprint, index/name/hash/parent, bind and inverse-bind transforms, scale/rotation/position, record source ranges, roots, maximum hierarchy depth, and trailing-byte count. Overlay endpoints use bind-matrix translation with the current production row-versus-column normalization rule. Direct and archive PAC loads first try the exact same-stem PAB; otherwise one candidate from the current proven character-family basename rules may resolve. Multiple family candidates, duplicate virtual paths, malformed data, excessive files, and unsupported layouts leave the base PAC viewable and report why no skeleton was selected.
+
+This is hierarchy context, not PAC skinning parity. Palette slots, bone indices and weights in PAC vertices, rigid attachments, PABC variation, morph application, animation, pose editing, PAB writeback, and private real-PAB corpus parity remain open. The heuristic legacy scan in the Python owner is deliberately not ported because it guesses record boundaries.
+
 ## Resource limits
 
 - Archive index: 512 MiB default maximum.
@@ -87,6 +101,7 @@ Static positions are quantized `u16` values over the declared bounds. UVs are bi
 - Archive entries: 20,000,000 default maximum.
 - Virtual path: 256 parent records and 32,768 bytes.
 - Mesh: 10,000,000 vertices and 60,000,000 indices per submesh.
+- PAB: 64 MiB companion payload and 4,096 bones.
 - DDS: 16,384 pixels per dimension and 512 MiB payload.
 - Lasso: 4,096 retained points.
 - Archive UI query: 20,000 displayed identities; full match count retained.

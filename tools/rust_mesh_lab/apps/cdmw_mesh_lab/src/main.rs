@@ -132,6 +132,18 @@ struct MaterialFactorInspectorEntry {
     ownership: String,
 }
 
+struct SkeletonInspectorEntry {
+    label: String,
+    parser: String,
+    provenance: String,
+    bone_count: usize,
+    root_count: usize,
+    maximum_depth: u32,
+    segment_count: usize,
+    tail_byte_count: u64,
+    bones: Vec<String>,
+}
+
 fn format_material_ownership(material_indices_by_lod: &[Vec<u32>]) -> String {
     let ownership = material_indices_by_lod
         .iter()
@@ -179,6 +191,7 @@ struct LabApplication {
     texture_entries: Vec<TextureInspectorEntry>,
     material_parameter_entries: Vec<MaterialParameterInspectorEntry>,
     material_factor_entries: Vec<MaterialFactorInspectorEntry>,
+    skeleton_entry: Option<SkeletonInspectorEntry>,
     source_label: String,
     status: String,
     history: History,
@@ -192,6 +205,7 @@ struct LabApplication {
     view_mode: ViewMode,
     show_normals: bool,
     show_bounds: bool,
+    show_bones: bool,
     viewport_tool: ViewportTool,
     selection_tool: SelectionTool,
     brush_radius: f32,
@@ -256,6 +270,7 @@ impl LabApplication {
             texture_entries: Vec::new(),
             material_parameter_entries: Vec::new(),
             material_factor_entries: Vec::new(),
+            skeleton_entry: None,
             source_label: "No asset loaded".to_owned(),
             status,
             history: History::new(HISTORY_BUDGET_BYTES),
@@ -269,6 +284,7 @@ impl LabApplication {
             view_mode: ViewMode::TexturedSolid,
             show_normals: false,
             show_bounds: false,
+            show_bones: false,
             viewport_tool: ViewportTool::Select,
             selection_tool: SelectionTool::Click,
             brush_radius: 48.0,
@@ -392,6 +408,7 @@ impl LabApplication {
             textures,
             material_parameters,
             material_factors,
+            skeleton,
         } = loaded;
         let editable_lod_count = other_lod_meshes.len().saturating_add(1);
         debug_assert_eq!(editable_lod_count, document.lods.len());
@@ -412,6 +429,54 @@ impl LabApplication {
         self.raw_primary_captured = false;
         self.raw_orbit_captured = false;
         self.raw_pan_captured = false;
+        self.show_bones = false;
+        let skeleton_lines = skeleton
+            .as_ref()
+            .map(|loaded| loaded.document.line_vertices())
+            .unwrap_or_default();
+        let skeleton_entry = skeleton.as_ref().map(|loaded| {
+            let mut provenance = format!("Resolved via {:?}", loaded.resolution_method);
+            if let Some(compression) = loaded.archive_compression {
+                provenance.push_str(&format!(" · Archive decode {compression:?}"));
+            }
+            let bones = loaded
+                .document
+                .bones
+                .iter()
+                .map(|bone| {
+                    let name = if bone.name.trim().is_empty() {
+                        format!("hash {:08X}", bone.name_hash)
+                    } else {
+                        format!("{} · hash {:08X}", bone.name, bone.name_hash)
+                    };
+                    let parent = bone.parent_index.map_or_else(
+                        || "root".to_owned(),
+                        |index| {
+                            loaded.document.bones.get(index as usize).map_or_else(
+                                || format!("parent #{index}"),
+                                |parent| format!("parent #{index} {}", parent.name),
+                            )
+                        },
+                    );
+                    let position = bone.bind_position();
+                    format!(
+                        "#{} {name} · {parent} · bind {:.4}, {:.4}, {:.4}",
+                        bone.index, position[0], position[1], position[2]
+                    )
+                })
+                .collect();
+            SkeletonInspectorEntry {
+                label: loaded.label.clone(),
+                parser: loaded.document.parser.clone(),
+                provenance,
+                bone_count: loaded.document.bones.len(),
+                root_count: loaded.document.root_indices.len(),
+                maximum_depth: loaded.document.maximum_depth,
+                segment_count: skeleton_lines.len() / 2,
+                tail_byte_count: loaded.document.tail_byte_count,
+                bones,
+            }
+        });
         let texture_entries = textures
             .iter()
             .map(|texture| {
@@ -586,6 +651,9 @@ impl LabApplication {
             if let Err(error) = renderer.set_snapshot(&mesh.draw_snapshot()) {
                 gpu_errors.push(format!("mesh upload failed: {error}"));
             }
+            if let Err(error) = renderer.set_skeleton_lines(&skeleton_lines) {
+                gpu_errors.push(format!("skeleton overlay upload failed: {error}"));
+            }
         }
         if texture_upload_count > 0 {
             self.status.push_str(&format!(
@@ -595,6 +663,12 @@ impl LabApplication {
         if material_factor_count > 0 {
             self.status.push_str(&format!(
                 " · {material_factor_count} material preview factor set(s) prepared"
+            ));
+        }
+        if let Some(entry) = &skeleton_entry {
+            self.status.push_str(&format!(
+                " · {} PAB bone(s) resolved for hierarchy context",
+                entry.bone_count
             ));
         }
         if let Some(error) = gpu_errors.first() {
@@ -629,6 +703,7 @@ impl LabApplication {
         self.texture_entries = texture_entries;
         self.material_parameter_entries = material_parameter_entries;
         self.material_factor_entries = material_factor_entries;
+        self.skeleton_entry = skeleton_entry;
     }
 
     fn draw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
@@ -763,6 +838,34 @@ impl LabApplication {
                     for warning in &document.warnings {
                         ui.colored_label(Color32::YELLOW, warning);
                     }
+                    if let Some(skeleton) = &self.skeleton_entry {
+                        ui.separator();
+                        ui.label(RichText::new("Resolved skeleton context").strong());
+                        ui.label(&skeleton.label);
+                        ui.label(format!(
+                            "{} bones · {} roots · depth {} · {} overlay segments",
+                            skeleton.bone_count,
+                            skeleton.root_count,
+                            skeleton.maximum_depth,
+                            skeleton.segment_count
+                        ));
+                        ui.label(format!(
+                            "Parser {} · {} trailing bytes",
+                            skeleton.parser, skeleton.tail_byte_count
+                        ));
+                        ui.label(&skeleton.provenance);
+                        ui.label("Read-only hierarchy context; PAC palette/skin binding is still unresolved");
+                        egui::CollapsingHeader::new(format!(
+                            "Bone hierarchy ({})",
+                            skeleton.bones.len()
+                        ))
+                        .default_open(false)
+                        .show(ui, |ui| {
+                            for bone in &skeleton.bones {
+                                ui.label(bone);
+                            }
+                        });
+                    }
                     if !self.texture_entries.is_empty() {
                         ui.separator();
                         ui.label(RichText::new("Resolved material textures").strong());
@@ -867,14 +970,19 @@ impl LabApplication {
                 ui.horizontal_wrapped(|ui| {
                     ui.checkbox(&mut self.show_normals, "Normals");
                     ui.checkbox(&mut self.show_bounds, "Bounds");
-                    let mut show_bones = false;
+                    let bones_available = self
+                        .skeleton_entry
+                        .as_ref()
+                        .is_some_and(|skeleton| skeleton.segment_count > 0);
                     ui.add_enabled(
-                        false,
-                        egui::Checkbox::new(&mut show_bones, "Bones"),
+                        bones_available,
+                        egui::Checkbox::new(&mut self.show_bones, "Bones"),
                     )
-                    .on_disabled_hover_text(
-                        "Bone overlay requires a decoded skeleton; PAB/PAC binding is not implemented yet",
-                    );
+                    .on_disabled_hover_text(if self.skeleton_entry.is_some() {
+                        "The decoded skeleton has no parent-child segments to draw"
+                    } else {
+                        "Bones requires an exact or unambiguous proven-family PAB companion"
+                    });
                 });
                 ui.horizontal_wrapped(|ui| {
                     if ui.button("Frame All").clicked() {
@@ -2447,9 +2555,11 @@ impl LabApplication {
         let view_mode = self.view_mode;
         let show_normals = self.show_normals;
         let show_bounds = self.show_bounds;
+        let show_bones = self.show_bones;
         let render_error = if let Some(renderer) = &mut self.renderer {
             renderer.set_view_mode(view_mode);
             renderer.set_overlays(show_normals, show_bounds);
+            renderer.set_bone_overlay(show_bones);
             if let Some(camera_matrix) = camera_matrix {
                 renderer.set_camera(camera_matrix);
             }

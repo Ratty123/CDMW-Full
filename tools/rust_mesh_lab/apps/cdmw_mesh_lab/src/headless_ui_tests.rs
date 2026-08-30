@@ -394,6 +394,53 @@ fn painted_menus_route_preview_camera_selection_and_lod_controls() -> TestResult
 }
 
 #[test]
+fn painted_bones_toggle_and_inspector_require_a_decoded_pab_hierarchy() -> TestResult {
+    let document = cdmw_formats::decode_mesh(
+        &cdmw_formats::synthetic::two_lod_pac(),
+        cdmw_formats::MeshFormat::Pac,
+    )?;
+    let cancellation = cdmw_archive::CancellationToken::default();
+    let mut meshes = crate::loader::build_lod_meshes(&document, &cancellation)?.into_iter();
+    let mesh = meshes.next().ok_or("missing LOD0 working mesh")?;
+    let skeleton = cdmw_formats::decode_pab(&cdmw_formats::synthetic::two_bone_pab())?;
+    let mut application = LabApplication::new(None, None);
+    application.install_loaded_mesh(crate::loader::LoadedMesh {
+        path: PathBuf::from("character/model/cd_phw_00_body.pac"),
+        document,
+        mesh,
+        other_lod_meshes: meshes.collect(),
+        textures: Vec::new(),
+        material_parameters: Vec::new(),
+        material_factors: Vec::new(),
+        skeleton: Some(crate::loader::LoadedSkeleton {
+            label: "character/model/cd_phw_00.pab".to_owned(),
+            document: skeleton,
+            resolution_method: cdmw_asset_graph::ResolutionMethod::ProvenFamilyRule,
+            archive_compression: Some(cdmw_archive::CompressionOutcome::Stored),
+        }),
+    });
+
+    let mut ui = HeadlessUi::new(application, egui::vec2(1_280.0, 900.0));
+    assert!(ui.reveal("Resolved skeleton context").is_ok());
+    assert!(ui.reveal("character/model/cd_phw_00.pab").is_ok());
+    assert!(
+        ui.reveal("2 bones · 1 roots · depth 1 · 1 overlay segments")
+            .is_ok()
+    );
+    ui.click("Bone hierarchy (2)")?;
+    assert!(
+        ui.reveal("#1 Spine · hash 11111112 · parent #0 Root · bind 0.0000, 1.0000, 0.0000")
+            .is_ok()
+    );
+    assert!(!ui.application.show_bones);
+    ui.click("Bones")?;
+    assert!(ui.application.show_bones);
+    ui.click("Bones")?;
+    assert!(!ui.application.show_bones);
+    Ok(())
+}
+
+#[test]
 fn painted_topology_selection_commands_are_exact_and_undoable() -> TestResult {
     let mut vertex_application = lod_one_application()?;
     let corner = {
@@ -1490,6 +1537,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             layer_mask_channel: Some(2),
             material_indices_by_lod: vec![vec![0]],
         }],
+        skeleton: None,
     });
     let mut ui = HeadlessUi::new(application, egui::vec2(1_280.0, 900.0));
     assert!(ui.reveal("Resolved material textures").is_ok());

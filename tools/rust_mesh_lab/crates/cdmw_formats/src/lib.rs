@@ -10,6 +10,9 @@ use thiserror::Error;
 
 const MAX_VERTICES: usize = 10_000_000;
 const MAX_INDICES: usize = 60_000_000;
+const MAX_SKELETON_BONES: usize = 4_096;
+const PAB_HEADER_SIZE: usize = 0x16;
+const PAB_BONE_FIXED_SIZE: usize = 305;
 const PAM_TABLE_OFFSET: usize = 1_040;
 const PAM_RECORD_STRIDE: usize = 536;
 const PAM_GEOMETRY_OFFSET: usize = 60;
@@ -118,6 +121,82 @@ pub struct MeshDocument {
     pub structural_fingerprint: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SkeletonConfidence {
+    FixedLayout,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SkeletonBone {
+    pub index: u32,
+    pub name: String,
+    pub name_hash: u32,
+    pub parent_index: Option<u32>,
+    pub bind_matrix: [f32; 16],
+    pub inverse_bind_matrix: [f32; 16],
+    pub scale: [f32; 3],
+    pub rotation: [f32; 4],
+    pub position: [f32; 3],
+    pub source_range: SourceRange,
+}
+
+impl SkeletonBone {
+    #[must_use]
+    pub fn bind_position(&self) -> [f32; 3] {
+        let column_translation = [
+            self.bind_matrix[3],
+            self.bind_matrix[7],
+            self.bind_matrix[11],
+        ];
+        let row_translation = [
+            self.bind_matrix[12],
+            self.bind_matrix[13],
+            self.bind_matrix[14],
+        ];
+        let column_magnitude = column_translation
+            .iter()
+            .map(|value| value.abs())
+            .sum::<f32>();
+        let row_magnitude = row_translation.iter().map(|value| value.abs()).sum::<f32>();
+        if row_magnitude > column_magnitude && column_magnitude <= 1.0e-6 {
+            row_translation
+        } else {
+            column_translation
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SkeletonDocument {
+    pub source_sha256: String,
+    pub parser: String,
+    pub confidence: SkeletonConfidence,
+    pub bones: Vec<SkeletonBone>,
+    pub root_indices: Vec<u32>,
+    pub maximum_depth: u32,
+    pub tail_byte_count: u64,
+    pub structural_fingerprint: String,
+}
+
+impl SkeletonDocument {
+    #[must_use]
+    pub fn line_vertices(&self) -> Vec<[f32; 3]> {
+        let mut lines = Vec::with_capacity(self.bones.len().saturating_mul(2));
+        for bone in &self.bones {
+            let Some(parent_index) = bone.parent_index else {
+                continue;
+            };
+            let Some(parent) = self.bones.get(parent_index as usize) else {
+                continue;
+            };
+            lines.push(parent.bind_position());
+            lines.push(bone.bind_position());
+        }
+        lines
+    }
+}
+
 impl MeshDocument {
     fn finish(&mut self) -> Result<(), FormatError> {
         if self.lods.is_empty() || self.lods.iter().all(|lod| lod.submeshes.is_empty()) {
@@ -169,6 +248,8 @@ pub enum FormatError {
     ParDecompression(String),
     #[error("unsupported or ambiguous mesh layout: {0}")]
     UnsupportedLayout(String),
+    #[error("PAB skeleton hierarchy is invalid: {0}")]
+    InvalidSkeleton(String),
 }
 
 pub fn decode_mesh(bytes: &[u8], format: MeshFormat) -> Result<MeshDocument, FormatError> {
@@ -177,6 +258,163 @@ pub fn decode_mesh(bytes: &[u8], format: MeshFormat) -> Result<MeshDocument, For
         MeshFormat::Pam => decode_pam(bytes),
         MeshFormat::Pamlod => decode_pamlod(bytes),
     }
+}
+
+pub fn decode_pab(bytes: &[u8]) -> Result<SkeletonDocument, FormatError> {
+    if bytes.len() < PAB_HEADER_SIZE {
+        return Err(FormatError::Truncated("PAB header"));
+    }
+    if bytes.get(..4) != Some(b"PAR ") {
+        return Err(FormatError::InvalidMagic);
+    }
+    let bone_count = usize::from(read_u16(bytes, 0x14)?);
+    if bone_count > MAX_SKELETON_BONES {
+        return Err(FormatError::ResourceLimit);
+    }
+
+    let mut offset = PAB_HEADER_SIZE;
+    let mut bones = Vec::with_capacity(bone_count);
+    for index in 0..bone_count {
+        let start = offset;
+        let minimum_end = offset
+            .checked_add(PAB_BONE_FIXED_SIZE)
+            .ok_or(FormatError::ResourceLimit)?;
+        if minimum_end > bytes.len() {
+            return Err(FormatError::Truncated("PAB bone record"));
+        }
+        let name_hash = read_u32(bytes, offset)?;
+        offset = offset.saturating_add(4);
+        let name_length = usize::from(
+            *bytes
+                .get(offset)
+                .ok_or(FormatError::Truncated("PAB bone name length"))?,
+        );
+        offset = offset.saturating_add(1);
+        let name_end = offset
+            .checked_add(name_length)
+            .ok_or(FormatError::ResourceLimit)?;
+        let name_bytes = bytes
+            .get(offset..name_end)
+            .ok_or(FormatError::Truncated("PAB bone name"))?;
+        let name = String::from_utf8_lossy(name_bytes).into_owned();
+        offset = name_end;
+
+        let raw_parent = read_i32(bytes, offset)?;
+        offset = offset.saturating_add(4);
+        let parent_index = if raw_parent == -1 {
+            None
+        } else {
+            let parent = usize::try_from(raw_parent).map_err(|_| {
+                FormatError::InvalidSkeleton(format!(
+                    "bone {index} has negative parent {raw_parent}"
+                ))
+            })?;
+            if parent >= bone_count || parent == index {
+                return Err(FormatError::InvalidSkeleton(format!(
+                    "bone {index} has out-of-range or self parent {raw_parent}"
+                )));
+            }
+            Some(u32::try_from(parent).map_err(|_| FormatError::ResourceLimit)?)
+        };
+        let bind_matrix = read_f32_array::<16>(bytes, offset, "PAB bind matrix")?;
+        offset = offset.saturating_add(64);
+        let inverse_bind_matrix = read_f32_array::<16>(bytes, offset, "PAB inverse bind matrix")?;
+        offset = offset.saturating_add(64);
+        let _ = read_f32_array::<16>(bytes, offset, "PAB bind matrix copy")?;
+        offset = offset.saturating_add(64);
+        let _ = read_f32_array::<16>(bytes, offset, "PAB inverse bind matrix copy")?;
+        offset = offset.saturating_add(64);
+        let scale = read_f32_array::<3>(bytes, offset, "PAB scale")?;
+        offset = offset.saturating_add(12);
+        let rotation = read_f32_array::<4>(bytes, offset, "PAB rotation")?;
+        offset = offset.saturating_add(16);
+        let position = read_f32_array::<3>(bytes, offset, "PAB position")?;
+        offset = offset.saturating_add(12);
+        let length = offset
+            .checked_sub(start)
+            .ok_or(FormatError::ResourceLimit)?;
+        bones.push(SkeletonBone {
+            index: u32::try_from(index).map_err(|_| FormatError::ResourceLimit)?,
+            name,
+            name_hash,
+            parent_index,
+            bind_matrix,
+            inverse_bind_matrix,
+            scale,
+            rotation,
+            position,
+            source_range: SourceRange {
+                offset: u64::try_from(start).map_err(|_| FormatError::ResourceLimit)?,
+                length: u64::try_from(length).map_err(|_| FormatError::ResourceLimit)?,
+            },
+        });
+    }
+
+    let mut maximum_depth = 0_u32;
+    for bone in &bones {
+        let mut depth = 0_u32;
+        let mut cursor = bone.parent_index;
+        let mut visited = HashSet::new();
+        while let Some(parent_index) = cursor {
+            if !visited.insert(parent_index) {
+                return Err(FormatError::InvalidSkeleton(format!(
+                    "bone {} participates in a parent cycle",
+                    bone.index
+                )));
+            }
+            depth = depth.checked_add(1).ok_or(FormatError::ResourceLimit)?;
+            cursor = bones
+                .get(parent_index as usize)
+                .ok_or_else(|| {
+                    FormatError::InvalidSkeleton(format!(
+                        "bone {} references missing parent {parent_index}",
+                        bone.index
+                    ))
+                })?
+                .parent_index;
+        }
+        maximum_depth = maximum_depth.max(depth);
+    }
+
+    let root_indices = bones
+        .iter()
+        .filter(|bone| bone.parent_index.is_none())
+        .map(|bone| bone.index)
+        .collect::<Vec<_>>();
+    if !bones.is_empty() && root_indices.is_empty() {
+        return Err(FormatError::InvalidSkeleton(
+            "non-empty hierarchy has no root".to_owned(),
+        ));
+    }
+    let mut structural_bytes = Vec::new();
+    for bone in &bones {
+        structural_bytes.extend_from_slice(&bone.index.to_le_bytes());
+        structural_bytes.extend_from_slice(&bone.name_hash.to_le_bytes());
+        structural_bytes.extend_from_slice(&bone.parent_index.unwrap_or(u32::MAX).to_le_bytes());
+        structural_bytes.extend_from_slice(bone.name.as_bytes());
+        structural_bytes.push(0);
+        for value in bone
+            .bind_matrix
+            .into_iter()
+            .chain(bone.inverse_bind_matrix)
+            .chain(bone.scale)
+            .chain(bone.rotation)
+            .chain(bone.position)
+        {
+            structural_bytes.extend_from_slice(&value.to_le_bytes());
+        }
+    }
+    Ok(SkeletonDocument {
+        source_sha256: sha256_bytes(bytes),
+        parser: "rust_pab_fixed_v1".to_owned(),
+        confidence: SkeletonConfidence::FixedLayout,
+        bones,
+        root_indices,
+        maximum_depth,
+        tail_byte_count: u64::try_from(bytes.len().saturating_sub(offset))
+            .map_err(|_| FormatError::ResourceLimit)?,
+        structural_fingerprint: sha256_bytes(&structural_bytes),
+    })
 }
 
 fn decode_pam(bytes: &[u8]) -> Result<MeshDocument, FormatError> {
@@ -1167,6 +1405,39 @@ fn read_f32(bytes: &[u8], offset: usize) -> Result<f32, FormatError> {
     Ok(f32::from_bits(read_u32(bytes, offset)?))
 }
 
+fn read_f32_array<const N: usize>(
+    bytes: &[u8],
+    offset: usize,
+    field: &'static str,
+) -> Result<[f32; N], FormatError> {
+    let mut values = [0.0_f32; N];
+    for (index, value) in values.iter_mut().enumerate() {
+        let component_offset = offset
+            .checked_add(index.saturating_mul(4))
+            .ok_or(FormatError::ResourceLimit)?;
+        *value = read_f32(bytes, component_offset).map_err(|error| match error {
+            FormatError::Truncated(_) => FormatError::Truncated(field),
+            other => other,
+        })?;
+    }
+    if values.iter().any(|value| !value.is_finite()) {
+        return Err(FormatError::InvalidSkeleton(format!(
+            "{field} contains a non-finite component"
+        )));
+    }
+    Ok(values)
+}
+
+fn read_i32(bytes: &[u8], offset: usize) -> Result<i32, FormatError> {
+    let source = bytes
+        .get(offset..offset.saturating_add(4))
+        .ok_or(FormatError::Truncated("i32"))?;
+    let array: [u8; 4] = source
+        .try_into()
+        .map_err(|_| FormatError::Truncated("i32"))?;
+    Ok(i32::from_le_bytes(array))
+}
+
 fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, FormatError> {
     let source = bytes
         .get(offset..offset.saturating_add(4))
@@ -1243,9 +1514,60 @@ fn find_all(region: &[u8], pattern: &[u8]) -> Vec<usize> {
 
 pub mod synthetic {
     use super::{
-        PAM_BOUNDS_MAX_OFFSET, PAM_BOUNDS_MIN_OFFSET, PAM_GEOMETRY_OFFSET, PAM_MESH_COUNT_OFFSET,
-        PAM_TABLE_OFFSET,
+        PAB_HEADER_SIZE, PAM_BOUNDS_MAX_OFFSET, PAM_BOUNDS_MIN_OFFSET, PAM_GEOMETRY_OFFSET,
+        PAM_MESH_COUNT_OFFSET, PAM_TABLE_OFFSET,
     };
+
+    #[must_use]
+    pub fn two_bone_pab() -> Vec<u8> {
+        let names = ["Root", "Spine"];
+        let record_lengths = names.map(|name| 305_usize.saturating_add(name.len()));
+        let mut bytes = vec![0_u8; PAB_HEADER_SIZE + record_lengths.iter().sum::<usize>()];
+        write_text(&mut bytes, 0, b"PAR ");
+        write_u16(&mut bytes, 0x14, 2);
+        let mut offset = PAB_HEADER_SIZE;
+        for (index, name) in names.into_iter().enumerate() {
+            write_u32(
+                &mut bytes,
+                offset,
+                0x1111_1111_u32.saturating_add(index as u32),
+            );
+            offset += 4;
+            bytes[offset] = name.len() as u8;
+            offset += 1;
+            write_text(&mut bytes, offset, name.as_bytes());
+            offset += name.len();
+            let parent = if index == 0 { -1_i32 } else { 0_i32 };
+            write_i32(&mut bytes, offset, parent);
+            offset += 4;
+            let translation = if index == 0 {
+                [0.0_f32, 0.0, 0.0]
+            } else {
+                [0.0_f32, 1.0, 0.0]
+            };
+            write_matrix(&mut bytes, offset, translation);
+            offset += 64;
+            write_matrix(&mut bytes, offset, [0.0, -translation[1], 0.0]);
+            offset += 64;
+            write_matrix(&mut bytes, offset, translation);
+            offset += 64;
+            write_matrix(&mut bytes, offset, [0.0, -translation[1], 0.0]);
+            offset += 64;
+            for value in [1.0_f32, 1.0, 1.0] {
+                write_f32(&mut bytes, offset, value);
+                offset += 4;
+            }
+            for value in [0.0_f32, 0.0, 0.0, 1.0] {
+                write_f32(&mut bytes, offset, value);
+                offset += 4;
+            }
+            for value in translation {
+                write_f32(&mut bytes, offset, value);
+                offset += 4;
+            }
+        }
+        bytes
+    }
 
     #[must_use]
     pub fn triangle_pam(texture_name: &str) -> Vec<u8> {
@@ -1378,8 +1700,38 @@ pub mod synthetic {
         }
     }
 
+    fn write_i32(bytes: &mut [u8], offset: usize, value: i32) {
+        if let Some(destination) = bytes.get_mut(offset..offset.saturating_add(4)) {
+            destination.copy_from_slice(&value.to_le_bytes());
+        }
+    }
+
     fn write_f32(bytes: &mut [u8], offset: usize, value: f32) {
         write_u32(bytes, offset, value.to_bits());
+    }
+
+    fn write_matrix(bytes: &mut [u8], offset: usize, translation: [f32; 3]) {
+        let matrix = [
+            1.0_f32,
+            0.0,
+            0.0,
+            translation[0],
+            0.0,
+            1.0,
+            0.0,
+            translation[1],
+            0.0,
+            0.0,
+            1.0,
+            translation[2],
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+        ];
+        for (index, value) in matrix.into_iter().enumerate() {
+            write_f32(bytes, offset + index * 4, value);
+        }
     }
 
     fn write_text(bytes: &mut [u8], offset: usize, value: &[u8]) {
@@ -1551,6 +1903,84 @@ mod tests {
         assert!(matches!(
             decode_mesh(&bytes, MeshFormat::Pac),
             Err(FormatError::UnsupportedLayout(message)) if message.contains("LOD0")
+        ));
+    }
+
+    #[test]
+    fn fixed_pab_decodes_hierarchy_and_deterministic_overlay_lines() -> Result<(), FormatError> {
+        let mut bytes = synthetic::two_bone_pab();
+        bytes.extend_from_slice(&[9, 8, 7]);
+        let document = decode_pab(&bytes)?;
+
+        assert_eq!(document.parser, "rust_pab_fixed_v1");
+        assert_eq!(document.confidence, SkeletonConfidence::FixedLayout);
+        assert_eq!(document.bones.len(), 2);
+        assert_eq!(document.root_indices, vec![0]);
+        assert_eq!(document.maximum_depth, 1);
+        assert_eq!(document.tail_byte_count, 3);
+        assert_eq!(document.bones[0].name, "Root");
+        assert_eq!(document.bones[1].name, "Spine");
+        assert_eq!(document.bones[1].parent_index, Some(0));
+        assert_eq!(document.bones[1].bind_position(), [0.0, 1.0, 0.0]);
+        assert_eq!(
+            document.line_vertices(),
+            vec![[0.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        );
+        assert_eq!(document, decode_pab(&bytes)?);
+        Ok(())
+    }
+
+    #[test]
+    fn fixed_pab_accepts_row_translation_from_the_production_normalization_rule() {
+        let mut bone = decode_pab(&synthetic::two_bone_pab())
+            .expect("synthetic PAB")
+            .bones
+            .remove(1);
+        bone.bind_matrix[3] = 0.0;
+        bone.bind_matrix[7] = 0.0;
+        bone.bind_matrix[11] = 0.0;
+        bone.bind_matrix[12] = 2.0;
+        bone.bind_matrix[13] = 3.0;
+        bone.bind_matrix[14] = 4.0;
+        assert_eq!(bone.bind_position(), [2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn fixed_pab_rejects_truncation_nonfinite_transforms_and_invalid_hierarchies() {
+        let mut truncated = synthetic::two_bone_pab();
+        let _ = truncated.pop();
+        assert!(matches!(
+            decode_pab(&truncated),
+            Err(FormatError::Truncated("PAB position"))
+                | Err(FormatError::Truncated("PAB bone record"))
+        ));
+
+        let mut nonfinite = synthetic::two_bone_pab();
+        write_f32_at(&mut nonfinite, 35, f32::NAN);
+        assert!(matches!(
+            decode_pab(&nonfinite),
+            Err(FormatError::InvalidSkeleton(message)) if message.contains("non-finite")
+        ));
+
+        let mut nonfinite_copy = synthetic::two_bone_pab();
+        write_f32_at(&mut nonfinite_copy, 163, f32::INFINITY);
+        assert!(matches!(
+            decode_pab(&nonfinite_copy),
+            Err(FormatError::InvalidSkeleton(message)) if message.contains("non-finite")
+        ));
+
+        let mut out_of_range = synthetic::two_bone_pab();
+        write_u32_at(&mut out_of_range, 341, 2);
+        assert!(matches!(
+            decode_pab(&out_of_range),
+            Err(FormatError::InvalidSkeleton(message)) if message.contains("out-of-range")
+        ));
+
+        let mut cycle = synthetic::two_bone_pab();
+        write_u32_at(&mut cycle, 31, 1);
+        assert!(matches!(
+            decode_pab(&cycle),
+            Err(FormatError::InvalidSkeleton(message)) if message.contains("cycle")
         ));
     }
 }

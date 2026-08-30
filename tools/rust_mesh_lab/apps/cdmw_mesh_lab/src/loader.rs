@@ -3,7 +3,7 @@ use cdmw_archive::{
     DecodedEntry, open_archive_root, read_entry_unverified,
 };
 use cdmw_asset_graph::{AssetIndex, AssetRelation, RelationKind, ResolutionMethod};
-use cdmw_formats::{MeshDocument, MeshFormat, decode_mesh};
+use cdmw_formats::{MeshDocument, MeshFormat, SkeletonDocument, decode_mesh, decode_pab};
 use cdmw_mesh::WorkingMesh;
 use cdmw_oracle::export_working_obj_cancellable;
 use cdmw_texture::{
@@ -20,6 +20,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use thiserror::Error;
 
+const PAB_MAX_BYTES: usize = 64 * 1024 * 1024;
+
 #[derive(Debug)]
 pub struct LoadedMesh {
     pub path: PathBuf,
@@ -29,6 +31,15 @@ pub struct LoadedMesh {
     pub textures: Vec<LoadedTexture>,
     pub material_parameters: Vec<LoadedMaterialParameter>,
     pub material_factors: Vec<LoadedMaterialFactors>,
+    pub skeleton: Option<LoadedSkeleton>,
+}
+
+#[derive(Debug)]
+pub struct LoadedSkeleton {
+    pub label: String,
+    pub document: SkeletonDocument,
+    pub resolution_method: ResolutionMethod,
+    pub archive_compression: Option<CompressionOutcome>,
 }
 
 #[derive(Debug)]
@@ -407,6 +418,11 @@ fn load_archive_mesh(
     let other_lod_meshes = lod_meshes.collect();
     let texture_result = resolve_archive_texture(catalog, catalog_entry, &document, cancellation)?;
     document.warnings.extend(texture_result.warnings);
+    let (skeleton, skeleton_warning) =
+        resolve_archive_skeleton(catalog, catalog_entry, &document, cancellation);
+    if let Some(warning) = skeleton_warning {
+        document.warnings.push(warning);
+    }
     Ok(LoadedMesh {
         path,
         document,
@@ -415,6 +431,7 @@ fn load_archive_mesh(
         textures: texture_result.textures,
         material_parameters: texture_result.material_parameters,
         material_factors: texture_result.material_factors,
+        skeleton,
     })
 }
 
@@ -433,6 +450,10 @@ fn load_mesh(path: PathBuf, cancellation: &CancellationToken) -> Result<LoadedMe
     let other_lod_meshes = lod_meshes.collect();
     let texture_result = resolve_direct_texture(&path, &document)?;
     document.warnings.extend(texture_result.warnings);
+    let (skeleton, skeleton_warning) = resolve_direct_skeleton(&path, &document);
+    if let Some(warning) = skeleton_warning {
+        document.warnings.push(warning);
+    }
     Ok(LoadedMesh {
         path,
         document,
@@ -441,7 +462,292 @@ fn load_mesh(path: PathBuf, cancellation: &CancellationToken) -> Result<LoadedMe
         textures: texture_result.textures,
         material_parameters: texture_result.material_parameters,
         material_factors: texture_result.material_factors,
+        skeleton,
     })
+}
+
+#[derive(Debug)]
+enum SkeletonResolution<T> {
+    Missing,
+    Ambiguous(usize),
+    Resolved(T, ResolutionMethod),
+}
+
+fn resolve_direct_skeleton(
+    mesh_path: &Path,
+    document: &MeshDocument,
+) -> (Option<LoadedSkeleton>, Option<String>) {
+    if document.format != MeshFormat::Pac {
+        return (None, None);
+    }
+    let (path, method) = match resolve_direct_skeleton_path(mesh_path) {
+        SkeletonResolution::Missing => {
+            return (
+                None,
+                Some(
+                    "No exact or unambiguous proven-family PAB companion was resolved; Bones overlay is unavailable"
+                        .to_owned(),
+                ),
+            );
+        }
+        SkeletonResolution::Ambiguous(count) => {
+            return (
+                None,
+                Some(format!(
+                    "PAB companion resolution found {count} proven-family candidates; none was selected"
+                )),
+            );
+        }
+        SkeletonResolution::Resolved(path, method) => (path, method),
+    };
+    match read_bounded_file(&path, PAB_MAX_BYTES, "PAB skeleton")
+        .and_then(|bytes| decode_pab(&bytes).map_err(|error| error.to_string()))
+    {
+        Ok(skeleton) => (
+            Some(LoadedSkeleton {
+                label: path.to_string_lossy().replace('\\', "/"),
+                document: skeleton,
+                resolution_method: method,
+                archive_compression: None,
+            }),
+            None,
+        ),
+        Err(error) => (
+            None,
+            Some(format!(
+                "PAB companion {} was not loaded: {error}",
+                path.display()
+            )),
+        ),
+    }
+}
+
+fn resolve_archive_skeleton(
+    catalog: &ArchiveCatalog,
+    source_entry: &cdmw_archive::CatalogEntry,
+    document: &MeshDocument,
+    cancellation: &CancellationToken,
+) -> (Option<LoadedSkeleton>, Option<String>) {
+    if document.format != MeshFormat::Pac {
+        return (None, None);
+    }
+    let source = source_entry.entry.virtual_path.as_str();
+    let (target, method) = match resolve_archive_skeleton_path(catalog, source) {
+        SkeletonResolution::Missing => {
+            return (
+                None,
+                Some(
+                    "No exact or unambiguous proven-family archive PAB companion was resolved; Bones overlay is unavailable"
+                        .to_owned(),
+                ),
+            );
+        }
+        SkeletonResolution::Ambiguous(count) => {
+            return (
+                None,
+                Some(format!(
+                    "Archive PAB companion resolution found {count} proven-family candidates; none was selected"
+                )),
+            );
+        }
+        SkeletonResolution::Resolved(target, method) => (target, method),
+    };
+    let Some(entry) = unique_catalog_entry(catalog, &target) else {
+        return (
+            None,
+            Some(format!(
+                "Resolved PAB virtual path {target} is duplicated across archive packages; none was selected"
+            )),
+        );
+    };
+    match read_catalog_entry(catalog, entry, PAB_MAX_BYTES, cancellation).and_then(|decoded| {
+        decode_pab(&decoded.bytes)
+            .map(|document| (document, decoded.compression))
+            .map_err(|error| error.to_string())
+    }) {
+        Ok((skeleton, compression)) => (
+            Some(LoadedSkeleton {
+                label: target,
+                document: skeleton,
+                resolution_method: method,
+                archive_compression: Some(compression),
+            }),
+            None,
+        ),
+        Err(error) => (
+            None,
+            Some(format!(
+                "Archive PAB companion {target} was not loaded: {error}"
+            )),
+        ),
+    }
+}
+
+fn resolve_direct_skeleton_path(mesh_path: &Path) -> SkeletonResolution<PathBuf> {
+    let Some(parent) = mesh_path.parent() else {
+        return SkeletonResolution::Missing;
+    };
+    let candidates = pab_candidate_basenames(mesh_path.to_string_lossy().as_ref());
+    let Some(exact_name) = candidates.first() else {
+        return SkeletonResolution::Missing;
+    };
+    let Ok(entries) = fs::read_dir(parent) else {
+        return SkeletonResolution::Missing;
+    };
+    let mut matches = BTreeMap::<String, PathBuf>::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        let normalized = name.to_ascii_lowercase();
+        if candidates.iter().any(|candidate| candidate == &normalized) {
+            matches.entry(normalized).or_insert(path);
+        }
+    }
+    if let Some(path) = matches.remove(exact_name) {
+        return SkeletonResolution::Resolved(path, ResolutionMethod::SamePackageRelative);
+    }
+    match matches.len() {
+        0 => SkeletonResolution::Missing,
+        1 => SkeletonResolution::Resolved(
+            matches.into_values().next().expect("one PAB candidate"),
+            ResolutionMethod::ProvenFamilyRule,
+        ),
+        count => SkeletonResolution::Ambiguous(count),
+    }
+}
+
+fn resolve_archive_skeleton_path(
+    catalog: &ArchiveCatalog,
+    source: &str,
+) -> SkeletonResolution<String> {
+    let candidates = pab_candidate_basenames(source);
+    let Some(exact_name) = candidates.first() else {
+        return SkeletonResolution::Missing;
+    };
+    let exact_path = normalize_virtual_path(
+        Path::new(source)
+            .with_extension("pab")
+            .to_string_lossy()
+            .as_ref(),
+    );
+    let mut exact_matches = catalog
+        .entries
+        .iter()
+        .filter(|entry| normalize_virtual_path(&entry.entry.virtual_path) == exact_path)
+        .map(|entry| entry.entry.virtual_path.clone())
+        .collect::<Vec<_>>();
+    exact_matches.sort();
+    exact_matches.dedup();
+    if exact_matches.len() == 1 {
+        return SkeletonResolution::Resolved(
+            exact_matches.remove(0),
+            ResolutionMethod::ExplicitVirtualPath,
+        );
+    }
+    if exact_matches.len() > 1 {
+        return SkeletonResolution::Ambiguous(exact_matches.len());
+    }
+
+    let family_candidates = candidates
+        .iter()
+        .filter(|candidate| *candidate != exact_name)
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut matches = catalog
+        .entries
+        .iter()
+        .filter(|entry| {
+            let normalized = normalize_virtual_path(&entry.entry.virtual_path);
+            normalized
+                .rsplit('/')
+                .next()
+                .is_some_and(|name| family_candidates.contains(name))
+        })
+        .map(|entry| entry.entry.virtual_path.clone())
+        .collect::<Vec<_>>();
+    matches.sort();
+    matches.dedup();
+    match matches.len() {
+        0 => SkeletonResolution::Missing,
+        1 => SkeletonResolution::Resolved(matches.remove(0), ResolutionMethod::ProvenFamilyRule),
+        count => SkeletonResolution::Ambiguous(count),
+    }
+}
+
+fn pab_candidate_basenames(mesh_path: &str) -> Vec<String> {
+    let normalized = normalize_virtual_path(mesh_path);
+    let stem = normalized
+        .rsplit('/')
+        .next()
+        .and_then(|name| {
+            name.rsplit_once('.')
+                .map_or(Some(name), |(stem, _)| Some(stem))
+        })
+        .unwrap_or_default();
+    if stem.is_empty() {
+        return Vec::new();
+    }
+    let mut candidates = Vec::new();
+    let append = |candidate: &str, values: &mut Vec<String>| {
+        if candidate.is_empty() {
+            return;
+        }
+        let value = format!("{}.pab", candidate.trim_end_matches(".pab"));
+        if !values.contains(&value) {
+            values.push(value);
+        }
+    };
+    append(stem, &mut candidates);
+    let tokens = stem
+        .split('_')
+        .filter(|token| !token.is_empty())
+        .collect::<Vec<_>>();
+    if tokens.len() >= 3 && tokens[0] == "cd" {
+        append(tokens[..3].join("_").as_str(), &mut candidates);
+        append(tokens[1..3].join("_").as_str(), &mut candidates);
+    }
+    let family_offset = usize::from(tokens.first() == Some(&"cd"));
+    if tokens.len() >= family_offset.saturating_add(2)
+        && tokens[family_offset]
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric())
+        && tokens[family_offset + 1].len() == 2
+        && tokens[family_offset + 1]
+            .bytes()
+            .all(|byte| byte.is_ascii_digit())
+    {
+        let family = format!("{}_{}", tokens[family_offset], tokens[family_offset + 1]);
+        append(&family, &mut candidates);
+        append(format!("cd_{family}").as_str(), &mut candidates);
+    }
+    for part in normalized.split('/') {
+        if let Some((prefix, suffix)) = part.split_once('_')
+            && prefix.bytes().all(|byte| byte.is_ascii_digit())
+            && (2..=5).contains(&suffix.len())
+            && suffix.bytes().all(|byte| byte.is_ascii_lowercase())
+        {
+            append(format!("{suffix}_01").as_str(), &mut candidates);
+        }
+        if let Some(rest) = part.strip_prefix("cd_m")
+            && rest.len() >= 5
+            && rest
+                .as_bytes()
+                .get(..4)
+                .is_some_and(|digits| digits.iter().all(u8::is_ascii_digit))
+            && rest.as_bytes().get(4) == Some(&b'_')
+        {
+            append(part, &mut candidates);
+        }
+    }
+    if normalized.contains("character/model/1_pc/") {
+        append("identityskeleton", &mut candidates);
+    }
+    candidates
 }
 
 pub(super) fn build_lod_meshes(
@@ -2707,6 +3013,83 @@ mod tests {
         assert!(relation.target_virtual_path.is_none());
         assert_eq!(relation.ambiguity_count, 2);
         assert_eq!(relation.method, ResolutionMethod::Unresolved);
+    }
+
+    #[test]
+    fn direct_pac_loads_one_proven_family_pab_and_keeps_malformed_pab_nonfatal()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let tree = TempTree::new("pab-family")?;
+        let mesh_path = tree.0.join("cd_phw_00_nude_02_0001_damian.pac");
+        let skeleton_path = tree.0.join("cd_phw_00.pab");
+        fs::write(&mesh_path, cdmw_formats::synthetic::two_lod_pac())?;
+        fs::write(&skeleton_path, cdmw_formats::synthetic::two_bone_pab())?;
+
+        let loaded = load_mesh(mesh_path.clone(), &CancellationToken::default())?;
+        let skeleton = loaded.skeleton.ok_or("missing resolved skeleton")?;
+        assert!(paths_equal(Path::new(&skeleton.label), &skeleton_path));
+        assert_eq!(
+            skeleton.resolution_method,
+            ResolutionMethod::ProvenFamilyRule
+        );
+        assert_eq!(skeleton.document.bones.len(), 2);
+        assert_eq!(skeleton.document.line_vertices().len(), 2);
+
+        fs::write(&skeleton_path, b"PAR ")?;
+        let malformed = load_mesh(mesh_path, &CancellationToken::default())?;
+        assert!(malformed.skeleton.is_none());
+        assert!(malformed.document.warnings.iter().any(|warning| {
+            warning.contains("PAB companion") && warning.contains("not loaded")
+        }));
+        Ok(())
+    }
+
+    #[test]
+    fn direct_pab_resolution_prefers_exact_and_rejects_ambiguous_family_candidates()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let tree = TempTree::new("pab-resolution")?;
+        let mesh_path = tree.0.join("cd_phw_00_nude_02_0001_damian.pac");
+        let first_family = tree.0.join("cd_phw_00.pab");
+        let second_family = tree.0.join("phw_00.pab");
+        fs::write(&first_family, b"family-a")?;
+        fs::write(&second_family, b"family-b")?;
+        assert!(matches!(
+            resolve_direct_skeleton_path(&mesh_path),
+            SkeletonResolution::Ambiguous(2)
+        ));
+
+        let exact = mesh_path.with_extension("pab");
+        fs::write(&exact, b"exact")?;
+        match resolve_direct_skeleton_path(&mesh_path) {
+            SkeletonResolution::Resolved(path, method) => {
+                assert!(paths_equal(&path, &exact));
+                assert_eq!(method, ResolutionMethod::SamePackageRelative);
+            }
+            other => return Err(format!("unexpected exact PAB resolution: {other:?}").into()),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn archive_pab_resolution_uses_exact_paths_and_fails_closed_on_family_ambiguity() {
+        let source = "character/model/cd_phw_00_nude_02_0001_damian.pac";
+        let exact_catalog = catalog_with_paths(&[
+            "character/model/cd_phw_00_nude_02_0001_damian.pab",
+            "other/cd_phw_00.pab",
+        ]);
+        match resolve_archive_skeleton_path(&exact_catalog, source) {
+            SkeletonResolution::Resolved(path, method) => {
+                assert_eq!(path, "character/model/cd_phw_00_nude_02_0001_damian.pab");
+                assert_eq!(method, ResolutionMethod::ExplicitVirtualPath);
+            }
+            other => panic!("unexpected exact archive PAB resolution: {other:?}"),
+        }
+
+        let ambiguous_catalog =
+            catalog_with_paths(&["character/a/cd_phw_00.pab", "character/b/phw_00.pab"]);
+        assert!(matches!(
+            resolve_archive_skeleton_path(&ambiguous_catalog, source),
+            SkeletonResolution::Ambiguous(2)
+        ));
     }
 
     #[test]

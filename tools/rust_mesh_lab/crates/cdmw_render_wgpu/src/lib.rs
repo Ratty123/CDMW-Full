@@ -311,6 +311,11 @@ fn fs_normal(_input: VertexOut) -> @location(0) vec4<f32> {
 fn fs_bounds(_input: VertexOut) -> @location(0) vec4<f32> {
     return vec4<f32>(1.0, 0.70, 0.15, 1.0);
 }
+
+@fragment
+fn fs_bone(_input: VertexOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(0.35, 0.82, 1.0, 1.0);
+}
 "#;
 
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -505,6 +510,7 @@ pub struct HeadlessRenderReport {
     pub layer_mask_channel_pixels_changed: usize,
     pub part_id_colors_rendered: usize,
     pub outdoor_lighting_pixels_changed: usize,
+    pub bone_overlay_pixels_changed: usize,
     pub opacity_cutout_pixels_removed: usize,
     pub opaque_opacity_pixels_changed: usize,
     pub non_background_pixels: usize,
@@ -526,6 +532,8 @@ pub enum RenderError {
     ResourceLimit,
     #[error("draw snapshot material ownership is invalid: {0}")]
     InvalidSnapshot(String),
+    #[error("overlay line geometry is invalid: {0}")]
+    InvalidOverlay(String),
     #[error("DDS texture upload failed: {0}")]
     Texture(String),
 }
@@ -545,6 +553,44 @@ pub struct GpuMeshBuffers {
     mesh_identity: u64,
     pub draw_revision: u64,
     pub topology_generation: u64,
+}
+
+struct GpuOverlayLines {
+    vertices: wgpu::Buffer,
+    vertex_count: u32,
+}
+
+impl GpuOverlayLines {
+    fn upload(device: &wgpu::Device, positions: &[[f32; 3]]) -> Result<Option<Self>, RenderError> {
+        if positions.is_empty() {
+            return Ok(None);
+        }
+        if !positions.len().is_multiple_of(2) {
+            return Err(RenderError::InvalidOverlay(
+                "line-list vertex count must be even".to_owned(),
+            ));
+        }
+        if positions.iter().flatten().any(|value| !value.is_finite()) {
+            return Err(RenderError::InvalidOverlay(
+                "line-list positions must be finite".to_owned(),
+            ));
+        }
+        let vertices = positions
+            .iter()
+            .copied()
+            .map(Vec3::from_array)
+            .map(GpuVertex::overlay)
+            .collect::<Vec<_>>();
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CDMW Rust Mesh Lab skeleton lines"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        Ok(Some(Self {
+            vertices: buffer,
+            vertex_count: u32::try_from(vertices.len()).map_err(|_| RenderError::ResourceLimit)?,
+        }))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -701,7 +747,9 @@ pub struct WindowRenderer {
     xray_pipeline: wgpu::RenderPipeline,
     normal_pipeline: wgpu::RenderPipeline,
     bounds_pipeline: wgpu::RenderPipeline,
+    bone_pipeline: wgpu::RenderPipeline,
     mesh: Option<GpuMeshBuffers>,
+    skeleton_lines: Option<GpuOverlayLines>,
     egui_renderer: egui_wgpu::Renderer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     default_material_binding: GpuMaterialBinding,
@@ -718,6 +766,7 @@ pub struct WindowRenderer {
     view_mode: ViewMode,
     show_normals: bool,
     show_bounds: bool,
+    show_bones: bool,
 }
 
 impl WindowRenderer {
@@ -843,7 +892,9 @@ impl WindowRenderer {
             xray_pipeline: pipelines.xray,
             normal_pipeline: pipelines.normal,
             bounds_pipeline: pipelines.bounds,
+            bone_pipeline: pipelines.bone,
             mesh: None,
+            skeleton_lines: None,
             egui_renderer,
             texture_bind_group_layout,
             default_material_binding,
@@ -860,6 +911,7 @@ impl WindowRenderer {
             view_mode: ViewMode::TexturedSolid,
             show_normals: false,
             show_bounds: false,
+            show_bones: false,
         })
     }
 
@@ -905,6 +957,18 @@ impl WindowRenderer {
     pub fn set_overlays(&mut self, show_normals: bool, show_bounds: bool) {
         self.show_normals = show_normals;
         self.show_bounds = show_bounds;
+    }
+
+    pub fn set_skeleton_lines(&mut self, positions: &[[f32; 3]]) -> Result<(), RenderError> {
+        self.skeleton_lines = GpuOverlayLines::upload(&self.device, positions)?;
+        if self.skeleton_lines.is_none() {
+            self.show_bones = false;
+        }
+        Ok(())
+    }
+
+    pub fn set_bone_overlay(&mut self, show_bones: bool) {
+        self.show_bones = show_bones && self.skeleton_lines.is_some();
     }
 
     pub fn add_dds_texture(
@@ -1198,9 +1262,12 @@ impl WindowRenderer {
                     &self.xray_pipeline,
                     &self.normal_pipeline,
                     &self.bounds_pipeline,
+                    &self.bone_pipeline,
+                    self.skeleton_lines.as_ref(),
                     self.view_mode,
                     self.show_normals,
                     self.show_bounds,
+                    self.show_bones,
                 );
             }
         }
@@ -1722,6 +1789,24 @@ pub async fn run_headless_render_smoke(
                 .to_owned(),
         ));
     }
+    let (overlay_minimum, overlay_maximum) =
+        mesh_bounds(&render_snapshot.positions).ok_or_else(|| {
+            RenderError::InvalidSnapshot(
+                "headless bone overlay proof requires mesh bounds".to_owned(),
+            )
+        })?;
+    let overlay_center = (overlay_minimum + overlay_maximum) * 0.5;
+    let overlay_depth = overlay_maximum.z;
+    let skeleton_lines = GpuOverlayLines::upload(
+        &device,
+        &[
+            [overlay_center.x, overlay_minimum.y, overlay_depth],
+            [overlay_center.x, overlay_maximum.y, overlay_depth],
+            [overlay_minimum.x, overlay_center.y, overlay_depth],
+            [overlay_maximum.x, overlay_center.y, overlay_depth],
+        ],
+    )?
+    .ok_or_else(|| RenderError::InvalidOverlay("headless skeleton lines are empty".to_owned()))?;
     let modes = [
         ViewMode::TexturedSolid,
         ViewMode::GameOutdoor,
@@ -1764,6 +1849,8 @@ pub async fn run_headless_render_smoke(
                 &pipelines,
                 mode,
                 true,
+                None,
+                false,
             );
             queue.submit([encoder.finish()]);
             frames_rendered = frames_rendered.saturating_add(1);
@@ -1900,12 +1987,42 @@ pub async fn run_headless_render_smoke(
         &camera_buffer,
         ViewMode::PartId,
     );
+    let bone_overlay_base_readback = render_headless_readback(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &default_material_binding.bind_group,
+        &BTreeMap::new(),
+        &camera_bind_group,
+        &pipelines,
+        &render_snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+        ViewMode::Solid,
+    );
+    let bone_overlay_readback = render_headless_readback_with_skeleton(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &default_material_binding.bind_group,
+        &BTreeMap::new(),
+        &camera_bind_group,
+        &pipelines,
+        &render_snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+        ViewMode::Solid,
+        Some(&skeleton_lines),
+        true,
+    );
     frames_rendered = frames_rendered
         .saturating_add(u32::try_from(readbacks.len()).map_err(|_| RenderError::ResourceLimit)?)
         .saturating_add(
             u32::try_from(layer_mask_readbacks.len()).map_err(|_| RenderError::ResourceLimit)?,
         )
-        .saturating_add(2);
+        .saturating_add(4);
     device
         .poll(wgpu::PollType::wait_indefinitely())
         .map_err(|error| RenderError::Device(format!("headless GPU wait failed: {error}")))?;
@@ -1936,6 +2053,25 @@ pub async fn run_headless_render_smoke(
         outdoor_readback.1,
         outdoor_readback.2,
     )?;
+    let bone_overlay_base_pixels = read_headless_pixels(
+        &device,
+        &bone_overlay_base_readback.0,
+        bone_overlay_base_readback.1,
+        bone_overlay_base_readback.2,
+    )?;
+    let bone_overlay_pixels = read_headless_pixels(
+        &device,
+        &bone_overlay_readback.0,
+        bone_overlay_readback.1,
+        bone_overlay_readback.2,
+    )?;
+    let bone_overlay_pixels_changed =
+        changed_pixel_count(&bone_overlay_base_pixels, &bone_overlay_pixels)?;
+    if bone_overlay_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless Bones overlay did not change any rendered pixel".to_owned(),
+        ));
+    }
     let probe_index = |label: &str| {
         probe_bindings
             .iter()
@@ -2192,6 +2328,7 @@ pub async fn run_headless_render_smoke(
         layer_mask_channel_pixels_changed,
         part_id_colors_rendered,
         outdoor_lighting_pixels_changed,
+        bone_overlay_pixels_changed,
         opacity_cutout_pixels_removed,
         opaque_opacity_pixels_changed,
         non_background_pixels,
@@ -2260,6 +2397,8 @@ fn record_headless_pass(
     pipelines: &Pipelines,
     mode: ViewMode,
     show_overlays: bool,
+    skeleton_lines: Option<&GpuOverlayLines>,
+    show_bones: bool,
 ) {
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("CDMW Rust Mesh Lab headless viewport"),
@@ -2301,9 +2440,12 @@ fn record_headless_pass(
         &pipelines.xray,
         &pipelines.normal,
         &pipelines.bounds,
+        &pipelines.bone,
+        skeleton_lines,
         mode,
         show_overlays,
         show_overlays,
+        show_bones,
     );
 }
 
@@ -2321,6 +2463,41 @@ fn render_headless_readback(
     camera_uniform: &mut CameraUniform,
     camera_buffer: &wgpu::Buffer,
     view_mode: ViewMode,
+) -> (wgpu::Buffer, u32, u32) {
+    render_headless_readback_with_skeleton(
+        device,
+        queue,
+        format,
+        mesh,
+        default_material_bind_group,
+        active_material_bindings,
+        camera_bind_group,
+        pipelines,
+        snapshot,
+        camera_uniform,
+        camera_buffer,
+        view_mode,
+        None,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_headless_readback_with_skeleton(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    format: wgpu::TextureFormat,
+    mesh: &GpuMeshBuffers,
+    default_material_bind_group: &wgpu::BindGroup,
+    active_material_bindings: &BTreeMap<u32, GpuMaterialBinding>,
+    camera_bind_group: &wgpu::BindGroup,
+    pipelines: &Pipelines,
+    snapshot: &DrawSnapshot,
+    camera_uniform: &mut CameraUniform,
+    camera_buffer: &wgpu::Buffer,
+    view_mode: ViewMode,
+    skeleton_lines: Option<&GpuOverlayLines>,
+    show_bones: bool,
 ) -> (wgpu::Buffer, u32, u32) {
     let width = 640_u32;
     let height = 480_u32;
@@ -2352,6 +2529,8 @@ fn render_headless_readback(
         pipelines,
         view_mode,
         false,
+        skeleton_lines,
+        show_bones,
     );
     encoder.copy_texture_to_buffer(
         wgpu::TexelCopyTextureInfo {
@@ -2440,6 +2619,7 @@ struct Pipelines {
     xray: wgpu::RenderPipeline,
     normal: wgpu::RenderPipeline,
     bounds: wgpu::RenderPipeline,
+    bone: wgpu::RenderPipeline,
 }
 
 fn create_pipelines(
@@ -2526,6 +2706,18 @@ fn create_pipelines(
             "bounds overlay",
             wgpu::PrimitiveTopology::LineList,
             "fs_bounds",
+            None,
+            false,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+        ),
+        bone: create_pipeline(
+            device,
+            format,
+            &layout,
+            &shader,
+            "bone overlay",
+            wgpu::PrimitiveTopology::LineList,
+            "fs_bone",
             None,
             false,
             Some(wgpu::BlendState::ALPHA_BLENDING),
@@ -2704,9 +2896,12 @@ fn draw_mesh<'a>(
     xray_pipeline: &'a wgpu::RenderPipeline,
     normal_pipeline: &'a wgpu::RenderPipeline,
     bounds_pipeline: &'a wgpu::RenderPipeline,
+    bone_pipeline: &'a wgpu::RenderPipeline,
+    skeleton_lines: Option<&'a GpuOverlayLines>,
     view_mode: ViewMode,
     show_normals: bool,
     show_bounds: bool,
+    show_bones: bool,
 ) {
     pass.set_bind_group(0, default_material_bind_group, &[]);
     pass.set_bind_group(1, camera_bind_group, &[]);
@@ -2758,6 +2953,9 @@ fn draw_mesh<'a>(
             mesh.bounds_line_vertex_count,
             bounds_pipeline,
         );
+    }
+    if show_bones && let Some(lines) = skeleton_lines {
+        draw_overlay_lines(pass, &lines.vertices, lines.vertex_count, bone_pipeline);
     }
 }
 
