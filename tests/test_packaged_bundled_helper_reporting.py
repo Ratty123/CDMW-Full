@@ -168,12 +168,16 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
             "model_path": "character/model/body.pac",
             "helper": {
                 "path": "C:/app/Cdmw.MeshEditorExperiment.exe",
-                "sha256": "abc123",
+                "sha256": "c" * 64,
                 "process_id": 777,
                 "capabilities": ["resident_interaction_abi_v1"],
                 "provenance": {
                     "protocol_version": 3,
-                    "manifest_mode": "release",
+                    "manifest_mode": "release_manifest",
+                    "manifest_id": "d" * 64,
+                    "source_revision": "e" * 40,
+                    "process_sha256": "c" * 64,
+                    "shader_sha256": "f" * 64,
                     "renderer_backend": "d3d11_vortice_shader",
                     "edit_backend": "cdmw_mesh_core_0.1",
                     "native_abi": {

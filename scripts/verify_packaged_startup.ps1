@@ -161,7 +161,11 @@ function Assert-PackagedMeshTextureEvidence {
     if (
         @($evidence.helper.capabilities) -notcontains "resident_interaction_abi_v1" -or
         [int64]$provenance.protocol_version -ne 3 -or
-        [string]$provenance.manifest_mode -ne "release" -or
+        [string]$provenance.manifest_mode -ne "release_manifest" -or
+        [string]$provenance.manifest_id -notmatch "^[0-9a-fA-F]{64}$" -or
+        [string]$provenance.source_revision -notmatch "^[0-9a-fA-F]{40}$" -or
+        [string]$provenance.process_sha256 -ne [string]$evidence.helper.sha256 -or
+        [string]$provenance.shader_sha256 -notmatch "^[0-9a-fA-F]{64}$" -or
         [string]$provenance.renderer_backend -ne "d3d11_vortice_shader" -or
         [string]$provenance.edit_backend -ne "cdmw_mesh_core_0.1" -or
         [int64]$nativeAbi.abi_version -ne 1 -or
