@@ -20,6 +20,7 @@ $TestsByArea = @{
         "tests/test_dotnet_selection_geometry_contract.py",
         "tests/test_dotnet_provisional_brush_parity.py",
         "tests/test_dotnet_mesh_edit_operator_contract.py",
+        "tests/test_dotnet_mesh_editor_control_contract.py",
         # Exact, Free Edit, and Read Only policy routing plus atomic non-exact
         # output. These fail at user-command time if session filtering drifts.
         "tests/test_mesh_output_policy.py",
@@ -165,6 +166,7 @@ $TestsByArea = @{
     )
     "mesh-unit" = @(
         "tests/test_mesh_dotnet_experiment.py",
+        "tests/test_mesh_dotnet_experiment_source_contract.py",
         "tests/test_native_dotnet_preview_adapter_layers.py",
         "tests/test_mesh_dotnet_experiment_output.py",
         "tests/test_material_category_contract.py",
@@ -199,11 +201,16 @@ $TestsByArea = @{
         "tests/test_mesh_edit_display_mode_slot.py",
         "tests/test_transform_button_captions_not_squeezed.py",
         "tests/test_dotnet_helper_manifest_contract.py",
+        "tests/test_native_mesh_interaction_abi.py",
+        "tests/test_dotnet_native_mesh_interaction_abi.py",
+        "tests/test_mesh_resident_interaction_transaction.py",
+        "tests/test_mesh_resident_interaction_protocol.py",
         "tests/test_dotnet_resident_mutation_batch_contract.py",
         "tests/test_dotnet_stroke_sample_buffer_contract.py",
         "tests/test_dotnet_selection_geometry_contract.py",
         "tests/test_dotnet_provisional_brush_parity.py",
         "tests/test_dotnet_mesh_edit_operator_contract.py",
+        "tests/test_dotnet_mesh_editor_control_contract.py",
         "tests/test_dotnet_ui_localization_protocol_source.py",
         "tests/test_dotnet_preview_shared_host.py",
         "tests/test_dotnet_preview_theme.py",
@@ -447,12 +454,32 @@ Write-Host "Running $Area checks with $Python"
 $DotNetProject = $null
 $DotNetHelper = $null
 if ($Area -in @("smoke", "mesh-unit")) {
+    if ($Area -eq "mesh-unit") {
+        $MeshCoreSource = Join-Path $RepoRoot "native\cdmw_mesh_core"
+        $MeshCoreBuild = Join-Path $MeshCoreSource "build"
+        Write-Host "Building the resident native Mesh Editor ABI used by the production helper"
+        & cmake -S $MeshCoreSource -B $MeshCoreBuild -G "Visual Studio 17 2022" -A x64
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        & cmake --build $MeshCoreBuild --config Release --target cdmw-mesh-core-abi
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+    }
     $DotNetProject = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
     $DotNetHelper = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.exe"
     Write-Host "Building the resident .NET Mesh Editor for fast executable protocol checks"
     & dotnet build $DotNetProject -c Release --nologo --verbosity:minimal
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
+    }
+    if ($Area -eq "mesh-unit") {
+        $MeshCoreAbi = Join-Path $MeshCoreBuild "Release\cdmw-mesh-core.dll"
+        if (-not (Test-Path -LiteralPath $MeshCoreAbi -PathType Leaf)) {
+            throw "The resident native Mesh Editor ABI build did not produce '$MeshCoreAbi'."
+        }
+        Copy-Item -LiteralPath $MeshCoreAbi -Destination (Split-Path -Parent $DotNetHelper) -Force
     }
 }
 # The wall-clock responsiveness tests are excluded by default, because a shared
