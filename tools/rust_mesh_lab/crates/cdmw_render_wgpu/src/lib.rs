@@ -46,6 +46,7 @@ struct MaterialUniform {
 @group(0) @binding(6) var emissive_texture: texture_2d<f32>;
 @group(0) @binding(7) var material_sampler: sampler;
 @group(0) @binding(8) var<uniform> material: MaterialUniform;
+@group(0) @binding(9) var specular_texture: texture_2d<f32>;
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
 
 const MATERIAL_BASE_COLOR: u32 = 1u;
@@ -58,6 +59,7 @@ const MATERIAL_EMISSIVE: u32 = 64u;
 const MATERIAL_ROUGHNESS_FACTOR: u32 = 128u;
 const MATERIAL_METALNESS_FACTOR: u32 = 256u;
 const MATERIAL_SPECULAR_FACTOR: u32 = 512u;
+const MATERIAL_SPECULAR: u32 = 1024u;
 
 @vertex
 fn vs_main(
@@ -133,6 +135,10 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
     let diffuse = texel.rgb * (0.18 * occlusion + 0.82 * ndotl) * (1.0 - metalness);
     let metal_body = texel.rgb * metalness * (0.10 * occlusion + 0.28 * ndotl);
     var f0 = mix(vec3<f32>(0.04), texel.rgb, vec3<f32>(metalness));
+    if (material.flags & MATERIAL_SPECULAR) != 0u {
+        let mapped_specular = textureSample(specular_texture, material_sampler, input.uv).rgb;
+        f0 = mix(f0, max(f0, mapped_specular), vec3<f32>(metalness));
+    }
     if (material.flags & MATERIAL_SPECULAR_FACTOR) != 0u
         && material.surface_factors.z > 0.02 {
         let factored_specular = mix(0.04, material.surface_factors.z, metalness);
@@ -231,6 +237,7 @@ const MATERIAL_EMISSIVE: u32 = 64;
 const MATERIAL_ROUGHNESS_FACTOR: u32 = 128;
 const MATERIAL_METALNESS_FACTOR: u32 = 256;
 const MATERIAL_SPECULAR_FACTOR: u32 = 512;
+const MATERIAL_SPECULAR: u32 = 1024;
 
 impl CameraUniform {
     fn new() -> Self {
@@ -309,6 +316,8 @@ pub struct HeadlessRenderReport {
     pub roughness_factor_pixels_changed: usize,
     pub metalness_factor_pixels_changed: usize,
     pub specular_factor_pixels_changed: usize,
+    pub specular_texture_pixels_changed: usize,
+    pub dielectric_specular_pixels_changed: usize,
     pub non_background_pixels: usize,
 }
 
@@ -375,6 +384,7 @@ struct DefaultMaterialTextures {
     metalness: wgpu::Texture,
     occlusion: wgpu::Texture,
     emissive: wgpu::Texture,
+    specular: wgpu::Texture,
 }
 
 struct GpuMaterialBinding {
@@ -391,6 +401,7 @@ struct MaterialTextureIndices {
     metalness: Option<usize>,
     occlusion: Option<usize>,
     emissive: Option<usize>,
+    specular: Option<usize>,
 }
 
 impl GpuMeshBuffers {
@@ -718,6 +729,7 @@ impl WindowRenderer {
                 | TextureRole::Metalness
                 | TextureRole::Occlusion
                 | TextureRole::Emissive
+                | TextureRole::Specular
         ) {
             return Err(RenderError::Texture(format!(
                 "the {role:?} role is classified but is not sampled by the current material approximation"
@@ -1108,6 +1120,11 @@ pub async fn run_headless_render_smoke(
             synthetic_dds([90, 30, 10, 255]),
         ),
         (
+            0_u32,
+            TextureRole::Specular,
+            synthetic_dds([250, 180, 60, 255]),
+        ),
+        (
             1_u32,
             TextureRole::BaseColor,
             synthetic_dds([70, 230, 90, 255]),
@@ -1166,6 +1183,11 @@ pub async fn run_headless_render_smoke(
                     } else {
                         None
                     },
+                    specular: if roles.contains(&TextureRole::Specular) {
+                        indices.specular
+                    } else {
+                        None
+                    },
                 };
                 (
                     *material,
@@ -1208,6 +1230,18 @@ pub async fn run_headless_render_smoke(
         &[TextureRole::BaseColor, TextureRole::Emissive],
         MaterialPreviewFactors::default(),
     );
+    let base_specular_material_bindings = bindings_for_roles(
+        &[
+            TextureRole::BaseColor,
+            TextureRole::Metalness,
+            TextureRole::Specular,
+        ],
+        MaterialPreviewFactors::default(),
+    );
+    let dielectric_specular_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Specular],
+        MaterialPreviewFactors::default(),
+    );
     let factored_emissive_material_bindings = bindings_for_roles(
         &[TextureRole::BaseColor, TextureRole::Emissive],
         MaterialPreviewFactors {
@@ -1247,6 +1281,7 @@ pub async fn run_headless_render_smoke(
             TextureRole::Metalness,
             TextureRole::Occlusion,
             TextureRole::Emissive,
+            TextureRole::Specular,
         ],
         MaterialPreviewFactors::default(),
     );
@@ -1373,6 +1408,8 @@ pub async fn run_headless_render_smoke(
         ("packed material", base_surface_material_bindings),
         ("roughness", base_roughness_material_bindings),
         ("metalness", base_metalness_material_bindings),
+        ("specular", base_specular_material_bindings),
+        ("dielectric specular", dielectric_specular_material_bindings),
         ("occlusion", base_occlusion_material_bindings),
         ("emissive", base_emissive_material_bindings),
         ("emissive factors", factored_emissive_material_bindings),
@@ -1436,12 +1473,22 @@ pub async fn run_headless_render_smoke(
             "headless GPU frame contained only the clear color".to_owned(),
         ));
     }
-    let mut role_changes = Vec::with_capacity(7);
-    for probe_index in 1..=7 {
-        let reference_index = usize::from(probe_index != 1);
+    let mut role_changes = Vec::with_capacity(8);
+    for (role, reference) in [
+        ("base color", "unresolved"),
+        ("normal", "base color"),
+        ("packed material", "base color"),
+        ("roughness", "base color"),
+        ("metalness", "base color"),
+        ("specular", "metalness"),
+        ("occlusion", "base color"),
+        ("emissive", "base color"),
+    ] {
+        let role_index = probe_index(role)?;
+        let reference_index = probe_index(reference)?;
         role_changes.push((
-            probe_bindings[probe_index].0,
-            changed_pixel_count(&probe_pixels[reference_index], &probe_pixels[probe_index])?,
+            role,
+            changed_pixel_count(&probe_pixels[reference_index], &probe_pixels[role_index])?,
         ));
     }
     for (role, changed) in &role_changes {
@@ -1494,6 +1541,24 @@ pub async fn run_headless_render_smoke(
             "headless specular factor did not change any rendered pixel".to_owned(),
         ));
     }
+    let specular_texture_pixels_changed = changed_pixel_count(
+        &probe_pixels[probe_index("metalness")?],
+        &probe_pixels[probe_index("specular")?],
+    )?;
+    if specular_texture_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless specular texture did not change any rendered pixel".to_owned(),
+        ));
+    }
+    let dielectric_specular_pixels_changed = changed_pixel_count(
+        base_only_pixels,
+        &probe_pixels[probe_index("dielectric specular")?],
+    )?;
+    if dielectric_specular_pixels_changed != 0 {
+        return Err(RenderError::Device(
+            "headless specular texture changed a dielectric material".to_owned(),
+        ));
+    }
     Ok(HeadlessRenderReport {
         adapter: adapter_report(&adapter),
         frames_rendered,
@@ -1511,6 +1576,8 @@ pub async fn run_headless_render_smoke(
         roughness_factor_pixels_changed,
         metalness_factor_pixels_changed,
         specular_factor_pixels_changed,
+        specular_texture_pixels_changed,
+        dielectric_specular_pixels_changed,
         non_background_pixels,
     })
 }
@@ -2162,6 +2229,7 @@ fn resolve_material_bindings<'a>(
                 TextureRole::Metalness => &mut slots.metalness,
                 TextureRole::Occlusion => &mut slots.occlusion,
                 TextureRole::Emissive => &mut slots.emissive,
+                TextureRole::Specular => &mut slots.specular,
                 _ => {
                     return Err(RenderError::Texture(format!(
                         "the {role:?} role is not sampled by the current material approximation"
@@ -2491,6 +2559,16 @@ fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLay
                 },
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 9,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
         ],
     })
 }
@@ -2605,6 +2683,13 @@ fn create_default_material_textures(
             wgpu::TextureFormat::Rgba8UnormSrgb,
             [0, 0, 0, 255],
         ),
+        specular: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default specular",
+            wgpu::TextureFormat::Rgba8Unorm,
+            [0, 0, 0, 255],
+        ),
     }
 }
 
@@ -2645,6 +2730,10 @@ fn create_material_bind_group(
         .emissive
         .and_then(|index| textures.get(index))
         .map_or(&defaults.emissive, |texture| &texture._texture);
+    let specular_texture = indices
+        .specular
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.specular, |texture| &texture._texture);
     let base_view = base_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let normal_view = normal_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let surface_view = surface_texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -2652,6 +2741,7 @@ fn create_material_bind_group(
     let metalness_view = metalness_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let occlusion_view = occlusion_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let emissive_view = emissive_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let specular_view = specular_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let mut flags = 0;
     if indices.base_color.is_some() {
         flags |= MATERIAL_BASE_COLOR;
@@ -2673,6 +2763,9 @@ fn create_material_bind_group(
     }
     if indices.emissive.is_some() {
         flags |= MATERIAL_EMISSIVE;
+    }
+    if indices.specular.is_some() {
+        flags |= MATERIAL_SPECULAR;
     }
     if factors.roughness.is_some() {
         flags |= MATERIAL_ROUGHNESS_FACTOR;
@@ -2746,6 +2839,10 @@ fn create_material_bind_group(
             wgpu::BindGroupEntry {
                 binding: 8,
                 resource: uniform_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 9,
+                resource: wgpu::BindingResource::TextureView(&specular_view),
             },
         ],
     });
@@ -3011,6 +3108,7 @@ mod tests {
             (TextureRole::Metalness, vec![vec![0_u32]]),
             (TextureRole::Occlusion, vec![vec![0_u32]]),
             (TextureRole::Emissive, vec![vec![0_u32]]),
+            (TextureRole::Specular, vec![vec![0_u32]]),
             (TextureRole::BaseColor, vec![vec![1_u32]]),
         ];
         let bindings = resolve_material_bindings(
@@ -3033,12 +3131,13 @@ mod tests {
                         metalness: Some(4),
                         occlusion: Some(5),
                         emissive: Some(6),
+                        specular: Some(7),
                     }
                 ),
                 (
                     1,
                     MaterialTextureIndices {
-                        base_color: Some(7),
+                        base_color: Some(8),
                         ..MaterialTextureIndices::default()
                     }
                 ),
@@ -3052,6 +3151,19 @@ mod tests {
         assert!(
             resolve_material_bindings(
                 conflicting
+                    .iter()
+                    .map(|(role, ownership)| (*role, ownership.as_slice())),
+                0
+            )
+            .is_err()
+        );
+        let conflicting_specular = [
+            (TextureRole::Specular, vec![vec![0_u32]]),
+            (TextureRole::Specular, vec![vec![0_u32]]),
+        ];
+        assert!(
+            resolve_material_bindings(
+                conflicting_specular
                     .iter()
                     .map(|(role, ownership)| (*role, ownership.as_slice())),
                 0

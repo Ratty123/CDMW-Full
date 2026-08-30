@@ -1363,6 +1363,7 @@ const fn is_preview_sampled_role(role: TextureRole) -> bool {
             | TextureRole::Metalness
             | TextureRole::Occlusion
             | TextureRole::Emissive
+            | TextureRole::Specular
     )
 }
 
@@ -1973,6 +1974,7 @@ mod tests {
             "body_metal.dds",
             "body_ao.dds",
             "body_emi.dds",
+            "body_spec.dds",
         ] {
             fs::write(
                 texture_directory.join(name),
@@ -1985,7 +1987,7 @@ mod tests {
         )?;
 
         let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
-        assert_eq!(resolved.textures.len(), 7);
+        assert_eq!(resolved.textures.len(), 8);
         assert_eq!(resolved.material_parameters.len(), 2);
         assert_eq!(resolved.material_factors.len(), 1);
         assert_eq!(
@@ -2029,10 +2031,10 @@ mod tests {
             roles.get(&TextureRole::Emissive),
             Some(&cdmw_texture::ColorSpace::Srgb)
         );
-        assert!(resolved.warnings.iter().any(|warning| {
-            warning.contains("Specular parameter _specularTexture")
-                && warning.contains("body_spec.dds remains unbound")
-        }));
+        assert_eq!(
+            roles.get(&TextureRole::Specular),
+            Some(&cdmw_texture::ColorSpace::Linear)
+        );
         assert!(resolved.warnings.iter().any(|warning| {
             warning.contains("Glossiness parameter _glossinessTexture")
                 && warning.contains("body_gloss.dds remains unbound")
