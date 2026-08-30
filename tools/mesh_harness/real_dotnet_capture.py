@@ -9,6 +9,7 @@ from tools.mesh_harness.win32_input import (
     _host_window_rect,
     _restore_window_z_order,
     _show_window_without_activation,
+    _top_level_window_hwnd,
     _window_at_screen_point,
     _window_is_same_or_child,
     _window_process_id,
@@ -27,10 +28,24 @@ def capture_dotnet_viewport(state: SimpleNamespace, path: Path) -> dict[str, obj
     if width < 32 or height < 32:
         return {"ok": False, "error": "Invalid .NET viewport capture geometry."}
     expected_pid = int(state.production_process_pid)
-    harness_root_hwnd = int(state.tab.winId())
-    shown_without_activation = _show_window_without_activation(
-        int(state.viewport_hwnd),
-        topmost=True,
+    harness_widget_hwnd = int(state.tab.winId())
+    harness_root_hwnd = _top_level_window_hwnd(harness_widget_hwnd)
+    if not harness_root_hwnd:
+        return {
+            "ok": False,
+            "error": "The harness tab is not attached to a valid top-level window.",
+            "foreground_activated": False,
+            "harness_widget_hwnd": harness_widget_hwnd,
+            "harness_root_hwnd": 0,
+        }
+    viewport_shown_without_activation = _show_window_without_activation(
+        int(state.viewport_hwnd), topmost=False
+    )
+    host_shown_without_activation = _show_window_without_activation(
+        harness_root_hwnd, topmost=True
+    )
+    shown_without_activation = bool(
+        viewport_shown_without_activation and host_shown_without_activation
     )
     visible_hwnd = 0
     visible_pid = 0
@@ -51,9 +66,14 @@ def capture_dotnet_viewport(state: SimpleNamespace, path: Path) -> dict[str, obj
             )
             if ownership_ok:
                 break
-            shown_without_activation = _show_window_without_activation(
-                int(state.viewport_hwnd),
-                topmost=True,
+            viewport_shown_without_activation = _show_window_without_activation(
+                int(state.viewport_hwnd), topmost=False
+            )
+            host_shown_without_activation = _show_window_without_activation(
+                harness_root_hwnd, topmost=True
+            )
+            shown_without_activation = bool(
+                viewport_shown_without_activation and host_shown_without_activation
             )
             time.sleep(min(0.4, 0.08 * (attempt + 1)))
         if not ownership_ok:
@@ -76,9 +96,13 @@ def capture_dotnet_viewport(state: SimpleNamespace, path: Path) -> dict[str, obj
                 ),
                 "foreground_activated": False,
                 "window_shown_without_activation": bool(shown_without_activation),
+                "host_shown_without_activation": bool(host_shown_without_activation),
+                "viewport_shown_without_activation": bool(viewport_shown_without_activation),
                 "visible_hwnd": visible_hwnd,
                 "visible_pid": visible_pid,
                 "expected_pid": expected_pid,
+                "harness_widget_hwnd": harness_widget_hwnd,
+                "harness_root_hwnd": harness_root_hwnd,
             }
         # A newly revealed D3D11 surface may need more than one presentation.
         summary: dict[str, object] = {}
@@ -105,13 +129,17 @@ def capture_dotnet_viewport(state: SimpleNamespace, path: Path) -> dict[str, obj
             "screen_rect": list(rect),
             "foreground_activated": False,
             "window_shown_without_activation": bool(shown_without_activation),
+            "host_shown_without_activation": bool(host_shown_without_activation),
+            "viewport_shown_without_activation": bool(viewport_shown_without_activation),
             "capture_attempts": attempts,
             "visible_hwnd": visible_hwnd,
             "visible_pid": visible_pid,
             "expected_pid": expected_pid,
+            "harness_widget_hwnd": harness_widget_hwnd,
+            "harness_root_hwnd": harness_root_hwnd,
         }
     finally:
-        _restore_window_z_order(int(state.viewport_hwnd))
+        _restore_window_z_order(harness_root_hwnd)
 
 
 def exercise_deterministic_offscreen_capture(

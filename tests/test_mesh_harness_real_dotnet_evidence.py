@@ -15,6 +15,38 @@ from tools.mesh_harness.real_dotnet_display import (
 )
 
 
+def _resident_projection_status() -> dict[str, object]:
+    return {
+        "native_interaction": {
+            "selection_projection": {
+                "world_view_projection": [1.0] * 16,
+                "viewport_width": 100,
+                "viewport_height": 100,
+                "source_submesh_indices": [0, 1],
+                "source_submesh_world_view_projections": [],
+                "pane_bounds_diagnostics": {},
+            }
+        }
+    }
+
+
+def _resident_projection_protocol_waiter(tool_state_events, standalone_events):
+    def wait_protocol_event(_state, event, _cursor, _timeout):
+        if event == "tool_state_applied":
+            return next(tool_state_events)
+        assert event == "resident_interaction_transaction"
+        transaction = {"event": event, "request_id": 9}
+        standalone_events.extend(
+            (
+                transaction,
+                {"event": "resident_mutation_batch_ack", "request_id": 9, "status": "applied"},
+            )
+        )
+        return transaction
+
+    return wait_protocol_event
+
+
 def test_dotnet_real_game_evidence_keeps_drag_and_heartbeat_samples() -> None:
     proof = {
         "ok": True,
@@ -30,8 +62,9 @@ def test_dotnet_real_game_evidence_keeps_drag_and_heartbeat_samples() -> None:
         "changed_vertex_count": 1,
         "stroke_terminal_coverage": {
             "ok": True,
-            "expected_end": [12, 20],
-            "reported_end": [12, 20],
+            "injected_client_end": [12, 20],
+            "terminal_transaction_count": 1,
+            "correlated_acknowledgement_count": 1,
         },
         "part_selection": {
             "initially_empty": True,
@@ -126,19 +159,27 @@ def test_real_dotnet_projection_probe_waits_for_v3_renderer_authority() -> None:
         encoding="utf-8"
     )
 
-    probe = source.split("def _prepare_selection_projection(", 1)[1].split(
+    probe = source.split("def _drive_projection_probe(", 1)[1].split(
+        "def _prepare_selection_projection", 1
+    )[0]
+    projection = source.split("def _prepare_selection_projection(", 1)[1].split(
         "def _arm_move_and_read_applied_selection", 1
     )[0]
-    assert "probe_expected_revision" in probe
-    assert "probe_request_id" in probe
+    assert "expected_revision" in probe
+    assert "request_id" in probe
+    assert '"resident_interaction_transaction"' in probe
     assert '== "resident_mutation_batch_ack"' in probe
     assert '{"applied", "already_applied"}' in probe
     assert 'get("active_revision", 0)' in probe
     assert 'get("pending_depth", 0)' in probe
     assert 'get("rejected_updates", 0)' in probe
-    assert probe.index("probe_queue_settled") < probe.index(
+    assert probe.index("queue_settled") < probe.index(
         "state.projection_probe_authority_settled"
     )
+    assert "request_full_renderer_status" in projection
+    assert "_selection_projection_from_renderer_status" in projection
+    assert '"select_request"' not in probe
+    assert '"select_request"' not in projection
     selection = source.split("def _drive_projected_vertex_selection(", 1)[1].split(
         "def _capture_selected_projection_state", 1
     )[0]
@@ -147,6 +188,36 @@ def test_real_dotnet_projection_probe_waits_for_v3_renderer_authority() -> None:
     assert "clear_update," in selection
     assert "result=state.select_result" in selection
     assert "_send_dotnet_session_state()" not in selection
+
+
+def test_renderer_status_projection_prefers_the_seed_submesh_override() -> None:
+    from tools.mesh_harness.real_dotnet_report import (
+        _selection_projection_from_renderer_status,
+    )
+
+    snapshot = {
+        "viewport_width": 320,
+        "viewport_height": 180,
+        "world_view_projection": [1.0] * 16,
+        "source_submesh_indices": [1, 3],
+        "source_submesh_world_view_projections": [
+            {"source_submesh_index": 1, "world_view_projection": [2.0] * 16},
+            {"source_submesh_index": 3, "world_view_projection": [3.0] * 16},
+        ],
+        "pane_bounds_diagnostics": {"active": "edit"},
+    }
+    renderer = {"native_interaction": {"selection_projection": snapshot}}
+
+    projection = _selection_projection_from_renderer_status(
+        renderer,
+        source_submesh_index=3,
+    )
+
+    assert projection is not None
+    captured, matrix, width, height = projection
+    assert captured == snapshot
+    assert matrix == (3.0,) * 16
+    assert (width, height) == (320.0, 180.0)
 
 
 def test_real_skin_surface_gate_rejects_wet_highlights(tmp_path: Path) -> None:
@@ -184,8 +255,9 @@ def test_real_dotnet_capture_rejects_an_unowned_visible_window(tmp_path: Path) -
     output = tmp_path / "capture.png"
     with (
         patch("tools.mesh_harness.real_dotnet_capture._host_window_rect", return_value=(0, 0, 128, 128)),
+        patch("tools.mesh_harness.real_dotnet_capture._top_level_window_hwnd", return_value=77),
         patch("tools.mesh_harness.real_dotnet_capture._show_window_without_activation", return_value=False),
-        patch("tools.mesh_harness.real_dotnet_capture._restore_window_z_order"),
+        patch("tools.mesh_harness.real_dotnet_capture._restore_window_z_order") as restore,
         patch("tools.mesh_harness.real_dotnet_capture._window_at_screen_point", return_value=99),
         patch("tools.mesh_harness.real_dotnet_capture._window_process_id", return_value=100),
     ):
@@ -194,7 +266,43 @@ def test_real_dotnet_capture_rejects_an_unowned_visible_window(tmp_path: Path) -
     assert result["ok"] is False
     assert "visible owned capture target" in str(result["error"])
     assert result["foreground_activated"] is False
+    assert result["host_shown_without_activation"] is False
+    assert result["viewport_shown_without_activation"] is False
+    assert result["harness_widget_hwnd"] == 12
+    assert result["harness_root_hwnd"] == 77
+    restore.assert_called_once_with(77)
     assert not output.exists()
+
+
+def test_top_level_window_hwnd_uses_ga_root_without_activation() -> None:
+    from tools.mesh_harness import win32_input
+
+    user32 = SimpleNamespace(
+        IsWindow=lambda _hwnd: 1,
+        GetAncestor=lambda _hwnd, mode: 91 if mode == 2 else 0,
+    )
+    with (
+        patch.object(win32_input.os, "name", "nt"),
+        patch.object(win32_input.ctypes, "windll", SimpleNamespace(user32=user32)),
+    ):
+        assert win32_input._top_level_window_hwnd(12) == 91
+
+
+def test_show_without_activation_rejects_a_failed_top_level_z_order_change() -> None:
+    from tools.mesh_harness import win32_input
+
+    user32 = SimpleNamespace(
+        GetWindowLongW=lambda _hwnd, _index: 0,
+        ShowWindow=lambda _hwnd, _mode: 1,
+        SetWindowPos=lambda *_args: 0,
+        IsWindow=lambda _hwnd: 1,
+    )
+    with (
+        patch.object(win32_input.os, "name", "nt"),
+        patch.object(win32_input.ctypes, "windll", SimpleNamespace(user32=user32)),
+        patch.object(win32_input, "_host_window_rect", return_value=(0, 0, 128, 128)),
+    ):
+        assert win32_input._show_window_without_activation(12, topmost=True) is False
 
 
 def test_real_dotnet_stroke_never_sends_scoped_input_without_visible_process_ownership(tmp_path: Path) -> None:
@@ -238,12 +346,14 @@ def test_real_dotnet_stroke_never_sends_scoped_input_without_visible_process_own
     send_message.assert_not_called()
 
 
-def test_real_dotnet_stroke_accepts_bounded_updates_and_requires_terminal_coverage(
+def _drive_resident_stroke_case(
     tmp_path: Path,
-) -> None:
+    terminal_events: list[dict[str, object]],
+) -> tuple[SimpleNamespace, object, list[tuple[int, int, int, int]]]:
     from tools.mesh_harness.real_dotnet_input import drive_viewport_stroke
 
     events: list[dict[str, object]] = []
+    sent: list[tuple[int, int, int, int]] = []
     state = SimpleNamespace(
         viewport={"width": 100, "height": 100, "screen_x": 0, "screen_y": 0},
         projected_center=(20.0, 20.0),
@@ -254,23 +364,18 @@ def test_real_dotnet_stroke_accepts_bounded_updates_and_requires_terminal_covera
         heartbeat_started=time.perf_counter(),
         tab=SimpleNamespace(
             standalone_dotnet_protocol_events=events,
-            standalone_live_stroke_dispatcher=SimpleNamespace(
-                metrics=lambda: {"queue_depth": 0, "control_depth": 0, "active": 0}
-            ),
+            _standalone_action_worker_active=lambda: False,
             standalone_dotnet_update_queue=SimpleNamespace(
-                metrics=lambda: {"active_revision": 0}
+                metrics=lambda: {"active_revision": 0, "pending_depth": 0}
             ),
         ),
         after_capture_path=tmp_path / "after.png",
     )
-    move_calls = 0
 
-    def send_message(_hwnd: int, message: int, _x: int, _y: int, *, wparam: int = 0) -> bool:
-        nonlocal move_calls
-        if message == 0x0200:
-            move_calls += 1
-        if move_calls in {10, 25} and message == 0x0200:
-            events.append({"event": "stroke_update", "request_id": move_calls})
+    def send_message(hwnd: int, message: int, x: int, y: int, *, wparam: int = 0) -> bool:
+        sent.append((hwnd, message, x, y))
+        if message == 0x0202:
+            events.extend(dict(event) for event in terminal_events)
         return True
 
     def wait_event(
@@ -279,14 +384,11 @@ def test_real_dotnet_stroke_accepts_bounded_updates_and_requires_terminal_covera
         _cursor: int,
         _timeout: float,
     ) -> dict[str, object]:
-        if event == "stroke_begin":
-            return {"event": event}
-        if event == "stroke_end":
-            return {
-                "event": event,
-                "screen_drag": {"end_x": 60, "end_y": 20},
-            }
-        return {}
+        assert event == "resident_interaction_transaction"
+        return next(
+            (dict(item) for item in events[_cursor:] if item.get("event") == event),
+            {},
+        )
 
     with (
         patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(0, 0, 100, 100)),
@@ -303,22 +405,81 @@ def test_real_dotnet_stroke_accepts_bounded_updates_and_requires_terminal_covera
             wait_protocol_event=wait_event,
             capture_viewport=lambda *_args: {"ok": True},
         )
+    return state, result, sent
+
+
+def test_real_dotnet_stroke_requires_one_authoritative_terminal_transaction(
+    tmp_path: Path,
+) -> None:
+    transaction = {
+        "event": "resident_interaction_transaction",
+        "request_id": 9,
+        "gesture_id": 44,
+        "mapping_name": "Local\\drag",
+    }
+    acknowledgement = {
+        "event": "resident_mutation_batch_ack",
+        "request_id": 9,
+        "status": "applied",
+    }
+
+    state, result, sent = _drive_resident_stroke_case(
+        tmp_path,
+        [transaction, acknowledgement],
+    )
 
     assert result is None
     assert len(state.mouse_drag_points) == 40
-    assert len(state.stroke_updates) == 2
+    assert {hwnd for hwnd, _message, _x, _y in sent} == {state.viewport_hwnd}
     assert state.stroke_terminal_coverage == {
         "requested_end": [60, 20],
-        "expected_end": [60, 20],
-        "reported_end": [60, 20],
+        "effective_end": [60, 20],
         "injected_client_end": [60, 20],
         "target_screen_end": [60, 20],
         "viewport_rect_at_release": [0, 0, 100, 100],
         "viewport_stationary_to_release": True,
-        "protocol_update_count": 2,
         "input_point_count": 40,
+        "terminal_transaction_count": 1,
+        "terminal_request_id": 9,
+        "terminal_gesture_id": 44,
+        "correlated_acknowledgement_count": 1,
+        "authority_acknowledgement": acknowledgement,
+        "action_settled": True,
+        "authority_settled": True,
         "ok": True,
     }
+
+
+def test_real_dotnet_stroke_rejects_missing_duplicate_and_uncorrelated_terminals(
+    tmp_path: Path,
+) -> None:
+    transaction = {"event": "resident_interaction_transaction", "request_id": 9}
+    cases = (
+        ([], "published no terminal resident interaction transaction"),
+        ([transaction, transaction], "published duplicate terminal resident interaction transactions"),
+        (
+            [
+                transaction,
+                {"event": "resident_mutation_batch_ack", "request_id": 10, "status": "applied"},
+            ],
+            "was not authoritatively correlated",
+        ),
+        (
+            [
+                transaction,
+                {"event": "resident_mutation_batch_ack", "request_id": 9, "status": "rejected"},
+            ],
+            "did not settle with one accepted acknowledgement",
+        ),
+    )
+
+    for index, (events, expected) in enumerate(cases):
+        _state, result, _sent = _drive_resident_stroke_case(
+            tmp_path / str(index),
+            list(events),
+        )
+        assert isinstance(result, dict)
+        assert expected in str(result.get("error", ""))
 
 
 def test_real_dotnet_harness_targets_editable_pane_coordinates_on_shared_hwnd() -> None:
@@ -334,6 +495,15 @@ def test_real_dotnet_harness_targets_editable_pane_coordinates_on_shared_hwnd() 
     assert "client_x + max(1, width // 2)" in flow_source
     assert 'if "screen_x" in state.viewport' in input_source
     assert 'if "screen_y" in state.viewport' in input_source
+    stroke_driver = input_source.split("def _drive_scoped_viewport_stroke(", 1)[1].split(
+        "def _settle_viewport_stroke", 1
+    )[0]
+    assert "_send_mouse_message" in stroke_driver
+    assert "_standalone_action_worker_active" in input_source
+    assert '"resident_interaction_transaction"' in input_source
+    assert '"resident_mutation_batch_ack"' in input_source
+    for legacy_event in ("stroke_begin", "stroke_update", "stroke_end"):
+        assert f'"{legacy_event}"' not in input_source
 
 
 def test_topology_evidence_waits_for_final_gpu_shrink_frame() -> None:
@@ -457,6 +627,7 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
                     "source_indices": [],
                     "target_mode": "vertex",
                     "vertices_by_submesh": {"1": [0, 1, 2]},
+                    "last_host_selection_push": {"request_id": 9},
                 },
                 "selected_part_index": -1,
                 "parts_list_selected_index": -1,
@@ -464,28 +635,20 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
             },
         )
     )
-    protocol_events = {
-        "select_request": {
-            "screen_brush": {
-                "world_view_projection": [1.0] * 16,
-                "viewport_width": 100,
-                "viewport_height": 100,
-            }
-        },
-    }
+    renderer_status = _resident_projection_status()
     select_calls: list[dict[str, object]] = []
     physical_points: list[tuple[float, float]] = []
     standalone_events: list[dict[str, object]] = []
     state = SimpleNamespace(
         submesh=submesh,
         submesh_index=0,
-            controller=SimpleNamespace(
-                select=lambda **kwargs: select_calls.append(dict(kwargs)) or SimpleNamespace(ok=True),
-                native_update_for_result=lambda result: result,
-                session_view=lambda: SimpleNamespace(resident_revision=1),
-                working_mesh=lambda *, clone: SimpleNamespace(
-                    submeshes=[submesh, frontmost_submesh]
-                ),
+        controller=SimpleNamespace(
+            select=lambda **kwargs: select_calls.append(dict(kwargs)) or SimpleNamespace(ok=True),
+            native_update_for_result=lambda result: result,
+            session_view=lambda: SimpleNamespace(resident_revision=1),
+            working_mesh=lambda *, clone: SimpleNamespace(
+                submeshes=[submesh, frontmost_submesh]
+            ),
         ),
         tab=SimpleNamespace(
             standalone_dotnet_protocol_events=standalone_events,
@@ -519,13 +682,13 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
     )
 
     monkeypatch.setattr(real_dotnet, "refresh_editable_viewport_rectangle", lambda *_args: {})
+    monkeypatch.setattr(real_dotnet, "request_full_renderer_status", lambda *_args: renderer_status)
     monkeypatch.setattr(real_dotnet, "_send_mouse_message", lambda *_args, **_kwargs: True)
+
     monkeypatch.setattr(
         real_dotnet,
         "_wait_protocol_event",
-        lambda _state, event, _cursor, _timeout: (
-            next(tool_state_events) if event == "tool_state_applied" else protocol_events[event]
-        ),
+        _resident_projection_protocol_waiter(tool_state_events, standalone_events),
     )
     monkeypatch.setattr(real_dotnet, "_host_window_rect", lambda _hwnd: (0, 0, 100, 100))
     monkeypatch.setattr(real_dotnet, "_projected_face_cluster_for_drag", lambda *_args, **_kwargs: (0,))
@@ -546,7 +709,7 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
         real_dotnet,
         "drive_viewport_selection",
         lambda _state, *, point, **_kwargs: physical_points.append(tuple(point))
-        or {"ok": True, "select_request_count": 2},
+        or {"ok": True, "resident_interaction_transaction_count": 1},
     )
 
     error = real_dotnet._configure_selection_and_projection(state)
@@ -689,9 +852,7 @@ def test_scoped_select_gesture_emits_helper_selection_and_waits_for_authority() 
         if was_down and message == 0x0202:
             state.tab.standalone_dotnet_protocol_events.append(
                 {
-                    "event": "select_request",
-                    "target_mode": "vertex",
-                    "phase": "end",
+                    "event": "resident_interaction_transaction",
                     "request_id": 9,
                 }
             )
@@ -705,10 +866,7 @@ def test_scoped_select_gesture_emits_helper_selection_and_waits_for_authority() 
         return True
 
     def pump_for(_state, _seconds: float) -> None:
-        if button["down"] and not state.tab.standalone_dotnet_protocol_events:
-            state.tab.standalone_dotnet_protocol_events.append(
-                {"event": "select_request", "target_mode": "vertex", "paint_final": False}
-            )
+        return None
 
     with (
         patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(10, 20, 110, 120)),
@@ -728,6 +886,7 @@ def test_scoped_select_gesture_emits_helper_selection_and_waits_for_authority() 
     assert result["backend"] == "scoped_hwnd_messages_normalized_input"
     assert result["start"] == [50, 50]
     assert result["end"] == [58, 50]
-    assert result["select_request_count"] == 2
+    assert result["resident_interaction_transaction_count"] == 1
+    assert result["resident_interaction_transactions"][0]["request_id"] == 9
     assert result["authority_acknowledgement"]["request_id"] == 9
     assert result["authority_settled"] is True

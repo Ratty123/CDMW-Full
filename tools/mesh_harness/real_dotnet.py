@@ -109,9 +109,9 @@ from tools.mesh_harness.real_dotnet_report import (
     _applied_selection_push_id,
     _finish_result,
     _front_facing_vertex_selection_anchor,
-    _last_select_request_id,
+    _last_resident_interaction_transaction_request_id,
     _resident_selection_inputs,
-    _settled_screen_projection,
+    _selection_projection_from_renderer_status,
     _trail_value,
     write_protocol_trail,
 )
@@ -158,13 +158,87 @@ def _execute_performance_capture(state: SimpleNamespace, request: PerformanceReq
 
 
 
+def _drive_projection_probe(
+    state: SimpleNamespace,
+    probe: tuple[int, int],
+    *,
+    projection_available: bool,
+) -> None:
+    queue_before = dict(state.tab.standalone_dotnet_update_queue.metrics())
+    cursor = len(state.tab.standalone_dotnet_protocol_events)
+    state.probe_down_sent = _send_mouse_message(
+        state.viewport_hwnd, _WM_LBUTTONDOWN, *probe, wparam=_MK_LBUTTON
+    )
+    state.probe_started = {
+        "event": "scoped_pointer_down",
+        "sent": bool(state.probe_down_sent),
+    }
+    _pump_for(state, 0.03)
+    state.probe_up_sent = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONUP, *probe)
+    state.probe_finished = _wait_protocol_event(
+        state, "resident_interaction_transaction", cursor, 2.0
+    )
+    action_settled = bool(
+        state.probe_finished
+        and _pump_until(
+            state,
+            lambda: not state.tab._standalone_action_worker_active(),
+            5.0,
+        )
+    )
+    expected_revision = int(state.controller.session_view().resident_revision)
+    request_id = int(dict(state.probe_finished).get("request_id", 0) or 0)
+    acknowledgement: dict[str, object] = {}
+
+    def acknowledged() -> bool:
+        nonlocal acknowledgement
+        for event in tuple(state.tab.standalone_dotnet_protocol_events)[cursor:]:
+            if (
+                str(event.get("event", "") or "") == "resident_mutation_batch_ack"
+                and int(event.get("request_id", 0) or 0) == request_id
+                and str(event.get("status", "") or "") in {"applied", "already_applied"}
+            ):
+                acknowledgement = dict(event)
+                return True
+        return False
+
+    queue_settled = bool(
+        action_settled
+        and _pump_until(
+            state,
+            lambda: bool(
+                int(state.tab.standalone_dotnet_update_queue.metrics().get("active_revision", 0) or 0) == 0
+                and int(state.tab.standalone_dotnet_update_queue.metrics().get("pending_depth", 0) or 0) == 0
+                and acknowledged()
+            ),
+            5.0,
+        )
+    )
+    queue_after = dict(state.tab.standalone_dotnet_update_queue.metrics())
+    state.projection_probe_update_queue = {
+        "expected_revision": expected_revision,
+        "request_id": request_id,
+        "acknowledgement": acknowledgement,
+        "before": queue_before,
+        "after": queue_after,
+        "action_settled": action_settled,
+        "queue_settled": queue_settled,
+    }
+    state.projection_probe_authority_settled = bool(
+        projection_available
+        and queue_settled
+        and int(queue_after.get("rejected_updates", 0) or 0)
+        == int(queue_before.get("rejected_updates", 0) or 0)
+    )
+
+
 def _prepare_selection_projection(
     state: SimpleNamespace,
 ) -> tuple[tuple[int, ...], list[int], tuple[object, ...]]:
     # Edit Mesh viewport gestures own mesh-vertex selection; whole parts belong
-    # only to the PARTS list. Ask Select for a screen payload at the viewport
-    # centre so the projection probe cannot move the temporary seed submesh.
-    # The probe's selection is cleared before the measured physical gesture.
+    # only to the PARTS list. Ask Select at the viewport centre so the projection
+    # probe cannot move the temporary seed submesh. The probe's selection is
+    # cleared before the measured physical gesture.
     state.projection_seed_submesh_index = int(state.submesh_index)
     state.projection_probe_mode = "select_screen_brush"
     initial_faces = tuple(range(len(state.submesh.faces)))
@@ -192,80 +266,20 @@ def _prepare_selection_projection(
     # edge that moved long ago. Both payloads are editable-pane-local, so a fresh
     # read is directly comparable; the renderer publishes it on demand.
     state.viewport_refresh = refresh_editable_viewport_rectangle(state, _pump_until)
+    projection_status = request_full_renderer_status(state, _pump_until)
+    projection = _selection_projection_from_renderer_status(
+        projection_status,
+        source_submesh_index=state.projection_seed_submesh_index,
+    )
+    state.projection_drag = dict(projection[0]) if projection is not None else {}
+    matrix = tuple(projection[1]) if projection is not None else ()
+    state.projection_matrix = matrix
     width = int(state.viewport.get("width", 0) or 0)
     height = int(state.viewport.get("height", 0) or 0)
     client_x = int(state.viewport.get("client_x", 0) or 0)
     client_y = int(state.viewport.get("client_y", 0) or 0)
     probe = (client_x + max(1, width // 2), client_y + max(1, height // 2))
-    probe_queue_before = dict(state.tab.standalone_dotnet_update_queue.metrics())
-    cursor = len(state.tab.standalone_dotnet_protocol_events)
-    state.probe_down_sent = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONDOWN, *probe, wparam=_MK_LBUTTON)
-    state.probe_started = _wait_protocol_event(state, "select_request", cursor, 2.0)
-    cursor = len(state.tab.standalone_dotnet_protocol_events)
-    state.probe_up_sent = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONUP, *probe)
-    state.probe_finished = _wait_protocol_event(
-        state, "select_request", cursor, 2.0
-    )
-    probe_action_settled = bool(
-        state.probe_finished
-        and _pump_until(
-            state,
-            lambda: not state.tab._standalone_action_worker_active(),
-            5.0,
-        )
-    )
-    probe_expected_revision = int(state.controller.session_view().resident_revision)
-    probe_request_id = int(dict(state.probe_finished).get("request_id", 0) or 0)
-    probe_acknowledgement: dict[str, object] = {}
-
-    def probe_acknowledged() -> bool:
-        nonlocal probe_acknowledgement
-        for event in tuple(state.tab.standalone_dotnet_protocol_events)[cursor:]:
-            if (
-                str(event.get("event", "") or "") == "resident_mutation_batch_ack"
-                and int(event.get("request_id", 0) or 0) == probe_request_id
-                and str(event.get("status", "") or "") in {"applied", "already_applied"}
-            ):
-                probe_acknowledgement = dict(event)
-                return True
-        return False
-
-    probe_queue_settled = bool(
-        probe_action_settled
-        and _pump_until(
-            state,
-            lambda: bool(
-                int(state.tab.standalone_dotnet_update_queue.metrics().get("active_revision", 0) or 0) == 0
-                and int(state.tab.standalone_dotnet_update_queue.metrics().get("pending_depth", 0) or 0) == 0
-                and probe_acknowledged()
-            ),
-            5.0,
-        )
-    )
-    probe_queue_after = dict(state.tab.standalone_dotnet_update_queue.metrics())
-    state.projection_probe_update_queue = {
-        "expected_revision": probe_expected_revision,
-        "request_id": probe_request_id,
-        "acknowledgement": probe_acknowledgement,
-        "before": probe_queue_before,
-        "after": probe_queue_after,
-        "action_settled": probe_action_settled,
-        "queue_settled": probe_queue_settled,
-    }
-    state.projection_probe_authority_settled = bool(
-        probe_queue_settled
-        and int(probe_queue_after.get("rejected_updates", 0) or 0)
-        == int(probe_queue_before.get("rejected_updates", 0) or 0)
-    )
-    screen_brush = (
-        state.probe_finished.get("screen_brush", {})
-        if isinstance(state.probe_finished, Mapping)
-        else {}
-    )
-    state.projection_drag = (
-        dict(screen_brush) if isinstance(screen_brush, Mapping) else {}
-    )
-    matrix = tuple(state.projection_drag.get("world_view_projection", ()) or ())
+    _drive_projection_probe(state, probe, projection_available=projection is not None)
     # Project through the surface this matrix was actually built for. The
     # renderer pairs each matrix with the active pane's bounds, which are not
     # the host window's client size: projecting a pane matrix through the
@@ -273,10 +287,10 @@ def _prepare_selection_projection(
     # (418/698 here), so a drag that tracked the cursor exactly looked like it
     # under-tracked by 40%.
     state.projection_viewport_width = float(
-        state.projection_drag.get("viewport_width", 0) or 0
+        projection[2] if projection is not None else 0
     ) or float(width)
     state.projection_viewport_height = float(
-        state.projection_drag.get("viewport_height", 0) or 0
+        projection[3] if projection is not None else 0
     ) or float(height)
     projection_width = int(round(state.projection_viewport_width))
     projection_height = int(round(state.projection_viewport_height))
@@ -327,7 +341,7 @@ def _arm_move_and_read_applied_selection(state: SimpleNamespace) -> None:
     newest request, and record whether it did.
     """
 
-    expected_push = _last_select_request_id(state)
+    expected_push = _last_resident_interaction_transaction_request_id(state)
     arming: dict[str, object] = {"expected_push_request_id": expected_push, "attempts": 0}
     state.tool_state_sent = bool(state.tool_state_sent and state.selection_tool_state_sent)
     state.tool_state_event = {}
@@ -593,24 +607,30 @@ def _adopt_settled_projection(
     onto a different submesh, so the Move grabbed geometry the selection never
     contained and the selected vertices never moved at all.
 
-    The gesture that just ran published its own matrix beside its own pane
-    bounds, so adopting that pair costs no extra input and cannot disturb the
-    selection under test. The refresh is what makes the stroke driver's existing
-    surface guard meaningful, because that guard compares the projection against
+    Full renderer status exposes the native resident selector's current matrix
+    beside its pane bounds, so adopting that pair requires no extra input and
+    cannot disturb the selection under test. The refresh makes the stroke
+    driver's surface guard meaningful because it compares the projection against
     ``state.viewport``.
     """
     state.selection_viewport_refresh = refresh_editable_viewport_rectangle(state, _pump_until)
-    settled = _settled_screen_projection(state)
+    settled_status = request_full_renderer_status(state, _pump_until)
+    settled = _selection_projection_from_renderer_status(
+        settled_status,
+        source_submesh_index=int(state.projection_seed_submesh_index),
+    )
     reconciliation = getattr(state, "projection_surface_reconciliation", None)
     if not isinstance(reconciliation, dict):
         reconciliation = {}
         state.projection_surface_reconciliation = reconciliation
     if settled is None:
         reconciliation["settled_projection_adopted"] = False
-        reconciliation["settled_projection_reason"] = "no select_request carried a screen payload"
+        reconciliation["settled_projection_reason"] = (
+            "renderer status carried no resident native selection projection"
+        )
         return matrix
 
-    settled_matrix, settled_width, settled_height = settled
+    settled_snapshot, settled_matrix, settled_width, settled_height = settled
     previous = (
         float(getattr(state, "projection_viewport_width", 0.0) or 0.0),
         float(getattr(state, "projection_viewport_height", 0.0) or 0.0),
@@ -619,22 +639,17 @@ def _adopt_settled_projection(
     reconciliation["settled_projection_height"] = settled_height
     reconciliation["probe_projection_width"] = previous[0]
     reconciliation["probe_projection_height"] = previous[1]
-    if (settled_width, settled_height) == previous:
-        reconciliation["settled_projection_adopted"] = False
-        reconciliation["settled_projection_reason"] = "pane unchanged since the probe"
-        return matrix
-
     state.projection_viewport_width = settled_width
     state.projection_viewport_height = settled_height
-    updated = dict(state.projection_drag) if isinstance(state.projection_drag, Mapping) else {}
-    updated.update(
-        {
-            "world_view_projection": settled_matrix,
-            "viewport_width": settled_width,
-            "viewport_height": settled_height,
-        }
-    )
-    state.projection_drag = updated
+    state.projection_drag = dict(settled_snapshot)
+    state.projection_matrix = tuple(settled_matrix)
+
+    if (settled_width, settled_height) == previous:
+        reconciliation["settled_projection_adopted"] = True
+        reconciliation["settled_projection_reason"] = (
+            "fresh native interaction projection matched the probe pane"
+        )
+        return settled_matrix
 
     # Aim input at the same pane the matrix was built for. The status read here
     # is the one sampled before the probe, and the pane settles on the first
@@ -819,7 +834,7 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
         if error is not None:
             return error
         _record_stroke_geometry_evidence(state)
-        record_flow_step(state, "transform", update_count=len(state.stroke_updates))
+        record_flow_step(state, "transform", transaction_count=len(state.resident_interaction_transactions))
         error = exercise_material_parameter_update(
             state,
             base_error=_base_error,

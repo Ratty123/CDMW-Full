@@ -407,6 +407,28 @@ def _window_is_same_or_child(parent_hwnd: int, hwnd: int) -> bool:
     )
 
 
+def _top_level_window_hwnd(hwnd: int) -> int:
+    """Resolve an owned widget HWND to the real top-level window without activation."""
+
+    if not hwnd or os.name != "nt":
+        return 0
+    user32 = ctypes.windll.user32
+    target = int(hwnd)
+    if not user32.IsWindow(ctypes.c_void_p(target)):
+        return 0
+    return int(user32.GetAncestor(ctypes.c_void_p(target), 2) or target)
+
+
+def _window_parent_hwnd(hwnd: int) -> int:
+    if not hwnd or os.name != "nt":
+        return 0
+    user32 = ctypes.windll.user32
+    target = int(hwnd)
+    if not user32.IsWindow(ctypes.c_void_p(target)):
+        return 0
+    return int(user32.GetParent(ctypes.c_void_p(target)) or 0)
+
+
 def _scoped_input_target_matches(hwnd: int, expected_pid: int) -> bool:
     if not hwnd or os.name != "nt":
         return False
@@ -432,15 +454,16 @@ def _show_window_without_activation(hwnd: int, *, topmost: bool = False) -> bool
     user32.ShowWindow(ctypes.c_void_p(target), 4)
     insert_after = ctypes.c_void_p(-1 if topmost and not is_child else 0)
     flags = 0x0001 | 0x0002 | 0x0010 | 0x0040
-    user32.SetWindowPos(
+    positioned = bool(user32.SetWindowPos(
         ctypes.c_void_p(target), insert_after, 0, 0, 0, 0, flags
-    )
+    ))
     # A cross-process child can refuse a z-order change even while remaining a
     # valid visible target. Input safety is proved separately by HWND/PID; do not
     # turn a harmless SetWindowPos refusal into a false input failure.
     rect = _host_window_rect(target)
     return bool(
         user32.IsWindow(ctypes.c_void_p(target))
+        and (positioned or is_child)
         and rect is not None
         and rect[2] - rect[0] >= 32
         and rect[3] - rect[1] >= 32

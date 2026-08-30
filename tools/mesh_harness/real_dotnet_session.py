@@ -199,6 +199,12 @@ def _install_timing_probes(state: SimpleNamespace) -> None:
     state.tab._apply_dotnet_result_update = record_result
     state.tab._handle_dotnet_live_stroke_completed = record_completed
 
+
+def _configure_harness_window_for_no_activation(tab: object, qt: object) -> None:
+    tab.setAttribute(qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+    tab.setWindowFlag(qt.WindowType.WindowDoesNotAcceptFocus, True)
+
+
 def _start_embedded_editor(
     state: SimpleNamespace,
     *,
@@ -322,7 +328,7 @@ def _start_embedded_editor(
         int(full_screen.y() + full_screen.height()),
     )
     state.tab.setGeometry(screen.x() + 24, screen.y() + 24, max(960, min(1400, screen.width() - 48)), max(640, min(900, screen.height() - 48)))
-    state.tab.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+    _configure_harness_window_for_no_activation(state.tab, Qt)
     state.tab.show()
     state.app.processEvents()
     _show_window_without_activation(int(state.tab.winId()))

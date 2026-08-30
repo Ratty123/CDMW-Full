@@ -45,6 +45,8 @@ from tools.mesh_harness.real_dotnet_capture import capture_dotnet_viewport as _c
 from tools.mesh_harness.real_dotnet_display import exercise_geometry_display_modes
 from tools.mesh_harness.real_dotnet_evidence import (
     _DOTNET_RENDERER_BACKEND,
+    _RESIDENT_INPUT_HANDLER_BUDGET_MS,
+    _RESIDENT_PROVISIONAL_FEEDBACK_BUDGET_MS,
     _indices_by_submesh,
     _part_selection_evidence,
     _pick_probe,
@@ -125,12 +127,15 @@ def _front_facing_vertex_selection_anchor(
     return min(candidates, default=None, key=lambda item: (item[0], item[1]))[2] if candidates else None
 
 
-def _last_select_request_id(state: SimpleNamespace) -> int:
-    """The request id of the newest selection request the helper raised."""
+def _last_resident_interaction_transaction_request_id(state: SimpleNamespace) -> int:
+    """The request id of the newest resident interaction transaction."""
 
     newest = 0
     for event in tuple(state.tab.standalone_dotnet_protocol_events):
-        if str(event.get("event", "") or "").strip().lower() != "select_request":
+        if (
+            str(event.get("event", "") or "").strip().lower()
+            != "resident_interaction_transaction"
+        ):
             continue
         try:
             newest = max(newest, int(event.get("request_id", 0) or 0))
@@ -228,9 +233,10 @@ def write_protocol_trail(state: SimpleNamespace, name: str = "protocol_trail.jso
 
     ``result.json`` keeps only the newest event of a handful of named kinds,
     which cannot answer *which* message committed a selection: the question needs
-    the ordering, and it needs the events the summary drops, ``select_request``
-    among them. One JSON object per line, in arrival order, with long arrays
-    summarised so a whole-mesh selection cannot bury the trail.
+    the ordering, and it needs the events the summary drops,
+    ``resident_interaction_transaction`` among them. One JSON object per line,
+    in arrival order, with long arrays summarised so a whole-mesh selection
+    cannot bury the trail.
     """
     output_dir = getattr(state, "output_dir", None)
     if output_dir is None:
@@ -251,41 +257,72 @@ def write_protocol_trail(state: SimpleNamespace, name: str = "protocol_trail.jso
     return str(path)
 
 
-def _settled_screen_projection(
-    state: SimpleNamespace,
-) -> tuple[tuple[object, ...], float, float] | None:
-    """The newest matrix the helper emitted, with the pane it was built for.
+def _selection_projection_from_renderer_status(
+    renderer: object,
+    *,
+    source_submesh_index: int,
+) -> tuple[dict[str, object], tuple[object, ...], float, float] | None:
+    """Read the current resident selector projection from full renderer status."""
 
-    Every ``select_request`` carries ``world_view_projection`` beside the
-    ``viewport_width``/``viewport_height`` of the pane that produced it, so the
-    pair is always self-consistent. Reading the newest one is how a caller
-    obtains a projection for the pane as it stands now rather than as it stood
-    when an earlier probe ran.
-    """
-    for event in reversed(tuple(state.tab.standalone_dotnet_protocol_events)):
-        if str(event.get("event", "") or "").strip().lower() != "select_request":
+    native = renderer.get("native_interaction") if isinstance(renderer, Mapping) else None
+    projection = native.get("selection_projection") if isinstance(native, Mapping) else None
+    if not isinstance(projection, Mapping):
+        return None
+    snapshot = dict(projection)
+    matrix = tuple(snapshot.get("world_view_projection", ()) or ())
+    overrides = snapshot.get("source_submesh_world_view_projections")
+    for entry in tuple(overrides or ()) if isinstance(overrides, (list, tuple)) else ():
+        if not isinstance(entry, Mapping):
             continue
-        brush = event.get("screen_brush")
-        if not isinstance(brush, Mapping):
-            continue
-        matrix = tuple(brush.get("world_view_projection", ()) or ())
-        width = float(brush.get("viewport_width", 0) or 0)
-        height = float(brush.get("viewport_height", 0) or 0)
-        if len(matrix) == 16 and width > 0.0 and height > 0.0:
-            return matrix, width, height
-    return None
+        try:
+            matches_source = int(entry.get("source_submesh_index", -1)) == source_submesh_index
+        except (TypeError, ValueError):
+            matches_source = False
+        candidate = tuple(entry.get("world_view_projection", ()) or ())
+        if matches_source and len(candidate) == 16:
+            matrix = candidate
+            break
+    width = float(snapshot.get("viewport_width", 0) or 0)
+    height = float(snapshot.get("viewport_height", 0) or 0)
+    if len(matrix) != 16 or width <= 0.0 or height <= 0.0:
+        return None
+    return snapshot, matrix, width, height
+
+
+def _stroke_timing_evidence(state: SimpleNamespace) -> dict[str, object]:
+    state.handler_summary = _timing_summary(state.stroke_handler_timings, "handler_ms")
+    state.handler_p95_ms = _finite_float(state.handler_summary.get("p95_ms"))
+    native_timing = getattr(state, "resident_native_timing", {})
+    native_timing = dict(native_timing) if isinstance(native_timing, Mapping) else {}
+    input_timing = native_timing.get("input_handler_timing")
+    feedback_timing = native_timing.get("provisional_feedback_timing")
+    input_timing = dict(input_timing) if isinstance(input_timing, Mapping) else {}
+    feedback_timing = dict(feedback_timing) if isinstance(feedback_timing, Mapping) else {}
+    return {
+        "stroke_handler_timings": state.stroke_handler_timings,
+        "stroke_handler_timing_summary": state.handler_summary,
+        "stroke_completion_timings": state.stroke_completion_timings,
+        "stroke_completion_stage_timings": state.stroke_completion_stage_timings,
+        "resident_native_timing": native_timing,
+        "live_stroke_timing_summary": native_timing,
+        "main_thread_edit_handler_p95_ms": _finite_float(input_timing.get("p95_ms")),
+        "resident_input_handler_p95_ms": _finite_float(input_timing.get("p95_ms")),
+        "resident_provisional_feedback_p95_ms": _finite_float(feedback_timing.get("p95_ms")),
+        "resident_input_handler_budget_ms": _RESIDENT_INPUT_HANDLER_BUDGET_MS,
+        "resident_provisional_feedback_budget_ms": _RESIDENT_PROVISIONAL_FEEDBACK_BUDGET_MS,
+        "live_stroke_frame_budget_ms": _RESIDENT_PROVISIONAL_FEEDBACK_BUDGET_MS,
+    }
 
 
 def _finish_result(state: SimpleNamespace) -> dict[str, object]:
     state.after_center = tuple(sum(vertex[axis] for vertex in state.after_vertices) / len(state.after_vertices) for axis in range(3))
-    matrix = tuple(state.projection_drag.get("world_view_projection", ()) or ())
+    matrix = tuple(getattr(state, "projection_matrix", ()) or state.projection_drag.get("world_view_projection", ()) or ())
     state.projected_after_center = _project_world_to_screen(
         matrix,
         state.after_center,
         viewport_x=0.0,
         viewport_y=0.0,
-        viewport_width=float(getattr(state, "projection_viewport_width", 0.0))
-        or float(state.viewport.get("width", 0) or 0),
+        viewport_width=float(getattr(state, "projection_viewport_width", 0.0)) or float(state.viewport.get("width", 0) or 0),
         viewport_height=float(getattr(state, "projection_viewport_height", 0.0))
         or float(state.viewport.get("height", 0) or 0),
     )
@@ -309,8 +346,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         # whatever the window was when they were grabbed, and it narrows mid-run.
         projection_size=(state.projection_viewport_width, state.projection_viewport_height),
     )
-    state.handler_summary = _timing_summary(state.stroke_handler_timings, "handler_ms")
-    state.handler_p95_ms = _finite_float(state.handler_summary.get("p95_ms"))
+    timing_evidence = _stroke_timing_evidence(state)
     state.update_queue_metrics = state.tab.standalone_dotnet_update_queue.metrics()
     state.fallback_counts = native_mesh_core_fallback_counts()
     state.resident_material_gates = resident_material_gates(state)
@@ -444,6 +480,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
             "projection_probe_authority_settled": bool(
                 state.projection_probe_authority_settled
             ),
+            "selection_projection": dict(state.projection_drag),
             "projection_surface_reconciliation": dict(
                 state.projection_surface_reconciliation
             ),
@@ -477,14 +514,9 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
             int(state.viewport_rect_before[0]),
             int(state.viewport_rect_before[1]),
         ] if state.viewport_rect_before else None,
-        "stroke_update_count": len(state.stroke_updates),
+        "resident_interaction_transaction_count": len(state.resident_interaction_transactions),
         "stroke_terminal_coverage": dict(state.stroke_terminal_coverage),
-        "stroke_handler_timings": state.stroke_handler_timings,
-        "stroke_handler_timing_summary": state.handler_summary,
-        "stroke_completion_timings": state.stroke_completion_timings,
-        "stroke_completion_stage_timings": state.stroke_completion_stage_timings,
-        "main_thread_edit_handler_p95_ms": state.handler_p95_ms,
-        "live_stroke_frame_budget_ms": 1000.0 / 60.0,
+        **timing_evidence,
         "max_heartbeat_gap_ms": state.max_heartbeat_gap_ms,
         "heartbeat_sample_count": max(0, len(state.heartbeat_gaps) - 1),
         "heartbeat_gaps_ms": state.heartbeat_gaps,

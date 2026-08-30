@@ -25,6 +25,72 @@ from tools.mesh_harness.real_dotnet_display import (
 )
 
 
+def test_resident_native_timing_is_sampled_after_the_terminal_ack(monkeypatch) -> None:
+    from tools.mesh_harness import real_dotnet_evidence as evidence
+
+    renderer = {
+        "native_interaction": {
+            "input_handler_timing": {"count": 3, "p95_ms": 1.25},
+            "provisional_feedback_timing": {"count": 3, "p95_ms": 2.5},
+        }
+    }
+    monkeypatch.setattr(evidence, "drive_viewport_stroke", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        evidence,
+        "request_full_renderer_status",
+        lambda _state, _pump_until: renderer,
+    )
+    state = SimpleNamespace()
+
+    assert evidence._drive_viewport_stroke(state) is None
+    assert state.resident_native_timing == renderer["native_interaction"]
+
+
+def test_resident_native_timing_gates_enforce_both_production_budgets() -> None:
+    from tools.mesh_harness.real_dotnet_evidence import _resident_native_timing_gates
+
+    state = SimpleNamespace(
+        resident_native_timing={
+            "input_handler_timing": {"count": 4, "p95_ms": 8.0},
+            "provisional_feedback_timing": {"count": 4, "p95_ms": 33.0},
+        }
+    )
+
+    assert _resident_native_timing_gates(state) == {
+        "resident_input_handler_budget_ok": True,
+        "resident_provisional_feedback_budget_ok": True,
+        "live_stroke_frame_budget_ok": True,
+    }
+
+    state.resident_native_timing["input_handler_timing"]["p95_ms"] = 8.01
+    assert _resident_native_timing_gates(state)["live_stroke_frame_budget_ok"] is False
+    state.resident_native_timing["input_handler_timing"]["p95_ms"] = 8.0
+    state.resident_native_timing["provisional_feedback_timing"]["count"] = 0
+    assert _resident_native_timing_gates(state)["live_stroke_frame_budget_ok"] is False
+
+
+def test_real_dotnet_report_publishes_native_timing_not_retired_python_updates() -> None:
+    from tools.mesh_harness.real_dotnet_report import _stroke_timing_evidence
+
+    state = SimpleNamespace(
+        stroke_handler_timings=[],
+        stroke_completion_timings=[],
+        stroke_completion_stage_timings=[],
+        resident_native_timing={
+            "input_handler_timing": {"count": 2, "p95_ms": 1.5},
+            "provisional_feedback_timing": {"count": 2, "p95_ms": 4.5},
+        },
+    )
+
+    result = _stroke_timing_evidence(state)
+
+    assert result["main_thread_edit_handler_p95_ms"] == 1.5
+    assert result["resident_provisional_feedback_p95_ms"] == 4.5
+    assert result["resident_input_handler_budget_ms"] == 8.0
+    assert result["resident_provisional_feedback_budget_ms"] == 33.0
+    assert result["live_stroke_timing_summary"] == state.resident_native_timing
+
+
 
 def test_dotnet_real_game_resident_material_gates_require_reuse_and_one_process() -> None:
     before_counts = {
@@ -393,7 +459,9 @@ def test_canonical_real_dotnet_runner_drives_extended_flow_without_legacy_render
         target.app = app
         target.submesh_index = 0
         target.selected_faces = (0,)
-        target.stroke_updates = ({"event": "stroke_update"},)
+        target.resident_interaction_transactions = (
+            {"event": "resident_interaction_transaction", "request_id": 41},
+        )
         record_flow_step(target, "ready")
 
     def resident(_state: SimpleNamespace, **_kwargs: object) -> None:
@@ -551,21 +619,23 @@ def test_resident_selection_inputs_record_a_raising_session_view() -> None:
     assert report["target_error"] == "RuntimeError: no active session"
 
 
-def test_last_select_request_id_takes_the_newest_selection_request() -> None:
-    from tools.mesh_harness.real_dotnet import _last_select_request_id
+def test_last_resident_transaction_id_takes_the_newest_selection_transaction() -> None:
+    from tools.mesh_harness.real_dotnet import (
+        _last_resident_interaction_transaction_request_id,
+    )
 
     state = SimpleNamespace(
         tab=SimpleNamespace(
             standalone_dotnet_protocol_events=[
-                {"event": "select_request", "request_id": 4},
-                {"event": "stroke_begin", "request_id": 99},
-                {"event": "select_request", "request_id": 8},
-                {"event": "select_request", "request_id": 5},
+                {"event": "resident_interaction_transaction", "request_id": 4},
+                {"event": "unrelated_request", "request_id": 99},
+                {"event": "resident_interaction_transaction", "request_id": 8},
+                {"event": "resident_interaction_transaction", "request_id": 5},
             ]
         )
     )
 
-    assert _last_select_request_id(state) == 8
+    assert _last_resident_interaction_transaction_request_id(state) == 8
 
 
 def test_applied_selection_push_id_reads_the_push_the_helper_answered_with() -> None:
@@ -603,7 +673,7 @@ def test_move_is_armed_only_after_the_applied_selection_push_catches_up() -> Non
     # And the driver must still call it, or the retry would sit there unused.
     assert "_arm_move_and_read_applied_selection(state)" in source
 
-    assert "_last_select_request_id(state)" in arming
+    assert "_last_resident_interaction_transaction_request_id(state)" in arming
     assert "_applied_selection_push_id(state.tool_state_event)" in arming
     # The ask has to sit inside a bounded retry, not run once.
     assert "for attempt in range(" in arming

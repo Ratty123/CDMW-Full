@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import time
 from collections.abc import Callable, Mapping
@@ -49,6 +50,7 @@ from tools.mesh_harness.real_dotnet_material import (
     exercise_resident_material_update,
     material_parameter_evidence,
     material_parameter_gates,
+    request_full_renderer_status,
     resident_material_evidence,
     resident_material_gates,
 )
@@ -66,6 +68,8 @@ from tools.mesh_harness.win32_input import (
 
 
 _DOTNET_RENDERER_BACKEND = "d3d11_vortice_shader"
+_RESIDENT_INPUT_HANDLER_BUDGET_MS = 8.0
+_RESIDENT_PROVISIONAL_FEEDBACK_BUDGET_MS = 33.0
 
 
 def _revision_ack_tail(state: SimpleNamespace) -> list[dict[str, object]]:
@@ -340,8 +344,45 @@ def _wait_protocol_event(state: SimpleNamespace, name: str, cursor: int, timeout
     _pump_until(state, locate, timeout_seconds)
     return found
 
+def _resident_native_timing(renderer: Mapping[str, object]) -> dict[str, dict[str, object]]:
+    native = renderer.get("native_interaction")
+    native = native if isinstance(native, Mapping) else {}
+    return {
+        key: dict(value) if isinstance(value, Mapping) else {}
+        for key in ("input_handler_timing", "provisional_feedback_timing")
+        if (value := native.get(key)) is not None
+    }
+
+
+def _resident_native_timing_gates(state: SimpleNamespace) -> dict[str, bool]:
+    timing = getattr(state, "resident_native_timing", {})
+    timing = timing if isinstance(timing, Mapping) else {}
+
+    def within_budget(key: str, budget_ms: float) -> bool:
+        summary = timing.get(key)
+        if not isinstance(summary, Mapping):
+            return False
+        try:
+            count = int(summary.get("count", 0) or 0)
+            p95_ms = float(summary.get("p95_ms", math.inf))
+        except (TypeError, ValueError):
+            return False
+        return count > 0 and math.isfinite(p95_ms) and 0.0 <= p95_ms <= budget_ms
+
+    input_ok = within_budget("input_handler_timing", _RESIDENT_INPUT_HANDLER_BUDGET_MS)
+    feedback_ok = within_budget(
+        "provisional_feedback_timing",
+        _RESIDENT_PROVISIONAL_FEEDBACK_BUDGET_MS,
+    )
+    return {
+        "resident_input_handler_budget_ok": input_ok,
+        "resident_provisional_feedback_budget_ok": feedback_ok,
+        "live_stroke_frame_budget_ok": input_ok and feedback_ok,
+    }
+
+
 def _drive_viewport_stroke(state: SimpleNamespace) -> dict[str, object] | None:
-    return drive_viewport_stroke(
+    error = drive_viewport_stroke(
         state,
         base_error=_base_error,
         pump_for=_pump_for,
@@ -349,6 +390,10 @@ def _drive_viewport_stroke(state: SimpleNamespace) -> dict[str, object] | None:
         wait_protocol_event=_wait_protocol_event,
         capture_viewport=_capture_viewport,
     )
+    if error is None:
+        renderer = request_full_renderer_status(state, _pump_until)
+        state.resident_native_timing = _resident_native_timing(renderer)
+    return error
 
 def _record_stroke_geometry_evidence(state: SimpleNamespace) -> None:
     state.after_mesh = state.controller.working_mesh(clone=True)
@@ -409,6 +454,7 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
         **state.resident_material_gates,
         **state.material_parameter_gates,
         **production_flow_gates(state),
+        **_resident_native_timing_gates(state),
         "real_pac_geometry_display_modes": bool(
             getattr(state, "geometry_display_evidence", {}).get("ok")
         ),
@@ -439,9 +485,6 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
         ),
         "desktop_input_isolated": bool(
             getattr(state, "desktop_input_isolation", {}).get("ok")
-        ),
-        "live_stroke_frame_budget_ok": bool(
-            state.stroke_handler_timings and state.handler_p95_ms < 1000.0 / 60.0
         ),
         "heartbeat_ok": bool(len(state.heartbeat_gaps) >= 2 and state.max_heartbeat_gap_ms < 200.0),
         "revision_acknowledged": bool(
@@ -477,4 +520,4 @@ def _part_selection_evidence(state: SimpleNamespace) -> dict[str, object]:
         "mesh_selection_armed": state.viewport_mesh_selection_armed,
     }
 
-__all__ = ['_base_error', '_indices_by_submesh', '_pick_probe', '_drive_viewport_stroke', '_has_real_archive_texture_provenance', '_part_selection_evidence', '_prepare_real_asset', '_pump_for', '_pump_until', '_record_stroke_geometry_evidence', '_result_gates', '_revision_ack_tail', '_wait_protocol_event']
+__all__ = ['_base_error', '_indices_by_submesh', '_pick_probe', '_drive_viewport_stroke', '_has_real_archive_texture_provenance', '_part_selection_evidence', '_prepare_real_asset', '_pump_for', '_pump_until', '_record_stroke_geometry_evidence', '_resident_native_timing', '_resident_native_timing_gates', '_result_gates', '_revision_ack_tail', '_wait_protocol_event']

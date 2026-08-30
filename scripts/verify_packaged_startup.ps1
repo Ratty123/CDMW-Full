@@ -59,7 +59,7 @@ function Assert-PackagedMeshTextureEvidence {
         throw "Packaged Mesh Editor texture smoke reported no evidence section."
     }
     $evidence = $Payload.evidence
-    if ([string]$evidence.schema -ne "cdmw_packaged_mesh_editor_controls_smoke_v2") {
+    if ([string]$evidence.schema -ne "cdmw_packaged_mesh_editor_controls_smoke_v3") {
         throw "Packaged Mesh Editor texture smoke returned an unknown evidence schema."
     }
     if ($evidence.read_only -ne $true -or $evidence.archive_sources_unchanged -ne $true) {
@@ -84,7 +84,9 @@ function Assert-PackagedMeshTextureEvidence {
         $viewport.after_textured.visible -ne $true -or
         $viewport.after_textured.nonzero -ne $true -or
         $viewport.after_select.visible -ne $true -or
-        $viewport.after_select.nonzero -ne $true
+        $viewport.after_select.nonzero -ne $true -or
+        $viewport.after_grab_history.visible -ne $true -or
+        $viewport.after_grab_history.nonzero -ne $true
     ) {
         throw "Packaged Mesh Editor smoke did not keep the viewport visibly available across empty, textured, Select, and closed states."
     }
@@ -121,6 +123,24 @@ function Assert-PackagedMeshTextureEvidence {
         $evidence.select.capture.ok -ne $true
     ) {
         throw "Packaged Mesh Editor smoke did not prove and capture a newly drawn committed selection highlight."
+    }
+    if (
+        $evidence.control_continuity.ok -ne $true -or
+        $evidence.control_continuity.actual_controls -ne $true -or
+        [int64]$evidence.control_continuity.case_count -ne 9 -or
+        [double]$evidence.control_continuity.settlement_p95_ms -gt 50.0 -or
+        @($evidence.control_continuity.cases | Where-Object { $_.stable -ne $true }).Count -ne 0
+    ) {
+        throw "Packaged Mesh Editor smoke did not preserve the resident viewport across all real tool and page controls."
+    }
+    $history = $evidence.grab_undo_redo
+    if (
+        $history.ok -ne $true -or
+        $history.actual_controls -ne $true -or
+        @($history.gates.PSObject.Properties | Where-Object { $_.Value -ne $true }).Count -ne 0 -or
+        $evidence.grab_redo_capture.ok -ne $true
+    ) {
+        throw "Packaged Mesh Editor smoke did not prove Grab, Undo, Grab, Undo, and Redo through the real controls."
     }
     if (
         $evidence.desktop_input.ok -ne $true -or

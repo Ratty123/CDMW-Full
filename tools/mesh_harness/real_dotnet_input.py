@@ -31,10 +31,10 @@ def drive_viewport_selection(
 ) -> dict[str, object]:
     """Drive a real Brush/Replace Select gesture into the editable pane.
 
-    The result intentionally records the helper's emitted ``select_request``
-    packets.  The caller must then ask the helper for ``tool_state_applied`` and
-    verify the authoritative vertex map; that round trip proves the normalized
-    gesture, native selection, and PARTS isolation together.
+    The result records the helper's terminal ``resident_interaction_transaction``
+    and its correlated authoritative acknowledgement. The caller then asks for
+    ``tool_state_applied`` and verifies the authoritative vertex map; that round
+    trip proves normalized input, native selection, and PARTS isolation together.
     """
 
     width = int(state.viewport.get("width", 0) or 0)
@@ -115,34 +115,28 @@ def drive_viewport_selection(
                 *end,
             )
             button_down = False
-            final_request_seen = pump_until(
+            terminal_transaction_seen = pump_until(
                 state,
                 lambda: any(
-                    str(event.get("event", "") or "") == "select_request"
-                    and (
-                        str(event.get("phase", "") or "").lower() == "end"
-                        or event.get("paint_final") is True
-                    )
+                    str(event.get("event", "") or "")
+                    == "resident_interaction_transaction"
                     for event in tuple(state.tab.standalone_dotnet_protocol_events)[request_cursor:]
                 ),
                 2.0,
             )
             action_settled = bool(
-                final_request_seen
+                terminal_transaction_seen
                 and pump_until(state, lambda: not state.tab._standalone_action_worker_active(), 5.0)
             )
-            terminal_requests = [
+            terminal_transactions = [
                 dict(event)
                 for event in tuple(state.tab.standalone_dotnet_protocol_events)[request_cursor:]
-                if str(event.get("event", "") or "") == "select_request"
-                and (
-                    str(event.get("phase", "") or "").lower() == "end"
-                    or event.get("paint_final") is True
-                )
+                if str(event.get("event", "") or "")
+                == "resident_interaction_transaction"
             ]
             terminal_request_id = int(
-                terminal_requests[-1].get("request_id", 0) or 0
-            ) if terminal_requests else 0
+                terminal_transactions[-1].get("request_id", 0) or 0
+            ) if terminal_transactions else 0
 
             def authoritative_selection_settled() -> bool:
                 nonlocal authority_ack
@@ -180,10 +174,10 @@ def drive_viewport_selection(
     finally:
         if button_down:
             _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONUP, *end)
-    requests = [
+    transactions = [
         dict(event)
         for event in tuple(state.tab.standalone_dotnet_protocol_events)[request_cursor:]
-        if str(event.get("event", "") or "") == "select_request"
+        if str(event.get("event", "") or "") == "resident_interaction_transaction"
     ]
     return {
         "backend": "scoped_hwnd_messages_normalized_input",
@@ -198,12 +192,12 @@ def drive_viewport_selection(
         "mouse_down_sent": bool(down_sent),
         "mouse_move_sent": bool(moved),
         "mouse_up_sent": bool(up_sent),
-        "select_request_count": len(requests),
-        "select_requests": requests,
+        "resident_interaction_transaction_count": len(transactions),
+        "resident_interaction_transactions": transactions,
         "authority_acknowledgement": authority_ack,
         "authority_settlement": selection_settlement,
         "authority_settled": bool(settled),
-        "ok": bool(down_sent and moved and up_sent and requests and settled),
+        "ok": bool(down_sent and moved and up_sent and transactions and settled),
     }
 
 
@@ -238,12 +232,15 @@ def _prepare_viewport_stroke(
     heartbeat_index = len(state.heartbeat_ms)
     heartbeat_origin = (time.perf_counter() - state.heartbeat_started) * 1000.0
     state.measure_stroke_handlers = True
-    state.stroke_updates = []
     state.mouse_move_sent = False
     state.mouse_down_sent = False
     state.mouse_up_sent = False
-    state.stroke_started = {}
-    state.stroke_finished = {}
+    state.resident_interaction_transactions = []
+    state.resident_interaction_acknowledgements = []
+    state.resident_interaction_transaction = {}
+    state.resident_interaction_acknowledgement = {}
+    state.resident_interaction_action_settled = False
+    state.resident_interaction_authority_settled = False
     viewport_rect = state.viewport_rect_before
     screen_x = (
         int(state.viewport.get("screen_x", 0) or 0)
@@ -258,6 +255,77 @@ def _prepare_viewport_stroke(
     return start, screen_x, screen_y, heartbeat_index, heartbeat_origin
 
 
+def _resident_terminal_snapshot(
+    state: SimpleNamespace,
+    cursor: int,
+) -> tuple[list[dict[str, object]], list[dict[str, object]], bool, bool]:
+    events = tuple(state.tab.standalone_dotnet_protocol_events)[cursor:]
+    transactions = [
+        dict(event)
+        for event in events
+        if str(event.get("event", "") or "") == "resident_interaction_transaction"
+    ]
+    request_id = int(transactions[0].get("request_id", 0) or 0) if len(transactions) == 1 else 0
+    transaction_index = next(
+        (
+            index
+            for index, event in enumerate(events)
+            if str(event.get("event", "") or "") == "resident_interaction_transaction"
+        ),
+        len(events),
+    )
+    acknowledgements = [
+        dict(event)
+        for event in events[transaction_index + 1 :]
+        if str(event.get("event", "") or "") == "resident_mutation_batch_ack"
+        and int(event.get("request_id", 0) or 0) == request_id
+    ] if request_id > 0 else []
+    action_settled = bool(
+        len(transactions) == 1
+        and not state.tab._standalone_action_worker_active()
+    )
+    queue = state.tab.standalone_dotnet_update_queue.metrics()
+    authority_settled = bool(
+        action_settled
+        and len(acknowledgements) == 1
+        and str(acknowledgements[0].get("status", "") or "").lower()
+        in {"applied", "already_applied"}
+        and int(queue.get("active_revision", 0) or 0) == 0
+        and int(queue.get("pending_depth", 0) or 0) == 0
+    )
+    return transactions, acknowledgements, action_settled, authority_settled
+
+
+def _wait_for_resident_terminal_authority(
+    state: SimpleNamespace,
+    cursor: int,
+    *,
+    pump_until,
+) -> None:
+    def settled() -> bool:
+        snapshot = _resident_terminal_snapshot(state, cursor)
+        (
+            state.resident_interaction_transactions,
+            state.resident_interaction_acknowledgements,
+            state.resident_interaction_action_settled,
+            state.resident_interaction_authority_settled,
+        ) = snapshot
+        return state.resident_interaction_authority_settled
+
+    pump_until(state, settled, 10.0)
+    settled()
+    state.resident_interaction_transaction = (
+        dict(state.resident_interaction_transactions[0])
+        if len(state.resident_interaction_transactions) == 1
+        else {}
+    )
+    state.resident_interaction_acknowledgement = (
+        dict(state.resident_interaction_acknowledgements[0])
+        if len(state.resident_interaction_acknowledgements) == 1
+        else {}
+    )
+
+
 def _drive_scoped_viewport_stroke(
     state: SimpleNamespace,
     *,
@@ -265,6 +333,7 @@ def _drive_scoped_viewport_stroke(
     screen_x: int,
     screen_y: int,
     pump_for,
+    pump_until,
     wait_protocol_event,
 ) -> str:
     input_error = ""
@@ -297,7 +366,6 @@ def _drive_scoped_viewport_stroke(
             if not target_safe:
                 input_error = "The .NET viewport lost scoped input ownership."
         if not input_error:
-            gesture_cursor = len(state.tab.standalone_dotnet_protocol_events)
             state.mouse_down_sent = _send_mouse_message(
                 state.viewport_hwnd,
                 _WM_LBUTTONDOWN,
@@ -305,13 +373,9 @@ def _drive_scoped_viewport_stroke(
                 wparam=_MK_LBUTTON,
             )
             button_down = state.mouse_down_sent
-            state.stroke_started = wait_protocol_event(
-                state, "stroke_begin", gesture_cursor, 2.0
-            )
-            if not state.stroke_started:
+            if not state.mouse_down_sent:
                 input_error = "The .NET viewport did not begin the scoped input stroke."
 
-        update_cursor = len(state.tab.standalone_dotnet_protocol_events)
         for x, y in state.mouse_drag_points:
             if input_error:
                 break
@@ -349,33 +413,14 @@ def _drive_scoped_viewport_stroke(
             else False
         )
         button_down = False
-        state.stroke_finished = wait_protocol_event(
-            state, "stroke_end", terminal_cursor, 2.0
+        wait_protocol_event(
+            state, "resident_interaction_transaction", terminal_cursor, 2.0
         )
-        if not state.stroke_finished and state.stroke_started:
-            # Win32 may report loss of the logical left-button state on the
-            # final queued move before the posted button-up is dispatched. In
-            # that case the production viewport has already emitted the exact
-            # terminal event. Accept only the terminal carrying this gesture's
-            # stroke identity; an earlier or unrelated stroke cannot satisfy
-            # the gate.
-            stroke_id = str(state.stroke_started.get("stroke_id", "") or "")
-            state.stroke_finished = next(
-                (
-                    dict(event)
-                    for event in reversed(
-                        tuple(state.tab.standalone_dotnet_protocol_events)[gesture_cursor:]
-                    )
-                    if str(event.get("event", "") or "") == "stroke_end"
-                    and str(event.get("stroke_id", "") or "") == stroke_id
-                ),
-                {},
-            )
-        state.stroke_updates = [
-            dict(event)
-            for event in tuple(state.tab.standalone_dotnet_protocol_events)[update_cursor:]
-            if str(event.get("event", "") or "") == "stroke_update"
-        ]
+        _wait_for_resident_terminal_authority(
+            state,
+            terminal_cursor,
+            pump_until=pump_until,
+        )
     finally:
         if button_down:
             _send_mouse_message(
@@ -396,18 +441,6 @@ def _settle_viewport_stroke(
     capture_viewport,
 ) -> None:
     state.measure_stroke_handlers = False
-    if state.stroke_started:
-        pump_until(
-            state,
-            lambda: (
-                state.tab.standalone_live_stroke_dispatcher is not None
-                and not any(
-                    int(state.tab.standalone_live_stroke_dispatcher.metrics().get(key, 0) or 0)
-                    for key in ("queue_depth", "control_depth", "active")
-                )
-            ),
-            5.0,
-        )
     pump_for(state, 0.05)
     pump_until(
         state,
@@ -431,17 +464,15 @@ def _settle_viewport_stroke(
 def _validate_viewport_stroke(state: SimpleNamespace, input_error: str, base_error):
     if input_error:
         return base_error(state, input_error)
-    if not state.mouse_move_sent or not state.mouse_up_sent or not state.stroke_finished:
+    if not state.mouse_down_sent or not state.mouse_move_sent or not state.mouse_up_sent:
         return base_error(state, "The .NET viewport did not complete the scoped input stroke.")
-    terminal_drag = state.stroke_finished.get("screen_drag", {})
-    terminal_drag = terminal_drag if isinstance(terminal_drag, Mapping) else {}
+    transactions = list(state.resident_interaction_transactions)
+    acknowledgements = list(state.resident_interaction_acknowledgements)
+    transaction = dict(state.resident_interaction_transaction)
+    acknowledgement = dict(state.resident_interaction_acknowledgement)
     state.stroke_terminal_coverage = {
         "requested_end": list(state.mouse_drag_end),
-        "expected_end": list(state.mouse_drag_effective_end),
-        "reported_end": [
-            int(terminal_drag.get("end_x", -1)),
-            int(terminal_drag.get("end_y", -1)),
-        ],
+        "effective_end": list(state.mouse_drag_effective_end),
         "injected_client_end": list(state.mouse_drag_injected_client_end),
         "target_screen_end": list(state.mouse_drag_target_screen_end),
         "viewport_rect_at_release": list(state.viewport_rect_at_release)
@@ -451,17 +482,28 @@ def _validate_viewport_stroke(state: SimpleNamespace, input_error: str, base_err
             state.viewport_rect_before
             and state.viewport_rect_before == state.viewport_rect_at_release
         ),
-        "protocol_update_count": len(state.stroke_updates),
         "input_point_count": len(state.mouse_drag_points),
+        "terminal_transaction_count": len(transactions),
+        "terminal_request_id": int(transaction.get("request_id", 0) or 0),
+        "terminal_gesture_id": int(transaction.get("gesture_id", 0) or 0),
+        "correlated_acknowledgement_count": len(acknowledgements),
+        "authority_acknowledgement": acknowledgement,
+        "action_settled": bool(state.resident_interaction_action_settled),
+        "authority_settled": bool(state.resident_interaction_authority_settled),
     }
     state.stroke_terminal_coverage["ok"] = bool(
-        state.stroke_terminal_coverage["reported_end"]
-        == state.stroke_terminal_coverage["expected_end"]
+        len(transactions) == 1
+        and len(acknowledgements) == 1
+        and state.resident_interaction_authority_settled
     )
-    if not state.stroke_updates:
-        return base_error(state, "The .NET viewport published no bounded update during the scoped input stroke.")
-    if not state.stroke_terminal_coverage["ok"]:
-        return base_error(state, "The .NET viewport coalesced away terminal cursor travel.")
+    if not transactions:
+        return base_error(state, "The .NET viewport published no terminal resident interaction transaction.")
+    if len(transactions) != 1:
+        return base_error(state, "The .NET viewport published duplicate terminal resident interaction transactions.")
+    if not acknowledgements:
+        return base_error(state, "The terminal resident interaction transaction was not authoritatively correlated.")
+    if len(acknowledgements) != 1 or not state.resident_interaction_authority_settled:
+        return base_error(state, "The terminal resident interaction transaction did not settle with one accepted acknowledgement.")
     return None
 
 
@@ -484,6 +526,7 @@ def drive_viewport_stroke(
         screen_x=screen_x,
         screen_y=screen_y,
         pump_for=pump_for,
+        pump_until=pump_until,
         wait_protocol_event=wait_protocol_event,
     )
     _settle_viewport_stroke(
