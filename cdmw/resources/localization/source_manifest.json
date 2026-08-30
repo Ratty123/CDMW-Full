@@ -1482,6 +1482,16 @@
       ]
     },
     {
+      "key": ", all nine tool/page continuity cases at or below 50 ms p95, and",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 356,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": ", and",
       "origins": [
         {
@@ -2038,6 +2048,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 628,
           "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": ". This remains focused regression proof, not broad game-material parity. Overall readiness is conditionally ready because a separate automation-only off-screen Select-to-Viewport jump measured 288.868 ms and the D3D11 debug layer could not be exercised without Windows Graphics Tools. Human physical-input soak, renderer process-kill recovery, and exact/free output round trips remain pending.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 356,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -124447,7 +124467,7 @@
       ]
     },
     {
-      "key": "resynchronisation. Release packaging rejects a helper/DLL identity mismatch. The licensed-PAC evidence is still focused regression proof, not broad game-material parity; packaged visible hardware and real-PAC gates remain the readiness boundary. Human physical-input soak, renderer process-kill recovery, and exact/free output round trips remain pending; overall readiness is conditionally ready.",
+      "key": "resynchronisation. Release packaging rejects a helper/DLL identity mismatch. The required portable onefile sweep passed on visible hardware with a real PAC: 15 live texture resources,",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
