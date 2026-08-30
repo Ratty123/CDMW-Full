@@ -576,6 +576,17 @@ class ShellToolTabsMixin:
         self.settings_tab.language_changed.connect(self._handle_language_changed)
         self.settings_tab.export_language_requested.connect(self._export_language_file)
         self.settings_tab.import_language_requested.connect(self._import_language_file)
+        self.settings_tab.export_profile_requested.connect(self.export_profile_action.trigger)
+        self.settings_tab.import_profile_requested.connect(self.import_profile_action.trigger)
+        self.settings_tab.preview_settings_requested.connect(self._open_model_preview_settings_dialog)
+        self.settings_tab.export_profile_button.setEnabled(self.export_profile_action.isEnabled())
+        self.settings_tab.import_profile_button.setEnabled(self.import_profile_action.isEnabled())
+        self.export_profile_action.changed.connect(
+            lambda: self.settings_tab.export_profile_button.setEnabled(self.export_profile_action.isEnabled())
+        )
+        self.import_profile_action.changed.connect(
+            lambda: self.settings_tab.import_profile_button.setEnabled(self.import_profile_action.isEnabled())
+        )
         self.settings_tab.crash_capture_changed.connect(self._set_crash_capture_enabled)
         self.settings_tab.model_preview_settings_changed.connect(self._handle_model_preview_settings_changed)
         self.settings_tab.archive_performance_settings_changed.connect(

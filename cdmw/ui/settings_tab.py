@@ -100,6 +100,9 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
     language_changed = Signal(str)
     export_language_requested = Signal()
     import_language_requested = Signal()
+    export_profile_requested = Signal()
+    import_profile_requested = Signal()
+    preview_settings_requested = Signal()
 
     def __init__(
         self,
@@ -196,11 +199,14 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             "Setup",
             "Workspace setup controls.",
         )
-        self.startup_page_layout = _add_settings_page(
-            "startup",
-            "Startup",
-            "Launch behavior and startup restore preferences.",
+        self.general_page_layout = _add_settings_page(
+            "general",
+            "General",
+            "Launch behavior, cleanup safeguards, diagnostics, and profile tools.",
         )
+        # Compatibility aliases for callers that still address the former pages.
+        self.startup_page_layout = self.general_page_layout
+        self.safety_page_layout = self.general_page_layout
         self.paths_page_layout = _add_settings_page(
             "paths",
             "Paths",
@@ -215,11 +221,6 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             "appearance",
             "Appearance",
             "Layout, theme, language, fonts, preview colors, and 3D graphics defaults.",
-        )
-        self.safety_page_layout = _add_settings_page(
-            "safety",
-            "Safety",
-            "Confirmation prompts and diagnostic-report behavior.",
         )
         self.section_nav_list.currentRowChanged.connect(self.section_stack.setCurrentIndex)
         self.section_nav_list.setCurrentRow(0)
@@ -331,11 +332,6 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         )
         appearance_layout.addRow("Log color scheme", self.log_color_scheme_combo)
         appearance_layout.addRow("Preview/details color scheme", self.preview_color_scheme_combo)
-        self.verbose_archive_logs_checkbox = QCheckBox("Show verbose Archive Browser logs")
-        self.verbose_archive_logs_checkbox.setToolTip(
-            "Shows timing, cache, and worker diagnostics in the Archive Scan Log. Leave this off for cleaner day-to-day browsing."
-        )
-        appearance_layout.addRow("", self.verbose_archive_logs_checkbox)
         self.appearance_page_layout.addWidget(self.appearance_group)
 
         startup_group = QGroupBox("Startup")
@@ -655,6 +651,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         preview_layout.setContentsMargins(12, 14, 12, 12)
         preview_layout.setHorizontalSpacing(12)
         preview_layout.setVerticalSpacing(10)
+        self.open_preview_settings_button = QPushButton("Preview Settings...")
+        preview_layout.addRow("", self.open_preview_settings_button)
         self.model_preview_use_textures_checkbox = QCheckBox("Load textures automatically after geometry")
         self.model_preview_high_quality_checkbox = QCheckBox("Use support-map preview shading by default")
         preview_layout.addRow("", self.model_preview_use_textures_checkbox)
@@ -1020,10 +1018,26 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.capture_crash_details_checkbox.setToolTip(
             "Fatal startup, crash, and hang reports are always written locally. Enable this to also save additional context for recoverable preview/worker errors."
         )
+        self.verbose_archive_logs_checkbox = QCheckBox("Show verbose Archive Browser logs")
+        self.verbose_archive_logs_checkbox.setToolTip(
+            "Shows timing, cache, and worker diagnostics in the Archive Scan Log. Leave this off for cleaner day-to-day browsing."
+        )
         safety_layout.addWidget(self.confirm_workflow_cleanup_checkbox)
         safety_layout.addWidget(self.confirm_archive_cleanup_checkbox)
         safety_layout.addWidget(self.capture_crash_details_checkbox)
+        safety_layout.addWidget(self.verbose_archive_logs_checkbox)
         self.safety_page_layout.addWidget(safety_group)
+
+        profile_group = QGroupBox("Profile")
+        profile_layout = QHBoxLayout(profile_group)
+        profile_layout.setContentsMargins(12, 14, 12, 12)
+        profile_layout.setSpacing(8)
+        self.export_profile_button = QPushButton("Export Profile...")
+        self.import_profile_button = QPushButton("Import Profile...")
+        profile_layout.addWidget(self.export_profile_button)
+        profile_layout.addWidget(self.import_profile_button)
+        profile_layout.addStretch(1)
+        self.general_page_layout.addWidget(profile_group)
 
         asset_authoring_group = QGroupBox("Asset Authoring Components")
         asset_authoring_layout = QVBoxLayout(asset_authoring_group)
@@ -1068,6 +1082,9 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.language_combo.currentIndexChanged.connect(self._handle_language_changed)
         self.export_language_button.clicked.connect(self.export_language_requested.emit)
         self.import_language_button.clicked.connect(self.import_language_requested.emit)
+        self.export_profile_button.clicked.connect(self.export_profile_requested.emit)
+        self.import_profile_button.clicked.connect(self.import_profile_requested.emit)
+        self.open_preview_settings_button.clicked.connect(self.preview_settings_requested.emit)
         self.ui_font_family_combo.currentIndexChanged.connect(self._handle_appearance_changed)
         self.density_combo.currentIndexChanged.connect(self._handle_appearance_changed)
         self.ui_font_size_spin.valueChanged.connect(self._handle_appearance_changed)
@@ -1164,6 +1181,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
 
     def show_settings_section(self, key: str) -> None:
         target = str(key or "").strip()
+        target = {"startup": "general", "safety": "general"}.get(target, target)
         for row in range(self.section_nav_list.count()):
             item = self.section_nav_list.item(row)
             if item is not None and str(item.data(Qt.UserRole) or "") == target:

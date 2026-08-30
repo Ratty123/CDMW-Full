@@ -801,6 +801,15 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def show_settings(self, _checked: bool = False) -> None:", source)
         self.assertIn("settings_tab_index = self.main_tabs.addTab(self.settings_tab, \"Settings\")", source)
         self.assertIn("self.main_tabs.setTabVisible(settings_tab_index, False)", source)
+        self.assertIn(
+            "self.settings_tab.export_profile_requested.connect(self.export_profile_action.trigger)", source
+        )
+        self.assertIn(
+            "self.settings_tab.import_profile_requested.connect(self.import_profile_action.trigger)", source
+        )
+        self.assertIn(
+            "self.settings_tab.preview_settings_requested.connect(self._open_model_preview_settings_dialog)", source
+        )
         self.assertIn('self.open_about_action = menu_bar.addAction("About")', source)
         self.assertIn("def _build_about_page(self) -> QWidget:", source)
         self.assertIn("def show_about_dialog(self, _checked: bool = False) -> None:", source)
@@ -840,20 +849,21 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.section_stack = QStackedWidget()", settings_source)
         for title in (
             '"Setup"',
-            '"Startup"',
+            '"General"',
             '"Paths"',
             '"Performance"',
             '"Appearance"',
-            '"Safety"',
         ):
             self.assertIn(title, settings_source)
         self.assertIn("self.setup_page_layout = _add_settings_page(", settings_source)
-        self.assertIn("self.startup_page_layout = _add_settings_page(", settings_source)
+        self.assertIn("self.general_page_layout = _add_settings_page(", settings_source)
+        self.assertIn("self.startup_page_layout = self.general_page_layout", settings_source)
+        self.assertIn("self.safety_page_layout = self.general_page_layout", settings_source)
         self.assertIn("self.paths_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.archive_performance_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.appearance_page_layout = _add_settings_page(", settings_source)
         self.assertNotIn("self.layout_page_layout = _add_settings_page(", settings_source)
-        self.assertIn("self.safety_page_layout = _add_settings_page(", settings_source)
+        self.assertIn('target = {"startup": "general", "safety": "general"}.get(target, target)', settings_source)
         self.assertIn("self.setup_page_layout.insertWidget(2, setup_section)", settings_source)
         self.assertIn("toggle_button.setVisible(False)", settings_source)
         self.assertIn("self.setup_section.set_expanded(True)", navigation_source)

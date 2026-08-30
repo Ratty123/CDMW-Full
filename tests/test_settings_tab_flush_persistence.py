@@ -9,6 +9,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from cdmw.services.settings_service import create_settings
@@ -76,6 +77,43 @@ class SettingsTabFlushPersistenceTests(unittest.TestCase):
         keys = {str(key) for key in self.settings.allKeys()}
         self.assertIn("archive/model_high_quality", keys)
         self.assertNotIn("archive/model_high_quality_textures", keys)
+
+    def test_general_page_combines_startup_safety_and_shared_settings_actions(self) -> None:
+        nav = self.tab.section_nav_list
+        keys = [str(nav.item(row).data(Qt.UserRole)) for row in range(nav.count())]
+        titles = [nav.item(row).text() for row in range(nav.count())]
+
+        self.assertEqual(["setup", "general", "paths", "performance", "appearance"], keys)
+        self.assertEqual(["Setup", "General", "Paths", "Performance", "Appearance"], titles)
+
+        general_row = keys.index("general")
+        appearance_row = keys.index("appearance")
+        general_page = self.tab.section_stack.widget(general_row)
+        appearance_page = self.tab.section_stack.widget(appearance_row)
+        for widget in (
+            self.tab.auto_load_archive_checkbox,
+            self.tab.confirm_workflow_cleanup_checkbox,
+            self.tab.capture_crash_details_checkbox,
+            self.tab.verbose_archive_logs_checkbox,
+            self.tab.export_profile_button,
+            self.tab.import_profile_button,
+        ):
+            self.assertTrue(general_page.isAncestorOf(widget))
+        self.assertFalse(appearance_page.isAncestorOf(self.tab.verbose_archive_logs_checkbox))
+        self.assertTrue(appearance_page.isAncestorOf(self.tab.open_preview_settings_button))
+
+        for legacy_key in ("startup", "safety"):
+            self.tab.show_settings_section(legacy_key)
+            self.assertEqual(general_row, nav.currentRow())
+
+        requests: list[str] = []
+        self.tab.export_profile_requested.connect(lambda: requests.append("export"))
+        self.tab.import_profile_requested.connect(lambda: requests.append("import"))
+        self.tab.preview_settings_requested.connect(lambda: requests.append("preview"))
+        self.tab.export_profile_button.click()
+        self.tab.import_profile_button.click()
+        self.tab.open_preview_settings_button.click()
+        self.assertEqual(["export", "import", "preview"], requests)
 
     def test_settings_navigation_compacts_to_its_labels_and_selected_list_font(self) -> None:
         self.tab.ui_font_size_spin.setValue(8)
