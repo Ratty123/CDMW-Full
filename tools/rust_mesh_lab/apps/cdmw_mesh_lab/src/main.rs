@@ -15,9 +15,12 @@ use camera::{OrbitCamera, StandardView};
 use cdmw_archive::ArchiveCatalog;
 use cdmw_formats::MeshDocument;
 use cdmw_interaction::{
-    OperatorController, SelectionDomain, SelectionOperation, SelectionQueryStats,
+    OperatorController, SelectionCommand, SelectionDomain, SelectionOperation, SelectionQueryStats,
+    selection_after_command,
 };
-use cdmw_mesh::{History, Selection, VertexHandle, WorkingMesh};
+#[cfg(test)]
+use cdmw_mesh::Selection;
+use cdmw_mesh::{History, MeshError, VertexHandle, WorkingMesh};
 use cdmw_render_wgpu::{MaterialPreviewFactors, ViewMode, WindowRenderer};
 use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
@@ -81,7 +84,11 @@ enum UiAction {
     LoadSelectedArchiveEntry,
     SwitchLod(usize),
     SelectAllVertices,
+    SelectAllEdges,
     SelectAllFaces,
+    GrowSelection(SelectionDomain),
+    ShrinkSelection(SelectionDomain),
+    InvertSelection(SelectionDomain),
     ClearSelection,
     FrameAll,
     FrameSelected,
@@ -928,13 +935,41 @@ impl LabApplication {
                 } else {
                     "X-Ray includes occluded element candidates."
                 });
-                ui.horizontal(|ui| {
+                let selected_vertices = self
+                    .mesh
+                    .as_ref()
+                    .map(WorkingMesh::selected_vertex_scope)
+                    .map_or(0, |scope| scope.len());
+                let selected_faces = self
+                    .mesh
+                    .as_ref()
+                    .map_or(0, |mesh| mesh.selection.faces.len());
+                let selected_edges = self
+                    .mesh
+                    .as_ref()
+                    .map_or(0, |mesh| mesh.selection.edges.len());
+                let active_selection_count = match self.selection_domain {
+                    SelectionDomain::Vertex => self
+                        .mesh
+                        .as_ref()
+                        .map_or(0, |mesh| mesh.selection.vertices.len()),
+                    SelectionDomain::Edge => selected_edges,
+                    SelectionDomain::Face => selected_faces,
+                };
+                ui.horizontal_wrapped(|ui| {
                     if ui
                         .add_enabled(has_mesh, egui::Button::new("All Vertices"))
                         .on_disabled_hover_text("Load a mesh first")
                         .clicked()
                     {
                         actions.push(UiAction::SelectAllVertices);
+                    }
+                    if ui
+                        .add_enabled(has_mesh, egui::Button::new("All Edges"))
+                        .on_disabled_hover_text("Load a mesh first")
+                        .clicked()
+                    {
+                        actions.push(UiAction::SelectAllEdges);
                     }
                     if ui
                         .add_enabled(has_mesh, egui::Button::new("All Faces"))
@@ -951,19 +986,29 @@ impl LabApplication {
                         actions.push(UiAction::ClearSelection);
                     }
                 });
-                let selected_vertices = self
-                    .mesh
-                    .as_ref()
-                    .map(WorkingMesh::selected_vertex_scope)
-                    .map_or(0, |scope| scope.len());
-                let selected_faces = self
-                    .mesh
-                    .as_ref()
-                    .map_or(0, |mesh| mesh.selection.faces.len());
-                let selected_edges = self
-                    .mesh
-                    .as_ref()
-                    .map_or(0, |mesh| mesh.selection.edges.len());
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(active_selection_count > 0, egui::Button::new("Grow"))
+                        .on_disabled_hover_text("Select an element in the active domain first")
+                        .clicked()
+                    {
+                        actions.push(UiAction::GrowSelection(self.selection_domain));
+                    }
+                    if ui
+                        .add_enabled(active_selection_count > 0, egui::Button::new("Shrink"))
+                        .on_disabled_hover_text("Select an element in the active domain first")
+                        .clicked()
+                    {
+                        actions.push(UiAction::ShrinkSelection(self.selection_domain));
+                    }
+                    if ui
+                        .add_enabled(has_mesh, egui::Button::new("Invert"))
+                        .on_disabled_hover_text("Load a mesh first")
+                        .clicked()
+                    {
+                        actions.push(UiAction::InvertSelection(self.selection_domain));
+                    }
+                });
                 ui.label(format!(
                     "Selected: {selected_vertices} vertices · {selected_edges} edges · {selected_faces} faces"
                 ));
@@ -1117,16 +1162,59 @@ impl LabApplication {
                 UiAction::QueryArchive => self.query_archive(),
                 UiAction::LoadSelectedArchiveEntry => self.load_selected_archive_entry(),
                 UiAction::SwitchLod(index) => self.switch_lod(index),
-                UiAction::SelectAllVertices => self.select_all_vertices(),
-                UiAction::SelectAllFaces => self.select_all_faces(),
-                UiAction::ClearSelection => {
-                    if let Some(mesh) = &mut self.mesh {
-                        match mesh.set_selection(Selection::default()) {
-                            Ok(()) => self.status = "Selection cleared".to_owned(),
-                            Err(error) => self.status = error.to_string(),
-                        }
-                    }
+                UiAction::SelectAllVertices => {
+                    self.selection_domain = SelectionDomain::Vertex;
+                    self.run_selection_command(
+                        "Select all vertices",
+                        SelectionDomain::Vertex,
+                        SelectionCommand::SelectAll,
+                    );
                 }
+                UiAction::SelectAllEdges => {
+                    self.selection_domain = SelectionDomain::Edge;
+                    self.run_selection_command(
+                        "Select all edges",
+                        SelectionDomain::Edge,
+                        SelectionCommand::SelectAll,
+                    );
+                }
+                UiAction::SelectAllFaces => {
+                    self.selection_domain = SelectionDomain::Face;
+                    self.run_selection_command(
+                        "Select all faces",
+                        SelectionDomain::Face,
+                        SelectionCommand::SelectAll,
+                    );
+                }
+                UiAction::GrowSelection(domain) => {
+                    self.selection_domain = domain;
+                    self.run_selection_command(
+                        &format!("Grow {domain:?} selection"),
+                        domain,
+                        SelectionCommand::Grow,
+                    );
+                }
+                UiAction::ShrinkSelection(domain) => {
+                    self.selection_domain = domain;
+                    self.run_selection_command(
+                        &format!("Shrink {domain:?} selection"),
+                        domain,
+                        SelectionCommand::Shrink,
+                    );
+                }
+                UiAction::InvertSelection(domain) => {
+                    self.selection_domain = domain;
+                    self.run_selection_command(
+                        &format!("Invert {domain:?} selection"),
+                        domain,
+                        SelectionCommand::Invert,
+                    );
+                }
+                UiAction::ClearSelection => self.run_selection_command(
+                    "Clear selection",
+                    self.selection_domain,
+                    SelectionCommand::Clear,
+                ),
                 UiAction::FrameAll => {
                     if let Some(mesh) = &self.mesh {
                         self.camera.frame_all(mesh);
@@ -1309,24 +1397,49 @@ impl LabApplication {
         self.publish_mesh_snapshot();
     }
 
+    fn run_selection_command(
+        &mut self,
+        label: &str,
+        domain: SelectionDomain,
+        command: SelectionCommand,
+    ) {
+        let result = (|| -> Result<bool, MeshError> {
+            let mesh = self.mesh.as_mut().ok_or(MeshError::EmptyOperation)?;
+            let next = selection_after_command(mesh, domain, command);
+            if mesh.selection == next {
+                return Ok(false);
+            }
+            let before = mesh.clone();
+            mesh.set_selection(next)?;
+            if let Err(error) = self.history.commit(label, before.clone(), mesh) {
+                *mesh = before;
+                return Err(error);
+            }
+            Ok(true)
+        })();
+        self.status = match result {
+            Ok(true) => format!("{label} committed as one undo entry"),
+            Ok(false) => format!("{label} made no change"),
+            Err(error) => format!("{label} failed: {error}"),
+        };
+    }
+
+    #[cfg(test)]
     fn select_all_vertices(&mut self) {
         if let Some(mesh) = &mut self.mesh {
-            let selection = Selection {
-                vertices: mesh.vertices().map(|(handle, _)| handle).collect(),
-                ..Selection::default()
-            };
+            let selection =
+                selection_after_command(mesh, SelectionDomain::Vertex, SelectionCommand::SelectAll);
             if let Err(error) = mesh.set_selection(selection) {
                 self.status = error.to_string();
             }
         }
     }
 
+    #[cfg(test)]
     fn select_all_faces(&mut self) {
         if let Some(mesh) = &mut self.mesh {
-            let selection = Selection {
-                faces: mesh.faces().map(|(handle, _)| handle).collect(),
-                ..Selection::default()
-            };
+            let selection =
+                selection_after_command(mesh, SelectionDomain::Face, SelectionCommand::SelectAll);
             if let Err(error) = mesh.set_selection(selection) {
                 self.status = error.to_string();
             }

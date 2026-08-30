@@ -38,6 +38,15 @@ pub enum SelectionOperation {
     Toggle,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectionCommand {
+    SelectAll,
+    Invert,
+    Grow,
+    Shrink,
+    Clear,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SculptTool {
     Grab,
@@ -428,6 +437,166 @@ pub fn selection_after_operation(
         SelectionOperation::Toggle => toggle_selection(&mut next, incoming),
     }
     next
+}
+
+#[must_use]
+pub fn selection_after_command(
+    mesh: &WorkingMesh,
+    domain: SelectionDomain,
+    command: SelectionCommand,
+) -> Selection {
+    if command == SelectionCommand::Clear {
+        return Selection::default();
+    }
+    let mut next = if command == SelectionCommand::SelectAll {
+        Selection::default()
+    } else {
+        mesh.selection.clone()
+    };
+    match domain {
+        SelectionDomain::Vertex => {
+            next.vertices = vertex_selection_after_command(mesh, command);
+        }
+        SelectionDomain::Edge => {
+            next.edges = edge_selection_after_command(mesh, command);
+        }
+        SelectionDomain::Face => {
+            next.faces = face_selection_after_command(mesh, command);
+        }
+    }
+    next
+}
+
+fn vertex_selection_after_command(
+    mesh: &WorkingMesh,
+    command: SelectionCommand,
+) -> HashSet<VertexHandle> {
+    let current = &mesh.selection.vertices;
+    match command {
+        SelectionCommand::SelectAll => mesh.vertices().map(|(handle, _)| handle).collect(),
+        SelectionCommand::Invert => mesh
+            .vertices()
+            .map(|(handle, _)| handle)
+            .filter(|handle| !current.contains(handle))
+            .collect(),
+        SelectionCommand::Grow => {
+            let mut grown = current.clone();
+            for (_, edge) in mesh.edges() {
+                if edge.vertices.iter().any(|handle| current.contains(handle)) {
+                    grown.extend(edge.vertices);
+                }
+            }
+            grown
+        }
+        SelectionCommand::Shrink => {
+            let mut shrunk = current.clone();
+            for (_, edge) in mesh.edges() {
+                let first_selected = current.contains(&edge.vertices[0]);
+                let second_selected = current.contains(&edge.vertices[1]);
+                if first_selected && !second_selected {
+                    shrunk.remove(&edge.vertices[0]);
+                }
+                if second_selected && !first_selected {
+                    shrunk.remove(&edge.vertices[1]);
+                }
+            }
+            shrunk
+        }
+        SelectionCommand::Clear => HashSet::new(),
+    }
+}
+
+fn edge_selection_after_command(
+    mesh: &WorkingMesh,
+    command: SelectionCommand,
+) -> HashSet<EdgeHandle> {
+    let current = &mesh.selection.edges;
+    match command {
+        SelectionCommand::SelectAll => mesh.edges().map(|(handle, _)| handle).collect(),
+        SelectionCommand::Invert => mesh
+            .edges()
+            .map(|(handle, _)| handle)
+            .filter(|handle| !current.contains(handle))
+            .collect(),
+        SelectionCommand::Grow => {
+            let touched_vertices = current
+                .iter()
+                .filter_map(|handle| mesh.edge(*handle))
+                .flat_map(|edge| edge.vertices)
+                .collect::<HashSet<_>>();
+            let mut grown = current.clone();
+            grown.extend(
+                mesh.edges()
+                    .filter(|(_, edge)| {
+                        edge.vertices
+                            .iter()
+                            .any(|vertex| touched_vertices.contains(vertex))
+                    })
+                    .map(|(handle, _)| handle),
+            );
+            grown
+        }
+        SelectionCommand::Shrink => {
+            let boundary_vertices = mesh
+                .edges()
+                .filter(|(handle, _)| !current.contains(handle))
+                .flat_map(|(_, edge)| edge.vertices)
+                .collect::<HashSet<_>>();
+            current
+                .iter()
+                .copied()
+                .filter(|handle| {
+                    mesh.edge(*handle).is_some_and(|edge| {
+                        edge.vertices
+                            .iter()
+                            .all(|vertex| !boundary_vertices.contains(vertex))
+                    })
+                })
+                .collect()
+        }
+        SelectionCommand::Clear => HashSet::new(),
+    }
+}
+
+fn face_selection_after_command(
+    mesh: &WorkingMesh,
+    command: SelectionCommand,
+) -> HashSet<FaceHandle> {
+    let current = &mesh.selection.faces;
+    match command {
+        SelectionCommand::SelectAll => mesh.faces().map(|(handle, _)| handle).collect(),
+        SelectionCommand::Invert => mesh
+            .faces()
+            .map(|(handle, _)| handle)
+            .filter(|handle| !current.contains(handle))
+            .collect(),
+        SelectionCommand::Grow => {
+            let mut grown = current.clone();
+            for (_, edge) in mesh.edges() {
+                if edge.faces.iter().any(|face| current.contains(face)) {
+                    grown.extend(edge.faces.iter().copied());
+                }
+            }
+            grown
+        }
+        SelectionCommand::Shrink => {
+            let mut boundary = HashSet::new();
+            for (_, edge) in mesh.edges() {
+                let has_selected = edge.faces.iter().any(|face| current.contains(face));
+                let has_unselected = edge.faces.iter().any(|face| !current.contains(face));
+                if has_selected && has_unselected {
+                    boundary.extend(
+                        edge.faces
+                            .iter()
+                            .filter(|face| current.contains(face))
+                            .copied(),
+                    );
+                }
+            }
+            current.difference(&boundary).copied().collect()
+        }
+        SelectionCommand::Clear => HashSet::new(),
+    }
 }
 
 fn union_selection(target: &mut Selection, incoming: &Selection) {
@@ -840,6 +1009,97 @@ mod tests {
         assert_eq!(
             shape_contains(&clockwise, Vec2::splat(0.5)),
             shape_contains(&counter_clockwise, Vec2::splat(0.5))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn topology_selection_commands_are_exact_for_vertices_edges_and_faces()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
+        let mut mesh = WorkingMesh::from_document_lod(&document, 1)?;
+        let vertex_count = mesh.vertices().count();
+        let edge_count = mesh.edges().count();
+        let face_count = mesh.faces().count();
+        assert_eq!((vertex_count, edge_count, face_count), (4, 5, 2));
+
+        let corner = mesh
+            .vertices()
+            .map(|(handle, _)| handle)
+            .find(|handle| {
+                mesh.vertex_neighbors(*handle)
+                    .is_some_and(|neighbors| neighbors.len() == 2)
+            })
+            .ok_or("missing quad corner")?;
+        let retained_face = mesh
+            .faces()
+            .next()
+            .map(|(handle, _)| handle)
+            .ok_or("missing face")?;
+        mesh.set_selection(Selection {
+            vertices: HashSet::from([corner]),
+            faces: HashSet::from([retained_face]),
+            ..Selection::default()
+        })?;
+        let grown_vertices =
+            selection_after_command(&mesh, SelectionDomain::Vertex, SelectionCommand::Grow);
+        assert_eq!(grown_vertices.vertices.len(), 3);
+        assert!(grown_vertices.vertices.contains(&corner));
+        assert_eq!(grown_vertices.faces, HashSet::from([retained_face]));
+        mesh.set_selection(grown_vertices)?;
+        let shrunk_vertices =
+            selection_after_command(&mesh, SelectionDomain::Vertex, SelectionCommand::Shrink);
+        assert_eq!(shrunk_vertices.vertices, HashSet::from([corner]));
+        assert_eq!(shrunk_vertices.faces, HashSet::from([retained_face]));
+        mesh.set_selection(shrunk_vertices)?;
+        let inverted_vertices =
+            selection_after_command(&mesh, SelectionDomain::Vertex, SelectionCommand::Invert);
+        assert_eq!(inverted_vertices.vertices.len(), vertex_count - 1);
+        assert!(!inverted_vertices.vertices.contains(&corner));
+        assert_eq!(inverted_vertices.faces, HashSet::from([retained_face]));
+        let all_vertices =
+            selection_after_command(&mesh, SelectionDomain::Vertex, SelectionCommand::SelectAll);
+        assert_eq!(all_vertices.vertices.len(), vertex_count);
+        assert!(all_vertices.edges.is_empty() && all_vertices.faces.is_empty());
+
+        let boundary_edge = mesh
+            .edges()
+            .find(|(_, edge)| edge.faces.len() == 1)
+            .map(|(handle, _)| handle)
+            .ok_or("missing boundary edge")?;
+        mesh.set_selection(Selection {
+            edges: HashSet::from([boundary_edge]),
+            ..Selection::default()
+        })?;
+        let grown_edges =
+            selection_after_command(&mesh, SelectionDomain::Edge, SelectionCommand::Grow);
+        assert!(grown_edges.edges.len() > 1);
+        assert!(grown_edges.edges.contains(&boundary_edge));
+        let shrunk_edges =
+            selection_after_command(&mesh, SelectionDomain::Edge, SelectionCommand::Shrink);
+        assert!(shrunk_edges.edges.is_empty());
+        let inverted_edges =
+            selection_after_command(&mesh, SelectionDomain::Edge, SelectionCommand::Invert);
+        assert_eq!(inverted_edges.edges.len(), edge_count - 1);
+        assert!(!inverted_edges.edges.contains(&boundary_edge));
+
+        mesh.set_selection(Selection {
+            faces: HashSet::from([retained_face]),
+            ..Selection::default()
+        })?;
+        let grown_faces =
+            selection_after_command(&mesh, SelectionDomain::Face, SelectionCommand::Grow);
+        assert_eq!(grown_faces.faces.len(), face_count);
+        let shrunk_faces =
+            selection_after_command(&mesh, SelectionDomain::Face, SelectionCommand::Shrink);
+        assert!(shrunk_faces.faces.is_empty());
+        let inverted_faces =
+            selection_after_command(&mesh, SelectionDomain::Face, SelectionCommand::Invert);
+        assert_eq!(inverted_faces.faces.len(), face_count - 1);
+        assert!(!inverted_faces.faces.contains(&retained_face));
+        assert_eq!(
+            selection_after_command(&mesh, SelectionDomain::Face, SelectionCommand::Clear),
+            Selection::default()
         );
         Ok(())
     }

@@ -181,7 +181,7 @@ fn decoded_lods_switch_headlessly_and_preserve_independent_edit_history() -> Tes
         .as_ref()
         .ok_or("missing edited LOD0")?
         .structural_fingerprint();
-    assert_eq!(application.history.undo_len(), 1);
+    assert_eq!(application.history.undo_len(), 2);
 
     application.handle_actions(vec![UiAction::SwitchLod(1)]);
     assert_eq!(application.active_lod_index, 1);
@@ -195,7 +195,7 @@ fn decoded_lods_switch_headlessly_and_preserve_independent_edit_history() -> Tes
         .as_ref()
         .ok_or("missing edited LOD1")?
         .structural_fingerprint();
-    assert_eq!(application.history.undo_len(), 1);
+    assert_eq!(application.history.undo_len(), 2);
 
     application.handle_actions(vec![UiAction::SwitchLod(0)]);
     assert_eq!(
@@ -206,7 +206,7 @@ fn decoded_lods_switch_headlessly_and_preserve_independent_edit_history() -> Tes
             .structural_fingerprint(),
         lod_zero_edited
     );
-    assert_eq!(application.history.undo_len(), 1);
+    assert_eq!(application.history.undo_len(), 2);
     application.handle_actions(vec![UiAction::Undo]);
     assert_ne!(
         application
@@ -235,7 +235,7 @@ fn decoded_lods_switch_headlessly_and_preserve_independent_edit_history() -> Tes
             .structural_fingerprint(),
         lod_one_edited
     );
-    assert_eq!(application.history.undo_len(), 1);
+    assert_eq!(application.history.undo_len(), 2);
 
     let context = application.egui_context.clone();
     let mut output = context.run_ui(

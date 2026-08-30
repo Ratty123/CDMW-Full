@@ -212,6 +212,24 @@ fn pointer_button(position: Pos2, button: PointerButton, pressed: bool) -> Event
     }
 }
 
+fn lod_one_application() -> Result<LabApplication, Box<dyn std::error::Error>> {
+    let mut application = two_lod_application()?;
+    application.handle_actions(vec![UiAction::SwitchLod(1)]);
+    Ok(application)
+}
+
+fn selected_count(
+    ui: &HeadlessUi,
+    domain: SelectionDomain,
+) -> Result<usize, Box<dyn std::error::Error>> {
+    let selection = &ui.application.mesh.as_ref().ok_or("mesh")?.selection;
+    Ok(match domain {
+        SelectionDomain::Vertex => selection.vertices.len(),
+        SelectionDomain::Edge => selection.edges.len(),
+        SelectionDomain::Face => selection.faces.len(),
+    })
+}
+
 #[test]
 fn inspector_edit_controls_remain_reachable_in_short_windows() -> TestResult {
     for size in [egui::vec2(1_280.0, 720.0), egui::vec2(1_000.0, 600.0)] {
@@ -252,7 +270,7 @@ fn inspector_edit_controls_remain_reachable_in_short_windows() -> TestResult {
             edited
         );
         ui.reveal("Export Neutral OBJ…")?;
-        assert_eq!(ui.application.history.undo_len(), 1);
+        assert_eq!(ui.application.history.undo_len(), 2);
         assert!(!ui.application.raw_primary_captured);
         assert!(ui.application.selection_gesture.is_none());
         assert!(ui.application.edit_gesture.is_none());
@@ -371,6 +389,99 @@ fn painted_menus_route_preview_camera_selection_and_lod_controls() -> TestResult
             .is_empty()
     );
     assert!(!ui.application.raw_primary_captured);
+    Ok(())
+}
+
+#[test]
+fn painted_topology_selection_commands_are_exact_and_undoable() -> TestResult {
+    let mut vertex_application = lod_one_application()?;
+    let corner = {
+        let mesh = vertex_application.mesh.as_ref().ok_or("vertex mesh")?;
+        mesh.vertices()
+            .map(|(handle, _)| handle)
+            .find(|handle| {
+                mesh.vertex_neighbors(*handle)
+                    .is_some_and(|neighbors| neighbors.len() == 2)
+            })
+            .ok_or("quad corner")?
+    };
+    vertex_application
+        .mesh
+        .as_mut()
+        .ok_or("vertex mesh")?
+        .set_selection(Selection {
+            vertices: [corner].into_iter().collect(),
+            ..Selection::default()
+        })?;
+    let vertex_baseline = vertex_application
+        .mesh
+        .as_ref()
+        .ok_or("vertex mesh")?
+        .structural_fingerprint();
+    let mut vertex_ui = HeadlessUi::new(vertex_application, egui::vec2(1_280.0, 720.0));
+    vertex_ui.click("Grow")?;
+    assert_eq!(selected_count(&vertex_ui, SelectionDomain::Vertex)?, 3);
+    assert_eq!(vertex_ui.application.history.undo_len(), 1);
+    vertex_ui.click("Undo")?;
+    let vertex_mesh = vertex_ui.application.mesh.as_ref().ok_or("vertex mesh")?;
+    assert_eq!(vertex_mesh.selection.vertices.len(), 1);
+    assert!(vertex_mesh.selection.vertices.contains(&corner));
+    vertex_ui.click("Redo")?;
+    vertex_ui.click("Shrink")?;
+    let vertex_mesh = vertex_ui.application.mesh.as_ref().ok_or("vertex mesh")?;
+    assert_eq!(vertex_mesh.selection.vertices.len(), 1);
+    assert!(vertex_mesh.selection.vertices.contains(&corner));
+    vertex_ui.click("Invert")?;
+    let vertex_mesh = vertex_ui.application.mesh.as_ref().ok_or("vertex mesh")?;
+    assert_eq!(vertex_mesh.selection.vertices.len(), 3);
+    assert!(!vertex_mesh.selection.vertices.contains(&corner));
+    assert_eq!(vertex_mesh.structural_fingerprint(), vertex_baseline);
+    assert_eq!(vertex_ui.application.history.undo_len(), 3);
+
+    let mut edge_ui = HeadlessUi::new(lod_one_application()?, egui::vec2(1_280.0, 720.0));
+    edge_ui.click("All Edges")?;
+    assert_eq!(edge_ui.application.selection_domain, SelectionDomain::Edge);
+    let edge_mesh = edge_ui.application.mesh.as_ref().ok_or("edge mesh")?;
+    assert_eq!(selected_count(&edge_ui, SelectionDomain::Edge)?, 5);
+    assert!(edge_mesh.selection.vertices.is_empty() && edge_mesh.selection.faces.is_empty());
+    assert_eq!(edge_ui.application.history.undo_len(), 1);
+    edge_ui.click("Invert")?;
+    assert_eq!(selected_count(&edge_ui, SelectionDomain::Edge)?, 0);
+    edge_ui.click("Undo")?;
+    assert_eq!(selected_count(&edge_ui, SelectionDomain::Edge)?, 5);
+    edge_ui.click("Clear")?;
+    assert_eq!(selected_count(&edge_ui, SelectionDomain::Edge)?, 0);
+    assert_eq!(edge_ui.application.history.undo_len(), 2);
+    edge_ui.click("Undo")?;
+    assert_eq!(selected_count(&edge_ui, SelectionDomain::Edge)?, 5);
+
+    let mut face_application = lod_one_application()?;
+    let face = face_application
+        .mesh
+        .as_ref()
+        .ok_or("face mesh")?
+        .faces()
+        .next()
+        .map(|(handle, _)| handle)
+        .ok_or("face")?;
+    face_application
+        .mesh
+        .as_mut()
+        .ok_or("face mesh")?
+        .set_selection(Selection {
+            faces: [face].into_iter().collect(),
+            ..Selection::default()
+        })?;
+    let mut face_ui = HeadlessUi::new(face_application, egui::vec2(1_280.0, 720.0));
+    face_ui.click("Face")?;
+    face_ui.click("Grow")?;
+    assert_eq!(selected_count(&face_ui, SelectionDomain::Face)?, 2);
+    face_ui.click("Grow")?;
+    assert_eq!(face_ui.application.history.undo_len(), 1);
+    face_ui.click("Undo")?;
+    face_ui.click("Shrink")?;
+    assert_eq!(selected_count(&face_ui, SelectionDomain::Face)?, 0);
+    assert_eq!(face_ui.application.history.undo_len(), 1);
     Ok(())
 }
 
@@ -626,7 +737,7 @@ fn tool_buttons_and_pointer_drags_produce_edits_and_exact_history() -> TestResul
             "{tool:?} did not edit: {}",
             ui.application.status
         );
-        assert_eq!(ui.application.history.undo_len(), 1, "{tool:?}");
+        assert_eq!(ui.application.history.undo_len(), 2, "{tool:?}");
         assert!(ui.application.edit_gesture.is_none());
         ui.click("Undo")?;
         assert_eq!(
@@ -699,7 +810,7 @@ fn escape_and_layout_resize_cancel_input_driven_edits_exactly() -> TestResult {
         }
         ui.frame(vec![pointer_button(end, PointerButton::Primary, false)]);
         assert!(ui.application.edit_gesture.is_none());
-        assert_eq!(ui.application.history.undo_len(), 0);
+        assert_eq!(ui.application.history.undo_len(), 1);
         assert_eq!(
             ui.application
                 .mesh
