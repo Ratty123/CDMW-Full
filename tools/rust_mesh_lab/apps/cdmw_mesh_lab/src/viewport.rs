@@ -94,6 +94,37 @@ impl SelectionTool {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrushFalloff {
+    Smooth,
+    Linear,
+    Constant,
+}
+
+impl BrushFalloff {
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Smooth => "Smooth",
+            Self::Linear => "Linear",
+            Self::Constant => "Constant",
+        }
+    }
+
+    #[must_use]
+    pub fn weight(self, normalized_distance: f32) -> f32 {
+        if !normalized_distance.is_finite() || normalized_distance > 1.0 {
+            return 0.0;
+        }
+        let remaining = 1.0 - normalized_distance.max(0.0);
+        match self {
+            Self::Smooth => remaining * remaining * (3.0 - 2.0 * remaining),
+            Self::Linear => remaining,
+            Self::Constant => 1.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewportTool {
     Select,
     Move,
@@ -294,6 +325,7 @@ pub struct EditGesture {
     pub tool: ViewportTool,
     pub axis: GizmoAxis,
     pub handles: HashSet<VertexHandle>,
+    pub sculpt_weights: HashMap<VertexHandle, f32>,
     pub pivot: Vec3,
     pub last_pointer: Vec2,
     pub last_sample: Vec2,
@@ -466,6 +498,28 @@ pub fn brush_vertex_scope(
     }
 }
 
+pub fn brush_vertex_weights(
+    mesh: &WorkingMesh,
+    projection: &ViewportProjection,
+    point: Vec2,
+    radius: f32,
+    visible_only: bool,
+    falloff: BrushFalloff,
+) -> Result<HashMap<VertexHandle, f32>, InteractionError> {
+    if !point.is_finite() || !radius.is_finite() || radius <= 0.0 {
+        return Err(InteractionError::InvalidShape);
+    }
+    let handles = brush_vertex_scope(mesh, &projection.interaction, point, radius, visible_only)?;
+    Ok(handles
+        .into_iter()
+        .filter_map(|handle| {
+            let projected = projection.vertices.get(&handle)?;
+            let weight = falloff.weight(projected.screen.distance(point) / radius);
+            (weight > 0.0).then_some((handle, weight))
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -479,6 +533,64 @@ mod tests {
         .unwrap_or_else(|error| panic!("fixture decode failed: {error}"));
         WorkingMesh::from_document(&document)
             .unwrap_or_else(|error| panic!("fixture mesh failed: {error}"))
+    }
+
+    #[test]
+    fn brush_falloff_profiles_are_bounded_and_distinct() {
+        assert_eq!(BrushFalloff::Smooth.weight(0.0), 1.0);
+        assert_eq!(BrushFalloff::Smooth.weight(0.5), 0.5);
+        assert_eq!(BrushFalloff::Smooth.weight(1.0), 0.0);
+        assert_eq!(BrushFalloff::Linear.weight(0.25), 0.75);
+        assert_eq!(BrushFalloff::Constant.weight(0.75), 1.0);
+        assert_eq!(BrushFalloff::Linear.weight(1.25), 0.0);
+        assert_eq!(BrushFalloff::Smooth.weight(f32::NAN), 0.0);
+    }
+
+    #[test]
+    fn brush_vertex_weights_follow_projection_and_selection_scope()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut mesh = triangle();
+        let camera = OrbitCamera::default();
+        let rectangle = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
+        let projection = ViewportProjection::build(&mesh, &camera, rectangle, 1);
+        let (&center_handle, center) = projection
+            .vertices
+            .iter()
+            .next()
+            .ok_or("missing projected vertex")?;
+        let radius = projection
+            .vertices
+            .values()
+            .map(|vertex| vertex.screen.distance(center.screen))
+            .fold(0.0_f32, f32::max)
+            + 1.0;
+        let weights = brush_vertex_weights(
+            &mesh,
+            &projection,
+            center.screen,
+            radius,
+            false,
+            BrushFalloff::Linear,
+        )?;
+        assert_eq!(weights.len(), mesh.vertices().count());
+        assert_eq!(weights[&center_handle], 1.0);
+        for (handle, projected) in &projection.vertices {
+            let expected = 1.0 - projected.screen.distance(center.screen) / radius;
+            assert!((weights[handle] - expected).abs() < 1.0e-6);
+        }
+        assert!(weights.values().any(|weight| *weight < 1.0));
+
+        mesh.selection.vertices.insert(center_handle);
+        let restricted = brush_vertex_weights(
+            &mesh,
+            &projection,
+            center.screen,
+            radius,
+            false,
+            BrushFalloff::Constant,
+        )?;
+        assert_eq!(restricted, HashMap::from([(center_handle, 1.0)]));
+        Ok(())
     }
 
     #[test]

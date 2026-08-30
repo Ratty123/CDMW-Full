@@ -875,30 +875,58 @@ impl OperatorController {
         delta: Vec3,
         strength: f32,
     ) -> Result<(), InteractionError> {
+        let weights = handles
+            .iter()
+            .copied()
+            .map(|handle| (handle, 1.0))
+            .collect::<HashMap<_, _>>();
+        self.sculpt_weighted(mesh, gesture_id, tool, &weights, center, delta, strength)
+    }
+
+    pub fn sculpt_weighted(
+        &self,
+        mesh: &mut WorkingMesh,
+        gesture_id: u64,
+        tool: SculptTool,
+        weights: &HashMap<VertexHandle, f32>,
+        center: Vec3,
+        delta: Vec3,
+        strength: f32,
+    ) -> Result<(), InteractionError> {
         self.require_running(gesture_id)?;
-        if handles.is_empty() || !center.is_finite() || !delta.is_finite() || !strength.is_finite()
+        if weights.is_empty()
+            || !center.is_finite()
+            || !delta.is_finite()
+            || !strength.is_finite()
+            || weights
+                .values()
+                .any(|weight| !weight.is_finite() || !(0.0..=1.0).contains(weight))
         {
             return Err(InteractionError::InvalidShape);
         }
-        let original = handles
+        let original = weights
             .iter()
-            .map(|handle| {
+            .map(|(handle, weight)| {
                 let vertex = mesh.vertex(*handle).ok_or(MeshError::StaleHandle)?;
                 Ok((
                     *handle,
+                    *weight,
                     Vec3::from_array(vertex.position),
                     Vec3::from_array(vertex.normal),
                 ))
             })
             .collect::<Result<Vec<_>, MeshError>>()?;
         let mut positions = HashMap::new();
-        for (handle, position, normal) in original {
+        for (handle, weight, position, normal) in original {
+            let weighted_strength = strength * weight;
             let next = match tool {
-                SculptTool::Grab => position + delta * strength,
+                SculptTool::Grab => position + delta * weighted_strength,
                 SculptTool::Inflate => {
-                    position + normal.try_normalize().unwrap_or(Vec3::Y) * strength
+                    position + normal.try_normalize().unwrap_or(Vec3::Y) * weighted_strength
                 }
-                SculptTool::Pinch => position + (center - position) * strength.clamp(-1.0, 1.0),
+                SculptTool::Pinch => {
+                    position + (center - position) * weighted_strength.clamp(-1.0, 1.0)
+                }
                 SculptTool::Smooth => {
                     let mut neighbors = mesh
                         .vertex_neighbors(handle)
@@ -915,7 +943,7 @@ impl OperatorController {
                                 .ok_or(MeshError::StaleHandle)
                         })?;
                         let average = total / neighbors.len() as f32;
-                        position.lerp(average, strength.clamp(0.0, 1.0))
+                        position.lerp(average, weighted_strength.clamp(0.0, 1.0))
                     }
                 }
             };
@@ -1506,6 +1534,67 @@ mod tests {
             } else {
                 expected = Some(fingerprint);
             }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn weighted_sculpt_scales_only_the_supplied_vertices() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let document = decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
+            MeshFormat::Pam,
+        )?;
+        let mut mesh = WorkingMesh::from_document(&document)?;
+        let mut handles = mesh
+            .vertices()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        handles.sort_unstable();
+        let before = handles
+            .iter()
+            .map(|handle| {
+                mesh.vertex(*handle)
+                    .map(|vertex| (*handle, Vec3::from_array(vertex.position)))
+                    .ok_or("missing vertex")
+            })
+            .collect::<Result<HashMap<_, _>, _>>()?;
+        let weights = HashMap::from([(handles[0], 1.0), (handles[1], 0.25)]);
+        let delta = Vec3::new(4.0, -2.0, 1.0);
+        let mut controller = OperatorController::default();
+        let gesture = controller.begin(&mesh, "weighted grab")?;
+        controller.sculpt_weighted(
+            &mut mesh,
+            gesture,
+            SculptTool::Grab,
+            &weights,
+            Vec3::ZERO,
+            delta,
+            0.5,
+        )?;
+
+        assert_eq!(
+            Vec3::from_array(mesh.vertex(handles[0]).ok_or("first vertex")?.position),
+            before[&handles[0]] + delta * 0.5
+        );
+        assert_eq!(
+            Vec3::from_array(mesh.vertex(handles[1]).ok_or("second vertex")?.position),
+            before[&handles[1]] + delta * 0.125
+        );
+        assert_eq!(
+            Vec3::from_array(mesh.vertex(handles[2]).ok_or("third vertex")?.position),
+            before[&handles[2]]
+        );
+
+        let mut history = History::new(1_000_000);
+        controller.confirm(&mut mesh, &mut history, gesture)?;
+        assert_eq!(history.undo_len(), 1);
+        history.undo(&mut mesh)?;
+        for handle in handles {
+            assert_eq!(
+                Vec3::from_array(mesh.vertex(handle).ok_or("restored vertex")?.position),
+                before[&handle]
+            );
         }
         Ok(())
     }

@@ -907,6 +907,107 @@ fn pinch_moves_only_the_selected_vertex_toward_the_painted_brush_center() -> Tes
     Ok(())
 }
 
+fn total_edge_length(mesh: &WorkingMesh) -> Result<f32, Box<dyn std::error::Error>> {
+    mesh.edges().try_fold(0.0, |total, (_, edge)| {
+        let first = Vec3::from_array(
+            mesh.vertex(edge.vertices[0])
+                .ok_or("missing first edge vertex")?
+                .position,
+        );
+        let second = Vec3::from_array(
+            mesh.vertex(edge.vertices[1])
+                .ok_or("missing second edge vertex")?
+                .position,
+        );
+        Ok(total + first.distance(second))
+    })
+}
+
+fn run_painted_smooth(passes: u32) -> Result<(f32, f32), Box<dyn std::error::Error>> {
+    let mut ui = HeadlessUi::new(triangle_application()?, egui::vec2(1_280.0, 900.0));
+    ui.click("Smooth")?;
+    ui.choose("Falloff", "Smooth", "Linear")?;
+    if passes != 1 {
+        ui.choose("Smooth passes", "1 pass", &format_pass_count(passes))?;
+    }
+    assert_eq!(ui.application.brush_falloff, BrushFalloff::Linear);
+    assert_eq!(ui.application.smooth_iterations, passes);
+    ui.application.camera.zoom(-1_000.0);
+    ui.application.projection = None;
+    ui.application.brush_radius = 200.0;
+    ui.frame(Vec::new());
+    let point = ui.projected_point(SelectionDomain::Vertex)?;
+    let pointer = egui::pos2(point.x, point.y);
+    let baseline = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .structural_fingerprint();
+    let baseline_length = total_edge_length(ui.application.mesh.as_ref().ok_or("mesh")?)?;
+    ui.frame(vec![
+        Event::PointerMoved(pointer),
+        pointer_button(pointer, PointerButton::Primary, true),
+    ]);
+    let gesture = ui
+        .application
+        .edit_gesture
+        .as_ref()
+        .ok_or("smooth gesture")?;
+    assert!(gesture.sculpt_weights.len() > 1);
+    assert!(
+        gesture
+            .sculpt_weights
+            .values()
+            .any(|weight| *weight > 0.0 && *weight < 1.0)
+    );
+    assert!(
+        gesture
+            .sculpt_weights
+            .values()
+            .any(|weight| (*weight - 1.0).abs() < f32::EPSILON)
+    );
+    ui.frame(vec![pointer_button(pointer, PointerButton::Primary, false)]);
+    let edited = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .structural_fingerprint();
+    assert_ne!(edited, baseline);
+    assert_eq!(ui.application.history.undo_len(), 1);
+    let edited_length = total_edge_length(ui.application.mesh.as_ref().ok_or("mesh")?)?;
+    ui.click("Undo")?;
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        baseline
+    );
+    ui.click("Redo")?;
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        edited
+    );
+    Ok((baseline_length, edited_length))
+}
+
+#[test]
+fn sculpt_falloff_and_smooth_passes_are_painted_weighted_and_undoable() -> TestResult {
+    let (baseline_length, one_pass_length) = run_painted_smooth(1)?;
+    let (four_pass_baseline, four_pass_length) = run_painted_smooth(4)?;
+    assert!((four_pass_baseline - baseline_length).abs() < 1.0e-6);
+    assert!(one_pass_length < baseline_length);
+    assert!(four_pass_length < one_pass_length);
+    Ok(())
+}
+
 #[test]
 fn disabled_edit_controls_do_not_activate_or_change_the_mesh() -> TestResult {
     let mut ui = HeadlessUi::new(triangle_application()?, egui::vec2(1_280.0, 720.0));

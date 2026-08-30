@@ -34,8 +34,8 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::error;
 use viewport::{
-    EditGesture, GizmoAxis, PointerEventQueue, SelectionGesture, SelectionTool,
-    ViewportPointerEvent, ViewportProjection, ViewportTool, brush_vertex_scope,
+    BrushFalloff, EditGesture, GizmoAxis, PointerEventQueue, SelectionGesture, SelectionTool,
+    ViewportPointerEvent, ViewportProjection, ViewportTool, brush_vertex_weights,
 };
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, WindowEvent};
@@ -151,6 +151,10 @@ fn format_material_ownership(material_indices_by_lod: &[Vec<u32>]) -> String {
     }
 }
 
+fn format_pass_count(passes: u32) -> String {
+    format!("{passes} {}", if passes == 1 { "pass" } else { "passes" })
+}
+
 struct LabApplication {
     window: Option<Arc<Window>>,
     renderer: Option<WindowRenderer>,
@@ -187,6 +191,8 @@ struct LabApplication {
     selection_tool: SelectionTool,
     brush_radius: f32,
     brush_strength: f32,
+    brush_falloff: BrushFalloff,
+    smooth_iterations: u32,
     selection_gesture: Option<SelectionGesture>,
     edit_gesture: Option<EditGesture>,
     projection: Option<ViewportProjection>,
@@ -260,6 +266,8 @@ impl LabApplication {
             selection_tool: SelectionTool::Click,
             brush_radius: 48.0,
             brush_strength: 0.18,
+            brush_falloff: BrushFalloff::Smooth,
+            smooth_iterations: 1,
             selection_gesture: None,
             edit_gesture: None,
             projection: None,
@@ -1061,10 +1069,40 @@ impl LabApplication {
                     }
                 });
                 if self.viewport_tool.sculpt_tool().is_some() {
-                    ui.add(
-                        egui::Slider::new(&mut self.brush_strength, 0.01..=1.0)
-                            .text("Strength"),
-                    );
+                    if self.viewport_tool != ViewportTool::Grab {
+                        ui.add(
+                            egui::Slider::new(&mut self.brush_strength, 0.01..=1.0)
+                                .text("Strength"),
+                        );
+                    }
+                    egui::ComboBox::from_label("Falloff")
+                        .selected_text(self.brush_falloff.label())
+                        .show_ui(ui, |ui| {
+                            for falloff in [
+                                BrushFalloff::Smooth,
+                                BrushFalloff::Linear,
+                                BrushFalloff::Constant,
+                            ] {
+                                ui.selectable_value(
+                                    &mut self.brush_falloff,
+                                    falloff,
+                                    falloff.label(),
+                                );
+                            }
+                        });
+                    if self.viewport_tool == ViewportTool::Smooth {
+                        egui::ComboBox::from_label("Smooth passes")
+                            .selected_text(format_pass_count(self.smooth_iterations))
+                            .show_ui(ui, |ui| {
+                                for passes in 1..=8 {
+                                    ui.selectable_value(
+                                        &mut self.smooth_iterations,
+                                        passes,
+                                        format_pass_count(passes),
+                                    );
+                                }
+                            });
+                    }
                 }
                 ui.label("Drag the gizmo for transforms; drag over the surface for sculpt tools. Esc cancels the active gesture.");
                 ui.horizontal(|ui| {
@@ -1723,7 +1761,7 @@ impl LabApplication {
         };
         let selected_handles = mesh.selected_vertex_scope();
         let pivot = OrbitCamera::selected_center(mesh).unwrap_or_else(|| self.camera.target());
-        let (axis, handles) = if matches!(
+        let (axis, handles, sculpt_weights) = if matches!(
             self.viewport_tool,
             ViewportTool::Move | ViewportTool::Rotate | ViewportTool::Scale
         ) {
@@ -1736,27 +1774,32 @@ impl LabApplication {
                 self.status = "Drag a visible gizmo axis, ring, or center handle".to_owned();
                 return;
             };
-            (axis, selected_handles)
+            (axis, selected_handles, Default::default())
         } else {
-            let handles = self
+            let sculpt_weights = self
                 .projection
                 .as_ref()
                 .and_then(|projection| {
-                    brush_vertex_scope(
+                    brush_vertex_weights(
                         mesh,
-                        &projection.interaction,
+                        projection,
                         point,
                         self.brush_radius,
                         true,
+                        self.brush_falloff,
                     )
                     .ok()
                 })
                 .unwrap_or_default();
+            let handles = sculpt_weights
+                .keys()
+                .copied()
+                .collect::<std::collections::HashSet<_>>();
             if handles.is_empty() {
                 self.status = "The sculpt brush has no eligible vertices here".to_owned();
                 return;
             }
-            (GizmoAxis::Free, handles)
+            (GizmoAxis::Free, handles, sculpt_weights)
         };
         let pivot = center_of_handles(mesh, &handles).unwrap_or(pivot);
         let gesture_id = match self.operator.begin(mesh, self.viewport_tool.label()) {
@@ -1771,6 +1814,7 @@ impl LabApplication {
             tool: self.viewport_tool,
             axis,
             handles,
+            sculpt_weights,
             pivot,
             last_pointer: point,
             last_sample: point,
@@ -1908,11 +1952,11 @@ impl LabApplication {
                 }
                 ViewportTool::Grab => {
                     let delta = self.camera.screen_delta_to_world(screen_delta, rectangle);
-                    self.operator.sculpt(
+                    self.operator.sculpt_weighted(
                         mesh,
                         gesture.gesture_id,
                         cdmw_interaction::SculptTool::Grab,
-                        &gesture.handles,
+                        &gesture.sculpt_weights,
                         gesture.pivot,
                         delta,
                         1.0,
@@ -1920,13 +1964,15 @@ impl LabApplication {
                 }
                 ViewportTool::Smooth | ViewportTool::Inflate | ViewportTool::Pinch => {
                     if let Some(projection) = &self.projection {
-                        gesture.handles = brush_vertex_scope(
+                        gesture.sculpt_weights = brush_vertex_weights(
                             mesh,
-                            &projection.interaction,
+                            projection,
                             point,
                             self.brush_radius,
                             true,
+                            self.brush_falloff,
                         )?;
+                        gesture.handles = gesture.sculpt_weights.keys().copied().collect();
                     }
                     gesture.pivot = center_of_handles(mesh, &gesture.handles)
                         .ok_or(cdmw_interaction::InteractionError::InvalidShape)?;
@@ -1948,15 +1994,23 @@ impl LabApplication {
                         cdmw_interaction::SculptTool::Pinch => self.brush_strength * 0.12,
                         cdmw_interaction::SculptTool::Grab => 1.0,
                     };
-                    self.operator.sculpt(
-                        mesh,
-                        gesture.gesture_id,
-                        tool,
-                        &gesture.handles,
-                        gesture.pivot,
-                        Vec3::ZERO,
-                        strength,
-                    )
+                    let passes = if tool == cdmw_interaction::SculptTool::Smooth {
+                        self.smooth_iterations
+                    } else {
+                        1
+                    };
+                    for _ in 0..passes {
+                        self.operator.sculpt_weighted(
+                            mesh,
+                            gesture.gesture_id,
+                            tool,
+                            &gesture.sculpt_weights,
+                            gesture.pivot,
+                            Vec3::ZERO,
+                            strength,
+                        )?;
+                    }
+                    Ok(())
                 }
                 ViewportTool::Select => Err(cdmw_interaction::InteractionError::InvalidTransition),
             }
