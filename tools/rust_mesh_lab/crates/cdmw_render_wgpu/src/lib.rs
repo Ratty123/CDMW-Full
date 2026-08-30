@@ -50,6 +50,7 @@ struct MaterialUniform {
 @group(0) @binding(9) var specular_texture: texture_2d<f32>;
 @group(0) @binding(10) var opacity_texture: texture_2d<f32>;
 @group(0) @binding(11) var height_texture: texture_2d<f32>;
+@group(0) @binding(12) var flow_texture: texture_2d<f32>;
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
 
 const MATERIAL_BASE_COLOR: u32 = 1u;
@@ -66,6 +67,7 @@ const MATERIAL_SPECULAR: u32 = 1024u;
 const MATERIAL_OPACITY: u32 = 2048u;
 const MATERIAL_ALPHA_CUTOUT: u32 = 4096u;
 const MATERIAL_HEIGHT: u32 = 8192u;
+const MATERIAL_HAIR_FLOW: u32 = 16384u;
 
 @vertex
 fn vs_main(
@@ -186,7 +188,33 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
         f0 = max(f0, vec3<f32>(factored_specular));
     }
     let specular_power = mix(96.0, 8.0, roughness);
-    let specular = f0 * pow(ndoth, specular_power) * (0.20 + 0.80 * (1.0 - roughness));
+    var specular = f0 * pow(ndoth, specular_power) * (0.20 + 0.80 * (1.0 - roughness));
+    if (material.flags & MATERIAL_HAIR_FLOW) != 0u {
+        let flow = textureSample(flow_texture, material_sampler, input.uv).xy * 2.0
+            - vec2<f32>(1.0);
+        var flow_direction = vec2<f32>(0.0, 1.0);
+        let flow_length_squared = dot(flow, flow);
+        if flow_length_squared > 0.0004 {
+            flow_direction = flow * inverseSqrt(flow_length_squared);
+        }
+        let strand_tangent = normalize(
+            tangent * flow_direction.x + bitangent * flow_direction.y);
+        let primary_exponent = mix(24.0, 96.0, 1.0 - roughness);
+        let secondary_exponent = max(primary_exponent * 0.35, 8.0);
+        let primary_tangent = normalize(strand_tangent - surface_normal * 0.06);
+        let secondary_tangent = normalize(strand_tangent + surface_normal * 0.105);
+        let primary_alignment = dot(primary_tangent, half_vector);
+        let secondary_alignment = dot(secondary_tangent, half_vector);
+        let primary_band = pow(
+            sqrt(clamp(1.0 - primary_alignment * primary_alignment, 0.0, 1.0)),
+            primary_exponent);
+        let secondary_band = pow(
+            sqrt(clamp(1.0 - secondary_alignment * secondary_alignment, 0.0, 1.0)),
+            secondary_exponent);
+        specular = ndotl
+            * (f0 * primary_band + texel.rgb * secondary_band * 0.55)
+            * (0.20 + 0.80 * (1.0 - roughness));
+    }
     let environment_specular = f0 * (0.04 + 0.28 * (1.0 - roughness));
     var emissive = vec3<f32>(0.0);
     if (material.flags & MATERIAL_EMISSIVE) != 0u {
@@ -283,6 +311,7 @@ const MATERIAL_SPECULAR: u32 = 1024;
 const MATERIAL_OPACITY: u32 = 2048;
 const MATERIAL_ALPHA_CUTOUT: u32 = 4096;
 const MATERIAL_HEIGHT: u32 = 8192;
+const MATERIAL_HAIR_FLOW: u32 = 16384;
 
 impl CameraUniform {
     fn new() -> Self {
@@ -347,6 +376,7 @@ pub struct MaterialPreviewFactors {
     pub specular: Option<f32>,
     pub height_scale: Option<f32>,
     pub alpha_cutoff: Option<f32>,
+    pub hair_anisotropy: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -369,6 +399,8 @@ pub struct HeadlessRenderReport {
     pub dielectric_glossiness_pixels_changed: usize,
     pub height_texture_pixels_changed: usize,
     pub disabled_height_pixels_changed: usize,
+    pub hair_flow_pixels_changed: usize,
+    pub non_hair_flow_pixels_changed: usize,
     pub opacity_cutout_pixels_removed: usize,
     pub opaque_opacity_pixels_changed: usize,
     pub non_background_pixels: usize,
@@ -440,6 +472,7 @@ struct DefaultMaterialTextures {
     specular: wgpu::Texture,
     opacity: wgpu::Texture,
     height: wgpu::Texture,
+    flow: wgpu::Texture,
 }
 
 struct GpuMaterialBinding {
@@ -459,6 +492,7 @@ struct MaterialTextureIndices {
     specular: Option<usize>,
     opacity: Option<usize>,
     height: Option<usize>,
+    flow: Option<usize>,
 }
 
 impl GpuMeshBuffers {
@@ -790,6 +824,7 @@ impl WindowRenderer {
                 | TextureRole::Glossiness
                 | TextureRole::Opacity
                 | TextureRole::Height
+                | TextureRole::Flow
         ) {
             return Err(RenderError::Texture(format!(
                 "the {role:?} role is classified but is not sampled by the current material approximation"
@@ -821,6 +856,7 @@ impl WindowRenderer {
             && factors.specular.is_none()
             && factors.height_scale.is_none()
             && factors.alpha_cutoff.is_none()
+            && factors.hair_anisotropy.is_none()
         {
             return Err(RenderError::Texture(
                 "material factor set contains no sampled value".to_owned(),
@@ -1160,6 +1196,20 @@ pub async fn run_headless_render_smoke(
         }
         bytes
     };
+    let synthetic_flow_dds = || {
+        let mut bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+        if let Some(pixels) = bytes.get_mut(148..164) {
+            for (pixel, flow) in pixels.chunks_exact_mut(4).zip([
+                [255, 128, 0, 255],
+                [128, 255, 0, 255],
+                [0, 128, 0, 255],
+                [128, 0, 0, 255],
+            ]) {
+                pixel.copy_from_slice(&flow);
+            }
+        }
+        bytes
+    };
     let mut material_textures = Vec::new();
     for (material, role, bytes) in [
         (
@@ -1208,6 +1258,7 @@ pub async fn run_headless_render_smoke(
             TextureRole::Height,
             cdmw_texture::synthetic::rgba8_checker_dds(),
         ),
+        (0_u32, TextureRole::Flow, synthetic_flow_dds()),
         (
             1_u32,
             TextureRole::BaseColor,
@@ -1287,6 +1338,11 @@ pub async fn run_headless_render_smoke(
                     },
                     height: if roles.contains(&TextureRole::Height) {
                         indices.height
+                    } else {
+                        None
+                    },
+                    flow: if roles.contains(&TextureRole::Flow) {
+                        indices.flow
                     } else {
                         None
                     },
@@ -1381,6 +1437,17 @@ pub async fn run_headless_render_smoke(
             ..MaterialPreviewFactors::default()
         },
     );
+    let non_hair_flow_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Flow],
+        MaterialPreviewFactors::default(),
+    );
+    let hair_flow_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Flow],
+        MaterialPreviewFactors {
+            hair_anisotropy: Some(true),
+            ..MaterialPreviewFactors::default()
+        },
+    );
     let factored_emissive_material_bindings = bindings_for_roles(
         &[TextureRole::BaseColor, TextureRole::Emissive],
         MaterialPreviewFactors {
@@ -1424,9 +1491,11 @@ pub async fn run_headless_render_smoke(
             TextureRole::Glossiness,
             TextureRole::Opacity,
             TextureRole::Height,
+            TextureRole::Flow,
         ],
         MaterialPreviewFactors {
             alpha_cutoff: Some(0.5),
+            hair_anisotropy: Some(true),
             ..MaterialPreviewFactors::default()
         },
     );
@@ -1564,6 +1633,8 @@ pub async fn run_headless_render_smoke(
         ("opacity cutout", opacity_cutout_material_bindings),
         ("height", height_material_bindings),
         ("disabled height", disabled_height_material_bindings),
+        ("non-hair flow", non_hair_flow_material_bindings),
+        ("hair flow", hair_flow_material_bindings),
         ("occlusion", base_occlusion_material_bindings),
         ("emissive", base_emissive_material_bindings),
         ("emissive factors", factored_emissive_material_bindings),
@@ -1627,7 +1698,7 @@ pub async fn run_headless_render_smoke(
             "headless GPU frame contained only the clear color".to_owned(),
         ));
     }
-    let mut role_changes = Vec::with_capacity(11);
+    let mut role_changes = Vec::with_capacity(12);
     for (role, reference) in [
         ("base color", "unresolved"),
         ("normal", "base color"),
@@ -1638,6 +1709,7 @@ pub async fn run_headless_render_smoke(
         ("glossiness", "metalness"),
         ("opacity cutout", "opaque opacity"),
         ("height", "base color"),
+        ("hair flow", "non-hair flow"),
         ("occlusion", "base color"),
         ("emissive", "base color"),
     ] {
@@ -1750,6 +1822,24 @@ pub async fn run_headless_render_smoke(
             "headless height texture changed pixels at an explicit zero scale".to_owned(),
         ));
     }
+    let non_hair_flow_pixels_changed = changed_pixel_count(
+        base_only_pixels,
+        &probe_pixels[probe_index("non-hair flow")?],
+    )?;
+    if non_hair_flow_pixels_changed != 0 {
+        return Err(RenderError::Device(
+            "headless Flow texture changed a non-hair material".to_owned(),
+        ));
+    }
+    let hair_flow_pixels_changed = changed_pixel_count(
+        &probe_pixels[probe_index("non-hair flow")?],
+        &probe_pixels[probe_index("hair flow")?],
+    )?;
+    if hair_flow_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless hair Flow texture did not change any rendered pixel".to_owned(),
+        ));
+    }
     let opaque_opacity_pixels = &probe_pixels[probe_index("opaque opacity")?];
     let opacity_cutout_pixels = &probe_pixels[probe_index("opacity cutout")?];
     let opaque_opacity_pixels_changed =
@@ -1796,6 +1886,8 @@ pub async fn run_headless_render_smoke(
         dielectric_glossiness_pixels_changed,
         height_texture_pixels_changed,
         disabled_height_pixels_changed,
+        hair_flow_pixels_changed,
+        non_hair_flow_pixels_changed,
         opacity_cutout_pixels_removed,
         opaque_opacity_pixels_changed,
         non_background_pixels,
@@ -2452,6 +2544,7 @@ fn resolve_material_bindings<'a>(
                 TextureRole::Specular | TextureRole::Glossiness => &mut slots.specular,
                 TextureRole::Opacity => &mut slots.opacity,
                 TextureRole::Height => &mut slots.height,
+                TextureRole::Flow => &mut slots.flow,
                 _ => {
                     return Err(RenderError::Texture(format!(
                         "the {role:?} role is not sampled by the current material approximation"
@@ -2557,6 +2650,17 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.alpha_cutoff = Some(alpha_cutoff);
+            }
+            if let Some(hair_anisotropy) = factors.hair_anisotropy {
+                if resolved
+                    .hair_anisotropy
+                    .is_some_and(|existing| existing != hair_anisotropy)
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting hair anisotropy policies in LOD {lod_index}"
+                    )));
+                }
+                resolved.hair_anisotropy = Some(hair_anisotropy);
             }
         }
     }
@@ -2833,6 +2937,16 @@ fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLay
                 },
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 12,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
         ],
     })
 }
@@ -2968,6 +3082,13 @@ fn create_default_material_textures(
             wgpu::TextureFormat::Rgba8Unorm,
             [128, 128, 128, 255],
         ),
+        flow: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default hair flow",
+            wgpu::TextureFormat::Rgba8Unorm,
+            [128, 255, 0, 255],
+        ),
     }
 }
 
@@ -3020,6 +3141,10 @@ fn create_material_bind_group(
         .height
         .and_then(|index| textures.get(index))
         .map_or(&defaults.height, |texture| &texture._texture);
+    let flow_texture = indices
+        .flow
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.flow, |texture| &texture._texture);
     let base_view = base_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let normal_view = normal_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let surface_view = surface_texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -3030,6 +3155,7 @@ fn create_material_bind_group(
     let specular_view = specular_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let opacity_view = opacity_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let height_view = height_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let flow_view = flow_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let mut flags = 0;
     if indices.base_color.is_some() {
         flags |= MATERIAL_BASE_COLOR;
@@ -3060,6 +3186,9 @@ fn create_material_bind_group(
     }
     if indices.height.is_some() {
         flags |= MATERIAL_HEIGHT;
+    }
+    if indices.flow.is_some() && factors.hair_anisotropy == Some(true) {
+        flags |= MATERIAL_HAIR_FLOW;
     }
     if factors.roughness.is_some() {
         flags |= MATERIAL_ROUGHNESS_FACTOR;
@@ -3149,6 +3278,10 @@ fn create_material_bind_group(
             wgpu::BindGroupEntry {
                 binding: 11,
                 resource: wgpu::BindingResource::TextureView(&height_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 12,
+                resource: wgpu::BindingResource::TextureView(&flow_view),
             },
         ],
     });
@@ -3417,6 +3550,7 @@ mod tests {
             (TextureRole::Specular, vec![vec![0_u32]]),
             (TextureRole::Opacity, vec![vec![0_u32]]),
             (TextureRole::Height, vec![vec![0_u32]]),
+            (TextureRole::Flow, vec![vec![0_u32]]),
             (TextureRole::BaseColor, vec![vec![1_u32]]),
         ];
         let bindings = resolve_material_bindings(
@@ -3442,12 +3576,13 @@ mod tests {
                         specular: Some(7),
                         opacity: Some(8),
                         height: Some(9),
+                        flow: Some(10),
                     }
                 ),
                 (
                     1,
                     MaterialTextureIndices {
-                        base_color: Some(10),
+                        base_color: Some(11),
                         ..MaterialTextureIndices::default()
                     }
                 ),
@@ -3561,6 +3696,13 @@ mod tests {
                 },
                 ownership.clone(),
             ),
+            (
+                MaterialPreviewFactors {
+                    hair_anisotropy: Some(true),
+                    ..MaterialPreviewFactors::default()
+                },
+                ownership.clone(),
+            ),
         ];
         let resolved = resolve_material_factors(
             distinct
@@ -3579,6 +3721,7 @@ mod tests {
                 specular: Some(0.9),
                 height_scale: Some(0.09),
                 alpha_cutoff: Some(0.08),
+                hair_anisotropy: Some(true),
             })
         );
 
@@ -3655,6 +3798,16 @@ mod tests {
                 },
                 MaterialPreviewFactors {
                     alpha_cutoff: Some(0.2),
+                    ..MaterialPreviewFactors::default()
+                },
+            ),
+            (
+                MaterialPreviewFactors {
+                    hair_anisotropy: Some(true),
+                    ..MaterialPreviewFactors::default()
+                },
+                MaterialPreviewFactors {
+                    hair_anisotropy: Some(false),
                     ..MaterialPreviewFactors::default()
                 },
             ),

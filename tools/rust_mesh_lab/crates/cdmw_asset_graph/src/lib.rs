@@ -19,6 +19,7 @@ pub enum RelationKind {
     EmissiveTexture,
     OpacityTexture,
     HeightTexture,
+    FlowTexture,
     Skeleton,
     SkeletonVariation,
     MorphTargetSet,

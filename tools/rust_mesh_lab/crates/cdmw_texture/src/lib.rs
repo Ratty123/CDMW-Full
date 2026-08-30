@@ -22,6 +22,7 @@ pub enum TextureRole {
     Emissive,
     Opacity,
     Height,
+    Flow,
     Unknown,
 }
 
@@ -48,6 +49,11 @@ impl TextureRole {
             Self::Emissive
         } else if normalized.contains("opacity") || normalized.contains("alpha") {
             Self::Opacity
+        } else if normalized.contains("flow")
+            || normalized.contains("ssdm")
+            || normalized.contains("direction")
+        {
+            Self::Flow
         } else if normalized.contains("height") || normalized.contains("displacement") {
             Self::Height
         } else if normalized.contains("specular") {
@@ -311,7 +317,8 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         | TextureRole::Specular
         | TextureRole::Glossiness
         | TextureRole::Opacity
-        | TextureRole::Height => ColorSpace::Linear,
+        | TextureRole::Height
+        | TextureRole::Flow => ColorSpace::Linear,
         TextureRole::Unknown if header_is_srgb => ColorSpace::Srgb,
         TextureRole::Unknown => ColorSpace::Linear,
     };
@@ -402,6 +409,16 @@ pub fn parse_material_sidecar(bytes: &[u8]) -> Result<MaterialSidecar, MaterialS
                 wrapper_type: tag.name.clone(),
                 submesh_name: attribute(&tag.attributes, &["_subMeshName", "subMeshName"])
                     .unwrap_or_default(),
+                material_name: attribute(
+                    &tag.attributes,
+                    &[
+                        "_materialName",
+                        "materialName",
+                        "MaterialName",
+                        "TechniqueName",
+                    ],
+                )
+                .unwrap_or_default(),
             });
             if tag.self_closing {
                 let _ = wrappers.pop();
@@ -414,6 +431,7 @@ pub fn parse_material_sidecar(bytes: &[u8]) -> Result<MaterialSidecar, MaterialS
                     &tag.attributes,
                     &["_materialName", "materialName", "shader", "Shader"],
                 )
+                .or_else(|| wrappers.last().map(|wrapper| wrapper.material_name.clone()))
                 .unwrap_or_default(),
             );
             if tag.self_closing {
@@ -428,7 +446,7 @@ pub fn parse_material_sidecar(bytes: &[u8]) -> Result<MaterialSidecar, MaterialS
                     .unwrap_or_else(|| "(unnamed)".to_owned());
             let parameter = ParameterContext {
                 wrapper,
-                material_name: materials.last().cloned().unwrap_or_default(),
+                material_name: active_material_name(&wrappers, &materials),
                 parameter_name,
                 path: texture_path_attribute(&tag.attributes),
             };
@@ -461,7 +479,7 @@ pub fn parse_material_sidecar(bytes: &[u8]) -> Result<MaterialSidecar, MaterialS
                 textures.push(MaterialTextureReference {
                     wrapper_type: wrapper.wrapper_type,
                     submesh_name: wrapper.submesh_name,
-                    material_name: materials.last().cloned().unwrap_or_default(),
+                    material_name: active_material_name(&wrappers, &materials),
                     parameter_name: "(unknown)".to_owned(),
                     path,
                     role: TextureRole::Unknown,
@@ -474,7 +492,7 @@ pub fn parse_material_sidecar(bytes: &[u8]) -> Result<MaterialSidecar, MaterialS
                 &tag,
                 kind,
                 wrappers.last().cloned().unwrap_or_default(),
-                materials.last().cloned().unwrap_or_default(),
+                active_material_name(&wrappers, &materials),
             ));
         }
     }
@@ -499,6 +517,21 @@ pub fn parse_material_sidecar(bytes: &[u8]) -> Result<MaterialSidecar, MaterialS
 struct WrapperContext {
     wrapper_type: String,
     submesh_name: String,
+    material_name: String,
+}
+
+fn active_material_name(wrappers: &[WrapperContext], materials: &[String]) -> String {
+    materials
+        .last()
+        .filter(|value| !value.trim().is_empty())
+        .cloned()
+        .or_else(|| {
+            wrappers
+                .last()
+                .map(|wrapper| wrapper.material_name.clone())
+                .filter(|value| !value.trim().is_empty())
+        })
+        .unwrap_or_default()
 }
 
 #[derive(Debug)]
@@ -1010,6 +1043,18 @@ mod tests {
             TextureRole::Opacity
         );
         assert_eq!(
+            TextureRole::from_parameter_name("_flowTexture"),
+            TextureRole::Flow
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_ssdmDirectionTexture"),
+            TextureRole::Flow
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_displacementDirectionTexture"),
+            TextureRole::Flow
+        );
+        assert_eq!(
             TextureRole::from_parameter_name("_colorBlendingMaskTexture"),
             TextureRole::Unknown
         );
@@ -1049,6 +1094,21 @@ mod tests {
         assert_eq!(sidecar.textures[0].path, "character/texture/body&skin.dds");
         assert_eq!(sidecar.textures[0].role, TextureRole::BaseColor);
         assert_eq!(sidecar.textures[1].role, TextureRole::Normal);
+        Ok(())
+    }
+
+    #[test]
+    fn material_sidecar_preserves_wrapper_level_shader_family() -> Result<(), MaterialSidecarError>
+    {
+        let sidecar = parse_material_sidecar(
+            br#"<SkinnedMeshMaterialWrapper _subMeshName="Hair" _materialName="SkinnedMeshHair">
+                  <MaterialParameterTexture _name="_flowTexture" Value="character/texture/hair_f.dds"/>
+                </SkinnedMeshMaterialWrapper>"#,
+        )?;
+        assert!(sidecar.warnings.is_empty());
+        assert_eq!(sidecar.textures.len(), 1);
+        assert_eq!(sidecar.textures[0].material_name, "SkinnedMeshHair");
+        assert_eq!(sidecar.textures[0].role, TextureRole::Flow);
         Ok(())
     }
 

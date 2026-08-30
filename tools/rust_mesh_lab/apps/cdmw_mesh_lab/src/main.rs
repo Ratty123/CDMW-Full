@@ -493,10 +493,13 @@ impl LabApplication {
                     let mode = if value > 0.0 { "enabled" } else { "disabled" };
                     parts.push(format!("alpha cutout {mode} · cutoff {value:.3}"));
                 }
+                if factors.hair_anisotropy == Some(true) {
+                    parts.push("hair Flow family qualified".to_owned());
+                }
                 MaterialFactorInspectorEntry {
                     summary: parts.join(" · "),
                     provenance: format!(
-                        "Explicit sidecar factors · {} · non-conflicting material ownership; emissive fields also require a bound emissive texture",
+                        "Sidecar preview factors · {} · non-conflicting material ownership; emissive fields also require a bound emissive texture and hair anisotropy requires both a Flow texture and a proven hair/fur shader family",
                         factors.sidecar_label
                     ),
                     ownership: format_material_ownership(&factors.material_indices_by_lod),
@@ -533,6 +536,7 @@ impl LabApplication {
                         specular: factors.specular,
                         height_scale: factors.height_scale,
                         alpha_cutoff: factors.alpha_cutoff,
+                        hair_anisotropy: factors.hair_anisotropy,
                     },
                     &factors.material_indices_by_lod,
                 ) {
@@ -555,7 +559,7 @@ impl LabApplication {
         }
         if material_factor_count > 0 {
             self.status.push_str(&format!(
-                " · {material_factor_count} explicit material factor set(s) prepared"
+                " · {material_factor_count} material preview factor set(s) prepared"
             ));
         }
         if let Some(error) = gpu_errors.first() {

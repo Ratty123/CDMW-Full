@@ -583,9 +583,9 @@ fn offscreen_d3d12_renders_every_mode_without_a_window() -> TestResult {
     assert_eq!(report.adapter.backend, "Dx12");
     assert_eq!(report.modes_rendered, 7);
     assert_eq!(report.viewport_sizes_rendered, 3);
-    assert_eq!(report.frames_rendered, 42);
-    assert_eq!(report.dds_textures_uploaded, 13);
-    assert_eq!(report.sampled_material_roles, 11);
+    assert_eq!(report.frames_rendered, 44);
+    assert_eq!(report.dds_textures_uploaded, 14);
+    assert_eq!(report.sampled_material_roles, 12);
     assert_eq!(report.material_ranges_rendered, 2);
     assert!(report.composed_material_pixels_changed > 0);
     assert!(report.emissive_factor_pixels_changed > 0);
@@ -598,6 +598,8 @@ fn offscreen_d3d12_renders_every_mode_without_a_window() -> TestResult {
     assert_eq!(report.dielectric_glossiness_pixels_changed, 0);
     assert!(report.height_texture_pixels_changed > 0);
     assert_eq!(report.disabled_height_pixels_changed, 0);
+    assert!(report.hair_flow_pixels_changed > 0);
+    assert_eq!(report.non_hair_flow_pixels_changed, 0);
     assert!(report.opacity_cutout_pixels_removed > 0);
     assert_eq!(report.opaque_opacity_pixels_changed, 0);
     assert!(report.non_background_pixels > 0);
