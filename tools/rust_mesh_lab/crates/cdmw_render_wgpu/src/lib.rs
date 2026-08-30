@@ -14,7 +14,7 @@ use winit::window::Window;
 const SHADER: &str = r#"
 struct CameraUniform {
     view_projection: mat4x4<f32>,
-    solid_mode: u32,
+    view_mode: u32,
     _padding_0: u32,
     _padding_1: u32,
     _padding_2: u32,
@@ -51,6 +51,7 @@ struct MaterialUniform {
 @group(0) @binding(10) var opacity_texture: texture_2d<f32>;
 @group(0) @binding(11) var height_texture: texture_2d<f32>;
 @group(0) @binding(12) var flow_texture: texture_2d<f32>;
+@group(0) @binding(13) var layer_mask_texture: texture_2d<f32>;
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
 
 const MATERIAL_BASE_COLOR: u32 = 1u;
@@ -68,6 +69,7 @@ const MATERIAL_OPACITY: u32 = 2048u;
 const MATERIAL_ALPHA_CUTOUT: u32 = 4096u;
 const MATERIAL_HEIGHT: u32 = 8192u;
 const MATERIAL_HAIR_FLOW: u32 = 16384u;
+const MATERIAL_LAYER_MASK: u32 = 32768u;
 
 @vertex
 fn vs_main(
@@ -87,22 +89,41 @@ fn vs_main(
 
 @fragment
 fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
-    if camera.solid_mode == 1u {
+    if camera.view_mode == 1u {
         return vec4<f32>(input.color, 1.0);
+    }
+    if camera.view_mode == 4u {
+        let checker = (u32(floor(input.uv.x * 16.0)) + u32(floor(input.uv.y * 16.0))) & 1u;
+        let value = select(0.08, 0.88, checker != 0u);
+        return vec4<f32>(vec3<f32>(value), 1.0);
     }
     if material.flags == 0u {
         return vec4<f32>(input.color, 1.0);
     }
 
     let texel = textureSample(base_texture, material_sampler, input.uv);
+    var material_alpha = texel.a;
+    if (material.flags & MATERIAL_OPACITY) != 0u {
+        material_alpha = textureSample(opacity_texture, material_sampler, input.uv).r;
+    }
     if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u {
-        var material_alpha = texel.a;
-        if (material.flags & MATERIAL_OPACITY) != 0u {
-            material_alpha = textureSample(opacity_texture, material_sampler, input.uv).r;
-        }
         if material_alpha < material.surface_factors.w {
             discard;
         }
+    }
+    if camera.view_mode == 2u {
+        return vec4<f32>(texel.rgb, 1.0);
+    }
+    if camera.view_mode == 5u {
+        return vec4<f32>(vec3<f32>(material_alpha), 1.0);
+    }
+    if camera.view_mode == 7u {
+        var layer_mask = texel.a;
+        if (material.flags & MATERIAL_LAYER_MASK) != 0u {
+            let mask = textureSample(layer_mask_texture, material_sampler, input.uv);
+            layer_mask = mask[min(u32(material.relief_factors.y), 3u)];
+        }
+        return vec4<f32>(vec3<f32>(layer_mask), 1.0);
     }
     var surface_normal = normalize(input.normal);
     let tangent = normalize(input.tangent.xyz - surface_normal * dot(surface_normal, input.tangent.xyz));
@@ -136,6 +157,9 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
             surface_normal,
             height_normal,
             clamp(material.relief_factors.x, 0.0, 1.0)));
+    }
+    if camera.view_mode == 3u {
+        return vec4<f32>(surface_normal * 0.5 + vec3<f32>(0.5), 1.0);
     }
 
     var roughness = 0.65;
@@ -186,6 +210,9 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
         && material.surface_factors.z > 0.02 {
         let factored_specular = mix(0.04, material.surface_factors.z, metalness);
         f0 = max(f0, vec3<f32>(factored_specular));
+    }
+    if camera.view_mode == 6u {
+        return vec4<f32>(metalness, roughness, max(f0.r, max(f0.g, f0.b)), 1.0);
     }
     let specular_power = mix(96.0, 8.0, roughness);
     var specular = f0 * pow(ndoth, specular_power) * (0.20 + 0.80 * (1.0 - roughness));
@@ -256,6 +283,12 @@ const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
     TexturedSolid,
+    BaseColor,
+    NormalMap,
+    UvChecker,
+    BaseAlpha,
+    MaterialResponse,
+    LayerMask,
     Solid,
     SolidWire,
     Wireframe,
@@ -269,6 +302,12 @@ impl ViewMode {
     pub const fn label(self) -> &'static str {
         match self {
             Self::TexturedSolid => "Textured",
+            Self::BaseColor => "Base Color",
+            Self::NormalMap => "Normal Map",
+            Self::UvChecker => "UV Checker",
+            Self::BaseAlpha => "Base Alpha",
+            Self::MaterialResponse => "Material Response",
+            Self::LayerMask => "Layer Mask",
             Self::Solid => "Solid Faces",
             Self::SolidWire => "Solid + Wire",
             Self::Wireframe => "Wireframe",
@@ -277,13 +316,31 @@ impl ViewMode {
             Self::XRay => "X-Ray",
         }
     }
+
+    const fn shader_mode(self) -> u32 {
+        match self {
+            Self::TexturedSolid => 0,
+            Self::BaseColor => 2,
+            Self::NormalMap => 3,
+            Self::UvChecker => 4,
+            Self::BaseAlpha => 5,
+            Self::MaterialResponse => 6,
+            Self::LayerMask => 7,
+            Self::Solid
+            | Self::SolidWire
+            | Self::Wireframe
+            | Self::Vertices
+            | Self::WireVertices
+            | Self::XRay => 1,
+        }
+    }
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 struct CameraUniform {
     view_projection: [[f32; 4]; 4],
-    solid_mode: u32,
+    view_mode: u32,
     _padding: [u32; 3],
 }
 
@@ -312,12 +369,13 @@ const MATERIAL_OPACITY: u32 = 2048;
 const MATERIAL_ALPHA_CUTOUT: u32 = 4096;
 const MATERIAL_HEIGHT: u32 = 8192;
 const MATERIAL_HAIR_FLOW: u32 = 16384;
+const MATERIAL_LAYER_MASK: u32 = 32768;
 
 impl CameraUniform {
     fn new() -> Self {
         Self {
             view_projection: Mat4::IDENTITY.to_cols_array_2d(),
-            solid_mode: 0,
+            view_mode: 0,
             _padding: [0; 3],
         }
     }
@@ -377,6 +435,7 @@ pub struct MaterialPreviewFactors {
     pub height_scale: Option<f32>,
     pub alpha_cutoff: Option<f32>,
     pub hair_anisotropy: Option<bool>,
+    pub layer_mask_channel: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -401,6 +460,8 @@ pub struct HeadlessRenderReport {
     pub disabled_height_pixels_changed: usize,
     pub hair_flow_pixels_changed: usize,
     pub non_hair_flow_pixels_changed: usize,
+    pub layer_mask_pixels_changed: usize,
+    pub layer_mask_channel_pixels_changed: usize,
     pub opacity_cutout_pixels_removed: usize,
     pub opaque_opacity_pixels_changed: usize,
     pub non_background_pixels: usize,
@@ -473,6 +534,7 @@ struct DefaultMaterialTextures {
     opacity: wgpu::Texture,
     height: wgpu::Texture,
     flow: wgpu::Texture,
+    layer_mask: wgpu::Texture,
 }
 
 struct GpuMaterialBinding {
@@ -493,6 +555,7 @@ struct MaterialTextureIndices {
     opacity: Option<usize>,
     height: Option<usize>,
     flow: Option<usize>,
+    layer_mask: Option<usize>,
 }
 
 impl GpuMeshBuffers {
@@ -787,7 +850,7 @@ impl WindowRenderer {
             return;
         }
         self.view_mode = view_mode;
-        self.camera_uniform.solid_mode = u32::from(view_mode != ViewMode::TexturedSolid);
+        self.camera_uniform.view_mode = view_mode.shader_mode();
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -1210,6 +1273,20 @@ pub async fn run_headless_render_smoke(
         }
         bytes
     };
+    let synthetic_layer_mask_dds = || {
+        let mut bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+        if let Some(pixels) = bytes.get_mut(148..164) {
+            for (pixel, mask) in pixels.chunks_exact_mut(4).zip([
+                [32, 0, 224, 255],
+                [224, 0, 32, 255],
+                [64, 0, 192, 255],
+                [192, 0, 64, 255],
+            ]) {
+                pixel.copy_from_slice(&mask);
+            }
+        }
+        bytes
+    };
     let mut material_textures = Vec::new();
     for (material, role, bytes) in [
         (
@@ -1259,6 +1336,7 @@ pub async fn run_headless_render_smoke(
             cdmw_texture::synthetic::rgba8_checker_dds(),
         ),
         (0_u32, TextureRole::Flow, synthetic_flow_dds()),
+        (0_u32, TextureRole::LayerMask, synthetic_layer_mask_dds()),
         (
             1_u32,
             TextureRole::BaseColor,
@@ -1346,6 +1424,11 @@ pub async fn run_headless_render_smoke(
                     } else {
                         None
                     },
+                    layer_mask: if roles.contains(&TextureRole::LayerMask) {
+                        indices.layer_mask
+                    } else {
+                        None
+                    },
                 };
                 (
                     *material,
@@ -1363,6 +1446,8 @@ pub async fn run_headless_render_smoke(
             .collect::<BTreeMap<_, _>>()
     };
     let base_only_material_bindings =
+        bindings_for_roles(&[TextureRole::BaseColor], MaterialPreviewFactors::default());
+    let layer_mask_fallback_material_bindings =
         bindings_for_roles(&[TextureRole::BaseColor], MaterialPreviewFactors::default());
     let base_normal_material_bindings = bindings_for_roles(
         &[TextureRole::BaseColor, TextureRole::Normal],
@@ -1448,6 +1533,20 @@ pub async fn run_headless_render_smoke(
             ..MaterialPreviewFactors::default()
         },
     );
+    let layer_mask_red_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::LayerMask],
+        MaterialPreviewFactors {
+            layer_mask_channel: Some(0),
+            ..MaterialPreviewFactors::default()
+        },
+    );
+    let layer_mask_blue_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::LayerMask],
+        MaterialPreviewFactors {
+            layer_mask_channel: Some(2),
+            ..MaterialPreviewFactors::default()
+        },
+    );
     let factored_emissive_material_bindings = bindings_for_roles(
         &[TextureRole::BaseColor, TextureRole::Emissive],
         MaterialPreviewFactors {
@@ -1492,10 +1591,12 @@ pub async fn run_headless_render_smoke(
             TextureRole::Opacity,
             TextureRole::Height,
             TextureRole::Flow,
+            TextureRole::LayerMask,
         ],
         MaterialPreviewFactors {
             alpha_cutoff: Some(0.5),
             hair_anisotropy: Some(true),
+            layer_mask_channel: Some(2),
             ..MaterialPreviewFactors::default()
         },
     );
@@ -1579,6 +1680,12 @@ pub async fn run_headless_render_smoke(
     }
     let modes = [
         ViewMode::TexturedSolid,
+        ViewMode::BaseColor,
+        ViewMode::NormalMap,
+        ViewMode::UvChecker,
+        ViewMode::BaseAlpha,
+        ViewMode::MaterialResponse,
+        ViewMode::LayerMask,
         ViewMode::Solid,
         ViewMode::SolidWire,
         ViewMode::Wireframe,
@@ -1595,7 +1702,7 @@ pub async fn run_headless_render_smoke(
         for mode in modes {
             camera_uniform.view_projection =
                 headless_view_projection(&render_snapshot, width, height).to_cols_array_2d();
-            camera_uniform.solid_mode = u32::from(mode != ViewMode::TexturedSolid);
+            camera_uniform.view_mode = mode.shader_mode();
             queue.write_buffer(&camera_buffer, 0, bytemuck::bytes_of(&camera_uniform));
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("CDMW Rust Mesh Lab headless frame"),
@@ -1661,11 +1768,68 @@ pub async fn run_headless_render_smoke(
                 &render_snapshot,
                 &mut camera_uniform,
                 &camera_buffer,
+                ViewMode::TexturedSolid,
             )
         })
         .collect::<Vec<_>>();
+    let layer_mask_readbacks = [
+        (
+            "fallback",
+            render_headless_readback(
+                &device,
+                &queue,
+                format,
+                &mesh,
+                &default_material_binding.bind_group,
+                &layer_mask_fallback_material_bindings,
+                &camera_bind_group,
+                &pipelines,
+                &render_snapshot,
+                &mut camera_uniform,
+                &camera_buffer,
+                ViewMode::LayerMask,
+            ),
+        ),
+        (
+            "red",
+            render_headless_readback(
+                &device,
+                &queue,
+                format,
+                &mesh,
+                &default_material_binding.bind_group,
+                &layer_mask_red_material_bindings,
+                &camera_bind_group,
+                &pipelines,
+                &render_snapshot,
+                &mut camera_uniform,
+                &camera_buffer,
+                ViewMode::LayerMask,
+            ),
+        ),
+        (
+            "blue",
+            render_headless_readback(
+                &device,
+                &queue,
+                format,
+                &mesh,
+                &default_material_binding.bind_group,
+                &layer_mask_blue_material_bindings,
+                &camera_bind_group,
+                &pipelines,
+                &render_snapshot,
+                &mut camera_uniform,
+                &camera_buffer,
+                ViewMode::LayerMask,
+            ),
+        ),
+    ];
     frames_rendered = frames_rendered
-        .saturating_add(u32::try_from(readbacks.len()).map_err(|_| RenderError::ResourceLimit)?);
+        .saturating_add(u32::try_from(readbacks.len()).map_err(|_| RenderError::ResourceLimit)?)
+        .saturating_add(
+            u32::try_from(layer_mask_readbacks.len()).map_err(|_| RenderError::ResourceLimit)?,
+        );
     device
         .poll(wgpu::PollType::wait_indefinitely())
         .map_err(|error| RenderError::Device(format!("headless GPU wait failed: {error}")))?;
@@ -1678,6 +1842,12 @@ pub async fn run_headless_render_smoke(
         .iter()
         .map(|(readback, width, height)| read_headless_pixels(&device, readback, *width, *height))
         .collect::<Result<Vec<_>, _>>()?;
+    let layer_mask_pixels = layer_mask_readbacks
+        .iter()
+        .map(|(label, (readback, width, height))| {
+            read_headless_pixels(&device, readback, *width, *height).map(|pixels| (*label, pixels))
+        })
+        .collect::<Result<BTreeMap<_, _>, _>>()?;
     let probe_index = |label: &str| {
         probe_bindings
             .iter()
@@ -1698,7 +1868,26 @@ pub async fn run_headless_render_smoke(
             "headless GPU frame contained only the clear color".to_owned(),
         ));
     }
-    let mut role_changes = Vec::with_capacity(12);
+    let layer_mask_fallback_pixels = layer_mask_pixels.get("fallback").ok_or_else(|| {
+        RenderError::Device("headless layer-mask fallback probe is missing".to_owned())
+    })?;
+    let layer_mask_red_pixels = layer_mask_pixels.get("red").ok_or_else(|| {
+        RenderError::Device("headless layer-mask red-channel probe is missing".to_owned())
+    })?;
+    let layer_mask_blue_pixels = layer_mask_pixels.get("blue").ok_or_else(|| {
+        RenderError::Device("headless layer-mask blue-channel probe is missing".to_owned())
+    })?;
+    let layer_mask_pixels_changed =
+        changed_pixel_count(layer_mask_fallback_pixels, layer_mask_blue_pixels)?;
+    let layer_mask_channel_pixels_changed =
+        changed_pixel_count(layer_mask_red_pixels, layer_mask_blue_pixels)?;
+    if layer_mask_channel_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless layer-mask channel selector did not change any rendered pixel".to_owned(),
+        ));
+    }
+
+    let mut role_changes = Vec::with_capacity(13);
     for (role, reference) in [
         ("base color", "unresolved"),
         ("normal", "base color"),
@@ -1720,6 +1909,7 @@ pub async fn run_headless_render_smoke(
             changed_pixel_count(&probe_pixels[reference_index], &probe_pixels[role_index])?,
         ));
     }
+    role_changes.push(("layer mask", layer_mask_pixels_changed));
     for (role, changed) in &role_changes {
         if *changed == 0 {
             return Err(RenderError::Device(format!(
@@ -1888,6 +2078,8 @@ pub async fn run_headless_render_smoke(
         disabled_height_pixels_changed,
         hair_flow_pixels_changed,
         non_hair_flow_pixels_changed,
+        layer_mask_pixels_changed,
+        layer_mask_channel_pixels_changed,
         opacity_cutout_pixels_removed,
         opaque_opacity_pixels_changed,
         non_background_pixels,
@@ -2015,6 +2207,7 @@ fn render_headless_readback(
     snapshot: &DrawSnapshot,
     camera_uniform: &mut CameraUniform,
     camera_buffer: &wgpu::Buffer,
+    view_mode: ViewMode,
 ) -> (wgpu::Buffer, u32, u32) {
     let width = 640_u32;
     let height = 480_u32;
@@ -2023,7 +2216,7 @@ fn render_headless_readback(
     let depth = create_depth_target(device, width, height);
     camera_uniform.view_projection =
         headless_view_projection(snapshot, width, height).to_cols_array_2d();
-    camera_uniform.solid_mode = 0;
+    camera_uniform.view_mode = view_mode.shader_mode();
     queue.write_buffer(camera_buffer, 0, bytemuck::bytes_of(camera_uniform));
     let bytes_per_row = width * 4;
     let readback = device.create_buffer(&wgpu::BufferDescriptor {
@@ -2044,7 +2237,7 @@ fn render_headless_readback(
         active_material_bindings,
         camera_bind_group,
         pipelines,
-        ViewMode::TexturedSolid,
+        view_mode,
     );
     encoder.copy_texture_to_buffer(
         wgpu::TexelCopyTextureInfo {
@@ -2405,7 +2598,13 @@ fn draw_mesh<'a>(
     pass.set_bind_group(1, camera_bind_group, &[]);
     pass.set_vertex_buffer(0, mesh.vertex.slice(..));
     match view_mode {
-        ViewMode::TexturedSolid => draw_textured_solid(
+        ViewMode::TexturedSolid
+        | ViewMode::BaseColor
+        | ViewMode::NormalMap
+        | ViewMode::UvChecker
+        | ViewMode::BaseAlpha
+        | ViewMode::MaterialResponse
+        | ViewMode::LayerMask => draw_textured_solid(
             pass,
             mesh,
             default_material_bind_group,
@@ -2545,6 +2744,7 @@ fn resolve_material_bindings<'a>(
                 TextureRole::Opacity => &mut slots.opacity,
                 TextureRole::Height => &mut slots.height,
                 TextureRole::Flow => &mut slots.flow,
+                TextureRole::LayerMask => &mut slots.layer_mask,
                 _ => {
                     return Err(RenderError::Texture(format!(
                         "the {role:?} role is not sampled by the current material approximation"
@@ -2661,6 +2861,22 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.hair_anisotropy = Some(hair_anisotropy);
+            }
+            if let Some(layer_mask_channel) = factors.layer_mask_channel {
+                if layer_mask_channel > 3 {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has invalid layer-mask channel {layer_mask_channel} in LOD {lod_index}"
+                    )));
+                }
+                if resolved
+                    .layer_mask_channel
+                    .is_some_and(|existing| existing != layer_mask_channel)
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting layer-mask channels in LOD {lod_index}"
+                    )));
+                }
+                resolved.layer_mask_channel = Some(layer_mask_channel);
             }
         }
     }
@@ -2947,6 +3163,16 @@ fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLay
                 },
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 13,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
         ],
     })
 }
@@ -3089,6 +3315,13 @@ fn create_default_material_textures(
             wgpu::TextureFormat::Rgba8Unorm,
             [128, 255, 0, 255],
         ),
+        layer_mask: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default layer mask",
+            wgpu::TextureFormat::Rgba8Unorm,
+            [255, 255, 255, 255],
+        ),
     }
 }
 
@@ -3145,6 +3378,10 @@ fn create_material_bind_group(
         .flow
         .and_then(|index| textures.get(index))
         .map_or(&defaults.flow, |texture| &texture._texture);
+    let layer_mask_texture = indices
+        .layer_mask
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.layer_mask, |texture| &texture._texture);
     let base_view = base_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let normal_view = normal_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let surface_view = surface_texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -3156,6 +3393,7 @@ fn create_material_bind_group(
     let opacity_view = opacity_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let height_view = height_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let flow_view = flow_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let layer_mask_view = layer_mask_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let mut flags = 0;
     if indices.base_color.is_some() {
         flags |= MATERIAL_BASE_COLOR;
@@ -3190,6 +3428,9 @@ fn create_material_bind_group(
     if indices.flow.is_some() && factors.hair_anisotropy == Some(true) {
         flags |= MATERIAL_HAIR_FLOW;
     }
+    if indices.layer_mask.is_some() {
+        flags |= MATERIAL_LAYER_MASK;
+    }
     if factors.roughness.is_some() {
         flags |= MATERIAL_ROUGHNESS_FACTOR;
     }
@@ -3220,7 +3461,12 @@ fn create_material_bind_group(
             factors.specular.unwrap_or(0.0),
             factors.alpha_cutoff.unwrap_or(0.0),
         ],
-        relief_factors: [factors.height_scale.unwrap_or(0.025), 0.0, 0.0, 0.0],
+        relief_factors: [
+            factors.height_scale.unwrap_or(0.025),
+            factors.layer_mask_channel.unwrap_or(0) as f32,
+            0.0,
+            0.0,
+        ],
     };
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("CDMW Rust Mesh Lab material uniform"),
@@ -3282,6 +3528,10 @@ fn create_material_bind_group(
             wgpu::BindGroupEntry {
                 binding: 12,
                 resource: wgpu::BindingResource::TextureView(&flow_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 13,
+                resource: wgpu::BindingResource::TextureView(&layer_mask_view),
             },
         ],
     });
@@ -3466,6 +3716,12 @@ mod tests {
     fn every_view_mode_has_a_distinct_user_label() {
         let labels = [
             ViewMode::TexturedSolid,
+            ViewMode::BaseColor,
+            ViewMode::NormalMap,
+            ViewMode::UvChecker,
+            ViewMode::BaseAlpha,
+            ViewMode::MaterialResponse,
+            ViewMode::LayerMask,
             ViewMode::Solid,
             ViewMode::SolidWire,
             ViewMode::Wireframe,
@@ -3476,7 +3732,7 @@ mod tests {
         .map(ViewMode::label)
         .into_iter()
         .collect::<HashSet<_>>();
-        assert_eq!(labels.len(), 7);
+        assert_eq!(labels.len(), 13);
     }
 
     #[test]
@@ -3551,6 +3807,7 @@ mod tests {
             (TextureRole::Opacity, vec![vec![0_u32]]),
             (TextureRole::Height, vec![vec![0_u32]]),
             (TextureRole::Flow, vec![vec![0_u32]]),
+            (TextureRole::LayerMask, vec![vec![0_u32]]),
             (TextureRole::BaseColor, vec![vec![1_u32]]),
         ];
         let bindings = resolve_material_bindings(
@@ -3577,12 +3834,13 @@ mod tests {
                         opacity: Some(8),
                         height: Some(9),
                         flow: Some(10),
+                        layer_mask: Some(11),
                     }
                 ),
                 (
                     1,
                     MaterialTextureIndices {
-                        base_color: Some(11),
+                        base_color: Some(12),
                         ..MaterialTextureIndices::default()
                     }
                 ),
@@ -3635,6 +3893,19 @@ mod tests {
         assert!(
             resolve_material_bindings(
                 conflicting_opacity
+                    .iter()
+                    .map(|(role, ownership)| (*role, ownership.as_slice())),
+                0
+            )
+            .is_err()
+        );
+        let conflicting_layer_mask = [
+            (TextureRole::LayerMask, vec![vec![0_u32]]),
+            (TextureRole::LayerMask, vec![vec![0_u32]]),
+        ];
+        assert!(
+            resolve_material_bindings(
+                conflicting_layer_mask
                     .iter()
                     .map(|(role, ownership)| (*role, ownership.as_slice())),
                 0
@@ -3703,6 +3974,13 @@ mod tests {
                 },
                 ownership.clone(),
             ),
+            (
+                MaterialPreviewFactors {
+                    layer_mask_channel: Some(2),
+                    ..MaterialPreviewFactors::default()
+                },
+                ownership.clone(),
+            ),
         ];
         let resolved = resolve_material_factors(
             distinct
@@ -3722,6 +4000,7 @@ mod tests {
                 height_scale: Some(0.09),
                 alpha_cutoff: Some(0.08),
                 hair_anisotropy: Some(true),
+                layer_mask_channel: Some(2),
             })
         );
 
@@ -3808,6 +4087,16 @@ mod tests {
                 },
                 MaterialPreviewFactors {
                     hair_anisotropy: Some(false),
+                    ..MaterialPreviewFactors::default()
+                },
+            ),
+            (
+                MaterialPreviewFactors {
+                    layer_mask_channel: Some(0),
+                    ..MaterialPreviewFactors::default()
+                },
+                MaterialPreviewFactors {
+                    layer_mask_channel: Some(2),
                     ..MaterialPreviewFactors::default()
                 },
             ),

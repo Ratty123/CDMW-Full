@@ -20,6 +20,7 @@ pub enum RelationKind {
     OpacityTexture,
     HeightTexture,
     FlowTexture,
+    LayerMaskTexture,
     Skeleton,
     SkeletonVariation,
     MorphTargetSet,

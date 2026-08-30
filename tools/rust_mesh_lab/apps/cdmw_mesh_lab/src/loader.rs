@@ -64,6 +64,7 @@ pub struct LoadedMaterialFactors {
     pub height_scale: Option<f32>,
     pub alpha_cutoff: Option<f32>,
     pub hair_anisotropy: Option<bool>,
+    pub layer_mask_channel: Option<u32>,
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
@@ -970,20 +971,32 @@ fn resolve_material_parameters(
     let mut height_scale_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
     let mut alpha_cutoff_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
     let mut hair_anisotropy_claims = BTreeSet::<(usize, u32)>::new();
+    let mut layer_mask_channel_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
 
-    for reference in sidecar.textures.iter().filter(|reference| {
-        reference.role == TextureRole::Flow && is_hair_shader_family(&reference.material_name)
-    }) {
+    for reference in &sidecar.textures {
+        let hair_anisotropy =
+            reference.role == TextureRole::Flow && is_hair_shader_family(&reference.material_name);
+        let layer_mask_channel = (reference.role == TextureRole::LayerMask)
+            .then(|| layer_mask_channel_for_parameter(&reference.parameter_name));
+        if !hair_anisotropy && layer_mask_channel.is_none() {
+            continue;
+        }
         for (lod_index, materials) in material_indices_for_reference(reference, document)
             .iter()
             .enumerate()
         {
-            hair_anisotropy_claims.extend(
-                materials
-                    .iter()
-                    .copied()
-                    .map(|material| (lod_index, material)),
-            );
+            for material in materials {
+                let key = (lod_index, *material);
+                if hair_anisotropy {
+                    hair_anisotropy_claims.insert(key);
+                }
+                if let Some(channel) = layer_mask_channel {
+                    layer_mask_channel_claims
+                        .entry(key)
+                        .or_default()
+                        .insert(channel);
+                }
+            }
         }
     }
 
@@ -1085,6 +1098,15 @@ fn resolve_material_parameters(
     append_material_factor_conflict_warning(&specular_claims, "specular", warnings);
     append_material_factor_conflict_warning(&height_scale_claims, "height scale", warnings);
     append_material_factor_conflict_warning(&alpha_cutoff_claims, "alpha cutoff", warnings);
+    let layer_mask_channel_conflicts = layer_mask_channel_claims
+        .values()
+        .filter(|values| values.len() > 1)
+        .count();
+    if layer_mask_channel_conflicts > 0 {
+        warnings.push(format!(
+            "{layer_mask_channel_conflicts} material range(s) claim conflicting layer-mask channels; only those channel selectors remain unbound"
+        ));
+    }
 
     let mut grouped = BTreeMap::<
         (
@@ -1096,6 +1118,7 @@ fn resolve_material_parameters(
             Option<u32>,
             Option<u32>,
             Option<bool>,
+            Option<u32>,
         ),
         Vec<Vec<u32>>,
     >::new();
@@ -1119,6 +1142,7 @@ fn resolve_material_parameters(
             let height_scale = unique_material_factor_claim(&height_scale_claims, key);
             let alpha_cutoff = unique_material_factor_claim(&alpha_cutoff_claims, key);
             let hair_anisotropy = hair_anisotropy_claims.contains(&key).then_some(true);
+            let layer_mask_channel = unique_material_factor_claim(&layer_mask_channel_claims, key);
             if color.is_none()
                 && intensity.is_none()
                 && roughness.is_none()
@@ -1127,6 +1151,7 @@ fn resolve_material_parameters(
                 && height_scale.is_none()
                 && alpha_cutoff.is_none()
                 && hair_anisotropy.is_none()
+                && layer_mask_channel.is_none()
             {
                 continue;
             }
@@ -1140,6 +1165,7 @@ fn resolve_material_parameters(
                     height_scale,
                     alpha_cutoff,
                     hair_anisotropy,
+                    layer_mask_channel,
                 ))
                 .or_insert_with(|| vec![Vec::new(); document.lods.len()])[lod_index]
                 .push(material);
@@ -1158,6 +1184,7 @@ fn resolve_material_parameters(
                     height_scale,
                     alpha_cutoff,
                     hair_anisotropy,
+                    layer_mask_channel,
                 ),
                 mut ownership,
             )| {
@@ -1181,6 +1208,7 @@ fn resolve_material_parameters(
                     height_scale: height_scale.map(f32::from_bits),
                     alpha_cutoff: alpha_cutoff.map(f32::from_bits),
                     hair_anisotropy,
+                    layer_mask_channel,
                     material_indices_by_lod: ownership,
                 }
             },
@@ -1490,6 +1518,7 @@ const fn is_preview_sampled_role(role: TextureRole) -> bool {
             | TextureRole::Opacity
             | TextureRole::Height
             | TextureRole::Flow
+            | TextureRole::LayerMask
     )
 }
 
@@ -1512,6 +1541,14 @@ fn is_hair_shader_family(material_name: &str) -> bool {
     normalized.contains("skinnedmeshhair")
         || normalized.contains("skinnedmeshfur")
         || normalized.contains("animalhair")
+}
+
+fn layer_mask_channel_for_parameter(parameter_name: &str) -> u32 {
+    if normalized_parameter_key(parameter_name) == "detailmasktexture" {
+        2
+    } else {
+        0
+    }
 }
 
 fn material_indices_for_owner(
@@ -1806,6 +1843,7 @@ fn relation_kind(role: TextureRole) -> RelationKind {
         TextureRole::Opacity => RelationKind::OpacityTexture,
         TextureRole::Height => RelationKind::HeightTexture,
         TextureRole::Flow => RelationKind::FlowTexture,
+        TextureRole::LayerMask => RelationKind::LayerMaskTexture,
         TextureRole::Unknown => RelationKind::Companion,
     }
 }
@@ -2121,6 +2159,7 @@ mod tests {
             "body_height.dds",
             "body_wrinkle.dds",
             "body_flow.dds",
+            "body_layer.dds",
         ] {
             fs::write(
                 texture_directory.join(name),
@@ -2142,6 +2181,7 @@ mod tests {
                   <MaterialParameterTexture _name="_opacityTexture" Value="character/texture/body_opacity.dds"/>
                   <MaterialParameterTexture _name="_glossinessTexture" Value="character/texture/body_gloss.dds"/>
                   <MaterialParameterTexture _name="_heightTexture" Value="character/texture/body_height.dds"/>
+                  <MaterialParameterTexture _name="_detailMaskTexture" Value="character/texture/body_layer.dds"/>
                   <MaterialParameterTexture _name="_wrinkleDisplacementTexture0" Value="character/texture/body_wrinkle.dds"/>
                   <MaterialParameterColor _name="_emissiveColor" _value="#204060ff"/>
                   <MaterialParameterFloat _name="_emissiveIntensity" _value="2.5"/>
@@ -2162,7 +2202,7 @@ mod tests {
             &mesh,
             &document_with_references(&["fallback.dds", "fallback_2.dds"]),
         )?;
-        assert_eq!(resolved.textures.len(), 12);
+        assert_eq!(resolved.textures.len(), 13);
         assert_eq!(resolved.material_parameters.len(), 4);
         assert_eq!(resolved.material_factors.len(), 2);
         let explicit_factors = resolved
@@ -2174,6 +2214,7 @@ mod tests {
         assert_eq!(explicit_factors.emissive_intensity, Some(2.5));
         assert_eq!(explicit_factors.height_scale, Some(0.09));
         assert_eq!(explicit_factors.alpha_cutoff, Some(0.08));
+        assert_eq!(explicit_factors.layer_mask_channel, Some(2));
         let hair_factors = resolved
             .material_factors
             .iter()
@@ -2238,6 +2279,10 @@ mod tests {
         );
         assert_eq!(
             roles.get(&TextureRole::Flow),
+            Some(&cdmw_texture::ColorSpace::Linear)
+        );
+        assert_eq!(
+            roles.get(&TextureRole::LayerMask),
             Some(&cdmw_texture::ColorSpace::Linear)
         );
         assert!(
@@ -2305,6 +2350,42 @@ mod tests {
         assert_eq!(factors.len(), 1);
         assert_eq!(factors[0].hair_anisotropy, Some(true));
         assert_eq!(factors[0].material_indices_by_lod, vec![vec![1]]);
+        Ok(())
+    }
+
+    #[test]
+    fn layer_mask_channel_policy_follows_the_production_parameter_contract()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let document = document_with_references(&["material-a", "material-b"]);
+        let sidecar = parse_material_sidecar(
+            br#"<Root>
+              <SkinnedMeshMaterialWrapper _subMeshName="part-0">
+                <MaterialParameterTexture _name="_colorBlendingMaskTexture" Value="character/texture/color_mask.dds"/>
+              </SkinnedMeshMaterialWrapper>
+              <SkinnedMeshMaterialWrapper _subMeshName="part-1">
+                <MaterialParameterTexture _name="_detailMaskTexture" Value="character/texture/detail_mask.dds"/>
+              </SkinnedMeshMaterialWrapper>
+            </Root>"#,
+        )?;
+        let mut warnings = Vec::new();
+        let (_parameters, factors) = resolve_material_parameters(
+            &sidecar,
+            &document,
+            "character/modelproperty/body.pac_xml",
+            &mut warnings,
+        );
+        assert!(warnings.is_empty());
+        assert_eq!(factors.len(), 2);
+        let red = factors
+            .iter()
+            .find(|factor| factor.layer_mask_channel == Some(0))
+            .ok_or("missing color-blending mask R-channel policy")?;
+        assert_eq!(red.material_indices_by_lod, vec![vec![0]]);
+        let blue = factors
+            .iter()
+            .find(|factor| factor.layer_mask_channel == Some(2))
+            .ok_or("missing detail-mask B-channel policy")?;
+        assert_eq!(blue.material_indices_by_lod, vec![vec![1]]);
         Ok(())
     }
 

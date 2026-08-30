@@ -496,10 +496,20 @@ impl LabApplication {
                 if factors.hair_anisotropy == Some(true) {
                     parts.push("hair Flow family qualified".to_owned());
                 }
+                if let Some(channel) = factors.layer_mask_channel {
+                    let label = match channel {
+                        0 => "R",
+                        1 => "G",
+                        2 => "B",
+                        3 => "A",
+                        _ => "invalid",
+                    };
+                    parts.push(format!("layer mask channel {label}"));
+                }
                 MaterialFactorInspectorEntry {
                     summary: parts.join(" · "),
                     provenance: format!(
-                        "Sidecar preview factors · {} · non-conflicting material ownership; emissive fields also require a bound emissive texture and hair anisotropy requires both a Flow texture and a proven hair/fur shader family",
+                        "Sidecar preview factors · {} · non-conflicting material ownership; emissive fields require a bound emissive texture, hair anisotropy requires both Flow and a proven hair/fur family, and the layer-mask selector affects only a bound Layer Mask diagnostic",
                         factors.sidecar_label
                     ),
                     ownership: format_material_ownership(&factors.material_indices_by_lod),
@@ -537,6 +547,7 @@ impl LabApplication {
                         height_scale: factors.height_scale,
                         alpha_cutoff: factors.alpha_cutoff,
                         hair_anisotropy: factors.hair_anisotropy,
+                        layer_mask_channel: factors.layer_mask_channel,
                     },
                     &factors.material_indices_by_lod,
                 ) {
@@ -806,10 +817,17 @@ impl LabApplication {
                 ui.separator();
                 ui.label(RichText::new("Viewport").strong());
                 egui::ComboBox::from_label("Preview mode")
+                    .height(360.0)
                     .selected_text(self.view_mode.label())
                     .show_ui(ui, |ui| {
                         for mode in [
                             ViewMode::TexturedSolid,
+                            ViewMode::BaseColor,
+                            ViewMode::NormalMap,
+                            ViewMode::UvChecker,
+                            ViewMode::BaseAlpha,
+                            ViewMode::MaterialResponse,
+                            ViewMode::LayerMask,
                             ViewMode::Solid,
                             ViewMode::SolidWire,
                             ViewMode::Wireframe,

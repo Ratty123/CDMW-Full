@@ -269,6 +269,12 @@ fn painted_menus_route_preview_camera_selection_and_lod_controls() -> TestResult
         ViewMode::WireVertices,
         ViewMode::XRay,
         ViewMode::TexturedSolid,
+        ViewMode::BaseColor,
+        ViewMode::NormalMap,
+        ViewMode::UvChecker,
+        ViewMode::BaseAlpha,
+        ViewMode::MaterialResponse,
+        ViewMode::LayerMask,
         ViewMode::Solid,
         ViewMode::SolidWire,
     ] {
@@ -920,6 +926,9 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
         cdmw_texture::inspect_dds(&glossiness_bytes, cdmw_texture::TextureRole::Glossiness)?;
     let flow_bytes = cdmw_texture::synthetic::rgba8_checker_dds();
     let flow_metadata = cdmw_texture::inspect_dds(&flow_bytes, cdmw_texture::TextureRole::Flow)?;
+    let layer_mask_bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+    let layer_mask_metadata =
+        cdmw_texture::inspect_dds(&layer_mask_bytes, cdmw_texture::TextureRole::LayerMask)?;
     let mut application = LabApplication::new(None, None);
     application.install_loaded_mesh(crate::loader::LoadedMesh {
         path: PathBuf::from("character/model/body.pam"),
@@ -958,6 +967,18 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
                 role: cdmw_texture::TextureRole::Flow,
                 requested_reference: "character/texture/body_f.dds".to_owned(),
                 parameter_name: Some("_flowTexture".to_owned()),
+                sidecar_label: Some("character/modelproperty/body.pam_xml".to_owned()),
+                resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
+                archive_compression: Some(cdmw_archive::CompressionOutcome::Stored),
+                material_indices_by_lod: vec![vec![0]],
+            },
+            crate::loader::LoadedTexture {
+                label: "character/texture/body_mg.dds".to_owned(),
+                metadata: layer_mask_metadata,
+                bytes: layer_mask_bytes,
+                role: cdmw_texture::TextureRole::LayerMask,
+                requested_reference: "character/texture/body_mg.dds".to_owned(),
+                parameter_name: Some("_detailMaskTexture".to_owned()),
                 sidecar_label: Some("character/modelproperty/body.pam_xml".to_owned()),
                 resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
                 archive_compression: Some(cdmw_archive::CompressionOutcome::Stored),
@@ -1040,6 +1061,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             height_scale: Some(0.09),
             alpha_cutoff: Some(0.08),
             hair_anisotropy: Some(true),
+            layer_mask_channel: Some(2),
             material_indices_by_lod: vec![vec![0]],
         }],
     });
@@ -1071,10 +1093,17 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
         ui.reveal("Renderer: approximate material preview (not Crimson Desert shader parity)")
             .is_ok()
     );
+    assert!(ui.reveal("character/texture/body_mg.dds").is_ok());
+    assert!(
+        ui.reveal(
+            "Role LayerMask · Reference character/texture/body_mg.dds · Resolved via ExplicitVirtualPath · Parameter _detailMaskTexture · Sidecar character/modelproperty/body.pam_xml · Archive decode Stored"
+        )
+        .is_ok()
+    );
     assert!(ui.reveal("Prepared material factors").is_ok());
     assert!(
         ui.reveal(
-            "emissive color 0.125, 0.251, 0.376 · emissive intensity 2.500 · roughness 0.750 · metalness 0.500 · specular 0.900 · height scale 0.090 · alpha cutout enabled · cutoff 0.080 · hair Flow family qualified"
+            "emissive color 0.125, 0.251, 0.376 · emissive intensity 2.500 · roughness 0.750 · metalness 0.500 · specular 0.900 · height scale 0.090 · alpha cutout enabled · cutoff 0.080 · hair Flow family qualified · layer mask channel B"
         )
             .is_ok()
     );

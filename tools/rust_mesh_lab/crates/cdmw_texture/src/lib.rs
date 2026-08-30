@@ -23,6 +23,7 @@ pub enum TextureRole {
     Opacity,
     Height,
     Flow,
+    LayerMask,
     Unknown,
 }
 
@@ -34,7 +35,12 @@ impl TextureRole {
             .filter(char::is_ascii_alphanumeric)
             .flat_map(char::to_lowercase)
             .collect::<String>();
-        if normalized.contains("normal") {
+        if matches!(
+            normalized.as_str(),
+            "colorblendingmasktexture" | "detailmasktexture"
+        ) {
+            Self::LayerMask
+        } else if normalized.contains("normal") {
             Self::Normal
         } else if normalized.contains("roughness") {
             Self::Roughness
@@ -318,7 +324,8 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         | TextureRole::Glossiness
         | TextureRole::Opacity
         | TextureRole::Height
-        | TextureRole::Flow => ColorSpace::Linear,
+        | TextureRole::Flow
+        | TextureRole::LayerMask => ColorSpace::Linear,
         TextureRole::Unknown if header_is_srgb => ColorSpace::Srgb,
         TextureRole::Unknown => ColorSpace::Linear,
     };
@@ -1056,6 +1063,14 @@ mod tests {
         );
         assert_eq!(
             TextureRole::from_parameter_name("_colorBlendingMaskTexture"),
+            TextureRole::LayerMask
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_detailMaskTexture"),
+            TextureRole::LayerMask
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_detailMaterialMaskR"),
             TextureRole::Unknown
         );
         assert_eq!(
