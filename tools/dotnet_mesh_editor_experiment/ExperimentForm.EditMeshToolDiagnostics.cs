@@ -554,7 +554,7 @@ internal sealed partial class ExperimentForm
         var mixedExplained = _morphDiagnosticStatus.Text.Contains(
             "different refit settings",
             StringComparison.OrdinalIgnoreCase);
-
+        ShowToolRailPage(ToolRailPage.MorphRefit);
         _morphGarmentSettings[1] = _morphGarmentSettings[0];
         ApplySelectedMorphRefitSettings();
         var uniformEnabled = _morphRefitSettingsControl.Enabled;
