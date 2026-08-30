@@ -38,15 +38,21 @@ struct MaterialUniform {
 @group(0) @binding(0) var base_texture: texture_2d<f32>;
 @group(0) @binding(1) var normal_texture: texture_2d<f32>;
 @group(0) @binding(2) var material_texture: texture_2d<f32>;
-@group(0) @binding(3) var emissive_texture: texture_2d<f32>;
-@group(0) @binding(4) var material_sampler: sampler;
-@group(0) @binding(5) var<uniform> material: MaterialUniform;
+@group(0) @binding(3) var roughness_texture: texture_2d<f32>;
+@group(0) @binding(4) var metalness_texture: texture_2d<f32>;
+@group(0) @binding(5) var occlusion_texture: texture_2d<f32>;
+@group(0) @binding(6) var emissive_texture: texture_2d<f32>;
+@group(0) @binding(7) var material_sampler: sampler;
+@group(0) @binding(8) var<uniform> material: MaterialUniform;
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
 
 const MATERIAL_BASE_COLOR: u32 = 1u;
 const MATERIAL_NORMAL: u32 = 2u;
 const MATERIAL_SURFACE: u32 = 4u;
-const MATERIAL_EMISSIVE: u32 = 8u;
+const MATERIAL_ROUGHNESS: u32 = 8u;
+const MATERIAL_METALNESS: u32 = 16u;
+const MATERIAL_OCCLUSION: u32 = 32u;
+const MATERIAL_EMISSIVE: u32 = 64u;
 
 @vertex
 fn vs_main(
@@ -93,22 +99,33 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
         roughness = clamp(packed.g, 0.04, 1.0);
         metalness = clamp(packed.b, 0.0, 1.0);
     }
+    if (material.flags & MATERIAL_ROUGHNESS) != 0u {
+        roughness = clamp(textureSample(roughness_texture, material_sampler, input.uv).r, 0.04, 1.0);
+    }
+    if (material.flags & MATERIAL_METALNESS) != 0u {
+        metalness = clamp(textureSample(metalness_texture, material_sampler, input.uv).r, 0.0, 1.0);
+    }
+    var occlusion = 1.0;
+    if (material.flags & MATERIAL_OCCLUSION) != 0u {
+        occlusion = clamp(textureSample(occlusion_texture, material_sampler, input.uv).r, 0.0, 1.0);
+    }
 
     let light_direction = normalize(vec3<f32>(-0.35, 0.80, 0.45));
     let view_direction = normalize(vec3<f32>(0.10, 0.20, 1.0));
     let half_vector = normalize(light_direction + view_direction);
     let ndotl = max(dot(surface_normal, light_direction), 0.0);
     let ndoth = max(dot(surface_normal, half_vector), 0.0);
-    let diffuse = texel.rgb * (0.18 + 0.82 * ndotl) * (1.0 - metalness);
-    let metal_body = texel.rgb * metalness * (0.10 + 0.28 * ndotl);
+    let diffuse = texel.rgb * (0.18 * occlusion + 0.82 * ndotl) * (1.0 - metalness);
+    let metal_body = texel.rgb * metalness * (0.10 * occlusion + 0.28 * ndotl);
     let f0 = mix(vec3<f32>(0.04), texel.rgb, vec3<f32>(metalness));
     let specular_power = mix(96.0, 8.0, roughness);
     let specular = f0 * pow(ndoth, specular_power) * (0.20 + 0.80 * (1.0 - roughness));
+    let environment_specular = f0 * (0.04 + 0.28 * (1.0 - roughness));
     var emissive = vec3<f32>(0.0);
     if (material.flags & MATERIAL_EMISSIVE) != 0u {
         emissive = textureSample(emissive_texture, material_sampler, input.uv).rgb;
     }
-    return vec4<f32>(diffuse + metal_body + specular + emissive, 1.0);
+    return vec4<f32>(diffuse + metal_body + specular + environment_specular + emissive, 1.0);
 }
 
 @fragment
@@ -183,7 +200,10 @@ struct MaterialUniform {
 const MATERIAL_BASE_COLOR: u32 = 1;
 const MATERIAL_NORMAL: u32 = 2;
 const MATERIAL_SURFACE: u32 = 4;
-const MATERIAL_EMISSIVE: u32 = 8;
+const MATERIAL_ROUGHNESS: u32 = 8;
+const MATERIAL_METALNESS: u32 = 16;
+const MATERIAL_OCCLUSION: u32 = 32;
+const MATERIAL_EMISSIVE: u32 = 64;
 
 impl CameraUniform {
     fn new() -> Self {
@@ -306,6 +326,9 @@ struct DefaultMaterialTextures {
     base_color: wgpu::Texture,
     normal: wgpu::Texture,
     surface: wgpu::Texture,
+    roughness: wgpu::Texture,
+    metalness: wgpu::Texture,
+    occlusion: wgpu::Texture,
     emissive: wgpu::Texture,
 }
 
@@ -319,6 +342,9 @@ struct MaterialTextureIndices {
     base_color: Option<usize>,
     normal: Option<usize>,
     surface: Option<usize>,
+    roughness: Option<usize>,
+    metalness: Option<usize>,
+    occlusion: Option<usize>,
     emissive: Option<usize>,
 }
 
@@ -640,6 +666,9 @@ impl WindowRenderer {
             TextureRole::BaseColor
                 | TextureRole::Normal
                 | TextureRole::Material
+                | TextureRole::Roughness
+                | TextureRole::Metalness
+                | TextureRole::Occlusion
                 | TextureRole::Emissive
         ) {
             return Err(RenderError::Texture(format!(
@@ -951,6 +980,21 @@ pub async fn run_headless_render_smoke(
         ),
         (
             0_u32,
+            TextureRole::Roughness,
+            synthetic_dds([20, 0, 0, 255]),
+        ),
+        (
+            0_u32,
+            TextureRole::Metalness,
+            synthetic_dds([235, 0, 0, 255]),
+        ),
+        (
+            0_u32,
+            TextureRole::Occlusion,
+            synthetic_dds([30, 0, 0, 255]),
+        ),
+        (
+            0_u32,
             TextureRole::Emissive,
             synthetic_dds([90, 30, 10, 255]),
         ),
@@ -993,6 +1037,21 @@ pub async fn run_headless_render_smoke(
                     } else {
                         None
                     },
+                    roughness: if roles.contains(&TextureRole::Roughness) {
+                        indices.roughness
+                    } else {
+                        None
+                    },
+                    metalness: if roles.contains(&TextureRole::Metalness) {
+                        indices.metalness
+                    } else {
+                        None
+                    },
+                    occlusion: if roles.contains(&TextureRole::Occlusion) {
+                        indices.occlusion
+                    } else {
+                        None
+                    },
                     emissive: if roles.contains(&TextureRole::Emissive) {
                         indices.emissive
                     } else {
@@ -1018,12 +1077,21 @@ pub async fn run_headless_render_smoke(
         bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Normal]);
     let base_surface_material_bindings =
         bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Material]);
+    let base_roughness_material_bindings =
+        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Roughness]);
+    let base_metalness_material_bindings =
+        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Metalness]);
+    let base_occlusion_material_bindings =
+        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Occlusion]);
     let base_emissive_material_bindings =
         bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Emissive]);
     let active_material_bindings = bindings_for_roles(&[
         TextureRole::BaseColor,
         TextureRole::Normal,
         TextureRole::Material,
+        TextureRole::Roughness,
+        TextureRole::Metalness,
+        TextureRole::Occlusion,
         TextureRole::Emissive,
     ]);
     let camera_layout = create_camera_bind_group_layout(&device);
@@ -1142,86 +1210,37 @@ pub async fn run_headless_render_smoke(
             frames_rendered = frames_rendered.saturating_add(1);
         }
     }
-    let unresolved_material_bindings = BTreeMap::new();
-    let (unresolved_readback, readback_width, readback_height) = render_headless_readback(
-        &device,
-        &queue,
-        format,
-        &mesh,
-        &default_material_binding.bind_group,
-        &unresolved_material_bindings,
-        &camera_bind_group,
-        &pipelines,
-        &render_snapshot,
-        &mut camera_uniform,
-        &camera_buffer,
-    );
-    let (base_only_readback, _, _) = render_headless_readback(
-        &device,
-        &queue,
-        format,
-        &mesh,
-        &default_material_binding.bind_group,
-        &base_only_material_bindings,
-        &camera_bind_group,
-        &pipelines,
-        &render_snapshot,
-        &mut camera_uniform,
-        &camera_buffer,
-    );
-    let (base_normal_readback, _, _) = render_headless_readback(
-        &device,
-        &queue,
-        format,
-        &mesh,
-        &default_material_binding.bind_group,
-        &base_normal_material_bindings,
-        &camera_bind_group,
-        &pipelines,
-        &render_snapshot,
-        &mut camera_uniform,
-        &camera_buffer,
-    );
-    let (base_surface_readback, _, _) = render_headless_readback(
-        &device,
-        &queue,
-        format,
-        &mesh,
-        &default_material_binding.bind_group,
-        &base_surface_material_bindings,
-        &camera_bind_group,
-        &pipelines,
-        &render_snapshot,
-        &mut camera_uniform,
-        &camera_buffer,
-    );
-    let (base_emissive_readback, _, _) = render_headless_readback(
-        &device,
-        &queue,
-        format,
-        &mesh,
-        &default_material_binding.bind_group,
-        &base_emissive_material_bindings,
-        &camera_bind_group,
-        &pipelines,
-        &render_snapshot,
-        &mut camera_uniform,
-        &camera_buffer,
-    );
-    let (composed_readback, _, _) = render_headless_readback(
-        &device,
-        &queue,
-        format,
-        &mesh,
-        &default_material_binding.bind_group,
-        &active_material_bindings,
-        &camera_bind_group,
-        &pipelines,
-        &render_snapshot,
-        &mut camera_uniform,
-        &camera_buffer,
-    );
-    frames_rendered = frames_rendered.saturating_add(6);
+    let probe_bindings = [
+        ("unresolved", BTreeMap::new()),
+        ("base color", base_only_material_bindings),
+        ("normal", base_normal_material_bindings),
+        ("packed material", base_surface_material_bindings),
+        ("roughness", base_roughness_material_bindings),
+        ("metalness", base_metalness_material_bindings),
+        ("occlusion", base_occlusion_material_bindings),
+        ("emissive", base_emissive_material_bindings),
+        ("composed", active_material_bindings),
+    ];
+    let readbacks = probe_bindings
+        .iter()
+        .map(|(_, bindings)| {
+            render_headless_readback(
+                &device,
+                &queue,
+                format,
+                &mesh,
+                &default_material_binding.bind_group,
+                bindings,
+                &camera_bind_group,
+                &pipelines,
+                &render_snapshot,
+                &mut camera_uniform,
+                &camera_buffer,
+            )
+        })
+        .collect::<Vec<_>>();
+    frames_rendered = frames_rendered
+        .saturating_add(u32::try_from(readbacks.len()).map_err(|_| RenderError::ResourceLimit)?);
     device
         .poll(wgpu::PollType::wait_indefinitely())
         .map_err(|error| RenderError::Device(format!("headless GPU wait failed: {error}")))?;
@@ -1230,38 +1249,14 @@ pub async fn run_headless_render_smoke(
             "headless GPU validation failed: {error}"
         )));
     }
-    let unresolved_pixels = read_headless_pixels(
-        &device,
-        &unresolved_readback,
-        readback_width,
-        readback_height,
-    )?;
-    let base_only_pixels = read_headless_pixels(
-        &device,
-        &base_only_readback,
-        readback_width,
-        readback_height,
-    )?;
-    let base_normal_pixels = read_headless_pixels(
-        &device,
-        &base_normal_readback,
-        readback_width,
-        readback_height,
-    )?;
-    let base_surface_pixels = read_headless_pixels(
-        &device,
-        &base_surface_readback,
-        readback_width,
-        readback_height,
-    )?;
-    let base_emissive_pixels = read_headless_pixels(
-        &device,
-        &base_emissive_readback,
-        readback_width,
-        readback_height,
-    )?;
-    let composed_pixels =
-        read_headless_pixels(&device, &composed_readback, readback_width, readback_height)?;
+    let probe_pixels = readbacks
+        .iter()
+        .map(|(readback, width, height)| read_headless_pixels(&device, readback, *width, *height))
+        .collect::<Result<Vec<_>, _>>()?;
+    let base_only_pixels = &probe_pixels[1];
+    let composed_pixels = probe_pixels.last().ok_or_else(|| {
+        RenderError::Device("headless material proof produced no readback".to_owned())
+    })?;
     let background = composed_pixels.get(..4).ok_or_else(|| {
         RenderError::Device("headless GPU frame has no complete pixel".to_owned())
     })?;
@@ -1274,33 +1269,22 @@ pub async fn run_headless_render_smoke(
             "headless GPU frame contained only the clear color".to_owned(),
         ));
     }
-    let role_changes = [
-        (
-            "base color",
-            changed_pixel_count(&unresolved_pixels, &base_only_pixels)?,
-        ),
-        (
-            "normal",
-            changed_pixel_count(&base_only_pixels, &base_normal_pixels)?,
-        ),
-        (
-            "packed material",
-            changed_pixel_count(&base_only_pixels, &base_surface_pixels)?,
-        ),
-        (
-            "emissive",
-            changed_pixel_count(&base_only_pixels, &base_emissive_pixels)?,
-        ),
-    ];
-    for (role, changed) in role_changes {
-        if changed == 0 {
+    let mut role_changes = Vec::with_capacity(probe_bindings.len().saturating_sub(2));
+    for probe_index in 1..probe_bindings.len().saturating_sub(1) {
+        let reference_index = if probe_index == 1 { 0 } else { 1 };
+        role_changes.push((
+            probe_bindings[probe_index].0,
+            changed_pixel_count(&probe_pixels[reference_index], &probe_pixels[probe_index])?,
+        ));
+    }
+    for (role, changed) in &role_changes {
+        if *changed == 0 {
             return Err(RenderError::Device(format!(
                 "headless {role} sampling did not change any rendered pixel"
             )));
         }
     }
-    let composed_material_pixels_changed =
-        changed_pixel_count(&base_only_pixels, &composed_pixels)?;
+    let composed_material_pixels_changed = changed_pixel_count(base_only_pixels, composed_pixels)?;
     if composed_material_pixels_changed == 0 {
         return Err(RenderError::Device(
             "headless material roles did not change any rendered pixel from the base-only pass"
@@ -1967,6 +1951,9 @@ fn resolve_material_bindings<'a>(
                 TextureRole::BaseColor => &mut slots.base_color,
                 TextureRole::Normal => &mut slots.normal,
                 TextureRole::Material => &mut slots.surface,
+                TextureRole::Roughness => &mut slots.roughness,
+                TextureRole::Metalness => &mut slots.metalness,
+                TextureRole::Occlusion => &mut slots.occlusion,
                 TextureRole::Emissive => &mut slots.emissive,
                 _ => {
                     return Err(RenderError::Texture(format!(
@@ -2181,11 +2168,41 @@ fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLay
             wgpu::BindGroupLayoutEntry {
                 binding: 4,
                 visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
                 count: None,
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 5,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 6,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 7,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 8,
                 visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
@@ -2280,6 +2297,27 @@ fn create_default_material_textures(
             wgpu::TextureFormat::Rgba8Unorm,
             [255, 166, 0, 255],
         ),
+        roughness: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default roughness",
+            wgpu::TextureFormat::Rgba8Unorm,
+            [166, 0, 0, 255],
+        ),
+        metalness: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default metalness",
+            wgpu::TextureFormat::Rgba8Unorm,
+            [0, 0, 0, 255],
+        ),
+        occlusion: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default occlusion",
+            wgpu::TextureFormat::Rgba8Unorm,
+            [255, 0, 0, 255],
+        ),
         emissive: create_solid_texture(
             device,
             queue,
@@ -2310,6 +2348,18 @@ fn create_material_bind_group(
         .surface
         .and_then(|index| textures.get(index))
         .map_or(&defaults.surface, |texture| &texture._texture);
+    let roughness_texture = indices
+        .roughness
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.roughness, |texture| &texture._texture);
+    let metalness_texture = indices
+        .metalness
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.metalness, |texture| &texture._texture);
+    let occlusion_texture = indices
+        .occlusion
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.occlusion, |texture| &texture._texture);
     let emissive_texture = indices
         .emissive
         .and_then(|index| textures.get(index))
@@ -2317,6 +2367,9 @@ fn create_material_bind_group(
     let base_view = base_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let normal_view = normal_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let surface_view = surface_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let roughness_view = roughness_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let metalness_view = metalness_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let occlusion_view = occlusion_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let emissive_view = emissive_texture.create_view(&wgpu::TextureViewDescriptor::default());
     let mut flags = 0;
     if indices.base_color.is_some() {
@@ -2327,6 +2380,15 @@ fn create_material_bind_group(
     }
     if indices.surface.is_some() {
         flags |= MATERIAL_SURFACE;
+    }
+    if indices.roughness.is_some() {
+        flags |= MATERIAL_ROUGHNESS;
+    }
+    if indices.metalness.is_some() {
+        flags |= MATERIAL_METALNESS;
+    }
+    if indices.occlusion.is_some() {
+        flags |= MATERIAL_OCCLUSION;
     }
     if indices.emissive.is_some() {
         flags |= MATERIAL_EMISSIVE;
@@ -2358,14 +2420,26 @@ fn create_material_bind_group(
             },
             wgpu::BindGroupEntry {
                 binding: 3,
-                resource: wgpu::BindingResource::TextureView(&emissive_view),
+                resource: wgpu::BindingResource::TextureView(&roughness_view),
             },
             wgpu::BindGroupEntry {
                 binding: 4,
-                resource: wgpu::BindingResource::Sampler(sampler),
+                resource: wgpu::BindingResource::TextureView(&metalness_view),
             },
             wgpu::BindGroupEntry {
                 binding: 5,
+                resource: wgpu::BindingResource::TextureView(&occlusion_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: wgpu::BindingResource::TextureView(&emissive_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 7,
+                resource: wgpu::BindingResource::Sampler(sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 8,
                 resource: uniform_buffer.as_entire_binding(),
             },
         ],
@@ -2627,6 +2701,11 @@ mod tests {
         let distinct = [
             (TextureRole::BaseColor, vec![vec![0_u32]]),
             (TextureRole::Normal, vec![vec![0_u32]]),
+            (TextureRole::Material, vec![vec![0_u32]]),
+            (TextureRole::Roughness, vec![vec![0_u32]]),
+            (TextureRole::Metalness, vec![vec![0_u32]]),
+            (TextureRole::Occlusion, vec![vec![0_u32]]),
+            (TextureRole::Emissive, vec![vec![0_u32]]),
             (TextureRole::BaseColor, vec![vec![1_u32]]),
         ];
         let bindings = resolve_material_bindings(
@@ -2644,13 +2723,17 @@ mod tests {
                     MaterialTextureIndices {
                         base_color: Some(0),
                         normal: Some(1),
-                        ..MaterialTextureIndices::default()
+                        surface: Some(2),
+                        roughness: Some(3),
+                        metalness: Some(4),
+                        occlusion: Some(5),
+                        emissive: Some(6),
                     }
                 ),
                 (
                     1,
                     MaterialTextureIndices {
-                        base_color: Some(2),
+                        base_color: Some(7),
                         ..MaterialTextureIndices::default()
                     }
                 ),

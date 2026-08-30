@@ -17,6 +17,8 @@ pub enum TextureRole {
     Roughness,
     Metalness,
     Occlusion,
+    Specular,
+    Glossiness,
     Emissive,
     Opacity,
     Height,
@@ -48,11 +50,11 @@ impl TextureRole {
             Self::Opacity
         } else if normalized.contains("height") || normalized.contains("displacement") {
             Self::Height
-        } else if normalized.contains("materialtexture")
-            || normalized.contains("specular")
-            || normalized.contains("gloss")
-            || normalized == "sptexture"
-        {
+        } else if normalized.contains("specular") {
+            Self::Specular
+        } else if normalized.contains("gloss") {
+            Self::Glossiness
+        } else if normalized.contains("materialtexture") || normalized == "sptexture" {
             Self::Material
         } else if normalized.contains("mask")
             || normalized.contains("blend")
@@ -269,6 +271,8 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         | TextureRole::Roughness
         | TextureRole::Metalness
         | TextureRole::Occlusion
+        | TextureRole::Specular
+        | TextureRole::Glossiness
         | TextureRole::Opacity
         | TextureRole::Height => ColorSpace::Linear,
         TextureRole::Unknown if header_is_srgb => ColorSpace::Srgb,
@@ -866,6 +870,26 @@ mod tests {
         assert_eq!(
             TextureRole::from_parameter_name("_materialTexture"),
             TextureRole::Material
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_roughnessTexture"),
+            TextureRole::Roughness
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_metalnessTexture"),
+            TextureRole::Metalness
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_ambientOcclusionTexture"),
+            TextureRole::Occlusion
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_specularTexture"),
+            TextureRole::Specular
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_glossinessTexture"),
+            TextureRole::Glossiness
         );
         assert_eq!(
             TextureRole::from_parameter_name("_emissiveIntensityTexture"),

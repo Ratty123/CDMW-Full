@@ -14,6 +14,8 @@ pub enum RelationKind {
     RoughnessTexture,
     MetalnessTexture,
     OcclusionTexture,
+    SpecularTexture,
+    GlossinessTexture,
     EmissiveTexture,
     OpacityTexture,
     HeightTexture,
