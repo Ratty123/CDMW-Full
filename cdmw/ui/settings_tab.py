@@ -139,91 +139,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        settings_workspace = QWidget()
-        settings_workspace_layout = QHBoxLayout(settings_workspace)
-        settings_workspace_layout.setContentsMargins(0, 0, 0, 0)
-        settings_workspace_layout.setSpacing(0)
-        root_layout.addWidget(settings_workspace, stretch=1)
-
-        self.section_nav_panel = QWidget()
-        self.section_nav_panel.setObjectName("SettingsSectionNavPanel")
-        self.section_nav_panel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
-        section_nav_layout = QVBoxLayout(self.section_nav_panel)
-        section_nav_layout.setContentsMargins(0, 0, 0, 0)
-        section_nav_layout.setSpacing(0)
-
-        self.section_nav_list = QListWidget()
-        self.section_nav_list.setObjectName("SettingsSectionNav")
-        self.section_nav_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.section_nav_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.section_nav_list.setAlternatingRowColors(False)
-        self.section_nav_list.setSpacing(1)
-        self.section_nav_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        section_nav_layout.addWidget(self.section_nav_list, 0, Qt.AlignTop)
-        settings_workspace_layout.addWidget(self.section_nav_panel)
-
-        self.section_stack = QStackedWidget()
-        settings_workspace_layout.addWidget(self.section_stack, stretch=1)
-        self._settings_section_layouts: dict[str, QVBoxLayout] = {}
-
-        def _add_settings_page(key: str, title: str, summary_text: str) -> QVBoxLayout:
-            item = QListWidgetItem(title)
-            item.setData(Qt.UserRole, key)
-            item.setSizeHint(QSize(0, 28))
-            self.section_nav_list.addItem(item)
-
-            scroll_area = QScrollArea()
-            scroll_area.setWidgetResizable(True)
-            scroll_area.setFrameShape(QFrame.NoFrame)
-            content = QWidget()
-            scroll_area.setWidget(content)
-            layout = QVBoxLayout(content)
-            layout.setContentsMargins(14, 12, 14, 12)
-            layout.setSpacing(10)
-            layout.setAlignment(Qt.AlignTop)
-            page_title = QLabel(title)
-            page_title.setObjectName("SectionHeader")
-            page_title.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-            layout.addWidget(page_title)
-            summary = QLabel(summary_text)
-            summary.setWordWrap(True)
-            summary.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-            summary.setObjectName("HintLabel")
-            layout.addWidget(summary)
-            self.section_stack.addWidget(scroll_area)
-            self._settings_section_layouts[key] = layout
-            return layout
-
-        self.setup_page_layout = _add_settings_page(
-            "setup",
-            "Setup",
-            "Workspace setup controls.",
-        )
-        self.general_page_layout = _add_settings_page(
-            "general",
-            "General",
-            "Launch behavior, cleanup safeguards, diagnostics, and profile tools.",
-        )
-        # Compatibility aliases for callers that still address the former pages.
-        self.startup_page_layout = self.general_page_layout
-        self.safety_page_layout = self.general_page_layout
-        self.paths_page_layout = _add_settings_page(
-            "paths",
-            "Paths",
-            "Workflow, archive, game package, and extraction paths in one place.",
-        )
-        self.archive_performance_page_layout = _add_settings_page(
-            "performance",
-            "Performance",
-            "Controls startup/cache work, archive list responsiveness, optional related-file indexing, and preview cache memory/disk use.",
-        )
-        self.appearance_page_layout = _add_settings_page(
-            "appearance",
-            "Appearance",
-            "Layout, theme, language, fonts, preview colors, and 3D graphics defaults.",
-        )
-        self.section_nav_list.currentRowChanged.connect(self.section_stack.setCurrentIndex)
-        self.section_nav_list.setCurrentRow(0)
+        self._build_settings_navigation(root_layout)
 
         self.appearance_group = QGroupBox("Appearance")
         appearance_layout = QFormLayout(self.appearance_group)
@@ -1134,6 +1050,94 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.sync_archive_performance_controls()
         self._apply_section_nav_style()
         self._settings_ready = True
+
+    def _build_settings_navigation(self, root_layout: QVBoxLayout) -> None:
+        """Construct the left navigation and the five persistent Settings pages."""
+        settings_workspace = QWidget()
+        settings_workspace_layout = QHBoxLayout(settings_workspace)
+        settings_workspace_layout.setContentsMargins(0, 0, 0, 0)
+        settings_workspace_layout.setSpacing(0)
+        root_layout.addWidget(settings_workspace, stretch=1)
+
+        self.section_nav_panel = QWidget()
+        self.section_nav_panel.setObjectName("SettingsSectionNavPanel")
+        self.section_nav_panel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        section_nav_layout = QVBoxLayout(self.section_nav_panel)
+        section_nav_layout.setContentsMargins(0, 0, 0, 0)
+        section_nav_layout.setSpacing(0)
+
+        self.section_nav_list = QListWidget()
+        self.section_nav_list.setObjectName("SettingsSectionNav")
+        self.section_nav_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.section_nav_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.section_nav_list.setAlternatingRowColors(False)
+        self.section_nav_list.setSpacing(1)
+        self.section_nav_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        section_nav_layout.addWidget(self.section_nav_list, 0, Qt.AlignTop)
+        settings_workspace_layout.addWidget(self.section_nav_panel)
+
+        self.section_stack = QStackedWidget()
+        settings_workspace_layout.addWidget(self.section_stack, stretch=1)
+        self._settings_section_layouts: dict[str, QVBoxLayout] = {}
+
+        def _add_settings_page(key: str, title: str, summary_text: str) -> QVBoxLayout:
+            item = QListWidgetItem(title)
+            item.setData(Qt.UserRole, key)
+            item.setSizeHint(QSize(0, 28))
+            self.section_nav_list.addItem(item)
+
+            scroll_area = QScrollArea()
+            scroll_area.setWidgetResizable(True)
+            scroll_area.setFrameShape(QFrame.NoFrame)
+            content = QWidget()
+            scroll_area.setWidget(content)
+            layout = QVBoxLayout(content)
+            layout.setContentsMargins(14, 12, 14, 12)
+            layout.setSpacing(10)
+            layout.setAlignment(Qt.AlignTop)
+            page_title = QLabel(title)
+            page_title.setObjectName("SectionHeader")
+            page_title.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            layout.addWidget(page_title)
+            summary = QLabel(summary_text)
+            summary.setWordWrap(True)
+            summary.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            summary.setObjectName("HintLabel")
+            layout.addWidget(summary)
+            self.section_stack.addWidget(scroll_area)
+            self._settings_section_layouts[key] = layout
+            return layout
+
+        self.setup_page_layout = _add_settings_page(
+            "setup",
+            "Setup",
+            "Workspace setup controls.",
+        )
+        self.general_page_layout = _add_settings_page(
+            "general",
+            "General",
+            "Launch behavior, cleanup safeguards, diagnostics, and profile tools.",
+        )
+        # Compatibility aliases for callers that still address the former pages.
+        self.startup_page_layout = self.general_page_layout
+        self.safety_page_layout = self.general_page_layout
+        self.paths_page_layout = _add_settings_page(
+            "paths",
+            "Paths",
+            "Workflow, archive, game package, and extraction paths in one place.",
+        )
+        self.archive_performance_page_layout = _add_settings_page(
+            "performance",
+            "Performance",
+            "Controls startup/cache work, archive list responsiveness, optional related-file indexing, and preview cache memory/disk use.",
+        )
+        self.appearance_page_layout = _add_settings_page(
+            "appearance",
+            "Appearance",
+            "Layout, theme, language, fonts, preview colors, and 3D graphics defaults.",
+        )
+        self.section_nav_list.currentRowChanged.connect(self.section_stack.setCurrentIndex)
+        self.section_nav_list.setCurrentRow(0)
 
     def _apply_section_nav_style(self) -> None:
         nav_font_size = self.current_data_font_size()
