@@ -932,6 +932,28 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             archive_compression: Some(cdmw_archive::CompressionOutcome::PartialDds),
             material_indices_by_lod: vec![vec![0]],
         }],
+        material_parameters: vec![crate::loader::LoadedMaterialParameter {
+            sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
+            parameter: cdmw_texture::MaterialParameter {
+                wrapper_type: "SkinnedMeshMaterialWrapper".to_owned(),
+                submesh_name: "triangle".to_owned(),
+                material_name: "material".to_owned(),
+                parameter_type: "MaterialParameterColor".to_owned(),
+                parameter_name: "_emissiveColor".to_owned(),
+                raw_value: Some("#204060ff".to_owned()),
+                attributes: vec![("_value".to_owned(), "#204060ff".to_owned())],
+                kind: cdmw_texture::MaterialParameterKind::Color,
+                confidence: cdmw_texture::MaterialParameterConfidence::Explicit,
+            },
+            material_indices_by_lod: vec![vec![0]],
+            preview_semantic: Some("Emissive color"),
+        }],
+        material_factors: vec![crate::loader::LoadedMaterialFactors {
+            sidecar_label: "character/modelproperty/body.pam_xml".to_owned(),
+            emissive_color: Some([32.0 / 255.0, 64.0 / 255.0, 96.0 / 255.0]),
+            emissive_intensity: Some(2.5),
+            material_indices_by_lod: vec![vec![0]],
+        }],
     });
     let mut ui = HeadlessUi::new(application, egui::vec2(1_280.0, 900.0));
     assert!(ui.reveal("Resolved material textures").is_ok());
@@ -943,5 +965,24 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
         .is_ok()
     );
     assert!(ui.reveal("Material ranges LOD0: 0").is_ok());
+    assert!(
+        ui.reveal("Renderer: approximate material preview (not Crimson Desert shader parity)")
+            .is_ok()
+    );
+    assert!(ui.reveal("Prepared material factors").is_ok());
+    assert!(
+        ui.reveal("emissive color 0.125, 0.251, 0.376 · emissive intensity 2.500")
+            .is_ok()
+    );
+    assert!(ui.reveal("Preserved material parameters (1)").is_ok());
+    ui.click("Preserved material parameters (1)")?;
+    assert!(ui.reveal("_emissiveColor · Color").is_ok());
+    assert!(ui.reveal("Value #204060ff").is_ok());
+    assert!(
+        ui.reveal(
+            "Emissive color candidate; sampled only for non-conflicting ownership with a bound emissive texture"
+        )
+        .is_ok()
+    );
     Ok(())
 }

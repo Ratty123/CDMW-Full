@@ -33,6 +33,7 @@ struct MaterialUniform {
     _padding_0: u32,
     _padding_1: u32,
     _padding_2: u32,
+    emissive_color_and_intensity: vec4<f32>,
 };
 
 @group(0) @binding(0) var base_texture: texture_2d<f32>;
@@ -123,7 +124,9 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
     let environment_specular = f0 * (0.04 + 0.28 * (1.0 - roughness));
     var emissive = vec3<f32>(0.0);
     if (material.flags & MATERIAL_EMISSIVE) != 0u {
-        emissive = textureSample(emissive_texture, material_sampler, input.uv).rgb;
+        emissive = textureSample(emissive_texture, material_sampler, input.uv).rgb
+            * material.emissive_color_and_intensity.rgb
+            * material.emissive_color_and_intensity.a;
     }
     return vec4<f32>(diffuse + metal_body + specular + environment_specular + emissive, 1.0);
 }
@@ -195,6 +198,7 @@ struct CameraUniform {
 struct MaterialUniform {
     flags: u32,
     _padding: [u32; 3],
+    emissive_color_and_intensity: [f32; 4],
 }
 
 const MATERIAL_BASE_COLOR: u32 = 1;
@@ -259,6 +263,12 @@ pub struct AdapterReport {
     pub driver_info: String,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct MaterialPreviewFactors {
+    pub emissive_color: Option<[f32; 3]>,
+    pub emissive_intensity: Option<f32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeadlessRenderReport {
     pub adapter: AdapterReport,
@@ -269,6 +279,7 @@ pub struct HeadlessRenderReport {
     pub sampled_material_roles: u32,
     pub material_ranges_rendered: u32,
     pub composed_material_pixels_changed: usize,
+    pub emissive_factor_pixels_changed: usize,
     pub non_background_pixels: usize,
 }
 
@@ -319,6 +330,11 @@ struct GpuMaterialRange {
 struct GpuMaterialTexture {
     _texture: wgpu::Texture,
     role: TextureRole,
+    material_indices_by_lod: Vec<Vec<u32>>,
+}
+
+struct MaterialFactorOwnership {
+    factors: MaterialPreviewFactors,
     material_indices_by_lod: Vec<Vec<u32>>,
 }
 
@@ -454,6 +470,7 @@ pub struct WindowRenderer {
     default_material_textures: DefaultMaterialTextures,
     material_sampler: wgpu::Sampler,
     material_textures: Vec<GpuMaterialTexture>,
+    material_factors: Vec<MaterialFactorOwnership>,
     active_material_bindings: BTreeMap<u32, GpuMaterialBinding>,
     mesh_viewport: Option<[f32; 4]>,
     depth_target: DepthTarget,
@@ -549,6 +566,7 @@ impl WindowRenderer {
             &default_material_textures,
             &[],
             MaterialTextureIndices::default(),
+            MaterialPreviewFactors::default(),
         );
         let camera_bind_group_layout = create_camera_bind_group_layout(&device);
         let camera_uniform = CameraUniform::new();
@@ -594,6 +612,7 @@ impl WindowRenderer {
             default_material_textures,
             material_sampler,
             material_textures: Vec::new(),
+            material_factors: Vec::new(),
             active_material_bindings: BTreeMap::new(),
             mesh_viewport: None,
             depth_target,
@@ -684,6 +703,40 @@ impl WindowRenderer {
         Ok(())
     }
 
+    pub fn add_material_factors(
+        &mut self,
+        factors: MaterialPreviewFactors,
+        material_indices_by_lod: &[Vec<u32>],
+    ) -> Result<(), RenderError> {
+        if material_indices_by_lod.iter().all(Vec::is_empty) {
+            return Err(RenderError::Texture(
+                "material factors have no owning material range".to_owned(),
+            ));
+        }
+        if factors.emissive_color.is_none() && factors.emissive_intensity.is_none() {
+            return Err(RenderError::Texture(
+                "material factor set contains no sampled value".to_owned(),
+            ));
+        }
+        if factors.emissive_color.is_some_and(|color| {
+            color
+                .into_iter()
+                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+        }) || factors
+            .emissive_intensity
+            .is_some_and(|value| !value.is_finite() || !(0.0..=32.0).contains(&value))
+        {
+            return Err(RenderError::Texture(
+                "material factors contain a non-finite or out-of-range value".to_owned(),
+            ));
+        }
+        self.material_factors.push(MaterialFactorOwnership {
+            factors,
+            material_indices_by_lod: material_indices_by_lod.to_vec(),
+        });
+        Ok(())
+    }
+
     pub fn set_material_lod(&mut self, lod_index: usize) -> Result<usize, RenderError> {
         let active = match resolve_material_bindings(
             self.material_textures
@@ -692,6 +745,18 @@ impl WindowRenderer {
             lod_index,
         ) {
             Ok(active) => active,
+            Err(error) => {
+                self.active_material_bindings.clear();
+                return Err(error);
+            }
+        };
+        let factors = match resolve_material_factors(
+            self.material_factors
+                .iter()
+                .map(|owned| (owned.factors, owned.material_indices_by_lod.as_slice())),
+            lod_index,
+        ) {
+            Ok(factors) => factors,
             Err(error) => {
                 self.active_material_bindings.clear();
                 return Err(error);
@@ -708,6 +773,7 @@ impl WindowRenderer {
                     &self.default_material_textures,
                     &self.material_textures,
                     indices,
+                    factors.get(&material).copied().unwrap_or_default(),
                 );
                 (material, binding)
             })
@@ -717,6 +783,7 @@ impl WindowRenderer {
 
     pub fn reset_texture(&mut self) {
         self.material_textures.clear();
+        self.material_factors.clear();
         self.active_material_bindings.clear();
     }
 
@@ -951,6 +1018,7 @@ pub async fn run_headless_render_smoke(
         &default_material_textures,
         &[],
         MaterialTextureIndices::default(),
+        MaterialPreviewFactors::default(),
     );
     let synthetic_dds = |color: [u8; 4]| {
         let mut bytes = cdmw_texture::synthetic::rgba8_checker_dds();
@@ -1017,7 +1085,7 @@ pub async fn run_headless_render_smoke(
             .map(|texture| (texture.role, texture.material_indices_by_lod.as_slice())),
         0,
     )?;
-    let bindings_for_roles = |roles: &[TextureRole]| {
+    let bindings_for_roles = |roles: &[TextureRole], factors: MaterialPreviewFactors| {
         resolved_bindings
             .iter()
             .map(|(material, indices)| {
@@ -1067,33 +1135,57 @@ pub async fn run_headless_render_smoke(
                         &default_material_textures,
                         &material_textures,
                         selected,
+                        factors,
                     ),
                 )
             })
             .collect::<BTreeMap<_, _>>()
     };
-    let base_only_material_bindings = bindings_for_roles(&[TextureRole::BaseColor]);
-    let base_normal_material_bindings =
-        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Normal]);
-    let base_surface_material_bindings =
-        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Material]);
-    let base_roughness_material_bindings =
-        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Roughness]);
-    let base_metalness_material_bindings =
-        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Metalness]);
-    let base_occlusion_material_bindings =
-        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Occlusion]);
-    let base_emissive_material_bindings =
-        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Emissive]);
-    let active_material_bindings = bindings_for_roles(&[
-        TextureRole::BaseColor,
-        TextureRole::Normal,
-        TextureRole::Material,
-        TextureRole::Roughness,
-        TextureRole::Metalness,
-        TextureRole::Occlusion,
-        TextureRole::Emissive,
-    ]);
+    let base_only_material_bindings =
+        bindings_for_roles(&[TextureRole::BaseColor], MaterialPreviewFactors::default());
+    let base_normal_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Normal],
+        MaterialPreviewFactors::default(),
+    );
+    let base_surface_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Material],
+        MaterialPreviewFactors::default(),
+    );
+    let base_roughness_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Roughness],
+        MaterialPreviewFactors::default(),
+    );
+    let base_metalness_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Metalness],
+        MaterialPreviewFactors::default(),
+    );
+    let base_occlusion_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Occlusion],
+        MaterialPreviewFactors::default(),
+    );
+    let base_emissive_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Emissive],
+        MaterialPreviewFactors::default(),
+    );
+    let factored_emissive_material_bindings = bindings_for_roles(
+        &[TextureRole::BaseColor, TextureRole::Emissive],
+        MaterialPreviewFactors {
+            emissive_color: Some([0.05, 0.8, 0.2]),
+            emissive_intensity: Some(3.0),
+        },
+    );
+    let active_material_bindings = bindings_for_roles(
+        &[
+            TextureRole::BaseColor,
+            TextureRole::Normal,
+            TextureRole::Material,
+            TextureRole::Roughness,
+            TextureRole::Metalness,
+            TextureRole::Occlusion,
+            TextureRole::Emissive,
+        ],
+        MaterialPreviewFactors::default(),
+    );
     let camera_layout = create_camera_bind_group_layout(&device);
     let mut camera_uniform = CameraUniform::new();
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -1219,6 +1311,7 @@ pub async fn run_headless_render_smoke(
         ("metalness", base_metalness_material_bindings),
         ("occlusion", base_occlusion_material_bindings),
         ("emissive", base_emissive_material_bindings),
+        ("emissive factors", factored_emissive_material_bindings),
         ("composed", active_material_bindings),
     ];
     let readbacks = probe_bindings
@@ -1269,8 +1362,8 @@ pub async fn run_headless_render_smoke(
             "headless GPU frame contained only the clear color".to_owned(),
         ));
     }
-    let mut role_changes = Vec::with_capacity(probe_bindings.len().saturating_sub(2));
-    for probe_index in 1..probe_bindings.len().saturating_sub(1) {
+    let mut role_changes = Vec::with_capacity(probe_bindings.len().saturating_sub(3));
+    for probe_index in 1..probe_bindings.len().saturating_sub(2) {
         let reference_index = if probe_index == 1 { 0 } else { 1 };
         role_changes.push((
             probe_bindings[probe_index].0,
@@ -1291,6 +1384,22 @@ pub async fn run_headless_render_smoke(
                 .to_owned(),
         ));
     }
+    let emissive_pixels = probe_pixels
+        .get(probe_pixels.len().saturating_sub(3))
+        .ok_or_else(|| RenderError::Device("headless emissive probe is missing".to_owned()))?;
+    let factored_emissive_pixels = probe_pixels
+        .get(probe_pixels.len().saturating_sub(2))
+        .ok_or_else(|| {
+            RenderError::Device("headless emissive-factor probe is missing".to_owned())
+        })?;
+    let emissive_factor_pixels_changed =
+        changed_pixel_count(emissive_pixels, factored_emissive_pixels)?;
+    if emissive_factor_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless emissive color/intensity factors did not change any rendered pixel"
+                .to_owned(),
+        ));
+    }
     Ok(HeadlessRenderReport {
         adapter: adapter_report(&adapter),
         frames_rendered,
@@ -1304,6 +1413,7 @@ pub async fn run_headless_render_smoke(
         material_ranges_rendered: u32::try_from(mesh.material_ranges.len())
             .map_err(|_| RenderError::ResourceLimit)?,
         composed_material_pixels_changed,
+        emissive_factor_pixels_changed,
         non_background_pixels,
     })
 }
@@ -1971,6 +2081,46 @@ fn resolve_material_bindings<'a>(
     Ok(active)
 }
 
+fn resolve_material_factors<'a>(
+    factors_by_owner: impl IntoIterator<Item = (MaterialPreviewFactors, &'a [Vec<u32>])>,
+    lod_index: usize,
+) -> Result<BTreeMap<u32, MaterialPreviewFactors>, RenderError> {
+    let mut active = BTreeMap::<u32, MaterialPreviewFactors>::new();
+    for (factors, ownership) in factors_by_owner {
+        let Some(materials) = ownership.get(lod_index) else {
+            continue;
+        };
+        for material in materials {
+            let resolved = active.entry(*material).or_default();
+            if let Some(color) = factors.emissive_color {
+                if resolved.emissive_color.is_some_and(|existing| {
+                    existing
+                        .into_iter()
+                        .zip(color)
+                        .any(|(left, right)| left.to_bits() != right.to_bits())
+                }) {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting emissive colors in LOD {lod_index}"
+                    )));
+                }
+                resolved.emissive_color = Some(color);
+            }
+            if let Some(intensity) = factors.emissive_intensity {
+                if resolved
+                    .emissive_intensity
+                    .is_some_and(|existing| existing.to_bits() != intensity.to_bits())
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting emissive intensities in LOD {lod_index}"
+                    )));
+                }
+                resolved.emissive_intensity = Some(intensity);
+            }
+        }
+    }
+    Ok(active)
+}
+
 fn vertex_tangents(snapshot: &DrawSnapshot) -> Result<Vec<[f32; 4]>, RenderError> {
     if snapshot.positions.len() != snapshot.normals.len()
         || snapshot.positions.len() != snapshot.uvs.len()
@@ -2335,6 +2485,7 @@ fn create_material_bind_group(
     defaults: &DefaultMaterialTextures,
     textures: &[GpuMaterialTexture],
     indices: MaterialTextureIndices,
+    factors: MaterialPreviewFactors,
 ) -> GpuMaterialBinding {
     let base_texture = indices
         .base_color
@@ -2396,6 +2547,15 @@ fn create_material_bind_group(
     let uniform = MaterialUniform {
         flags,
         _padding: [0; 3],
+        emissive_color_and_intensity: {
+            let color = factors.emissive_color.unwrap_or([1.0; 3]);
+            [
+                color[0],
+                color[1],
+                color[2],
+                factors.emissive_intensity.unwrap_or(1.0),
+            ]
+        },
     };
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("CDMW Rust Mesh Lab material uniform"),
@@ -2617,7 +2777,7 @@ mod tests {
 
     #[test]
     fn material_uniform_and_vertex_match_the_wgsl_layout_contracts() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 16);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 32);
         assert_eq!(std::mem::size_of::<GpuVertex>(), 48);
     }
 
@@ -2750,6 +2910,67 @@ mod tests {
                     .iter()
                     .map(|(role, ownership)| (*role, ownership.as_slice())),
                 0
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn material_factors_merge_distinct_fields_and_reject_conflicts() {
+        let ownership = vec![vec![2_u32]];
+        let distinct = [
+            (
+                MaterialPreviewFactors {
+                    emissive_color: Some([0.1, 0.2, 0.3]),
+                    emissive_intensity: None,
+                },
+                ownership.clone(),
+            ),
+            (
+                MaterialPreviewFactors {
+                    emissive_color: None,
+                    emissive_intensity: Some(4.0),
+                },
+                ownership.clone(),
+            ),
+        ];
+        let resolved = resolve_material_factors(
+            distinct
+                .iter()
+                .map(|(factors, ownership)| (*factors, ownership.as_slice())),
+            0,
+        )
+        .expect("distinct material factors");
+        assert_eq!(
+            resolved.get(&2),
+            Some(&MaterialPreviewFactors {
+                emissive_color: Some([0.1, 0.2, 0.3]),
+                emissive_intensity: Some(4.0),
+            })
+        );
+
+        let conflicting = [
+            (
+                MaterialPreviewFactors {
+                    emissive_color: None,
+                    emissive_intensity: Some(1.0),
+                },
+                ownership.clone(),
+            ),
+            (
+                MaterialPreviewFactors {
+                    emissive_color: None,
+                    emissive_intensity: Some(2.0),
+                },
+                ownership,
+            ),
+        ];
+        assert!(
+            resolve_material_factors(
+                conflicting
+                    .iter()
+                    .map(|(factors, ownership)| (*factors, ownership.as_slice())),
+                0,
             )
             .is_err()
         );

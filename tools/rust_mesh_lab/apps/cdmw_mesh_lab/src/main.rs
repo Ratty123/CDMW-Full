@@ -18,7 +18,7 @@ use cdmw_interaction::{
     OperatorController, SelectionDomain, SelectionOperation, SelectionQueryStats,
 };
 use cdmw_mesh::{History, Selection, VertexHandle, WorkingMesh};
-use cdmw_render_wgpu::{ViewMode, WindowRenderer};
+use cdmw_render_wgpu::{MaterialPreviewFactors, ViewMode, WindowRenderer};
 use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
 use glam::{Quat, Vec2, Vec3};
@@ -106,6 +106,44 @@ struct TextureInspectorEntry {
     ownership: String,
 }
 
+struct MaterialParameterInspectorEntry {
+    label: String,
+    value: String,
+    provenance: String,
+    ownership: String,
+    preview: String,
+}
+
+struct MaterialFactorInspectorEntry {
+    summary: String,
+    provenance: String,
+    ownership: String,
+}
+
+fn format_material_ownership(material_indices_by_lod: &[Vec<u32>]) -> String {
+    let ownership = material_indices_by_lod
+        .iter()
+        .enumerate()
+        .filter(|(_, materials)| !materials.is_empty())
+        .map(|(lod, materials)| {
+            format!(
+                "LOD{lod}: {}",
+                materials
+                    .iter()
+                    .map(u32::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" · ");
+    if ownership.is_empty() {
+        "unresolved".to_owned()
+    } else {
+        ownership
+    }
+}
+
 struct LabApplication {
     window: Option<Arc<Window>>,
     renderer: Option<WindowRenderer>,
@@ -123,6 +161,8 @@ struct LabApplication {
     active_lod_index: usize,
     lod_sessions: Vec<Option<LodSession>>,
     texture_entries: Vec<TextureInspectorEntry>,
+    material_parameter_entries: Vec<MaterialParameterInspectorEntry>,
+    material_factor_entries: Vec<MaterialFactorInspectorEntry>,
     source_label: String,
     status: String,
     history: History,
@@ -194,6 +234,8 @@ impl LabApplication {
             active_lod_index: 0,
             lod_sessions: Vec::new(),
             texture_entries: Vec::new(),
+            material_parameter_entries: Vec::new(),
+            material_factor_entries: Vec::new(),
             source_label: "No asset loaded".to_owned(),
             status,
             history: History::new(HISTORY_BUDGET_BYTES),
@@ -324,6 +366,8 @@ impl LabApplication {
             mesh,
             other_lod_meshes,
             textures,
+            material_parameters,
+            material_factors,
         } = loaded;
         let editable_lod_count = other_lod_meshes.len().saturating_add(1);
         debug_assert_eq!(editable_lod_count, document.lods.len());
@@ -368,23 +412,7 @@ impl LabApplication {
                     };
                     parts.push(format!("Archive decode {label}"));
                 }
-                let ownership = texture
-                    .material_indices_by_lod
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, materials)| !materials.is_empty())
-                    .map(|(lod, materials)| {
-                        format!(
-                            "LOD{lod}: {}",
-                            materials
-                                .iter()
-                                .map(u32::to_string)
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" · ");
+                let ownership = format_material_ownership(&texture.material_indices_by_lod);
                 TextureInspectorEntry {
                     label: texture.label.clone(),
                     metadata: texture.metadata.clone(),
@@ -393,7 +421,71 @@ impl LabApplication {
                 }
             })
             .collect::<Vec<_>>();
+        let material_parameter_entries = material_parameters
+            .iter()
+            .map(|loaded| {
+                let parameter = &loaded.parameter;
+                let owner = if !parameter.submesh_name.trim().is_empty() {
+                    format!("Submesh {}", parameter.submesh_name)
+                } else if !parameter.material_name.trim().is_empty() {
+                    format!("Material {}", parameter.material_name)
+                } else {
+                    "Unnamed owner".to_owned()
+                };
+                let preview = loaded.preview_semantic.map_or_else(
+                    || "Preserved; not sampled by the current material approximation".to_owned(),
+                    |semantic| {
+                        format!(
+                            "{semantic} candidate; sampled only for non-conflicting ownership with a bound emissive texture"
+                        )
+                    },
+                );
+                MaterialParameterInspectorEntry {
+                    label: format!(
+                        "{} · {:?}",
+                        parameter.parameter_name, parameter.kind
+                    ),
+                    value: parameter
+                        .raw_value
+                        .clone()
+                        .unwrap_or_else(|| "(no explicit value)".to_owned()),
+                    provenance: format!(
+                        "{owner} · Wrapper {} · Confidence {:?} · Sidecar {}",
+                        parameter.wrapper_type, parameter.confidence, loaded.sidecar_label
+                    ),
+                    ownership: format_material_ownership(&loaded.material_indices_by_lod),
+                    preview,
+                }
+            })
+            .collect::<Vec<_>>();
+        let material_factor_entries = material_factors
+            .iter()
+            .map(|factors| {
+                let color = factors.emissive_color.map_or_else(
+                    || "default emissive color".to_owned(),
+                    |color| {
+                        format!(
+                            "emissive color {:.3}, {:.3}, {:.3}",
+                            color[0], color[1], color[2]
+                        )
+                    },
+                );
+                let intensity = factors.emissive_intensity.map_or_else(
+                    || "default emissive intensity".to_owned(),
+                    |value| format!("emissive intensity {value:.3}"),
+                );
+                MaterialFactorInspectorEntry {
+                    summary: format!("{color} · {intensity}"),
+                    provenance: format!(
+                        "Explicit sidecar factors · {} · used only with a bound emissive texture",
+                        factors.sidecar_label
+                    ),
+                    ownership: format_material_ownership(&factors.material_indices_by_lod),
+                }
+            })
+            .collect::<Vec<_>>();
         let mut texture_upload_count = 0_usize;
+        let mut material_factor_count = 0_usize;
         let mut bound_material_count = 0_usize;
         let mut gpu_errors = Vec::new();
         if let Some(renderer) = &mut self.renderer {
@@ -412,6 +504,18 @@ impl LabApplication {
                     Err(error) => gpu_errors.push(error.to_string()),
                 }
             }
+            for factors in &material_factors {
+                match renderer.add_material_factors(
+                    MaterialPreviewFactors {
+                        emissive_color: factors.emissive_color,
+                        emissive_intensity: factors.emissive_intensity,
+                    },
+                    &factors.material_indices_by_lod,
+                ) {
+                    Ok(()) => material_factor_count = material_factor_count.saturating_add(1),
+                    Err(error) => gpu_errors.push(error.to_string()),
+                }
+            }
             match renderer.set_material_lod(0) {
                 Ok(count) => bound_material_count = count,
                 Err(error) => gpu_errors.push(error.to_string()),
@@ -423,6 +527,11 @@ impl LabApplication {
         if texture_upload_count > 0 {
             self.status.push_str(&format!(
                 " · {texture_upload_count} material texture(s) uploaded for {bound_material_count} LOD0 material range(s)"
+            ));
+        }
+        if material_factor_count > 0 {
+            self.status.push_str(&format!(
+                " · {material_factor_count} explicit material factor set(s) prepared"
             ));
         }
         if let Some(error) = gpu_errors.first() {
@@ -455,6 +564,8 @@ impl LabApplication {
         self.document = Some(document);
         self.mesh = Some(mesh);
         self.texture_entries = texture_entries;
+        self.material_parameter_entries = material_parameter_entries;
+        self.material_factor_entries = material_factor_entries;
     }
 
     fn draw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
@@ -585,6 +696,7 @@ impl LabApplication {
                     ui.label(format!("Active vertices: {vertices}"));
                     ui.label(format!("Active faces: {faces}"));
                     ui.label(format!("Parser: {}", document.parser));
+                    ui.label("Renderer: approximate material preview (not Crimson Desert shader parity)");
                     for warning in &document.warnings {
                         ui.colored_label(Color32::YELLOW, warning);
                     }
@@ -607,6 +719,33 @@ impl LabApplication {
                             ui.label(&texture.provenance);
                             ui.label(format!("Material ranges {}", texture.ownership));
                         }
+                    }
+                    if !self.material_factor_entries.is_empty() {
+                        ui.separator();
+                        ui.label(RichText::new("Prepared material factors").strong());
+                        for entry in &self.material_factor_entries {
+                            ui.label(&entry.summary);
+                            ui.label(&entry.provenance);
+                            ui.label(format!("Material ranges {}", entry.ownership));
+                        }
+                    }
+                    if !self.material_parameter_entries.is_empty() {
+                        ui.separator();
+                        egui::CollapsingHeader::new(format!(
+                            "Preserved material parameters ({})",
+                            self.material_parameter_entries.len()
+                        ))
+                        .default_open(false)
+                        .show(ui, |ui| {
+                            for entry in &self.material_parameter_entries {
+                                ui.label(&entry.label);
+                                ui.label(format!("Value {}", entry.value));
+                                ui.label(&entry.provenance);
+                                ui.label(format!("Material ranges {}", entry.ownership));
+                                ui.label(&entry.preview);
+                                ui.add_space(4.0);
+                            }
+                        });
                     }
                 }
                 if let Some(index) = self.selected_archive_entry
@@ -910,7 +1049,7 @@ impl LabApplication {
                 rectangle.left_top() + egui::vec2(12.0, 12.0),
                 egui::Align2::LEFT_TOP,
                 format!(
-                    "wgpu viewport · D3D12 · {} · {}",
+                    "wgpu viewport · D3D12 · {} · {} · material approximation",
                     self.view_mode.label(),
                     self.viewport_tool.label()
                 ),

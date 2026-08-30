@@ -150,9 +150,46 @@ pub struct MaterialTextureReference {
     pub role: TextureRole,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MaterialParameterKind {
+    Float,
+    Float2,
+    Float3,
+    Half2,
+    Color,
+    Byte4,
+    BitFlag32,
+    UnsignedInteger,
+    SignedInteger,
+    Boolean,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MaterialParameterConfidence {
+    Explicit,
+    Incomplete,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MaterialParameter {
+    pub wrapper_type: String,
+    pub submesh_name: String,
+    pub material_name: String,
+    pub parameter_type: String,
+    pub parameter_name: String,
+    pub raw_value: Option<String>,
+    pub attributes: Vec<(String, String)>,
+    pub kind: MaterialParameterKind,
+    pub confidence: MaterialParameterConfidence,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MaterialSidecar {
     pub textures: Vec<MaterialTextureReference>,
+    pub parameters: Vec<MaterialParameter>,
     pub warnings: Vec<String>,
 }
 
@@ -308,6 +345,7 @@ pub fn parse_material_sidecar(bytes: &[u8]) -> Result<MaterialSidecar, MaterialS
     }
     let text = std::str::from_utf8(bytes).map_err(|_| MaterialSidecarError::InvalidEncoding)?;
     let mut textures = Vec::new();
+    let mut material_parameters = Vec::new();
     let mut warnings = Vec::new();
     let mut wrappers = Vec::<WrapperContext>::new();
     let mut materials = Vec::<String>::new();
@@ -429,6 +467,15 @@ pub fn parse_material_sidecar(bytes: &[u8]) -> Result<MaterialSidecar, MaterialS
                     role: TextureRole::Unknown,
                 });
             }
+            continue;
+        }
+        if let Some(kind) = material_parameter_kind(&lowered) {
+            material_parameters.push(material_parameter_from_tag(
+                &tag,
+                kind,
+                wrappers.last().cloned().unwrap_or_default(),
+                materials.last().cloned().unwrap_or_default(),
+            ));
         }
     }
 
@@ -441,7 +488,11 @@ pub fn parse_material_sidecar(bytes: &[u8]) -> Result<MaterialSidecar, MaterialS
     while let Some(parameter) = parameters.pop() {
         finish_parameter(parameter, &mut textures, &mut warnings);
     }
-    Ok(MaterialSidecar { textures, warnings })
+    Ok(MaterialSidecar {
+        textures,
+        parameters: material_parameters,
+        warnings,
+    })
 }
 
 #[derive(Debug, Clone, Default)]
@@ -486,6 +537,65 @@ fn finish_parameter(
         parameter_name: parameter.parameter_name,
         path,
     });
+}
+
+fn material_parameter_kind(lowered_tag: &str) -> Option<MaterialParameterKind> {
+    match lowered_tag {
+        "materialparameterfloat" => Some(MaterialParameterKind::Float),
+        "materialparameterfloat2" => Some(MaterialParameterKind::Float2),
+        "materialparameterfloat3" => Some(MaterialParameterKind::Float3),
+        "materialparameterhalf2" => Some(MaterialParameterKind::Half2),
+        "materialparametercolor" | "representcolor" => Some(MaterialParameterKind::Color),
+        "materialparameterbyte4" => Some(MaterialParameterKind::Byte4),
+        "materialparameterbitflag32" => Some(MaterialParameterKind::BitFlag32),
+        "materialparameteruint" | "materialparameteruint32" => {
+            Some(MaterialParameterKind::UnsignedInteger)
+        }
+        "materialparameterint" | "materialparameterint32" => {
+            Some(MaterialParameterKind::SignedInteger)
+        }
+        "materialparameterbool" => Some(MaterialParameterKind::Boolean),
+        value if value.starts_with("materialparameter") => Some(MaterialParameterKind::Unknown),
+        _ => None,
+    }
+}
+
+fn material_parameter_from_tag(
+    tag: &XmlTag,
+    kind: MaterialParameterKind,
+    wrapper: WrapperContext,
+    material_name: String,
+) -> MaterialParameter {
+    let explicit_name = attribute(&tag.attributes, &["StringItemID", "_name", "Name", "name"]);
+    let raw_value = material_parameter_value(&tag.attributes);
+    let inherent_name = tag.name.eq_ignore_ascii_case("RepresentColor");
+    let confidence = if (explicit_name.is_some() || inherent_name) && raw_value.is_some() {
+        MaterialParameterConfidence::Explicit
+    } else {
+        MaterialParameterConfidence::Incomplete
+    };
+    MaterialParameter {
+        wrapper_type: wrapper.wrapper_type,
+        submesh_name: wrapper.submesh_name,
+        material_name,
+        parameter_type: tag.name.clone(),
+        parameter_name: explicit_name.unwrap_or_else(|| tag.name.clone()),
+        raw_value,
+        attributes: tag.attributes.clone(),
+        kind,
+        confidence,
+    }
+}
+
+fn material_parameter_value(attributes: &[(String, String)]) -> Option<String> {
+    if let Some(value) = attribute(attributes, &["_value", "Value", "DefaultValue"]) {
+        return Some(value);
+    }
+    let components = ["x", "y", "z", "w"]
+        .into_iter()
+        .filter_map(|name| attribute(attributes, &[name]))
+        .collect::<Vec<_>>();
+    (!components.is_empty()).then(|| components.join(" "))
 }
 
 fn find_xml_tag_end(text: &str, mut cursor: usize) -> Option<usize> {
@@ -953,6 +1063,67 @@ mod tests {
                 .iter()
                 .any(|warning| warning.contains("unterminated"))
         );
+        Ok(())
+    }
+
+    #[test]
+    fn material_sidecar_preserves_typed_vector_and_unknown_parameters()
+    -> Result<(), MaterialSidecarError> {
+        let sidecar = parse_material_sidecar(
+            br##"<SkinnedMeshMaterialWrapper _subMeshName="Body">
+                <Material _materialName="SkinnedMeshEmissive">
+                  <MaterialParameterColor StringItemID="_emissiveColor" _value="#05ff9fff" Index="3"/>
+                  <MaterialParameterFloat _name="_emissiveIntensity" Value="1.25"/>
+                  <MaterialParameterFloat3 Name="_windDirection" Value="1.0 0.0 0.5"/>
+                  <MaterialParameterHalf2 Name="_layerOffset" x="0.25" y="0.75"/>
+                  <MaterialParameterFuture _name="_future" _value="opaque" FutureFlag="yes"/>
+                  <MaterialParameterFloat _name="_missing"/>
+                </Material>
+              </SkinnedMeshMaterialWrapper>"##,
+        )?;
+        assert_eq!(sidecar.parameters.len(), 6);
+        let color = &sidecar.parameters[0];
+        assert_eq!(color.wrapper_type, "SkinnedMeshMaterialWrapper");
+        assert_eq!(color.submesh_name, "Body");
+        assert_eq!(color.material_name, "SkinnedMeshEmissive");
+        assert_eq!(color.parameter_type, "MaterialParameterColor");
+        assert_eq!(color.parameter_name, "_emissiveColor");
+        assert_eq!(color.raw_value.as_deref(), Some("#05ff9fff"));
+        assert_eq!(color.kind, MaterialParameterKind::Color);
+        assert_eq!(color.confidence, MaterialParameterConfidence::Explicit);
+        assert!(
+            color
+                .attributes
+                .iter()
+                .any(|(name, value)| name == "Index" && value == "3")
+        );
+        assert_eq!(sidecar.parameters[1].kind, MaterialParameterKind::Float);
+        assert_eq!(sidecar.parameters[2].kind, MaterialParameterKind::Float3);
+        assert_eq!(
+            sidecar.parameters[2].raw_value.as_deref(),
+            Some("1.0 0.0 0.5")
+        );
+        assert_eq!(sidecar.parameters[3].kind, MaterialParameterKind::Half2);
+        assert_eq!(
+            sidecar.parameters[3].raw_value.as_deref(),
+            Some("0.25 0.75")
+        );
+        assert_eq!(sidecar.parameters[4].kind, MaterialParameterKind::Unknown);
+        assert_eq!(
+            sidecar.parameters[4].parameter_type,
+            "MaterialParameterFuture"
+        );
+        assert!(
+            sidecar.parameters[4]
+                .attributes
+                .iter()
+                .any(|(name, value)| name == "FutureFlag" && value == "yes")
+        );
+        assert_eq!(
+            sidecar.parameters[5].confidence,
+            MaterialParameterConfidence::Incomplete
+        );
+        assert_eq!(sidecar.parameters[5].raw_value, None);
         Ok(())
     }
 

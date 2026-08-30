@@ -7,8 +7,9 @@ use cdmw_formats::{MeshDocument, MeshFormat, decode_mesh};
 use cdmw_mesh::WorkingMesh;
 use cdmw_oracle::export_working_obj_cancellable;
 use cdmw_texture::{
-    DDS_MAX_PAYLOAD_BYTES, DdsMetadata, MATERIAL_SIDECAR_MAX_BYTES, MaterialSidecar,
-    MaterialTextureReference, TextureRole, inspect_dds, parse_material_sidecar,
+    DDS_MAX_PAYLOAD_BYTES, DdsMetadata, MATERIAL_SIDECAR_MAX_BYTES, MaterialParameter,
+    MaterialParameterKind, MaterialSidecar, MaterialTextureReference, TextureRole, inspect_dds,
+    parse_material_sidecar,
 };
 use crossbeam_channel::{Receiver, Sender, TrySendError, bounded};
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,6 +27,8 @@ pub struct LoadedMesh {
     pub mesh: WorkingMesh,
     pub other_lod_meshes: Vec<WorkingMesh>,
     pub textures: Vec<LoadedTexture>,
+    pub material_parameters: Vec<LoadedMaterialParameter>,
+    pub material_factors: Vec<LoadedMaterialFactors>,
 }
 
 #[derive(Debug)]
@@ -42,9 +45,27 @@ pub struct LoadedTexture {
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
+#[derive(Debug, Clone)]
+pub struct LoadedMaterialParameter {
+    pub sidecar_label: String,
+    pub parameter: MaterialParameter,
+    pub material_indices_by_lod: Vec<Vec<u32>>,
+    pub preview_semantic: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoadedMaterialFactors {
+    pub sidecar_label: String,
+    pub emissive_color: Option<[f32; 3]>,
+    pub emissive_intensity: Option<f32>,
+    pub material_indices_by_lod: Vec<Vec<u32>>,
+}
+
 #[derive(Debug, Default)]
 struct TextureLoadResult {
     textures: Vec<LoadedTexture>,
+    material_parameters: Vec<LoadedMaterialParameter>,
+    material_factors: Vec<LoadedMaterialFactors>,
     warnings: Vec<String>,
 }
 
@@ -385,6 +406,8 @@ fn load_archive_mesh(
         mesh,
         other_lod_meshes,
         textures: texture_result.textures,
+        material_parameters: texture_result.material_parameters,
+        material_factors: texture_result.material_factors,
     })
 }
 
@@ -409,6 +432,8 @@ fn load_mesh(path: PathBuf, cancellation: &CancellationToken) -> Result<LoadedMe
         mesh,
         other_lod_meshes,
         textures: texture_result.textures,
+        material_parameters: texture_result.material_parameters,
+        material_factors: texture_result.material_factors,
     })
 }
 
@@ -476,6 +501,11 @@ fn resolve_direct_texture(
                 .iter()
                 .map(|warning| format!("Material sidecar {}: {warning}", sidecar_path.display())),
         );
+        let sidecar_label = sidecar_path.to_string_lossy().replace('\\', "/");
+        let (material_parameters, material_factors) =
+            resolve_material_parameters(&sidecar, document, &sidecar_label, &mut result.warnings);
+        result.material_parameters = material_parameters;
+        result.material_factors = material_factors;
         let references = owned_preview_texture_references(&sidecar, document, &mut result.warnings);
         if references.is_empty() {
             result.warnings.push(format!(
@@ -607,6 +637,10 @@ fn resolve_archive_texture(
             .iter()
             .map(|warning| format!("Material sidecar {sidecar_target}: {warning}")),
     );
+    let (material_parameters, material_factors) =
+        resolve_material_parameters(&sidecar, document, sidecar_target, &mut result.warnings);
+    result.material_parameters = material_parameters;
+    result.material_factors = material_factors;
     let references = owned_preview_texture_references(&sidecar, document, &mut result.warnings);
     if references.is_empty() {
         result.warnings.push(format!(
@@ -904,6 +938,198 @@ fn append_dds_warnings(label: &str, metadata: &DdsMetadata, warnings: &mut Vec<S
     );
 }
 
+#[derive(Debug, Clone, Copy)]
+enum MaterialFactorClaim {
+    EmissiveColor([u8; 3]),
+    EmissiveIntensity(u32),
+}
+
+fn resolve_material_parameters(
+    sidecar: &MaterialSidecar,
+    document: &MeshDocument,
+    sidecar_label: &str,
+    warnings: &mut Vec<String>,
+) -> (Vec<LoadedMaterialParameter>, Vec<LoadedMaterialFactors>) {
+    let mut loaded = Vec::with_capacity(sidecar.parameters.len());
+    let mut color_claims = BTreeMap::<(usize, u32), BTreeSet<[u8; 3]>>::new();
+    let mut intensity_claims = BTreeMap::<(usize, u32), BTreeSet<u32>>::new();
+
+    for parameter in &sidecar.parameters {
+        let ownership =
+            material_indices_for_owner(&parameter.submesh_name, &parameter.material_name, document);
+        if ownership.iter().all(Vec::is_empty) {
+            warnings.push(format!(
+                "Material parameter {} in {sidecar_label} does not match a decoded material range; it is preserved but remains unbound",
+                parameter.parameter_name
+            ));
+        }
+        let preview_semantic = material_parameter_preview_semantic(parameter);
+        let factor = material_parameter_factor_claim(parameter);
+        if preview_semantic.is_some() && factor.is_none() {
+            warnings.push(format!(
+                "Material parameter {} in {sidecar_label} has an invalid explicit value; it is preserved but remains unbound",
+                parameter.parameter_name
+            ));
+        }
+        if let Some(factor) = factor {
+            for (lod_index, materials) in ownership.iter().enumerate() {
+                for material in materials {
+                    match factor {
+                        MaterialFactorClaim::EmissiveColor(value) => {
+                            color_claims
+                                .entry((lod_index, *material))
+                                .or_default()
+                                .insert(value);
+                        }
+                        MaterialFactorClaim::EmissiveIntensity(value) => {
+                            intensity_claims
+                                .entry((lod_index, *material))
+                                .or_default()
+                                .insert(value);
+                        }
+                    }
+                }
+            }
+        }
+        loaded.push(LoadedMaterialParameter {
+            sidecar_label: sidecar_label.to_owned(),
+            parameter: parameter.clone(),
+            material_indices_by_lod: ownership,
+            preview_semantic,
+        });
+    }
+
+    let color_conflicts = color_claims
+        .values()
+        .filter(|values| values.len() > 1)
+        .count();
+    if color_conflicts > 0 {
+        warnings.push(format!(
+            "{color_conflicts} material range(s) claim conflicting emissive colors; only those color factors remain unbound"
+        ));
+    }
+    let intensity_conflicts = intensity_claims
+        .values()
+        .filter(|values| values.len() > 1)
+        .count();
+    if intensity_conflicts > 0 {
+        warnings.push(format!(
+            "{intensity_conflicts} material range(s) claim conflicting emissive intensities; only those intensity factors remain unbound"
+        ));
+    }
+
+    let mut grouped = BTreeMap::<(Option<[u8; 3]>, Option<u32>), Vec<Vec<u32>>>::new();
+    for (lod_index, lod) in document.lods.iter().enumerate() {
+        for material_index in 0..lod.submeshes.len() {
+            let Ok(material) = u32::try_from(material_index) else {
+                continue;
+            };
+            let key = (lod_index, material);
+            let color = color_claims
+                .get(&key)
+                .filter(|values| values.len() == 1)
+                .and_then(|values| values.first().copied());
+            let intensity = intensity_claims
+                .get(&key)
+                .filter(|values| values.len() == 1)
+                .and_then(|values| values.first().copied());
+            if color.is_none() && intensity.is_none() {
+                continue;
+            }
+            grouped
+                .entry((color, intensity))
+                .or_insert_with(|| vec![Vec::new(); document.lods.len()])[lod_index]
+                .push(material);
+        }
+    }
+    let factors = grouped
+        .into_iter()
+        .map(|((color, intensity), mut ownership)| {
+            for materials in &mut ownership {
+                materials.sort_unstable();
+                materials.dedup();
+            }
+            LoadedMaterialFactors {
+                sidecar_label: sidecar_label.to_owned(),
+                emissive_color: color.map(|value| {
+                    [
+                        f32::from(value[0]) / 255.0,
+                        f32::from(value[1]) / 255.0,
+                        f32::from(value[2]) / 255.0,
+                    ]
+                }),
+                emissive_intensity: intensity.map(f32::from_bits),
+                material_indices_by_lod: ownership,
+            }
+        })
+        .collect();
+    (loaded, factors)
+}
+
+fn material_parameter_preview_semantic(parameter: &MaterialParameter) -> Option<&'static str> {
+    let key = normalized_parameter_key(&parameter.parameter_name);
+    if parameter.kind == MaterialParameterKind::Color
+        && [
+            "emissivecolor",
+            "emissivetintcolor",
+            "glowcolor",
+            "emissivelightcolor",
+        ]
+        .iter()
+        .any(|name| key.contains(name))
+    {
+        Some("Emissive color")
+    } else if parameter.kind == MaterialParameterKind::Float
+        && [
+            "emissiveintensity",
+            "emissiveamount",
+            "emissivepower",
+            "glowintensity",
+        ]
+        .iter()
+        .any(|name| key.contains(name))
+    {
+        Some("Emissive intensity")
+    } else {
+        None
+    }
+}
+
+fn material_parameter_factor_claim(parameter: &MaterialParameter) -> Option<MaterialFactorClaim> {
+    match material_parameter_preview_semantic(parameter)? {
+        "Emissive color" => {
+            parse_hex_color(parameter.raw_value.as_deref()?).map(MaterialFactorClaim::EmissiveColor)
+        }
+        "Emissive intensity" => {
+            let value = parameter.raw_value.as_deref()?.trim().parse::<f32>().ok()?;
+            value
+                .is_finite()
+                .then(|| MaterialFactorClaim::EmissiveIntensity(value.clamp(0.0, 32.0).to_bits()))
+        }
+        _ => None,
+    }
+}
+
+fn normalized_parameter_key(value: &str) -> String {
+    value
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn parse_hex_color(value: &str) -> Option<[u8; 3]> {
+    let value = value.trim().strip_prefix('#').unwrap_or(value.trim());
+    if value.len() != 6 && value.len() != 8 {
+        return None;
+    }
+    Some([
+        u8::from_str_radix(value.get(0..2)?, 16).ok()?,
+        u8::from_str_radix(value.get(2..4)?, 16).ok()?,
+        u8::from_str_radix(value.get(4..6)?, 16).ok()?,
+    ])
+}
+
 #[derive(Debug, Clone)]
 struct OwnedTextureReference {
     reference: MaterialTextureReference,
@@ -1021,6 +1247,14 @@ fn material_indices_for_reference(
     reference: &MaterialTextureReference,
     document: &MeshDocument,
 ) -> Vec<Vec<u32>> {
+    material_indices_for_owner(&reference.submesh_name, &reference.material_name, document)
+}
+
+fn material_indices_for_owner(
+    submesh_name: &str,
+    material_name: &str,
+    document: &MeshDocument,
+) -> Vec<Vec<u32>> {
     document
         .lods
         .iter()
@@ -1029,12 +1263,10 @@ fn material_indices_for_reference(
                 .iter()
                 .enumerate()
                 .filter(|(_, submesh)| {
-                    if !reference.submesh_name.trim().is_empty() {
-                        submesh.name.eq_ignore_ascii_case(&reference.submesh_name)
-                    } else if !reference.material_name.trim().is_empty() {
-                        submesh
-                            .material
-                            .eq_ignore_ascii_case(&reference.material_name)
+                    if !submesh_name.trim().is_empty() {
+                        submesh.name.eq_ignore_ascii_case(submesh_name)
+                    } else if !material_name.trim().is_empty() {
+                        submesh.material.eq_ignore_ascii_case(material_name)
                     } else {
                         lod.submeshes.len() == 1
                     }
@@ -1626,11 +1858,18 @@ mod tests {
         }
         fs::write(
             &sidecar,
-            br#"<SkinnedMeshMaterialWrapper _subMeshName="part-0"><Material _materialName="SkinnedMeshEmissive"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_base.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/><MaterialParameterTexture _name="_materialTexture" Value="character/texture/body_sp.dds"/><MaterialParameterTexture _name="_roughnessTexture" Value="character/texture/body_rough.dds"/><MaterialParameterTexture _name="_metalnessTexture" Value="character/texture/body_metal.dds"/><MaterialParameterTexture _name="_ambientOcclusionTexture" Value="character/texture/body_ao.dds"/><MaterialParameterTexture _name="_emissiveIntensityTexture" Value="character/texture/body_emi.dds"/><MaterialParameterTexture _name="_specularTexture" Value="character/texture/body_spec.dds"/><MaterialParameterTexture _name="_glossinessTexture" Value="character/texture/body_gloss.dds"/></Material></SkinnedMeshMaterialWrapper>"#,
+            br##"<SkinnedMeshMaterialWrapper _subMeshName="part-0"><Material _materialName="SkinnedMeshEmissive"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_base.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/><MaterialParameterTexture _name="_materialTexture" Value="character/texture/body_sp.dds"/><MaterialParameterTexture _name="_roughnessTexture" Value="character/texture/body_rough.dds"/><MaterialParameterTexture _name="_metalnessTexture" Value="character/texture/body_metal.dds"/><MaterialParameterTexture _name="_ambientOcclusionTexture" Value="character/texture/body_ao.dds"/><MaterialParameterTexture _name="_emissiveIntensityTexture" Value="character/texture/body_emi.dds"/><MaterialParameterTexture _name="_specularTexture" Value="character/texture/body_spec.dds"/><MaterialParameterTexture _name="_glossinessTexture" Value="character/texture/body_gloss.dds"/><MaterialParameterColor _name="_emissiveColor" _value="#204060ff"/><MaterialParameterFloat _name="_emissiveIntensity" _value="2.5"/></Material></SkinnedMeshMaterialWrapper>"##,
         )?;
 
         let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
         assert_eq!(resolved.textures.len(), 7);
+        assert_eq!(resolved.material_parameters.len(), 2);
+        assert_eq!(resolved.material_factors.len(), 1);
+        assert_eq!(
+            resolved.material_factors[0].material_indices_by_lod,
+            vec![vec![0]]
+        );
+        assert_eq!(resolved.material_factors[0].emissive_intensity, Some(2.5));
         let roles = resolved
             .textures
             .iter()
@@ -1698,6 +1937,57 @@ mod tests {
             .find(|owned| owned.reference.path.ends_with("body_a.dds"))
             .ok_or("missing first base color")?;
         assert_eq!(first.material_indices_by_lod, vec![vec![0], vec![1]]);
+        Ok(())
+    }
+
+    #[test]
+    fn material_parameters_preserve_unknowns_and_resolve_unique_emissive_factors()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut document = document_with_references(&["material-a", "material-b"]);
+        let mut second_lod = document.lods[0].clone();
+        second_lod.level = 1;
+        second_lod.submeshes.reverse();
+        document.lods.push(second_lod);
+        let sidecar = parse_material_sidecar(
+            br##"<Root>
+              <SkinnedMeshMaterialWrapper _subMeshName="part-0">
+                <Material _materialName="material-a">
+                  <MaterialParameterColor _name="_emissiveColor" _value="#204060ff"/>
+                  <MaterialParameterFloat _name="_emissiveIntensity" _value="2.5"/>
+                  <MaterialParameterFuture _name="_future" _value="opaque"/>
+                </Material>
+              </SkinnedMeshMaterialWrapper>
+              <SkinnedMeshMaterialWrapper _subMeshName="part-1">
+                <MaterialParameterFloat _name="_emissivePower" _value="1"/>
+                <MaterialParameterFloat _name="_glowIntensity" _value="2"/>
+              </SkinnedMeshMaterialWrapper>
+            </Root>"##,
+        )?;
+        let mut warnings = Vec::new();
+        let (parameters, factors) = resolve_material_parameters(
+            &sidecar,
+            &document,
+            "character/modelproperty/body.pac_xml",
+            &mut warnings,
+        );
+        assert_eq!(parameters.len(), 5);
+        assert_eq!(
+            parameters[0].material_indices_by_lod,
+            vec![vec![0], vec![1]]
+        );
+        assert_eq!(parameters[0].preview_semantic, Some("Emissive color"));
+        assert_eq!(parameters[2].parameter.kind, MaterialParameterKind::Unknown);
+        assert_eq!(parameters[2].preview_semantic, None);
+        assert_eq!(factors.len(), 1);
+        assert_eq!(factors[0].material_indices_by_lod, vec![vec![0], vec![1]]);
+        assert_eq!(
+            factors[0].emissive_color,
+            Some([32.0 / 255.0, 64.0 / 255.0, 96.0 / 255.0])
+        );
+        assert_eq!(factors[0].emissive_intensity, Some(2.5));
+        assert!(warnings.iter().any(|warning| {
+            warning.contains("material range(s) claim conflicting emissive intensities")
+        }));
         Ok(())
     }
 

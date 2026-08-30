@@ -4,7 +4,7 @@
 
 **PARTIALLY READY**
 
-The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12 adapter, renders validated geometry and distinct sidecar-resolved base/normal/packed-material/separate-roughness/separate-metalness/occlusion/emissive DDS files on their owning submesh ranges through `wgpu`, opens archive roots read-only, reconstructs bounded supported 2D Partial/Sparse archive DDS entries in memory, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD candidates, and supports camera navigation plus pointer-driven selection, transform, sculpt, and history workflows on an in-memory generational mesh. The same app-owned workflows now have no-window construction and behavior coverage, and the shared multi-role DDS upload plus renderer draw path has an opt-in offscreen D3D12 validation/readback gate.
+The isolated lab builds, launches a responsive Windows window, selects a Direct3D 12 adapter, renders validated geometry and distinct sidecar-resolved base/normal/packed-material/separate-roughness/separate-metalness/occlusion/emissive DDS files on their owning submesh ranges through `wgpu`, preserves typed and unknown sidecar material parameters, applies uniquely owned explicit emissive color/intensity factors to bound emissive textures, opens archive roots read-only, reconstructs bounded supported 2D Partial/Sparse archive DDS entries in memory, virtualizes archive results, loads direct/archive PAC/PAM/PAMLOD candidates, and supports camera navigation plus pointer-driven selection, transform, sculpt, and history workflows on an in-memory generational mesh. The same app-owned workflows now have no-window construction and behavior coverage, and the shared multi-role DDS upload plus renderer draw path has an opt-in offscreen D3D12 validation/readback gate.
 
 It is not LAB READY because private real-game parity, complete texture/material composition, Partial PAR and unsupported DDS subresources/transcoding, PAC skinning/appearance, representative stress/performance evidence, cache, versioned lab projects, fuzzing, and source fingerprint sessions remain incomplete.
 
@@ -17,7 +17,7 @@ It is not LAB READY because private real-game parity, complete texture/material 
 - PAC/PAM/PAMLOD geometry foundations with fail-closed layout validation.
 - Proven PAC section-to-LOD decoding and an **Editable LOD** selector. The worker prepares every decoded LOD, and switching preserves independent geometry, selection, and Undo/Redo state without multiplying the 512 MiB history budget. Non-manifold source edges retain all incident faces rather than rejecting an otherwise valid lower LOD.
 - DDS legacy/DX10 metadata, bounded mip planning, supported 2D archive Partial/Sparse reconstruction, role-authoritative color-space classification, and direct supported 2D `wgpu` upload. Base/emissive roles select an sRGB GPU format; technical roles select linear even when the file header carries an sRGB variant, and impossible sRGB/format combinations fail closed.
-- Bounded material-sidecar scanning preserves wrapper type, submesh, shader/material name, texture parameter, original path, inferred role, and unknown texture references across common attribute spellings. Direct and archive loaders derive same-stem material sidecars, prefer explicit sidecar references over decoded-name base-color fallback, map wrapper owners independently onto every LOD's decoded submesh order, and use exact/relative/unambiguous asset relations without selecting ambiguous basenames. Base color, normal, packed material, separate roughness/metalness/occlusion, and emissive roles may coexist per owner; disjoint owners may bind different DDS files, and same-owner conflicts leave only the conflicting role unresolved. Specular and gloss are classified separately but remain unbound with an explicit warning instead of being misread as packed material data.
+- Bounded material-sidecar scanning preserves wrapper type, submesh, shader/material name, texture parameter, original path, inferred role, and unknown texture references across common attribute spellings. It also preserves Float/Float2/Float3/Half2/Color/Byte4/BitFlag32/unsigned/signed/bool and unknown parameter tags with their original name, raw value, attributes, and explicit/incomplete confidence. Direct and archive loaders derive same-stem material sidecars, prefer explicit sidecar references over decoded-name base-color fallback, map wrapper owners independently onto every LOD's decoded submesh order, and use exact/relative/unambiguous asset relations without selecting ambiguous basenames. Base color, normal, packed material, separate roughness/metalness/occlusion, and emissive roles may coexist per owner; disjoint owners may bind different DDS files, and same-owner conflicts leave only the conflicting role unresolved. The approximation samples a unique explicit hex emissive color and finite float emissive intensity (clamped to 0–32) only with a bound emissive texture; conflicting/invalid factors remain unbound. Specular, gloss, alpha, layered/dye, and other scalar/vector parameters are preserved and reported but remain unsampled.
 - Immutable decoded source document and separate editable working document.
 - Generational vertex/edge/face handles and topology generation.
 - Interactive Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch plus atomic face Delete, Subdivide, Duplicate, Undo, and Redo; topology failures leave the complete working state unchanged and generated subdivision/duplicate faces become the deterministic selection.
@@ -28,9 +28,9 @@ It is not LAB READY because private real-game parity, complete texture/material 
 - Bounded raw pointer sampling that retains press, intermediate movement, and release when Windows coalesces redraws; long lassos compact deterministically while retaining their final release point, one completed gesture creates one history entry, and Esc/resize/focus loss restores the pre-gesture mesh.
 - Orbit, pan, zoom, frame-selected/all, six standard views, and one aspect-aware camera generation shared by rendering and interaction snapshots.
 - Direct3D 12 `wgpu` surface, depth target, persistent revisioned mesh/normal/bounds buffers, Textured/Solid/Solid+Wire/Wireframe/Vertices/Wire+Vertices/X-Ray modes, and independent Normals/Bounds overlays. Bones is visibly disabled until skeleton context exists.
-- egui archive/assets, viewport, inspector, selection/edit, and status surfaces. Archive textures report whether their bytes came from Stored, Partial raw, Partial DDS, Sparse DDS, or LZ4 handling.
-- No-window `LabApplication` construction plus 12 painted-control/input tests whose coordinates come from egui's clipped draw output: preview/LOD menus, overlay and camera controls, texture relationship provenance, 24 selection domain/shape/depth combinations through the bounded raw-pointer route, all seven edit tools, three topology actions, exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input, three resize shapes, Esc/resize cancellation, and dense face-selection fill without per-triangle outline strokes. Lower Inspector controls are verified at 1280×720 and 1000×600.
-- Offscreen D3D12 renderer coverage uploads eight DDS files with the live plan/upload helper, composes base/normal/packed-material/roughness/metalness/occlusion/emissive roles on one range beside an independent base-colored range, and exercises all seven preview modes with Normals and Bounds across 4:3, portrait, and widescreen targets. A validation error scope and CPU readbacks reject invalid or all-background output and require all seven sampled roles to change pixels independently without constructing a window.
+- egui archive/assets, viewport, inspector, selection/edit, and status surfaces. The viewport and Inspector explicitly label material rendering as approximate. Archive textures report whether their bytes came from Stored, Partial raw, Partial DDS, Sparse DDS, or LZ4 handling; a collapsed material-parameter section reports preserved values, owners, confidence, and sampled/unbound state without flooding the default layout.
+- No-window `LabApplication` construction plus 12 painted-control/input tests whose coordinates come from egui's clipped draw output: preview/LOD menus, overlay and camera controls, texture relationship and material-parameter provenance, 24 selection domain/shape/depth combinations through the bounded raw-pointer route, all seven edit tools, three topology actions, exact Undo/Redo, disabled controls, 1×/1.5×/2× camera input, three resize shapes, Esc/resize cancellation, and dense face-selection fill without per-triangle outline strokes. Lower Inspector controls are verified at 1280×720 and 1000×600.
+- Offscreen D3D12 renderer coverage uploads eight DDS files with the live plan/upload helper, composes base/normal/packed-material/roughness/metalness/occlusion/emissive roles on one range beside an independent base-colored range, applies a separate explicit emissive color/intensity probe, and exercises all seven preview modes with Normals and Bounds across 4:3, portrait, and widescreen targets. A validation error scope and CPU readbacks reject invalid or all-background output, require all seven sampled roles to change pixels independently, and require the emissive factors to change pixels again without constructing a window.
 - Read-only `headless-mesh` probe for caller-selected PAC/PAM/PAMLOD files, with fresh-working-mesh operation/Undo/Redo fingerprints and invariants for Move, Grab, Smooth, Inflate, Pinch, face Delete, Subdivide, and Duplicate on every decoded LOD.
 - Bounded cancellable latest-wins loader/search worker with stale-result rejection.
 - Versioned neutral binary package and manifest comparison.
@@ -45,7 +45,7 @@ It is not LAB READY because private real-game parity, complete texture/material 
 | Private archive corpus | Not run | Archive READY cannot be claimed |
 | Real PAC/PAM/PAMLOD parity | All four LODs of one supplied PAC exercised; corpus parity not run | Geometry support remains partial |
 | Partial/Sparse DDS reconstruction | Synthetic pass; private corpus not run | Supported 2D Partial DDS uses exact PATHC identity and bounded LZ4 reconstruction; supported Sparse DDS validates and zero-pads to the declared size. Real archive breadth, Partial PAR, arrays/cubes, and fallback transcode remain unproven |
-| Native texture/material binding | Partial | Multiple sidecar DDS files can render with role-correct color space on distinct owning submesh ranges, including reordered LOD ownership; the approximation samples base color, tangent-space normal, `_materialTexture` G roughness/B metalness, separate roughness/metalness overrides, occlusion, and emissive. Specular/gloss sampling, scalar/color factors, layered composition, alpha policy, arrays/cubes, and fallback transcode remain incomplete |
+| Native texture/material binding | Partial | Multiple sidecar DDS files can render with role-correct color space on distinct owning submesh ranges, including reordered LOD ownership; the approximation samples base color, tangent-space normal, `_materialTexture` G roughness/B metalness, separate roughness/metalness overrides, occlusion, emissive, and unique explicit emissive color/intensity factors. Typed and unknown parameters are preserved with provenance. General scalar/vector, specular/gloss, layered/dye, and alpha sampling plus arrays/cubes and fallback transcode remain incomplete |
 | PAC skin palette/PAB/PABC/morph | Incomplete | Character appearance parity not proven |
 | Lab project | Incomplete | Camera/tool/history persistence is not published yet |
 | Neutral export | OBJ/MTL implemented | GLB, skinning/material preservation, and private corpus re-import parity remain incomplete |
@@ -67,7 +67,7 @@ readiness still requires the asset
 graph to resolve every authoritative material relationship, validate supported
 Partial/Sparse DDS reconstruction across a private archive corpus, decode Partial
 PAR and unsupported array/cube or fallback-transcode cases, sample every supported
-texture role and subresource, preserve scalar/vector factors and alpha policy, and compose layered materials
+texture role and subresource, apply the remaining preserved scalar/vector factors and alpha policy, and compose layered materials
 on their owning submeshes. The rainbow surface remains the normal-based
 placeholder wherever no authoritative material role can bind; the plain shader
 is an approximation, not proof of the character's exact loaded skin. This
@@ -85,13 +85,14 @@ owner identity when lower-LOD submesh order changes, refuse a missing explicit
 DDS instead of falling back, and retain one decoded reference only when no sidecar exists.
 Parser fixtures cover nested and self-closing
 texture parameters, common path/name attribute variants, XML entities, role
-classification, and malformed-but-bounded parameter recovery. Renderer tests
+classification, malformed-but-bounded texture recovery, typed/vector/unknown parameter preservation,
+and incomplete-value confidence. Loader fixtures require explicit emissive factors to follow reordered LOD ownership and isolate conflicting values. Renderer tests
 require legacy DXT1 base color to map to BC1 sRGB, an sRGB-declared normal to map
 to linear BC7, and unsupported sRGB format combinations to fail. The opt-in
 offscreen D3D12 gate uploads eight synthetic DDS files, composes seven roles on
 one material beside a second independent range, and compares unresolved,
-base-only, one-extra-role, and fully composed CPU readbacks through the live
-helper during its 30-frame pass. Every sampled role must change pixels independently. This is synthetic relationship
+base-only, one-extra-role, factored-emissive, and fully composed CPU readbacks through the live
+helper during its 31-frame pass. Every sampled role and the explicit emissive factor must change pixels independently. This is synthetic relationship
 and GPU execution proof, not evidence that the supplied PAC has a material
 sidecar or that a private archive reproduces its full appearance.
 
@@ -134,7 +135,7 @@ adapter/device and rendered a synthetic triangle through the same mesh draw
 dispatcher used by the live viewport. It submitted Textured, Solid Faces,
 Solid + Wire, Wireframe, Vertices, Wire + Vertices, and X-Ray with Normals and
 Bounds across 640×480, 480×640, and 1280×720 targets, then submitted and read
-back a final Solid + Wire frame: 30 frames total. The D3D12 validation scope was
+back material-role, emissive-factor, and fully composed probes: 31 frames total. The D3D12 validation scope was
 empty and the readback contained non-background pixels. The same gate also
 checks the live GPU-cache predicate: a different working-mesh identity with
 equal geometry/topology revisions must not reuse the previous buffers. That
