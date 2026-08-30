@@ -475,10 +475,10 @@ fn resolve_direct_texture(
                 .iter()
                 .map(|warning| format!("Material sidecar {}: {warning}", sidecar_path.display())),
         );
-        let references = owned_base_color_references(&sidecar, document, &mut result.warnings);
+        let references = owned_preview_texture_references(&sidecar, document, &mut result.warnings);
         if references.is_empty() {
             result.warnings.push(format!(
-                "Material sidecar {} has no unambiguous base-color ownership; viewport keeps the material approximation for unresolved material ranges",
+                "Material sidecar {} has no unambiguous sampled-texture ownership; viewport keeps the material approximation for unresolved material ranges",
                 sidecar_path.display()
             ));
             return Ok(result);
@@ -606,10 +606,10 @@ fn resolve_archive_texture(
             .iter()
             .map(|warning| format!("Material sidecar {sidecar_target}: {warning}")),
     );
-    let references = owned_base_color_references(&sidecar, document, &mut result.warnings);
+    let references = owned_preview_texture_references(&sidecar, document, &mut result.warnings);
     if references.is_empty() {
         result.warnings.push(format!(
-            "Material sidecar {sidecar_target} has no unambiguous base-color ownership; unresolved material ranges keep the approximation"
+            "Material sidecar {sidecar_target} has no unambiguous sampled-texture ownership; unresolved material ranges keep the approximation"
         ));
         return Ok(result);
     }
@@ -906,7 +906,7 @@ struct OwnedTextureReference {
     material_indices_by_lod: Vec<Vec<u32>>,
 }
 
-fn owned_base_color_references(
+fn owned_preview_texture_references(
     sidecar: &MaterialSidecar,
     document: &MeshDocument,
     warnings: &mut Vec<String>,
@@ -915,7 +915,7 @@ fn owned_base_color_references(
     for reference in sidecar
         .textures
         .iter()
-        .filter(|reference| reference.role == TextureRole::BaseColor)
+        .filter(|reference| is_preview_sampled_role(reference.role))
     {
         let ownership = material_indices_for_reference(reference, document);
         if ownership.iter().all(Vec::is_empty) {
@@ -927,8 +927,8 @@ fn owned_base_color_references(
                 "an unnamed multi-submesh owner".to_owned()
             };
             warnings.push(format!(
-                "Base-color parameter {} for {owner} does not match a decoded material range; {} remains unbound",
-                reference.parameter_name, reference.path
+                "{:?} parameter {} for {owner} does not match a decoded material range; {} remains unbound",
+                reference.role, reference.parameter_name, reference.path
             ));
             continue;
         }
@@ -938,13 +938,13 @@ fn owned_base_color_references(
         });
     }
 
-    let mut claims = BTreeMap::<(usize, u32), BTreeSet<String>>::new();
+    let mut claims = BTreeMap::<(usize, u32, TextureRole), BTreeSet<String>>::new();
     for candidate in &candidates {
         let normalized = normalize_virtual_path(&candidate.reference.path);
         for (lod_index, materials) in candidate.material_indices_by_lod.iter().enumerate() {
             for material in materials {
                 claims
-                    .entry((lod_index, *material))
+                    .entry((lod_index, *material, candidate.reference.role))
                     .or_default()
                     .insert(normalized.clone());
             }
@@ -956,21 +956,24 @@ fn owned_base_color_references(
         .collect::<BTreeSet<_>>();
     if !ambiguous.is_empty() {
         warnings.push(format!(
-            "{} decoded material range(s) claim more than one distinct base-color texture; only those ranges keep the approximation",
+            "{} decoded material-role assignment(s) claim more than one distinct texture; only those roles keep the approximation",
             ambiguous.len()
         ));
     }
 
-    let mut grouped = BTreeMap::<String, OwnedTextureReference>::new();
+    let mut grouped = BTreeMap::<(TextureRole, String), OwnedTextureReference>::new();
     for mut candidate in candidates {
         for (lod_index, materials) in candidate.material_indices_by_lod.iter_mut().enumerate() {
-            materials.retain(|material| !ambiguous.contains(&(lod_index, *material)));
+            materials.retain(|material| {
+                !ambiguous.contains(&(lod_index, *material, candidate.reference.role))
+            });
         }
         if candidate.material_indices_by_lod.iter().all(Vec::is_empty) {
             continue;
         }
         let normalized = normalize_virtual_path(&candidate.reference.path);
-        if let Some(existing) = grouped.get_mut(&normalized) {
+        let key = (candidate.reference.role, normalized);
+        if let Some(existing) = grouped.get_mut(&key) {
             for (existing_materials, candidate_materials) in existing
                 .material_indices_by_lod
                 .iter_mut()
@@ -981,10 +984,20 @@ fn owned_base_color_references(
                 existing_materials.dedup();
             }
         } else {
-            grouped.insert(normalized, candidate);
+            grouped.insert(key, candidate);
         }
     }
     grouped.into_values().collect()
+}
+
+const fn is_preview_sampled_role(role: TextureRole) -> bool {
+    matches!(
+        role,
+        TextureRole::BaseColor
+            | TextureRole::Normal
+            | TextureRole::Material
+            | TextureRole::Emissive
+    )
 }
 
 fn material_indices_for_reference(
@@ -1493,6 +1506,50 @@ mod tests {
     }
 
     #[test]
+    fn standard_material_roles_resolve_for_the_same_submesh_owner()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (_tree, mesh, sidecar, texture_directory) = direct_fixture("standard-roles")?;
+        for name in ["body_base.dds", "body_n.dds", "body_sp.dds", "body_emi.dds"] {
+            fs::write(
+                texture_directory.join(name),
+                cdmw_texture::synthetic::rgba8_checker_dds(),
+            )?;
+        }
+        fs::write(
+            &sidecar,
+            br#"<SkinnedMeshMaterialWrapper _subMeshName="part-0"><Material _materialName="SkinnedMeshEmissive"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_base.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/><MaterialParameterTexture _name="_materialTexture" Value="character/texture/body_sp.dds"/><MaterialParameterTexture _name="_emissiveIntensityTexture" Value="character/texture/body_emi.dds"/></Material></SkinnedMeshMaterialWrapper>"#,
+        )?;
+
+        let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
+        assert_eq!(resolved.textures.len(), 4);
+        let roles = resolved
+            .textures
+            .iter()
+            .map(|texture| {
+                assert_eq!(texture.material_indices_by_lod, vec![vec![0]]);
+                (texture.role, texture.metadata.color_space)
+            })
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            roles.get(&TextureRole::BaseColor),
+            Some(&cdmw_texture::ColorSpace::Srgb)
+        );
+        assert_eq!(
+            roles.get(&TextureRole::Normal),
+            Some(&cdmw_texture::ColorSpace::Linear)
+        );
+        assert_eq!(
+            roles.get(&TextureRole::Material),
+            Some(&cdmw_texture::ColorSpace::Linear)
+        );
+        assert_eq!(
+            roles.get(&TextureRole::Emissive),
+            Some(&cdmw_texture::ColorSpace::Srgb)
+        );
+        Ok(())
+    }
+
+    #[test]
     fn material_ownership_follows_submesh_names_when_lod_order_changes()
     -> Result<(), Box<dyn std::error::Error>> {
         let mut document = document_with_references(&["decoded_a.dds", "decoded_b.dds"]);
@@ -1504,7 +1561,7 @@ mod tests {
             br#"<Root><SkinnedMeshMaterialWrapper _subMeshName="part-0"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_a.dds"/></SkinnedMeshMaterialWrapper><SkinnedMeshMaterialWrapper _subMeshName="part-1"><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_b.dds"/></SkinnedMeshMaterialWrapper></Root>"#,
         )?;
         let mut warnings = Vec::new();
-        let owned = owned_base_color_references(&sidecar, &document, &mut warnings);
+        let owned = owned_preview_texture_references(&sidecar, &document, &mut warnings);
         assert!(warnings.is_empty());
         assert_eq!(owned.len(), 2);
         let first = owned
@@ -1540,7 +1597,35 @@ mod tests {
             resolved
                 .warnings
                 .iter()
-                .any(|warning| warning.contains("claim more than one distinct base-color"))
+                .any(|warning| warning.contains("claim more than one distinct texture"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn one_role_conflict_does_not_discard_other_authoritative_roles()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (_tree, mesh, sidecar, texture_directory) = direct_fixture("role-conflict")?;
+        for name in ["body_a.dds", "body_b.dds", "body_n.dds"] {
+            fs::write(
+                texture_directory.join(name),
+                cdmw_texture::synthetic::rgba8_checker_dds(),
+            )?;
+        }
+        fs::write(
+            &sidecar,
+            br#"<SkinnedMeshMaterialWrapper><MaterialParameterTexture _name="_baseColorTexture" Value="character/texture/body_a.dds"/><MaterialParameterTexture _name="_overlayColorTexture" Value="character/texture/body_b.dds"/><MaterialParameterTexture _name="_normalTexture" Value="character/texture/body_n.dds"/></SkinnedMeshMaterialWrapper>"#,
+        )?;
+
+        let resolved = resolve_direct_texture(&mesh, &document_with_references(&["fallback.dds"]))?;
+        assert_eq!(resolved.textures.len(), 1);
+        assert_eq!(resolved.textures[0].role, TextureRole::Normal);
+        assert_eq!(resolved.textures[0].material_indices_by_lod, vec![vec![0]]);
+        assert!(
+            resolved
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("claim more than one distinct texture"))
         );
         Ok(())
     }

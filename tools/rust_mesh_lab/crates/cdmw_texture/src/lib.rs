@@ -8,7 +8,7 @@ pub const DDS_MAX_DIMENSION: u32 = 16_384;
 pub const DDS_MAX_PAYLOAD_BYTES: usize = 512 * 1024 * 1024;
 pub const MATERIAL_SIDECAR_MAX_BYTES: usize = 16 * 1024 * 1024;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TextureRole {
     BaseColor,
@@ -866,6 +866,10 @@ mod tests {
         assert_eq!(
             TextureRole::from_parameter_name("_materialTexture"),
             TextureRole::Material
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_emissiveIntensityTexture"),
+            TextureRole::Emissive
         );
         assert_eq!(
             TextureRole::from_parameter_name("_colorBlendingMaskTexture"),

@@ -412,7 +412,7 @@ impl LabApplication {
         }
         if texture_upload_count > 0 {
             self.status.push_str(&format!(
-                " · {texture_upload_count} base texture(s) uploaded for {bound_material_count} LOD0 material range(s)"
+                " · {texture_upload_count} material texture(s) uploaded for {bound_material_count} LOD0 material range(s)"
             ));
         }
         if let Some(error) = gpu_errors.first() {
@@ -580,7 +580,7 @@ impl LabApplication {
                     }
                     if !self.texture_entries.is_empty() {
                         ui.separator();
-                        ui.label(RichText::new("Resolved base textures").strong());
+                        ui.label(RichText::new("Resolved material textures").strong());
                         for (index, texture) in self.texture_entries.iter().enumerate() {
                             if index > 0 {
                                 ui.add_space(4.0);

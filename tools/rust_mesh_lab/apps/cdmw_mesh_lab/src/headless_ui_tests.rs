@@ -933,7 +933,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
         }],
     });
     let mut ui = HeadlessUi::new(application, egui::vec2(1_280.0, 900.0));
-    assert!(ui.reveal("Resolved base textures").is_ok());
+    assert!(ui.reveal("Resolved material textures").is_ok());
     assert!(ui.reveal("character/texture/body.dds").is_ok());
     assert!(
         ui.reveal(

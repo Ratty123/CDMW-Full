@@ -3,7 +3,7 @@
 use bytemuck::{Pod, Zeroable};
 use cdmw_mesh::DrawSnapshot;
 use cdmw_texture::{ColorSpace, DdsFormat, TextureRole, plan_2d_upload};
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec2, Vec3};
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use thiserror::Error;
@@ -24,22 +24,43 @@ struct VertexOut {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec3<f32>,
     @location(1) uv: vec2<f32>,
+    @location(2) normal: vec3<f32>,
+    @location(3) tangent: vec4<f32>,
+};
+
+struct MaterialUniform {
+    flags: u32,
+    _padding_0: u32,
+    _padding_1: u32,
+    _padding_2: u32,
 };
 
 @group(0) @binding(0) var base_texture: texture_2d<f32>;
-@group(0) @binding(1) var base_sampler: sampler;
+@group(0) @binding(1) var normal_texture: texture_2d<f32>;
+@group(0) @binding(2) var material_texture: texture_2d<f32>;
+@group(0) @binding(3) var emissive_texture: texture_2d<f32>;
+@group(0) @binding(4) var material_sampler: sampler;
+@group(0) @binding(5) var<uniform> material: MaterialUniform;
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
+
+const MATERIAL_BASE_COLOR: u32 = 1u;
+const MATERIAL_NORMAL: u32 = 2u;
+const MATERIAL_SURFACE: u32 = 4u;
+const MATERIAL_EMISSIVE: u32 = 8u;
 
 @vertex
 fn vs_main(
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
+    @location(3) tangent: vec4<f32>,
 ) -> VertexOut {
     var out: VertexOut;
     out.position = camera.view_projection * vec4<f32>(position, 1.0);
     out.color = normal * 0.35 + vec3<f32>(0.55, 0.58, 0.65);
     out.uv = uv;
+    out.normal = normal;
+    out.tangent = tangent;
     return out;
 }
 
@@ -48,8 +69,46 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
     if camera.solid_mode == 1u {
         return vec4<f32>(input.color, 1.0);
     }
-    let texel = textureSample(base_texture, base_sampler, input.uv);
-    return vec4<f32>(texel.rgb * input.color, texel.a);
+    if material.flags == 0u {
+        return vec4<f32>(input.color, 1.0);
+    }
+
+    let texel = textureSample(base_texture, material_sampler, input.uv);
+    var surface_normal = normalize(input.normal);
+    if (material.flags & MATERIAL_NORMAL) != 0u {
+        let tangent_xy = textureSample(normal_texture, material_sampler, input.uv).xy * 2.0 - vec2<f32>(1.0);
+        let tangent_z = sqrt(max(1.0 - dot(tangent_xy, tangent_xy), 0.0));
+        let tangent = normalize(input.tangent.xyz - surface_normal * dot(surface_normal, input.tangent.xyz));
+        let bitangent = normalize(cross(surface_normal, tangent)) * input.tangent.w;
+        surface_normal = normalize(
+            tangent * tangent_xy.x
+            + bitangent * tangent_xy.y
+            + surface_normal * tangent_z);
+    }
+
+    var roughness = 0.65;
+    var metalness = 0.0;
+    if (material.flags & MATERIAL_SURFACE) != 0u {
+        let packed = textureSample(material_texture, material_sampler, input.uv);
+        roughness = clamp(packed.g, 0.04, 1.0);
+        metalness = clamp(packed.b, 0.0, 1.0);
+    }
+
+    let light_direction = normalize(vec3<f32>(-0.35, 0.80, 0.45));
+    let view_direction = normalize(vec3<f32>(0.10, 0.20, 1.0));
+    let half_vector = normalize(light_direction + view_direction);
+    let ndotl = max(dot(surface_normal, light_direction), 0.0);
+    let ndoth = max(dot(surface_normal, half_vector), 0.0);
+    let diffuse = texel.rgb * (0.18 + 0.82 * ndotl) * (1.0 - metalness);
+    let metal_body = texel.rgb * metalness * (0.10 + 0.28 * ndotl);
+    let f0 = mix(vec3<f32>(0.04), texel.rgb, vec3<f32>(metalness));
+    let specular_power = mix(96.0, 8.0, roughness);
+    let specular = f0 * pow(ndoth, specular_power) * (0.20 + 0.80 * (1.0 - roughness));
+    var emissive = vec3<f32>(0.0);
+    if (material.flags & MATERIAL_EMISSIVE) != 0u {
+        emissive = textureSample(emissive_texture, material_sampler, input.uv).rgb;
+    }
+    return vec4<f32>(diffuse + metal_body + specular + emissive, 1.0);
 }
 
 @fragment
@@ -114,6 +173,18 @@ struct CameraUniform {
     _padding: [u32; 3],
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct MaterialUniform {
+    flags: u32,
+    _padding: [u32; 3],
+}
+
+const MATERIAL_BASE_COLOR: u32 = 1;
+const MATERIAL_NORMAL: u32 = 2;
+const MATERIAL_SURFACE: u32 = 4;
+const MATERIAL_EMISSIVE: u32 = 8;
+
 impl CameraUniform {
     fn new() -> Self {
         Self {
@@ -130,11 +201,16 @@ struct GpuVertex {
     position: [f32; 3],
     normal: [f32; 3],
     uv: [f32; 2],
+    tangent: [f32; 4],
 }
 
 impl GpuVertex {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 3] =
-        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2];
+    const ATTRIBUTES: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![
+        0 => Float32x3,
+        1 => Float32x3,
+        2 => Float32x2,
+        3 => Float32x4
+    ];
 
     fn layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
@@ -149,6 +225,7 @@ impl GpuVertex {
             position: position.to_array(),
             normal: Vec3::Y.to_array(),
             uv: [0.0, 0.0],
+            tangent: [1.0, 0.0, 0.0, 1.0],
         }
     }
 }
@@ -169,7 +246,9 @@ pub struct HeadlessRenderReport {
     pub modes_rendered: u32,
     pub viewport_sizes_rendered: u32,
     pub dds_textures_uploaded: u32,
+    pub sampled_material_roles: u32,
     pub material_ranges_rendered: u32,
+    pub composed_material_pixels_changed: usize,
     pub non_background_pixels: usize,
 }
 
@@ -219,12 +298,33 @@ struct GpuMaterialRange {
 
 struct GpuMaterialTexture {
     _texture: wgpu::Texture,
-    bind_group: wgpu::BindGroup,
+    role: TextureRole,
     material_indices_by_lod: Vec<Vec<u32>>,
+}
+
+struct DefaultMaterialTextures {
+    base_color: wgpu::Texture,
+    normal: wgpu::Texture,
+    surface: wgpu::Texture,
+    emissive: wgpu::Texture,
+}
+
+struct GpuMaterialBinding {
+    bind_group: wgpu::BindGroup,
+    _uniform_buffer: wgpu::Buffer,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct MaterialTextureIndices {
+    base_color: Option<usize>,
+    normal: Option<usize>,
+    surface: Option<usize>,
+    emissive: Option<usize>,
 }
 
 impl GpuMeshBuffers {
     pub fn upload(device: &wgpu::Device, snapshot: &DrawSnapshot) -> Result<Self, RenderError> {
+        let tangents = vertex_tangents(snapshot)?;
         let vertices = snapshot
             .positions
             .iter()
@@ -236,10 +336,12 @@ impl GpuMeshBuffers {
                     .copied()
                     .unwrap_or([0.0, 1.0, 0.0]);
                 let uv = snapshot.uvs.get(index).copied().unwrap_or([0.0, 0.0]);
+                let tangent = tangents.get(index).copied().unwrap_or([1.0, 0.0, 0.0, 1.0]);
                 GpuVertex {
                     position: *position,
                     normal,
                     uv,
+                    tangent,
                 }
             })
             .collect::<Vec<_>>();
@@ -322,10 +424,11 @@ pub struct WindowRenderer {
     mesh: Option<GpuMeshBuffers>,
     egui_renderer: egui_wgpu::Renderer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
-    default_texture_bind_group: wgpu::BindGroup,
-    _default_material_texture: wgpu::Texture,
+    default_material_binding: GpuMaterialBinding,
+    default_material_textures: DefaultMaterialTextures,
+    material_sampler: wgpu::Sampler,
     material_textures: Vec<GpuMaterialTexture>,
-    active_material_bindings: BTreeMap<u32, usize>,
+    active_material_bindings: BTreeMap<u32, GpuMaterialBinding>,
     mesh_viewport: Option<[f32; 4]>,
     depth_target: DepthTarget,
     camera_uniform: CameraUniform,
@@ -411,8 +514,16 @@ impl WindowRenderer {
         };
         surface.configure(&device, &config);
         let texture_bind_group_layout = create_texture_bind_group_layout(&device);
-        let (default_material_texture, default_texture_bind_group) =
-            create_default_texture(&device, &queue, &texture_bind_group_layout);
+        let default_material_textures = create_default_material_textures(&device, &queue);
+        let material_sampler = create_material_sampler(&device);
+        let default_material_binding = create_material_bind_group(
+            &device,
+            &texture_bind_group_layout,
+            &material_sampler,
+            &default_material_textures,
+            &[],
+            MaterialTextureIndices::default(),
+        );
         let camera_bind_group_layout = create_camera_bind_group_layout(&device);
         let camera_uniform = CameraUniform::new();
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -453,8 +564,9 @@ impl WindowRenderer {
             mesh: None,
             egui_renderer,
             texture_bind_group_layout,
-            default_texture_bind_group,
-            _default_material_texture: default_material_texture,
+            default_material_binding,
+            default_material_textures,
+            material_sampler,
             material_textures: Vec::new(),
             active_material_bindings: BTreeMap::new(),
             mesh_viewport: None,
@@ -523,12 +635,21 @@ impl WindowRenderer {
                 "DDS texture has no owning material range".to_owned(),
             ));
         }
+        if !matches!(
+            role,
+            TextureRole::BaseColor
+                | TextureRole::Normal
+                | TextureRole::Material
+                | TextureRole::Emissive
+        ) {
+            return Err(RenderError::Texture(format!(
+                "the {role:?} role is classified but is not sampled by the current material approximation"
+            )));
+        }
         let texture = upload_dds_texture(&self.device, &self.queue, bytes, role)?;
-        let bind_group =
-            create_texture_bind_group(&self.device, &self.texture_bind_group_layout, &texture);
         self.material_textures.push(GpuMaterialTexture {
             _texture: texture,
-            bind_group,
+            role,
             material_indices_by_lod: material_indices_by_lod.to_vec(),
         });
         Ok(())
@@ -538,7 +659,7 @@ impl WindowRenderer {
         let active = match resolve_material_bindings(
             self.material_textures
                 .iter()
-                .map(|texture| texture.material_indices_by_lod.as_slice()),
+                .map(|texture| (texture.role, texture.material_indices_by_lod.as_slice())),
             lod_index,
         ) {
             Ok(active) => active,
@@ -548,7 +669,20 @@ impl WindowRenderer {
             }
         };
         let bound = active.len();
-        self.active_material_bindings = active;
+        self.active_material_bindings = active
+            .into_iter()
+            .map(|(material, indices)| {
+                let binding = create_material_bind_group(
+                    &self.device,
+                    &self.texture_bind_group_layout,
+                    &self.material_sampler,
+                    &self.default_material_textures,
+                    &self.material_textures,
+                    indices,
+                );
+                (material, binding)
+            })
+            .collect();
         Ok(bound)
     }
 
@@ -695,8 +829,7 @@ impl WindowRenderer {
                 draw_mesh(
                     &mut pass,
                     mesh,
-                    &self.default_texture_bind_group,
-                    &self.material_textures,
+                    &self.default_material_binding.bind_group,
                     &self.active_material_bindings,
                     &self.camera_bind_group,
                     &self.solid_pipeline,
@@ -780,28 +913,119 @@ pub async fn run_headless_render_smoke(
     let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
     let format = wgpu::TextureFormat::Bgra8Unorm;
     let texture_layout = create_texture_bind_group_layout(&device);
-    let (_default_material_texture, default_texture_bind_group) =
-        create_default_texture(&device, &queue, &texture_layout);
-    let mut second_dds = cdmw_texture::synthetic::rgba8_checker_dds();
-    if let Some(pixels) = second_dds.get_mut(148..164) {
-        for pixel in pixels.chunks_exact_mut(4) {
-            pixel.copy_from_slice(&[70, 230, 90, 255]);
+    let default_material_textures = create_default_material_textures(&device, &queue);
+    let material_sampler = create_material_sampler(&device);
+    let default_material_binding = create_material_bind_group(
+        &device,
+        &texture_layout,
+        &material_sampler,
+        &default_material_textures,
+        &[],
+        MaterialTextureIndices::default(),
+    );
+    let synthetic_dds = |color: [u8; 4]| {
+        let mut bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+        if let Some(pixels) = bytes.get_mut(148..164) {
+            for pixel in pixels.chunks_exact_mut(4) {
+                pixel.copy_from_slice(&color);
+            }
         }
-    }
+        bytes
+    };
     let mut material_textures = Vec::new();
-    for (material, bytes) in [
-        (0_u32, cdmw_texture::synthetic::rgba8_checker_dds()),
-        (1_u32, second_dds),
+    for (material, role, bytes) in [
+        (
+            0_u32,
+            TextureRole::BaseColor,
+            synthetic_dds([210, 70, 55, 255]),
+        ),
+        (
+            0_u32,
+            TextureRole::Normal,
+            synthetic_dds([128, 178, 240, 255]),
+        ),
+        (
+            0_u32,
+            TextureRole::Material,
+            synthetic_dds([255, 70, 230, 255]),
+        ),
+        (
+            0_u32,
+            TextureRole::Emissive,
+            synthetic_dds([90, 30, 10, 255]),
+        ),
+        (
+            1_u32,
+            TextureRole::BaseColor,
+            synthetic_dds([70, 230, 90, 255]),
+        ),
     ] {
-        let texture = upload_dds_texture(&device, &queue, &bytes, TextureRole::BaseColor)?;
-        let bind_group = create_texture_bind_group(&device, &texture_layout, &texture);
+        let texture = upload_dds_texture(&device, &queue, &bytes, role)?;
         material_textures.push(GpuMaterialTexture {
             _texture: texture,
-            bind_group,
+            role,
             material_indices_by_lod: vec![vec![material]],
         });
     }
-    let active_material_bindings = BTreeMap::from([(0_u32, 0_usize), (1_u32, 1_usize)]);
+    let resolved_bindings = resolve_material_bindings(
+        material_textures
+            .iter()
+            .map(|texture| (texture.role, texture.material_indices_by_lod.as_slice())),
+        0,
+    )?;
+    let bindings_for_roles = |roles: &[TextureRole]| {
+        resolved_bindings
+            .iter()
+            .map(|(material, indices)| {
+                let selected = MaterialTextureIndices {
+                    base_color: if roles.contains(&TextureRole::BaseColor) {
+                        indices.base_color
+                    } else {
+                        None
+                    },
+                    normal: if roles.contains(&TextureRole::Normal) {
+                        indices.normal
+                    } else {
+                        None
+                    },
+                    surface: if roles.contains(&TextureRole::Material) {
+                        indices.surface
+                    } else {
+                        None
+                    },
+                    emissive: if roles.contains(&TextureRole::Emissive) {
+                        indices.emissive
+                    } else {
+                        None
+                    },
+                };
+                (
+                    *material,
+                    create_material_bind_group(
+                        &device,
+                        &texture_layout,
+                        &material_sampler,
+                        &default_material_textures,
+                        &material_textures,
+                        selected,
+                    ),
+                )
+            })
+            .collect::<BTreeMap<_, _>>()
+    };
+    let base_only_material_bindings = bindings_for_roles(&[TextureRole::BaseColor]);
+    let base_normal_material_bindings =
+        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Normal]);
+    let base_surface_material_bindings =
+        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Material]);
+    let base_emissive_material_bindings =
+        bindings_for_roles(&[TextureRole::BaseColor, TextureRole::Emissive]);
+    let active_material_bindings = bindings_for_roles(&[
+        TextureRole::BaseColor,
+        TextureRole::Normal,
+        TextureRole::Material,
+        TextureRole::Emissive,
+    ]);
     let camera_layout = create_camera_bind_group_layout(&device);
     let mut camera_uniform = CameraUniform::new();
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -820,10 +1044,52 @@ pub async fn run_headless_render_smoke(
     let pipelines = create_pipelines(&device, format, &texture_layout, &camera_layout);
     let mut render_snapshot = snapshot.clone();
     render_snapshot.triangle_materials.fill(0);
-    if let Some(triangle) = render_snapshot.indices.get(..3).map(<[u32]>::to_vec) {
-        render_snapshot.indices.extend_from_slice(&triangle);
-        render_snapshot.triangle_materials.push(1);
+    let first_triangle = render_snapshot.indices.get(..3).ok_or_else(|| {
+        RenderError::InvalidSnapshot(
+            "headless material proof requires at least one triangle".to_owned(),
+        )
+    })?;
+    let source_indices = [
+        usize::try_from(first_triangle[0]).map_err(|_| RenderError::ResourceLimit)?,
+        usize::try_from(first_triangle[1]).map_err(|_| RenderError::ResourceLimit)?,
+        usize::try_from(first_triangle[2]).map_err(|_| RenderError::ResourceLimit)?,
+    ];
+    let mut copied_positions = Vec::with_capacity(3);
+    let mut copied_normals = Vec::with_capacity(3);
+    let mut copied_uvs = Vec::with_capacity(3);
+    for index in source_indices {
+        let position = render_snapshot
+            .positions
+            .get(index)
+            .copied()
+            .ok_or_else(|| {
+                RenderError::InvalidSnapshot(format!(
+                    "triangle index {index} exceeds the vertex count"
+                ))
+            })?;
+        let normal = render_snapshot.normals.get(index).copied().ok_or_else(|| {
+            RenderError::InvalidSnapshot(format!("triangle index {index} exceeds the normal count"))
+        })?;
+        let uv = render_snapshot.uvs.get(index).copied().ok_or_else(|| {
+            RenderError::InvalidSnapshot(format!(
+                "triangle index {index} exceeds the texture-coordinate count"
+            ))
+        })?;
+        copied_positions.push([position[0] + 1.25, position[1], position[2]]);
+        copied_normals.push(normal);
+        copied_uvs.push(uv);
     }
+    let first_new_index =
+        u32::try_from(render_snapshot.positions.len()).map_err(|_| RenderError::ResourceLimit)?;
+    render_snapshot.positions.extend(copied_positions);
+    render_snapshot.normals.extend(copied_normals);
+    render_snapshot.uvs.extend(copied_uvs);
+    render_snapshot.indices.extend_from_slice(&[
+        first_new_index,
+        first_new_index.saturating_add(1),
+        first_new_index.saturating_add(2),
+    ]);
+    render_snapshot.triangle_materials.push(1);
     let mesh = GpuMeshBuffers::upload(&device, &render_snapshot)?;
     if !mesh.matches_snapshot(&render_snapshot) {
         return Err(RenderError::Device(
@@ -855,7 +1121,7 @@ pub async fn run_headless_render_smoke(
         let depth = create_depth_target(&device, width, height);
         for mode in modes {
             camera_uniform.view_projection =
-                headless_view_projection(snapshot, width, height).to_cols_array_2d();
+                headless_view_projection(&render_snapshot, width, height).to_cols_array_2d();
             camera_uniform.solid_mode = u32::from(mode != ViewMode::TexturedSolid);
             queue.write_buffer(&camera_buffer, 0, bytemuck::bytes_of(&camera_uniform));
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -866,8 +1132,7 @@ pub async fn run_headless_render_smoke(
                 &view,
                 &depth.view,
                 &mesh,
-                &default_texture_bind_group,
-                &material_textures,
+                &default_material_binding.bind_group,
                 &active_material_bindings,
                 &camera_bind_group,
                 &pipelines,
@@ -877,21 +1142,86 @@ pub async fn run_headless_render_smoke(
             frames_rendered = frames_rendered.saturating_add(1);
         }
     }
-    let (readback, readback_width, readback_height) = render_headless_readback(
+    let unresolved_material_bindings = BTreeMap::new();
+    let (unresolved_readback, readback_width, readback_height) = render_headless_readback(
         &device,
         &queue,
         format,
         &mesh,
-        &default_texture_bind_group,
-        &material_textures,
-        &active_material_bindings,
+        &default_material_binding.bind_group,
+        &unresolved_material_bindings,
         &camera_bind_group,
         &pipelines,
-        snapshot,
+        &render_snapshot,
         &mut camera_uniform,
         &camera_buffer,
     );
-    frames_rendered = frames_rendered.saturating_add(1);
+    let (base_only_readback, _, _) = render_headless_readback(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &default_material_binding.bind_group,
+        &base_only_material_bindings,
+        &camera_bind_group,
+        &pipelines,
+        &render_snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+    );
+    let (base_normal_readback, _, _) = render_headless_readback(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &default_material_binding.bind_group,
+        &base_normal_material_bindings,
+        &camera_bind_group,
+        &pipelines,
+        &render_snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+    );
+    let (base_surface_readback, _, _) = render_headless_readback(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &default_material_binding.bind_group,
+        &base_surface_material_bindings,
+        &camera_bind_group,
+        &pipelines,
+        &render_snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+    );
+    let (base_emissive_readback, _, _) = render_headless_readback(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &default_material_binding.bind_group,
+        &base_emissive_material_bindings,
+        &camera_bind_group,
+        &pipelines,
+        &render_snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+    );
+    let (composed_readback, _, _) = render_headless_readback(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &default_material_binding.bind_group,
+        &active_material_bindings,
+        &camera_bind_group,
+        &pipelines,
+        &render_snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+    );
+    frames_rendered = frames_rendered.saturating_add(6);
     device
         .poll(wgpu::PollType::wait_indefinitely())
         .map_err(|error| RenderError::Device(format!("headless GPU wait failed: {error}")))?;
@@ -900,11 +1230,81 @@ pub async fn run_headless_render_smoke(
             "headless GPU validation failed: {error}"
         )));
     }
-    let non_background_pixels =
-        read_non_background_pixels(&device, &readback, readback_width, readback_height)?;
+    let unresolved_pixels = read_headless_pixels(
+        &device,
+        &unresolved_readback,
+        readback_width,
+        readback_height,
+    )?;
+    let base_only_pixels = read_headless_pixels(
+        &device,
+        &base_only_readback,
+        readback_width,
+        readback_height,
+    )?;
+    let base_normal_pixels = read_headless_pixels(
+        &device,
+        &base_normal_readback,
+        readback_width,
+        readback_height,
+    )?;
+    let base_surface_pixels = read_headless_pixels(
+        &device,
+        &base_surface_readback,
+        readback_width,
+        readback_height,
+    )?;
+    let base_emissive_pixels = read_headless_pixels(
+        &device,
+        &base_emissive_readback,
+        readback_width,
+        readback_height,
+    )?;
+    let composed_pixels =
+        read_headless_pixels(&device, &composed_readback, readback_width, readback_height)?;
+    let background = composed_pixels.get(..4).ok_or_else(|| {
+        RenderError::Device("headless GPU frame has no complete pixel".to_owned())
+    })?;
+    let non_background_pixels = composed_pixels
+        .chunks_exact(4)
+        .filter(|pixel| *pixel != background)
+        .count();
     if non_background_pixels == 0 {
         return Err(RenderError::Device(
             "headless GPU frame contained only the clear color".to_owned(),
+        ));
+    }
+    let role_changes = [
+        (
+            "base color",
+            changed_pixel_count(&unresolved_pixels, &base_only_pixels)?,
+        ),
+        (
+            "normal",
+            changed_pixel_count(&base_only_pixels, &base_normal_pixels)?,
+        ),
+        (
+            "packed material",
+            changed_pixel_count(&base_only_pixels, &base_surface_pixels)?,
+        ),
+        (
+            "emissive",
+            changed_pixel_count(&base_only_pixels, &base_emissive_pixels)?,
+        ),
+    ];
+    for (role, changed) in role_changes {
+        if changed == 0 {
+            return Err(RenderError::Device(format!(
+                "headless {role} sampling did not change any rendered pixel"
+            )));
+        }
+    }
+    let composed_material_pixels_changed =
+        changed_pixel_count(&base_only_pixels, &composed_pixels)?;
+    if composed_material_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless material roles did not change any rendered pixel from the base-only pass"
+                .to_owned(),
         ));
     }
     Ok(HeadlessRenderReport {
@@ -913,9 +1313,13 @@ pub async fn run_headless_render_smoke(
         modes_rendered: u32::try_from(modes.len()).map_err(|_| RenderError::ResourceLimit)?,
         viewport_sizes_rendered: u32::try_from(sizes.len())
             .map_err(|_| RenderError::ResourceLimit)?,
-        dds_textures_uploaded: 2,
+        dds_textures_uploaded: u32::try_from(material_textures.len())
+            .map_err(|_| RenderError::ResourceLimit)?,
+        sampled_material_roles: u32::try_from(role_changes.len())
+            .map_err(|_| RenderError::ResourceLimit)?,
         material_ranges_rendered: u32::try_from(mesh.material_ranges.len())
             .map_err(|_| RenderError::ResourceLimit)?,
+        composed_material_pixels_changed,
         non_background_pixels,
     })
 }
@@ -976,9 +1380,8 @@ fn record_headless_pass(
     color: &wgpu::TextureView,
     depth: &wgpu::TextureView,
     mesh: &GpuMeshBuffers,
-    default_texture_bind_group: &wgpu::BindGroup,
-    material_textures: &[GpuMaterialTexture],
-    active_material_bindings: &BTreeMap<u32, usize>,
+    default_material_bind_group: &wgpu::BindGroup,
+    active_material_bindings: &BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &wgpu::BindGroup,
     pipelines: &Pipelines,
     mode: ViewMode,
@@ -1014,8 +1417,7 @@ fn record_headless_pass(
     draw_mesh(
         &mut pass,
         mesh,
-        default_texture_bind_group,
-        material_textures,
+        default_material_bind_group,
         active_material_bindings,
         camera_bind_group,
         &pipelines.solid,
@@ -1036,9 +1438,8 @@ fn render_headless_readback(
     queue: &wgpu::Queue,
     format: wgpu::TextureFormat,
     mesh: &GpuMeshBuffers,
-    default_texture_bind_group: &wgpu::BindGroup,
-    material_textures: &[GpuMaterialTexture],
-    active_material_bindings: &BTreeMap<u32, usize>,
+    default_material_bind_group: &wgpu::BindGroup,
+    active_material_bindings: &BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &wgpu::BindGroup,
     pipelines: &Pipelines,
     snapshot: &DrawSnapshot,
@@ -1052,7 +1453,7 @@ fn render_headless_readback(
     let depth = create_depth_target(device, width, height);
     camera_uniform.view_projection =
         headless_view_projection(snapshot, width, height).to_cols_array_2d();
-    camera_uniform.solid_mode = 1;
+    camera_uniform.solid_mode = 0;
     queue.write_buffer(camera_buffer, 0, bytemuck::bytes_of(camera_uniform));
     let bytes_per_row = width * 4;
     let readback = device.create_buffer(&wgpu::BufferDescriptor {
@@ -1069,12 +1470,11 @@ fn render_headless_readback(
         &view,
         &depth.view,
         mesh,
-        default_texture_bind_group,
-        material_textures,
+        default_material_bind_group,
         active_material_bindings,
         camera_bind_group,
         pipelines,
-        ViewMode::SolidWire,
+        ViewMode::TexturedSolid,
     );
     encoder.copy_texture_to_buffer(
         wgpu::TexelCopyTextureInfo {
@@ -1101,12 +1501,12 @@ fn render_headless_readback(
     (readback, width, height)
 }
 
-fn read_non_background_pixels(
+fn read_headless_pixels(
     device: &wgpu::Device,
     readback: &wgpu::Buffer,
     width: u32,
     height: u32,
-) -> Result<usize, RenderError> {
+) -> Result<Vec<u8>, RenderError> {
     let (sender, receiver) = std::sync::mpsc::channel();
     readback
         .slice(..)
@@ -1135,14 +1535,25 @@ fn read_non_background_pixels(
             mapped.len()
         )));
     }
-    let background = &mapped[..4];
-    let changed = mapped
-        .chunks_exact(4)
-        .filter(|pixel| *pixel != background)
-        .count();
+    let pixels = mapped.to_vec();
     drop(mapped);
     readback.unmap();
-    Ok(changed)
+    Ok(pixels)
+}
+
+fn changed_pixel_count(reference: &[u8], candidate: &[u8]) -> Result<usize, RenderError> {
+    if reference.len() != candidate.len() || !reference.len().is_multiple_of(4) {
+        return Err(RenderError::Device(format!(
+            "headless pixel comparison size mismatch: {} versus {} bytes",
+            reference.len(),
+            candidate.len()
+        )));
+    }
+    Ok(reference
+        .chunks_exact(4)
+        .zip(candidate.chunks_exact(4))
+        .filter(|(reference, candidate)| reference != candidate)
+        .count())
 }
 
 struct Pipelines {
@@ -1351,9 +1762,8 @@ fn draw_solid<'a>(
 fn draw_textured_solid<'a>(
     pass: &mut wgpu::RenderPass<'a>,
     mesh: &'a GpuMeshBuffers,
-    default_texture_bind_group: &'a wgpu::BindGroup,
-    material_textures: &'a [GpuMaterialTexture],
-    active_material_bindings: &BTreeMap<u32, usize>,
+    default_material_bind_group: &'a wgpu::BindGroup,
+    active_material_bindings: &'a BTreeMap<u32, GpuMaterialBinding>,
     pipeline: &'a wgpu::RenderPipeline,
 ) {
     pass.set_pipeline(pipeline);
@@ -1361,8 +1771,7 @@ fn draw_textured_solid<'a>(
     for range in &mesh.material_ranges {
         let bind_group = active_material_bindings
             .get(&range.material)
-            .and_then(|index| material_textures.get(*index))
-            .map_or(default_texture_bind_group, |texture| &texture.bind_group);
+            .map_or(default_material_bind_group, |binding| &binding.bind_group);
         pass.set_bind_group(0, bind_group, &[]);
         pass.draw_indexed(
             range.first_index..range.first_index.saturating_add(range.index_count),
@@ -1409,9 +1818,8 @@ fn draw_overlay_lines<'a>(
 fn draw_mesh<'a>(
     pass: &mut wgpu::RenderPass<'a>,
     mesh: &'a GpuMeshBuffers,
-    default_texture_bind_group: &'a wgpu::BindGroup,
-    material_textures: &'a [GpuMaterialTexture],
-    active_material_bindings: &BTreeMap<u32, usize>,
+    default_material_bind_group: &'a wgpu::BindGroup,
+    active_material_bindings: &'a BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &'a wgpu::BindGroup,
     solid_pipeline: &'a wgpu::RenderPipeline,
     wire_pipeline: &'a wgpu::RenderPipeline,
@@ -1423,15 +1831,14 @@ fn draw_mesh<'a>(
     show_normals: bool,
     show_bounds: bool,
 ) {
-    pass.set_bind_group(0, default_texture_bind_group, &[]);
+    pass.set_bind_group(0, default_material_bind_group, &[]);
     pass.set_bind_group(1, camera_bind_group, &[]);
     pass.set_vertex_buffer(0, mesh.vertex.slice(..));
     match view_mode {
         ViewMode::TexturedSolid => draw_textured_solid(
             pass,
             mesh,
-            default_texture_bind_group,
-            material_textures,
+            default_material_bind_group,
             active_material_bindings,
             solid_pipeline,
         ),
@@ -1546,25 +1953,120 @@ fn mesh_bounds(positions: &[[f32; 3]]) -> Option<(Vec3, Vec3)> {
 }
 
 fn resolve_material_bindings<'a>(
-    material_indices_by_texture: impl IntoIterator<Item = &'a [Vec<u32>]>,
+    material_indices_by_texture: impl IntoIterator<Item = (TextureRole, &'a [Vec<u32>])>,
     lod_index: usize,
-) -> Result<BTreeMap<u32, usize>, RenderError> {
-    let mut active = BTreeMap::new();
-    for (texture_index, ownership) in material_indices_by_texture.into_iter().enumerate() {
+) -> Result<BTreeMap<u32, MaterialTextureIndices>, RenderError> {
+    let mut active = BTreeMap::<u32, MaterialTextureIndices>::new();
+    for (texture_index, (role, ownership)) in material_indices_by_texture.into_iter().enumerate() {
         let Some(materials) = ownership.get(lod_index) else {
             continue;
         };
         for material in materials {
-            if let Some(previous) = active.insert(*material, texture_index)
-                && previous != texture_index
-            {
+            let slots = active.entry(*material).or_default();
+            let slot = match role {
+                TextureRole::BaseColor => &mut slots.base_color,
+                TextureRole::Normal => &mut slots.normal,
+                TextureRole::Material => &mut slots.surface,
+                TextureRole::Emissive => &mut slots.emissive,
+                _ => {
+                    return Err(RenderError::Texture(format!(
+                        "the {role:?} role is not sampled by the current material approximation"
+                    )));
+                }
+            };
+            if slot.replace(texture_index).is_some() {
                 return Err(RenderError::Texture(format!(
-                    "material {material} has more than one base-color texture in LOD {lod_index}"
+                    "material {material} has more than one {role:?} texture in LOD {lod_index}"
                 )));
             }
         }
     }
     Ok(active)
+}
+
+fn vertex_tangents(snapshot: &DrawSnapshot) -> Result<Vec<[f32; 4]>, RenderError> {
+    if snapshot.positions.len() != snapshot.normals.len()
+        || snapshot.positions.len() != snapshot.uvs.len()
+    {
+        return Err(RenderError::InvalidSnapshot(format!(
+            "{} positions have {} normals and {} texture coordinates",
+            snapshot.positions.len(),
+            snapshot.normals.len(),
+            snapshot.uvs.len()
+        )));
+    }
+    if !snapshot.indices.len().is_multiple_of(3) {
+        return Err(RenderError::InvalidSnapshot(
+            "triangle index count is not divisible by three".to_owned(),
+        ));
+    }
+    let mut accumulated_tangent = vec![Vec3::ZERO; snapshot.positions.len()];
+    let mut accumulated_bitangent = vec![Vec3::ZERO; snapshot.positions.len()];
+    for triangle in snapshot.indices.chunks_exact(3) {
+        let indices = [
+            usize::try_from(triangle[0]).map_err(|_| RenderError::ResourceLimit)?,
+            usize::try_from(triangle[1]).map_err(|_| RenderError::ResourceLimit)?,
+            usize::try_from(triangle[2]).map_err(|_| RenderError::ResourceLimit)?,
+        ];
+        let mut positions = [Vec3::ZERO; 3];
+        let mut uvs = [Vec2::ZERO; 3];
+        for (corner, index) in indices.iter().copied().enumerate() {
+            positions[corner] = snapshot
+                .positions
+                .get(index)
+                .copied()
+                .map(Vec3::from_array)
+                .ok_or_else(|| {
+                    RenderError::InvalidSnapshot(format!(
+                        "triangle index {index} exceeds the vertex count"
+                    ))
+                })?;
+            uvs[corner] = Vec2::from_array(snapshot.uvs[index]);
+        }
+        let edge_one = positions[1] - positions[0];
+        let edge_two = positions[2] - positions[0];
+        let uv_one = uvs[1] - uvs[0];
+        let uv_two = uvs[2] - uvs[0];
+        let determinant = uv_one.x * uv_two.y - uv_one.y * uv_two.x;
+        if !determinant.is_finite() || determinant.abs() <= 1.0e-12 {
+            continue;
+        }
+        let reciprocal = determinant.recip();
+        let tangent = (edge_one * uv_two.y - edge_two * uv_one.y) * reciprocal;
+        let bitangent = (edge_two * uv_one.x - edge_one * uv_two.x) * reciprocal;
+        if !tangent.is_finite() || !bitangent.is_finite() {
+            continue;
+        }
+        for index in indices {
+            accumulated_tangent[index] += tangent;
+            accumulated_bitangent[index] += bitangent;
+        }
+    }
+    Ok(snapshot
+        .normals
+        .iter()
+        .enumerate()
+        .map(|(index, normal)| {
+            let normal = Vec3::from_array(*normal).try_normalize().unwrap_or(Vec3::Y);
+            let projected =
+                accumulated_tangent[index] - normal * normal.dot(accumulated_tangent[index]);
+            let fallback_axis = if normal.x.abs() < 0.9 {
+                Vec3::X
+            } else {
+                Vec3::Y
+            };
+            let fallback = (fallback_axis - normal * normal.dot(fallback_axis))
+                .try_normalize()
+                .unwrap_or(Vec3::Z);
+            let tangent = projected.try_normalize().unwrap_or(fallback);
+            let handedness = if normal.cross(tangent).dot(accumulated_bitangent[index]) < 0.0 {
+                -1.0
+            } else {
+                1.0
+            };
+            [tangent.x, tangent.y, tangent.z, handedness]
+        })
+        .collect())
 }
 
 fn material_index_batches(
@@ -1649,20 +2151,75 @@ fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLay
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
                 visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 3,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 5,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
                 count: None,
             },
         ],
     })
 }
 
-fn create_default_texture(
+fn create_material_sampler(device: &wgpu::Device) -> wgpu::Sampler {
+    device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("CDMW Rust Mesh Lab material sampler"),
+        address_mode_u: wgpu::AddressMode::Repeat,
+        address_mode_v: wgpu::AddressMode::Repeat,
+        address_mode_w: wgpu::AddressMode::Repeat,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::MipmapFilterMode::Linear,
+        ..Default::default()
+    })
+}
+
+fn create_solid_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    layout: &wgpu::BindGroupLayout,
-) -> (wgpu::Texture, wgpu::BindGroup) {
+    label: &str,
+    format: wgpu::TextureFormat,
+    pixel: [u8; 4],
+) -> wgpu::Texture {
     let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("CDMW Rust Mesh Lab default texture"),
+        label: Some(label),
         size: wgpu::Extent3d {
             width: 1,
             height: 1,
@@ -1671,7 +2228,7 @@ fn create_default_texture(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        format,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -1682,7 +2239,7 @@ fn create_default_texture(
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
-        &[210, 215, 225, 255],
+        &pixel,
         wgpu::TexelCopyBufferLayout {
             offset: 0,
             bytes_per_row: Some(4),
@@ -1694,40 +2251,129 @@ fn create_default_texture(
             depth_or_array_layers: 1,
         },
     );
-    let bind_group = create_texture_bind_group(device, layout, &texture);
-    (texture, bind_group)
+    texture
 }
 
-fn create_texture_bind_group(
+fn create_default_material_textures(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+) -> DefaultMaterialTextures {
+    DefaultMaterialTextures {
+        base_color: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default base color",
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            [210, 215, 225, 255],
+        ),
+        normal: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default tangent normal",
+            wgpu::TextureFormat::Rgba8Unorm,
+            [128, 128, 255, 255],
+        ),
+        surface: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default material surface",
+            wgpu::TextureFormat::Rgba8Unorm,
+            [255, 166, 0, 255],
+        ),
+        emissive: create_solid_texture(
+            device,
+            queue,
+            "CDMW Rust Mesh Lab default emissive",
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            [0, 0, 0, 255],
+        ),
+    }
+}
+
+fn create_material_bind_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
-    texture: &wgpu::Texture,
-) -> wgpu::BindGroup {
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("CDMW Rust Mesh Lab texture sampler"),
-        address_mode_u: wgpu::AddressMode::Repeat,
-        address_mode_v: wgpu::AddressMode::Repeat,
-        address_mode_w: wgpu::AddressMode::Repeat,
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::MipmapFilterMode::Linear,
-        ..Default::default()
+    sampler: &wgpu::Sampler,
+    defaults: &DefaultMaterialTextures,
+    textures: &[GpuMaterialTexture],
+    indices: MaterialTextureIndices,
+) -> GpuMaterialBinding {
+    let base_texture = indices
+        .base_color
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.base_color, |texture| &texture._texture);
+    let normal_texture = indices
+        .normal
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.normal, |texture| &texture._texture);
+    let surface_texture = indices
+        .surface
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.surface, |texture| &texture._texture);
+    let emissive_texture = indices
+        .emissive
+        .and_then(|index| textures.get(index))
+        .map_or(&defaults.emissive, |texture| &texture._texture);
+    let base_view = base_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let normal_view = normal_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let surface_view = surface_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let emissive_view = emissive_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let mut flags = 0;
+    if indices.base_color.is_some() {
+        flags |= MATERIAL_BASE_COLOR;
+    }
+    if indices.normal.is_some() {
+        flags |= MATERIAL_NORMAL;
+    }
+    if indices.surface.is_some() {
+        flags |= MATERIAL_SURFACE;
+    }
+    if indices.emissive.is_some() {
+        flags |= MATERIAL_EMISSIVE;
+    }
+    let uniform = MaterialUniform {
+        flags,
+        _padding: [0; 3],
+    };
+    let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("CDMW Rust Mesh Lab material uniform"),
+        contents: bytemuck::bytes_of(&uniform),
+        usage: wgpu::BufferUsages::UNIFORM,
     });
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("CDMW Rust Mesh Lab texture bind group"),
         layout,
         entries: &[
             wgpu::BindGroupEntry {
                 binding: 0,
-                resource: wgpu::BindingResource::TextureView(&view),
+                resource: wgpu::BindingResource::TextureView(&base_view),
             },
             wgpu::BindGroupEntry {
                 binding: 1,
-                resource: wgpu::BindingResource::Sampler(&sampler),
+                resource: wgpu::BindingResource::TextureView(&normal_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::TextureView(&surface_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::TextureView(&emissive_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::Sampler(sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: uniform_buffer.as_entire_binding(),
             },
         ],
-    })
+    });
+    GpuMaterialBinding {
+        bind_group,
+        _uniform_buffer: uniform_buffer,
+    }
 }
 
 fn upload_dds_texture(
@@ -1896,6 +2542,12 @@ mod tests {
     }
 
     #[test]
+    fn material_uniform_and_vertex_match_the_wgsl_layout_contracts() {
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 16);
+        assert_eq!(std::mem::size_of::<GpuVertex>(), 48);
+    }
+
+    #[test]
     fn every_view_mode_has_a_distinct_user_label() {
         let labels = [
             ViewMode::TexturedSolid,
@@ -1972,13 +2624,70 @@ mod tests {
 
     #[test]
     fn material_binding_conflicts_fail_instead_of_retaining_a_previous_guess() {
-        let distinct = [vec![vec![0_u32]], vec![vec![1_u32]]];
-        let bindings = resolve_material_bindings(distinct.iter().map(Vec::as_slice), 0)
-            .expect("distinct material bindings");
-        assert_eq!(bindings, BTreeMap::from([(0, 0), (1, 1)]));
+        let distinct = [
+            (TextureRole::BaseColor, vec![vec![0_u32]]),
+            (TextureRole::Normal, vec![vec![0_u32]]),
+            (TextureRole::BaseColor, vec![vec![1_u32]]),
+        ];
+        let bindings = resolve_material_bindings(
+            distinct
+                .iter()
+                .map(|(role, ownership)| (*role, ownership.as_slice())),
+            0,
+        )
+        .expect("distinct material-role bindings");
+        assert_eq!(
+            bindings,
+            BTreeMap::from([
+                (
+                    0,
+                    MaterialTextureIndices {
+                        base_color: Some(0),
+                        normal: Some(1),
+                        ..MaterialTextureIndices::default()
+                    }
+                ),
+                (
+                    1,
+                    MaterialTextureIndices {
+                        base_color: Some(2),
+                        ..MaterialTextureIndices::default()
+                    }
+                ),
+            ])
+        );
 
-        let conflicting = [vec![vec![0_u32]], vec![vec![0_u32]]];
-        assert!(resolve_material_bindings(conflicting.iter().map(Vec::as_slice), 0).is_err());
+        let conflicting = [
+            (TextureRole::BaseColor, vec![vec![0_u32]]),
+            (TextureRole::BaseColor, vec![vec![0_u32]]),
+        ];
+        assert!(
+            resolve_material_bindings(
+                conflicting
+                    .iter()
+                    .map(|(role, ownership)| (*role, ownership.as_slice())),
+                0
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn tangent_basis_is_derived_from_positions_and_texture_coordinates() {
+        let snapshot = DrawSnapshot {
+            mesh_identity: 1,
+            draw_revision: 1,
+            topology_generation: 1,
+            positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            normals: vec![[0.0, 0.0, 1.0]; 3],
+            uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+            indices: vec![0, 1, 2],
+            triangle_materials: vec![0],
+            selected_vertices: Vec::new(),
+            fingerprint: String::new(),
+        };
+        let tangents = vertex_tangents(&snapshot).expect("tangent basis");
+        assert_eq!(tangents, vec![[1.0, 0.0, 0.0, 1.0]; 3]);
     }
 
     #[test]
