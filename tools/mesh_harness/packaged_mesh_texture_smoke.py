@@ -1332,6 +1332,9 @@ def _helper_identity(mesh_editor_tab: object) -> dict[str, object]:
     configured = getattr(controller, "_configured_executable", None)
     resolution = resolve_mesh_dotnet_experiment_editor(configured)
     helper_path = Path(resolution.resolved_path) if resolution.resolved_path else None
+    ready = _latest_event(mesh_editor_tab, "ready")
+    provenance = ready.get("provenance", {})
+    provenance = dict(provenance) if isinstance(provenance, Mapping) else {}
     return {
         "path": str(helper_path or ""),
         "sha256": _sha256(helper_path) if helper_path is not None and helper_path.is_file() else "",
@@ -1339,6 +1342,7 @@ def _helper_identity(mesh_editor_tab: object) -> dict[str, object]:
         "process_id": int(getattr(controller, "process_id", 0) or 0),
         "process_generation": int(getattr(controller, "process_generation", 0) or 0),
         "capabilities": sorted(str(value) for value in getattr(controller, "capabilities", ())),
+        "provenance": provenance,
         "applied_package_path": str(getattr(controller, "applied_package_path", "") or ""),
         "serving_prewarm_placeholder": bool(
             getattr(controller, "serving_prewarm_placeholder", False)

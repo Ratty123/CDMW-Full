@@ -170,6 +170,21 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
                 "path": "C:/app/Cdmw.MeshEditorExperiment.exe",
                 "sha256": "abc123",
                 "process_id": 777,
+                "capabilities": ["resident_interaction_abi_v1"],
+                "provenance": {
+                    "protocol_version": 3,
+                    "manifest_mode": "release",
+                    "renderer_backend": "d3d11_vortice_shader",
+                    "edit_backend": "cdmw_mesh_core_0.1",
+                    "native_abi": {
+                        "library_path": "C:/app/cdmw-mesh-core.dll",
+                        "library_sha256": "a" * 64,
+                        "abi_version": 1,
+                        "contract": "cdmw_mesh_interaction_abi_v1",
+                        "backend": "cdmw_mesh_core_0.1",
+                        "header_sha256": "b" * 64,
+                    },
+                },
             },
             "application": {
                 "frozen": True,
@@ -243,6 +258,12 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         accepted = _run_texture_gate({"evidence": evidence})
         self.assertEqual(0, accepted.returncode, accepted.stderr)
 
+        evidence["helper"]["provenance"]["native_abi"]["library_sha256"] = ""
+        missing_native_hash = _run_texture_gate({"evidence": evidence})
+        self.assertNotEqual(0, missing_native_hash.returncode)
+        self.assertIn("native interaction ABI", missing_native_hash.stderr)
+        evidence["helper"]["provenance"]["native_abi"]["library_sha256"] = "a" * 64
+
         evidence["select"]["overlay"]["committed_primitives_after"] = 0
         no_highlight = _run_texture_gate({"evidence": evidence})
         self.assertNotEqual(0, no_highlight.returncode)
@@ -280,6 +301,9 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         grab_attempt = source.split("def _perform_actual_grab(", 1)[1].split(
             "def _perform_actual_history_command(", 1
         )[0]
+        helper_identity = source.split("def _helper_identity(", 1)[1].split(
+            "def _application_identity(", 1
+        )[0]
         self.assertIn('"resident_interaction_transaction"', select_attempt)
         self.assertIn('event_name="resident_interaction_transaction"', grab_attempt)
         self.assertIn('{"event": "tool_state", "tool": "orbit"}', grab_attempt)
@@ -287,6 +311,8 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
             grab_attempt.index('{"event": "tool_state", "tool": "orbit"}'),
             grab_attempt.index('_click_button_by_text(form_hwnd, "Grab"'),
         )
+        self.assertIn('_latest_event(mesh_editor_tab, "ready")', helper_identity)
+        self.assertIn('"provenance"', helper_identity)
         self.assertNotIn('"select_request"', select_attempt)
         self.assertNotIn('"stroke_begin"', grab_attempt)
         self.assertNotIn('event_name="stroke_end"', grab_attempt)

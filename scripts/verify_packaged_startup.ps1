@@ -156,6 +156,23 @@ function Assert-PackagedMeshTextureEvidence {
     ) {
         throw "Packaged Mesh Editor smoke did not identify the helper executable it actually ran."
     }
+    $provenance = $evidence.helper.provenance
+    $nativeAbi = $provenance.native_abi
+    if (
+        @($evidence.helper.capabilities) -notcontains "resident_interaction_abi_v1" -or
+        [int64]$provenance.protocol_version -ne 3 -or
+        [string]$provenance.manifest_mode -ne "release" -or
+        [string]$provenance.renderer_backend -ne "d3d11_vortice_shader" -or
+        [string]$provenance.edit_backend -ne "cdmw_mesh_core_0.1" -or
+        [int64]$nativeAbi.abi_version -ne 1 -or
+        [string]$nativeAbi.contract -ne "cdmw_mesh_interaction_abi_v1" -or
+        [string]$nativeAbi.backend -ne "cdmw_mesh_core_0.1" -or
+        [System.IO.Path]::GetFileName([string]$nativeAbi.library_path) -ne "cdmw-mesh-core.dll" -or
+        [string]$nativeAbi.library_sha256 -notmatch "^[0-9a-fA-F]{64}$" -or
+        [string]$nativeAbi.header_sha256 -notmatch "^[0-9a-fA-F]{64}$"
+    ) {
+        throw "Packaged Mesh Editor smoke did not prove the packaged helper native interaction ABI provenance."
+    }
     if (
         $evidence.application.frozen -ne $true -or
         $evidence.application.helper_inside_bundle_root -ne $true -or
