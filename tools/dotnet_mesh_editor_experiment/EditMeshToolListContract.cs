@@ -118,23 +118,15 @@ internal static class EditMeshToolListContract
         Array.Find(RowOrder, row => row.Page == page);
 
     /// <summary>
-    /// Where a row's button sits with nothing expanded. The group label owns a
-    /// cell of its own directly above the first command row, so every command
-    /// row sits one cell lower than its position in <see cref="RowOrder"/>.
+    /// Where a row's button lives permanently. Every row owns the following
+    /// empty cell as its body slot, and the command label owns one cell before
+    /// the first command row.
     /// </summary>
     public static int BaseCell(int rowIndex) =>
-        rowIndex + (rowIndex >= CommandGroupStartIndex ? 1 : 0);
+        (rowIndex * 2) + (rowIndex >= CommandGroupStartIndex ? 1 : 0);
 
     /// <summary>The group label's cell, which never moves relative to the rows above it.</summary>
-    public static int GroupLabelBaseCell => CommandGroupStartIndex;
-
-    /// <summary>
-    /// Where a cell ends up once one row is expanded. The open body occupies the
-    /// cell directly beneath the row that opened it, so everything below that
-    /// point — later rows and the group label alike — moves down by one.
-    /// </summary>
-    public static int ResolvedCell(int baseCell, int? expandedBaseCell) =>
-        expandedBaseCell is { } expanded && baseCell > expanded ? baseCell + 1 : baseCell;
+    public static int GroupLabelBaseCell => CommandGroupStartIndex * 2;
 
     /// <summary>
     /// Where the shared body host sits: directly under the row that opened it,
@@ -143,14 +135,10 @@ internal static class EditMeshToolListContract
     public static int BodyCell(int expandedBaseCell) => expandedBaseCell + 1;
 
     /// <summary>
-    /// The number of table cells the list needs: one per row, one for the group
-    /// label, one for the open body, and a trailing spring that keeps the rows
-    /// packed to the top instead of spreading down the column.
+    /// The number of table cells the list needs: one permanent button and body
+    /// slot per row, one command label, and one trailing spring.
     /// </summary>
-    public static int TableRowCount => RowOrder.Length + 3;
-
-    /// <summary>The cell the body host parks in while nothing is expanded.</summary>
-    public static int ParkedBodyCell => TableRowCount - 1;
+    public static int TableRowCount => (RowOrder.Length * 2) + 2;
 
     /// <summary>
     /// Fails construction when the built list disagrees with the rail

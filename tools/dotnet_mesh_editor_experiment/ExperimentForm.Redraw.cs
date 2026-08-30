@@ -92,10 +92,12 @@ internal sealed partial class ExperimentForm
             {
                 return;
             }
-            _control.PerformLayout();
             _ = SendRedrawMessage(_control.Handle, WmSetRedraw, new IntPtr(1), IntPtr.Zero);
             _control.Invalidate(invalidateChildren: true);
-            _control.Update();
+            // Callers settle the table or splitter they changed. Re-laying the
+            // entire dock and forcing its paint here walks every hidden page
+            // synchronously inside the click handler, which is an input stall.
+            // Let the normal message pump compose the invalidated subtree once.
         }
     }
 }

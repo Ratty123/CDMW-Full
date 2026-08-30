@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import time
 from collections.abc import Mapping
 from ctypes import wintypes
 
@@ -177,7 +178,9 @@ def _click_button_by_text(
 ) -> dict[str, object]:
     """Press one real WinForms button while leaving focus and cursor untouched."""
 
+    discovery_started = time.perf_counter()
     controls = _enumerate_child_windows(root_hwnd, expected_pid=expected_pid)
+    discovery_ms = max(0.0, (time.perf_counter() - discovery_started) * 1000.0)
     matches = [
         row
         for row in controls
@@ -196,6 +199,7 @@ def _click_button_by_text(
             "matched_count": len(matches),
             "usable_count": len(usable),
             "matches": matches,
+            "discovery_ms": round(discovery_ms, 3),
         }
     hwnd = int(target.get("hwnd", 0) or 0)
     ownership_ok = bool(
@@ -203,15 +207,19 @@ def _click_button_by_text(
         and _window_process_id(hwnd) == int(expected_pid)
         and ctypes.windll.user32.IsWindow(ctypes.c_void_p(hwnd))
     )
+    dispatch_started = time.perf_counter()
     sent, _result = (
         _send_control_message(hwnd, _BM_CLICK) if ownership_ok else (False, 0)
     )
+    dispatch_ms = max(0.0, (time.perf_counter() - dispatch_started) * 1000.0)
     return {
         "ok": bool(ownership_ok and sent),
         "requested_text": text,
         "matched_count": len(matches),
         "ownership_ok": ownership_ok,
         "message": "BM_CLICK",
+        "discovery_ms": round(discovery_ms, 3),
+        "message_dispatch_ms": round(dispatch_ms, 3),
         **target,
     }
 

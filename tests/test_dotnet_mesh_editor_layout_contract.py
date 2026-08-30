@@ -551,14 +551,17 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     # header naming a family while a tool was armed cannot come back.
     assert "_toolRailPanelHeader" not in layout
     assert "ApplyToolListExpansion(page);" in show
-    # A null page collapses the list back to rows and parks the body host.
+    # A null page collapses the list back to rows and parks the resident body
+    # offscreen. The page trees remain siblings of the table, so opening a row
+    # changes only one spacer height and never re-parents a realised HWND tree.
     expand = tool_list.split("private void ApplyToolListExpansion", 1)[1]
     expand = expand.split("private void ReopenExpandedRowForActiveTool", 1)[0]
     assert "BeginRedrawBatch(_toolListTable)" in expand
     assert "BeginRedrawBatch()" not in expand
     assert "_appliedToolListExpansionBaseCell == expandedBaseCell" in expand
-    assert "_toolListBodyHost.Visible = expandedBaseCell is not null;" in expand
-    assert "EditMeshToolListContract.ParkedBodyCell" in expand
+    assert "_toolListTable.SetCellPosition(\n                    _toolListBodyHost" not in expand
+    assert "_toolListTable.RowStyles[bodyCell].SizeType = SizeType.Absolute;" in expand
+    assert "_toolListBodyHost.Location = new Point(-10_000, 0);" in expand
 
     # The unopened rail resolves its page from the live tool rather than from a
     # remembered default, and only then marks itself chosen.
@@ -925,6 +928,12 @@ def test_embedded_authoring_tool_panels_build_hidden_before_reveal() -> None:
     assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 3);" in prime_body
     assert "_partPickSection" not in prime_body
     assert "_viewportSection" not in prime_body
+    # The resident pages are first realised during hidden authoring-panel
+    # construction. Shared placement sections join later, but they land in
+    # pages whose HWND and presentation surface are already warm.
+    assert prime_body.index("AddRailSection(_toolRailPages[ToolRailPage.MorphRefit]") < prime_body.index(
+        "PrimeToolRailPagePresentation();"
+    )
 
     # And the result has to stay observable from outside the process.
     assert '["authoring_tool_panels_present"] = _leftToolPanel is not null && _rightToolPanel is not null' in material_protocol

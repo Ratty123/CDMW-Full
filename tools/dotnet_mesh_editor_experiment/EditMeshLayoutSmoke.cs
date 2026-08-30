@@ -556,26 +556,26 @@ internal static partial class EditMeshLayoutSmoke
                 .Count() == EditMeshToolListContract.RowOrder.Length,
             "Two list rows carry the same key, so one names something twice.");
 
-        // The open body sits directly under its row, and everything below it —
-        // later rows and the group label alike — moves down exactly one cell.
+        // Every row and the command label keep permanent cells. Opening a body
+        // expands only the empty slot directly beneath its owner.
         var groupCell = EditMeshToolListContract.GroupLabelBaseCell;
         Require(
-            EditMeshToolListContract.BaseCell(groupCell) == groupCell + 1,
+            EditMeshToolListContract.BaseCell(EditMeshToolListContract.CommandGroupStartIndex)
+                == groupCell + 1,
             "The command group label no longer owns a cell above the command rows.");
         var firstToolCell = EditMeshToolListContract.BaseCell(0);
         Require(
-            EditMeshToolListContract.ResolvedCell(firstToolCell, null) == firstToolCell
-                && EditMeshToolListContract.ResolvedCell(firstToolCell, firstToolCell) == firstToolCell
-                && EditMeshToolListContract.ResolvedCell(firstToolCell + 1, firstToolCell)
-                    == firstToolCell + 2,
-            "Opening a row no longer pushes the rows below it down by one.");
+            firstToolCell == 0
+                && EditMeshToolListContract.BaseCell(1) == firstToolCell + 2,
+            "Tool rows no longer reserve one permanent body slot each.");
         Require(
             EditMeshToolListContract.BodyCell(firstToolCell) == firstToolCell + 1,
             "The open body no longer sits directly under the row that opened it.");
         Require(
-            EditMeshToolListContract.ParkedBodyCell
-                == EditMeshToolListContract.TableRowCount - 1,
-            "The closed body host no longer parks below every row.");
+            EditMeshToolListContract.TableRowCount
+                > EditMeshToolListContract.BodyCell(
+                    EditMeshToolListContract.BaseCell(EditMeshToolListContract.RowOrder.Length - 1)),
+            "The final tool row no longer owns a body slot inside the table.");
     }
 
     /// <summary>

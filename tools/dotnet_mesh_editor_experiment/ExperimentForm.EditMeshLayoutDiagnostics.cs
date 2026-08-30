@@ -179,7 +179,11 @@ internal sealed partial class ExperimentForm
     {
         try
         {
-            page.Visible = visible;
+            page.Enabled = visible;
+            page.TabStop = visible;
+            _ = ToolRailNative.ShowWindow(
+                page.Handle,
+                visible ? ToolRailNative.SwShowNoActivate : ToolRailNative.SwHide);
             return true;
         }
         catch (System.ComponentModel.Win32Exception ex)
@@ -244,6 +248,8 @@ internal sealed partial class ExperimentForm
     {
         internal const int GwlStyle = -16;
         internal const int WsVisible = 0x10000000;
+        internal const int SwHide = 0;
+        internal const int SwShowNoActivate = 4;
 
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
         internal struct Rect
@@ -265,5 +271,8 @@ internal sealed partial class ExperimentForm
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         internal static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern bool ShowWindow(IntPtr hwnd, int command);
     }
 }

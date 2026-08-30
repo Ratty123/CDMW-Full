@@ -229,6 +229,12 @@ def test_layout_transitions_paint_once_instead_of_step_by_step() -> None:
     assert "_form.Invalidate(invalidateChildren: true);" in form_batch
     assert "_form.Update();" in form_batch
     assert "internal readonly struct ControlRedrawBatch" in redraw_source
+    control_batch = redraw_source.split(
+        "internal readonly struct ControlRedrawBatch", maxsplit=1
+    )[1]
+    assert "_control.Invalidate(invalidateChildren: true);" in control_batch
+    assert "_control.PerformLayout();" not in control_batch
+    assert "_control.Update();" not in control_batch
 
     # Nested batches must not thaw the window early.
     assert "_redrawBatchDepth" in redraw_source

@@ -188,7 +188,11 @@ internal sealed partial class ExperimentForm
         // The left flank swaps the placement panel for the Edit Mesh tools.
         // Keeping tools here leaves the resident viewport between the two
         // control columns instead of stacking every control on its right.
-        _leftToolModeHost = new MeshEditorCompositedPanel
+        // WS_EX_COMPOSITED on this host repaints every resident settings page
+        // back-to-front during a click. The pages and row table already buffer
+        // themselves, so a buffered host avoids that synchronous whole-tree
+        // paint while retaining flicker-free page transitions.
+        _leftToolModeHost = new MeshEditorBufferedPanel
         {
             Name = "DotNetMeshEditorLeftToolModeHost",
             Dock = DockStyle.Fill,
@@ -376,13 +380,16 @@ internal sealed partial class ExperimentForm
 
     private static Panel CreateToolRailPage(ToolRailPage page)
     {
-        // Natural height, so the scrolling column measures only the visible tool.
+        // Every page occupies the same resident body. A fixed presentation
+        // surface keeps page switches from resizing either tool splitter.
         return new MeshEditorBufferedPanel
         {
             Name = $"EditMeshToolRail{page}Page",
-            Dock = DockStyle.Top,
-            AutoSize = true,
+            Dock = DockStyle.None,
+            AutoSize = false,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Size = new Size(260, 800),
+            Location = Point.Empty,
             Visible = false,
             Margin = new Padding(0),
             Padding = new Padding(0),
@@ -567,6 +574,7 @@ internal sealed partial class ExperimentForm
             if (_toolDock is not null)
             {
                 _toolDock.Visible = false;
+                _toolRailPagePresentationApplied = false;
             }
             if (_sceneInspectorColumn?.Parent?.Parent is { } inspector)
             {
@@ -761,6 +769,7 @@ internal sealed partial class ExperimentForm
         AddRailSection(_sceneInspectorColumn, _colourSection, row: 1);
         AddRailSection(_sceneInspectorColumn, _layersSection, row: 2);
         AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 3);
+        PrimeToolRailPagePresentation();
     }
 
     private static void NormalizeSectionStyle(Control section)
@@ -844,8 +853,8 @@ internal sealed partial class ExperimentForm
         {
             SetButtonAccent(pair.Value, pair.Key == page);
         }
-        // The tool buttons accent by the armed tool, not the visible page.
-        RefreshToolButtonStates();
+        // Tool accents belong to SetActiveTool. Reveal-only pages leave them
+        // untouched, and a tool-driven reveal has already refreshed them once.
         // No dock header to retitle: the open row names the page, which is why
         // the header could never disagree with the armed tool again.
         ApplyToolListExpansion(page);

@@ -15,6 +15,7 @@ namespace Cdmw.MeshEditorExperiment;
 internal sealed partial class ExperimentForm
 {
     private const int ToolListRowHeight = 30;
+    private const int ToolListBodyHeight = 800;
 
     private MeshEditorBufferedTableLayoutPanel? _toolListTable;
     private MeshEditorBufferedPanel? _toolListBodyHost;
@@ -32,6 +33,7 @@ internal sealed partial class ExperimentForm
     private bool _toolListExpansionApplied;
     private int? _appliedToolListExpansionBaseCell;
     private int _toolListExpansionGeneration;
+    private bool _toolRailPagesPrimed;
 
     /// <summary>
     /// The single column: a scrolling list of rows with one body host that moves
@@ -89,8 +91,9 @@ internal sealed partial class ExperimentForm
         {
             Name = "EditMeshToolListBodyHost",
             Dock = DockStyle.Top,
-            AutoSize = true,
+            AutoSize = false,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Height = ToolListBodyHeight,
             Margin = new Padding(0, 0, 0, 4),
             Padding = new Padding(8, 6, 6, 3),
             BackColor = ThemeSectionBackground,
@@ -121,11 +124,36 @@ internal sealed partial class ExperimentForm
         _railSelectionStack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _toolRailPages[ToolRailPage.Selection].Controls.Add(_railSelectionStack);
 
-        _toolListTable.Controls.Add(_toolListBodyHost, 0, EditMeshToolListContract.ParkedBodyCell);
-        _toolListBodyHost.Visible = false;
-
         _toolListScroll.Controls.Add(_toolListTable);
+        _toolListScroll.Controls.Add(_toolListBodyHost);
+        _toolListBodyHost.Location = new Point(-10_000, 0);
+        _toolListBodyHost.Visible = true;
+        _toolListBodyHost.BringToFront();
         return _toolListScroll;
+    }
+
+    private void PrimeToolRailPagePresentation()
+    {
+        if (_toolRailPagesPrimed || _toolListBodyHost is null || _toolListTable is null)
+        {
+            return;
+        }
+        _toolListBodyHost.PerformLayout();
+        foreach (var page in _toolRailPages.Values)
+        {
+            page.Visible = true;
+            page.PerformLayout();
+            var size = page.ClientSize;
+            if (size.Width > 0 && size.Height > 0)
+            {
+                using var bitmap = new Bitmap(size.Width, size.Height);
+                page.DrawToBitmap(bitmap, page.ClientRectangle);
+            }
+            _ = ToolRailNative.ShowWindow(page.Handle, ToolRailNative.SwHide);
+            page.Enabled = false;
+            page.TabStop = false;
+        }
+        _toolRailPagesPrimed = true;
     }
 
     /// <summary>
@@ -273,14 +301,13 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
-    /// Moves the open body under the row that opened it and pushes everything
-    /// below down one cell. Cell moves inside one parent are not re-parents, so
-    /// this never issues a SetParent and cannot hit the embedded-host failure
-    /// that page reveal has to guard against.
+    /// Moves the open body over the permanent slot under the row that opened it.
+    /// Buttons never change cells, so switching pages cannot re-parent controls
+    /// or spend the click handler relocating the rest of the list.
     /// </summary>
     private void ApplyToolListExpansion(ToolRailPage? page)
     {
-        if (_toolListTable is null || _toolListBodyHost is null || _toolListGroupLabel is null)
+        if (_toolListTable is null || _toolListBodyHost is null)
         {
             return;
         }
@@ -291,9 +318,9 @@ internal sealed partial class ExperimentForm
         if (_toolListExpansionApplied
             && _appliedToolListExpansionBaseCell == expandedBaseCell)
         {
-            ScrollOpenRowIntoView(expandedRow);
             return;
         }
+        var previousExpandedBaseCell = _appliedToolListExpansionBaseCell;
 
         // The two tools that share a page reach this without ShowToolRailPage:
         // arming Inflate after Smooth leaves the page where it is, so only the
@@ -305,46 +332,47 @@ internal sealed partial class ExperimentForm
             _toolListTable.SuspendLayout();
             try
             {
-                foreach (var row in EditMeshToolListContract.RowOrder)
+                if (previousExpandedBaseCell is { } previous)
                 {
-                    var button = ToolListButtonFor(row);
-                    if (button is null)
-                    {
-                        continue;
-                    }
-                    var baseCell = EditMeshToolListContract.BaseCell(
-                        EditMeshToolListContract.IndexOfRow(row));
-                    _toolListTable.SetCellPosition(
-                        button,
-                        new TableLayoutPanelCellPosition(
-                            0,
-                            EditMeshToolListContract.ResolvedCell(baseCell, expandedBaseCell)));
+                    var previousBodyCell = EditMeshToolListContract.BodyCell(previous);
+                    _toolListTable.RowStyles[previousBodyCell].SizeType = SizeType.AutoSize;
+                    _toolListTable.RowStyles[previousBodyCell].Height = 0;
                 }
-                _toolListTable.SetCellPosition(
-                    _toolListGroupLabel,
-                    new TableLayoutPanelCellPosition(
-                        0,
-                        EditMeshToolListContract.ResolvedCell(
-                            EditMeshToolListContract.GroupLabelBaseCell,
-                            expandedBaseCell)));
-                _toolListTable.SetCellPosition(
-                    _toolListBodyHost,
-                    new TableLayoutPanelCellPosition(
-                        0,
-                        expandedBaseCell is { } cell
-                            ? EditMeshToolListContract.BodyCell(cell)
-                            : EditMeshToolListContract.ParkedBodyCell));
-                _toolListBodyHost.Visible = expandedBaseCell is not null;
+                if (expandedBaseCell is { } cell)
+                {
+                    var bodyCell = EditMeshToolListContract.BodyCell(cell);
+                    _toolListTable.RowStyles[bodyCell].SizeType = SizeType.Absolute;
+                    _toolListTable.RowStyles[bodyCell].Height =
+                        _toolListBodyHost.Height + _toolListBodyHost.Margin.Vertical;
+                }
             }
             finally
             {
                 _toolListTable.ResumeLayout(performLayout: true);
             }
         }
+        if (expandedBaseCell is { } expanded)
+        {
+            var bodyCell = EditMeshToolListContract.BodyCell(expanded);
+            var rowHeights = _toolListTable.GetRowHeights();
+            var bodyTop = _toolListTable.Top + _toolListTable.Padding.Top;
+            for (var row = 0; row < bodyCell; row++)
+            {
+                bodyTop += rowHeights[row];
+            }
+            _toolListBodyHost.SetBounds(
+                _toolListTable.Left,
+                bodyTop,
+                _toolListTable.ClientSize.Width,
+                _toolListBodyHost.Height);
+        }
+        else
+        {
+            _toolListBodyHost.Location = new Point(-10_000, 0);
+        }
         _toolListExpansionApplied = true;
         _appliedToolListExpansionBaseCell = expandedBaseCell;
         _toolListExpansionGeneration++;
-        ScrollOpenRowIntoView(expandedRow);
     }
 
     /// <summary>
@@ -364,34 +392,6 @@ internal sealed partial class ExperimentForm
         {
             ApplyToolListExpansion(value);
         }
-    }
-
-    /// <summary>
-    /// Opening the last row puts its settings below the fold, so the row and as
-    /// much of its body as fits are brought into view. Scrolling to the body
-    /// alone would push the row that names it off the top.
-    /// </summary>
-    private void ScrollOpenRowIntoView(ToolListRow? expandedRow)
-    {
-        if (expandedRow is null || _toolListScroll is null || !_toolListScroll.AutoScroll)
-        {
-            return;
-        }
-        var button = ToolListButtonFor(expandedRow);
-        if (button is null || !button.IsHandleCreated)
-        {
-            return;
-        }
-        // Only scroll when the row is actually out of view. ScrollControlIntoView
-        // walks and re-lays out the scroll host every time it is called, and for
-        // the rows already on screen -- which is most clicks -- that work buys
-        // nothing and is felt as the column hitching under the pointer.
-        var top = button.Top + _toolListScroll.AutoScrollPosition.Y;
-        if (top >= 0 && top + button.Height <= _toolListScroll.ClientSize.Height)
-        {
-            return;
-        }
-        _toolListScroll.ScrollControlIntoView(button);
     }
 
     /// <summary>

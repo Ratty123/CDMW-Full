@@ -288,6 +288,7 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         self.assertIn('command_text="Undo"', source)
         self.assertIn('command_text="Redo"', source)
         self.assertIn("_exercise_actual_control_continuity(", source)
+        self.assertIn('control.get("message_dispatch_ms"', source)
         self.assertIn('_select_combo_item_by_text(\n        form_hwnd,\n        "Solid (Textured)"', source)
         self.assertIn('"global_mouse_input_used": False', source)
         self.assertIn("runtime_event_requested.connect(capture_runtime_event)", source)

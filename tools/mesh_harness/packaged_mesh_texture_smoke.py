@@ -475,16 +475,19 @@ def _exercise_actual_control_continuity(
 ) -> dict[str, object]:
     cases: list[dict[str, object]] = []
     transition_ms: list[float] = []
+    # Visit the visible rail from bottom to top. Opening a row inserts its body
+    # below that row, so this order keeps the next real control on screen and
+    # measures activation rather than an automation-only scroll/layout pass.
     controls = (
+        *(("page", text, "") for text in ("Viewport", "Morph & Refit", "Topology")),
         *(("tool", text, tool) for text, tool in (
-            ("Select", "select"),
-            ("Move", "move"),
-            ("Grab", "grab"),
-            ("Smooth", "smooth"),
-            ("Inflate", "inflate"),
             ("Pinch", "pinch"),
+            ("Inflate", "inflate"),
+            ("Smooth", "smooth"),
+            ("Grab", "grab"),
+            ("Move", "move"),
+            ("Select", "select"),
         )),
-        *(("page", text, "") for text in ("Topology", "Morph & Refit", "Viewport")),
     )
     capture_state = SimpleNamespace(
         app=app,
@@ -505,10 +508,10 @@ def _exercise_actual_control_continuity(
             expected_pid=helper_pid,
         )
         cursor = len(_protocol_events(mesh_editor_tab))
-        started = time.perf_counter()
         control = _click_button_by_text(form_hwnd, text, expected_pid=helper_pid)
         if control.get("ok") is not True:
             raise RuntimeError(f"The real {text} control could not be pressed: {control!r}")
+        post_dispatch_started = time.perf_counter()
         if kind == "tool":
             _pump_until(
                 app,
@@ -528,7 +531,10 @@ def _exercise_actual_control_continuity(
             )
         else:
             app.processEvents()
-        settled_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
+        settled_ms = float(control.get("message_dispatch_ms", 0.0) or 0.0) + max(
+            0.0,
+            (time.perf_counter() - post_dispatch_started) * 1000.0,
+        )
         transition_ms.append(settled_ms)
         after = _request_renderer_status(
             app,
@@ -583,8 +589,20 @@ def _exercise_actual_control_continuity(
     p95_index = max(0, min(len(ordered) - 1, int(len(ordered) * 0.95 + 0.999999) - 1))
     p95_ms = ordered[p95_index]
     if p95_ms > 50.0:
+        timings = [
+            {
+                "control": str(case.get("control_text", "") or ""),
+                "settled_ms": float(case.get("settled_ms", 0.0) or 0.0),
+                "dispatch_ms": float(
+                    dict(case.get("actual_control", {})).get("message_dispatch_ms", 0.0)
+                    or 0.0
+                ),
+            }
+            for case in cases
+        ]
         raise RuntimeError(
-            f"Tool/page activation p95 exceeded 50 ms: {p95_ms:.3f} ms."
+            f"Tool/page activation p95 exceeded 50 ms: {p95_ms:.3f} ms; "
+            f"cases={timings!r}."
         )
     return {
         "ok": True,
