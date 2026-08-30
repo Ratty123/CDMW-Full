@@ -61,7 +61,7 @@ from cdmw.workers.localization_workers import (
     LanguageImportRequest,
     run_language_import,
 )
-from scripts.generate_ui_localization_manifest import build_manifest
+from scripts.generate_ui_localization_manifest import _html_segments, build_manifest
 from scripts.validate_ui_localization_catalogs import (
     _has_encoding_damage,
     _preserves_layout_whitespace,
@@ -1336,6 +1336,18 @@ def test_generated_manifest_and_catalog_validation_are_current() -> None:
         "Click anywhere on the body to create a socket at that spot.",
         "socket in use",
         "Updating app colors and preview panes...",
+        "No Matching Topics",
+        (
+            "No topic contains every search word. Try fewer words or search for "
+            "a tool, action, file format, or setting."
+        ),
+        "{count} topics",
+        "Compatible  ·  {value_0} target",
+        "Compatible  ·  {value_0} targets",
+        (
+            ". Unsupported controls remain visible but fail closed with their "
+            "own policy- and state-specific explanation."
+        ),
         " Placement workspace has {value_0} prefab/socket chain(s).",
         (
             "Build a loose mod package for edited prefab?\n\n"
@@ -1343,6 +1355,8 @@ def test_generated_manifest_and_catalog_validation_are_current() -> None:
             "Original game archives will not be modified."
         ),
     } <= keys
+    assert "Recolor Variants" not in keys
+    assert "Compatible  ·  {value_0} target{value_1}" not in keys
     entries = {entry["key"]: entry for entry in packaged["entries"]}
     assert any(
         origin["sink"] == "python-return:_preview_match_status_text"
@@ -1410,4 +1424,12 @@ def test_generated_manifest_and_catalog_validation_are_current() -> None:
         for origin in entries["socket in use"]["origins"]
     )
     assert entries["Updating app colors and preview panes..."]["manual"] is True
+    assert entries["No Matching Topics"]["manual"] is True
+    assert entries["{count} topics"]["manual"] is True
     assert validate_catalogs() == (14, len(SOURCE_STRING_CATALOGUE))
+
+
+def test_html_manifest_keeps_sentence_after_inline_tag() -> None:
+    source = "<p><b>Policy</b>. Unsupported controls remain visible.</p>"
+
+    assert ". Unsupported controls remain visible." in _html_segments(source)

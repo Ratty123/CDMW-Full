@@ -193,42 +193,46 @@ def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> Non
     assert german.translate("Reattach All Tools") == "Alle Werkzeuge wieder andocken"
     assert spanish.translate("Reattach Tool") == "Volver a acoplar herramienta"
     assert german.translate("Reattach Tool") == "Werkzeug wieder andocken"
-    assert spanish.translate("Show Text Search") == "Mostrar busqueda de texto"
+    assert spanish.translate("Show Text Search") == "Mostrar búsqueda de texto"
     assert german.translate("Show Text Search") == "Textsuche anzeigen"
-    assert spanish.translate("Texture Research") == "Investigacion de texturas"
+    assert spanish.translate("Texture Research") == "Investigación de texturas"
     assert german.translate("Texture Research") == "Textur-Recherche"
-    assert spanish.translate("Show Texture Research") == "Mostrar investigacion de texturas"
+    assert spanish.translate("Show Texture Research") == "Mostrar investigación de texturas"
     assert german.translate("Show Texture Research") == "Textur-Recherche anzeigen"
-    assert spanish.translate("Research") == "Investigacion"
+    assert spanish.translate("Research") == "Investigación"
     assert german.translate("Research") == "Recherche"
-    assert spanish.translate("Show Research") == "Mostrar investigacion"
+    assert spanish.translate("Show Research") == "Mostrar investigación"
     assert german.translate("Show Research") == "Recherche anzeigen"
-    assert spanish.translate("Global font size (8-15 px)") == "Tamano de fuente global (8-15 px)"
-    assert german.translate("Lists / columns font size (8-15 px)") == "Schriftgroesse fuer Listen / Spalten (8-15 px)"
+    assert spanish.translate("Global font size (8-15 px)") == "Tamaño de fuente global (8-15 px)"
+    assert german.translate("Lists / columns font size (8-15 px)") == "Schriftgröße für Listen / Spalten (8-15 px)"
     assert spanish.translate("Existing PNG folder") == "Carpeta PNG existente"
     assert german.translate("Rebuilt DDS folder") == "Neu erstellter DDS-Ordner"
     assert spanish.translate("Shortcuts") == "Atajos"
-    assert german.translate("Shortcuts") == "Tastenkurzel"
+    assert german.translate("Shortcuts") == "Tastenkürzel"
     assert spanish.translate("Composite Preview...") == "Vista previa compuesta..."
     assert german.translate("Composite Preview...") == "Kompositvorschau..."
     assert spanish.translate("Solid (Textured)") == "Sólido (texturizado)"
     assert german.translate("Solid (Textured)") == "Solide (texturiert)"
     assert spanish.translate("Build Mod") == "Construir mod"
     assert german.translate("Build Mod") == "Build-Mod"
-    assert spanish.translate("Review Compare") == "Revisar comparacion"
-    assert german.translate("Review Compare") == "Vergleich pruefen"
+    assert spanish.translate("Review Compare") == "Revisar comparación"
+    assert german.translate("Review Compare") == "Vergleich prüfen"
     assert spanish.translate("Placement & Animations") == "Colocación y animaciones"
     assert german.translate("Placement & Animations") == "Platzierung & Animationen"
     assert spanish.translate("Texture Upscaling & Editing") == "Escalado y edición de texturas"
     assert german.translate("Texture Upscaling & Editing") == "Textur-Hochskalierung & -Bearbeitung"
     assert spanish.translate("Texture Recolor") == "Recoloración de texturas"
     assert german.translate("Texture Recolor") == "Textur-Umfärbung"
-    assert spanish.translate("Recolor Variants") == "Variantes de recolor"
-    assert german.translate("Recolor Variants") == "Umfaerbungsvarianten"
+    assert "Quick Start" not in spanish.translations
+    assert "Quick Start" not in german.translations
+    assert "Recolor Variants" not in spanish.translations
+    assert "Recolor Variants" not in german.translations
     assert spanish.translate("Translations") == "Traducciones"
     assert german.translate("Translations") == "Übersetzungen"
+    assert spanish.translate("Documentation") == "Documentación"
+    assert german.translate("Documentation") == "Dokumentation"
     assert spanish.translate("Stowed / on body") == "Guardado / en el cuerpo"
-    assert german.translate("Stowed / on body") == "Verstaut / am Koerper"
+    assert german.translate("Stowed / on body") == "Verstaut / am Körper"
     assert spanish.translate("Held / in hand") == "Sostenido / en mano"
     assert german.translate("Held / in hand") == "Gehalten / in der Hand"
     assert spanish.translate("Retrofit/Repackage Mods") == "Adaptar/reempaquetar mods"
@@ -252,6 +256,28 @@ def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> Non
     assert spanish.translate(
         "Paint tool active. Brush presets, image stamps, patterns, and symmetry are available here. Alt+click samples a color into the paint swatch."
     ).startswith("Herramienta de pintura activa.")
+
+
+def test_reviewed_rotation_labels_do_not_use_decay_or_lot_translations() -> None:
+    expected = {
+        "de": "Drehung X",
+        "es-ES": "Rotación X",
+        "es-419": "Rotación X",
+        "fr": "Rotation X",
+        "it": "Rotazione X",
+        "pt-BR": "Rotação X",
+        "pl": "Obrót X",
+        "ru": "Поворот X",
+        "tr": "Döndürme X",
+        "ja": "回転 X",
+        "ko": "회전 X",
+        "zh-Hans": "旋转 X",
+        "zh-Hant": "旋轉 X",
+    }
+    for code, value in expected.items():
+        localizer = UiLocalizer(language_dir=Path("__unused__"), language_code=code)
+        assert localizer.translate("Rot X") == value
+        assert localizer.translate("glob") == "glob"
 
 
 def test_builtin_fallback_translates_short_unlisted_gui_labels() -> None:

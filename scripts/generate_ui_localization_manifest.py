@@ -55,14 +55,18 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Ignore",
         "LZ4",
         "No",
+        "No Matching Topics",
         "No to All",
         "No placement chain",
+        (
+            "No topic contains every search word. Try fewer words or search for "
+            "a tool, action, file format, or setting."
+        ),
         "OK",
         "Open",
         "Partial",
         "Path hint",
         "QuickLZ",
-        "Recolor Variants",
         "Reset",
         "Restore Defaults",
         "Retry",
@@ -104,6 +108,7 @@ MANUAL_SOURCE_KEYS = frozenset(
         "texture",
         "warning",
         "{count} files",
+        "{count} topics",
         # Associated Assets group headers. They are rendered from
         # `cdmw.domain.archives.association_vocabulary.ASSET_FAMILY_GROUP_ORDER`
         # so the panel, the dialog and the graph builder cannot disagree about
@@ -123,6 +128,7 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Textures",
     }
 )
+RETIRED_MANUAL_SOURCE_KEYS = frozenset({"Recolor Variants"})
 
 _MULTI_VALUE_SINKS = {
     "addItems",
@@ -409,7 +415,17 @@ def _html_segments(value: str) -> tuple[str, ...]:
             " ",
             html.unescape(segment).strip(),
         )
-        if _looks_like_translatable_text(normalized):
+        # Runtime rich-text translation keeps punctuation after an inline tag.
+        # A leading ". " is sentence text here, not the path-like value that
+        # the general source filter deliberately excludes.
+        sentence_after_tag = (
+            normalized[1:].lstrip()
+            if normalized.startswith(". ")
+            else normalized
+        )
+        if _looks_like_translatable_text(
+            normalized
+        ) or _looks_like_translatable_text(sentence_after_tag):
             segments.add(normalized)
     return tuple(sorted(segments))
 
@@ -1744,7 +1760,7 @@ def _load_existing_manual_sources() -> set[str]:
         for entry in payload.get("entries", ()):
             if isinstance(entry, dict) and entry.get("manual"):
                 key = str(entry.get("key", ""))
-                if key:
+                if key and key not in RETIRED_MANUAL_SOURCE_KEYS:
                     manual.add(key)
         return manual
     try:
@@ -1845,6 +1861,8 @@ def _english_catalog(manifest: dict[str, object]) -> dict[str, object]:
             key: (
                 {"one": "{count} file", "other": "{count} files"}
                 if key == "{count} files"
+                else {"one": "{count} topic", "other": "{count} topics"}
+                if key == "{count} topics"
                 else key
             )
             for key in keys
