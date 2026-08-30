@@ -130,7 +130,7 @@ internal sealed partial class ExperimentForm
     {
 
         // The list itself is the production registry for the six modal tools
-        // and three reveal-only pages; no caption copy is used to find them.
+        // and two reveal-only pages; no caption copy is used to find them.
         foreach (var key in EditMeshLayoutContracts.RailToolOrder)
         {
             Add(
@@ -153,13 +153,6 @@ internal sealed partial class ExperimentForm
             "ExperimentForm.ToolList",
             "ShowToolRailPage(MorphRefit)",
             _toolRailPageButtons.GetValueOrDefault(ToolRailPage.MorphRefit));
-        Add(
-            "page.viewport",
-            "camera_display",
-            "ExperimentForm.ToolList",
-            "ShowToolRailPage(Viewport)",
-            _toolRailPageButtons.GetValueOrDefault(ToolRailPage.Viewport));
-
         Add("session.clear_selection", "session", "ExperimentForm.ToolPanels", "WriteCommandRequest(clear_selection)", _sessionClearSelectionButton);
         Add("session.select_all", "session", "ExperimentForm.ToolPanels", "WriteCommandRequest(select_all)", _sessionSelectAllButton);
         Add("session.invert", "session", "ExperimentForm.ToolPanels", "WriteCommandRequest(invert)", _sessionInvertButton);
@@ -396,11 +389,11 @@ internal sealed partial class ExperimentForm
                 "material_colour.unavailable",
                 "material_colour",
                 "ExperimentForm.ColourSection",
-                "no constructed production control",
+                "removed from Mesh Editor construction",
                 ContractDisabled,
                 "not_reachable",
-                "The production form does not currently construct its Colour authoring section.",
-                "known_control_gap");
+                "Mesh Editor no longer exposes the obsolete Colour authoring section.",
+                "removed_control_contract");
         }
 
         AddHostOwned(

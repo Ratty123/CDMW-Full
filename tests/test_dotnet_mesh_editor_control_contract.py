@@ -94,10 +94,7 @@ def test_real_mesh_editor_control_tree_is_fully_classified() -> None:
         "topology.delete_selection",
         "parts.selection",
         "layers.list",
-        "colour.tint",
-        "colour.recolour",
-        "colour.emissive_enabled",
-        "colour.reset",
+        "material_colour.unavailable",
         "morph.profile",
         "refit.apply",
         "display.mode",
@@ -108,7 +105,9 @@ def test_real_mesh_editor_control_tree_is_fully_classified() -> None:
         "import.open_package",
         "policy.exact_free_edit",
     }.issubset(by_key)
-    assert "material_colour.unavailable" not in by_key
+    assert "page.viewport" not in by_key
+    assert by_key["material_colour.unavailable"]["disposition"] == "deliberately_disabled"
+    assert "no longer exposes" in by_key["material_colour.unavailable"]["reason"]
     assert all(row["owner"] and row["route"] and row["evidence_category"] for row in rows)
     assert {row["disposition"] for row in rows} <= {
         "executable",

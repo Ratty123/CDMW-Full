@@ -216,8 +216,6 @@ internal sealed partial class ExperimentForm
         _partsSection.Name = "CompactPartsSection";
         _meshEditOnlySections.Add(_partsSection);
         StartupTiming.Mark("parts_section_built");
-        _colourSection = BuildColourSection(rightStack);
-        StartupTiming.Mark("colour_section_built");
         _layersSection = BuildGeometryLayersSection(rightStack);
         _layersSection.Name = "CompactGeometryLayersSection";
         _meshEditOnlySections.Add(_layersSection);

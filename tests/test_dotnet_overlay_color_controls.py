@@ -172,7 +172,7 @@ def test_opening_morph_page_preserves_renderer_and_camera_state() -> None:
     assert report["before"]["active_tool"] == "orbit"
     assert report["before"]["helper_pid"] > 0
     assert report["before"]["viewport_hwnd"] > 0
-    assert len(report["activation_cases"]) == 9
+    assert len(report["activation_cases"]) == 8
     assert all(case["stable"] for case in report["activation_cases"])
 
 

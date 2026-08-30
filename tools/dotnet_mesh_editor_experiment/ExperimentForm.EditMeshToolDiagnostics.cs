@@ -82,14 +82,13 @@ internal sealed partial class ExperimentForm
         new[]
         {
             "◰    Select", "✥    Move", "✜    Grab", "◍    Smooth", "◉    Inflate",
-            "◇    Pinch", "△    Topology", "◑    Morph & Refit", "▣    Viewport",
+            "◇    Pinch", "△    Topology", "◑    Morph & Refit",
             "Clear Selection", "Select All", "Invert", "Undo", "Redo",
             "Free Edit Output...",
             "Grow", "Shrink", "-X", "+X", "-Y", "+Y", "-Z", "+Z",
             "Delete Selection", "Duplicate Selection", "Subdivide", "Refine Smooth",
             "All", "None", "Duplicate", "Delete", "Copy", "Paste",
             "Rename", "Up", "Down",
-            "Tint...", "Recolour...", "Glow...", "Reset Colour",
             "Create Profile...", "Save Profile", "Delete Profile", "Save Preset...", "Delete Preset",
             "1. Set Selected Driver Parts", "2. Bind Selected Garment Parts", "Clear Refit",
             "Apply to Selected Garments", "Reset", "Bake",
@@ -957,14 +956,6 @@ internal sealed partial class ExperimentForm
             "morph",
             ToolRailPage.MorphRefit,
             () => WriteCommandRequest("morph_state_request") > 0));
-        rows.Add(RunEditMeshCommandPageDiagnostic(
-            "viewport",
-            ToolRailPage.Viewport,
-            () =>
-            {
-                _viewport.FrameMesh();
-                return true;
-            }));
         return rows;
     }
 

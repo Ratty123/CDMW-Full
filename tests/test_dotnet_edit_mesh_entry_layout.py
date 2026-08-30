@@ -1,6 +1,6 @@
-"""Opening Edit Mesh must leave the scene inspector already settled.
+"""Opening Edit Mesh must leave both side columns settled and usable.
 
-The rail adopts the Parts, Colour, Layers and Action History sections from the placement
+The rail adopts the Parts, Layers and Action History sections from the placement
 flanks with every layout suspended, and resumes without a pass of its own.
 Nothing downstream is guaranteed to force the measure: a form-wide layout
 only cascades where a bound actually changes. A section left on its previous
@@ -107,18 +107,37 @@ def test_the_scene_inspector_opens_settled_and_inside_its_column(
     assert proof["three_pane_order"] is True
     assert proof["viewport_visible_for_all_pages"] is True
     widths = proof["compact_viewport_widths_by_page"]
-    assert len(widths) == 6
+    assert len(widths) == 5
     assert all(width >= proof["minimum_viewport_width"] for width in widths.values())
     assert len(set(widths.values())) == 1, json.dumps(widths, indent=2)
     # Stability alone is not enough: a column that clips every section the same
     # way before and after a resize is stable and still unusable.
     assert proof["sections_overflowing_column"] == []
-    # All four rows, each inside the column, none sharing a top edge with
+    # All three rows, each inside the column, none sharing a top edge with
     # another -- overlapping rows are what the reader actually reports.
     bounds = proof["bounds_after_entry"]
-    assert len(bounds) == 4, json.dumps(proof["diagnostic"], indent=2)
+    assert len(bounds) == 3, json.dumps(proof["diagnostic"], indent=2)
     tops = [int(value.split(",")[1]) for value in bounds.values()]
-    assert len(set(tops)) == 4, json.dumps(bounds, indent=2)
+    assert len(set(tops)) == 3, json.dumps(bounds, indent=2)
+
+
+@pytest.mark.parametrize(
+    "key",
+    ("tool_column_layout", "tool_column_layout_embedded"),
+)
+def test_viewport_settings_stay_pinned_and_tool_pages_open_at_content_height(
+    key: str,
+    entry_report: dict,
+) -> None:
+    proof = entry_report[key]
+
+    assert proof["ok"] is True, json.dumps(proof, indent=2)
+    assert proof["viewport_pinned"] is True
+    assert proof["viewport_row_removed"] is True
+    assert proof["colour_removed"] is True
+    assert len(proof["page_layouts"]) == 5
+    assert all(page["ok"] is True for page in proof["page_layouts"])
+    assert all(page["unused_height"] <= 16 for page in proof["page_layouts"])
 
 
 def test_live_ui_theme_recolors_the_real_resident_form(entry_report: dict) -> None:

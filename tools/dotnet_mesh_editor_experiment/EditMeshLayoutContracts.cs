@@ -3,9 +3,9 @@ namespace Cdmw.MeshEditorExperiment;
 /// <summary>
 /// The tool-property pages, one per tool family or command group. The rail
 /// itself lists individual tools, several of which share a page — the
-/// scene groups (Parts, Colour, Layers, Action History) are not modal and live
-/// permanently in the right inspector. Viewport settings use a reveal-only
-/// page in the left tool list.
+/// scene groups (Parts, Layers, Action History) are not modal and live
+/// permanently in the right inspector. Viewport settings stay pinned above
+/// the left tool list.
 /// </summary>
 internal enum ToolRailPage
 {
@@ -14,7 +14,6 @@ internal enum ToolRailPage
     Brush,
     Topology,
     MorphRefit,
-    Viewport,
 }
 
 internal static class EditMeshLayoutContracts
@@ -36,15 +35,13 @@ internal static class EditMeshLayoutContracts
 
     /// <summary>
     /// The reveal-only pages that keep a rail entry of their own, in rail
-    /// order. Topology and Morph &amp; Refit hold one-shot commands and settings,
-    /// while Viewport holds presentation settings; none are modal tools, so
-    /// revealing one leaves the active tool alone.
+    /// order. Topology and Morph &amp; Refit hold one-shot commands and settings;
+    /// neither is a modal tool, so revealing one leaves the active tool alone.
     /// </summary>
     public static readonly ToolRailPage[] RailCommandPageOrder =
     {
         ToolRailPage.Topology,
         ToolRailPage.MorphRefit,
-        ToolRailPage.Viewport,
     };
 
     /// <summary>

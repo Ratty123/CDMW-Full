@@ -15,7 +15,6 @@ namespace Cdmw.MeshEditorExperiment;
 internal sealed partial class ExperimentForm
 {
     private const int ToolListRowHeight = 30;
-    private const int ToolListBodyHeight = 800;
 
     private MeshEditorBufferedTableLayoutPanel? _toolListTable;
     private MeshEditorBufferedPanel? _toolListBodyHost;
@@ -90,10 +89,10 @@ internal sealed partial class ExperimentForm
         _toolListBodyHost = new MeshEditorBufferedPanel
         {
             Name = "EditMeshToolListBodyHost",
-            Dock = DockStyle.Top,
+            Dock = DockStyle.None,
             AutoSize = false,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Height = ToolListBodyHeight,
+            Height = 0,
             Margin = new Padding(0, 0, 0, 4),
             Padding = new Padding(8, 6, 6, 3),
             BackColor = ThemeSectionBackground,
@@ -142,6 +141,10 @@ internal sealed partial class ExperimentForm
         foreach (var page in _toolRailPages.Values)
         {
             page.Visible = true;
+            var pageWidth = Math.Max(
+                ScaleToolPanelWidth(260),
+                _toolListTable.ClientSize.Width);
+            page.Size = new Size(pageWidth, ToolListPageContentHeight(page, pageWidth));
             page.PerformLayout();
             var size = page.ClientSize;
             if (size.Width > 0 && size.Height > 0)
@@ -168,7 +171,6 @@ internal sealed partial class ExperimentForm
         RowKeys.Inflate => "◉",
         RowKeys.Pinch => "◇",
         RowKeys.Topology => "△",
-        RowKeys.Viewport => "▣",
         _ => "◑",
     };
 
@@ -185,7 +187,6 @@ internal sealed partial class ExperimentForm
         RowKeys.Inflate => "Inflate",
         RowKeys.Pinch => "Pinch",
         RowKeys.Topology => "Topology",
-        RowKeys.Viewport => "Viewport",
         _ => "Morph & Refit",
     };
 
@@ -215,10 +216,6 @@ internal sealed partial class ExperimentForm
         {
             SetHelpText(button, "Subdivide and Refine Smooth require a selection and never change the whole mesh implicitly.");
         }
-        else if (key == RowKeys.Viewport)
-        {
-            SetHelpText(button, "Choose the preview mode, topology appearance, viewport background, or a camera preset. Mouse and keyboard bindings update with the active tool.");
-        }
         else
         {
             SetHelpText(button, "Definition profiles, shape sliders and garment refit binding.");
@@ -243,12 +240,10 @@ internal sealed partial class ExperimentForm
         else
         {
             button.Name = $"EditMeshToolList{row.Page}PageButton";
-            button.AccessibleName = row.Page == ToolRailPage.Viewport
-                ? caption
-                : $"{caption} commands";
+            button.AccessibleName = $"{caption} commands";
             // A reveal-only row never arms. Topology and Morph & Refit hold
-            // one-shot commands, while Viewport holds presentation settings,
-            // so opening any of them must leave the armed tool exactly as it was.
+            // one-shot commands, so opening either must leave the armed tool
+            // exactly as it was.
             button.Click += (_, _) => ShowToolRailPage(row.Page);
             _toolRailPageButtons.Add(row.Page, button);
         }
@@ -321,6 +316,14 @@ internal sealed partial class ExperimentForm
             return;
         }
         var previousExpandedBaseCell = _appliedToolListExpansionBaseCell;
+        var expandedPage = page is { } pageKey
+            ? _toolRailPages.GetValueOrDefault(pageKey)
+            : null;
+        var bodyWidth = Math.Max(1, _toolListTable.ClientSize.Width);
+        var bodyHeight = expandedPage is null
+            ? 0
+            : ToolListPageContentHeight(expandedPage, bodyWidth);
+        _toolListBodyHost.Size = new Size(bodyWidth, bodyHeight);
 
         // The two tools that share a page reach this without ShowToolRailPage:
         // arming Inflate after Smooth leaves the page where it is, so only the
@@ -343,7 +346,7 @@ internal sealed partial class ExperimentForm
                     var bodyCell = EditMeshToolListContract.BodyCell(cell);
                     _toolListTable.RowStyles[bodyCell].SizeType = SizeType.Absolute;
                     _toolListTable.RowStyles[bodyCell].Height =
-                        _toolListBodyHost.Height + _toolListBodyHost.Margin.Vertical;
+                        bodyHeight + _toolListBodyHost.Margin.Vertical;
                 }
             }
             finally
@@ -363,8 +366,13 @@ internal sealed partial class ExperimentForm
             _toolListBodyHost.SetBounds(
                 _toolListTable.Left,
                 bodyTop,
-                _toolListTable.ClientSize.Width,
-                _toolListBodyHost.Height);
+                bodyWidth,
+                bodyHeight);
+            if (expandedPage is not null)
+            {
+                expandedPage.Bounds = _toolListBodyHost.ClientRectangle;
+                expandedPage.PerformLayout();
+            }
         }
         else
         {
@@ -373,6 +381,19 @@ internal sealed partial class ExperimentForm
         _toolListExpansionApplied = true;
         _appliedToolListExpansionBaseCell = expandedBaseCell;
         _toolListExpansionGeneration++;
+    }
+
+    private static int ToolListPageContentHeight(Panel page, int width)
+    {
+        page.Width = Math.Max(1, width);
+        page.PerformLayout();
+        return Math.Max(
+            1,
+            page.Controls
+                .Cast<Control>()
+                .Select(control => control.Bottom + control.Margin.Bottom)
+                .DefaultIfEmpty(1)
+                .Max());
     }
 
     /// <summary>
@@ -483,10 +504,10 @@ internal sealed partial class ExperimentForm
 
     private int MeasureColumnWidthFor(ToolRailPage? page)
     {
-        var content = 0;
+        var content = _viewportSection?.GetPreferredSize(Size.Empty).Width ?? 0;
         if (page is { } open && _toolRailPages.TryGetValue(open, out var host))
         {
-            content = host.GetPreferredSize(Size.Empty).Width;
+            content = Math.Max(content, host.GetPreferredSize(Size.Empty).Width);
             if (_toolListBodyHost is not null)
             {
                 content += _toolListBodyHost.Padding.Horizontal;

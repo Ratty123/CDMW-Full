@@ -10,7 +10,7 @@ genuinely missing entry produces: the rail lights the row, the host adopts
 nothing, and the next control refresh republishes the stale tool and takes the
 reader's choice away. Nothing fails, and nothing works.
 
-So the two lists are pinned against each other here. A row added to the C#
+So the two inventories are pinned against each other here. A row added to the C#
 contract as a `Tool` without a Python entry fails this, rather than shipping as
 a button that highlights and does nothing.
 """
@@ -53,7 +53,7 @@ class EditMeshToolRailContractTests(unittest.TestCase):
 
         self.assertTrue(CONTRACT.is_file(), f"missing {CONTRACT}")
         rows = _rail_rows()
-        self.assertEqual(len(rows), 9, "the mesh-only rail row inventory changed")
+        self.assertEqual(len(rows), 8, "the mesh-only rail row inventory changed")
         self.assertIn(("Tool", "select"), rows)
         self.assertIn(("CommandPage", "topology"), rows)
 
@@ -68,7 +68,7 @@ class EditMeshToolRailContractTests(unittest.TestCase):
         )
 
     def test_command_pages_deliberately_map_to_nothing(self) -> None:
-        """Topology, Morph and Viewport open a page without arming a tool.
+        """Topology and Morph open a page without arming a tool.
 
         A mapping for one of these would arm a tool the reader did not pick.
         """

@@ -35,6 +35,7 @@ internal sealed partial class ExperimentForm
     private Panel? _leftToolModeHost;
     private Panel? _rightToolModeHost;
     private TableLayoutPanel? _toolDock;
+    private TableLayoutPanel? _pinnedViewportHost;
     private TableLayoutPanel? _railSelectionStack;
     private TableLayoutPanel? _sceneInspectorColumn;
     private Control? _presentationViewportRegion;
@@ -208,7 +209,7 @@ internal sealed partial class ExperimentForm
         _leftToolSplit.Panel1.Controls.Add(_leftToolModeHost);
 
         // The right flank swaps the placement panel for the nonmodal scene
-        // inspector. Parts, Colour, Layers and Action History never compete vertically
+        // inspector. Parts, Layers and Action History never compete vertically
         // with the tool that is open on the other side of the viewport.
         _rightToolModeHost = new MeshEditorCompositedPanel
         {
@@ -299,9 +300,9 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
-    /// Left flank: one column listing every tool, with the open tool's settings
-    /// inline beneath the row that opened them. Only the open page is realised,
-    /// so a closed tool never reserves space.
+    /// Left flank: Viewport settings stay pinned above one scrolling tool list.
+    /// The open tool's settings use only their natural height directly under
+    /// the row that opened them.
     /// </summary>
     private TableLayoutPanel BuildToolDock()
     {
@@ -310,21 +311,37 @@ internal sealed partial class ExperimentForm
             Name = "EditMeshToolDock",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 1,
+            RowCount = 2,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemePanelBackground,
         };
         _toolDock.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _toolDock.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _toolDock.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         _toolDock.Font = new Font(Font.FontFamily, 8.5f);
-        _toolDock.Controls.Add(BuildToolListColumn(), 0, 0);
+        _pinnedViewportHost = new MeshEditorBufferedTableLayoutPanel
+        {
+            Name = "EditMeshPinnedViewportHost",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 1,
+            Margin = new Padding(8, 6, 8, 0),
+            Padding = new Padding(0),
+            BackColor = ThemePanelBackground,
+        };
+        _pinnedViewportHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _pinnedViewportHost.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _toolDock.Controls.Add(_pinnedViewportHost, 0, 0);
+        _toolDock.Controls.Add(BuildToolListColumn(), 0, 1);
         return _toolDock;
     }
 
     /// <summary>
     /// Right flank: the scene groups every tool reads and changes. None are
-    /// modal, so Parts, Colour, Layers and Action History stay visible at once.
+    /// modal, so Parts, Layers and Action History stay visible at once.
     /// </summary>
     private Control BuildSceneInspector()
     {
@@ -340,7 +357,7 @@ internal sealed partial class ExperimentForm
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.Font = new Font(Font.FontFamily, 8.5f);
-        // No "SCENE" header: Parts, Colour, Layers and Action History name themselves,
+        // No "SCENE" header: Parts, Layers and Action History name themselves,
         // so the band above them only cost height.
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -362,13 +379,13 @@ internal sealed partial class ExperimentForm
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 3,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemePanelBackground,
         };
         _sceneInspectorColumn.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (var row = 0; row < 4; row++)
+        for (var row = 0; row < 3; row++)
         {
             _sceneInspectorColumn.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
@@ -380,15 +397,16 @@ internal sealed partial class ExperimentForm
 
     private static Panel CreateToolRailPage(ToolRailPage page)
     {
-        // Every page occupies the same resident body. A fixed presentation
-        // surface keeps page switches from resizing either tool splitter.
+        // Every page keeps one resident HWND under the shared body. The body
+        // changes only its vertical content height; the tool splitter width and
+        // resident viewport remain unchanged.
         return new MeshEditorBufferedPanel
         {
             Name = $"EditMeshToolRail{page}Page",
             Dock = DockStyle.None,
             AutoSize = false,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Size = new Size(260, 800),
+            Size = new Size(260, 1),
             Location = Point.Empty,
             Visible = false,
             Margin = new Padding(0),
@@ -458,6 +476,7 @@ internal sealed partial class ExperimentForm
             || _editMeshLayoutHost is null
             || _compactSessionBar is null
             || _toolDock is null
+            || _pinnedViewportHost is null
             || _sceneInspectorColumn is null
             || _railSelectionStack is null
             || _viewportWorkspaceSplit is null
@@ -501,13 +520,12 @@ internal sealed partial class ExperimentForm
             AddRailSection(_toolRailPages[ToolRailPage.Brush], _brushSection);
             AddRailSection(_toolRailPages[ToolRailPage.Topology], _topologySection);
             AddRailSection(_toolRailPages[ToolRailPage.MorphRefit], _morphRefitSection);
-            AddRailSection(_toolRailPages[ToolRailPage.Viewport], _viewportSection);
+            AddRailSection(_pinnedViewportHost, _viewportSection, row: 0);
 
             // Right: the data-heavy scene groups stay visible together.
             AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);
-            AddRailSection(_sceneInspectorColumn, _colourSection, row: 1);
-            AddRailSection(_sceneInspectorColumn, _layersSection, row: 2);
-            AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 3);
+            AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);
+            AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);
 
             _compactSessionBar.Visible = true;
             _editMeshLayoutHost.RowStyles[0].Height = ScaleToolPanelWidth(46);
@@ -766,9 +784,8 @@ internal sealed partial class ExperimentForm
         AddRailSection(_toolRailPages[ToolRailPage.Topology], _topologySection);
         AddRailSection(_toolRailPages[ToolRailPage.MorphRefit], _morphRefitSection);
         AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);
-        AddRailSection(_sceneInspectorColumn, _colourSection, row: 1);
-        AddRailSection(_sceneInspectorColumn, _layersSection, row: 2);
-        AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 3);
+        AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);
+        AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);
         PrimeToolRailPagePresentation();
     }
 
@@ -841,6 +858,7 @@ internal sealed partial class ExperimentForm
         var pagePresentationApplied =
             _toolRailPages.Count == Enum.GetValues<ToolRailPage>().Length
             && _toolListTable is not null;
+        ApplyToolListExpansion(page);
         foreach (var pair in _toolRailPages)
         {
             pagePresentationApplied &= RevealToolRailPage(pair.Value, pair.Key == page);
@@ -857,7 +875,6 @@ internal sealed partial class ExperimentForm
         // untouched, and a tool-driven reveal has already refreshed them once.
         // No dock header to retitle: the open row names the page, which is why
         // the header could never disagree with the armed tool again.
-        ApplyToolListExpansion(page);
         if (pagePresentationApplied)
         {
             _toolRailPagePresentationApplied = true;
@@ -874,7 +891,7 @@ internal sealed partial class ExperimentForm
     /// Dropping back to orbit owns no page, so a modal tool page clears.
     /// </summary>
     /// <remarks>
-    /// Topology, Morph &amp; Refit and Viewport are reveal-only pages: they never
+    /// Topology and Morph &amp; Refit are reveal-only pages: they never
     /// arm a tool, so the viewport sits on orbit the whole time one is open. Closing
     /// a page on "the tool is now orbit" alone would therefore shut them the
     /// moment anything re-asserted orbit — and the host does exactly that every

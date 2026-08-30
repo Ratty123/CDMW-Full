@@ -419,10 +419,6 @@ internal sealed partial class ExperimentForm : Form
         _leftToolPanel.Margin = new Padding(0);
         _rightToolPanel.Dock = DockStyle.Fill;
         _rightToolPanel.Margin = new Padding(0);
-        // These panels are built long after the first RefreshSubmeshList, so
-        // the Colour page would otherwise open with stale enablement and an
-        // empty status line until the first selection change.
-        LoadPartColourControls();
     }
 
     /// <summary>
@@ -561,9 +557,6 @@ internal sealed partial class ExperimentForm : Form
             _submeshList.EndUpdate();
             _syncingSubmeshListSelection = false;
         }
-        // Also runs after an acknowledged material parameter update, so the
-        // swatches re-read the exact host values rather than the local guess.
-        LoadPartColourControls();
     }
 
     private void SyncSubmeshListSelection()
@@ -581,7 +574,6 @@ internal sealed partial class ExperimentForm : Form
         {
             _syncingSubmeshListSelection = false;
         }
-        LoadPartColourControls();
         ApplySelectedMorphRefitSettings();
         RefreshPartDetail();
     }

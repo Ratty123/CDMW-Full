@@ -191,19 +191,17 @@ def test_a_raising_builder_is_contained_and_reported():
 
 
 def test_the_dotnet_editor_archives_the_colour_page_but_retains_its_protocol_code():
-    """Both ends must agree on the page and the event name.
-
-    A source check only; it cannot prove the page renders, but it does fail if
-    the rail entry or the request name is renamed on one side alone.
-    """
+    """The obsolete controls stay unconstructed while their parser remains stable."""
     contracts = (DOTNET_ROOT / "EditMeshLayoutContracts.cs").read_text(encoding="utf-8")
     tool_list = (DOTNET_ROOT / "EditMeshToolListContract.cs").read_text(encoding="utf-8")
+    tool_panels = (DOTNET_ROOT / "ExperimentForm.ToolPanels.cs").read_text(encoding="utf-8")
     protocol = (DOTNET_ROOT / "ExperimentForm.ColourProtocol.cs").read_text(encoding="utf-8")
     smoke = (DOTNET_ROOT / "EditMeshLayoutSmoke.cs").read_text(encoding="utf-8")
 
     assert "Colour," not in contracts
     assert "ToolRailPage.Colour" not in contracts
     assert "new(ToolListRowKind.CommandPage, Keys.Colour, ToolRailPage.Colour)" not in tool_list
+    assert "BuildColourSection(rightStack)" not in tool_panels
     assert 'WriteProtocolEvent("part_material_edit_request"' in protocol
     assert '"Colour",' not in smoke
 

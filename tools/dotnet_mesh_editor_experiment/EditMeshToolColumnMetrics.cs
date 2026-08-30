@@ -82,7 +82,7 @@ internal static class EditMeshToolColumnMetrics
     }
 
     /// <summary>
-    /// The scene inspector's width. It is never modal — Parts, Colour, Layers
+    /// The scene inspector's width. It is never modal — Parts, Layers
     /// and Action History are all open at once — so it measures once and stays there.
     /// </summary>
     public static int PreferredInspectorWidth(int measuredContentWidth)

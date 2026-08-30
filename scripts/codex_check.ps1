@@ -523,8 +523,8 @@ if ($Area -eq "mesh-unit") {
     # so the round trip the smoke reports is mesh-edit entry and the return to
     # the placement flanks. The rail itself is one flat list -- six tool
     # buttons that each arm exactly the tool they name, and two reveal-only
-    # command-page entries. The camera never became a rail entry -- it is
-    # reached by the modifiers on the navigation strip -- so orbit owns no
+    # command-page entries. Viewport settings stay pinned above the list. The
+    # camera is reached by the modifiers on the navigation strip -- so orbit owns no
     # page and the rail opens on none of them.
     if (-not $LayoutPayload.ok `
         -or -not $LayoutPayload.tool_rail_default `
@@ -537,9 +537,10 @@ if ($Area -eq "mesh-unit") {
         -or -not $LayoutPayload.material_sync_completion_is_correlated `
         -or -not $LayoutPayload.activation_package_generation_is_fenced `
         -or -not $LayoutPayload.zero_size_splitter_construction `
-        -or $LayoutPayload.pages_visited.Count -ne 6 `
+        -or $LayoutPayload.pages_visited.Count -ne 5 `
         -or $LayoutPayload.rail_tool_count -ne 6 `
-        -or $LayoutPayload.rail_command_page_count -ne 3 `
+        -or $LayoutPayload.rail_command_page_count -ne 2 `
+        -or -not $LayoutPayload.viewport_settings_pinned `
         -or $LayoutPayload.opening_page -ne "none" `
         -or $LayoutPayload.opening_tool -ne "orbit" `
         -or $LayoutPayload.renderer_started `

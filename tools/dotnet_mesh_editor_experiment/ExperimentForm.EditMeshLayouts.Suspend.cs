@@ -68,6 +68,7 @@ internal sealed partial class ExperimentForm
         _leftToolModeHost?.SuspendLayout();
         _rightToolModeHost?.SuspendLayout();
         _toolDock?.SuspendLayout();
+        _pinnedViewportHost?.SuspendLayout();
         _sceneInspectorColumn?.SuspendLayout();
         _railSelectionStack?.SuspendLayout();
         SuspendToolPanelLayout();
@@ -78,6 +79,7 @@ internal sealed partial class ExperimentForm
         ResumeToolPanelLayout();
         _railSelectionStack?.ResumeLayout(performLayout: false);
         _sceneInspectorColumn?.ResumeLayout(performLayout: false);
+        _pinnedViewportHost?.ResumeLayout(performLayout: false);
         _toolDock?.ResumeLayout(performLayout: false);
         _rightToolModeHost?.ResumeLayout(performLayout: true);
         _leftToolModeHost?.ResumeLayout(performLayout: true);

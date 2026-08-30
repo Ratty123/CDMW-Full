@@ -434,11 +434,10 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
     for page, const, caption in (
         ("Topology", "Topology", "Topology"),
         ("MorphRefit", "Morph", "Morph & Refit"),
-        ("Viewport", "Viewport", "Viewport"),
     ):
         assert f"new(ToolListRowKind.CommandPage, Keys.{const}, ToolRailPage.{page})" in rows
         assert f'"{caption}"' in tool_list
-    assert rows.count("new(ToolListRowKind.CommandPage") == 3
+    assert rows.count("new(ToolListRowKind.CommandPage") == 2
     assert "Keys.Colour" not in rows
     assert "ToolRailPage.Colour" not in contracts
     assert rows.count("new(ToolListRowKind.Tool") == 6
@@ -452,12 +451,13 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
     assert "public static readonly ToolRailPage[] RailCommandPageOrder" in contracts
 
     # Parts and Action History remain nonmodal scene data. Viewport settings
-    # remain a reveal-only row in the controls column, not the live viewport.
+    # stay pinned above the controls list instead of becoming another row.
     for absent in ("ToolRailPage.Parts", "ToolRailPage.History"):
         assert absent not in layout
         assert absent not in rows
-    assert "ToolRailPage.Viewport" in layout
-    assert "ToolRailPage.Viewport" in rows
+    assert "ToolRailPage.Viewport" not in layout
+    assert "ToolRailPage.Viewport" not in rows
+    assert 'Name = "EditMeshPinnedViewportHost"' in layout
 
     activate = layout.split("private void ActivateToolRailLayout()", 1)[1]
     activate = activate.split("private void RestorePlacementLayoutForNonMeshMode", 1)[0]
@@ -468,14 +468,14 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
         ("Brush", "_brushSection"),
         ("Topology", "_topologySection"),
         ("MorphRefit", "_morphRefitSection"),
-        ("Viewport", "_viewportSection"),
     ):
         assert f"AddRailSection(_toolRailPages[ToolRailPage.{page}], {section});" in activate
-        # The scene column keeps its data-heavy groups ordered and always on screen.
-        assert "AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);" in activate
-        assert "AddRailSection(_sceneInspectorColumn, _colourSection, row: 1);" in activate
-        assert "AddRailSection(_sceneInspectorColumn, _layersSection, row: 2);" in activate
-        assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 3);" in activate
+    assert "AddRailSection(_pinnedViewportHost, _viewportSection, row: 0);" in activate
+    # The scene column keeps its remaining data-heavy groups ordered and always on screen.
+    assert "AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);" in activate
+    assert "AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);" in activate
+    assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);" in activate
+    assert "_colourSection" not in activate
     assert "AddRailSection(_sceneInspectorColumn, _viewportSection" not in activate
 
     # Edit Mesh uses three lanes: tools, the permanent viewport, and scene data.
@@ -552,8 +552,9 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     assert "_toolRailPanelHeader" not in layout
     assert "ApplyToolListExpansion(page);" in show
     # A null page collapses the list back to rows and parks the resident body
-    # offscreen. The page trees remain siblings of the table, so opening a row
-    # changes only one spacer height and never re-parents a realised HWND tree.
+    # offscreen. The body has no dock rule that can move it below the whole list,
+    # and its selected page uses measured content height rather than a blank
+    # fixed-height slot.
     expand = tool_list.split("private void ApplyToolListExpansion", 1)[1]
     expand = expand.split("private void ReopenExpandedRowForActiveTool", 1)[0]
     assert "BeginRedrawBatch(_toolListTable)" in expand
@@ -562,6 +563,11 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     assert "_toolListTable.SetCellPosition(\n                    _toolListBodyHost" not in expand
     assert "_toolListTable.RowStyles[bodyCell].SizeType = SizeType.Absolute;" in expand
     assert "_toolListBodyHost.Location = new Point(-10_000, 0);" in expand
+    assert "ToolListPageContentHeight(expandedPage, bodyWidth)" in expand
+    assert "Dock = DockStyle.None" in tool_list
+    assert "ToolListBodyHeight" not in tool_list
+    # Position the resident body before its native page HWND is shown.
+    assert show.index("ApplyToolListExpansion(page);") < show.index("foreach (var pair in _toolRailPages)")
 
     # The unopened rail resolves its page from the live tool rather than from a
     # remembered default, and only then marks itself chosen.
@@ -578,8 +584,8 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     assert "EditMeshLayoutContracts.ToolRailPageForTool(_viewport.ActiveTool)" in layout
 
     # Clearing the rail because the tool is orbit must only close a modal page.
-    # Topology, Morph & Refit and Viewport arm nothing, so the viewport sits on
-    # orbit the whole time one is open -- closing on the tool alone shut them
+    # Topology and Morph & Refit arm nothing, so the viewport sits on orbit the
+    # whole time one is open -- closing on the tool alone shut them
     # the moment the host published a disabled mesh-edit tool state, which it
     # does on every selection change.
     sync = layout.split("private void SyncToolRailPageToActiveTool()", 1)[1]
@@ -826,10 +832,11 @@ def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
     assert "same_viewport_instance" in smoke
     assert "same_viewport_handle" in smoke
     assert "stable_viewport_parent" in smoke
+    assert "viewport_settings_pinned" in smoke
     assert 'construction["colors_single_line"]' in smoke
     assert 'construction["maximum_color_button_height"]' in smoke
     assert "MoveControl(viewport," not in smoke
-    assert 'MoveControl(viewportSection, pages["Viewport"]' in smoke
+    assert "AddRow(pinnedViewportSettings, viewportSection);" in smoke
     assert "zero_size_splitter_construction" in smoke
     # The round trip is mesh-edit entry and the return to the placement
     # flanks: the Classic layout is gone.
@@ -840,12 +847,14 @@ def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
     assert "EditMeshLayoutContracts.RailCommandPageOrder" in smoke
     assert "rail_tool_count" in smoke
     assert "rail_command_page_count" in smoke
-    assert "$LayoutPayload.pages_visited.Count -ne 6" in gate
-    assert "$LayoutPayload.rail_command_page_count -ne 3" in gate
+    assert "$LayoutPayload.pages_visited.Count -ne 5" in gate
+    assert "$LayoutPayload.rail_command_page_count -ne 2" in gate
+    assert "-not $LayoutPayload.viewport_settings_pinned" in gate
     assert "RailPageIsModal" in smoke
     assert "RequireCompleteRail" in smoke
-    for page in ("Selection", "Transform", "Brush", "Topology", "Morph & Refit", "Viewport"):
+    for page in ("Selection", "Transform", "Brush", "Topology", "Morph & Refit"):
         assert f'"{page}"' in smoke
+    assert 'NewSection("Viewport")' in smoke
 
 
 def test_resident_editor_accepts_the_host_application_theme() -> None:
@@ -924,8 +933,9 @@ def test_embedded_authoring_tool_panels_build_hidden_before_reveal() -> None:
         "\n    private ", maxsplit=1
     )[0]
     assert "AddRailSection(_railSelectionStack, _selectionSection, row: 0);" in prime_body
-    assert "AddRailSection(_sceneInspectorColumn, _colourSection, row: 1);" in prime_body
-    assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 3);" in prime_body
+    assert "AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);" in prime_body
+    assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);" in prime_body
+    assert "_colourSection" not in prime_body
     assert "_partPickSection" not in prime_body
     assert "_viewportSection" not in prime_body
     # The resident pages are first realised during hidden authoring-panel
@@ -934,6 +944,8 @@ def test_embedded_authoring_tool_panels_build_hidden_before_reveal() -> None:
     assert prime_body.index("AddRailSection(_toolRailPages[ToolRailPage.MorphRefit]") < prime_body.index(
         "PrimeToolRailPagePresentation();"
     )
+    tool_panels = _source("ExperimentForm.ToolPanels.cs")
+    assert "BuildColourSection(rightStack)" not in tool_panels
 
     # And the result has to stay observable from outside the process.
     assert '["authoring_tool_panels_present"] = _leftToolPanel is not null && _rightToolPanel is not null' in material_protocol

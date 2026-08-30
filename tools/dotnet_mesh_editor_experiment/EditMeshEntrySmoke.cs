@@ -77,6 +77,8 @@ internal static class EditMeshEntrySmoke
             var allEditMeshTools = form.AllEditMeshToolsDiagnosticProof();
             stage = "scene_inspector_entry_layout";
             var sceneInspector = form.SceneInspectorEntryLayoutProof();
+            stage = "tool_column_layout";
+            var toolColumn = form.ToolColumnLayoutProof();
             stage = "ui_theme_state";
             var uiThemeState = form.UiThemeStateProof();
             // The helper the workbench launches is embedded, and an embedded
@@ -91,6 +93,8 @@ internal static class EditMeshEntrySmoke
                 sourceParseCount: 1);
             stage = "scene_inspector_entry_layout_embedded";
             var embeddedSceneInspector = embeddedForm.SceneInspectorEntryLayoutProof();
+            stage = "tool_column_layout_embedded";
+            var embeddedToolColumn = embeddedForm.ToolColumnLayoutProof();
             stage = "missing_texture_readiness";
             var missingTextureReadiness = form.ResidentPackageTextureFailureProof(
                 WriteMissingTexturePackage(root));
@@ -103,16 +107,20 @@ internal static class EditMeshEntrySmoke
                     && solidTextured.GetValueOrDefault("ok") is true
                     && allEditMeshTools.GetValueOrDefault("ok") is true
                     && sceneInspector.GetValueOrDefault("ok") is true
+                    && toolColumn.GetValueOrDefault("ok") is true
                     && uiThemeState.GetValueOrDefault("ok") is true
                     && embeddedSceneInspector.GetValueOrDefault("ok") is true
+                    && embeddedToolColumn.GetValueOrDefault("ok") is true
                     && missingTextureReadiness.GetValueOrDefault("ok") is true
                     && gpuBindingRollback.GetValueOrDefault("ok") is true,
                 ["control_contract"] = controlContract,
                 ["solid_textured_view"] = solidTextured,
                 ["all_edit_mesh_tools"] = allEditMeshTools,
                 ["scene_inspector_entry_layout"] = sceneInspector,
+                ["tool_column_layout"] = toolColumn,
                 ["ui_theme_state"] = uiThemeState,
                 ["scene_inspector_entry_layout_embedded"] = embeddedSceneInspector,
+                ["tool_column_layout_embedded"] = embeddedToolColumn,
                 ["missing_texture_readiness"] = missingTextureReadiness,
                 ["gpu_binding_rollback"] = gpuBindingRollback,
             };

@@ -372,6 +372,114 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
+    /// The Viewport settings stay pinned above the tool list, while every
+    /// clickable tool page opens immediately under its row at its content
+    /// height. This uses the real hidden form because source guards cannot see
+    /// a docked host being moved by a later WinForms layout pass.
+    /// </summary>
+    internal Dictionary<string, object?> ToolColumnLayoutProof()
+    {
+        Size = new Size(900, 900);
+        PerformLayout();
+        _scene.SetInteractionMode("mesh_edit");
+        ApplyInteractionModeControls();
+
+        var originalPage = _selectedToolRailPage;
+        var pinnedViewportHost = _toolDock?.Controls
+            .Find("EditMeshPinnedViewportHost", searchAllChildren: true)
+            .SingleOrDefault();
+        var viewportPinned = pinnedViewportHost is not null
+            && _viewportSection is not null
+            && ReferenceEquals(_viewportSection.Parent, pinnedViewportHost)
+            && ReferenceEquals(pinnedViewportHost.Parent, _toolDock)
+            && OwnVisibleState(_viewportSection);
+        var viewportRowRemoved = EditMeshToolListContract.RowOrder.All(row =>
+            !string.Equals(row.Key, "viewport", StringComparison.OrdinalIgnoreCase));
+        var colourRemoved = _colourSection is null
+            && Controls.Find("CompactColourSection", searchAllChildren: true).Length == 0;
+        var pageLayouts = new List<Dictionary<string, object?>>();
+
+        try
+        {
+            foreach (var pageKey in Enum.GetValues<ToolRailPage>())
+            {
+                ShowToolRailPage(pageKey);
+                PerformLayout();
+                _toolListTable?.PerformLayout();
+                _toolListScroll?.PerformLayout();
+
+                var page = _toolRailPages.GetValueOrDefault(pageKey);
+                var row = ToolListRowForPage(pageKey);
+                var button = ToolListButtonFor(row);
+                var pageContentBottom = page?.Controls
+                    .Cast<Control>()
+                    .Select(control => control.Bottom)
+                    .DefaultIfEmpty(0)
+                    .Max() ?? 0;
+                var unusedHeight = Math.Max(0, (page?.ClientSize.Height ?? 0) - pageContentBottom);
+                var buttonBottom = button is null || _toolListTable is null
+                    ? int.MinValue
+                    : _toolListTable.PointToScreen(new Point(0, button.Bottom)).Y;
+                var bodyTop = _toolListBodyHost is null
+                    ? int.MaxValue
+                    : _toolListBodyHost.PointToScreen(Point.Empty).Y;
+                var bodyGap = bodyTop - buttonBottom;
+                var nativeVisible = page is { IsHandleCreated: true }
+                    && (ToolRailNative.GetWindowLong(page.Handle, ToolRailNative.GwlStyle)
+                        & ToolRailNative.WsVisible) != 0;
+                var viewportVisible = _viewportSection is not null
+                    && OwnVisibleState(_viewportSection);
+                var layoutOk = page is not null
+                    && button is not null
+                    && _toolListBodyHost is not null
+                    && ReferenceEquals(page.Parent, _toolListBodyHost)
+                    && page.Top == 0
+                    && page.ClientSize.Height == _toolListBodyHost.ClientSize.Height
+                    && pageContentBottom <= page.ClientSize.Height
+                    && unusedHeight <= ScaleToolPanelWidth(16)
+                    && bodyGap >= 0
+                    && bodyGap <= ScaleToolPanelWidth(12)
+                    && nativeVisible
+                    && viewportPinned
+                    && viewportVisible;
+                pageLayouts.Add(new Dictionary<string, object?>
+                {
+                    ["page"] = pageKey.ToString(),
+                    ["ok"] = layoutOk,
+                    ["row"] = row.Key,
+                    ["button_bottom"] = buttonBottom,
+                    ["body_top"] = bodyTop,
+                    ["body_gap"] = bodyGap,
+                    ["body_height"] = _toolListBodyHost?.ClientSize.Height ?? 0,
+                    ["page_height"] = page?.ClientSize.Height ?? 0,
+                    ["content_bottom"] = pageContentBottom,
+                    ["unused_height"] = unusedHeight,
+                    ["native_visible"] = nativeVisible,
+                    ["viewport_pinned"] = viewportPinned && viewportVisible,
+                });
+            }
+        }
+        finally
+        {
+            ShowToolRailPage(originalPage);
+            PerformLayout();
+        }
+
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = viewportPinned
+                && viewportRowRemoved
+                && colourRemoved
+                && pageLayouts.Count == Enum.GetValues<ToolRailPage>().Length
+                && pageLayouts.All(item => item.GetValueOrDefault("ok") is true),
+            ["viewport_pinned"] = viewportPinned,
+            ["viewport_row_removed"] = viewportRowRemoved,
+            ["colour_removed"] = colourRemoved,
+            ["page_layouts"] = pageLayouts,
+        };
+    }
+
+    /// <summary>
     /// At the compact width represented by the reported embedded failure, every
     /// tool page must leave the resident viewport present and usable between the
     /// two side columns. A zero records a hidden or re-parented viewport.
