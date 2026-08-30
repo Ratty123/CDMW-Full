@@ -33,6 +33,9 @@ pub enum ReplayEvent {
     DuplicateFaces {
         face_ordinals: Vec<usize>,
     },
+    DuplicateFacesToNewSubmesh {
+        face_ordinals: Vec<usize>,
+    },
     Undo,
     Redo,
 }
@@ -122,6 +125,11 @@ pub fn run_replay(
                 let before = mesh.clone();
                 let _ = mesh.duplicate_faces(&face_handles(mesh, face_ordinals)?)?;
                 history.commit("replay duplicate", before, mesh)?;
+            }
+            ReplayEvent::DuplicateFacesToNewSubmesh { face_ordinals } => {
+                let before = mesh.clone();
+                let _ = mesh.duplicate_faces_to_new_submesh(&face_handles(mesh, face_ordinals)?)?;
+                history.commit("replay duplicate as new submesh", before, mesh)?;
             }
             ReplayEvent::Undo => history.undo(mesh)?,
             ReplayEvent::Redo => history.redo(mesh)?,

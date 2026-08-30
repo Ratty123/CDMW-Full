@@ -545,7 +545,12 @@ fn control_selected_shapes_and_domains_receive_coalesced_pointer_drags() -> Test
 
 #[test]
 fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
-    for (label, expected_faces) in [("Delete", 0), ("Subdivide", 4), ("Duplicate", 2)] {
+    for (label, expected_faces, expected_new_submesh) in [
+        ("Delete", 0, None),
+        ("Subdivide", 4, None),
+        ("Duplicate", 2, None),
+        ("Duplicate as New Part", 2, Some(1)),
+    ] {
         let mut ui = HeadlessUi::new(triangle_application()?, egui::vec2(1_280.0, 720.0));
         ui.click("All Faces")?;
         let baseline = ui
@@ -566,6 +571,13 @@ fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
             ui.application.mesh.as_ref().ok_or("mesh")?.faces().count(),
             expected_faces
         );
+        if let Some(expected_submesh) = expected_new_submesh {
+            let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+            assert!(mesh.selection.faces.iter().all(|handle| {
+                mesh.face(*handle)
+                    .is_some_and(|face| face.submesh == expected_submesh && face.material == 0)
+            }));
+        }
         let edited = ui
             .application
             .mesh
@@ -595,6 +607,13 @@ fn topology_buttons_round_trip_the_painted_selection() -> TestResult {
                 .structural_fingerprint(),
             edited
         );
+        if let Some(expected_submesh) = expected_new_submesh {
+            let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+            assert!(mesh.selection.faces.iter().all(|handle| {
+                mesh.face(*handle)
+                    .is_some_and(|face| face.submesh == expected_submesh && face.material == 0)
+            }));
+        }
         ui.application.mesh.as_ref().ok_or("mesh")?.validate()?;
     }
 
@@ -1055,6 +1074,7 @@ fn disabled_edit_controls_do_not_activate_or_change_the_mesh() -> TestResult {
         "Rotate",
         "Scale",
         "Subdivide Edges",
+        "Duplicate as New Part",
         "Delete",
         "Subdivide",
         "Duplicate",

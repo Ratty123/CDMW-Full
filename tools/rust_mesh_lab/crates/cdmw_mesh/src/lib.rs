@@ -410,6 +410,32 @@ impl WorkingMesh {
         &mut self,
         handles: &HashSet<FaceHandle>,
     ) -> Result<HashSet<FaceHandle>, MeshError> {
+        self.duplicate_faces_into_submesh(handles, None)
+    }
+
+    pub fn duplicate_faces_to_new_submesh(
+        &mut self,
+        handles: &HashSet<FaceHandle>,
+    ) -> Result<HashSet<FaceHandle>, MeshError> {
+        if handles.is_empty() {
+            return Err(MeshError::EmptyOperation);
+        }
+        let next_submesh = self
+            .faces
+            .values()
+            .map(|face| face.submesh)
+            .max()
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or_else(|| MeshError::Invariant("submesh index space exhausted".to_owned()))?;
+        self.duplicate_faces_into_submesh(handles, Some(next_submesh))
+    }
+
+    fn duplicate_faces_into_submesh(
+        &mut self,
+        handles: &HashSet<FaceHandle>,
+        target_submesh: Option<u32>,
+    ) -> Result<HashSet<FaceHandle>, MeshError> {
         if handles.is_empty() {
             return Err(MeshError::EmptyOperation);
         }
@@ -428,25 +454,28 @@ impl WorkingMesh {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let mut duplicated = HashSet::new();
+        let mut duplicated_vertices = HashMap::new();
         for face in originals {
-            let mut vertices = Vec::with_capacity(3);
-            for source_handle in face.vertices {
-                let mut vertex = draft
-                    .vertices
-                    .get(source_handle)
-                    .cloned()
-                    .ok_or(MeshError::StaleHandle)?;
-                vertex.provenance = Provenance::Generated { operation };
-                vertices.push(draft.vertices.insert(vertex));
+            let mut vertices = face.vertices;
+            for handle in &mut vertices {
+                let source_handle = *handle;
+                *handle = if let Some(duplicate) = duplicated_vertices.get(&source_handle) {
+                    *duplicate
+                } else {
+                    let mut vertex = draft
+                        .vertices
+                        .get(source_handle)
+                        .cloned()
+                        .ok_or(MeshError::StaleHandle)?;
+                    vertex.provenance = Provenance::Generated { operation };
+                    let duplicate = draft.vertices.insert(vertex);
+                    duplicated_vertices.insert(source_handle, duplicate);
+                    duplicate
+                };
             }
-            let triangle = [
-                *vertices.first().ok_or(MeshError::InvalidSource)?,
-                *vertices.get(1).ok_or(MeshError::InvalidSource)?,
-                *vertices.get(2).ok_or(MeshError::InvalidSource)?,
-            ];
             duplicated.insert(draft.faces.insert(Face {
-                vertices: triangle,
-                submesh: face.submesh,
+                vertices,
+                submesh: target_submesh.unwrap_or(face.submesh),
                 material: face.material,
                 provenance: Provenance::Generated { operation },
             }));
@@ -1029,6 +1058,41 @@ mod tests {
         mesh
     }
 
+    fn two_triangle_quad() -> WorkingMesh {
+        let mut mesh = triangle();
+        let b = mesh
+            .vertices
+            .iter()
+            .find_map(|(handle, vertex)| (vertex.position == [1.0, 0.0, 0.0]).then_some(handle))
+            .unwrap_or_else(|| panic!("quad vertex B is missing"));
+        let c = mesh
+            .vertices
+            .iter()
+            .find_map(|(handle, vertex)| (vertex.position == [0.0, 1.0, 0.0]).then_some(handle))
+            .unwrap_or_else(|| panic!("quad vertex C is missing"));
+        let d = mesh.vertices.insert(Vertex {
+            position: [1.0, 1.0, 0.0],
+            normal: [0.0, 0.0, 1.0],
+            uv: [1.0, 1.0],
+            provenance: Provenance::Source {
+                submesh: 0,
+                element: 3,
+            },
+        });
+        mesh.faces.insert(Face {
+            vertices: [b, d, c],
+            submesh: 0,
+            material: 0,
+            provenance: Provenance::Source {
+                submesh: 0,
+                element: 1,
+            },
+        });
+        mesh.rebuild_edges()
+            .unwrap_or_else(|error| panic!("edge rebuild failed: {error}"));
+        mesh
+    }
+
     fn two_disconnected_triangles() -> WorkingMesh {
         let mut mesh = WorkingMesh::empty();
         for (submesh, offset, normal) in [
@@ -1355,6 +1419,112 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_preserves_selected_patch_adjacency_and_isolates_source_vertices()
+    -> Result<(), MeshError> {
+        let mut mesh = two_triangle_quad();
+        let source_vertices = mesh.vertices.keys().collect::<HashSet<_>>();
+        let source_faces = mesh.faces.keys().collect::<HashSet<_>>();
+        let duplicated = mesh.duplicate_faces(&source_faces)?;
+        assert_eq!(duplicated.len(), 2);
+        assert_eq!(mesh.faces.len(), 4);
+        assert_eq!(mesh.vertices.len(), 8);
+        assert_eq!(mesh.selection.faces, duplicated);
+        let duplicate_vertices = mesh.selected_vertex_scope();
+        assert_eq!(duplicate_vertices.len(), 4);
+        assert!(duplicate_vertices.is_disjoint(&source_vertices));
+        assert_eq!(
+            mesh.edges
+                .values()
+                .filter(|edge| {
+                    edge.faces.len() == 2 && edge.faces.iter().all(|face| duplicated.contains(face))
+                })
+                .count(),
+            1
+        );
+        for face in &duplicated {
+            let face = mesh.face(*face).ok_or(MeshError::InvalidSource)?;
+            assert_eq!(face.submesh, 0);
+            assert_eq!(face.material, 0);
+        }
+        mesh.validate()
+    }
+
+    #[test]
+    fn duplicate_to_new_submesh_allocates_a_new_part_and_preserves_material()
+    -> Result<(), MeshError> {
+        let mut mesh = two_triangle_quad();
+        let source_attributes = mesh.vertices.values().cloned().collect::<Vec<_>>();
+        let source_faces = mesh.faces.keys().collect::<HashSet<_>>();
+        let first_part = mesh.duplicate_faces_to_new_submesh(&source_faces)?;
+        assert_eq!(first_part.len(), 2);
+        assert!(source_faces.iter().all(|handle| {
+            mesh.face(*handle)
+                .is_some_and(|face| face.submesh == 0 && face.material == 0)
+        }));
+        assert!(first_part.iter().all(|handle| {
+            mesh.face(*handle)
+                .is_some_and(|face| face.submesh == 1 && face.material == 0)
+        }));
+        for handle in mesh.selected_vertex_scope() {
+            let duplicate = mesh.vertex(handle).ok_or(MeshError::InvalidSource)?;
+            assert!(matches!(
+                duplicate.provenance,
+                Provenance::Generated { operation: 1 }
+            ));
+            assert!(source_attributes.iter().any(|source| {
+                source.position == duplicate.position
+                    && source.normal == duplicate.normal
+                    && source.uv == duplicate.uv
+            }));
+        }
+        for handle in &first_part {
+            let face = mesh.face(*handle).ok_or(MeshError::InvalidSource)?;
+            let [a, b, c] = face.vertices.map(|vertex| {
+                Vec3::from_array(
+                    mesh.vertex(vertex)
+                        .unwrap_or_else(|| panic!("duplicate face vertex is missing"))
+                        .position,
+                )
+            });
+            assert!((b - a).cross(c - a).z > 0.0);
+        }
+        let vertices_before_second_part = mesh
+            .vertices
+            .iter()
+            .map(|(handle, vertex)| (handle, vertex.position))
+            .collect::<HashMap<_, _>>();
+        let second_part = mesh.duplicate_faces_to_new_submesh(&first_part)?;
+        assert!(second_part.iter().all(|handle| {
+            mesh.face(*handle)
+                .is_some_and(|face| face.submesh == 2 && face.material == 0)
+        }));
+        assert_eq!(mesh.selection.faces, second_part);
+        assert_eq!(mesh.faces.len(), 6);
+        assert_eq!(mesh.vertices.len(), 12);
+        let moved_positions = mesh
+            .selected_vertex_scope()
+            .into_iter()
+            .map(|handle| {
+                let position = mesh
+                    .vertex(handle)
+                    .ok_or(MeshError::InvalidSource)?
+                    .position;
+                Ok((handle, (Vec3::from_array(position) + Vec3::Z).to_array()))
+            })
+            .collect::<Result<HashMap<_, _>, MeshError>>()?;
+        mesh.apply_positions(&moved_positions)?;
+        for (handle, position) in vertices_before_second_part {
+            assert_eq!(
+                mesh.vertex(handle)
+                    .ok_or(MeshError::InvalidSource)?
+                    .position,
+                position
+            );
+        }
+        mesh.validate()
+    }
+
+    #[test]
     fn failed_topology_operations_leave_the_exact_working_state() -> Result<(), MeshError> {
         let mut duplicate_mesh = triangle();
         let duplicate_face = duplicate_mesh
@@ -1385,6 +1555,29 @@ mod tests {
             Err(MeshError::Invariant(_))
         ));
         assert_exact_working_state(&subdivide_mesh, &subdivide_before);
+
+        let mut exhausted_submesh = triangle();
+        let exhausted_face = exhausted_submesh
+            .faces
+            .keys()
+            .next()
+            .ok_or(MeshError::InvalidSource)?;
+        exhausted_submesh
+            .faces
+            .get_mut(exhausted_face)
+            .ok_or(MeshError::InvalidSource)?
+            .submesh = u32::MAX;
+        let exhausted_before = exhausted_submesh.clone();
+        assert!(matches!(
+            exhausted_submesh.duplicate_faces_to_new_submesh(&HashSet::new()),
+            Err(MeshError::EmptyOperation)
+        ));
+        assert_exact_working_state(&exhausted_submesh, &exhausted_before);
+        assert!(matches!(
+            exhausted_submesh.duplicate_faces_to_new_submesh(&HashSet::from([exhausted_face])),
+            Err(MeshError::Invariant(_))
+        ));
+        assert_exact_working_state(&exhausted_submesh, &exhausted_before);
 
         let mut delete_mesh = triangle();
         let valid_face = delete_mesh

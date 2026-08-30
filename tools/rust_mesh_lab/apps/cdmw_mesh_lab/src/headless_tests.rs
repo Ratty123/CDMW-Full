@@ -550,9 +550,11 @@ fn app_cancellation_restores_the_exact_working_state() -> TestResult {
 fn every_topology_action_round_trips_geometry_and_selection() -> TestResult {
     for action in [
         UiAction::DuplicateFaces,
+        UiAction::DuplicateFacesToNewSubmesh,
         UiAction::SubdivideFaces,
         UiAction::DeleteFaces,
     ] {
+        let expects_new_submesh = matches!(action, UiAction::DuplicateFacesToNewSubmesh);
         let mut application = triangle_application()?;
         application.select_all_faces();
         let mesh = application.mesh.as_ref().ok_or("missing mesh")?;
@@ -565,6 +567,13 @@ fn every_topology_action_round_trips_geometry_and_selection() -> TestResult {
             .ok_or("missing mesh")?
             .structural_fingerprint();
         assert_ne!(changed, before);
+        if expects_new_submesh {
+            let mesh = application.mesh.as_ref().ok_or("missing mesh")?;
+            assert!(mesh.selection.faces.iter().all(|handle| {
+                mesh.face(*handle)
+                    .is_some_and(|face| face.submesh == 1 && face.material == 0)
+            }));
+        }
         assert_eq!(application.history.undo_len(), 1);
         application.handle_actions(vec![UiAction::Undo]);
         let mesh = application.mesh.as_ref().ok_or("missing mesh")?;
@@ -573,6 +582,12 @@ fn every_topology_action_round_trips_geometry_and_selection() -> TestResult {
         application.handle_actions(vec![UiAction::Redo]);
         let mesh = application.mesh.as_ref().ok_or("missing mesh")?;
         assert_eq!(mesh.structural_fingerprint(), changed);
+        if expects_new_submesh {
+            assert!(mesh.selection.faces.iter().all(|handle| {
+                mesh.face(*handle)
+                    .is_some_and(|face| face.submesh == 1 && face.material == 0)
+            }));
+        }
         mesh.validate()?;
     }
 

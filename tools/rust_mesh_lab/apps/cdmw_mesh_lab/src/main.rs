@@ -97,6 +97,7 @@ enum UiAction {
     SubdivideEdges,
     SubdivideFaces,
     DuplicateFaces,
+    DuplicateFacesToNewSubmesh,
     Undo,
     Redo,
     ExportObj,
@@ -1118,6 +1119,10 @@ impl LabApplication {
                         ("Delete", UiAction::DeleteFaces),
                         ("Subdivide", UiAction::SubdivideFaces),
                         ("Duplicate", UiAction::DuplicateFaces),
+                        (
+                            "Duplicate as New Part",
+                            UiAction::DuplicateFacesToNewSubmesh,
+                        ),
                     ] {
                         if ui
                             .add_enabled(selected_faces > 0, egui::Button::new(label))
@@ -1298,6 +1303,12 @@ impl LabApplication {
                     publish_mesh = true;
                     mesh.duplicate_faces(faces).map(|_| ())
                 }),
+                UiAction::DuplicateFacesToNewSubmesh => {
+                    self.run_topology("Duplicate faces as new part", |mesh, faces| {
+                        publish_mesh = true;
+                        mesh.duplicate_faces_to_new_submesh(faces).map(|_| ())
+                    })
+                }
                 UiAction::Undo => {
                     if let Some(mesh) = &mut self.mesh {
                         match self.history.undo(mesh) {
