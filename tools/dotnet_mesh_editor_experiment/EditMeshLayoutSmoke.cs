@@ -120,7 +120,7 @@ internal static partial class EditMeshLayoutSmoke
         };
         var inspectorSections = new[]
         {
-            NewSection("Parts"), NewSection("Layers"), NewSection("Action History"),
+            NewSection("Parts"), NewSection("Colour"), NewSection("Layers"), NewSection("Action History"),
         };
         var viewportSection = NewSection("Viewport");
         var morphSection = NewSection("Morph & Refit");
@@ -129,10 +129,10 @@ internal static partial class EditMeshLayoutSmoke
             AddRow(placementLeft, section);
         }
         AddRow(placementLeft, viewportSection);
-        AddRow(placementRight, inspectorSections[2]);
-        AddRow(placementRight, morphSection);
-        AddRow(placementRight, inspectorSections[0]);
-        AddRow(placementRight, inspectorSections[1]);
+        AddRows(
+            placementRight,
+            inspectorSections[3], morphSection, inspectorSections[0],
+            inspectorSections[1], inspectorSections[2]);
         permanentViewportHost.Controls.Add(viewport);
 
         var partPickHomeCell = placementLeft.GetCellPosition(editSections[0]);

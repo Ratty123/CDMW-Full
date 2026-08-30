@@ -21,6 +21,7 @@ internal sealed partial class ExperimentForm
         public bool AuthoritativeGeometryPending { get; set; }
         public bool GeometryApplied { get; set; }
         public bool CommandAccepted { get; set; }
+        public ulong GestureId { get; init; }
     }
 
     private readonly Dictionary<long, PendingMutationRequest> _pendingMutationRequests = new();
@@ -47,8 +48,13 @@ internal sealed partial class ExperimentForm
             StrokeId = Convert.ToString(envelope.GetValueOrDefault("stroke_id"), CultureInfo.InvariantCulture)?.Trim() ?? string.Empty,
             StrokeSequence = DictionaryLong(envelope, "sequence", -1),
             PaintSample = Convert.ToBoolean(envelope.GetValueOrDefault("paint_sample") ?? false, CultureInfo.InvariantCulture),
+            GestureId = checked((ulong)Math.Max(0, DictionaryLong(envelope, "gesture_id"))),
         };
         _pendingMutationRequests[requestId] = pending;
+        if (normalizedEvent == "resident_interaction_transaction")
+        {
+            _viewport.RegisterResidentInteractionRequest(requestId, pending.GestureId);
+        }
         if (IsProvisionalSelectionRequest(normalizedEvent))
         {
             _viewport.BeginProvisionalSelection(
@@ -84,6 +90,10 @@ internal sealed partial class ExperimentForm
         var accepted = IsAcceptedMutationStatus(status);
         if (!accepted)
         {
+            if (pending.EventName == "resident_interaction_transaction")
+            {
+                _viewport.RejectResidentInteraction(pending.RequestId, status);
+            }
             if (IsStrokeMutationRequest(pending.EventName))
             {
                 _viewport.CompleteProvisionalStrokeRequest(
@@ -231,14 +241,18 @@ internal sealed partial class ExperimentForm
     private void CompleteAuthoritativeResidentResync()
     {
         _pendingMutationRequests.Clear();
-        _viewport.ResetSelectionAuthority();
+        _viewport.ResetInteractionAuthority(
+            "authoritative_resync",
+            "The authoritative resident state replaced an unfinished interaction.");
         _scene.ForceAcceptAuthoritativePlacementFrame();
     }
 
     private void ResetPendingMutationAuthority()
     {
         _pendingMutationRequests.Clear();
-        _viewport.ResetSelectionAuthority();
+        _viewport.ResetInteractionAuthority(
+            "authority_generation_changed",
+            "The Mesh Editor session or renderer process generation changed.");
         _scene.ResetProvisionalPlacement();
         ResetMorphStateAuthority();
     }
@@ -325,7 +339,7 @@ internal sealed partial class ExperimentForm
     /// </remarks>
     private static bool MutationMayReturnSelection(PendingMutationRequest pending) => pending.EventName switch
     {
-        "select_request" or "selection_request" => true,
+        "select_request" or "selection_request" or "resident_interaction_transaction" => true,
         "command_request" => pending.Command is
             "clear_selection" or "select_all" or "grow" or "shrink" or "invert" or
             "undo" or "redo" or "delete" or "duplicate" or "subdivide" or "refine_smooth" or

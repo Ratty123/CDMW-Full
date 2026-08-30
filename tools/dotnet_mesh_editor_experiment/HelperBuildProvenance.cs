@@ -16,6 +16,7 @@ internal static class HelperBuildProvenance
         "mesh_edit_revision_ack_v1",
         "resident_mutation_envelope_v2",
         "resident_mutation_batch_v3",
+        "resident_interaction_abi_v1",
         "host_tool_state_v1",
         "correlated_selection_strokes_v1",
         "geometry_layers_v1",
@@ -79,6 +80,7 @@ internal static class HelperBuildProvenance
                 "mesh_edit_revision_ack_v1"
                 or "resident_mutation_envelope_v2"
                 or "resident_mutation_batch_v3"
+                or "resident_interaction_abi_v1"
                 or "host_tool_state_v1"
                 or "correlated_selection_strokes_v1"
                 or "geometry_layers_v1"
@@ -122,7 +124,7 @@ internal static class HelperBuildProvenance
             ["semantic_version"] = assembly.GetName().Version?.ToString(3) ?? "0.0.0",
             ["informational_version"] = assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? string.Empty,
-            ["protocol_version"] = 2,
+            ["protocol_version"] = 3,
             ["manifest_mode"] = mode,
             ["manifest_id"] = manifestId,
             ["source_revision"] = Text(manifest, "source_revision"),
@@ -133,7 +135,41 @@ internal static class HelperBuildProvenance
             ["shader_sha256"] = shaderSha,
             ["renderer_backend"] = "d3d11_vortice_shader",
             ["edit_backend"] = "cdmw_mesh_core_0.1",
+            ["native_abi"] = NativeAbiPayload(),
         };
+    }
+
+    private static Dictionary<string, object?> NativeAbiPayload()
+    {
+        var expectedPath = Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "cdmw-mesh-core.dll"));
+        try
+        {
+            using var abi = NativeMeshInteractionAbi.LoadFromApplicationDirectory();
+            var diagnostics = abi.Diagnostics;
+            return new Dictionary<string, object?>
+            {
+                ["library_path"] = diagnostics.LibraryPath,
+                ["library_sha256"] = diagnostics.LibrarySha256,
+                ["abi_version"] = diagnostics.AbiVersion,
+                ["contract"] = diagnostics.Contract,
+                ["backend"] = diagnostics.Backend,
+                ["header_sha256"] = diagnostics.HeaderSha256,
+            };
+        }
+        catch (Exception ex)
+        {
+            return new Dictionary<string, object?>
+            {
+                ["library_path"] = expectedPath,
+                ["library_sha256"] = string.Empty,
+                ["abi_version"] = 0,
+                ["contract"] = string.Empty,
+                ["backend"] = string.Empty,
+                ["header_sha256"] = string.Empty,
+                ["error"] = ex.Message,
+            };
+        }
     }
 
     private static IEnumerable<string> CandidateManifestPaths(string processPath, string assemblyPath)

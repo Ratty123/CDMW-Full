@@ -16,10 +16,11 @@ internal sealed partial class ExperimentForm
     private const string ViewportDisplayModesCapability = "viewport_display_modes_v1";
     private const string ResidentSceneCapability = "resident_scene_state_v1";
     private const string AuthoritativeResidentSceneCapability = "authoritative_resident_scene_frame_v2";
+    private const long HelperOriginatedRequestIdBase = 1L << 62;
     private volatile bool _hostDisconnected;
     private long _lastAppliedEditRevision;
     private long _lastObservedSessionRevision;
-    private long _outgoingMutationRequestSequence;
+    private long _outgoingMutationRequestSequence = HelperOriginatedRequestIdBase;
     private long _residentProcessGeneration;
     private long _activationRequestId;
     private bool _applyingResidentStateResync;
@@ -513,6 +514,18 @@ internal sealed partial class ExperimentForm
         return true;
     }
 
+    private void ApplyResidentSessionState(JsonElement root)
+    {
+        ObserveResidentSession(root);
+        ApplyOutputPolicyState(root);
+        ApplyHistoryState(root);
+        ApplyGeometryLayerState(root);
+        ApplySelectionUpdate(root, requireCorrelation: false);
+        ConfigureResidentNativeInteraction(root);
+        _statusLabel.Text = "Live MeshService bridge connected.";
+        RequestMorphStateRefresh();
+    }
+
     private void HandleParsedProtocolMessage(ParsedProtocolMessage message)
     {
         var root = message.Root;
@@ -594,13 +607,7 @@ internal sealed partial class ExperimentForm
                     ObserveResidentSessionRelease(root);
                     break;
                 case "session_state":
-                    ObserveResidentSession(root);
-                    ApplyOutputPolicyState(root);
-                    ApplyHistoryState(root);
-                    ApplyGeometryLayerState(root);
-                    ApplySelectionUpdate(root, requireCorrelation: false);
-                    _statusLabel.Text = "Live MeshService bridge connected.";
-                    RequestMorphStateRefresh();
+                    ApplyResidentSessionState(root);
                     break;
                 case "tool_state": ApplyHostToolState(root); break;
                 case "selection_update":

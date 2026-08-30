@@ -241,7 +241,63 @@ def mesh_dotnet_helper_provenance_blockers(
         blockers.append("helper provenance renderer backend is not d3d11_vortice_shader")
     if str(provenance.get("edit_backend", "") or "") != "cdmw_mesh_core_0.1":
         blockers.append("helper provenance edit backend is not cdmw_mesh_core_0.1")
+    native_abi_capabilities = {str(value) for value in required_capabilities}
+    if isinstance(capabilities, Sequence) and not isinstance(capabilities, (str, bytes)):
+        native_abi_capabilities.update(str(value) for value in capabilities)
+    if "resident_interaction_abi_v1" in native_abi_capabilities:
+        blockers.extend(_mesh_dotnet_native_abi_blockers(executable_path, provenance, manifest))
     return tuple(dict.fromkeys(blockers))
+
+
+def _mesh_dotnet_native_abi_blockers(
+    executable_path: Path,
+    provenance: Mapping[str, object],
+    manifest: Mapping[str, object],
+) -> tuple[str, ...]:
+    reported = provenance.get("native_abi")
+    expected = manifest.get("native_abi") if manifest else None
+    if not isinstance(reported, Mapping):
+        return ("helper native ABI provenance is missing",)
+    blockers: list[str] = []
+    library_path = Path(str(reported.get("library_path", "") or ""))
+    try:
+        adjacent = (
+            library_path.is_absolute()
+            and library_path.resolve().parent == executable_path.resolve().parent
+            and library_path.name.lower() == "cdmw-mesh-core.dll"
+        )
+    except OSError:
+        adjacent = False
+    if not adjacent:
+        blockers.append("helper native ABI path is not absolute and helper-adjacent")
+    actual_hash = ""
+    try:
+        actual_hash = mesh_dotnet_provenance_file_sha256(library_path)
+    except OSError as exc:
+        blockers.append(f"helper native ABI hash failed: {exc}")
+    reported_hash = str(reported.get("library_sha256", "") or "").strip().lower()
+    if not reported_hash or reported_hash != actual_hash:
+        blockers.append("helper native ABI SHA-256 does not match the loaded DLL")
+    contract = str(reported.get("contract", "") or "")
+    backend = str(reported.get("backend", "") or "")
+    header_sha = str(reported.get("header_sha256", "") or "").strip().lower()
+    try:
+        abi_version = int(reported.get("abi_version", 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        abi_version = 0
+    if abi_version != 1 or contract != "cdmw_mesh_interaction_abi_v1":
+        blockers.append("helper native interaction ABI contract is unsupported")
+    if backend != "cdmw_mesh_core_0.1" or len(header_sha) != 64:
+        blockers.append("helper native interaction ABI identity is invalid")
+    if isinstance(expected, Mapping):
+        for key in ("library_sha256", "abi_version", "contract", "backend", "header_sha256"):
+            if str(reported.get(key, "") or "").strip().lower() != str(
+                expected.get(key, "") or ""
+            ).strip().lower():
+                blockers.append(f"helper native ABI provenance mismatch for {key}")
+    elif manifest:
+        blockers.append("release helper manifest native ABI identity is missing")
+    return tuple(blockers)
 
 
 def mesh_dotnet_helper_static_provenance_blockers(
@@ -312,6 +368,26 @@ def mesh_dotnet_helper_static_provenance_blockers(
             blockers.append("helper manifest required capabilities are missing: " + ", ".join(missing))
     else:
         blockers.append("helper manifest capability set is missing")
+    if isinstance(capabilities, Sequence) and not isinstance(capabilities, (str, bytes)) \
+            and "resident_interaction_abi_v1" in {str(value) for value in capabilities}:
+        native_abi = manifest.get("native_abi")
+        if not isinstance(native_abi, Mapping):
+            blockers.append("helper manifest native ABI identity is missing")
+        else:
+            dll_path = executable_path.parent / "cdmw-mesh-core.dll"
+            try:
+                dll_hash = mesh_dotnet_provenance_file_sha256(dll_path)
+            except OSError as exc:
+                blockers.append(f"helper native ABI hash failed: {exc}")
+                dll_hash = ""
+            if dll_hash != str(native_abi.get("library_sha256", "") or "").strip().lower():
+                blockers.append("helper native ABI SHA-256 does not match the release manifest")
+            try:
+                native_abi_version = int(native_abi.get("abi_version", 0) or 0)
+            except (TypeError, ValueError, OverflowError):
+                native_abi_version = 0
+            if native_abi_version != 1:
+                blockers.append("helper manifest native ABI version is unsupported")
     return tuple(dict.fromkeys(blockers))
 
 

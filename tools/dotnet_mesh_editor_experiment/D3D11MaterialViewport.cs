@@ -21,6 +21,12 @@ internal sealed partial class D3D11MaterialViewport : Control
     private NetMaterialSet _materials;
     private NetTextureSet _textureSet;
     private NetSceneState _scene;
+    private readonly DriverType _driverType;
+    private readonly bool _debugLayerRequested;
+    private string _adapterDescription = string.Empty;
+    private uint _adapterVendorId;
+    private uint _adapterDeviceId;
+    private string _featureLevelName = string.Empty;
     private readonly List<D3D11SubmeshBatch> _batches = new();
     private readonly List<D3D11SubmeshBatch> _visibleOpaqueBatches = new();
     private readonly List<D3D11SubmeshBatch> _visibleTransparentBatches = new();
@@ -107,12 +113,35 @@ internal sealed partial class D3D11MaterialViewport : Control
     public event Action<string>? BackendUnavailable;
     public event Action<double, double, string>? FrameRendered;
 
-    public D3D11MaterialViewport(ObjDocument document, NetMaterialSet materials, NetTextureSet textureSet, NetSceneState scene)
+    public D3D11MaterialViewport(
+        ObjDocument document,
+        NetMaterialSet materials,
+        NetTextureSet textureSet,
+        NetSceneState scene)
+        : this(
+            document,
+            materials,
+            textureSet,
+            scene,
+            DriverType.Hardware,
+            D3D11DebugLayerEvidence.RequiredForCurrentProcess())
+    {
+    }
+
+    internal D3D11MaterialViewport(
+        ObjDocument document,
+        NetMaterialSet materials,
+        NetTextureSet textureSet,
+        NetSceneState scene,
+        DriverType driverType,
+        bool debugLayerRequested)
     {
         _document = document;
         _materials = materials;
         _textureSet = textureSet;
         _scene = scene;
+        _driverType = driverType;
+        _debugLayerRequested = debugLayerRequested;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.Opaque | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
         Dock = DockStyle.Fill;
         BackColor = System.Drawing.Color.FromArgb(18, 20, 24);
@@ -373,9 +402,11 @@ internal sealed partial class D3D11MaterialViewport : Control
         }
         var featureLevels = new[] { FeatureLevel.Level_11_1, FeatureLevel.Level_11_0, FeatureLevel.Level_10_1, FeatureLevel.Level_10_0 };
         _device = Vortice.Direct3D11.D3D11.D3D11CreateDevice(
-            DriverType.Hardware,
-            DeviceCreationFlags.BgraSupport,
+            _driverType,
+            DeviceCreationFlags.BgraSupport
+                | (_debugLayerRequested ? DeviceCreationFlags.Debug : DeviceCreationFlags.None),
             featureLevels);
+        _featureLevelName = _device.FeatureLevel.ToString();
         _context = _device.ImmediateContext;
         CreateGpuTimingQueries();
         using var dxgiDevice1 = _device.QueryInterface<IDXGIDevice1>();
@@ -383,6 +414,10 @@ internal sealed partial class D3D11MaterialViewport : Control
         _maximumFrameLatency = 1;
         using var dxgiDevice = _device.QueryInterface<IDXGIDevice>();
         using var adapter = dxgiDevice.GetAdapter();
+        var adapterDescription = adapter.Description;
+        _adapterDescription = adapterDescription.Description.TrimEnd('\0');
+        _adapterVendorId = adapterDescription.VendorId;
+        _adapterDeviceId = adapterDescription.DeviceId;
         using var factory = adapter.GetParent<IDXGIFactory2>();
         var swapChainDescription = new SwapChainDescription1
         {

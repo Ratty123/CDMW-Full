@@ -26,6 +26,16 @@ internal sealed partial class MeshViewport
 
     public void PrepareRendererPerformanceCapture() => _d3d11Viewport?.PreparePerformanceCapture();
 
+    public void BeginRendererDebugLayerCapture() => _d3d11Viewport?.BeginDebugLayerCapture();
+
+    public Dictionary<string, object?> RendererDebugLayerEvidencePayload() =>
+        _d3d11Viewport?.DebugLayerEvidencePayload()
+        ?? new Dictionary<string, object?>
+        {
+            ["ok"] = false,
+            ["error"] = "The production D3D11 renderer is unavailable.",
+        };
+
     /// <summary>
     /// Brings the production renderer up before the window is shown, so material
     /// binding and the first frame do not have to wait for a paint to create it.

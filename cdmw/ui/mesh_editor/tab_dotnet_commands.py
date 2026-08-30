@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import string
 import time
 from typing import Mapping
 
@@ -9,6 +10,10 @@ from PySide6.QtWidgets import QWidget
 
 from cdmw.ui.shell.settings_bridge import read_bool_setting
 from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
+from cdmw.services.mesh_service_resident_transaction import (
+    RESIDENT_INTERACTION_FORMAT_VERSION,
+    RESIDENT_INTERACTION_MAPPING_PREFIX,
+)
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -35,8 +40,87 @@ _DOTNET_ACTION_ALIASES = {
     "pinch": "brush_pinch",
 }
 
+_RESIDENT_INTERACTION_DESCRIPTOR_FIELDS = (
+    "mapping_name",
+    "length",
+    "sha256",
+    "session_id",
+    "gesture_id",
+    "base_revision",
+    "base_selection_revision",
+    "topology_generation",
+    "format_version",
+)
+
+
+def _resident_interaction_descriptor(payload: Mapping[str, object]) -> dict[str, object]:
+    descriptor = {name: payload.get(name) for name in _RESIDENT_INTERACTION_DESCRIPTOR_FIELDS}
+    mapping_name = str(descriptor["mapping_name"] or "")
+    suffix = mapping_name.removeprefix(RESIDENT_INTERACTION_MAPPING_PREFIX)
+    sha256 = str(descriptor["sha256"] or "")
+    integer_fields = _RESIDENT_INTERACTION_DESCRIPTOR_FIELDS[4:]
+    if (
+        not mapping_name.startswith(RESIDENT_INTERACTION_MAPPING_PREFIX)
+        or len(suffix) != 32
+        or any(character not in string.hexdigits for character in suffix)
+        or len(sha256) != 64
+        or any(character not in string.hexdigits for character in sha256)
+        or not str(descriptor["session_id"] or "")
+        or any(type(descriptor[name]) is not int for name in integer_fields)
+        or type(descriptor["length"]) is not int
+        or int(descriptor["length"] or 0) <= 0
+        or int(descriptor["gesture_id"] or 0) <= 0
+        or int(descriptor["format_version"] or 0) != RESIDENT_INTERACTION_FORMAT_VERSION
+    ):
+        raise ValueError("Invalid resident interaction transaction descriptor.")
+    descriptor["mapping_name"] = mapping_name
+    descriptor["sha256"] = sha256.lower()
+    descriptor["session_id"] = str(descriptor["session_id"])
+    return descriptor
+
 
 class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
+    def _handle_dotnet_resident_interaction_transaction(
+        self,
+        payload: Mapping[str, object],
+    ) -> bool:
+        controller = self._dotnet_target_controller()
+        if controller is None:
+            self._reject_dotnet_request_without_session("resident_interaction", payload)
+            return False
+        if self._reject_dotnet_mutation_while_busy("resident_interaction", payload):
+            return True
+        try:
+            descriptor = _resident_interaction_descriptor(payload)
+            command = _tab.MeshEditCommand(
+                "_resident_interaction_transaction",
+                params=descriptor,
+                mode="edit",
+            )
+        except (TypeError, ValueError) as exc:
+            self._send_dotnet_command_result(
+                "resident_interaction",
+                ok=False,
+                status="error",
+                diagnostics=(str(exc),),
+                request_payload=payload,
+            )
+            return False
+        _record_interaction_decision(
+            self,
+            "mesh_resident_interaction_transaction_queued",
+            request_id=int(payload.get("request_id", 0) or 0),
+            gesture_id=int(descriptor["gesture_id"]),
+            base_revision=int(descriptor["base_revision"]),
+            transaction_bytes=int(descriptor["length"]),
+        )
+        return self._start_dotnet_action_worker(
+            controller,
+            command,
+            command_name="resident_interaction",
+            request_payload=payload,
+        )
+
     def _queue_dotnet_topology_after_selection(
         self,
         command_name: str,

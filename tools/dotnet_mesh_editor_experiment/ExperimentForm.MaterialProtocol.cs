@@ -101,7 +101,10 @@ internal sealed partial class ExperimentForm
         }
         var renderer = new Dictionary<string, object?>(_rendererDiagnosticCache);
         renderer["live_metrics"] = _viewport.RendererLiveMetricsPayload();
+        renderer["edit_operator"] = _viewport.EditOperatorDiagnostics();
+        renderer["native_interaction"] = _viewport.ResidentNativeInteractionDiagnostics();
         renderer["lifecycle_counts"] = LifecycleCountsPayload();
+        renderer["last_applied_edit_revision"] = _lastAppliedEditRevision;
         renderer["material_generation"] = _materials.Generation;
         renderer["last_requested_material_generation"] = _lastRequestedMaterialGeneration;
         renderer["last_applied_material_generation"] = _lastAppliedMaterialGeneration;
@@ -233,9 +236,6 @@ internal sealed partial class ExperimentForm
             _appliedToolRailHostWidth = -1;
             ApplyToolRailSplitterLayout();
         }
-        Show();
-        Focus();
-        _viewport.Focus();
         WriteProtocolEvent("activated", new Dictionary<string, object?>
         {
             ["activation_request_id"] = _activationRequestId,
@@ -429,6 +429,7 @@ internal sealed partial class ExperimentForm
             return;
         }
         _residentSessionReleased = true;
+        _viewport.ReleaseResidentNativeInteraction();
         WriteProtocolEvent("session_released", new Dictionary<string, object?>
         {
             ["session_id"] = _residentMaterialSessionId,

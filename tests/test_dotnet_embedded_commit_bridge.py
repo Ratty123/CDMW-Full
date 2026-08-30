@@ -118,6 +118,40 @@ def test_a_terminal_resident_stroke_forwards_native_history_ownership() -> None:
     ]
 
 
+def test_resident_transaction_result_marks_the_ack_commit_as_resident_history() -> None:
+    bridge = _Bridge(_builder_recording_commits())
+    bridge.standalone_dotnet_target_embedded = True
+    update = MeshEditorNativeUpdate(
+        vertex_groups=(
+            {
+                "preview_backend": "cdmw_mesh_core",
+                "source_submesh_index": 0,
+                "source_vertex_indices": [1],
+                "positions": [1.0, 2.0, 3.0],
+            },
+        ),
+    )
+    controller = SimpleNamespace(native_update_for_result=lambda _result: update)
+    sends: list[dict[str, object]] = []
+    bridge._send_dotnet_native_update = (
+        lambda _update, **kwargs: sends.append(dict(kwargs)) or True
+    )
+    bridge._set_dotnet_status = lambda *_args, **_kwargs: None
+
+    assert bridge._apply_dotnet_result_update(
+        controller,
+        MeshEditResult(action="brush", status="ok", revision=7),
+        command_name="resident_interaction",
+        request_payload={
+            "event": "resident_interaction_transaction",
+            "request_id": 42,
+        },
+    )
+
+    assert sends[0]["commit_embedded"] is True
+    assert sends[0]["resident_history"] is True
+
+
 def test_a_builder_without_the_bridge_is_not_an_error() -> None:
     # Placement builders and the standalone tab have no mesh-edit state to
     # commit into; the editor still runs, so this must stay quiet.

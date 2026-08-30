@@ -37,6 +37,59 @@ def _dotnet_source_context() -> dict[str, object]:
     }
 
 
+def test_resident_transaction_envelope_preserves_native_base_revision() -> None:
+    root = Path(__file__).resolve().parents[1]
+    output_source = (
+        root
+        / "tools"
+        / "dotnet_mesh_editor_experiment"
+        / "ExperimentForm.Output.cs"
+    ).read_text(encoding="utf-8")
+    mutating_branch = output_source.split(
+        "if (IsMutatingProtocolRequest(eventName))", 1
+    )[1].split(
+        'else if (string.Equals(eventName, "interaction_failed"', 1
+    )[0]
+
+    assert 'message.TryAdd("base_revision", observedRevision);' in mutating_branch
+    assert 'DictionaryLong(message, "base_revision")' in mutating_branch
+    assert 'message["base_revision"] = Math.Max(' not in mutating_branch
+
+
+def test_authoritative_uncorrelated_batch_resynchronizes_native_mirror() -> None:
+    root = Path(__file__).resolve().parents[1]
+    authority_source = (
+        root
+        / "tools"
+        / "dotnet_mesh_editor_experiment"
+        / "ExperimentForm.NativeInteraction.cs"
+    ).read_text(encoding="utf-8")
+    uncorrelated_branch = authority_source.split(
+        "if (!_pendingMutationRequests.TryGetValue(requestId, out var pending))", 1
+    )[1].split("if (pending.EventName ==", 1)[0]
+
+    assert "SynchronizeResidentNativeAfterOneShot(" in uncorrelated_branch
+    assert "targetRevision" in uncorrelated_branch
+    assert "selectionRevision" in uncorrelated_branch
+    assert "topologyGeneration" in uncorrelated_branch
+
+
+def test_helper_mutation_request_ids_use_a_disjoint_positive_namespace() -> None:
+    root = Path(__file__).resolve().parents[1]
+    protocol_source = (
+        root
+        / "tools"
+        / "dotnet_mesh_editor_experiment"
+        / "ExperimentForm.Protocol.cs"
+    ).read_text(encoding="utf-8")
+
+    assert "HelperOriginatedRequestIdBase = 1L << 62" in protocol_source
+    assert (
+        "_outgoingMutationRequestSequence = HelperOriginatedRequestIdBase"
+        in protocol_source
+    )
+
+
 def test_dotnet_experiment_renderer_source_contract() -> None:
     context = _dotnet_source_context()
     source = context["source"]
@@ -248,10 +301,13 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "dotnet_close_requested.txt" in source
     assert "FormBorderStyle.None" in source
     assert "BringEmbeddedChildToFront" in source
-    assert "SetFocus(form.Handle)" in source
+    assert "SetFocus(form.Handle)" not in source
+    assert "SwpNoActivate | SwpFrameChanged | SwpShowWindow" in source
     assert "EnableWindow(form.Handle, true)" in source
-    assert "_viewport.Focus()" in source
+    assert "_viewport.MouseDown += (_, _) => _viewport.Focus()" in source
     assert "WriteProtocolEvent(\"ready\"" in source
+    assert 'renderer["edit_operator"] = _viewport.EditOperatorDiagnostics();' in source
+    assert 'renderer["last_applied_edit_revision"] = _lastAppliedEditRevision;' in source
     assert "WriteProtocolEvent(\"metrics\"" in source
     assert "\"select_request\"" in source
     assert "\"stroke_begin\"" in source

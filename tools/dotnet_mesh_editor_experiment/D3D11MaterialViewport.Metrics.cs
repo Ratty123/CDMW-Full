@@ -9,7 +9,7 @@ internal sealed partial class D3D11MaterialViewport
 
     public Dictionary<string, object?> LiveMetricsPayload()
     {
-        return new Dictionary<string, object?>
+        var payload = new Dictionary<string, object?>
         {
             ["available"] = true,
             ["topology_generation"] = _topologyGeneration,
@@ -67,6 +67,8 @@ internal sealed partial class D3D11MaterialViewport
             ["render_surface_bytes_estimate"] = _renderSurfaceBytesEstimate,
             ["offscreen_capture_surface_bytes_estimate"] = _offscreenCaptureSurfaceBytesEstimate,
         };
+        AppendD3D11Identity(payload);
+        return payload;
     }
 
     public Dictionary<string, object?> ResourceMetricsPayload()
@@ -194,6 +196,7 @@ internal sealed partial class D3D11MaterialViewport
         {
             payload[pair.Key] = pair.Value;
         }
+        AppendD3D11Identity(payload);
         return payload;
     }
 

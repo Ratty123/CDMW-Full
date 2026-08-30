@@ -251,6 +251,62 @@ internal sealed partial class MeshViewport
         && _pendingPaintSample is null
         && _editOperators.State == MeshEditOperatorState.Idle;
 
+    internal Dictionary<string, object?> CaptureAuthoritativeResyncRearmProof()
+    {
+        var previousHandler = EditorEventRequested;
+        EditorEventRequested = (_, _) => { };
+        try
+        {
+            var start = InteractionSoakMeshAnchor();
+            var end = new Point(
+                Math.Clamp(start.X + 12, 1, Math.Max(1, ClientSize.Width - 2)),
+                Math.Clamp(start.Y + 6, 1, Math.Max(1, ClientSize.Height - 2)));
+            BeginInteractionSoak("grab", start);
+            StepInteractionSoak(end);
+            EndEditorStroke(end, cancelled: false);
+            var awaitedAuthority = _editOperators.State == MeshEditOperatorState.AwaitingCommit
+                && HasProvisionalStroke;
+
+            ResetInteractionAuthority(
+                "authoritative_resync",
+                "The authoritative resident state replaced the diagnostic interaction.");
+            var stateAfterReset = _editOperators.State;
+            var provisionalCleared = !HasProvisionalStroke;
+            var returnedIdle = stateAfterReset == MeshEditOperatorState.Idle;
+            if (!returnedIdle)
+            {
+                _editOperators.Fail(
+                    "diagnostic_cleanup",
+                    "The authoritative reset left the interaction operator active.");
+                _editOperators.RecoverToIdle();
+            }
+
+            BeginInteractionSoak("grab", start);
+            var rearmed = _editorStrokeActive
+                && _editOperators.State == MeshEditOperatorState.Running;
+            EndEditorStroke(start, cancelled: true);
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = awaitedAuthority && provisionalCleared && returnedIdle && rearmed,
+                ["awaited_authority_before_reset"] = awaitedAuthority,
+                ["provisional_cleared"] = provisionalCleared,
+                ["state_after_reset"] = stateAfterReset.ToString().ToLowerInvariant(),
+                ["returned_idle"] = returnedIdle,
+                ["next_grab_rearmed"] = rearmed,
+            };
+        }
+        finally
+        {
+            if (_editOperators.State != MeshEditOperatorState.Idle)
+            {
+                _editOperators.Fail("diagnostic_cleanup", "Interaction recovery diagnostic cleanup.");
+                _editOperators.RecoverToIdle();
+            }
+            ClearProvisionalEditorStroke();
+            EditorEventRequested = previousHandler;
+        }
+    }
+
     internal MeshInteractionSoakResult FinishInteractionSoak(
         Point point,
         bool deferStreamedAuthority = false)

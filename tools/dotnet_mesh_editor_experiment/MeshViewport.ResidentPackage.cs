@@ -130,6 +130,7 @@ internal sealed partial class MeshViewport
             ResidentDisplayModeForSwap(hasTextureResources),
             out _);
         ApplySceneState();
+        NotifyResidentNativeDocumentReplaced();
     }
 
     private void ApplyArchivePreviewInitialCamera()

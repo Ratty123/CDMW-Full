@@ -176,14 +176,17 @@ def _add_native_binary(source, destination, *, required_release=False):
         raise SystemExit(f"Required native binary is missing: {path}")
 
 
-def _add_native_binary_tree(source, destination, *, required_release=False, suffixes=None):
+def _add_native_binary_tree(source, destination, *, required_release=False, suffixes=None, excluded_names=()):
     root = ROOT / source
     if not root.exists():
         if required_release and PROFILE == "release":
             raise SystemExit(f"Required native payload directory is missing: {root}")
         return
     allowed_suffixes = {suffix.lower() for suffix in suffixes} if suffixes is not None else None
+    excluded = {name.casefold() for name in excluded_names}
     for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
+        if path.name.casefold() in excluded:
+            continue
         if allowed_suffixes is not None and path.suffix.lower() not in allowed_suffixes:
             continue
         relative_parent = Path(destination) / path.relative_to(root).parent
@@ -198,11 +201,15 @@ _add_native_binary(
     required_release=True,
 )
 _add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.exe", "native", required_release=True)
+_add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.dll", "native", required_release=True)
 _add_native_binary_tree(
     f"native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}",
     "native",
     required_release=(ROOT / "tools" / "dotnet_mesh_editor_experiment" / "Cdmw.MeshEditorExperiment.csproj").exists(),
     suffixes={".exe", ".dll", ".json"},
+    # The ABI is collected from its CMake output above, which makes it an
+    # explicit release requirement rather than an incidental helper-tree DLL.
+    excluded_names={"cdmw-mesh-core.dll"},
 )
 _add_native_binary_tree(
     f"native/cdmw_full_archive_backend/build/{NATIVE_CONFIGURATION}",

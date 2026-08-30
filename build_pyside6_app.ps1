@@ -662,6 +662,7 @@ function Test-NativeOutputsPresent {
         "native\cdmw_preview_core\build\$Configuration\cdmw-preview-core.exe",
         "native\cdmw_archive_accelerator\build\$Configuration\cdmw-archive-accelerator.exe",
         "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.exe",
+        "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.dll",
         "native\cdmw_full_archive_backend\build\$Configuration\cdmw-full-archive-worker.exe",
         "native\cdmw_full_archive_backend\build\$Configuration\cdmw-full-archive-core.dll"
     )
@@ -672,6 +673,69 @@ function Test-NativeOutputsPresent {
         }
     }
     return $true
+}
+
+function Get-NativeMeshInteractionAbiContract {
+    # The ABI DLL exports these values at runtime, but the package manifest is
+    # written before the helper can load it. Read the version and identity from
+    # the C ABI sources so the release build records exactly the contract it
+    # compiled, including the authoritative header hash.
+    $headerPath = Join-Path $scriptDir "native\cdmw_mesh_core\src\mesh_interaction_abi.h"
+    $implementationPath = Join-Path $scriptDir "native\cdmw_mesh_core\src\mesh_interaction_abi.cpp"
+    foreach ($path in @($headerPath, $implementationPath)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Native mesh interaction ABI source is missing: $path"
+        }
+    }
+
+    $headerText = Get-Content -LiteralPath $headerPath -Raw
+    $versionMatch = [regex]::Match(
+        $headerText,
+        '#define\s+CDMW_MESH_INTERACTION_ABI_VERSION\s+(?<value>\d+)u?')
+    if (-not $versionMatch.Success) {
+        throw "Could not read CDMW_MESH_INTERACTION_ABI_VERSION from $headerPath."
+    }
+
+    $implementationText = Get-Content -LiteralPath $implementationPath -Raw
+    $contractMatch = [regex]::Match(
+        $implementationText,
+        'cdmw_mesh_interaction_abi_contract\s*\(\s*void\s*\)\s*\{\s*return\s+"(?<value>[^"]+)";',
+        [Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $contractMatch.Success) {
+        throw "Could not read cdmw_mesh_interaction_abi_contract from $implementationPath."
+    }
+    $backendMatch = [regex]::Match(
+        $implementationText,
+        'cdmw_mesh_interaction_backend\s*\(\s*void\s*\)\s*\{\s*return\s+"(?<value>[^"]+)";',
+        [Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $backendMatch.Success) {
+        throw "Could not read cdmw_mesh_interaction_backend from $implementationPath."
+    }
+
+    return [ordered]@{
+        AbiVersion = [int]$versionMatch.Groups['value'].Value
+        Contract = $contractMatch.Groups['value'].Value
+        Backend = $backendMatch.Groups['value'].Value
+        HeaderSha256 = Get-Sha256Hex -LiteralPath $headerPath
+    }
+}
+
+function Test-FullyQualifiedPath {
+    param(
+        [AllowEmptyString()]
+        [string]$LiteralPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($LiteralPath) -or -not [IO.Path]::IsPathRooted($LiteralPath)) {
+        return $false
+    }
+    try {
+        $normalized = [IO.Path]::GetFullPath($LiteralPath).TrimEnd([char[]]@('\', '/'))
+        $provided = $LiteralPath.TrimEnd([char[]]@('\', '/'))
+        return [string]::Equals($normalized, $provided, [StringComparison]::OrdinalIgnoreCase)
+    } catch {
+        return $false
+    }
 }
 
 function Get-DotNetMeshEditorHelperContract {
@@ -795,6 +859,50 @@ function Invoke-DotNetMeshEditorProvenanceCheck {
                 $mismatches.Add("$($pair.Field): helper reported '$($pair.Reported)', manifest has '$($pair.Expected)'")
             }
         }
+        $manifestNativeAbi = $manifest.native_abi
+        $reportedNativeAbi = $report.native_abi
+        if ($null -eq $manifestNativeAbi) {
+            $mismatches.Add("native_abi: the manifest does not record the required native mesh interaction ABI")
+        }
+        if ($null -eq $reportedNativeAbi) {
+            $mismatches.Add("native_abi: helper provenance does not report the required native mesh interaction ABI")
+        }
+        if ($null -ne $manifestNativeAbi -and $null -ne $reportedNativeAbi) {
+            $manifestLibraryPath = [string]$manifestNativeAbi.library_path
+            $reportedLibraryPath = [string]$reportedNativeAbi.library_path
+            $helperDirectory = [IO.Path]::GetFullPath((Split-Path -Parent $ExecutablePath))
+            if (-not (Test-FullyQualifiedPath -LiteralPath $manifestLibraryPath)) {
+                $mismatches.Add("native_abi.library_path: manifest path is not absolute: '$manifestLibraryPath'")
+            }
+            if (-not (Test-FullyQualifiedPath -LiteralPath $reportedLibraryPath)) {
+                $mismatches.Add("native_abi.library_path: helper reported a non-absolute path: '$reportedLibraryPath'")
+            } else {
+                $reportedLibraryPath = [IO.Path]::GetFullPath($reportedLibraryPath)
+                if ((Split-Path -Parent $reportedLibraryPath) -ne $helperDirectory) {
+                    $mismatches.Add("native_abi.library_path: helper loaded '$reportedLibraryPath' instead of a DLL beside '$ExecutablePath'")
+                }
+                if (-not (Test-Path -LiteralPath $reportedLibraryPath -PathType Leaf)) {
+                    $mismatches.Add("native_abi.library_path: helper reported a missing DLL: '$reportedLibraryPath'")
+                } elseif ((Get-Sha256Hex -LiteralPath $reportedLibraryPath) -ne [string]$reportedNativeAbi.library_sha256) {
+                    $mismatches.Add("native_abi.library_sha256: helper report does not match '$reportedLibraryPath'")
+                }
+            }
+            if ([IO.Path]::GetFileName($manifestLibraryPath) -ne [IO.Path]::GetFileName($reportedLibraryPath)) {
+                $mismatches.Add("native_abi.library_path: helper reported '$reportedLibraryPath', manifest names '$manifestLibraryPath'")
+            }
+            $nativeAbiFieldPairs = @(
+                @{ Field = "library_sha256"; Reported = $reportedNativeAbi.library_sha256; Expected = $manifestNativeAbi.library_sha256 },
+                @{ Field = "abi_version"; Reported = $reportedNativeAbi.abi_version; Expected = $manifestNativeAbi.abi_version },
+                @{ Field = "contract"; Reported = $reportedNativeAbi.contract; Expected = $manifestNativeAbi.contract },
+                @{ Field = "backend"; Reported = $reportedNativeAbi.backend; Expected = $manifestNativeAbi.backend },
+                @{ Field = "header_sha256"; Reported = $reportedNativeAbi.header_sha256; Expected = $manifestNativeAbi.header_sha256 }
+            )
+            foreach ($pair in $nativeAbiFieldPairs) {
+                if ([string]$pair.Reported -ne [string]$pair.Expected) {
+                    $mismatches.Add("native_abi.$($pair.Field): helper reported '$($pair.Reported)', manifest has '$($pair.Expected)'")
+                }
+            }
+        }
         if ($manifestCapabilities.Count -eq 0) {
             $mismatches.Add("capabilities: the manifest lists none")
         }
@@ -868,8 +976,26 @@ function Invoke-DotNetMeshEditorBuild {
     if (-not (Test-Path -LiteralPath $shaderPath -PathType Leaf)) {
         throw ".NET Mesh Editor publish did not include the authoritative shader: $shaderPath"
     }
+    $nativeAbiSourcePath = Join-Path $scriptDir "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.dll"
+    if (-not (Test-Path -LiteralPath $nativeAbiSourcePath -PathType Leaf)) {
+        throw ".NET Mesh Editor publish requires the native mesh interaction ABI DLL: $nativeAbiSourcePath"
+    }
+    $nativeAbiOutputPath = Join-Path $outputDir "cdmw-mesh-core.dll"
+    Copy-Item -LiteralPath $nativeAbiSourcePath -Destination $nativeAbiOutputPath -Force
+    if (-not (Test-Path -LiteralPath $nativeAbiOutputPath -PathType Leaf)) {
+        throw ".NET Mesh Editor publish did not stage the native mesh interaction ABI DLL: $nativeAbiOutputPath"
+    }
     $exeHash = Get-Sha256Hex -LiteralPath $exePath
     $shaderHash = Get-Sha256Hex -LiteralPath $shaderPath
+    $nativeAbiContract = Get-NativeMeshInteractionAbiContract
+    $nativeAbi = [ordered]@{
+        library_path = [IO.Path]::GetFullPath($nativeAbiOutputPath)
+        library_sha256 = Get-Sha256Hex -LiteralPath $nativeAbiOutputPath
+        abi_version = $nativeAbiContract.AbiVersion
+        contract = $nativeAbiContract.Contract
+        backend = $nativeAbiContract.Backend
+        header_sha256 = $nativeAbiContract.HeaderSha256
+    }
     $helperContract = Get-DotNetMeshEditorHelperContract
     $semanticVersion = $helperContract.SemanticVersion
     $protocolCapabilities = $helperContract.Capabilities
@@ -877,7 +1003,7 @@ function Invoke-DotNetMeshEditorBuild {
     if (-not $sourceRevision) {
         $sourceRevision = "unavailable"
     }
-    $manifestSeed = "$exeHash|$shaderHash|$sourceRevision|$semanticVersion|$($protocolCapabilities -join ',')"
+    $manifestSeed = "$exeHash|$shaderHash|$($nativeAbi.library_sha256)|$($nativeAbi.abi_version)|$($nativeAbi.contract)|$($nativeAbi.backend)|$($nativeAbi.header_sha256)|$sourceRevision|$semanticVersion|$($protocolCapabilities -join ',')"
     $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
         $manifestId = -join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($manifestSeed)) | ForEach-Object { $_.ToString("x2") })
@@ -896,7 +1022,8 @@ function Invoke-DotNetMeshEditorBuild {
         shader = "D3D11MaterialShaders.hlsl"
         shader_sha256 = $shaderHash
         renderer_backend = "d3d11_vortice_shader"
-        edit_backend = "cdmw_mesh_core_0.1"
+        edit_backend = $nativeAbi.backend
+        native_abi = $nativeAbi
         capabilities = $protocolCapabilities
     }
     [IO.File]::WriteAllText(

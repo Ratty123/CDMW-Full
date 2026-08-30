@@ -104,6 +104,7 @@ internal sealed partial class MeshViewport
     {
         if (disposing)
         {
+            ReleaseResidentNativeInteraction();
             CancelPaintProjectionBuild();
             StopPerformanceRenderPump();
             _renderSurfaceResizeTimer.Stop();
@@ -383,6 +384,11 @@ internal sealed partial class MeshViewport
             {
                 MaybeEmitSelectionPaintSample(input.Location);
             }
+            if (_residentNativeGesture?.Tool == NativeMeshInteractionTool.Select
+                && input.IsHeld(MeshPointerButtons.Left))
+            {
+                UpdateResidentNativeInteraction(input.Location);
+            }
         }
         if (!_edgeDragActive
             && !_editorStrokeActive
@@ -397,10 +403,17 @@ internal sealed partial class MeshViewport
         {
             if (input.IsHeld(MeshPointerButtons.Left))
             {
-                var checkpointEmitted = MaybeEmitEditorStrokeUpdate(input.Location);
-                if (!IsCheckpointedSculptTool(_strokeTool) || checkpointEmitted)
+                if (_residentNativeGesture is not null)
                 {
-                    UpdateProvisionalEditorStroke(input.Location);
+                    UpdateResidentNativeInteraction(input.Location);
+                }
+                else
+                {
+                    var checkpointEmitted = MaybeEmitEditorStrokeUpdate(input.Location);
+                    if (!IsCheckpointedSculptTool(_strokeTool) || checkpointEmitted)
+                    {
+                        UpdateProvisionalEditorStroke(input.Location);
+                    }
                 }
                 _strokePrevious = input.Location;
             }
@@ -560,6 +573,18 @@ internal sealed partial class MeshViewport
             _strokeTool = string.Empty;
             return;
         }
+        if (ResidentNativeInteractionRequired)
+        {
+            if (!ResidentNativeInteractionReady
+                || !BeginResidentNativeStroke(location, _strokeTool, gestureId))
+            {
+                _editOperators.Cancel(gestureId);
+                _strokeTool = string.Empty;
+                return;
+            }
+            _editorStrokeActive = true;
+            return;
+        }
         if (!BeginProvisionalEditorStroke(location, _strokeTool, _strokeId))
         {
             _editOperators.Cancel(gestureId);
@@ -602,6 +627,14 @@ internal sealed partial class MeshViewport
         _editorStrokeActive = false;
         var gestureId = _editOperators.Active?.GestureId
             ?? _strokeId.ToString(CultureInfo.InvariantCulture);
+        if (_residentNativeGesture is not null)
+        {
+            EndResidentNativeInteraction(location, cancelled);
+            _strokePrevious = location;
+            _strokeProtocolPrevious = location;
+            _strokeTool = string.Empty;
+            return;
+        }
         var payload = StrokePointerPayload(location, _strokeProtocolPrevious);
         payload["apply_terminal_sample"] = location != _strokeProtocolPrevious;
         if (!cancelled
@@ -643,6 +676,43 @@ internal sealed partial class MeshViewport
     }
 
     /// <summary>
+    /// Retires local input and provisional state after the host replaces the
+    /// resident document with an authoritative session snapshot. This path is
+    /// deliberately local-only: the host is already settling the failed
+    /// request, so emitting another cancel request would create a second
+    /// mutation while recovery is in progress.
+    /// </summary>
+    internal void ResetInteractionAuthority(string failureCode, string failureMessage)
+    {
+        RejectAllResidentNativeTransactions(failureCode);
+        ResetSelectionAuthority();
+        _editorStrokeActive = false;
+        _strokeTool = string.Empty;
+        _edgeDragActive = false;
+        _selectionStrokeId = string.Empty;
+        _selectionPaintActive = false;
+        _selectionPaintPainted = false;
+        _provisionalPartSelectionActive = false;
+        _selectionLassoPoints.Clear();
+        _selectionPaintPathPoints.Clear();
+        _selectionPaintToggleTouchedVertices.Clear();
+        _selectionPaintToggleTouchedFaces.Clear();
+        _selectionPaintToggleTouchedEdges.Clear();
+        _pendingPaintSample = null;
+        EndPaintProjectionGesture();
+        _rotating = false;
+        _panning = false;
+        _capturedInputPane = string.Empty;
+        _inputAdapter.Reset();
+        SetRenderSurfaceCapture(false);
+        if (_editOperators.State != MeshEditOperatorState.Idle)
+        {
+            _editOperators.Fail(failureCode, failureMessage);
+            _editOperators.RecoverToIdle();
+        }
+    }
+
+    /// <summary>
     /// Closes every piece of a Select gesture through one idempotent path. A
     /// release commits exactly what the viewport drew; cancellation restores
     /// the committed overlay and retires provisional paint/lasso state. The
@@ -656,7 +726,11 @@ internal sealed partial class MeshViewport
         var gestureId = _editOperators.Active?.GestureId ?? _selectionStrokeId;
         if (wasActive)
         {
-            if (cancelled)
+            if (_residentNativeGesture?.Tool == NativeMeshInteractionTool.Select)
+            {
+                EndResidentNativeInteraction(location, cancelled);
+            }
+            else if (cancelled)
             {
                 CancelSelectionStroke();
                 ClearProvisionalSelectionEcho();
@@ -680,7 +754,10 @@ internal sealed partial class MeshViewport
         _selectionPaintToggleTouchedFaces.Clear();
         _selectionPaintToggleTouchedEdges.Clear();
         EndPaintProjectionGesture();
-        if (wasActive && gestureId.Length > 0)
+        if (wasActive
+            && _residentNativeGesture is null
+            && !_residentNativeAwaitingAuthority
+            && gestureId.Length > 0)
         {
             if (cancelled)
             {
@@ -939,6 +1016,30 @@ internal sealed partial class MeshViewport
                 (mode ?? "edge").Trim().ToLowerInvariant(),
                 gestureId))
         {
+            return;
+        }
+        if (meshEdit
+            && (mode ?? string.Empty).Trim().ToLowerInvariant() is "vertex" or "edge" or "face"
+            && ResidentNativeInteractionRequired)
+        {
+            if (!ResidentNativeInteractionReady
+                || !BeginResidentNativeSelection(point, mode ?? "vertex", gestureId))
+            {
+                _editOperators.Cancel(gestureId);
+                return;
+            }
+            _edgeDragActive = true;
+            _selectionDragTargetMode = (mode ?? "vertex").Trim().ToLowerInvariant();
+            _edgeDragStart = point;
+            _edgeDragCurrent = point;
+            _selectionPaintActive = false;
+            _selectionPaintPainted = false;
+            _selectionLassoPoints.Clear();
+            if (_selectionDragMode == "lasso")
+            {
+                _selectionLassoPoints.Add(point);
+            }
+            UpdateGpuViewport();
             return;
         }
         _edgeDragActive = true;

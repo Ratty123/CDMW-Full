@@ -305,6 +305,8 @@ class MeshEditSessionView:
     authoring_enabled: bool = False
     exact_write_status: str = "read_only"
     output_policy_reason: str = ""
+    selection_revision: int = 0
+    topology_generation: int = 0
 
 
 __all__ = [

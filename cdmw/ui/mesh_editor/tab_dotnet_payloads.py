@@ -49,6 +49,8 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "mode": ui_state.mode,
             "revision": ui_state.geometry_revision,
             "edit_revision": view.resident_revision,
+            "selection_revision": view.selection_revision,
+            "topology_generation": view.topology_generation,
             # Two keys because they are two things. `selection_mode` is the drag
             # gesture the helper whitelists as brush/lasso/rectangle; an element
             # kind arriving here was silently ignored by it and reset the
@@ -546,6 +548,8 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             },
             final_submesh_count=update.final_submesh_count,
             affected_submesh_indices=tuple(affected),
+            selection_revision=view.selection_revision,
+            topology_generation=view.topology_generation,
         )
 
     def _legacy_dotnet_native_update_packets(
@@ -828,6 +832,11 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "select",
             "clear_selection",
         }
+        resident_history = bool(
+            isinstance(request_payload, Mapping)
+            and str(request_payload.get("event", "") or "").strip().lower()
+            == "resident_interaction_transaction"
+        )
         has_update_payload = bool(
             update.vertex_groups
             or update.triangle_groups
@@ -857,6 +866,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             result=result,
             request_payload=request_payload,
             commit_embedded=bool(self.standalone_dotnet_target_embedded and has_update_payload),
+            resident_history=resident_history,
             refresh_morph_state=(
                 (command_name or result.action).strip().lower().startswith("morph_")
                 or (command_name or result.action).strip().lower() in {"undo", "redo"}

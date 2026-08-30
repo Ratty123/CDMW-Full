@@ -104,6 +104,9 @@ def test_edit_mesh_keeps_tools_left_viewport_center_and_scene_inspector_right() 
     assert '"export_free_edit"' in output_policy
     assert "_freeEditOnlyButtons" in output_policy
     assert "_outputAuthoringEnabled" in output_policy
+    assert "Unavailable operations:" not in output_policy
+    assert "_unavailableActionReasons.GetValueOrDefault(pair.Key)" in output_policy
+    assert "_unavailableActionReasons.GetValueOrDefault(pair.Action)" in output_policy
     assert "button.Visible = true;" in program
     assert "button.Visible = !DirectAuthoringRestrictionsActive;" not in program
     assert _section_stack(program, "Action History") == "rightStack"
@@ -468,10 +471,11 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
         ("Viewport", "_viewportSection"),
     ):
         assert f"AddRailSection(_toolRailPages[ToolRailPage.{page}], {section});" in activate
-    # The scene column keeps its data-heavy groups ordered and always on screen.
-    assert "AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);" in activate
-    assert "AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);" in activate
-    assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);" in activate
+        # The scene column keeps its data-heavy groups ordered and always on screen.
+        assert "AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);" in activate
+        assert "AddRailSection(_sceneInspectorColumn, _colourSection, row: 1);" in activate
+        assert "AddRailSection(_sceneInspectorColumn, _layersSection, row: 2);" in activate
+        assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 3);" in activate
     assert "AddRailSection(_sceneInspectorColumn, _viewportSection" not in activate
 
     # Edit Mesh uses three lanes: tools, the permanent viewport, and scene data.
@@ -531,15 +535,28 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     assert "DefaultToolForRailPage" not in layout
     assert "DefaultToolForRailPage" not in contracts
     show = layout.split("private void ShowToolRailPage(ToolRailPage? page)", 1)[1]
-    show = show.split("private void RevealToolRailPage", 1)[0]
+    show = show.split("private ToolRailPage? ToolRailPageForActiveTool", 1)[0]
     assert "ActivateTool(" not in show
     assert "SetButtonAccent(pair.Value, pair.Key == page);" in show
+    # Reasserting the visible page is a no-op, and a real page change freezes
+    # only the tool dock. A splitter/root layout from this click path resizes
+    # the sibling D3D swap chain and presents as a preview flash.
+    assert "_toolRailPagePresentationApplied && page == _selectedToolRailPage" in show
+    assert show.index("_toolRailPagePresentationApplied = false;") < show.index("_selectedToolRailPage = page;")
+    assert "BeginRedrawBatch(_toolDock)" in show
+    assert "BeginRedrawBatch()" not in show
+    assert "ApplyToolRailSplitterLayout();" not in show
+    assert "PerformLayout();" not in show
     # There is no dock header to retitle. The open row is the page's name, so a
     # header naming a family while a tool was armed cannot come back.
     assert "_toolRailPanelHeader" not in layout
     assert "ApplyToolListExpansion(page);" in show
     # A null page collapses the list back to rows and parks the body host.
     expand = tool_list.split("private void ApplyToolListExpansion", 1)[1]
+    expand = expand.split("private void ReopenExpandedRowForActiveTool", 1)[0]
+    assert "BeginRedrawBatch(_toolListTable)" in expand
+    assert "BeginRedrawBatch()" not in expand
+    assert "_appliedToolListExpansionBaseCell == expandedBaseCell" in expand
     assert "_toolListBodyHost.Visible = expandedBaseCell is not null;" in expand
     assert "EditMeshToolListContract.ParkedBodyCell" in expand
 
@@ -572,6 +589,40 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     refresh = controls.split("private void RefreshToolButtonStates()", 1)[1]
     refresh = refresh.split("private void RefreshGizmoButtonStates()", 1)[0]
     assert "_toolRailToolButtons" in refresh
+
+
+def test_tool_page_activation_proof_requires_a_live_stable_native_viewport() -> None:
+    diagnostics = _source("ExperimentForm.EditMeshLayoutDiagnostics.cs")
+
+    # The status payload clamps some dimensions to one for compatibility, so
+    # it cannot prove a real child window stayed present. The executable proof
+    # must inspect the actual surface HWND, parent and visibility style, pair
+    # those with unclamped viewport bounds, and retain the raw native rectangle
+    # for the mapped-window gate.
+    assert "ToolRailNative.GetWindowRect(surfaceHwnd" in diagnostics
+    assert "ToolRailNative.GetWindowLong(surfaceHwnd, ToolRailNative.GwlStyle)" in diagnostics
+    assert "ToolRailNative.IsWindow(surfaceParent)" in diagnostics
+    assert "OwnVisibleState(_viewport)" in diagnostics
+    assert "_viewport.ClientSize.Width > 0" in diagnostics
+    assert "_viewport.ClientSize.Height > 0" in diagnostics
+    assert "renderSurfaceIdentity != 0" in diagnostics
+    for key in (
+        "viewport_parent_hwnd",
+        "viewport_native_visible",
+        "viewport_control_live",
+        "render_surface_create_count",
+        "render_surface_dispose_count",
+        "swap_chain_resize_commit_count",
+        "presentation_generation",
+    ):
+        assert f'["{key}"]' in diagnostics
+
+    # Every actual transition is followed by the same activation again; no
+    # page/list generation or renderer snapshot may move on the repeat.
+    assert '["idempotent"] = SameSnapshot(first, repeated)' in diagnostics
+    assert "activationCases.All(item => item.GetValueOrDefault(\"idempotent\") is true)" in diagnostics
+    assert "HasLiveViewport(before)" in diagnostics
+    assert "HasLiveViewport(after)" in diagnostics
 
 
 def test_edit_tools_show_the_camera_modifiers_that_still_work() -> None:
@@ -870,7 +921,8 @@ def test_embedded_authoring_tool_panels_build_hidden_before_reveal() -> None:
         "\n    private ", maxsplit=1
     )[0]
     assert "AddRailSection(_railSelectionStack, _selectionSection, row: 0);" in prime_body
-    assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);" in prime_body
+    assert "AddRailSection(_sceneInspectorColumn, _colourSection, row: 1);" in prime_body
+    assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 3);" in prime_body
     assert "_partPickSection" not in prime_body
     assert "_viewportSection" not in prime_body
 

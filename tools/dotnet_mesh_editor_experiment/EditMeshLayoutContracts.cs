@@ -3,7 +3,7 @@ namespace Cdmw.MeshEditorExperiment;
 /// <summary>
 /// The tool-property pages, one per tool family or command group. The rail
 /// itself lists individual tools, several of which share a page — the
-/// scene groups (Parts, Layers, Action History) are not modal and live
+/// scene groups (Parts, Colour, Layers, Action History) are not modal and live
 /// permanently in the right inspector. Viewport settings use a reveal-only
 /// page in the left tool list.
 /// </summary>

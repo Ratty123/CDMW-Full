@@ -1054,6 +1054,7 @@ def test_codex_mesh_checks_use_real_game_pac_and_keep_unit_runs_non_visual() -> 
         ROOT / "tools" / "mesh_harness" / "real_dotnet_session.py"
     ).read_text(encoding="utf-8")
     assert "WA_ShowWithoutActivating" in real_session_source
+    assert "WindowDoesNotAcceptFocus" in real_session_source
     assert ".activateWindow()" not in real_session_source
     pytest_config = (ROOT / "pytest.ini").read_text(encoding="utf-8")
     assert 'visual: opens a window' in pytest_config

@@ -78,14 +78,8 @@ internal sealed partial class ExperimentForm
         }
     }
 
-    private Dictionary<string, object?> RunEditMeshControlSurfaceDiagnostics()
-    {
-        static string[] ComboItems(ComboBox combo) => combo.Items
-            .Cast<object>()
-            .Select(item => Convert.ToString(item) ?? string.Empty)
-            .ToArray();
-
-        var requiredButtons = new[]
+    private static string[] RequiredDiagnosticButtonLabels() =>
+        new[]
         {
             "◰    Select", "✥    Move", "✜    Grab", "◍    Smooth", "◉    Inflate",
             "◇    Pinch", "△    Topology", "◑    Morph & Refit", "▣    Viewport",
@@ -95,11 +89,21 @@ internal sealed partial class ExperimentForm
             "Delete Selection", "Duplicate Selection", "Subdivide", "Refine Smooth",
             "All", "None", "Duplicate", "Delete", "Copy", "Paste",
             "Rename", "Up", "Down",
+            "Tint...", "Recolour...", "Glow...", "Reset Colour",
             "Create Profile...", "Save Profile", "Delete Profile", "Save Preset...", "Delete Preset",
             "1. Set Selected Driver Parts", "2. Bind Selected Garment Parts", "Clear Refit",
             "Apply to Selected Garments", "Reset", "Bake",
             "Front", "Back", "Top", "Left", "Right", "Bottom", "-15", "+15", "Fit", "Orbit",
         };
+
+    private Dictionary<string, object?> RunEditMeshControlSurfaceDiagnostics()
+    {
+        static string[] ComboItems(ComboBox combo) => combo.Items
+            .Cast<object>()
+            .Select(item => Convert.ToString(item) ?? string.Empty)
+            .ToArray();
+
+        var requiredButtons = RequiredDiagnosticButtonLabels();
         var requiredDynamicButtonPrefixes = new[]
         {
             "Background", "Grid", "Wire", "Vertices", "Selected", "Live",

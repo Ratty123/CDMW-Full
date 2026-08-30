@@ -27,6 +27,7 @@ _CORRELATED_HELPER_REQUEST_EVENTS = frozenset(
         "stroke_update",
         "stroke_end",
         "stroke_cancel",
+        "resident_interaction_transaction",
         "command_request",
         "command_requested",
         "placement_transform_request",
@@ -73,6 +74,7 @@ def _write_dotnet_protocol_trail(
             "error",
             "stroke_end",
             "stroke_cancel",
+            "resident_interaction_transaction",
             "command_result",
             "package_load_failed",
             "textures_error",
@@ -502,6 +504,8 @@ class MeshEditorDotNetProtocolMixin(
             return self._handle_dotnet_local_selection_request(payload)
         if event in {"stroke_begin", "stroke_update", "stroke_end", "stroke_cancel"}:
             return self._handle_dotnet_stroke_event(payload, event.removeprefix("stroke_"))
+        if event == "resident_interaction_transaction":
+            return self._handle_dotnet_resident_interaction_transaction(payload)
         if event in {"command_request", "command_requested"}:
             return self._handle_dotnet_command_request(payload)
         if event == "tool_changed":

@@ -26,6 +26,12 @@ internal sealed partial class ExperimentForm
     private int? _collapsedColumnWidth;
     private int? _sharedOpenColumnWidth;
     private int? _inspectorWidth;
+    // Host state can re-assert the active tool without changing it. Remember
+    // the resolved cell so that acknowledgement does not shuffle and repaint
+    // the same list subtree again.
+    private bool _toolListExpansionApplied;
+    private int? _appliedToolListExpansionBaseCell;
+    private int _toolListExpansionGeneration;
 
     /// <summary>
     /// The single column: a scrolling list of rows with one body host that moves
@@ -282,53 +288,62 @@ internal sealed partial class ExperimentForm
         int? expandedBaseCell = expandedRow is null
             ? null
             : EditMeshToolListContract.BaseCell(EditMeshToolListContract.IndexOfRow(expandedRow));
-
-        // Batched here as well as in ShowToolRailPage, because the two tools
-        // that share a page reach this without going through it: arming Inflate
-        // after Smooth leaves the page where it is, so only the open body moves.
-        // SuspendLayout defers the measurement but not the painting, so without
-        // this the reader watches the rows shuffle up and the body land. The
-        // batch is refcounted, so arriving from ShowToolRailPage still paints
-        // once for the whole click.
-        using var redraw = BeginRedrawBatch();
-        _toolListTable.SuspendLayout();
-        try
+        if (_toolListExpansionApplied
+            && _appliedToolListExpansionBaseCell == expandedBaseCell)
         {
-            foreach (var row in EditMeshToolListContract.RowOrder)
+            ScrollOpenRowIntoView(expandedRow);
+            return;
+        }
+
+        // The two tools that share a page reach this without ShowToolRailPage:
+        // arming Inflate after Smooth leaves the page where it is, so only the
+        // open body moves. Freeze that table only. Freezing ExperimentForm also
+        // freezes and synchronously invalidates the sibling D3D child, which is
+        // why a list-cell move used to read as a viewport flash.
+        using (BeginRedrawBatch(_toolListTable))
+        {
+            _toolListTable.SuspendLayout();
+            try
             {
-                var button = ToolListButtonFor(row);
-                if (button is null)
+                foreach (var row in EditMeshToolListContract.RowOrder)
                 {
-                    continue;
+                    var button = ToolListButtonFor(row);
+                    if (button is null)
+                    {
+                        continue;
+                    }
+                    var baseCell = EditMeshToolListContract.BaseCell(
+                        EditMeshToolListContract.IndexOfRow(row));
+                    _toolListTable.SetCellPosition(
+                        button,
+                        new TableLayoutPanelCellPosition(
+                            0,
+                            EditMeshToolListContract.ResolvedCell(baseCell, expandedBaseCell)));
                 }
-                var baseCell = EditMeshToolListContract.BaseCell(
-                    EditMeshToolListContract.IndexOfRow(row));
                 _toolListTable.SetCellPosition(
-                    button,
+                    _toolListGroupLabel,
                     new TableLayoutPanelCellPosition(
                         0,
-                        EditMeshToolListContract.ResolvedCell(baseCell, expandedBaseCell)));
+                        EditMeshToolListContract.ResolvedCell(
+                            EditMeshToolListContract.GroupLabelBaseCell,
+                            expandedBaseCell)));
+                _toolListTable.SetCellPosition(
+                    _toolListBodyHost,
+                    new TableLayoutPanelCellPosition(
+                        0,
+                        expandedBaseCell is { } cell
+                            ? EditMeshToolListContract.BodyCell(cell)
+                            : EditMeshToolListContract.ParkedBodyCell));
+                _toolListBodyHost.Visible = expandedBaseCell is not null;
             }
-            _toolListTable.SetCellPosition(
-                _toolListGroupLabel,
-                new TableLayoutPanelCellPosition(
-                    0,
-                    EditMeshToolListContract.ResolvedCell(
-                        EditMeshToolListContract.GroupLabelBaseCell,
-                        expandedBaseCell)));
-            _toolListTable.SetCellPosition(
-                _toolListBodyHost,
-                new TableLayoutPanelCellPosition(
-                    0,
-                    expandedBaseCell is { } cell
-                        ? EditMeshToolListContract.BodyCell(cell)
-                        : EditMeshToolListContract.ParkedBodyCell));
-            _toolListBodyHost.Visible = expandedBaseCell is not null;
+            finally
+            {
+                _toolListTable.ResumeLayout(performLayout: true);
+            }
         }
-        finally
-        {
-            _toolListTable.ResumeLayout(performLayout: true);
-        }
+        _toolListExpansionApplied = true;
+        _appliedToolListExpansionBaseCell = expandedBaseCell;
+        _toolListExpansionGeneration++;
         ScrollOpenRowIntoView(expandedRow);
     }
 

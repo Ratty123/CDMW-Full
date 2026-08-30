@@ -224,6 +224,7 @@ from cdmw.services.mesh_service_object_transform import (
     MeshObjectTransformServiceMixin,
     mesh_source_bounds_pivot,
 )
+from cdmw.services.mesh_service_resident_transaction import apply_resident_interaction_transaction
 from cdmw.services.mesh_service_uv import MeshUvServiceMixin
 from cdmw.services.mesh_service_kernel import (
     _TANGENT_INVALIDATING_ACTIONS,
@@ -1333,6 +1334,8 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
             authoring_enabled=policy.authoring_enabled,
             exact_write_status=policy.exact_write_status.value,
             output_policy_reason=policy.reason,
+            selection_revision=session.selection_revision,
+            topology_generation=session.topology_operation_revision,
         )
 
     def native_editor_mesh_dirty(self, session_id: str) -> bool:
@@ -1439,6 +1442,8 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
     ) -> MeshEditResult:
         edit_command = _coerce_command(command)
         action = str(edit_command.action or "").strip().lower()
+        if action == "_resident_interaction_transaction":
+            return apply_resident_interaction_transaction(self, session, edit_command)
         if action not in (*MESH_EDIT_ACTIONS, *MESH_MORPH_ACTIONS):
             raise ValueError(f"Unsupported mesh edit action: {edit_command.action!r}")
         if action == "copy":

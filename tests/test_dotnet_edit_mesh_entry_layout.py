@@ -1,6 +1,6 @@
 """Opening Edit Mesh must leave the scene inspector already settled.
 
-The rail adopts the Parts, Layers and Action History sections from the placement
+The rail adopts the Parts, Colour, Layers and Action History sections from the placement
 flanks with every layout suspended, and resumes without a pass of its own.
 Nothing downstream is guaranteed to force the measure: a form-wide layout
 only cascades where a bound actually changes. A section left on its previous
@@ -109,15 +109,16 @@ def test_the_scene_inspector_opens_settled_and_inside_its_column(
     widths = proof["compact_viewport_widths_by_page"]
     assert len(widths) == 6
     assert all(width >= proof["minimum_viewport_width"] for width in widths.values())
+    assert len(set(widths.values())) == 1, json.dumps(widths, indent=2)
     # Stability alone is not enough: a column that clips every section the same
     # way before and after a resize is stable and still unusable.
     assert proof["sections_overflowing_column"] == []
-    # All three rows, each inside the column, none sharing a top edge with
+    # All four rows, each inside the column, none sharing a top edge with
     # another -- overlapping rows are what the reader actually reports.
     bounds = proof["bounds_after_entry"]
-    assert len(bounds) == 3, json.dumps(proof["diagnostic"], indent=2)
+    assert len(bounds) == 4, json.dumps(proof["diagnostic"], indent=2)
     tops = [int(value.split(",")[1]) for value in bounds.values()]
-    assert len(set(tops)) == 3, json.dumps(bounds, indent=2)
+    assert len(set(tops)) == 4, json.dumps(bounds, indent=2)
 
 
 def test_live_ui_theme_recolors_the_real_resident_form(entry_report: dict) -> None:

@@ -150,8 +150,6 @@ internal sealed partial class ExperimentForm
         _viewport.PresentFreshFrame();
         Visible = true;
         StartupTiming.Mark("embedded_window_revealed");
-        Focus();
-        _viewport.Focus();
         WriteProtocolEvent("embedded_window_revealed", new Dictionary<string, object?>
         {
             ["form_visible"] = Visible,

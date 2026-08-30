@@ -1,7 +1,7 @@
 """Mesh core helper. Mirrors native/cdmw_mesh_core/CMakeLists.txt.
 
 Two things differ structurally from the other helpers:
-  * the 52 owner sources are one unity translation unit (see //build_defs:unity.bzl)
+  * the owner sources are one unity translation unit (see //build_defs:unity.bzl)
   * the vendored third-party code mixes C (mikktspace) and C++ (xatlas), so its
     defines have to be local_defines rather than
     a global --cxxopt, which would not reach the C sources.
@@ -66,6 +66,12 @@ MESH_CORE_OWNER_SOURCES = [
     "src/owners/snapshot_report_01.cpp",
     "src/owners/command_protocol_01.cpp",
     "src/owners/service_01.cpp",
+    "src/owners/interaction_abi_state_01.cpp",
+    "src/owners/interaction_abi_payload_01.cpp",
+    "src/owners/interaction_abi_operations_01.cpp",
+    "src/owners/interaction_abi_session_01.cpp",
+    "src/owners/interaction_abi_gesture_01.cpp",
+    "src/owners/interaction_abi_read_01.cpp",
 ]
 
 _MESH_CORE_DEFINES = [
@@ -105,6 +111,8 @@ cc_library(
     textual_hdrs = MESH_CORE_OWNER_SOURCES + [
         "src/mesh_core.hpp",
         "src/mesh_core_internal.hpp",
+        "src/mesh_interaction_abi.h",
+        "src/mesh_interaction_export.h",
     ],
 )
 
@@ -117,6 +125,26 @@ cc_binary(
     copts = ["/std:c++17"],
     includes = ["src"],
     local_defines = _MESH_CORE_DEFINES,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":mesh_core_headers",
+        ":mesh_core_third_party",
+    ],
+)
+
+cc_binary(
+    name = "cdmw-mesh-core.dll",
+    srcs = [
+        "src/mesh_interaction_abi.cpp",
+        ":mesh_core_owners_unity",
+    ],
+    copts = ["/std:c++17"],
+    includes = ["src"],
+    linkshared = True,
+    local_defines = _MESH_CORE_DEFINES + [
+        "CDMW_MESH_INTERACTION_ABI_EXPORTS",
+        "CDMW_MESH_INTERACTION_ABI_HEADER_SHA256=\\\"7F03F15B094D27DA678E0658C23338B58B87774A7671AD418ECEE90D2607E440\\\"",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         ":mesh_core_headers",

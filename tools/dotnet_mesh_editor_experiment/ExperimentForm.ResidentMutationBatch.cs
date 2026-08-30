@@ -424,6 +424,7 @@ internal sealed partial class ExperimentForm
             _materials.ReplaceState(staged.Materials.CaptureState());
             _scene.ReplaceFromResidentMutation(staged.Scene);
             ApplyResidentMutationRendererCommit(root, staged, requestId, targetRevision);
+            CompleteResidentNativeBatchAuthority(root);
             _lastAppliedEditRevision = targetRevision;
             _lastObservedSessionRevision = Math.Max(_lastObservedSessionRevision, targetRevision);
             _viewport.SetAuthoritativeEditRevision(targetRevision);
@@ -568,6 +569,7 @@ internal sealed partial class ExperimentForm
         string reason,
         string diagnostic = "")
     {
+        RejectResidentNativeBatchAuthority(root, reason);
         var result = new ResidentMutationResult(
             "rejected",
             string.IsNullOrWhiteSpace(reason) ? "invalid_payload" : reason,

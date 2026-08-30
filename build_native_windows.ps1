@@ -179,6 +179,12 @@ Invoke-NativeBuild `
     -ProjectDir (Join-Path $scriptDir "native\cdmw_mesh_core") `
     -ExeRelativePath ("build\$Configuration\cdmw-mesh-core.exe")
 
+$meshCoreAbiDll = Join-Path $scriptDir "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.dll"
+if (-not (Test-Path -LiteralPath $meshCoreAbiDll -PathType Leaf)) {
+    throw "Native mesh core build completed but required interaction ABI DLL is missing: $meshCoreAbiDll"
+}
+Write-Host "Built native mesh interaction ABI DLL: $meshCoreAbiDll"
+
 $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
 if (-not $dotnet) {
     throw "dotnet was not found; required Mesh Editor renderer cannot be built."

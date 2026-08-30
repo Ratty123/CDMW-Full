@@ -123,6 +123,10 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert 'cdmw-mesh-dotnet-editor.manifest.json' in source
     assert 'executable_sha256 = $exeHash' in source
     assert 'shader_sha256 = $shaderHash' in source
+    assert 'native_abi = $nativeAbi' in source
+    assert 'library_path = [IO.Path]::GetFullPath($nativeAbiOutputPath)' in source
+    assert 'function Get-NativeMeshInteractionAbiContract' in source
+    assert 'helper provenance does not report the required native mesh interaction ABI' in source
     # The manifest capabilities are read out of HelperBuildProvenance.cs, not
     # restated here. This guard used to require the literals and carried its own
     # stale copy of them, so it passed while the build script was missing the

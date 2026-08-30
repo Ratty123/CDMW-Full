@@ -29,6 +29,8 @@ class ResidentMutationBatch:
     affected_submesh_indices: tuple[int, ...] = ()
     temporary_payloads: tuple[dict[str, object], ...] = ()
     recovery_snapshot: bool = False
+    selection_revision: int = 0
+    topology_generation: int = 0
 
     def __post_init__(self) -> None:
         session_id = str(self.session_id or "").strip()
@@ -79,6 +81,8 @@ class ResidentMutationBatch:
         )
         object.__setattr__(self, "affected_submesh_indices", affected)
         object.__setattr__(self, "temporary_payloads", _mapping_tuple(self.temporary_payloads))
+        object.__setattr__(self, "selection_revision", max(0, int(self.selection_revision)))
+        object.__setattr__(self, "topology_generation", max(0, int(self.topology_generation)))
 
     def as_protocol_payload(self) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -90,6 +94,8 @@ class ResidentMutationBatch:
             "target_revision": self.target_revision,
             "revision": self.target_revision,
             "edit_revision": self.target_revision,
+            "selection_revision": self.selection_revision,
+            "topology_generation": self.topology_generation,
             "protocol_version": 3,
             "action": self.action,
             "command": self.action,

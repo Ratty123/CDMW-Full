@@ -22,6 +22,7 @@ _ACK_EVENTS = frozenset(
     }
 )
 _MUTATION_BATCH_EVENT = "resident_mutation_batch"
+_HELPER_REQUEST_ID_NAMESPACE = 1 << 62
 _TOPOLOGY_EVENT = "preview_triangle_update"
 _SELECTION_EVENT = "selection_update"
 _VERTEX_EVENT = "preview_vertex_update"
@@ -390,7 +391,8 @@ class DotNetRevisionUpdateQueue:
     def reserve_request_id(self, preferred: int = 0) -> int:
         requested = max(0, int(preferred))
         if requested > 0:
-            self._request_sequence = max(self._request_sequence, requested)
+            if requested < _HELPER_REQUEST_ID_NAMESPACE:
+                self._request_sequence = max(self._request_sequence, requested)
             return requested
         self._request_sequence += 1
         return self._request_sequence
@@ -570,7 +572,8 @@ class DotNetRevisionUpdateQueue:
             return False
         if len(supplied_request_ids) == 1:
             request_id = supplied_request_ids.pop()
-            self._request_sequence = max(self._request_sequence, request_id)
+            if request_id < _HELPER_REQUEST_ID_NAMESPACE:
+                self._request_sequence = max(self._request_sequence, request_id)
         else:
             self._request_sequence += 1
             request_id = self._request_sequence

@@ -18,13 +18,17 @@ internal sealed partial class ExperimentForm
         message["event"] = eventName;
         if (IsMutatingProtocolRequest(eventName))
         {
+            var observedRevision = Math.Max(
+                _lastAppliedEditRevision,
+                _lastObservedSessionRevision);
             message["session_id"] = _residentMaterialSessionId;
             message["request_id"] = ++_outgoingMutationRequestSequence;
-            message["base_revision"] = Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision);
-            message["revision"] = Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision);
-            message["edit_revision"] = Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision);
+            message.TryAdd("base_revision", observedRevision);
+            var requestRevision = Math.Max(0, DictionaryLong(message, "base_revision"));
+            message["revision"] = requestRevision;
+            message["edit_revision"] = requestRevision;
             message["process_generation"] = _residentProcessGeneration;
-            message["protocol_version"] = 2;
+            message["protocol_version"] = 3;
             if (string.Equals(eventName, "save_request", StringComparison.OrdinalIgnoreCase))
             {
                 // Finish is itself the renderer's last authoritative view of the
@@ -41,7 +45,7 @@ internal sealed partial class ExperimentForm
             message["request_id"] = ++_outgoingMutationRequestSequence;
             message["base_revision"] = Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision);
             message["process_generation"] = _residentProcessGeneration;
-            message["protocol_version"] = 2;
+            message["protocol_version"] = 3;
         }
         _diagnosticProtocolObserver?.Invoke(eventName, message);
         if (string.Equals(eventName, "metrics", StringComparison.OrdinalIgnoreCase))
@@ -75,6 +79,7 @@ internal sealed partial class ExperimentForm
         "stroke_update" or
         "stroke_end" or
         "stroke_cancel" or
+        "resident_interaction_transaction" or
         "command_request" or
         "placement_transform_request" or
         "capture_request" or

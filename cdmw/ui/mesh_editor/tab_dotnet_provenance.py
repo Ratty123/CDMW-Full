@@ -62,6 +62,7 @@ class MeshEditorDotNetProvenanceMixin(
             required_capabilities=(
                 "correlated_selection_strokes_v1",
                 "geometry_layers_v1",
+                "resident_interaction_abi_v1",
             ),
         )
         if blockers:

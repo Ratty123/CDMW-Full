@@ -177,11 +177,6 @@ internal sealed partial class ExperimentForm
         if (NativeWindowHost.Embed(this, new IntPtr(_options.ParentHwnd), reveal: _embeddedWindowRevealed))
         {
             _statusLabel.Text = "Embedded .NET mesh editor ready.";
-            if (_embeddedWindowRevealed)
-            {
-                Focus();
-                _viewport.Focus();
-            }
             return true;
         }
         _embeddedViewportActive = false;

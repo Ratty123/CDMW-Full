@@ -13,6 +13,8 @@ internal sealed partial class ExperimentForm
     // the left button and the navigation strip naming the modifiers.
     private ToolRailPage? _selectedToolRailPage;
     private bool _toolRailPageSelected;
+    private bool _toolRailPagePresentationApplied;
+    private int _toolRailPagePresentationGeneration;
     private bool _applyingToolRailSplitterLayout;
     // The dock widths on screen, so a pass that would move nothing is skipped.
     private int _appliedToolDockWidth = -1;
@@ -202,7 +204,7 @@ internal sealed partial class ExperimentForm
         _leftToolSplit.Panel1.Controls.Add(_leftToolModeHost);
 
         // The right flank swaps the placement panel for the nonmodal scene
-        // inspector. Parts, Layers and Action History never compete vertically
+        // inspector. Parts, Colour, Layers and Action History never compete vertically
         // with the tool that is open on the other side of the viewport.
         _rightToolModeHost = new MeshEditorCompositedPanel
         {
@@ -318,7 +320,7 @@ internal sealed partial class ExperimentForm
 
     /// <summary>
     /// Right flank: the scene groups every tool reads and changes. None are
-    /// modal, so Parts, Layers and Action History stay visible at once.
+    /// modal, so Parts, Colour, Layers and Action History stay visible at once.
     /// </summary>
     private Control BuildSceneInspector()
     {
@@ -334,7 +336,7 @@ internal sealed partial class ExperimentForm
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.Font = new Font(Font.FontFamily, 8.5f);
-        // No "SCENE" header: Parts, Layers and Action History name themselves,
+        // No "SCENE" header: Parts, Colour, Layers and Action History name themselves,
         // so the band above them only cost height.
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -356,13 +358,13 @@ internal sealed partial class ExperimentForm
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemePanelBackground,
         };
         _sceneInspectorColumn.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (var row = 0; row < 3; row++)
+        for (var row = 0; row < 4; row++)
         {
             _sceneInspectorColumn.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
@@ -496,8 +498,9 @@ internal sealed partial class ExperimentForm
 
             // Right: the data-heavy scene groups stay visible together.
             AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);
-            AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);
-            AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);
+            AddRailSection(_sceneInspectorColumn, _colourSection, row: 1);
+            AddRailSection(_sceneInspectorColumn, _layersSection, row: 2);
+            AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 3);
 
             _compactSessionBar.Visible = true;
             _editMeshLayoutHost.RowStyles[0].Height = ScaleToolPanelWidth(46);
@@ -755,8 +758,9 @@ internal sealed partial class ExperimentForm
         AddRailSection(_toolRailPages[ToolRailPage.Topology], _topologySection);
         AddRailSection(_toolRailPages[ToolRailPage.MorphRefit], _morphRefitSection);
         AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);
-        AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);
-        AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);
+        AddRailSection(_sceneInspectorColumn, _colourSection, row: 1);
+        AddRailSection(_sceneInspectorColumn, _layersSection, row: 2);
+        AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 3);
     }
 
     private static void NormalizeSectionStyle(Control section)
@@ -813,19 +817,24 @@ internal sealed partial class ExperimentForm
     /// </summary>
     private void ShowToolRailPage(ToolRailPage? page)
     {
+        if (_toolRailPagePresentationApplied && page == _selectedToolRailPage)
+        {
+            return;
+        }
+        _toolRailPagePresentationApplied = false;
         _selectedToolRailPage = page;
         _toolRailPageSelected = true;
-        // Opening a row is four separate paints without this: every page's
+        // Opening a row is three separate paints without this: every page's
         // visibility flips, then the list table re-lays out around the moved
-        // body cell, then the column may scroll, then the splitter pass runs.
-        // The reader saw that sequence rather than the result, which is what
-        // made a tool click feel like it lagged. Every other layout switch here
-        // already holds a batch; this was the one that did not, and it is the
-        // one on the click path.
+        // body cell, then the column may scroll. Batch the tool dock only; the
+        // viewport is a sibling and must keep presenting throughout the click.
         using var redraw = BeginRedrawBatch(_toolDock);
+        var pagePresentationApplied =
+            _toolRailPages.Count == Enum.GetValues<ToolRailPage>().Length
+            && _toolListTable is not null;
         foreach (var pair in _toolRailPages)
         {
-            RevealToolRailPage(pair.Value, pair.Key == page);
+            pagePresentationApplied &= RevealToolRailPage(pair.Value, pair.Key == page);
             if (pair.Key == page)
             {
                 pair.Value.BringToFront();
@@ -840,10 +849,10 @@ internal sealed partial class ExperimentForm
         // No dock header to retitle: the open row names the page, which is why
         // the header could never disagree with the armed tool again.
         ApplyToolListExpansion(page);
-        // Selecting or clearing a page changes how wide the dock needs to be.
-        if (IsToolRailActive)
+        if (pagePresentationApplied)
         {
-            ApplyToolRailSplitterLayout();
+            _toolRailPagePresentationApplied = true;
+            _toolRailPagePresentationGeneration++;
         }
     }
 

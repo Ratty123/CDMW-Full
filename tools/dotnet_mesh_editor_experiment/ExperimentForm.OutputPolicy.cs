@@ -222,10 +222,14 @@ internal sealed partial class ExperimentForm
             pair.Value.Enabled = available && _outputAuthoringEnabled && !_morphUnbaked;
             SetHelpText(
                 pair.Value,
-                _unavailableActionReasons.GetValueOrDefault(pair.Key)
-                ?? (pair.Value.Enabled
+                pair.Value.Enabled
                     ? "Free Edit operation; output is a non-exact OBJ package."
-                    : _outputPolicyReason));
+                    : _unavailableActionReasons.GetValueOrDefault(pair.Key)
+                        ?? (_morphUnbaked
+                            ? "Bake or Reset active procedural sliders before changing topology."
+                            : _outputPolicyReason.Length > 0
+                                ? _outputPolicyReason
+                                : DirectAuthoringCommandBlocker(pair.Key)));
         }
         foreach (var pair in _toolButtons)
         {
@@ -295,9 +299,6 @@ internal sealed partial class ExperimentForm
                     {
                         _outputPolicyReason,
                         _outputDestination.Length > 0 ? $"Output: {_outputDestination}" : string.Empty,
-                        _unavailableActionReasons.Count > 0
-                            ? $"Unavailable operations: {string.Join("; ", _unavailableActionReasons.Values.Distinct())}"
-                            : string.Empty,
                         "The writer and validator remain final authority at output time.",
                     }.Where(value => value.Length > 0)));
         }
@@ -319,7 +320,9 @@ internal sealed partial class ExperimentForm
                 SetHelpText(
                     pair.Button,
                     _unavailableActionReasons.GetValueOrDefault(pair.Action)
-                    ?? _outputPolicyReason);
+                    ?? (_outputPolicyReason.Length > 0
+                        ? _outputPolicyReason
+                        : DirectAuthoringCommandBlocker(pair.Action)));
             }
         }
         if (_partVisibilityButton is not null)

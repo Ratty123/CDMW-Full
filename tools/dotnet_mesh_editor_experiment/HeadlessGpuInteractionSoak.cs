@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
 
-internal static class HeadlessGpuInteractionSoak
+internal static partial class HeadlessGpuInteractionSoak
 {
     public static bool IsRequested(string[] args) => args.Any(arg =>
         string.Equals(arg, "--headless-gpu-interaction-soak", StringComparison.OrdinalIgnoreCase));
@@ -44,19 +44,7 @@ internal static class HeadlessGpuInteractionSoak
 
     private static int Execute(HeadlessGpuFramePacingSoakOptions options, string mode)
     {
-        if (SelectionGeometry.SegmentsIntersect(
-                new PointF(0.0f, 0.0f),
-                new PointF(10.0f, 0.0f),
-                new PointF(20.0f, 0.0f),
-                new PointF(30.0f, 0.0f))
-            || !SelectionGeometry.SegmentsIntersect(
-                new PointF(0.0f, 0.0f),
-                new PointF(10.0f, 10.0f),
-                new PointF(0.0f, 10.0f),
-                new PointF(10.0f, 0.0f)))
-        {
-            throw new InvalidOperationException("Selection swept-band segment intersection contract failed.");
-        }
+        VerifySelectionGeometryContract();
         var document = HeadlessGpuSparseSoak.BuildSyntheticDocument(options.VertexCount);
         var materials = NetMaterialSet.Empty;
         using var textures = NetTextureSet.Load(materials);
@@ -97,9 +85,14 @@ internal static class HeadlessGpuInteractionSoak
         _ = viewport.Handle;
         if (!viewport.EnsureRendererInitialized())
         {
-            throw new InvalidOperationException($"Hidden {mode} interaction viewport did not initialize the production renderer.");
+            var rendererStatus = viewport.RendererStatusPayload();
+            throw new InvalidOperationException(
+                $"Hidden {mode} interaction viewport did not initialize the production renderer: "
+                + Convert.ToString(rendererStatus.GetValueOrDefault("d3d11_status")));
         }
+        viewport.BeginRendererDebugLayerCapture();
 
+        var authoritativeResyncRearmProof = viewport.CaptureAuthoritativeResyncRearmProof();
         var lassoReleaseProof = CaptureLassoReleaseProof(viewport);
         var shortFaceBrushProof = CaptureShortFaceBrushProof(viewport);
         viewport.EditorEventRequested = protocol.Accept;
@@ -177,6 +170,7 @@ internal static class HeadlessGpuInteractionSoak
         {
             throw new InvalidOperationException($"Hidden {mode} authoritative reconciliation frame failed: {finalFrameError}");
         }
+        var d3d11DebugLayerEvidence = CaptureD3D11DebugLayerEvidence(viewport, document, materials, textures);
         var resourcesAfter = viewport.RendererResourceMetricsPayload();
         return BuildInteractionReport(
             options,
@@ -189,8 +183,27 @@ internal static class HeadlessGpuInteractionSoak
             interaction,
             protocol,
             driver,
+            authoritativeResyncRearmProof,
             lassoReleaseProof,
-            shortFaceBrushProof);
+            shortFaceBrushProof,
+            d3d11DebugLayerEvidence);
+    }
+
+    private static void VerifySelectionGeometryContract()
+    {
+        if (SelectionGeometry.SegmentsIntersect(
+                new PointF(0.0f, 0.0f),
+                new PointF(10.0f, 0.0f),
+                new PointF(20.0f, 0.0f),
+                new PointF(30.0f, 0.0f))
+            || !SelectionGeometry.SegmentsIntersect(
+                new PointF(0.0f, 0.0f),
+                new PointF(10.0f, 10.0f),
+                new PointF(0.0f, 10.0f),
+                new PointF(10.0f, 0.0f)))
+        {
+            throw new InvalidOperationException("Selection swept-band segment intersection contract failed.");
+        }
     }
 
     private static Dictionary<string, object?> CaptureShortFaceBrushProof(MeshViewport viewport)
@@ -574,8 +587,10 @@ internal static class HeadlessGpuInteractionSoak
         MeshInteractionSoakResult interaction,
         InteractionProtocolProbe protocol,
         InteractionPathDriver driver,
+        Dictionary<string, object?> authoritativeResyncRearmProof,
         Dictionary<string, object?> lassoReleaseProof,
-        Dictionary<string, object?> shortFaceBrushProof)
+        Dictionary<string, object?> shortFaceBrushProof,
+        Dictionary<string, object?> d3d11DebugLayerEvidence)
     {
         var lifecycle = new Dictionary<string, object?>
         {
@@ -610,6 +625,8 @@ internal static class HeadlessGpuInteractionSoak
                 ? interaction.SelectedVertexCount + interaction.SelectedEdgeCount + interaction.SelectedFaceCount > 0
                 : interaction.ChangedVertexCount > 0,
             ["viewport_tools_did_not_select_parts"] = interaction.SelectedPartCount == 0,
+            ["authoritative_resync_rearms_modal_tool"] =
+                authoritativeResyncRearmProof.GetValueOrDefault("ok") is true,
             ["release_only_lasso_commits_exact_polygon"] = lassoReleaseProof.GetValueOrDefault("ok") is true,
             ["retained_overlay_clear_rebuild_is_discard_safe"] =
                 lassoReleaseProof.GetValueOrDefault("retained_overlay_clear_rebuild_ok") is true,
@@ -630,6 +647,7 @@ internal static class HeadlessGpuInteractionSoak
             ["production_d3d11_backend"] = string.Equals(viewport.RendererBackendName, "d3d11_vortice_shader", StringComparison.Ordinal),
             ["native_window_remained_hidden"] = !host.Visible && !host.ShowInTaskbar,
         };
+        ApplyD3D11DebugLayerEvidence(report, interactionGates, d3d11DebugLayerEvidence);
         var ok = interactionGates.Values.All(value => value);
         report["renderer_gates"] = rendererGates;
         report["gates"] = interactionGates;
@@ -649,6 +667,7 @@ internal static class HeadlessGpuInteractionSoak
             ["maximum_pending_depth"] = protocol.MaximumPendingDepth,
             ["terminal_stroke_events"] = protocol.TerminalStrokeEvents,
         };
+        report["authoritative_resync_rearm_proof"] = authoritativeResyncRearmProof;
         report["lasso_release_proof"] = lassoReleaseProof;
         report["short_face_brush_proof"] = shortFaceBrushProof;
         report["face_projection_candidate_routing_proof"] = faceProjectionRoutingProof;

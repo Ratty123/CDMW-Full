@@ -61,6 +61,14 @@ internal static partial class EditMeshLayoutSmoke
         EditMeshLayoutContracts.MoveControl(control, stack, 0, row, DockStyle.Top);
     }
 
+    private static void AddRows(TableLayoutPanel stack, params Control[] controls)
+    {
+        foreach (var control in controls)
+        {
+            AddRow(stack, control);
+        }
+    }
+
     private static void Require(bool condition, string message)
     {
         if (!condition)

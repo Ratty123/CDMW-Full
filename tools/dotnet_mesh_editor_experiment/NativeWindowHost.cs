@@ -130,8 +130,14 @@ internal static class NativeWindowHost
         var width = Math.Max(1, rect.Right - rect.Left);
         var height = Math.Max(1, rect.Bottom - rect.Top);
         EnableWindow(form.Handle, true);
-        SetWindowPos(form.Handle, HwndTop, 0, 0, width, height, SwpFrameChanged | SwpShowWindow);
-        SetFocus(form.Handle);
+        SetWindowPos(
+            form.Handle,
+            HwndTop,
+            0,
+            0,
+            width,
+            height,
+            SwpNoActivate | SwpFrameChanged | SwpShowWindow);
     }
 
     private static IntPtr GetWindowLongPtrSafe(IntPtr hwnd, int index)
@@ -158,9 +164,6 @@ internal static class NativeWindowHost
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr hwnd, IntPtr hwndInsertAfter, int x, int y, int cx, int cy, uint flags);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr SetFocus(IntPtr hwnd);
 
     [DllImport("user32.dll")]
     private static extern bool EnableWindow(IntPtr hwnd, bool enable);

@@ -184,6 +184,24 @@ def test_resident_mutation_batch_serializes_one_complete_authority() -> None:
     assert payload["recovery_snapshot"] is False
 
 
+def test_helper_request_id_does_not_advance_host_generated_sequence() -> None:
+    sent: list[dict[str, object]] = []
+    queue = _atomic_queue(sent)
+    helper_request_id = (1 << 62) + 3
+
+    assert queue.reserve_request_id(helper_request_id) == helper_request_id
+    assert queue.enqueue_mutation_batch(
+        _mutation_batch(
+            request_id=helper_request_id,
+            base_revision=4,
+            target_revision=5,
+        )
+    )
+    assert queue.acknowledge("resident_mutation_batch_ack", _mutation_ack(sent))
+
+    assert queue.reserve_request_id() == 1
+
+
 def test_atomic_batch_waits_for_one_ack_before_releasing_payload(tmp_path: Path) -> None:
     sent: list[dict[str, object]] = []
     owned = tmp_path / "positions.bin"

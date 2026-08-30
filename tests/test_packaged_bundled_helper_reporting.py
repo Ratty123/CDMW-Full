@@ -94,7 +94,7 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
 
     def test_smoke_result_carries_packaged_texture_evidence(self) -> None:
         evidence = {
-            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v2",
+            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v3",
             "read_only": True,
         }
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -159,7 +159,7 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
 
     def test_packaged_texture_gate_requires_current_real_controls_and_selection(self) -> None:
         evidence = {
-            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v2",
+            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v3",
             "read_only": True,
             "archive_sources_unchanged": True,
             "production_route": "MainWindow._launch_archive_mesh_editor_for_entry",
@@ -181,7 +181,15 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
                 "before_controls": {"owned": True, "visible": True, "nonzero": True},
                 "after_textured": {"visible": True, "nonzero": True},
                 "after_select": {"visible": True, "nonzero": True},
+                "after_grab_history": {"visible": True, "nonzero": True},
                 "after_close": {"standalone_workspace_current": True, "host_visible": True},
+            },
+            "control_continuity": {
+                "ok": True,
+                "actual_controls": True,
+                "case_count": 9,
+                "settlement_p95_ms": 12.0,
+                "cases": [{"stable": True} for _ in range(9)],
             },
             "solid_textured": {
                 "actual_controls": True,
@@ -206,6 +214,22 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
                 },
                 "capture": {"ok": True},
             },
+            "grab_undo_redo": {
+                "ok": True,
+                "actual_controls": True,
+                "gates": {
+                    "first_grab_changed_geometry": True,
+                    "first_grab_one_history_entry": True,
+                    "first_undo_restored_exact_baseline": True,
+                    "first_undo_restored_history_cursor": True,
+                    "grab_rearmed_after_undo": True,
+                    "second_grab_one_history_entry": True,
+                    "second_undo_restored_exact_baseline": True,
+                    "redo_restored_exact_second_commit": True,
+                    "redo_restored_history_cursor": True,
+                },
+            },
+            "grab_redo_capture": {"ok": True},
             "desktop_input": {
                 "ok": True,
                 "harness_foreground_count": 0,
@@ -236,6 +260,12 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         self.assertNotEqual(0, rejected.returncode)
         self.assertIn("did not retain Solid (Textured)", rejected.stderr)
 
+        evidence["solid_textured"]["selected_mode"] = "textured"
+        evidence["grab_undo_redo"]["gates"]["grab_rearmed_after_undo"] = False
+        stuck_grab = _run_texture_gate({"evidence": evidence})
+        self.assertNotEqual(0, stuck_grab.returncode)
+        self.assertIn("Grab, Undo, Grab", stuck_grab.stderr)
+
     def test_current_texture_smoke_routes_real_controls_without_builder_embedding(self) -> None:
         source = (REPO_ROOT / "tools" / "mesh_harness" / "packaged_mesh_texture_smoke.py").read_text(
             encoding="utf-8"
@@ -243,6 +273,21 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
 
         self.assertIn("window._launch_archive_mesh_editor_for_entry(entry)", source)
         self.assertIn('_click_button_by_text(form_hwnd, "Select"', source)
+        self.assertIn('_click_button_by_text(form_hwnd, "Grab"', source)
+        select_attempt = source.split("def _perform_actual_select_attempt(", 1)[1].split(
+            "def _exercise_actual_select_control(", 1
+        )[0]
+        grab_attempt = source.split("def _perform_actual_grab(", 1)[1].split(
+            "def _perform_actual_history_command(", 1
+        )[0]
+        self.assertIn('"resident_interaction_transaction"', select_attempt)
+        self.assertIn('event_name="resident_interaction_transaction"', grab_attempt)
+        self.assertNotIn('"select_request"', select_attempt)
+        self.assertNotIn('"stroke_begin"', grab_attempt)
+        self.assertNotIn('event_name="stroke_end"', grab_attempt)
+        self.assertIn('command_text="Undo"', source)
+        self.assertIn('command_text="Redo"', source)
+        self.assertIn("_exercise_actual_control_continuity(", source)
         self.assertIn('_select_combo_item_by_text(\n        form_hwnd,\n        "Solid (Textured)"', source)
         self.assertIn('"global_mouse_input_used": False', source)
         self.assertIn("runtime_event_requested.connect(capture_runtime_event)", source)
@@ -264,6 +309,11 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
                 "geometry_resources": {
                     "textured_solid_batch_draws": 3,
                     "committed_selection_overlay_primitives": 6,
+                    "driver_type": "hardware",
+                    "adapter_description": "Test GPU",
+                    "feature_level": "Level_11_1",
+                    "debug_layer_requested": False,
+                    "debug_layer_state": "disabled",
                 },
             },
         }
@@ -273,6 +323,11 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         self.assertEqual(3, state["textured_draw_calls"])
         self.assertEqual(15, state["live_texture_srvs"])
         self.assertEqual(6, state["committed_selection_overlay_primitives"])
+        self.assertEqual("hardware", state["driver_type"])
+        self.assertEqual("Test GPU", state["adapter_description"])
+        self.assertEqual("Level_11_1", state["feature_level"])
+        self.assertIs(state["debug_layer_requested"], False)
+        self.assertEqual("disabled", state["debug_layer_state"])
 
         renderer["geometry_resources"]["textured_solid_batch_draws"] = 99
         renderer["live_metrics"]["geometry_resources"]["textured_solid_batch_draws"] = 0
