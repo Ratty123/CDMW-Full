@@ -402,6 +402,7 @@ fn camera_modes_and_resize_are_headless_and_aspect_safe() -> TestResult {
 
     for mode in [
         ViewMode::TexturedSolid,
+        ViewMode::GameOutdoor,
         ViewMode::BaseColor,
         ViewMode::NormalMap,
         ViewMode::UvChecker,
@@ -588,9 +589,9 @@ fn offscreen_d3d12_renders_every_mode_without_a_window() -> TestResult {
         .draw_snapshot();
     let report = pollster::block_on(cdmw_render_wgpu::run_headless_render_smoke(&snapshot))?;
     assert_eq!(report.adapter.backend, "Dx12");
-    assert_eq!(report.modes_rendered, 14);
+    assert_eq!(report.modes_rendered, 15);
     assert_eq!(report.viewport_sizes_rendered, 3);
-    assert_eq!(report.frames_rendered, 69);
+    assert_eq!(report.frames_rendered, 73);
     assert_eq!(report.dds_textures_uploaded, 15);
     assert_eq!(report.sampled_material_roles, 13);
     assert_eq!(report.material_ranges_rendered, 2);
@@ -610,6 +611,7 @@ fn offscreen_d3d12_renders_every_mode_without_a_window() -> TestResult {
     assert!(report.layer_mask_pixels_changed > 0);
     assert!(report.layer_mask_channel_pixels_changed > 0);
     assert_eq!(report.part_id_colors_rendered, 2);
+    assert!(report.outdoor_lighting_pixels_changed > 0);
     assert!(report.opacity_cutout_pixels_removed > 0);
     assert_eq!(report.opaque_opacity_pixels_changed, 0);
     assert!(report.non_background_pixels > 0);

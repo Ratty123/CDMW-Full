@@ -201,13 +201,37 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
         occlusion = clamp(textureSample(occlusion_texture, material_sampler, input.uv).r, 0.0, 1.0);
     }
 
-    let light_direction = normalize(vec3<f32>(-0.35, 0.80, 0.45));
+    let game_outdoor = camera.view_mode == 9u;
+    let light_direction = select(
+        normalize(vec3<f32>(-0.35, 0.80, 0.45)),
+        normalize(vec3<f32>(-0.17364818, 0.0, -0.98480775)),
+        game_outdoor);
+    let diffuse_ambient = select(
+        vec3<f32>(0.18),
+        vec3<f32>(0.15624, 0.187488, 0.239568),
+        game_outdoor);
+    let diffuse_direct = select(
+        vec3<f32>(0.82),
+        vec3<f32>(0.6944, 0.65968, 0.569408),
+        game_outdoor);
+    let metal_ambient = select(
+        vec3<f32>(0.10),
+        diffuse_ambient * 0.5555556,
+        game_outdoor);
+    let metal_direct = select(
+        vec3<f32>(0.28),
+        diffuse_direct * 0.3414634,
+        game_outdoor);
     let view_direction = normalize(vec3<f32>(0.10, 0.20, 1.0));
     let half_vector = normalize(light_direction + view_direction);
     let ndotl = max(dot(surface_normal, light_direction), 0.0);
     let ndoth = max(dot(surface_normal, half_vector), 0.0);
-    let diffuse = texel.rgb * (0.18 * occlusion + 0.82 * ndotl) * (1.0 - metalness);
-    let metal_body = texel.rgb * metalness * (0.10 * occlusion + 0.28 * ndotl);
+    let diffuse = texel.rgb
+        * (diffuse_ambient * occlusion + diffuse_direct * ndotl)
+        * (1.0 - metalness);
+    let metal_body = texel.rgb
+        * metalness
+        * (metal_ambient * occlusion + metal_direct * ndotl);
     var f0 = mix(vec3<f32>(0.04), texel.rgb, vec3<f32>(metalness));
     if (material.flags & MATERIAL_SPECULAR) != 0u {
         let mapped_specular = textureSample(specular_texture, material_sampler, input.uv).rgb;
@@ -249,6 +273,7 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
             * (f0 * primary_band + texel.rgb * secondary_band * 0.55)
             * (0.20 + 0.80 * (1.0 - roughness));
     }
+    specular *= select(vec3<f32>(1.0), diffuse_direct, game_outdoor);
     let environment_specular = f0 * (0.04 + 0.28 * (1.0 - roughness));
     var emissive = vec3<f32>(0.0);
     if (material.flags & MATERIAL_EMISSIVE) != 0u {
@@ -256,7 +281,10 @@ fn fs_solid(input: VertexOut) -> @location(0) vec4<f32> {
             * material.emissive_color_and_intensity.rgb
             * material.emissive_color_and_intensity.a;
     }
-    return vec4<f32>(diffuse + metal_body + specular + environment_specular + emissive, 1.0);
+    let exposure = select(1.0, 1.06, game_outdoor);
+    return vec4<f32>(
+        (diffuse + metal_body + specular + environment_specular + emissive) * exposure,
+        1.0);
 }
 
 @fragment
@@ -290,6 +318,7 @@ const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
     TexturedSolid,
+    GameOutdoor,
     BaseColor,
     NormalMap,
     UvChecker,
@@ -310,6 +339,7 @@ impl ViewMode {
     pub const fn label(self) -> &'static str {
         match self {
             Self::TexturedSolid => "Textured",
+            Self::GameOutdoor => "Game Outdoor",
             Self::BaseColor => "Base Color",
             Self::NormalMap => "Normal Map",
             Self::UvChecker => "UV Checker",
@@ -329,6 +359,7 @@ impl ViewMode {
     const fn shader_mode(self) -> u32 {
         match self {
             Self::TexturedSolid => 0,
+            Self::GameOutdoor => 9,
             Self::BaseColor => 2,
             Self::NormalMap => 3,
             Self::UvChecker => 4,
@@ -473,6 +504,7 @@ pub struct HeadlessRenderReport {
     pub layer_mask_pixels_changed: usize,
     pub layer_mask_channel_pixels_changed: usize,
     pub part_id_colors_rendered: usize,
+    pub outdoor_lighting_pixels_changed: usize,
     pub opacity_cutout_pixels_removed: usize,
     pub opaque_opacity_pixels_changed: usize,
     pub non_background_pixels: usize,
@@ -1692,6 +1724,7 @@ pub async fn run_headless_render_smoke(
     }
     let modes = [
         ViewMode::TexturedSolid,
+        ViewMode::GameOutdoor,
         ViewMode::BaseColor,
         ViewMode::NormalMap,
         ViewMode::UvChecker,
@@ -1736,6 +1769,20 @@ pub async fn run_headless_render_smoke(
             frames_rendered = frames_rendered.saturating_add(1);
         }
     }
+    let outdoor_readback = render_headless_readback(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &default_material_binding.bind_group,
+        &base_only_material_bindings,
+        &camera_bind_group,
+        &pipelines,
+        &render_snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+        ViewMode::GameOutdoor,
+    );
     let probe_bindings = [
         ("unresolved", BTreeMap::new()),
         ("base color", base_only_material_bindings),
@@ -1858,7 +1905,7 @@ pub async fn run_headless_render_smoke(
         .saturating_add(
             u32::try_from(layer_mask_readbacks.len()).map_err(|_| RenderError::ResourceLimit)?,
         )
-        .saturating_add(1);
+        .saturating_add(2);
     device
         .poll(wgpu::PollType::wait_indefinitely())
         .map_err(|error| RenderError::Device(format!("headless GPU wait failed: {error}")))?;
@@ -1883,6 +1930,12 @@ pub async fn run_headless_render_smoke(
         part_id_readback.1,
         part_id_readback.2,
     )?;
+    let outdoor_pixels = read_headless_pixels(
+        &device,
+        &outdoor_readback.0,
+        outdoor_readback.1,
+        outdoor_readback.2,
+    )?;
     let probe_index = |label: &str| {
         probe_bindings
             .iter()
@@ -1890,6 +1943,12 @@ pub async fn run_headless_render_smoke(
             .ok_or_else(|| RenderError::Device(format!("headless {label} probe is missing")))
     };
     let base_only_pixels = &probe_pixels[probe_index("base color")?];
+    let outdoor_lighting_pixels_changed = changed_pixel_count(base_only_pixels, &outdoor_pixels)?;
+    if outdoor_lighting_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless Game Outdoor lighting matched the standard Textured frame".to_owned(),
+        ));
+    }
     let composed_pixels = &probe_pixels[probe_index("composed")?];
     let background = composed_pixels.get(..4).ok_or_else(|| {
         RenderError::Device("headless GPU frame has no complete pixel".to_owned())
@@ -2132,6 +2191,7 @@ pub async fn run_headless_render_smoke(
         layer_mask_pixels_changed,
         layer_mask_channel_pixels_changed,
         part_id_colors_rendered,
+        outdoor_lighting_pixels_changed,
         opacity_cutout_pixels_removed,
         opaque_opacity_pixels_changed,
         non_background_pixels,
@@ -2653,6 +2713,7 @@ fn draw_mesh<'a>(
     pass.set_vertex_buffer(0, mesh.vertex.slice(..));
     match view_mode {
         ViewMode::TexturedSolid
+        | ViewMode::GameOutdoor
         | ViewMode::BaseColor
         | ViewMode::NormalMap
         | ViewMode::UvChecker
@@ -3773,6 +3834,7 @@ mod tests {
     fn every_view_mode_has_a_distinct_user_label() {
         let labels = [
             ViewMode::TexturedSolid,
+            ViewMode::GameOutdoor,
             ViewMode::BaseColor,
             ViewMode::NormalMap,
             ViewMode::UvChecker,
@@ -3790,7 +3852,7 @@ mod tests {
         .map(ViewMode::label)
         .into_iter()
         .collect::<HashSet<_>>();
-        assert_eq!(labels.len(), 14);
+        assert_eq!(labels.len(), 15);
     }
 
     #[test]

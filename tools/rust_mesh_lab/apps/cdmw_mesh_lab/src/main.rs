@@ -822,6 +822,7 @@ impl LabApplication {
                     .show_ui(ui, |ui| {
                         for mode in [
                             ViewMode::TexturedSolid,
+                            ViewMode::GameOutdoor,
                             ViewMode::BaseColor,
                             ViewMode::NormalMap,
                             ViewMode::UvChecker,

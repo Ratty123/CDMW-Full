@@ -269,6 +269,7 @@ fn painted_menus_route_preview_camera_selection_and_lod_controls() -> TestResult
         ViewMode::WireVertices,
         ViewMode::XRay,
         ViewMode::TexturedSolid,
+        ViewMode::GameOutdoor,
         ViewMode::BaseColor,
         ViewMode::NormalMap,
         ViewMode::UvChecker,
