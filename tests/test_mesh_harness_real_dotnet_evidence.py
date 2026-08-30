@@ -288,6 +288,32 @@ def test_top_level_window_hwnd_uses_ga_root_without_activation() -> None:
         assert win32_input._top_level_window_hwnd(12) == 91
 
 
+def test_button_click_rejects_a_logically_visible_control_clipped_outside_form() -> None:
+    from tools.mesh_harness import win32_input
+
+    control = {
+        "hwnd": 23,
+        "pid": 42,
+        "text": "Viewport",
+        "class_name": "WindowsForms10.BUTTON.app.0.141b42a_r8_ad1",
+        "visible": True,
+        "enabled": True,
+        "rect": [40, 1382, 180, 1427],
+    }
+    with (
+        patch.object(win32_input, "_enumerate_child_windows", return_value=(control,)),
+        patch.object(win32_input, "_host_window_rect", return_value=(0, 0, 640, 1080)),
+        patch.object(win32_input, "_send_control_message") as send,
+    ):
+        result = win32_input._click_button_by_text(11, "Viewport", expected_pid=42)
+
+    assert result["ok"] is False
+    assert result["reason"] == "control_not_reachable"
+    assert result["root_rect"] == [0, 0, 640, 1080]
+    assert result["matches"][0]["intersects_root"] is False
+    send.assert_not_called()
+
+
 def test_show_without_activation_rejects_a_failed_top_level_z_order_change() -> None:
     from tools.mesh_harness import win32_input
 

@@ -1546,6 +1546,13 @@ def verify_packaged_mesh_texture_smoke_target(
                 f"The production D3D11 viewport is not visibly available: {viewport_before_controls!r}"
             )
 
+        textured = _activate_solid_textured_control(
+            app,
+            mesh_editor_tab,
+            form_hwnd=form_hwnd,
+            helper_pid=helper_pid,
+            desktop_observations=desktop_observations,
+        )
         control_continuity = _exercise_actual_control_continuity(
             app,
             mesh_editor_tab,
@@ -1553,13 +1560,6 @@ def verify_packaged_mesh_texture_smoke_target(
             viewport_hwnd=viewport_hwnd,
             helper_pid=helper_pid,
             output_root=output_root,
-            desktop_observations=desktop_observations,
-        )
-        textured = _activate_solid_textured_control(
-            app,
-            mesh_editor_tab,
-            form_hwnd=form_hwnd,
-            helper_pid=helper_pid,
             desktop_observations=desktop_observations,
         )
         viewport_after_textured = _viewport_window_state(viewport_hwnd, helper_pid)

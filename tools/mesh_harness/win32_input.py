@@ -187,18 +187,37 @@ def _click_button_by_text(
         if "button" in str(row.get("class_name", "") or "").casefold()
         and _control_text_matches(row.get("text", ""), text)
     ]
-    usable = [
-        row for row in matches if row.get("visible") is True and row.get("enabled") is True
-    ]
+    root_rect = _host_window_rect(root_hwnd)
+    usable: list[dict[str, object]] = []
+    for row in matches:
+        rect = tuple(int(value) for value in row.get("rect", ()) or ())
+        intersects_root = bool(
+            root_rect is not None
+            and len(rect) == 4
+            and min(rect[2], root_rect[2]) > max(rect[0], root_rect[0])
+            and min(rect[3], root_rect[3]) > max(rect[1], root_rect[1])
+        )
+        row["intersects_root"] = intersects_root
+        if (
+            row.get("visible") is True
+            and row.get("enabled") is True
+            and intersects_root
+        ):
+            usable.append(row)
     target = usable[0] if len(usable) == 1 else None
     if target is None:
         return {
             "ok": False,
-            "reason": "control_not_unique",
+            "reason": (
+                "control_not_reachable"
+                if len(matches) == 1 and not usable
+                else "control_not_unique"
+            ),
             "requested_text": text,
             "matched_count": len(matches),
             "usable_count": len(usable),
             "matches": matches,
+            "root_rect": list(root_rect or ()),
             "discovery_ms": round(discovery_ms, 3),
         }
     hwnd = int(target.get("hwnd", 0) or 0)
@@ -218,6 +237,7 @@ def _click_button_by_text(
         "matched_count": len(matches),
         "ownership_ok": ownership_ok,
         "message": "BM_CLICK",
+        "root_rect": list(root_rect or ()),
         "discovery_ms": round(discovery_ms, 3),
         "message_dispatch_ms": round(dispatch_ms, 3),
         **target,

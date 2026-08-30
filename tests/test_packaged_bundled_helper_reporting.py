@@ -290,6 +290,10 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         self.assertIn("_exercise_actual_control_continuity(", source)
         self.assertIn('control.get("message_dispatch_ms"', source)
         self.assertIn('_select_combo_item_by_text(\n        form_hwnd,\n        "Solid (Textured)"', source)
+        self.assertLess(
+            source.index("textured = _activate_solid_textured_control("),
+            source.index("control_continuity = _exercise_actual_control_continuity("),
+        )
         self.assertIn('"global_mouse_input_used": False', source)
         self.assertIn("runtime_event_requested.connect(capture_runtime_event)", source)
         self.assertNotIn("prompt_archive_static_replacement_options", source)
