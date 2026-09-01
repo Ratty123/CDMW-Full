@@ -553,6 +553,52 @@ _HOST_MESH_ACTION_PARAMS: dict[str, frozenset[str]] = {
         }
     ),
 }
+
+# Only actions whose result can grow the mesh need the expensive disposable
+# execution before the authoritative shadow command.  Same-size and shrinking
+# actions are bounded from the current document and then execute their native
+# kernel once.
+_HOST_MESH_ACTIONS_REQUIRING_RESULT_PREFLIGHT = frozenset(
+    {
+        "mirror",
+        "fill_holes",
+        "generate_tangents",
+    }
+)
+
+
+def _mesh_action_requires_result_preflight(command: MeshEditCommand) -> bool:
+    action = str(command.action or "").strip().lower()
+    if action in _HOST_MESH_ACTIONS_REQUIRING_RESULT_PREFLIGHT:
+        return True
+    return action == "uv_transform" and _command_truthy(
+        (command.params or {}).get("auto_uv", False)
+    )
+
+
+def _mesh_action_capacity_factor(command: MeshEditCommand) -> int:
+    """Conservatively admit same-size edits that may add one vertex channel."""
+
+    action = str(command.action or "").strip().lower()
+    if action in {
+        "recalculate_normals",
+        "flip_normals",
+        "sharpen_normals",
+        "soften_normals",
+        "weighted_normals",
+        "copy_normals",
+        "uv_transform",
+    }:
+        return 2
+    return 1
+
+
+def _mesh_topology_counts(mesh: ParsedMesh) -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (len(submesh.vertices), len(submesh.faces))
+        for level in _mesh_lods(mesh)
+        for submesh in level
+    )
 _RUST_MESH_ACTION_ARGUMENTS = frozenset({"action", "selection", "params", "label"})
 _RUST_TOPOLOGY_ARGUMENTS = frozenset({"action", "selection", "params", "label"})
 _RUST_RIG_SELECTION_ARGUMENTS = frozenset({"selection"})
@@ -7033,19 +7079,24 @@ class RustMeshAuthoringSession:
             factor = 4
         elif command.startswith("morph_") or command.startswith("refit_"):
             factor = 2
-        mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=True)
+        mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=False)
         self._preflight_mesh_document_capacity(mesh, expansion_factor=factor)
 
     def _preflight_topology_command(self, command: MeshEditCommand) -> int:
         """Run topology against a disposable clone, then admit its exact result."""
 
+        source_mesh = self.shadow_service.working_mesh(
+            self.shadow_session_id,
+            clone=True,
+        )
+        source_topology = _mesh_topology_counts(source_mesh)
         preflight_service = MeshService(
             max_history=1,
             max_history_bytes=self.shadow_service.max_history_bytes,
         )
         preflight_session_id = f"{self.session_id}:topology-preflight:{uuid4()}"
         preflight_service.open_edit_session(
-            self.shadow_service.working_mesh(self.shadow_session_id, clone=True),
+            source_mesh,
             session_id=preflight_session_id,
             mode="edit",
             load_layer_project=False,
@@ -7054,8 +7105,20 @@ class RustMeshAuthoringSession:
             preflight_service.apply_command(preflight_session_id, command)
             candidate = preflight_service.working_mesh(
                 preflight_session_id,
-                clone=True,
+                clone=False,
             )
+            if (
+                command.action == "generate_tangents"
+                and self.shadow_service.session_view(
+                    self.shadow_session_id
+                ).output_policy
+                == MeshOutputPolicy.EXACT_GAME_ASSET.value
+                and _mesh_topology_counts(candidate) != source_topology
+            ):
+                raise RustMeshValidationError(
+                    "Generate Tangents would split vertices and cannot be written by Exact "
+                    "PAC output. Choose Free Edit before generating tangents for this mesh."
+                )
             return self._preflight_mesh_document_capacity(candidate)
         finally:
             preflight_service.close_edit_session(
@@ -7865,7 +7928,17 @@ class RustMeshAuthoringSession:
             )
         elif command == "mesh_action":
             mesh_command = self._mesh_action_command(args)
-            admitted_document_bytes = self._preflight_topology_command(mesh_command)
+            if _mesh_action_requires_result_preflight(mesh_command):
+                admitted_document_bytes = self._preflight_topology_command(mesh_command)
+            else:
+                current_mesh = self.shadow_service.working_mesh(
+                    self.shadow_session_id,
+                    clone=False,
+                )
+                admitted_document_bytes = self._preflight_mesh_document_capacity(
+                    current_mesh,
+                    expansion_factor=_mesh_action_capacity_factor(mesh_command),
+                )
             result = self.shadow_service.apply_command(
                 self.shadow_session_id,
                 mesh_command,
@@ -8187,6 +8260,11 @@ class RustMeshAuthoringSession:
             return service.save_active_morph_profile(session_id)
         if command == "morph_delete_profile":
             return service.delete_morph_profile(session_id, args.get("profile_id"))
+        if command == "morph_delete_definition":
+            return service.delete_morph_definition(
+                session_id,
+                args.get("definition_id"),
+            )
         if command == "morph_set_value":
             return service.set_morph_value(
                 session_id,

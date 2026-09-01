@@ -1211,6 +1211,8 @@ struct LabApplication {
     cdmw_layer_name: String,
     cdmw_morph_profile_name: String,
     cdmw_morph_definition_label: String,
+    cdmw_morph_definition_edit_id: String,
+    cdmw_morph_replace_selection_on_edit: bool,
     cdmw_morph_rule: String,
     cdmw_morph_axis: String,
     cdmw_morph_amount: f32,
@@ -1232,7 +1234,8 @@ struct LabApplication {
     cdmw_weld_distance: f32,
     cdmw_uv_offset_step: f32,
     cdmw_uv_scale_factor: f32,
-    cdmw_uv_pixel_resolution: u32,
+    cdmw_uv_pixel_width: u32,
+    cdmw_uv_pixel_height: u32,
     cdmw_weight_step: f32,
     cdmw_exit_requested: bool,
     cdmw_finish_accepted: bool,
@@ -1356,6 +1359,8 @@ impl LabApplication {
             cdmw_layer_name: "Rust Layer".to_owned(),
             cdmw_morph_profile_name: "Rust Morph Profile".to_owned(),
             cdmw_morph_definition_label: "Rust Morph".to_owned(),
+            cdmw_morph_definition_edit_id: String::new(),
+            cdmw_morph_replace_selection_on_edit: false,
             cdmw_morph_rule: "volume".to_owned(),
             cdmw_morph_axis: "y".to_owned(),
             cdmw_morph_amount: 0.1,
@@ -1377,7 +1382,8 @@ impl LabApplication {
             cdmw_weld_distance: 0.0001,
             cdmw_uv_offset_step: 0.05,
             cdmw_uv_scale_factor: 1.1,
-            cdmw_uv_pixel_resolution: 1024,
+            cdmw_uv_pixel_width: 1024,
+            cdmw_uv_pixel_height: 1024,
             cdmw_weight_step: 0.1,
             cdmw_exit_requested: false,
             cdmw_finish_accepted: false,
@@ -1862,6 +1868,16 @@ impl LabApplication {
             self.status = format!("{label} rejected: {}", error.trim());
             self.remember_cdmw_page_feedback(origin.as_ref());
             return;
+        }
+        if matches!(
+            label.as_str(),
+            "Update morph slider"
+                | "Delete morph slider"
+                | "Activate morph profile"
+                | "Delete morph profile"
+        ) {
+            self.cdmw_morph_definition_edit_id.clear();
+            self.cdmw_morph_replace_selection_on_edit = false;
         }
         if event == "finish_result" {
             self.cdmw_finish_accepted = true;

@@ -411,6 +411,9 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "topology.inset" => (Kind::ShadowTopology, "inset"),
         "topology.loop_cut" => (Kind::ShadowTopology, "loop_cut"),
         "topology.merge" => (Kind::ShadowTopology, "merge"),
+        "topology.split" => (Kind::ShadowTopology, "split"),
+        "topology.dissolve" => (Kind::ShadowTopology, "dissolve"),
+        "topology.separate" => (Kind::ShadowTopology, "separate"),
         "topology.weld" => (Kind::ShadowTopology, "weld"),
         "parts.selection" | "parts.select_all" | "parts.select_none" | "parts.invert" => {
             (Kind::UiAction, "UiAction::SetPartSelection")
@@ -428,6 +431,10 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "morph.collapse" => (Kind::LocalPage, "CdmwRailPage::MorphRefit"),
         "morph.profile" => (Kind::ShadowCommand, "morph_activate"),
         "morph.create_profile" => (Kind::ShadowCommand, "morph_create"),
+        "morph.edit_slider" => (Kind::LocalState, "cdmw_morph_definition_edit_id"),
+        "morph.replace_slider_scope" => (Kind::LocalState, "cdmw_morph_replace_selection_on_edit"),
+        "morph.update_slider" => (Kind::ShadowCommand, "morph_create"),
+        "morph.delete_slider" => (Kind::ShadowCommand, "morph_delete_definition"),
         "morph.save_profile" => (Kind::ShadowCommand, "morph_save_profile"),
         "morph.delete_profile" => (Kind::ShadowCommand, "morph_delete_profile"),
         "morph.preset" => (Kind::ShadowCommand, "morph_apply_preset"),
@@ -441,6 +448,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "refit.intensity" => (Kind::LocalState, "cdmw_refit_intensity"),
         "refit.clearance" => (Kind::LocalState, "cdmw_refit_clearance"),
         "refit.apply" => (Kind::ShadowCommand, "refit_configure"),
+        "refit.apply_all" => (Kind::ShadowCommand, "refit_configure"),
         "morph.reset" => (Kind::ShadowCommand, "morph_reset"),
         "morph.bake" => (Kind::ShadowCommand, "morph_bake"),
         "display.mode" => (Kind::LocalState, "view_mode"),
@@ -555,6 +563,9 @@ topology.fill|topology|deliberately_disabled|free_edit_only|false|Fill has no ex
 topology.inset|topology|deliberately_disabled|free_edit_only|false|Inset has no exact protected-record writeback route.
 topology.loop_cut|topology|deliberately_disabled|free_edit_only|false|Loop Cut derives vertices whose protected bytes cannot be derived.
 topology.merge|topology|deliberately_disabled|free_edit_only|false|Merge has no exact protected-record writeback route.
+topology.split|topology|deliberately_disabled|free_edit_only|false|Split has no exact protected-record writeback route.
+topology.dissolve|topology|deliberately_disabled|free_edit_only|false|Dissolve has no exact protected-record writeback route.
+topology.separate|topology|deliberately_disabled|free_edit_only|false|Separate has no exact protected-record writeback route.
 topology.weld|topology|deliberately_disabled|free_edit_only|false|Weld has no exact protected-record writeback route.
 parts.selection|parts_layers|executable|session|false|
 parts.select_all|parts_layers|executable|session|false|
@@ -574,6 +585,10 @@ history.timeline|session|executable|read_only_view|false|
 morph.collapse|morph_refit|executable|session|false|
 morph.profile|morph_refit|executable|session|false|
 morph.create_profile|morph_refit|executable|session|false|
+morph.edit_slider|morph_refit|executable|baked_active_profile|false|
+morph.replace_slider_scope|morph_refit|executable|editing_slider_and_selection|false|
+morph.update_slider|morph_refit|executable|editing_slider_baked|false|
+morph.delete_slider|morph_refit|executable|baked_active_profile|false|
 morph.save_profile|morph_refit|executable|active_profile|false|
 morph.delete_profile|morph_refit|executable|active_profile|false|
 morph.preset|morph_refit|executable|session|false|
@@ -587,6 +602,7 @@ refit.mode|morph_refit|executable|bound_garment|false|
 refit.intensity|morph_refit|executable|bound_garment|false|
 refit.clearance|morph_refit|executable|bound_garment|false|
 refit.apply|morph_refit|executable|bound_garment|false|
+refit.apply_all|morph_refit|executable|bound_garment|false|
 morph.reset|morph_refit|executable|active_profile|false|
 morph.bake|morph_refit|executable|unbaked_change|false|
 display.mode|camera_display|executable|session|false|

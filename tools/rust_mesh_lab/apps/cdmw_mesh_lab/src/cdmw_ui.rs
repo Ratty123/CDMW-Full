@@ -1316,7 +1316,7 @@ impl LabApplication {
         });
         if free_edit {
             ui.small(if selected {
-                "Cleanup is limited to the selected elements or Parts."
+                "Remove Doubles uses selected vertices. Other cleanup actions repair each selected element's owning Part."
             } else {
                 "No selection: cleanup applies to every editable Part."
             });
@@ -1332,7 +1332,7 @@ impl LabApplication {
                 "Cyan sampled lines point away from the surface along the current vertex normals.",
             );
         ui.small(
-            "Commands affect the selected elements/Parts. Normal commands enable the direction preview automatically; tangents are recorded but have no line overlay.",
+            "Selected elements target their owning Part for Recalculate, Weighted, and Tangents. Flip, Sharpen, Soften, and Copy can use element rows. Normal commands enable the direction preview automatically; tangents are recorded but have no line overlay.",
         );
         for (label, action) in [
             ("Recalculate Normals", "recalculate_normals"),
@@ -1480,10 +1480,17 @@ impl LabApplication {
                 });
             }
         }
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label("Texture px");
+            ui.label("W");
             ui.add(
-                egui::DragValue::new(&mut self.cdmw_uv_pixel_resolution)
+                egui::DragValue::new(&mut self.cdmw_uv_pixel_width)
+                    .speed(1)
+                    .range(1..=32768),
+            );
+            ui.label("H");
+            ui.add(
+                egui::DragValue::new(&mut self.cdmw_uv_pixel_height)
                     .speed(1)
                     .range(1..=32768),
             );
@@ -1497,8 +1504,8 @@ impl LabApplication {
                     params: json!({
                         "snap_pixels": true,
                         "texture_size": [
-                            self.cdmw_uv_pixel_resolution,
-                            self.cdmw_uv_pixel_resolution
+                            self.cdmw_uv_pixel_width,
+                            self.cdmw_uv_pixel_height
                         ]
                     }),
                 });
@@ -1837,9 +1844,15 @@ impl LabApplication {
         let driver_parts = value_u32_list(&state, "driver_submesh_indices");
         let refit = state.get("refit").cloned().unwrap_or(Value::Null);
         let bound_garments = value_u32_list(&refit, "garment_submesh_indices");
+        let definitions = state
+            .get("definitions")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let morph_unbaked = state_bool(&state, "unbaked");
         ui.label(RichText::new("Morph & Refit").strong());
         ui.small(
-            "Create captures the current element/Part selection as one slider. Rule, axis, strength, feather, and mirror define its 100% shape.",
+            "Add Slider captures the current element/Part selection. Edit slider keeps that stored scope unless Replace scope is selected.",
         );
         ui.small(
             "A preset stores slider percentages. Bake commits the current preview into shadow geometry; Save Profile stores the reusable slider definition.",
@@ -1862,6 +1875,30 @@ impl LabApplication {
             ui.label("Slider label");
             ui.text_edit_singleline(&mut self.cdmw_morph_definition_label);
         });
+        let editing_definition = !self.cdmw_morph_definition_edit_id.is_empty();
+        if editing_definition {
+            ui.horizontal_wrapped(|ui| {
+                ui.colored_label(
+                    Color32::from_rgb(105, 205, 135),
+                    format!("Editing slider · {}", self.cdmw_morph_definition_label),
+                );
+                ui.add_enabled(
+                    has_mesh_selection,
+                    egui::Checkbox::new(
+                        &mut self.cdmw_morph_replace_selection_on_edit,
+                        "Replace scope with current selection",
+                    ),
+                )
+                .on_disabled_hover_text(
+                    "Select elements or Parts before replacing the stored scope",
+                );
+                if ui.button("Cancel Edit").clicked() {
+                    self.cdmw_morph_definition_edit_id.clear();
+                    self.cdmw_morph_replace_selection_on_edit = false;
+                }
+            });
+        }
+        let replace_edit_scope = editing_definition && self.cdmw_morph_replace_selection_on_edit;
         egui::CollapsingHeader::new("Slider definition")
             .default_open(true)
             .show(ui, |ui| {
@@ -1904,44 +1941,61 @@ impl LabApplication {
                             .speed(0.01)
                             .range(-10.0..=10.0),
                     );
-                    ui.label("Feather rings");
-                    ui.add(egui::DragValue::new(&mut self.cdmw_morph_feather).range(0..=64));
                 });
-                ui.horizontal_wrapped(|ui| {
-                    ComboBox::from_label("Falloff")
-                        .selected_text(&self.cdmw_morph_falloff)
-                        .show_ui(ui, |ui| {
-                            for falloff in ["constant", "linear", "smooth"] {
-                                ui.selectable_value(
-                                    &mut self.cdmw_morph_falloff,
-                                    falloff.to_owned(),
-                                    falloff,
-                                );
-                            }
-                        });
-                    ComboBox::from_label("Mirror")
-                        .selected_text(&self.cdmw_morph_mirror_mode)
-                        .show_ui(ui, |ui| {
-                            for mirror in ["off", "x", "y", "z"] {
-                                ui.selectable_value(
-                                    &mut self.cdmw_morph_mirror_mode,
-                                    mirror.to_owned(),
-                                    mirror,
-                                );
-                            }
-                        });
+                ui.add_enabled_ui(!editing_definition || replace_edit_scope, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Feather rings");
+                        ui.add(
+                            egui::DragValue::new(&mut self.cdmw_morph_feather).range(0..=64),
+                        );
+                    });
+                    ui.horizontal_wrapped(|ui| {
+                        ComboBox::from_label("Falloff")
+                            .selected_text(&self.cdmw_morph_falloff)
+                            .show_ui(ui, |ui| {
+                                for falloff in ["constant", "linear", "smooth"] {
+                                    ui.selectable_value(
+                                        &mut self.cdmw_morph_falloff,
+                                        falloff.to_owned(),
+                                        falloff,
+                                    );
+                                }
+                            });
+                        ComboBox::from_label("Mirror")
+                            .selected_text(&self.cdmw_morph_mirror_mode)
+                            .show_ui(ui, |ui| {
+                                for mirror in ["off", "x", "y", "z"] {
+                                    ui.selectable_value(
+                                        &mut self.cdmw_morph_mirror_mode,
+                                        mirror.to_owned(),
+                                        mirror,
+                                    );
+                                }
+                            });
+                    });
                 });
+                if editing_definition && !replace_edit_scope {
+                    ui.small("Feather, falloff, and mirror stay locked because the stored scope is being preserved.");
+                }
             });
         let create_ready = authoring
-            && has_mesh_selection
+            && !morph_unbaked
+            && (has_mesh_selection || (editing_definition && !replace_edit_scope))
             && !self.cdmw_morph_profile_name.trim().is_empty()
             && !self.cdmw_morph_definition_label.trim().is_empty();
+        let create_label = if editing_definition {
+            "Update Slider"
+        } else {
+            "Add Slider"
+        };
         if ui
-            .add_enabled(create_ready, Button::new("Create Profile..."))
+            .add_enabled(create_ready, Button::new(create_label))
             .on_disabled_hover_text(if !authoring {
                 "This session is read-only"
-            } else if !has_mesh_selection {
-                "Select vertices, edges, faces, or Parts to define the profile scope"
+            } else if morph_unbaked {
+                "Reset or Bake the current Morph preview before changing slider definitions"
+            } else if !has_mesh_selection && (!editing_definition || replace_edit_scope) {
+                "Select vertices, edges, faces, or Parts to define the slider scope"
             } else {
                 "Enter a profile name and slider label"
             })
@@ -1949,7 +2003,31 @@ impl LabApplication {
         {
             let profile_name = self.cdmw_morph_profile_name.trim().to_owned();
             let label = self.cdmw_morph_definition_label.trim().to_owned();
-            let profile_id = stable_ui_id("profile", &profile_name);
+            let source_definition_id = self.cdmw_morph_definition_edit_id.clone();
+            let source_definition = definitions.iter().find(|candidate| {
+                state_str(candidate, "definition_id") == Some(source_definition_id.as_str())
+            });
+            let category = source_definition
+                .and_then(|candidate| state_str(candidate, "category"))
+                .unwrap_or("General")
+                .to_owned();
+            let minimum = source_definition
+                .and_then(|candidate| candidate.get("min_percent"))
+                .and_then(Value::as_f64)
+                .unwrap_or(-100.0);
+            let maximum = source_definition
+                .and_then(|candidate| candidate.get("max_percent"))
+                .and_then(Value::as_f64)
+                .unwrap_or(100.0);
+            let default = source_definition
+                .and_then(|candidate| candidate.get("default_percent"))
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+            let profile_id = if editing_definition && !profile_id.is_empty() {
+                profile_id.to_owned()
+            } else {
+                stable_ui_id("profile", &profile_name)
+            };
             let definition_id = stable_ui_id("morph", &label);
             actions.push(UiAction::CdmwCommand {
                 command: "morph_create",
@@ -1959,23 +2037,33 @@ impl LabApplication {
                         "profile_name": profile_name,
                         "definition_id": definition_id,
                         "label": label,
-                        "category": "General",
+                        "category": category,
                         "rule": self.cdmw_morph_rule,
                         "axis": self.cdmw_morph_axis,
                         "amount": self.cdmw_morph_amount,
                         "feather": self.cdmw_morph_feather,
                         "falloff": self.cdmw_morph_falloff,
                         "mirror_mode": self.cdmw_morph_mirror_mode,
-                        "min_percent": -100.0,
-                        "max_percent": 100.0,
-                        "default_percent": 0.0,
-                        "preserve_selection": false
+                        "min_percent": minimum,
+                        "max_percent": maximum,
+                        "default_percent": default,
+                        "preserve_selection": editing_definition && !replace_edit_scope,
+                        "source_definition_id": source_definition_id
                     }
                 }),
-                label: "Create morph profile",
+                label: if editing_definition {
+                    "Update morph slider"
+                } else {
+                    "Add morph slider"
+                },
             });
         }
         let profiles = pair_list(&state, "available_profiles");
+        let active_profile_name = profiles
+            .iter()
+            .find(|(id, _)| id == profile_id)
+            .map(|(_, name)| name.clone())
+            .unwrap_or_default();
         ComboBox::from_label("Profile")
             .selected_text(
                 profiles
@@ -2081,11 +2169,6 @@ impl LabApplication {
                 });
             }
         });
-        let definitions = state
-            .get("definitions")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
         let values = pair_number_list(&state, "values");
         for (definition_id, host_value) in values {
             let definition = definitions
@@ -2094,7 +2177,8 @@ impl LabApplication {
             let label = definition
                 .and_then(|candidate| state_str(candidate, "label"))
                 .filter(|label| !label.trim().is_empty())
-                .unwrap_or(&definition_id);
+                .unwrap_or(&definition_id)
+                .to_owned();
             let minimum = definition
                 .and_then(|candidate| candidate.get("min_percent"))
                 .and_then(Value::as_f64)
@@ -2109,20 +2193,30 @@ impl LabApplication {
                 .and_then(|candidate| candidate.get("rule"))
                 .cloned()
                 .unwrap_or(Value::Null);
-            let rule_name = state_str(&rule, "kind").unwrap_or("stored");
-            let rule_axis = state_str(&rule, "axis").unwrap_or("-");
+            let rule_name = state_str(&rule, "kind").unwrap_or("stored").to_owned();
+            let rule_axis = state_str(&rule, "axis").unwrap_or("-").to_owned();
             let rule_amount = rule
                 .get("amount")
                 .and_then(Value::as_f64)
                 .filter(|amount| amount.is_finite())
                 .unwrap_or(0.0);
+            let rule_feather = rule
+                .get("feather")
+                .and_then(Value::as_u64)
+                .unwrap_or(2)
+                .min(64) as u32;
+            let rule_falloff = state_str(&rule, "falloff").unwrap_or("smooth").to_owned();
+            let mirror_mode = definition
+                .and_then(|candidate| state_str(candidate, "mirror_mode"))
+                .unwrap_or("off")
+                .to_owned();
             let mut value = self
                 .cdmw_morph_value_drafts
                 .get(&definition_id)
                 .copied()
                 .unwrap_or(host_value);
             let response = ui
-                .add(egui::Slider::new(&mut value, minimum..=maximum).text(label))
+                .add(egui::Slider::new(&mut value, minimum..=maximum).text(&label))
                 .on_hover_text(format!(
                     "Stored {rule_name} rule · axis {rule_axis} · 100% strength {rule_amount:.3}"
                 ));
@@ -2137,6 +2231,39 @@ impl LabApplication {
             ui.small(format!(
                 "↳ {rule_name} · axis {rule_axis} · 100% strength {rule_amount:.3}"
             ));
+            ui.push_id(("morph-definition-actions", &definition_id), |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button("Edit slider").clicked() {
+                        self.cdmw_morph_definition_edit_id = definition_id.clone();
+                        self.cdmw_morph_replace_selection_on_edit = false;
+                        self.cdmw_morph_definition_label = label.clone();
+                        self.cdmw_morph_rule = rule_name.clone();
+                        self.cdmw_morph_axis = rule_axis.clone();
+                        self.cdmw_morph_amount = rule_amount as f32;
+                        self.cdmw_morph_feather = rule_feather;
+                        self.cdmw_morph_falloff = rule_falloff.clone();
+                        self.cdmw_morph_mirror_mode = mirror_mode.clone();
+                        if !active_profile_name.is_empty() {
+                            self.cdmw_morph_profile_name = active_profile_name.clone();
+                        }
+                    }
+                    if ui
+                        .add_enabled(authoring && !morph_unbaked, Button::new("Delete slider"))
+                        .on_disabled_hover_text(if !authoring {
+                            "This session is read-only"
+                        } else {
+                            "Reset or Bake the current Morph preview before deleting a slider"
+                        })
+                        .clicked()
+                    {
+                        actions.push(UiAction::CdmwCommand {
+                            command: "morph_delete_definition",
+                            arguments: json!({"definition_id": definition_id.clone()}),
+                            label: "Delete morph slider",
+                        });
+                    }
+                });
+            });
             if let Some(value) = commit {
                 actions.push(UiAction::CdmwCommand {
                     command: "morph_set_value",
@@ -2308,16 +2435,31 @@ impl LabApplication {
             {
                 self.cdmw_refit_settings_dirty = true;
             }
-            if ui.button("Apply to Selected Garments").clicked() {
-                let targets = if selected_bound_garments.is_empty() {
-                    bound_garments.clone()
-                } else {
-                    selected_bound_garments.clone()
-                };
+            if ui
+                .add_enabled(
+                    !selected_bound_garments.is_empty(),
+                    Button::new("Apply to Selected Garments"),
+                )
+                .on_disabled_hover_text("Select one or more bound garment Parts first")
+                .clicked()
+            {
                 actions.push(UiAction::CdmwCommand {
                     command: "refit_configure",
                     arguments: json!({
-                        "submesh_indices": targets,
+                        "submesh_indices": selected_bound_garments,
+                        "enabled": self.cdmw_refit_enabled,
+                        "intensity_percent": self.cdmw_refit_intensity,
+                        "mode": self.cdmw_refit_mode,
+                        "clearance_percent": self.cdmw_refit_clearance
+                    }),
+                    label: "Apply garment refit settings",
+                });
+            }
+            if ui.button("Apply to All Bound Garments").clicked() {
+                actions.push(UiAction::CdmwCommand {
+                    command: "refit_configure",
+                    arguments: json!({
+                        "submesh_indices": bound_garments,
                         "enabled": self.cdmw_refit_enabled,
                         "intensity_percent": self.cdmw_refit_intensity,
                         "mode": self.cdmw_refit_mode,

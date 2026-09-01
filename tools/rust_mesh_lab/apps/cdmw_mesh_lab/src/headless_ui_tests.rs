@@ -878,7 +878,6 @@ fn integrated_cleanup_normals_and_uv_controls_all_dispatch_their_typed_actions()
         "Auto Unwrap",
         "Pack Islands",
         "Snap to Grid",
-        "Snap Pixels",
     ] {
         let actions = ui.actions_from_click(label)?;
         assert!(
@@ -886,6 +885,17 @@ fn integrated_cleanup_normals_and_uv_controls_all_dispatch_their_typed_actions()
             "{label} did not dispatch uv_transform: {actions:?}"
         );
     }
+    ui.application.cdmw_uv_pixel_width = 2_048;
+    ui.application.cdmw_uv_pixel_height = 1_024;
+    let pixel_snap = ui.actions_from_click("Snap Pixels")?;
+    assert!(pixel_snap.iter().any(|action| matches!(
+        action,
+        UiAction::CdmwMeshAction {
+            action: "uv_transform",
+            params,
+            ..
+        } if params.get("texture_size") == Some(&json!([2048, 1024]))
+    )));
     Ok(())
 }
 
@@ -1426,6 +1436,43 @@ fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() ->
 }
 
 #[test]
+fn integrated_refit_apply_never_broadens_an_empty_selection_to_all_garments() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 980.0));
+    ui.application.cdmw_state["morph_refit"] = json!({
+        "profile_id": "owned-profile",
+        "state_revision": 7,
+        "available_profiles": [["owned-profile", "Owned Profile"]],
+        "values": [],
+        "driver_submesh_indices": [0],
+        "refit": {
+            "driver_submesh_indices": [0],
+            "garment_submesh_indices": [0],
+            "garment_settings": []
+        }
+    });
+    ui.click("Morph & Refit")?;
+
+    ui.last_actions.clear();
+    ui.click("Apply to Selected Garments")?;
+    assert!(
+        !has_host_command(&ui.last_actions, "refit_configure"),
+        "an empty selection must not silently target every bound garment"
+    );
+
+    let all = ui.actions_from_click("Apply to All Bound Garments")?;
+    assert!(all.iter().any(|action| matches!(
+        action,
+        UiAction::CdmwCommand {
+            command: "refit_configure",
+            arguments,
+            ..
+        } if arguments.get("submesh_indices") == Some(&json!([0]))
+    )));
+    Ok(())
+}
+
+#[test]
 fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestResult {
     let mut ui =
         HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 2_000.0));
@@ -1444,12 +1491,14 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
         "definitions": [{
             "definition_id": "morph-a",
             "label": "Waist Width",
+            "category": "Body",
             "min_percent": -25.0,
             "max_percent": 75.0,
+            "default_percent": 10.0,
             "rule": {"kind": "radius", "axis": "x", "amount": 0.25}
         }],
         "values": [["morph-a", 25.0]],
-        "unbaked": true,
+        "unbaked": false,
         "driver_submesh_indices": [0],
         "refit": {
             "driver_submesh_indices": [0],
@@ -1481,7 +1530,7 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
     ui.application.cdmw_morph_feather = 4;
     ui.application.cdmw_morph_falloff = "linear".to_owned();
     ui.application.cdmw_morph_mirror_mode = "x".to_owned();
-    let create = ui.actions_from_click("Create Profile...")?;
+    let create = ui.actions_from_click("Add Slider")?;
     assert!(create.iter().any(|action| matches!(
         action,
         UiAction::CdmwCommand {
@@ -1498,6 +1547,49 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
             && arguments["definition"]["mirror_mode"] == json!("x")
     )));
 
+    ui.click("Edit slider")?;
+    assert_eq!(ui.application.cdmw_morph_definition_edit_id, "morph-a");
+    assert_eq!(ui.application.cdmw_morph_definition_label, "Waist Width");
+    assert_eq!(ui.application.cdmw_morph_rule, "radius");
+    assert_eq!(ui.application.cdmw_morph_axis, "x");
+    let update = ui.actions_from_click("Update Slider")?;
+    assert!(update.iter().any(|action| matches!(
+        action,
+        UiAction::CdmwCommand {
+            command: "morph_create",
+            arguments,
+            ..
+        } if arguments["definition"]["source_definition_id"] == json!("morph-a")
+            && arguments["definition"]["preserve_selection"] == json!(true)
+            && arguments["definition"]["category"] == json!("Body")
+            && arguments["definition"]["min_percent"] == json!(-25.0)
+            && arguments["definition"]["max_percent"] == json!(75.0)
+            && arguments["definition"]["default_percent"] == json!(10.0)
+    )));
+    ui.click("Replace scope with current selection")?;
+    let replace_scope = ui.actions_from_click("Update Slider")?;
+    assert!(replace_scope.iter().any(|action| matches!(
+        action,
+        UiAction::CdmwCommand {
+            command: "morph_create",
+            arguments,
+            ..
+        } if arguments["definition"]["source_definition_id"] == json!("morph-a")
+            && arguments["definition"]["preserve_selection"] == json!(false)
+    )));
+    let delete = ui.actions_from_click("Delete slider")?;
+    assert!(delete.iter().any(|action| matches!(
+        action,
+        UiAction::CdmwCommand {
+            command: "morph_delete_definition",
+            arguments,
+            ..
+        } if arguments.get("definition_id") == Some(&json!("morph-a"))
+    )));
+
+    ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
+    ui.frame(Vec::new());
+
     for (label, command) in [
         ("Save Profile", "morph_save_profile"),
         ("Delete Profile", "morph_delete_profile"),
@@ -1509,6 +1601,7 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
         ("2. Bind Selected Garment Parts", "refit_bind"),
         ("Clear Refit", "refit_clear"),
         ("Apply to Selected Garments", "refit_configure"),
+        ("Apply to All Bound Garments", "refit_configure"),
     ] {
         let actions = ui.actions_from_click(label)?;
         assert!(
@@ -1620,7 +1713,7 @@ fn integrated_read_only_session_disables_import_and_morph_creation_without_selec
     ui.application.cdmw_state["authoring_enabled"] = json!(true);
     ui.click("Morph & Refit")?;
     ui.last_actions.clear();
-    ui.click("Create Profile...")?;
+    ui.click("Add Slider")?;
     assert!(!ui.last_actions.iter().any(|action| matches!(
         action,
         UiAction::CdmwCommand {

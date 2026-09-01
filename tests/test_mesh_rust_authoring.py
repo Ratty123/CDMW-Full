@@ -6967,6 +6967,142 @@ class RustMeshAuthoringTests(unittest.TestCase):
             finished = session.finish(_request(session, "finish_request", 4))
             self.assertEqual("accepted", finished["status"])
 
+    def test_same_size_mesh_action_executes_the_kernel_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _authoritative, session = self._create(Path(temporary) / "session")
+            request = _request(session, "command_request", 1)
+            request.update(
+                command="mesh_action",
+                arguments={
+                    "action": "recalculate_normals",
+                    "selection": {
+                        "vertices_by_submesh": {},
+                        "edges_by_submesh": {},
+                        "faces_by_submesh": {},
+                        "source_indices": [0],
+                    },
+                    "params": {},
+                    "label": "Recalculate normals",
+                },
+            )
+            original_apply = MeshService.apply_command
+            calls: list[tuple[str, str]] = []
+
+            def counted_apply(
+                service: MeshService,
+                session_id: str,
+                command: object,
+            ) -> object:
+                calls.append((session_id, str(getattr(command, "action", ""))))
+                return original_apply(service, session_id, command)  # type: ignore[arg-type]
+
+            try:
+                with patch.object(MeshService, "apply_command", new=counted_apply):
+                    response = session.run_command(request)
+                self.assertEqual(1, response["state"]["base_revision"])
+                self.assertEqual(
+                    [(session.shadow_session_id, "recalculate_normals")],
+                    calls,
+                )
+            finally:
+                session.cancel()
+
+    def test_exact_generate_tangents_rejects_a_preflight_vertex_split(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _authoritative, session = self._create(Path(temporary) / "session")
+            before_view = session.shadow_service.session_view(session.shadow_session_id)
+            before_mesh = session.shadow_service.working_mesh(
+                session.shadow_session_id,
+                clone=True,
+            )
+            request = _request(session, "command_request", 1)
+            request.update(
+                command="mesh_action",
+                arguments={
+                    "action": "generate_tangents",
+                    "selection": {
+                        "vertices_by_submesh": {},
+                        "edges_by_submesh": {},
+                        "faces_by_submesh": {},
+                        "source_indices": [0],
+                    },
+                    "params": {},
+                    "label": "Generate tangents",
+                },
+            )
+            original_apply = MeshService.apply_command
+            actual_shadow_calls = 0
+
+            def split_preflight(
+                service: MeshService,
+                session_id: str,
+                command: object,
+            ) -> object:
+                nonlocal actual_shadow_calls
+                if ":topology-preflight:" in session_id:
+                    candidate = service.working_mesh(session_id, clone=False)
+                    candidate.submeshes[0].vertices.append((0.0, 0.0, 0.0))
+                    return SimpleNamespace(ok=True)
+                actual_shadow_calls += 1
+                return original_apply(service, session_id, command)  # type: ignore[arg-type]
+
+            try:
+                with (
+                    patch.object(MeshService, "apply_command", new=split_preflight),
+                    self.assertRaisesRegex(
+                        RustMeshValidationError,
+                        "Generate Tangents.*Free Edit",
+                    ),
+                ):
+                    session.run_command(request)
+                after_view = session.shadow_service.session_view(session.shadow_session_id)
+                after_mesh = session.shadow_service.working_mesh(
+                    session.shadow_session_id,
+                    clone=True,
+                )
+                self.assertEqual(0, actual_shadow_calls)
+                self.assertEqual(before_view.revision, after_view.revision)
+                self.assertEqual(before_view.undo_count, after_view.undo_count)
+                self.assertEqual(before_mesh.submeshes, after_mesh.submeshes)
+            finally:
+                session.cancel()
+
+    def test_morph_delete_definition_routes_to_the_shadow_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _authoritative, session = self._create(Path(temporary) / "session")
+            try:
+                created = session.shadow_service.apply_command(
+                    session.shadow_session_id,
+                    _author_command(),
+                )
+                self.assertTrue(created.ok)
+                self.assertEqual(
+                    ("volume",),
+                    tuple(
+                        row.definition_id
+                        for row in session.shadow_service.morph_state(
+                            session.shadow_session_id
+                        ).definitions
+                    ),
+                )
+                request = _request(session, "command_request", 1)
+                request.update(
+                    command="morph_delete_definition",
+                    arguments={"definition_id": "volume"},
+                )
+
+                response = session.run_command(request)
+
+                self.assertEqual([], response["state"]["morph_refit"]["definitions"])
+                self.assertEqual(
+                    (),
+                    session.shadow_service.morph_state(
+                        session.shadow_session_id
+                    ).definitions,
+                )
+            finally:
+                session.cancel()
+
     def test_unexpected_morph_profile_entries_cannot_be_published(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             authoritative, session = self._create(Path(temporary) / "session")
