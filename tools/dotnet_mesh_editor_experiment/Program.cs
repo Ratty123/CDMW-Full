@@ -919,7 +919,10 @@ internal sealed partial class MeshViewport : Control
             }
             CancelActiveStroke();
             _activeTool = next;
-            QueuePaintProjectionPrewarm();
+            if (!ResidentNativeInteractionRequired)
+            {
+                QueuePaintProjectionPrewarm();
+            }
             UpdateGpuViewport();
             Invalidate();
         }
@@ -1067,6 +1070,8 @@ internal sealed partial class MeshViewport : Control
         Dock = DockStyle.Fill;
         TabStop = true;
         _renderSurfaceResizeTimer.Tick += OnRenderSurfaceResizeTimerTick;
+        InitializeResidentNativeReplication();
+        InitializeResidentNativeSnapshotPreparation();
         InitializeGpuViewport();
         StartupTiming.Mark("gpu_viewport_initialized");
         FrameMesh();

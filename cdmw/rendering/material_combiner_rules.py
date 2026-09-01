@@ -22,6 +22,8 @@ class MaterialPreviewCombinerSettings:
     height_amount: float = 0.04
     support_map_max_dimension: int = 256
     preserve_texture_orientation: bool = False
+    requested_output_channels: frozenset[str] | None = None
+    base_output_available: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -302,7 +304,21 @@ def _material_surface_descriptor(input_item: Optional[PreviewMaterialTextureInpu
             "layer_role",
             "layer_channel",
         ):
-            parts.append(str(getattr(source, name, "") or ""))
+            value = str(getattr(source, name, "") or "")
+            if name in {"source_texture_path", "source_dds_path"}:
+                normalized = value.replace("\\", "/").strip()
+                # Absolute paths identify a machine-local cache or leased
+                # package location.  Its parent directories are not authored
+                # material evidence: e.g. a temp folder containing ``hair``
+                # must not turn an unrelated helmet surface into Hair.  Keep
+                # the DDS filename, while relative archive identities retain
+                # their complete semantic path.
+                if (
+                    normalized.startswith("/")
+                    or re.match(r"^[a-zA-Z]:/", normalized)
+                ):
+                    value = PurePosixPath(normalized).name
+            parts.append(value)
         parts.extend(str(value or "") for value in tuple(getattr(source, "packed_channels", ()) or ()))
         parts.extend(str(value or "") for value in tuple(getattr(source, "blend_flags", ()) or ()))
     return " ".join(part.replace("\\", "/") for part in parts if str(part or "").strip()).lower()
@@ -567,6 +583,36 @@ def _material_parameter_color_exact(
         if len(channels) >= 3:
             return tuple(_clamp(value) for value in channels[:3])  # type: ignore[return-value]
         return ()
+    return ()
+
+
+def _material_parameter_rgba_exact(
+    input_item: PreviewMaterialTextureInput,
+    parameter_name: str,
+) -> Tuple[float, ...]:
+    """Return one exact colour with its authored PAC alpha when available."""
+
+    wanted = _normalized_key(parameter_name)
+    if not wanted:
+        return ()
+    for parameter in _material_parameters(input_item):
+        if _normalized_key(getattr(parameter, "parameter_name", "")) != wanted:
+            continue
+        color = _material_parameter_color_exact(input_item, parameter_name)
+        if len(color) < 3:
+            return ()
+        raw_value = str(getattr(parameter, "value", "") or "").strip()
+        hex_match = re.fullmatch(r"#?([0-9a-fA-F]{8})", raw_value)
+        if hex_match:
+            alpha = int(hex_match.group(1)[6:8], 16) / 255.0
+        else:
+            raw_color = tuple(getattr(parameter, "color_value", ()) or ())
+            alpha = (
+                _clamp(_finite_float(raw_color[3], 1.0))
+                if len(raw_color) >= 4
+                else 1.0
+            )
+        return (*color[:3], alpha)
     return ()
 
 
@@ -1096,12 +1142,16 @@ def _layer_weight_from_parameters(
     return 0.18 if has_base else 0.82
 
 
-def _layer_tint(input_item: PreviewMaterialTextureInput) -> Tuple[float, float, float]:
+def _layer_tint(input_item: PreviewMaterialTextureInput) -> Tuple[float, ...]:
     role = _visible_layer_role(input_item)
     channel = _layer_channel(input_item)
     candidates: Tuple[str, ...]
     if role == "detail" and channel:
-        candidates = (f"dyeingdetaillayercolormask{channel}", f"dyeingcolormask{channel}", f"tintcolor{channel}")
+        # The shipped Ver2 shaders preserve the sampled detail diffuse RGB when
+        # this exact channel has no detail-dye colour.  A base dye or
+        # ``_tintColor*`` belongs to a different stage and must not turn an
+        # absent detail dye into an opaque replacement colour.
+        candidates = (f"dyeingdetaillayercolormask{channel}",)
     elif role == "layer" and channel:
         candidates = (f"tintcolor{channel}", f"heighttintcolor{channel}", "baseheighttintcolor", "tintcolor")
     elif role == "layer":
@@ -1121,8 +1171,14 @@ def _layer_tint(input_item: PreviewMaterialTextureInput) -> Tuple[float, float, 
     # (0.620, 0.765, 0.765) and turned the steel head blue-teal.
     # `_global_material_base_tint` already guards the same hazard.
     for candidate in candidates:
-        color = _material_parameter_color_exact(input_item, candidate)
+        color = (
+            _material_parameter_rgba_exact(input_item, candidate)
+            if role == "detail"
+            else _material_parameter_color_exact(input_item, candidate)
+        )
         if len(color) >= 3:
+            if len(color) >= 4 and color[3] <= 1.0 / 255.0:
+                continue
             return color
     return ()
 
@@ -1186,15 +1242,16 @@ def _authoritative_color_blending_tint_seed(
     inputs: Sequence[PreviewMaterialTextureInput],
 ) -> Tuple[
     Optional[PreviewMaterialTextureInput],
-    Tuple[Tuple[float, float, float], ...],
+    Tuple[Tuple[float, ...], ...],
     str,
 ]:
-    """Return the PAC RGB selector, channel-local colors, and palette source.
+    """Return the PAC RGB selector and its sparse base-dye palette.
 
     Crimson's ``_colorBlendingMaskTexture`` is a selector, not a PBR packed
-    map. A seed is only emitted when the shader registry and PAC binding agree
-    on that exact role and all three channel colors are present. This keeps an
-    incomplete or filename-only guess from recoloring a whole submesh.
+    map.  The shipped Ver2 shader accumulates ``_dyeingColorMaskR/G/B`` as
+    independent RGBA overlays.  An undeclared channel therefore has zero alpha
+    and leaves the source surface intact; ``_tintColor*``, detail-dye, and
+    scratch colours are separate stages and cannot fill that missing channel.
     """
 
     mask_item: Optional[PreviewMaterialTextureInput] = None
@@ -1221,44 +1278,24 @@ def _authoritative_color_blending_tint_seed(
     if mask_item is None:
         return None, (), ""
 
-    scratch_tints: list[Tuple[float, float, float]] = []
-    primary_tints: list[Tuple[float, float, float]] = []
+    dye_tints: list[Tuple[float, ...]] = []
     for channel in "rgb":
-        scratch_tints.append(_material_parameter_color_exact(mask_item, f"scratchtintcolor{channel}"))
-        primary_tints.append(_material_parameter_color_exact(mask_item, f"tintcolor{channel}"))
+        color = _material_parameter_rgba_exact(
+            mask_item,
+            f"dyeingcolormask{channel}",
+        )
+        dye_tints.append(
+            color if len(color) >= 4 and color[3] > 1.0 / 255.0 else ()
+        )
 
-    # ``_tintColor{R,G,B}`` is the base tint of the three layers the mask
-    # selects: it sits alongside ``_grimeDiffuseTexture{R,G,B}`` one-for-one in
-    # the PAC, so channel N's tint belongs to channel N's layer.
-    # ``_scratchTintColor{R,G,B}`` is the wear/scratch accent for the same
-    # channels and carries a low alpha strength (0x0c and 0x36 on a real sword),
-    # so it is an overlay, not the surface colour.
-    #
-    # Preferring scratch inverted that. Only a wholly neutral scratch palette
-    # deferred to the primary one, and ``any()`` meant a single chromatic scratch
-    # channel kept the whole palette: on cd_phm_02_sword_0014 the blade's
-    # #dbdbdb/#ffe0a3/#dbc03e scratch set won over its authored #ae8c54 gold and
-    # #625142 brown, painting the blade near-white and the grip yellow.
-    scratch_present = any(len(color) >= 3 for color in scratch_tints)
-
-    tints: list[Tuple[float, float, float]] = []
-    used_fallback = False
-    for primary, scratch in zip(primary_tints, scratch_tints):
-        color = primary
-        if len(color) < 3:
-            color = scratch
-            used_fallback = len(color) >= 3
-        if len(color) < 3:
-            return None, (), ""
-        tints.append(color)
-
-    if used_fallback:
-        palette_source = "primary_scratch_fallback"
-    elif scratch_present:
-        palette_source = "primary_over_scratch"
-    else:
-        palette_source = "primary"
-    return mask_item, tuple(tints), palette_source
+    authored_count = sum(len(color) >= 3 for color in dye_tints)
+    if authored_count == 0:
+        return None, (), ""
+    return (
+        mask_item,
+        tuple(color if len(color) >= 3 else () for color in dye_tints),
+        "dye" if authored_count == 3 else "sparse_dye",
+    )
 
 
 def _neutral_metal_base_color(payload: object, inputs: Sequence[PreviewMaterialTextureInput]) -> Tuple[float, float, float]:

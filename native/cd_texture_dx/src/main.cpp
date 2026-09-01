@@ -40,7 +40,7 @@ static int run_command(int argc, wchar_t** argv) {
             return 2;
         }
         cdmw_native_diag::event("self_test_ok");
-        std::cout << "{\"event\":\"self_test\",\"ok\":true,\"protocol_version\":2,\"backend\":\"directxtex_native_0.2\",\"coverage\":[\"bc7_linear\",\"bc7_srgb\",\"separate_alpha\",\"preserve_coverage\",\"selected_mip\",\"gray16\"]}\n";
+        std::cout << "{\"event\":\"self_test\",\"ok\":true,\"protocol_version\":2,\"backend\":\"directxtex_native_0.2\",\"coverage\":[\"bc7_linear\",\"bc7_srgb\",\"assume_srgb\",\"separate_alpha\",\"preserve_coverage\",\"selected_mip\",\"gray16\"]}\n";
         return 0;
     }
     if (argc >= 3 && std::wstring(argv[1]) == L"inspect-json") {

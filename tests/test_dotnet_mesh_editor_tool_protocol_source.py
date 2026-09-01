@@ -1044,11 +1044,11 @@ def test_codex_mesh_checks_use_real_game_pac_and_keep_unit_runs_non_visual() -> 
     mesh_unit_end = source.index("    )", mesh_unit_start)
     assert "test_mesh_editor_dev_harness.py" not in source[mesh_unit_start:mesh_unit_end]
     assert "--ignore=tests/test_mesh_editor_dev_harness.py" not in source
-    assert '"mouse_input_backend": "scoped_hwnd_messages_normalized_input"' in real_proof_source
-    assert "_send_mouse_message(" in real_input_source
+    assert '"mouse_input_backend": "helper_ui_thread_resident_probe"' in real_proof_source
+    assert "request_resident_interaction_probe(" in real_input_source
+    assert '"event": "resident_interaction_probe"' in real_input_source
     assert "_set_screen_cursor_position" not in real_input_source
-    assert "if not state.input_window_verified:" in real_input_source
-    assert "_show_window_without_activation" in real_input_source
+    assert "_send_physical_mouse_message" not in real_input_source
     assert "SetForegroundWindow" not in real_input_source
     real_session_source = (
         ROOT / "tools" / "mesh_harness" / "real_dotnet_session.py"
@@ -1308,6 +1308,26 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     assert '"host_heartbeat_at_most_33_3_ms"' in interaction_soak_source
 
 
+def test_required_resident_input_never_falls_back_to_a_live_only_preview() -> None:
+    input_source = _source("MeshViewport.Input.cs")
+    stroke = input_source.split("private void BeginEditorStroke(", maxsplit=1)[1].split(
+        "private bool MaybeEmitEditorStrokeUpdate(", maxsplit=1
+    )[0]
+    required_stroke = stroke.split("if (ResidentNativeInteractionRequired)", maxsplit=1)[1]
+    required_stroke = required_stroke.split("if (!BeginProvisionalEditorStroke", maxsplit=1)[0]
+    assert "if (!ResidentNativeSnapshotAvailableForInput())" in required_stroke
+    assert "_editOperators.Cancel(gestureId);" in required_stroke
+    assert "return;" in required_stroke
+    assert "BeginProvisionalEditorStroke" not in required_stroke
+
+    selection = input_source.split("private void BeginSelectionDrag(", maxsplit=1)[1]
+    selection = selection.split("_edgeDragActive = true;", maxsplit=1)[0]
+    assert '"select_native_snapshot_pending"' in selection
+    assert '"select_compatibility_warmup"' not in selection
+    assert "ClearProvisionalSelectionEcho();" in selection
+    assert "_editOperators.Cancel(gestureId);" in selection
+
+
 def test_the_local_click_selection_pickers_stay_removed() -> None:
     """Hit resolution lives in native screen selection; the local pickers had
     no callers left, and the `selection_request` echo they emitted was read by
@@ -1456,3 +1476,51 @@ def test_renderer_status_cache_is_keyed_on_the_surface_it_reports() -> None:
 
     split_view = _source("MeshViewport.SplitView.cs")
     assert "internal Size RenderSurfaceClientSize => PaneSurfaceSize();" in split_view
+
+
+def test_resident_probe_uses_the_ui_thread_native_gesture_route() -> None:
+    protocol = _source("ExperimentForm.Protocol.cs")
+    probe = (
+        ROOT
+        / "tools"
+        / "dotnet_mesh_editor_experiment"
+        / "ExperimentForm.ResidentInteractionProbe.cs"
+    ).read_text(encoding="utf-8")
+    soak = _source("MeshViewport.InteractionSoak.cs")
+    probe_core = soak.split(
+        "internal Dictionary<string, object?> RunResidentInteractionProbe(",
+        maxsplit=1,
+    )[1].split("private static double ResidentProbePercentile", maxsplit=1)[0]
+
+    assert 'case "resident_interaction_probe":' in protocol
+    assert "HandleResidentInteractionProbe(root);" in protocol
+    assert 'WriteProtocolEvent("resident_interaction_probe_applied", response)' in probe
+    assert '["request_id"] = requestId' in probe
+    assert '["session_id"] = _residentMaterialSessionId' in probe
+    assert '["process_generation"] = _residentProcessGeneration' in probe
+    for timing_field in (
+        "begin_ms",
+        "input_sample_p95_ms",
+        "input_sample_max_ms",
+        "finish_ms",
+        "total_ms",
+    ):
+        assert f'["{timing_field}"]' in probe_core
+    for core_call in (
+        "BeginSelectionDrag(start, selectionTarget);",
+        "BeginEditorStroke(start);",
+        "UpdateResidentNativeInteraction(point);",
+        "FinishSelectionGesture(end, cancelled: false);",
+        "EndEditorStroke(end, cancelled: false);",
+    ):
+        assert core_call in probe_core
+    assert "resident_interaction_transaction" in probe_core
+    for forbidden_input_path in (
+        "SendInput",
+        "SetCursorPos",
+        "SetForegroundWindow",
+        "SetCapture(",
+        "UpdateSelection(",
+        "SetAuthoritativeEditRevision(",
+    ):
+        assert forbidden_input_path not in probe_core

@@ -34,6 +34,17 @@ class _MeshGeometryLayer:
 
 
 @dataclass(slots=True)
+class _MeshMorphSessionState:
+    """Owned, transferable Morph & Refit runtime plus its Python metadata."""
+
+    present: bool
+    native_snapshot: Mapping[str, object] | None = None
+    cache: object | None = None
+    retained_bytes: int = 0
+    session_revision: int = 0
+
+
+@dataclass(slots=True)
 class _MeshHistorySnapshot:
     mesh: ParsedMesh | None
     mode: str
@@ -49,6 +60,15 @@ class _MeshHistorySnapshot:
     geometry_layers: tuple[_MeshGeometryLayer, ...] | None = None
     active_geometry_layer_id: str | None = None
     geometry_layer_copy_counter: int | None = None
+    restore_geometry_layer_state: bool = False
+    output_policy: str | None = None
+    output_destination: str | None = None
+    output_destination_ready: bool | None = None
+    morph_profile_root: str | None = None
+    morph_profile_root_existed: bool | None = None
+    morph_profile_files: tuple[tuple[str, bytes], ...] | None = None
+    morph_profile_expected_fingerprint: str | None = None
+    morph_session_state: _MeshMorphSessionState | None = None
     material_generation: int | None = None
     committed_texture_resources: tuple[_MeshCommittedTextureResource, ...] | None = None
     retained_bytes: int = 0
@@ -196,6 +216,7 @@ class _MeshEditSession:
     active_geometry_layer_id: str = "base"
     geometry_layer_copy_counter: int = 0
     geometry_layer_revision: int = 0
+    morph_session_revision: int = 0
     native_clipboard_ready: bool = False
     mesh_layer_project_path: Path | None = None
     mesh_layer_workspace_manifest_path: Path | None = None
@@ -247,6 +268,9 @@ class _MeshEditSession:
     # How many times the resident session died holding edits this side never
     # received, and had to be abandoned back to the last exported state.
     native_editor_lost_recoveries: int = 0
+    resident_interaction_process_generation: int = 0
+    resident_interaction_last_sequence: int = 0
+    resident_interaction_ledger: dict[int, tuple[str, object]] = field(default_factory=dict)
     undo_stack: list[_MeshHistorySnapshot] = field(default_factory=list)
     redo_stack: list[_MeshHistorySnapshot] = field(default_factory=list)
     native_history_undo_count: int = 0

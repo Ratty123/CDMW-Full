@@ -1208,6 +1208,31 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("run_material_contract_self_test();", dispatch)
         self.assertIn('\\"material_contracts\\":true', dispatch)
 
+    def test_native_skin_detail_support_layer_preserves_exact_sidecar_semantics(self) -> None:
+        source = preview_core_source()
+        role_start = source.index("static std::string role_from_parameter_shader_and_name")
+        role_end = source.index("static std::string semantic_type_for_role", role_start)
+        role_source = source[role_start:role_end]
+        compile_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
+        compile_end = source.index("static std::string material_layer_json", compile_start)
+        compile_source = source[compile_start:compile_end]
+
+        self.assertIn('parameter_key == "skindetailmasktexture"', role_source)
+        self.assertIn('parameter_key == "skindetailnormaltexture"', role_source)
+        self.assertIn('parameter_key == "skindetailmaterialtexture"', role_source)
+        self.assertIn('key == "skindetailmasktexture") return "r";', source)
+        self.assertIn('parameters, {"_skinDetailOpacity"}', source)
+        self.assertIn('parameters, {"_skinDetailScale"}', source)
+        self.assertIn("append_skin_detail_support_layer(bindings, base, layers);", compile_source)
+        self.assertLess(
+            compile_source.index("append_skin_detail_support_layer(bindings, base, layers);"),
+            compile_source.index("if (shader_rule_holds_layer_albedo(bindings))"),
+        )
+        self.assertIn('layer.layer_role = "skin_detail";', source)
+        self.assertIn('layer.layer_channel = "r";', source)
+        self.assertIn('"\\\"detail_scale\\\":" << layer.detail_scale', source)
+        self.assertIn("run_skin_detail_support_contract_self_test();", source)
+
     def test_native_base_selection_rejects_chain_base_for_non_chain_parts(self) -> None:
         source = preview_core_source()
         refs_start = source.index("static bool sidecar_ref_matches_meshes")
@@ -1448,6 +1473,38 @@ class NativePreviewCoreTests(unittest.TestCase):
         shader_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
         self.assertIn('TextureReferenceForSubmesh(submeshIndex, "emissive")', resources_text)
         self.assertIn("EmissiveTexture.Sample", shader_text)
+
+    def test_native_core_treats_emissive_intensity_masks_as_linear_scalar_data(self) -> None:
+        graph_source = Path(
+            "native/cdmw_preview_core/src/owners/material_graph.cpp"
+        ).read_text(encoding="utf-8")
+        selection_source = Path(
+            "native/cdmw_preview_core/src/owners/material_selection.cpp"
+        ).read_text(encoding="utf-8")
+
+        srgb_start = graph_source.index("static std::string srgb_mode_for_role")
+        srgb_end = graph_source.index("static void add_sidecar_texture_ref", srgb_start)
+        srgb_source = graph_source[srgb_start:srgb_end]
+        packed_start = selection_source.index("static std::string packed_channels_for_role")
+        packed_end = selection_source.index("static std::string layer_channel_from_parameter", packed_start)
+        packed_source = selection_source[packed_start:packed_end]
+
+        self.assertIn("parameter_is_emissive_intensity_texture", graph_source)
+        self.assertLess(
+            srgb_source.index("parameter_is_emissive_intensity_texture"),
+            srgb_source.index("technique_parameter->srgb"),
+        )
+        self.assertIn('return "linear";', srgb_source)
+        self.assertIn('return "r=emissive_intensity";', packed_source)
+        self.assertIn('return (role == "base" || role == "emissive") ? "srgb" : "linear";', srgb_source)
+        self.assertIn(
+            "binding.role, binding.parameter_name, technique_parameter",
+            preview_core_source(),
+        )
+        self.assertIn(
+            "binding.role, binding.parameter_name, nullptr",
+            preview_core_source(),
+        )
 
     def test_d3d11_preview_uses_procedural_reflection_for_metal_materials(self) -> None:
         shader_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")

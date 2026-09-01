@@ -269,13 +269,23 @@ class MeshRiggingServiceMixin:
         return self.skeleton_summary(session_id)
 
     @_with_session_export_lock
-    def adjust_selected_vertex_bone_weight(self, session_id: str, delta: object) -> MeshSkeletonSummary:
+    def adjust_selected_vertex_bone_weight(
+        self,
+        session_id: str,
+        delta: object,
+        *,
+        bone_index: object | None = None,
+    ) -> MeshSkeletonSummary:
         session = self._session(session_id)
         if session.native_editor_mesh_dirty:
             raise RuntimeError("native mesh editor skin weight edit unavailable; Python mesh state is stale")
-        bone_index = session.selected_bone_index
+        edit_bone_index = (
+            session.selected_bone_index
+            if bone_index is None
+            else _coerce_index(bone_index)
+        )
         amount = _coerce_weight_delta(delta)
-        if bone_index < 0 or amount is None:
+        if edit_bone_index is None or edit_bone_index < 0 or amount is None:
             return self.skeleton_summary(session_id)
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
         vertex_map = session.selection.vertex_map()
@@ -290,7 +300,7 @@ class MeshRiggingServiceMixin:
                 session.working_mesh,
                 vertex_map,
                 operation="adjust",
-                bone_index=bone_index,
+                bone_index=edit_bone_index,
                 delta=amount,
             )
             if native_result is not None:
@@ -316,7 +326,7 @@ class MeshRiggingServiceMixin:
             for vertex_index in _valid_vertex_indices(submesh, vertex_indices):
                 current_indices = tuple(submesh.bone_indices[vertex_index]) if vertex_index < len(submesh.bone_indices) else ()
                 current_weights = tuple(submesh.bone_weights[vertex_index]) if vertex_index < len(submesh.bone_weights) else ()
-                next_indices, next_weights = _nudge_bone_weight(current_indices, current_weights, bone_index, amount)
+                next_indices, next_weights = _nudge_bone_weight(current_indices, current_weights, edit_bone_index, amount)
                 if next_indices == current_indices and next_weights == current_weights:
                     continue
                 operations.append((vertex_index, next_indices, next_weights))

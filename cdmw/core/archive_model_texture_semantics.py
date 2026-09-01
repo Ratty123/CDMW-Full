@@ -28,6 +28,7 @@ from cdmw.core.archive_model_references import (
     iter_archive_equipment_model_alias_stems,
 )
 from cdmw.core.upscale_profiles import infer_texture_semantics
+from cdmw.rendering.crimson_shader_registry import normalize_shader_family
 
 from cdmw.core.archive_model_texture_config import MODEL_TEXTURE_SUPPORT_FAMILY_SUFFIXES, MODEL_TEXTURE_VISIBLE_FAMILY_SUFFIXES
 
@@ -139,6 +140,79 @@ def _iter_model_sidecar_binding_submesh_keys(binding: _ArchiveModelSidecarTextur
     return _iter_model_submesh_reference_candidates(*values)
 
 
+def _prefer_authoritative_skin_wrapper_variant(
+    bindings: Sequence[_ArchiveModelSidecarTextureBinding],
+) -> Tuple[_ArchiveModelSidecarTextureBinding, ...]:
+    """Drop a Standard duplicate only when it aliases an authoritative Skin ``_sp``.
+
+    Some nude PAC XML files declare the same head/hand/body material once with
+    ``SkinnedMeshSkin`` and again with ``SkinnedMeshStandard``.  The visible
+    base, normal, and ``_materialTexture`` references are identical, but only
+    the Skin wrapper gives ``_materialTexture`` its skin-response channel
+    contract.  Keep the complete Skin wrapper in that exact duplicate case so
+    downstream support-map compilation cannot retain the Standard source kind
+    merely because of wrapper order.
+    """
+
+    def wrapper_key(
+        binding: _ArchiveModelSidecarTextureBinding,
+    ) -> Tuple[str, object] | None:
+        item_id = str(getattr(binding, "owner_wrapper_item_id", "") or "").strip()
+        if item_id:
+            return ("item", item_id)
+        try:
+            owner_slot_index = int(getattr(binding, "owner_slot_index", -1))
+        except (TypeError, ValueError, OverflowError):
+            owner_slot_index = -1
+        return ("slot", owner_slot_index) if owner_slot_index >= 0 else None
+
+    def owner_identity(binding: _ArchiveModelSidecarTextureBinding) -> str:
+        for value in (
+            str(getattr(binding, "material_name", "") or ""),
+            str(getattr(binding, "part_name", "") or ""),
+            str(getattr(binding, "submesh_name", "") or ""),
+        ):
+            candidates = _iter_model_submesh_exact_reference_candidates(value)
+            if candidates:
+                return candidates[0]
+        return ""
+
+    skin_edges: dict[Tuple[str, str, str], set[Tuple[str, object]]] = {}
+    standard_edges: dict[Tuple[str, str, str], set[Tuple[str, object]]] = {}
+    for binding in bindings:
+        key = wrapper_key(binding)
+        owner = owner_identity(binding)
+        parameter = str(getattr(binding, "parameter_name", "") or "").strip().casefold()
+        texture_path = _normalize_model_texture_reference(
+            str(getattr(binding, "texture_path", "") or "")
+        )
+        if key is None or not owner or parameter != "_materialtexture" or not texture_path:
+            continue
+        family = normalize_shader_family(
+            str(getattr(binding, "shader_family", "") or "")
+        )
+        source_kind = str(getattr(binding, "source_kind", "") or "").strip().casefold()
+        edge = (owner, parameter, texture_path)
+        if family == "skin" and source_kind == "crimson_skin_material_response":
+            skin_edges.setdefault(edge, set()).add(key)
+        elif family in {"standard", "standard_v2"}:
+            standard_edges.setdefault(edge, set()).add(key)
+
+    duplicate_edges = skin_edges.keys() & standard_edges.keys()
+    if not duplicate_edges:
+        return tuple(bindings)
+    duplicate_standard_wrappers = {
+        wrapper
+        for edge in duplicate_edges
+        for wrapper in standard_edges[edge]
+    }
+    return tuple(
+        binding
+        for binding in bindings
+        if wrapper_key(binding) not in duplicate_standard_wrappers
+    )
+
+
 def _select_model_sidecar_bindings_for_submesh(
     bindings: Sequence[_ArchiveModelSidecarTextureBinding],
     *,
@@ -222,7 +296,9 @@ def _select_model_sidecar_bindings_for_submesh(
                 id(binding)
                 for binding in identity_components[owner_matches[0]][0]
             }
-            return tuple(binding for binding in bindings if id(binding) in selected_ids)
+            return _prefer_authoritative_skin_wrapper_variant(
+                tuple(binding for binding in bindings if id(binding) in selected_ids)
+            )
 
     for exact_key in ordered_exact_keys:
         alias_matches = [
@@ -239,7 +315,9 @@ def _select_model_sidecar_bindings_for_submesh(
                 id(binding)
                 for binding in identity_components[alias_matches[0]][0]
             }
-            return tuple(binding for binding in bindings if id(binding) in selected_ids)
+            return _prefer_authoritative_skin_wrapper_variant(
+                tuple(binding for binding in bindings if id(binding) in selected_ids)
+            )
 
     fuzzy_component_indexes: set[int] = set()
     for fuzzy_key in fuzzy_candidates:
@@ -283,7 +361,9 @@ def _select_model_sidecar_bindings_for_submesh(
         id(binding)
         for binding in identity_components[selected_component_index][0]
     }
-    return tuple(binding for binding in bindings if id(binding) in selected_ids)
+    return _prefer_authoritative_skin_wrapper_variant(
+        tuple(binding for binding in bindings if id(binding) in selected_ids)
+    )
 
 
 def _archive_model_component_alias_stems(path: str) -> set[str]:

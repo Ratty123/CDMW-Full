@@ -841,6 +841,15 @@ internal sealed partial class ExperimentForm
 
     private void RequestFinishEditMesh()
     {
+        if (_viewport.ResidentNativeReplicationPending
+            || _viewport.ResidentNativeReplicationBlocked
+            || (_viewport.ResidentNativeInteractionRequired
+                && _lastDurableEditRevision < _lastAppliedEditRevision))
+        {
+            _statusLabel.Text = "Syncing edits… Finish Edit Mesh will be available when the durable revision catches up.";
+            ApplyResidentReplicationControlState();
+            return;
+        }
         _morphFinishPending = true;
         if (!_morphStateReceived)
         {

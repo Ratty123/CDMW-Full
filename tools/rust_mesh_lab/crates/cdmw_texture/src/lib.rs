@@ -7,6 +7,10 @@ use thiserror::Error;
 pub const DDS_MAX_DIMENSION: u32 = 16_384;
 pub const DDS_MAX_PAYLOAD_BYTES: usize = 512 * 1024 * 1024;
 pub const MATERIAL_SIDECAR_MAX_BYTES: usize = 16 * 1024 * 1024;
+const DDPF_FOURCC: u32 = 0x0000_0004;
+const DDPF_ALPHAPIXELS: u32 = 0x0000_0001;
+const DDPF_RGB: u32 = 0x0000_0040;
+const DDPF_LUMINANCE: u32 = 0x0002_0000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -24,6 +28,9 @@ pub enum TextureRole {
     Height,
     Flow,
     LayerMask,
+    SkinDetailMask,
+    SkinDetailNormal,
+    SkinDetailMaterial,
     Unknown,
 }
 
@@ -35,7 +42,13 @@ impl TextureRole {
             .filter(char::is_ascii_alphanumeric)
             .flat_map(char::to_lowercase)
             .collect::<String>();
-        if matches!(
+        if normalized == "skindetailmasktexture" {
+            Self::SkinDetailMask
+        } else if normalized == "skindetailnormaltexture" {
+            Self::SkinDetailNormal
+        } else if normalized == "skindetailmaterialtexture" {
+            Self::SkinDetailMaterial
+        } else if matches!(
             normalized.as_str(),
             "colorblendingmasktexture" | "detailmasktexture"
         ) {
@@ -288,6 +301,7 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
     let mip_count = read_u32(bytes, 28)?.max(1);
     validate_dimensions(width, height, mip_count)?;
     let caps2 = read_u32(bytes, 112)?;
+    let pixel_format_flags = read_u32(bytes, 80)?;
     let four_cc_bytes = bytes.get(84..88).ok_or(TextureError::Truncated)?;
     let four_cc = String::from_utf8_lossy(four_cc_bytes).into_owned();
     let is_dx10 = four_cc_bytes == b"DX10";
@@ -303,7 +317,36 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
     } else {
         (None, 1, 128)
     };
-    let format = map_format(&four_cc, dxgi);
+    let rgb_bit_count = read_u32(bytes, 88)?;
+    let red_mask = read_u32(bytes, 92)?;
+    let green_mask = read_u32(bytes, 96)?;
+    let blue_mask = read_u32(bytes, 100)?;
+    let alpha_mask = read_u32(bytes, 104)?;
+    let legacy_l8 = !is_dx10
+        && pixel_format_flags & DDPF_FOURCC == 0
+        && pixel_format_flags & DDPF_LUMINANCE != 0
+        && four_cc_bytes == [0, 0, 0, 0]
+        && rgb_bit_count == 8
+        && red_mask == 0x0000_00ff
+        && green_mask == 0
+        && blue_mask == 0
+        && alpha_mask == 0;
+    let legacy_rgba8 = !is_dx10
+        && pixel_format_flags & DDPF_FOURCC == 0
+        && pixel_format_flags & (DDPF_RGB | DDPF_ALPHAPIXELS) == DDPF_RGB | DDPF_ALPHAPIXELS
+        && four_cc_bytes == [0, 0, 0, 0]
+        && rgb_bit_count == 32
+        && red_mask == 0x0000_00ff
+        && green_mask == 0x0000_ff00
+        && blue_mask == 0x00ff_0000
+        && alpha_mask == 0xff00_0000;
+    let format = if legacy_l8 {
+        DdsFormat::R8Unorm
+    } else if legacy_rgba8 {
+        DdsFormat::Rgba8Unorm
+    } else {
+        map_format(&four_cc, dxgi)
+    };
     let header_is_srgb = matches!(
         format,
         DdsFormat::Bc1Srgb
@@ -314,7 +357,21 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
             | DdsFormat::Bgra8Srgb
     );
     let color_space = match role {
-        TextureRole::BaseColor | TextureRole::Emissive => ColorSpace::Srgb,
+        TextureRole::BaseColor => ColorSpace::Srgb,
+        // Crimson uses the emissive slot for both authored RGB colour and
+        // single-channel intensity masks. BC4/R8 have no sRGB sampling view;
+        // treating an intensity mask as colour also changes the authored
+        // response. Keep those formats linear and let the material's emissive
+        // colour supply the hue in the shader.
+        TextureRole::Emissive
+            if matches!(
+                format,
+                DdsFormat::Bc4Unorm | DdsFormat::Bc4Snorm | DdsFormat::R8Unorm
+            ) =>
+        {
+            ColorSpace::Linear
+        }
+        TextureRole::Emissive => ColorSpace::Srgb,
         TextureRole::Normal
         | TextureRole::Material
         | TextureRole::Roughness
@@ -325,7 +382,10 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         | TextureRole::Opacity
         | TextureRole::Height
         | TextureRole::Flow
-        | TextureRole::LayerMask => ColorSpace::Linear,
+        | TextureRole::LayerMask
+        | TextureRole::SkinDetailMask
+        | TextureRole::SkinDetailNormal
+        | TextureRole::SkinDetailMaterial => ColorSpace::Linear,
         TextureRole::Unknown if header_is_srgb => ColorSpace::Srgb,
         TextureRole::Unknown => ColorSpace::Linear,
     };
@@ -947,6 +1007,46 @@ mod tests {
         bytes
     }
 
+    fn dds_legacy_l8() -> Vec<u8> {
+        let mut bytes = vec![0_u8; 128 + 16 + 4 + 1];
+        if let Some(slot) = bytes.get_mut(..4) {
+            slot.copy_from_slice(b"DDS ");
+        }
+        write(&mut bytes, 4, 124);
+        write(&mut bytes, 12, 4);
+        write(&mut bytes, 16, 4);
+        write(&mut bytes, 28, 3);
+        write(&mut bytes, 76, 32);
+        write(&mut bytes, 80, DDPF_LUMINANCE);
+        write(&mut bytes, 88, 8);
+        write(&mut bytes, 92, 0x0000_00ff);
+        bytes.get_mut(128..).expect("legacy L8 payload").fill(0x49);
+        bytes
+    }
+
+    fn dds_legacy_rgba8() -> Vec<u8> {
+        let mut bytes = vec![0_u8; 128 + (4 * 4 * 4) + (2 * 2 * 4) + 4];
+        if let Some(slot) = bytes.get_mut(..4) {
+            slot.copy_from_slice(b"DDS ");
+        }
+        write(&mut bytes, 4, 124);
+        write(&mut bytes, 12, 4);
+        write(&mut bytes, 16, 4);
+        write(&mut bytes, 28, 3);
+        write(&mut bytes, 76, 32);
+        write(&mut bytes, 80, DDPF_RGB | DDPF_ALPHAPIXELS);
+        write(&mut bytes, 88, 32);
+        write(&mut bytes, 92, 0x0000_00ff);
+        write(&mut bytes, 96, 0x0000_ff00);
+        write(&mut bytes, 100, 0x00ff_0000);
+        write(&mut bytes, 104, 0xff00_0000);
+        bytes
+            .get_mut(128..)
+            .expect("legacy RGBA8 payload")
+            .fill(0x7f);
+        bytes
+    }
+
     fn write(bytes: &mut [u8], offset: usize, value: u32) {
         if let Some(slot) = bytes.get_mut(offset..offset.saturating_add(4)) {
             slot.copy_from_slice(&value.to_le_bytes());
@@ -984,10 +1084,63 @@ mod tests {
     }
 
     #[test]
+    fn single_channel_emissive_mask_is_linear_intensity_data() -> Result<(), TextureError> {
+        let metadata = inspect_dds(&dds_dx10(80), TextureRole::Emissive)?;
+        assert_eq!(metadata.format, DdsFormat::Bc4Unorm);
+        assert_eq!(metadata.color_space, ColorSpace::Linear);
+        Ok(())
+    }
+
+    #[test]
     fn unknown_role_honors_an_srgb_dds_header() -> Result<(), TextureError> {
         let metadata = inspect_dds(&dds_dx10(99), TextureRole::Unknown)?;
         assert_eq!(metadata.color_space, ColorSpace::Srgb);
         assert!(metadata.warnings.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_l8_scalar_uses_r8_with_complete_mip_layout() -> Result<(), TextureError> {
+        let bytes = dds_legacy_l8();
+        let plan = plan_2d_upload(&bytes, TextureRole::Roughness)?;
+        assert_eq!(plan.metadata.format, DdsFormat::R8Unorm);
+        assert_eq!(plan.metadata.color_space, ColorSpace::Linear);
+        assert_eq!(plan.metadata.payload_offset, 128);
+        assert_eq!(plan.levels.len(), 3);
+        assert_eq!(plan.levels[0].byte_offset, 128);
+        assert_eq!(plan.levels[0].byte_length, 16);
+        assert_eq!(plan.levels[0].bytes_per_row, 4);
+        assert_eq!(plan.levels[1].byte_offset, 144);
+        assert_eq!(plan.levels[1].byte_length, 4);
+        assert_eq!(plan.levels[2].byte_offset, 148);
+        assert_eq!(plan.levels[2].byte_length, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_luminance_requires_the_exact_l8_masks() -> Result<(), TextureError> {
+        let mut bytes = dds_legacy_l8();
+        write(&mut bytes, 92, 0x0000_000f);
+        let metadata = inspect_dds(&bytes, TextureRole::Roughness)?;
+        assert!(matches!(metadata.format, DdsFormat::Unknown { .. }));
+        assert!(matches!(
+            plan_2d_upload(&bytes, TextureRole::Roughness),
+            Err(TextureError::UnsupportedUpload)
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_rgba8_supports_direct_mip_upload() -> Result<(), TextureError> {
+        let bytes = dds_legacy_rgba8();
+        let plan = plan_2d_upload(&bytes, TextureRole::Specular)?;
+        assert_eq!(plan.metadata.format, DdsFormat::Rgba8Unorm);
+        assert_eq!(plan.metadata.color_space, ColorSpace::Linear);
+        assert_eq!(plan.metadata.payload_offset, 128);
+        assert_eq!(plan.levels.len(), 3);
+        assert_eq!(plan.levels[0].byte_length, 4 * 4 * 4);
+        assert_eq!(plan.levels[1].byte_length, 2 * 2 * 4);
+        assert_eq!(plan.levels[2].byte_length, 4);
         Ok(())
     }
 
@@ -1068,6 +1221,18 @@ mod tests {
         assert_eq!(
             TextureRole::from_parameter_name("_detailMaskTexture"),
             TextureRole::LayerMask
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_skinDetailMaskTexture"),
+            TextureRole::SkinDetailMask
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_skinDetailNormalTexture"),
+            TextureRole::SkinDetailNormal
+        );
+        assert_eq!(
+            TextureRole::from_parameter_name("_skinDetailMaterialTexture"),
+            TextureRole::SkinDetailMaterial
         );
         assert_eq!(
             TextureRole::from_parameter_name("_detailMaterialMaskR"),

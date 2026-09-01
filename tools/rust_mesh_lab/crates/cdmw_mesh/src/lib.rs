@@ -81,6 +81,13 @@ pub struct DrawSnapshot {
     pub fingerprint: String,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MeshElementHandles {
+    pub vertices: HashSet<VertexHandle>,
+    pub edges: HashSet<EdgeHandle>,
+    pub faces: HashSet<FaceHandle>,
+}
+
 #[derive(Debug, Error)]
 pub enum MeshError {
     #[error("source document has no editable LOD")]
@@ -157,6 +164,55 @@ impl WorkingMesh {
 
     pub fn edges(&self) -> impl Iterator<Item = (EdgeHandle, &Edge)> {
         self.edges.iter()
+    }
+
+    #[must_use]
+    pub fn submesh_indices(&self) -> HashSet<u32> {
+        self.faces.values().map(|face| face.submesh).collect()
+    }
+
+    #[must_use]
+    pub fn element_handles_for_submeshes(
+        &self,
+        visible_submeshes: &HashSet<u32>,
+    ) -> MeshElementHandles {
+        let faces = self
+            .faces
+            .iter()
+            .filter_map(|(handle, face)| {
+                visible_submeshes.contains(&face.submesh).then_some(handle)
+            })
+            .collect::<HashSet<_>>();
+        let mut vertices = self
+            .vertices
+            .iter()
+            .filter_map(|(handle, vertex)| match vertex.provenance {
+                Provenance::Source { submesh, .. } if visible_submeshes.contains(&submesh) => {
+                    Some(handle)
+                }
+                Provenance::Source { .. } | Provenance::Generated { .. } => None,
+            })
+            .collect::<HashSet<_>>();
+        for handle in &faces {
+            if let Some(face) = self.faces.get(*handle) {
+                vertices.extend(face.vertices);
+            }
+        }
+        let edges = self
+            .edges
+            .iter()
+            .filter_map(|(handle, edge)| {
+                edge.faces
+                    .iter()
+                    .any(|face| faces.contains(face))
+                    .then_some(handle)
+            })
+            .collect();
+        MeshElementHandles {
+            vertices,
+            edges,
+            faces,
+        }
     }
 
     #[must_use]
@@ -1005,6 +1061,20 @@ impl WorkingMesh {
     }
 
     pub fn validate(&self) -> Result<(), MeshError> {
+        for (vertex_handle, vertex) in &self.vertices {
+            if vertex
+                .position
+                .iter()
+                .chain(vertex.normal.iter())
+                .chain(vertex.uv.iter())
+                .any(|component| !component.is_finite())
+            {
+                return Err(MeshError::Invariant(format!(
+                    "vertex {:?} contains a non-finite attribute",
+                    vertex_handle.data()
+                )));
+            }
+        }
         for (face_handle, face) in &self.faces {
             if face.vertices[0] == face.vertices[1]
                 || face.vertices[1] == face.vertices[2]
@@ -1055,20 +1125,45 @@ impl WorkingMesh {
 
     #[must_use]
     pub fn draw_snapshot(&self) -> DrawSnapshot {
-        let mut positions = Vec::with_capacity(self.vertices.len());
-        let mut normals = Vec::with_capacity(self.vertices.len());
-        let mut uvs = Vec::with_capacity(self.vertices.len());
+        self.draw_snapshot_with_elements(None, self.geometry_revision)
+    }
+
+    #[must_use]
+    pub fn draw_snapshot_for_submeshes(&self, visible_submeshes: &HashSet<u32>) -> DrawSnapshot {
+        let elements = self.element_handles_for_submeshes(visible_submeshes);
+        self.draw_snapshot_with_elements(
+            Some(&elements),
+            filtered_draw_revision(self.geometry_revision, visible_submeshes),
+        )
+    }
+
+    fn draw_snapshot_with_elements(
+        &self,
+        elements: Option<&MeshElementHandles>,
+        draw_revision: u64,
+    ) -> DrawSnapshot {
+        let vertex_capacity = elements.map_or(self.vertices.len(), |items| items.vertices.len());
+        let face_capacity = elements.map_or(self.faces.len(), |items| items.faces.len());
+        let mut positions = Vec::with_capacity(vertex_capacity);
+        let mut normals = Vec::with_capacity(vertex_capacity);
+        let mut uvs = Vec::with_capacity(vertex_capacity);
         let mut handles = HashMap::new();
         for (handle, vertex) in &self.vertices {
+            if elements.is_some_and(|items| !items.vertices.contains(&handle)) {
+                continue;
+            }
             let index = u32::try_from(positions.len()).unwrap_or(u32::MAX);
             handles.insert(handle, index);
             positions.push(vertex.position);
             normals.push(vertex.normal);
             uvs.push(vertex.uv);
         }
-        let mut indices = Vec::with_capacity(self.faces.len().saturating_mul(3));
-        let mut triangle_materials = Vec::with_capacity(self.faces.len());
-        for face in self.faces.values() {
+        let mut indices = Vec::with_capacity(face_capacity.saturating_mul(3));
+        let mut triangle_materials = Vec::with_capacity(face_capacity);
+        for (face_handle, face) in &self.faces {
+            if elements.is_some_and(|items| !items.faces.contains(&face_handle)) {
+                continue;
+            }
             for handle in face.vertices {
                 if let Some(index) = handles.get(&handle) {
                     indices.push(*index);
@@ -1093,7 +1188,7 @@ impl WorkingMesh {
         }
         DrawSnapshot {
             mesh_identity: self.identity,
-            draw_revision: self.geometry_revision,
+            draw_revision,
             topology_generation: self.topology_generation,
             positions,
             normals,
@@ -1109,6 +1204,23 @@ impl WorkingMesh {
         self.operation_sequence = self.operation_sequence.saturating_add(1);
         self.operation_sequence
     }
+}
+
+fn filtered_draw_revision(geometry_revision: u64, visible_submeshes: &HashSet<u32>) -> u64 {
+    let mut revision = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in geometry_revision.to_le_bytes() {
+        revision ^= u64::from(byte);
+        revision = revision.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    let mut ordered = visible_submeshes.iter().copied().collect::<Vec<_>>();
+    ordered.sort_unstable();
+    for submesh in ordered {
+        for byte in submesh.to_le_bytes() {
+            revision ^= u64::from(byte);
+            revision = revision.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    revision
 }
 
 fn ordered_pair(first: VertexHandle, second: VertexHandle) -> (VertexHandle, VertexHandle) {
@@ -1188,7 +1300,13 @@ impl History {
         before: WorkingMesh,
         after: &WorkingMesh,
     ) -> Result<(), MeshError> {
+        before.validate()?;
         after.validate()?;
+        if before.identity != after.identity {
+            return Err(MeshError::Invariant(
+                "history snapshots belong to different meshes".to_owned(),
+            ));
+        }
         let retained_bytes_estimate =
             estimate_mesh_bytes(&before).saturating_add(estimate_mesh_bytes(after));
         let entry = HistoryEntry {
@@ -1218,17 +1336,29 @@ impl History {
     }
 
     pub fn undo(&mut self, mesh: &mut WorkingMesh) -> Result<(), MeshError> {
+        let entry = self.undo.last().ok_or(MeshError::EmptyOperation)?;
+        entry.before.validate()?;
+        if mesh.identity != entry.after.identity {
+            return Err(MeshError::Invariant(
+                "undo history belongs to a different mesh".to_owned(),
+            ));
+        }
         let entry = self.undo.pop().ok_or(MeshError::EmptyOperation)?;
         *mesh = entry.before.clone();
-        mesh.validate()?;
         self.redo.push(entry);
         Ok(())
     }
 
     pub fn redo(&mut self, mesh: &mut WorkingMesh) -> Result<(), MeshError> {
+        let entry = self.redo.last().ok_or(MeshError::EmptyOperation)?;
+        entry.after.validate()?;
+        if mesh.identity != entry.before.identity {
+            return Err(MeshError::Invariant(
+                "redo history belongs to a different mesh".to_owned(),
+            ));
+        }
         let entry = self.redo.pop().ok_or(MeshError::EmptyOperation)?;
         *mesh = entry.after.clone();
-        mesh.validate()?;
         self.undo.push(entry);
         Ok(())
     }
@@ -1424,6 +1554,37 @@ mod tests {
         let snapshot = two_disconnected_triangles().draw_snapshot();
         assert_eq!(snapshot.indices.len(), 6);
         assert_eq!(snapshot.triangle_materials, vec![0, 1]);
+    }
+
+    #[test]
+    fn filtered_draw_snapshot_omits_hidden_geometry_and_selection() -> Result<(), MeshError> {
+        let mut mesh = two_disconnected_triangles();
+        let hidden_vertex = mesh
+            .vertices()
+            .find_map(|(handle, vertex)| match vertex.provenance {
+                Provenance::Source { submesh: 1, .. } => Some(handle),
+                Provenance::Source { .. } | Provenance::Generated { .. } => None,
+            })
+            .ok_or(MeshError::InvalidSource)?;
+        mesh.set_selection(Selection {
+            vertices: HashSet::from([hidden_vertex]),
+            ..Selection::default()
+        })?;
+
+        let visible = HashSet::from([0]);
+        let elements = mesh.element_handles_for_submeshes(&visible);
+        let snapshot = mesh.draw_snapshot_for_submeshes(&visible);
+
+        assert_eq!(elements.faces.len(), 1);
+        assert_eq!(elements.edges.len(), 3);
+        assert_eq!(elements.vertices.len(), 3);
+        assert!(!elements.vertices.contains(&hidden_vertex));
+        assert_eq!(snapshot.positions.len(), 3);
+        assert_eq!(snapshot.indices.len(), 3);
+        assert_eq!(snapshot.triangle_materials, vec![0]);
+        assert!(snapshot.selected_vertices.is_empty());
+        assert_ne!(snapshot.draw_revision, mesh.draw_snapshot().draw_revision);
+        Ok(())
     }
 
     #[test]
@@ -2193,6 +2354,54 @@ mod tests {
     }
 
     #[test]
+    fn subdivision_rejects_attribute_overflow_without_mutating_the_mesh() -> Result<(), MeshError> {
+        let mut mesh = triangle();
+        let edge = mesh.edges.keys().next().ok_or(MeshError::InvalidSource)?;
+        let endpoints = mesh.edge(edge).ok_or(MeshError::StaleHandle)?.vertices;
+        for endpoint in endpoints {
+            mesh.vertices
+                .get_mut(endpoint)
+                .ok_or(MeshError::StaleHandle)?
+                .position[0] = f32::MAX;
+        }
+        mesh.validate()?;
+        let before = mesh.clone();
+
+        assert!(matches!(
+            mesh.subdivide_edges(&HashSet::from([edge])),
+            Err(MeshError::Invariant(message)) if message.contains("non-finite attribute")
+        ));
+        assert_exact_working_state(&mesh, &before);
+        Ok(())
+    }
+
+    #[test]
+    fn validation_rejects_non_finite_position_normal_and_uv_components() {
+        for attribute in ["position", "normal", "uv"] {
+            let mut mesh = triangle();
+            let handle = mesh
+                .vertices
+                .keys()
+                .next()
+                .unwrap_or_else(|| panic!("triangle must contain a vertex"));
+            let vertex = mesh
+                .vertices
+                .get_mut(handle)
+                .unwrap_or_else(|| panic!("triangle vertex must remain live"));
+            match attribute {
+                "position" => vertex.position[0] = f32::NAN,
+                "normal" => vertex.normal[1] = f32::INFINITY,
+                "uv" => vertex.uv[0] = f32::NEG_INFINITY,
+                _ => unreachable!(),
+            }
+            assert!(matches!(
+                mesh.validate(),
+                Err(MeshError::Invariant(message)) if message.contains("non-finite attribute")
+            ));
+        }
+    }
+
+    #[test]
     fn stale_face_handle_is_rejected_after_delete() -> Result<(), MeshError> {
         let mut mesh = triangle();
         let face = mesh.faces.keys().next().ok_or(MeshError::InvalidSource)?;
@@ -2227,6 +2436,63 @@ mod tests {
         history.redo(&mut mesh)?;
         assert_eq!(history.retained_bytes(), committed_bytes);
         assert_eq!(mesh.structural_fingerprint(), committed);
+        Ok(())
+    }
+
+    #[test]
+    fn history_rejects_invalid_snapshots_and_cross_mesh_replay_atomically() -> Result<(), MeshError>
+    {
+        let mut invalid_before = triangle();
+        let invalid_handle = invalid_before
+            .vertices
+            .keys()
+            .next()
+            .ok_or(MeshError::InvalidSource)?;
+        let valid_after = invalid_before.clone();
+        invalid_before
+            .vertices
+            .get_mut(invalid_handle)
+            .ok_or(MeshError::StaleHandle)?
+            .position[0] = f32::NAN;
+        let mut rejected = History::new(1_000_000);
+        assert!(matches!(
+            rejected.commit("invalid", invalid_before, &valid_after),
+            Err(MeshError::Invariant(_))
+        ));
+        assert!(rejected.undo.is_empty());
+        assert!(rejected.redo.is_empty());
+
+        let mut mesh = triangle();
+        let before = mesh.clone();
+        let handles = mesh.vertices.keys().collect::<HashSet<_>>();
+        mesh.translate_vertices(&handles, Vec3::Z)?;
+        let after = mesh.clone();
+        let mut history = History::new(1_000_000);
+        history.commit("translate", before, &mesh)?;
+
+        let mut other = triangle();
+        let other_before = other.clone();
+        assert!(matches!(
+            history.undo(&mut other),
+            Err(MeshError::Invariant(message)) if message.contains("different mesh")
+        ));
+        assert_exact_working_state(&other, &other_before);
+        assert_eq!(history.undo.len(), 1);
+        assert!(history.redo.is_empty());
+
+        history.undo(&mut mesh)?;
+        assert!(history.undo.is_empty());
+        assert_eq!(history.redo.len(), 1);
+        assert!(matches!(
+            history.redo(&mut other),
+            Err(MeshError::Invariant(message)) if message.contains("different mesh")
+        ));
+        assert_exact_working_state(&other, &other_before);
+        assert!(history.undo.is_empty());
+        assert_eq!(history.redo.len(), 1);
+
+        history.redo(&mut mesh)?;
+        assert_exact_working_state(&mesh, &after);
         Ok(())
     }
 

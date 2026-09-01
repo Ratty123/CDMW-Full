@@ -7,6 +7,8 @@ import math
 import struct
 from typing import Sequence
 
+from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
+
 from .logging import get_logger
 from .mesh_builder_common import _align_submesh_order_like_original, _compute_bbox
 from .mesh_parser import (
@@ -18,7 +20,13 @@ from .mesh_parser import (
     _validated_pac_descriptor_prefix,
     parse_pac,
 )
-from .mesh_skinning import pac_skin_export_enabled, pac_skin_weights_changed, patch_pac_vertex_skin, source_vertex_map_is_target_donor_lineage
+from .mesh_skinning import (
+    PAC_SKIN_WEIGHT_LAYOUT,
+    pac_skin_export_enabled,
+    pac_skin_weights_changed,
+    patch_pac_vertex_skin,
+    source_vertex_map_is_target_donor_lineage,
+)
 
 logger = get_logger("core.mesh_importer")
 
@@ -291,6 +299,243 @@ def _pac_needs_full_rebuild(original_mesh: ParsedMesh, working_mesh: ParsedMesh)
         if orig_sm.source_descriptor_offset < 0:
             return True
     return False
+
+
+def _exact_pac_skin_weight_targets(mesh: ParsedMesh) -> frozenset[int]:
+    """Return LOD0 parts explicitly owned by the exact skin-weight operation."""
+
+    targets: set[int] = set()
+    for operation in mesh_edit_operations_from_dicts(
+        getattr(mesh, "_cdmw_edit_operations", ()) or ()
+    ):
+        if (
+            str(operation.operation or "").strip().casefold()
+            == "replace_skin_weights_same_count"
+            and int(operation.lod_index) == 0
+            and int(operation.submesh_index) >= 0
+        ):
+            targets.add(int(operation.submesh_index))
+    return frozenset(targets)
+
+
+def _require_exact_pac_skin_target(
+    original: SubMesh,
+    updated: SubMesh,
+    original_data: bytes,
+    *,
+    submesh_index: int,
+) -> tuple[int, ...]:
+    """Validate the immutable record map used by the lane-only skin patch."""
+
+    original_vertices = tuple(original.vertices or ())
+    updated_vertices = tuple(updated.vertices or ())
+    if not original_vertices or len(updated_vertices) != len(original_vertices):
+        raise ValueError(
+            f"Exact PAC skin-weight replacement for submesh {submesh_index} requires "
+            "an unchanged non-empty vertex count."
+        )
+    if tuple(updated.faces or ()) != tuple(original.faces or ()):
+        raise ValueError(
+            f"Exact PAC skin-weight replacement for submesh {submesh_index} requires "
+            "unchanged faces."
+        )
+    identity = tuple(range(len(original_vertices)))
+    if tuple(original.source_vertex_map or ()) != identity or tuple(
+        updated.source_vertex_map or ()
+    ) != identity:
+        raise ValueError(
+            f"Exact PAC skin-weight replacement for submesh {submesh_index} requires "
+            "the original one-to-one LOD0 source map."
+        )
+    if (
+        int(original.source_vertex_stride or 0) != 40
+        or int(updated.source_vertex_stride or 0) != 40
+        or str(original.source_skin_weight_layout or "") != PAC_SKIN_WEIGHT_LAYOUT
+        or str(updated.source_skin_weight_layout or "") != PAC_SKIN_WEIGHT_LAYOUT
+    ):
+        raise ValueError(
+            f"Exact PAC skin-weight replacement for submesh {submesh_index} requires "
+            "the proven 40-byte pac_slot_u10x6 layout."
+        )
+    if tuple(updated.source_bone_palette or ()) != tuple(
+        original.source_bone_palette or ()
+    ):
+        raise ValueError(
+            f"Exact PAC skin-weight replacement for submesh {submesh_index} changed "
+            "the source bone palette."
+        )
+    original_offsets = tuple(
+        int(value) for value in original.source_vertex_offsets or ()
+    )
+    updated_offsets = tuple(int(value) for value in updated.source_vertex_offsets or ())
+    if updated_offsets != original_offsets or len(original_offsets) != len(
+        original_vertices
+    ):
+        raise ValueError(
+            f"Exact PAC skin-weight replacement for submesh {submesh_index} requires "
+            "every original vertex-record offset."
+        )
+    if any(
+        offset < 0 or offset + 40 > len(original_data)
+        for offset in original_offsets
+    ):
+        raise ValueError(
+            f"Exact PAC skin-weight replacement for submesh {submesh_index} references "
+            "a vertex record outside the source file."
+        )
+    if not pac_skin_export_enabled(original, updated, submesh_index):
+        raise ValueError(
+            f"Exact PAC skin-weight replacement for submesh {submesh_index} requires "
+            "complete skin-weight rows."
+        )
+    return original_offsets
+
+
+def _patch_exact_pac_skin_weights(
+    original_mesh: ParsedMesh,
+    working_mesh: ParsedMesh,
+    original_data: bytes,
+    base_data: bytes,
+    targets: frozenset[int],
+) -> bytes:
+    """Patch only the six proven PAC slot and weight lanes for exact LOD0 edits."""
+
+    if len(base_data) != len(original_data):
+        raise ValueError(
+            "Exact PAC skin-weight replacement requires an in-place base rebuild "
+            "of unchanged size."
+        )
+    original_submeshes = tuple(original_mesh.submeshes or ())
+    updated_submeshes = tuple(working_mesh.submeshes or ())
+    if len(original_submeshes) != len(updated_submeshes):
+        raise ValueError(
+            "Exact PAC skin-weight replacement cannot change the submesh count."
+        )
+    invalid_targets = sorted(
+        index for index in targets if not 0 <= index < len(original_submeshes)
+    )
+    if invalid_targets:
+        raise ValueError(
+            "Exact PAC skin-weight replacement references missing submesh(es): "
+            + ", ".join(str(index) for index in invalid_targets)
+            + "."
+        )
+
+    record_owners: dict[int, list[tuple[int, int]]] = {}
+    for owner_submesh_index, submesh in enumerate(original_submeshes):
+        for owner_vertex_index, raw_offset in enumerate(
+            tuple(submesh.source_vertex_offsets or ())
+        ):
+            try:
+                offset = int(raw_offset)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            record_owners.setdefault(offset, []).append(
+                (owner_submesh_index, owner_vertex_index)
+            )
+
+    output = bytearray(base_data)
+    lane_updates: dict[int, bytes] = {}
+    for submesh_index in sorted(targets):
+        original = original_submeshes[submesh_index]
+        updated = updated_submeshes[submesh_index]
+        offsets = _require_exact_pac_skin_target(
+            original,
+            updated,
+            original_data,
+            submesh_index=submesh_index,
+        )
+        for vertex_index, record_offset in enumerate(offsets):
+            record_before = bytes(output[record_offset : record_offset + 40])
+            record_after = bytearray(record_before)
+            patch_pac_vertex_skin(
+                record_after,
+                updated,
+                vertex_index,
+                submesh_index,
+            )
+            changed_record_bytes = {
+                index
+                for index, (before, after) in enumerate(
+                    zip(record_before, record_after)
+                )
+                if before != after
+            }
+            if any(index < 20 or index >= 34 for index in changed_record_bytes):
+                raise ValueError(
+                    f"Exact PAC skin-weight replacement for submesh {submesh_index} "
+                    f"vertex {vertex_index} attempted to change a protected "
+                    "record byte."
+                )
+            desired_lanes = bytes(record_after[20:34])
+            previous = lane_updates.get(record_offset)
+            if previous is not None and previous != desired_lanes:
+                raise ValueError(
+                    "Exact PAC skin-weight replacement produced conflicting edits for "
+                    f"shared source vertex record {record_offset}."
+                )
+            if desired_lanes != original_data[record_offset + 20 : record_offset + 34]:
+                unowned = [
+                    (owner_submesh, owner_vertex)
+                    for owner_submesh, owner_vertex in record_owners.get(
+                        record_offset, ()
+                    )
+                    if owner_submesh not in targets
+                ]
+                if unowned:
+                    owner_submesh, owner_vertex = unowned[0]
+                    raise ValueError(
+                        "Exact PAC skin-weight replacement cannot change shared source "
+                        f"vertex record {record_offset}; it is also used by unedited "
+                        f"submesh {owner_submesh} vertex {owner_vertex}."
+                    )
+            lane_updates[record_offset] = desired_lanes
+
+    for record_offset, desired_lanes in lane_updates.items():
+        output[record_offset + 20 : record_offset + 34] = desired_lanes
+    return bytes(output)
+
+
+def _build_pac_with_exact_skin_weights(
+    original_mesh: ParsedMesh,
+    working_mesh: ParsedMesh,
+    original_data: bytes,
+    targets: frozenset[int],
+) -> bytes:
+    """Compose same-count geometry output with an exact lane-only skin patch."""
+
+    geometry_mesh = copy.deepcopy(working_mesh)
+    for submesh_index in sorted(targets):
+        if not 0 <= submesh_index < len(
+            original_mesh.submeshes
+        ) or not 0 <= submesh_index < len(
+            geometry_mesh.submeshes
+        ):
+            raise ValueError(
+                "Exact PAC skin-weight replacement references missing submesh "
+                f"{submesh_index}."
+            )
+        original = original_mesh.submeshes[submesh_index]
+        geometry = geometry_mesh.submeshes[submesh_index]
+        geometry.bone_indices = copy.deepcopy(original.bone_indices)
+        geometry.bone_weights = copy.deepcopy(original.bone_weights)
+
+    if list(geometry_mesh.submeshes or ()) == list(original_mesh.submeshes or ()):
+        base_data = original_data
+    else:
+        if _pac_needs_full_rebuild(original_mesh, geometry_mesh):
+            raise ValueError(
+                "Exact PAC skin-weight replacement cannot be combined with a full "
+                "PAC rebuild."
+            )
+        base_data = _build_pac_in_place(original_mesh, geometry_mesh, original_data)
+    return _patch_exact_pac_skin_weights(
+        original_mesh,
+        working_mesh,
+        original_data,
+        base_data,
+        targets,
+    )
 
 
 def _build_pac_in_place(
@@ -944,6 +1189,22 @@ def build_pac(mesh: ParsedMesh, original_data: bytes) -> bytes:  # noqa: F811
                 original_mesh=original_mesh,
                 imported_mesh=working_mesh,
             )
+        )
+
+    exact_skin_targets = _exact_pac_skin_weight_targets(working_mesh)
+    any_skin_weights_changed = any(
+        pac_skin_weights_changed(original, updated)
+        for original, updated in zip(
+            original_mesh.submeshes,
+            working_mesh.submeshes,
+        )
+    )
+    if exact_skin_targets and any_skin_weights_changed:
+        return _build_pac_with_exact_skin_weights(
+            original_mesh,
+            working_mesh,
+            original_data,
+            exact_skin_targets,
         )
 
     if _pac_needs_full_rebuild(original_mesh, working_mesh):

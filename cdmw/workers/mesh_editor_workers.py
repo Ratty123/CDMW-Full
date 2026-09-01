@@ -10,14 +10,28 @@ import os
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass, replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
 from cdmw.core.atomic_file import atomic_copy_file, atomic_publish_files, atomic_write_bytes, atomic_write_text
+from cdmw.core.mod_package import (
+    MeshLooseModAsset,
+    MeshLooseModFile,
+    write_mesh_loose_mod_package_metadata,
+    write_mod_package_manifest,
+    write_mod_package_readme,
+)
+from cdmw.domain.packages.export_policy import (
+    MOD_PACKAGE_MANAGER_PROFILES,
+    effective_mod_package_export_options_for_kind,
+    mod_package_export_options_for_manager,
+    normalize_mod_package_manager_profile,
+)
 from cdmw.domain.mesh import MeshEditCommand
 from cdmw.domain.archives.mutation import ArchivePatchRequest
-from cdmw.models import RunCancelled
+from cdmw.models import ModPackageInfo, RunCancelled
 from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
 from cdmw.modding.mesh_exporter import export_obj
 from cdmw.modding.mesh_glb_interchange import export_glb, import_glb_with_sidecar
@@ -33,6 +47,7 @@ from cdmw.services.archive_overlay_install import (
 )
 from cdmw.services.new_item_service import game_is_running
 from cdmw.workers.mesh_editor_aux_workers import (
+    MeshArchiveMaterialContextResult,
     MeshArchiveMaterialContextWorker,
     MeshArchiveSessionLoadResult,
     MeshArchiveSessionLoadWorker,
@@ -659,6 +674,7 @@ class MeshRebuildReportWorker(QObject):
 class MeshDirectOutputResult:
     kind: str
     output_path: Path | None
+    manager_profile: str = ""
     rebuild_report: object | None = None
     overlay_preparation: OverlayInstallPreparation | None = None
     install_result: object | None = None
@@ -682,6 +698,7 @@ class MeshDirectOutputWorker(QObject):
         *,
         kind: str,
         output_path: Path | str | None = None,
+        manager_profile: str = "dmm",
         expected_mesh_revision: int | None = None,
         texture_updates_waiter: Callable[[float], bool] | None = None,
     ) -> None:
@@ -692,6 +709,13 @@ class MeshDirectOutputWorker(QObject):
         self.entry = entry
         self.kind = str(kind or "").strip().lower()
         self.output_path = Path(output_path) if output_path is not None else None
+        requested_profile = str(manager_profile or "").strip().lower()
+        normalized_profile = normalize_mod_package_manager_profile(requested_profile)
+        if requested_profile and requested_profile not in MOD_PACKAGE_MANAGER_PROFILES:
+            raise ValueError(f"Unsupported mesh mod manager profile: {manager_profile}")
+        if self.kind == "overlay_package" and normalized_profile != "dmm":
+            raise ValueError("Mesh archive-group packages are supported only for the DMM manager profile")
+        self.manager_profile = normalized_profile
         self.expected_mesh_revision = expected_mesh_revision
         self.texture_updates_waiter = texture_updates_waiter
         self.stop_event = threading.Event()
@@ -758,12 +782,21 @@ class MeshDirectOutputWorker(QObject):
             "source_sha256": snapshot.mesh_asset_source_hash,
             "mesh_revision": snapshot.mesh_revision,
             "native_edit_revision": snapshot.native_edit_revision,
+            "manager_profile": self.manager_profile if self.kind in {"loose_mod", "overlay_package"} else "",
             "materials": "inherited_unchanged",
             "textures": "inherited_unchanged",
             "contents": ["rebuilt_mesh", "validation_metadata"],
             "rebuild_report": asdict(report) if is_dataclass(report) else report,
         }
         return (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
+
+    def _package_info(self, root: Path) -> ModPackageInfo:
+        source_path = str(getattr(self.entry, "path", "") or "").replace("\\", "/").strip("/")
+        return ModPackageInfo(
+            title=root.name,
+            version="1.0",
+            description=f"Mesh Editor replacement for {source_path}.",
+        )
 
     def _write_loose_mod(
         self,
@@ -773,6 +806,8 @@ class MeshDirectOutputWorker(QObject):
     ) -> MeshDirectOutputResult:
         if self.output_path is None:
             raise ValueError("Loose Mesh Editor output needs a package folder")
+        if self.manager_profile == "field_json":
+            raise ValueError("Field-JSON only describes DDS assets and cannot safely package a mesh payload")
         root = self.output_path.resolve()
         if root.exists():
             raise FileExistsError(f"Mesh mod output already exists: {root}")
@@ -786,12 +821,65 @@ class MeshDirectOutputWorker(QObject):
             target.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_bytes(target, request.payload_data)
             atomic_write_bytes(staging / "mesh-editor-session.json", metadata)
+            options = mod_package_export_options_for_manager(self.manager_profile)
+            package_group = Path(getattr(self.entry, "pamt_path", "")).parent.name
+            mesh_format = str(getattr(self.entry, "extension", "") or relative.suffix).lstrip(".").lower()
+            metadata_files = write_mesh_loose_mod_package_metadata(
+                staging,
+                self._package_info(root),
+                assets=(
+                    MeshLooseModAsset(
+                        entry_path=relative.as_posix(),
+                        package_group=package_group,
+                        format=mesh_format,
+                        note="Validated Mesh Editor replacement",
+                    ),
+                ),
+                files=(
+                    MeshLooseModFile(
+                        path=relative.as_posix(),
+                        package_group=package_group,
+                        format=mesh_format,
+                        note="Validated Mesh Editor replacement",
+                    ),
+                ),
+                include_paired_lod=False,
+                export_options=options,
+                create_no_encrypt_file=bool(options.create_no_encrypt_file),
+                stop_event=self.stop_event,
+            )
+            effective_options = effective_mod_package_export_options_for_kind("mesh_loose_mod", options)
+            write_mod_package_readme(
+                staging,
+                self._package_info(root),
+                created_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                overview=(
+                    "This package contains a validated mesh replacement created in the "
+                    "Crimson Desert Mod Workbench Mesh Editor."
+                ),
+                loose_file_count=1,
+                asset_count=1,
+                include_paired_lod=False,
+                create_no_encrypt_file=bool(effective_options.create_no_encrypt_file),
+                manifest_label="Structured mesh package metadata",
+                metadata_files=metadata_files,
+                manager_targets=effective_options.manager_targets,
+                structure=effective_options.structure,
+                kind="mesh_loose_mod",
+            )
             _raise_export_cancelled(self.stop_event)
+            if root.exists():
+                raise FileExistsError(f"Mesh mod output already exists: {root}")
             os.replace(staging, root)
         finally:
             if staging.exists():
                 shutil.rmtree(staging, ignore_errors=True)
-        return MeshDirectOutputResult(kind=self.kind, output_path=root, rebuild_report=report)
+        return MeshDirectOutputResult(
+            kind=self.kind,
+            output_path=root,
+            manager_profile=self.manager_profile,
+            rebuild_report=report,
+        )
 
     def _write_overlay_package(
         self,
@@ -801,17 +889,80 @@ class MeshDirectOutputWorker(QObject):
     ) -> MeshDirectOutputResult:
         if self.output_path is None:
             raise ValueError("DMM Mesh Editor output needs a package folder")
-        game_root = Path(getattr(self.entry, "pamt_path")).resolve().parent.parent
-        exported = export_archive_overlay_package(
-            (request,),
-            package_root=self.output_path.resolve(),
-            game_root=game_root,
-            metadata_files=(("mesh-editor-session.json", metadata),),
-            stop_event=self.stop_event,
-        )
+        root = self.output_path.resolve()
+        if root.exists():
+            raise FileExistsError(f"Mesh mod output already exists: {root}")
+        game_root = Path(self.entry.pamt_path).resolve().parent.parent
+        root.parent.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.staging-", dir=root.parent))
+        try:
+            exported = export_archive_overlay_package(
+                (request,),
+                package_root=staging,
+                game_root=game_root,
+                metadata_files=(("mesh-editor-session.json", metadata),),
+                stop_event=self.stop_event,
+            )
+            group = str(exported.group or "").strip()
+            archive_files = (f"{group}/0.pamt", f"{group}/0.paz")
+            for relative in archive_files:
+                if not (staging / relative).is_file():
+                    raise RuntimeError(f"DMM archive-group package is missing {relative}")
+            payload_paths = [*archive_files]
+            if bool(exported.mount_list_written) and (staging / "meta" / "0.papgt").is_file():
+                payload_paths.append("meta/0.papgt")
+            dmm_options = replace(
+                mod_package_export_options_for_manager("dmm"),
+                structure="game_relative",
+                create_manifest_json=True,
+            )
+            write_mod_package_manifest(
+                staging,
+                self._package_info(root),
+                kind="archive_override_mod",
+                all_payload_paths=tuple(payload_paths),
+                export_options=dmm_options,
+                create_no_encrypt_file=False,
+                extra_fields={
+                    "structure": "archive_group",
+                    "archive_group": group,
+                    "file_count": int(exported.file_count),
+                    "overrides": list(exported.paths),
+                },
+                stop_event=self.stop_event,
+            )
+            write_mod_package_readme(
+                staging,
+                self._package_info(root),
+                created_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                overview=(
+                    "This package contains a validated Mesh Editor replacement inside a "
+                    "DMM manager-mounted archive group. Shipped game archives are unchanged."
+                ),
+                loose_file_count=int(exported.file_count),
+                asset_count=1,
+                include_paired_lod=False,
+                create_no_encrypt_file=False,
+                manifest_label="Structured DMM archive-group metadata",
+                metadata_files=(staging / "manifest.json", staging / "modinfo.json"),
+                manager_targets=("dmm",),
+                structure="archive_group",
+                kind="archive_override_mod",
+            )
+            for relative in archive_files:
+                if not (staging / relative).is_file():
+                    raise RuntimeError(f"DMM package metadata changed archive-group payload {relative}")
+            _raise_export_cancelled(self.stop_event)
+            if root.exists():
+                raise FileExistsError(f"Mesh mod output already exists: {root}")
+            os.replace(staging, root)
+        finally:
+            if staging.exists():
+                shutil.rmtree(staging, ignore_errors=True)
         return MeshDirectOutputResult(
             kind=self.kind,
-            output_path=exported.package_root,
+            output_path=root,
+            manager_profile="dmm",
             rebuild_report=report,
         )
 
@@ -962,6 +1113,7 @@ class MeshReportWriteWorker(QObject):
 
 
 __all__ = [
+    "MeshArchiveMaterialContextResult",
     "MeshArchiveMaterialContextWorker",
     "MeshArchiveSessionLoadResult",
     "MeshArchiveSessionLoadWorker",

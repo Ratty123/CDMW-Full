@@ -541,8 +541,12 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     # Reasserting the visible page is a no-op, and a real page change freezes
     # only the tool dock. A splitter/root layout from this click path resizes
     # the sibling D3D swap chain and presents as a preview flash.
-    assert "_toolRailPagePresentationApplied && page == _selectedToolRailPage" in show
+    assert "_toolRailPagePresentationApplied\n            && !_toolRailPagePresentationQueued" in show
     assert show.index("_toolRailPagePresentationApplied = false;") < show.index("_selectedToolRailPage = page;")
+    assert "QueueToolRailPagePresentation();" in show
+    assert "BeginInvoke((Action)(() =>" in show
+    assert "ApplyToolRailPagePresentation(_selectedToolRailPage);" in show
+    assert "private void ApplyToolRailPagePresentation(ToolRailPage? page)" in show
     assert "BeginRedrawBatch(_toolDock)" in show
     assert "BeginRedrawBatch()" not in show
     assert "ApplyToolRailSplitterLayout();" not in show
@@ -551,6 +555,13 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     # header naming a family while a tool was armed cannot come back.
     assert "_toolRailPanelHeader" not in layout
     assert "ApplyToolListExpansion(page);" in show
+    diagnostics = _source("ExperimentForm.EditMeshLayoutDiagnostics.cs")
+    reveal = diagnostics.split("private bool RevealToolRailPage", 1)[1].split(
+        "private static long ToolRailWindowParent", 1
+    )[0]
+    assert "ToolRailNative.EnableWindow(page.Handle, visible)" in reveal
+    assert "page.Enabled = visible" not in reveal
+    assert "ToolRailNative.ShowWindow(" in reveal
     # A null page collapses the list back to rows and parks the resident body
     # offscreen. The body has no dock rule that can move it below the whole list,
     # and its selected page uses measured content height rather than a blank
@@ -563,9 +574,15 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     assert "_toolListTable.SetCellPosition(\n                    _toolListBodyHost" not in expand
     assert "_toolListTable.RowStyles[bodyCell].SizeType = SizeType.Absolute;" in expand
     assert "_toolListBodyHost.Location = new Point(-10_000, 0);" in expand
-    assert "ToolListPageContentHeight(expandedPage, bodyWidth)" in expand
+    assert "ToolListPageContentHeight(page!.Value, expandedPage, bodyWidth)" in expand
+    assert "expandedPage.PerformLayout();" not in expand
     assert "Dock = DockStyle.None" in tool_list
     assert "ToolListBodyHeight" not in tool_list
+    reopen = tool_list.split("private void ReopenExpandedRowForActiveTool", 1)[1].split(
+        "private static string ToolListPageDisplayName", 1
+    )[0]
+    assert "QueueToolRailPagePresentation();" in reopen
+    assert "ApplyToolListExpansion(value);" not in reopen
     # Position the resident body before its native page HWND is shown.
     assert show.index("ApplyToolListExpansion(page);") < show.index("foreach (var pair in _toolRailPages)")
 
@@ -815,7 +832,7 @@ def test_edit_mesh_captions_and_inputs_survive_theming_and_resize() -> None:
     assert 'LabeledControl("Vertex px", vertexSize)' in overlay
 
 
-def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
+def test_legacy_vortice_layout_smoke_is_not_a_product_gate() -> None:
     entry = _source("ProgramEntry.cs")
     smoke = _source("EditMeshLayoutSmoke.cs")
     gate = (DOTNET_ROOT.parents[1] / "scripts" / "codex_check.ps1").read_text(
@@ -847,9 +864,8 @@ def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
     assert "EditMeshLayoutContracts.RailCommandPageOrder" in smoke
     assert "rail_tool_count" in smoke
     assert "rail_command_page_count" in smoke
-    assert "$LayoutPayload.pages_visited.Count -ne 5" in gate
-    assert "$LayoutPayload.rail_command_page_count -ne 2" in gate
-    assert "-not $LayoutPayload.viewport_settings_pinned" in gate
+    assert '"--headless-edit-mesh-layout-smoke"' not in gate
+    assert "$LayoutPayload" not in gate
     assert "RailPageIsModal" in smoke
     assert "RequireCompleteRail" in smoke
     for page in ("Selection", "Transform", "Brush", "Topology", "Morph & Refit"):
@@ -887,6 +903,7 @@ def test_embedded_authoring_tool_panels_build_hidden_before_reveal() -> None:
     program = _source("Program.cs")
     controls = _source("ExperimentForm.Controls.cs")
     layouts = _source("ExperimentForm.EditMeshLayouts.cs")
+    tool_list = _source("ExperimentForm.ToolList.cs")
     material_protocol = _source("ExperimentForm.MaterialProtocol.cs")
     protocol = _source("ExperimentForm.Protocol.cs")
 
@@ -944,6 +961,15 @@ def test_embedded_authoring_tool_panels_build_hidden_before_reveal() -> None:
     assert prime_body.index("AddRailSection(_toolRailPages[ToolRailPage.MorphRefit]") < prime_body.index(
         "PrimeToolRailPagePresentation();"
     )
+    assert "ToolRailNative.EnableWindow(page.Handle, false)" in tool_list
+    assert "page.Enabled = false" not in tool_list
+    assert "_toolListTable.SizeChanged += (_, _) => QueueToolListPageLayoutsForCurrentWidth();" in tool_list
+    activation = layouts.split("private void ActivateToolRailLayout()", 1)[1].split(
+        "private void RestorePlacementLayoutForNonMeshMode", 1
+    )[0]
+    assert activation.index("ShowToolRailPage(_selectedToolRailPage);") < activation.index(
+        "ResumeAllEditMeshLayouts();"
+    ) < activation.index("PrimeToolListPageLayoutsForCurrentWidth();")
     tool_panels = _source("ExperimentForm.ToolPanels.cs")
     assert "BuildColourSection(rightStack)" not in tool_panels
 

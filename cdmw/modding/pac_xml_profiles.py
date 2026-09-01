@@ -780,7 +780,15 @@ def classify_pac_xml_profile(path: str | Path, xml_text: str | None = None) -> P
                 slot = "organic"
         if re.search(r'_materialName="[^"]*(?:Eye|EyeCover)[^"]*"', xml, flags=re.IGNORECASE):
             add_profile("eye", "eye shader")
-        if re.search(r'_materialName="[^"]*Skin[^"]*"', xml, flags=re.IGNORECASE):
+        material_shader_families = {
+            classify_pac_xml_shader_family(shader_name)
+            for shader_name in re.findall(
+                r'_materialName="([^"]*)"',
+                xml,
+                flags=re.IGNORECASE,
+            )
+        }
+        if material_shader_families & {"Skin", "SkinWrinkle"}:
             add_profile("skin", "skin shader")
             if family == "unknown":
                 family = "head"

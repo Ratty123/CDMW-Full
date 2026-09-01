@@ -19,7 +19,7 @@ from cdmw.rendering.crimson_shader_registry import (
 from cdmw.services.atomic_file_service import atomic_write_text
 
 
-NATIVE_DOTNET_ADAPTER_SCHEMA = 2
+NATIVE_DOTNET_ADAPTER_SCHEMA = 4
 NATIVE_DOTNET_ADAPTER_MARKER = "cdmw_native_dotnet_adapter_v1.json"
 SUPPORTED_NATIVE_PREVIEW_SCHEMA = 8
 _BYTES_PER_VERTEX = 23 * 4
@@ -310,14 +310,20 @@ def _adapt_material_layers(
             "layer_role": str(raw_layer.get("layer_role", "") or ""),
             "mask_channel": str(raw_layer.get("mask_channel", "") or ""),
             "weight": max(0.0, min(1.0, _safe_float(raw_layer.get("weight"), 1.0))),
+            "detail_scale": max(0.0, min(4096.0, _safe_float(raw_layer.get("detail_scale"), 0.0))),
+            "height_scale_hint": max(
+                0.0, min(1.0, _safe_float(raw_layer.get("height_scale_hint"), 0.0))
+            ),
         }
         tint = raw_layer.get("tint")
         if isinstance(tint, Sequence) and not isinstance(tint, (str, bytes, bytearray)):
             layer["tint"] = [max(0.0, min(2.0, _safe_float(value, 1.0))) for value in tint[:3]]
         for source_key, resource_key, semantic, color_space in (
             ("diffuse_source", "diffuse_resource_id", "layer_diffuse", "srgb"),
+            ("normal_source", "normal_resource_id", "layer_normal", "linear"),
             ("mask_source", "mask_resource_id", "layer_mask", "linear"),
             ("material_source", "material_resource_id", "layer_material", "linear"),
+            ("height_source", "height_resource_id", "layer_height", "linear"),
         ):
             if not str(raw_layer.get(source_key, "") or "").strip():
                 continue
@@ -330,7 +336,16 @@ def _adapt_material_layers(
                 color_space=color_space,
                 authority="native_preview_core_material_layer",
             )
-        if layer.get("diffuse_resource_id") or layer.get("material_resource_id"):
+        if any(
+            layer.get(resource_key)
+            for resource_key in (
+                "diffuse_resource_id",
+                "normal_resource_id",
+                "mask_resource_id",
+                "material_resource_id",
+                "height_resource_id",
+            )
+        ):
             adapted.append(layer)
     return adapted
 
@@ -362,7 +377,12 @@ def _alpha_mode(value: object) -> str:
     )
 
 
-def _material_parameters(batch: Mapping[str, object], channels: Mapping[str, str]) -> dict[str, object]:
+def _material_parameters(
+    batch: Mapping[str, object],
+    channels: Mapping[str, str],
+    *,
+    authoritative_layer_surface: bool = False,
+) -> dict[str, object]:
     color = batch.get("base_color")
     if not isinstance(color, Sequence) or isinstance(color, (str, bytes, bytearray)) or len(color) < 3:
         color = (0.65, 0.65, 0.65)
@@ -373,10 +393,11 @@ def _material_parameters(batch: Mapping[str, object], channels: Mapping[str, str
         "base_tint_metallic": category.casefold() == "metal",
         "material_role": category,
     }
-    roughness = max(0.0, min(1.0, _safe_float(batch.get("roughness"), PREVIEW_DEFAULT_ROUGHNESS)))
-    metalness = max(0.0, min(1.0, _safe_float(batch.get("metalness"), PREVIEW_DEFAULT_METALNESS)))
-    result["roughness_scale" if "roughness" in channels else "roughness"] = roughness
-    result["metalness_scale" if "metallic" in channels else "metalness"] = metalness
+    if not authoritative_layer_surface:
+        roughness = max(0.0, min(1.0, _safe_float(batch.get("roughness"), PREVIEW_DEFAULT_ROUGHNESS)))
+        metalness = max(0.0, min(1.0, _safe_float(batch.get("metalness"), PREVIEW_DEFAULT_METALNESS)))
+        result["roughness_scale" if "roughness" in channels else "roughness"] = roughness
+        result["metalness_scale" if "metallic" in channels else "metalness"] = metalness
     if "emissive" in channels or _safe_float(batch.get("emissive_intensity"), 0.0) > 0.0:
         result["emissive_intensity"] = max(0.0, min(32.0, _safe_float(batch.get("emissive_intensity"), 1.0)))
     return result
@@ -392,7 +413,13 @@ def _declared_texture_paths(root: Path, batches: Sequence[Mapping[str, object]])
             for raw_layer in raw_layers:
                 if not isinstance(raw_layer, Mapping):
                     continue
-                for source_key in ("diffuse_source", "mask_source", "material_source"):
+                for source_key in (
+                    "diffuse_source",
+                    "normal_source",
+                    "mask_source",
+                    "material_source",
+                    "height_source",
+                ):
                     if str(raw_layer.get(source_key, "") or "").strip():
                         declared.add(str(_texture_file(root, raw_layer[source_key]).resolve()).casefold())
     return declared
@@ -504,7 +531,10 @@ def adapt_native_dotnet_preview_package(
                 authority=authorities.get(semantic, "native_preview_core"),
             )
         material_layers = _adapt_material_layers(root, batch, resources, submesh_index=index)
-        if any(layer.get("material_resource_id") for layer in material_layers):
+        authoritative_layer_surface = any(
+            layer.get("material_resource_id") for layer in material_layers
+        )
+        if authoritative_layer_surface:
             for semantic in ("roughness", "metallic"):
                 channels.pop(semantic, None)
                 resource_channels.pop(semantic, None)
@@ -555,7 +585,11 @@ def adapt_native_dotnet_preview_package(
                 "material_layer_compiler": (
                     "archive_lite_managed_layer_compiler_v1" if material_layers else "none"
                 ),
-                "parameters": _material_parameters(batch, channels),
+                "parameters": _material_parameters(
+                    batch,
+                    channels,
+                    authoritative_layer_surface=authoritative_layer_surface,
+                ),
             }
         )
         identity = batch.get("editor_identity") if isinstance(batch.get("editor_identity"), Mapping) else {}

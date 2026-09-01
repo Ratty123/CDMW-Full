@@ -1423,6 +1423,16 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('["operation"] = CurrentSelectionOperation()', source)
         self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', source)
 
+    def test_native_authoring_tool_switch_retains_indexed_snapshot(self) -> None:
+        program = _read("tools/dotnet_mesh_editor_experiment/Program.cs")
+        active_tool = program.split("public string ActiveTool", 1)[1].split(
+            "public Func<Dictionary<string, object?>>? ToolOptionsProvider", 1
+        )[0]
+
+        self.assertIn("if (!ResidentNativeInteractionRequired)", active_tool)
+        self.assertIn("QueuePaintProjectionPrewarm();", active_tool)
+        self.assertNotIn("ScheduleResidentNativeSnapshotPreparation();", active_tool)
+
     def test_native_brush_select_command_sends_native_screen_payload(self) -> None:
         source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
         selection_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs")
@@ -1432,13 +1442,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('payload["screen_brush"] = ScreenPayload(point, SelectionClickRadiusPixels)', selection_source)
         self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', selection_source)
 
-    def test_native_harness_stresses_brush_drag_selection_budget(self) -> None:
+    def test_native_harness_stresses_brush_drag_without_global_input(self) -> None:
         source = "\n".join(
             _read(path)
             for path in (
                 "tools/mesh_harness/constants.py",
                 "tools/mesh_harness/win32_input.py",
                 "tools/mesh_harness/real_dotnet.py",
+                "tools/mesh_harness/real_dotnet_input.py",
                 "tools/mesh_harness/png_evidence.py",
             )
         )
@@ -1449,11 +1460,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _send_mouse_message(", source)
         self.assertIn('interaction.name == "selection-brush-burst"', source)
         self.assertIn("phase = ordinal % 64", source)
-        # The drag sends are wrapped across lines now, so pin the call and its
-        # held-button argument rather than a one-line spelling of them. Without
-        # _MK_LBUTTON the move is a hover and no brush stroke is exercised.
-        self.assertIn("_send_mouse_message(\n                self.state.viewport_hwnd,\n                _WM_MOUSEMOVE,", source)
-        self.assertIn("wparam=_MK_LBUTTON,", source)
+        self.assertIn("request_resident_interaction_probe(", source)
+        self.assertIn('mode="select_brush_vertex"', source)
+        self.assertIn('"global_mouse_input_used": False', source)
         self.assertIn("tab._send_dotnet_protocol_message", source)
         self.assertIn("def _write_checker_png(", source)
         self.assertNotIn('interaction.name == "texture-update"', source)

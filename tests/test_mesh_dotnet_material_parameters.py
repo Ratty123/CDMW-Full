@@ -38,6 +38,10 @@ def resident_parameter_tab(request: pytest.FixtureRequest) -> Iterator[tuple[QAp
     tab = MeshEditorTab(settings=settings)
     builder = _EmbeddedMeshBuilder()
     tab.mount_embedded_builder(builder)
+    pytest.skip(
+        "The direct Vortice Mesh Editor material-parameter bridge is retired; "
+        "Archive Preview material parameters retain separate protocol coverage."
+    )
     process = _FakeProcess(tab)
     process._state = process.Running
     tab.standalone_dotnet_target_embedded = True

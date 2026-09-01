@@ -3,10 +3,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Mapping, Optional
-
 
 GUI_STARTUP_SMOKE_ENV = "CDMW_GUI_STARTUP_SMOKE"
 GUI_STARTUP_SMOKE_RESULT_ENV = "CDMW_GUI_STARTUP_SMOKE_RESULT"
@@ -22,9 +20,9 @@ def write_gui_startup_smoke_result(
     stage: str,
     target: str = "",
     detail: str = "",
-    bundled_helpers: Optional[Sequence[Mapping[str, object]]] = None,
-    evidence: Optional[Mapping[str, object]] = None,
-) -> Optional[Path]:
+    bundled_helpers: Sequence[Mapping[str, object]] | None = None,
+    evidence: Mapping[str, object] | None = None,
+) -> Path | None:
     result_text = os.environ.get(GUI_STARTUP_SMOKE_RESULT_ENV, "").strip()
     if not result_text:
         return None
@@ -47,6 +45,21 @@ def write_gui_startup_smoke_result(
         payload["bundled_helpers"] = [
             {str(key): str(value) for key, value in dict(helper).items()} for helper in bundled_helpers
         ]
+        # Keep the dedicated Rust Mesh Editor package identity independent from
+        # retained Vortice Archive Preview evidence. This must be captured before a one-file process
+        # exits because PyInstaller then removes its extraction root.
+        try:
+            from cdmw.services.bundled_helper_availability import (
+                packaged_rust_mesh_editor_resolution_snapshot,
+            )
+
+            payload["rust_mesh_editor"] = packaged_rust_mesh_editor_resolution_snapshot()
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            payload["rust_mesh_editor"] = {
+                "schema": "cdmw_packaged_rust_mesh_editor_v1",
+                "status": "unavailable",
+                "reason": f"Rust Mesh Editor packaged evidence failed: {type(exc).__name__}: {exc}",
+            }
     if evidence is not None:
         payload["evidence"] = dict(evidence)
 

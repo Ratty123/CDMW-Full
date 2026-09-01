@@ -8,8 +8,8 @@ import json
 import os
 import shutil
 from collections.abc import Callable, Mapping
-from dataclasses import asdict, is_dataclass
-from pathlib import Path
+from dataclasses import asdict, is_dataclass, replace
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 
 from PySide6.QtCore import QUrl
@@ -24,6 +24,7 @@ from cdmw.rendering.material_combiner import (
     combine_preview_material,
     synthesize_material_texture_inputs,
 )
+from cdmw.rendering.material_combiner_rules import _mask_inputs_for_albedo
 from cdmw.rendering.native_preview_material_contract import (
     _combiner_generated_authoritative_albedo,
 )
@@ -67,6 +68,14 @@ _GENERATED_SUPPORT_CHANNELS = _GENERATED_LINEAR_CHANNELS - {"normal"}
 _DOMINANT_EQUIPMENT_METAL_Q50_MIN = 0.35
 _DOMINANT_EQUIPMENT_METAL_Q90_MIN = 0.40
 _DOMINANT_EQUIPMENT_METAL_COVERAGE_MIN = 0.50
+# Overriding an inferred leather handle requires substantially stronger evidence
+# than promoting a generic equipment part.  These thresholds are below the
+# conserved two-handed handle measurements while remaining far above the real
+# one-handed leather handle response.
+_DOMINANT_HANDLE_METAL_MEAN_MIN = 0.70
+_DOMINANT_HANDLE_METAL_Q50_MIN = 0.70
+_DOMINANT_HANDLE_METAL_Q90_MIN = 0.80
+_DOMINANT_HANDLE_METAL_COVERAGE_MIN = 0.90
 # A decoded metal channel this low across the whole submesh is positive evidence
 # of a dielectric rather than an absence of evidence.
 _DECODED_DIELECTRIC_Q90_MAX = 0.10
@@ -95,12 +104,216 @@ _SYNTHESIS_INPUT_SEMANTICS = {
     "material_mask",
 }
 
+# The compositor remains authoritative for complete PAC material output.  These
+# rows are only a lossless escape hatch for an exact owner-bound source map when
+# the compositor produced no corresponding renderer-ready output.  Keep the
+# allow-list deliberately narrower than the general preview resolver: layer
+# masks, grime maps, and detail maps are ingredients, not standalone surfaces.
+_DIRECT_FALLBACK_CHANNELS = {
+    "base_color": ("base", "albedo", "diffuse"),
+    "normal": ("normal",),
+    "material": ("material",),
+    "height": ("height",),
+}
+_DIRECT_FALLBACK_PARAMETER_KEYS = {
+    "base_color": frozenset({"basecolortexture", "overlaycolortexture"}),
+    "normal": frozenset({"normalmap", "normaltexture"}),
+    "material": frozenset({"materialtexture"}),
+    "height": frozenset({"displacementtexture", "heighttexture"}),
+}
+_DIRECT_FALLBACK_SEMANTICS = {
+    "base_color": frozenset({"albedo", "base", "base_color", "color", "diffuse", "material"}),
+    "normal": frozenset({"material", "normal"}),
+    "material": frozenset(
+        {"material", "material_response", "packed_material", "specular", "surface"}
+    ),
+    "height": frozenset({"displacement", "height", "material"}),
+}
+_DIRECT_FALLBACK_DISPOSITIONS = frozenset(
+    {"", "direct", "layer_material_response", "promoted", "recorded"}
+)
+
 
 def _safe_int(value: object, fallback: int) -> int:
     try:
         return int(value)
     except (TypeError, ValueError, OverflowError):
         return fallback
+
+
+def _normalized_material_token(value: object) -> str:
+    return "".join(
+        character
+        for character in str(value or "").strip().casefold()
+        if character.isalnum()
+    )
+
+
+def _normalized_material_texture_path(value: object) -> str:
+    return str(value or "").replace("\\", "/").strip().casefold()
+
+
+def _material_texture_reference_matches(reference: object, resolved: object) -> bool:
+    """Match an exact PAC name to its extracted, optionally hash-prefixed DDS."""
+
+    reference_path = _normalized_material_texture_path(reference)
+    resolved_path = _normalized_material_texture_path(resolved)
+    if not reference_path or not resolved_path:
+        return False
+    if reference_path == resolved_path:
+        return True
+    reference_name = PurePosixPath(reference_path).name
+    resolved_name = PurePosixPath(resolved_path).name
+    return bool(reference_name) and (
+        reference_name == resolved_name
+        or resolved_name.endswith("_" + reference_name)
+    )
+
+
+def _exact_owner_direct_fallback_channels(
+    raw_channels: Mapping[str, object],
+    raw_contract: Mapping[str, object],
+) -> dict[str, dict[str, object]]:
+    """Describe exact direct DDS maps without flattening a PAC layer graph.
+
+    The returned metadata is intentionally not part of ``resolved_channels``:
+    consumers may use a row only to fill a missing compositor role.  Explicit
+    PAC ownership, exact binding authority, a visible semantic, and the exact
+    raw channel path all have to agree first.
+    """
+
+    source_contract = raw_contract.get("source_contract", {})
+    if not isinstance(source_contract, Mapping):
+        return {}
+    bindings_value = source_contract.get("bindings", ())
+    if not isinstance(bindings_value, (list, tuple)):
+        return {}
+    bindings = tuple(row for row in bindings_value if isinstance(row, Mapping))
+    if not bindings:
+        return {}
+
+    channel_paths: dict[str, tuple[str, str]] = {}
+    for role, candidates in _DIRECT_FALLBACK_CHANNELS.items():
+        for channel in candidates:
+            path = str(raw_channels.get(channel, "") or "").strip()
+            if not path:
+                continue
+            candidate = Path(path)
+            if candidate.suffix.casefold() != ".dds" or not candidate.is_file():
+                continue
+            channel_paths[role] = (channel, str(candidate))
+            break
+    if not channel_paths:
+        return {}
+
+    qualifying: dict[str, list[Mapping[str, object]]] = {}
+    attributed_owners: set[int] = set()
+    for role, (_channel, path) in channel_paths.items():
+        for binding in bindings:
+            parameter_key = _normalized_material_token(
+                binding.get("parameter_key") or binding.get("parameter_name")
+            )
+            if parameter_key not in _DIRECT_FALLBACK_PARAMETER_KEYS[role]:
+                continue
+            authority = str(
+                binding.get("binding_authority", "") or ""
+            ).strip().casefold()
+            if authority not in {"authoritative", "exact"}:
+                continue
+            disposition = str(
+                binding.get("binding_disposition", "") or ""
+            ).strip().casefold()
+            if disposition not in _DIRECT_FALLBACK_DISPOSITIONS:
+                continue
+            semantic = str(binding.get("semantic", "") or "").strip().casefold()
+            if semantic not in _DIRECT_FALLBACK_SEMANTICS[role]:
+                continue
+            if not any(
+                _material_texture_reference_matches(reference, path)
+                for reference in (
+                    binding.get("source_reference", ""),
+                    binding.get("transport_reference", ""),
+                )
+            ):
+                continue
+            owner = _safe_int(binding.get("owner_slot_index", -1), -1)
+            if owner < 0:
+                continue
+            qualifying.setdefault(role, []).append(binding)
+            attributed_owners.add(owner)
+
+    declared_owner = _safe_int(source_contract.get("source_submesh_index", -1), -1)
+    if declared_owner < 0:
+        if len(attributed_owners) != 1:
+            return {}
+        effective_owner = next(iter(attributed_owners))
+        owner_attribution = "unique_exact_binding_owner"
+    else:
+        effective_owner = declared_owner
+        owner_attribution = "source_submesh_index"
+
+    direct: dict[str, dict[str, object]] = {}
+    for role, rows in qualifying.items():
+        owned_rows = [
+            row
+            for row in rows
+            if _safe_int(row.get("owner_slot_index", -1), -1) == effective_owner
+        ]
+        if not owned_rows:
+            continue
+        channel, path = channel_paths[role]
+        binding = owned_rows[0]
+        direct[role] = {
+            "path": path,
+            "source_channel": channel,
+            "owner_slot_index": effective_owner,
+            "owner_attribution": owner_attribution,
+            "parameter_name": str(binding.get("parameter_name", "") or ""),
+            "binding_authority": str(
+                binding.get("binding_authority", "") or ""
+            ),
+            "binding_disposition": str(
+                binding.get("binding_disposition", "") or ""
+            ),
+            "semantic": str(binding.get("semantic", "") or ""),
+            "source_reference": str(
+                binding.get("source_reference", "") or ""
+            ),
+        }
+    return direct
+
+
+def _source_contract_owned_wrapper_has_token(
+    source_contract: object,
+    token: str,
+) -> bool:
+    """Match an identity token only on the source submesh's PAC wrapper."""
+
+    if not isinstance(source_contract, Mapping):
+        return False
+    source_submesh_index = _safe_int(
+        source_contract.get("source_submesh_index", -1),
+        -1,
+    )
+    if source_submesh_index < 0:
+        return False
+    normalized_token = str(token or "").strip().casefold()
+    if not normalized_token:
+        return False
+    for wrapper in tuple(source_contract.get("wrappers", ()) or ()):
+        if not isinstance(wrapper, Mapping) or _safe_int(
+            wrapper.get("owner_slot_index", -1),
+            -1,
+        ) != source_submesh_index:
+            continue
+        for field in ("material_name", "part_name"):
+            identity_tokens = "".join(
+                character if character.isalnum() else " "
+                for character in str(wrapper.get(field, "") or "").casefold()
+            ).split()
+            if normalized_token in identity_tokens:
+                return True
+    return False
 
 
 def _texture_reference_with_suffix(texture: str, suffix: str) -> str:
@@ -191,6 +404,22 @@ def _package_synthesis_inputs(
     inputs = tuple(synthesize_material_texture_inputs(source))
     if not inputs:
         return ()
+    # Rust's bounded preview snapshot keeps the authoritative PAC parameter
+    # table once on the owning submesh and removes only exact copies from each
+    # texture input.  The image combiner consumes input-local parameters, so
+    # reattach that shared table ephemerally for synthesis.  A non-empty input
+    # table is owner-specific and must remain authoritative.
+    source_parameters = tuple(
+        getattr(source, "preview_material_parameters", ()) or ()
+    )
+    if source_parameters:
+        inputs = tuple(
+            replace(item, material_parameters=source_parameters)
+            if isinstance(item, PreviewMaterialTextureInput)
+            and not tuple(getattr(item, "material_parameters", ()) or ())
+            else item
+            for item in inputs
+        )
     if tuple(raw_contract.get("layer_bindings", ()) or ()):
         return inputs
     for item in inputs:
@@ -339,6 +568,18 @@ def _refine_synthesized_material_contract(
         and float(metallic_summary.get("coverage_above_0_25", 0.0) or 0.0)
         >= _DOMINANT_EQUIPMENT_METAL_COVERAGE_MIN
     )
+    dominant_handle_metal = (
+        dominant_metal
+        and isinstance(metallic_summary, Mapping)
+        and float(metallic_summary.get("mean", 0.0) or 0.0)
+        >= _DOMINANT_HANDLE_METAL_MEAN_MIN
+        and float(metallic_summary.get("q50", 0.0) or 0.0)
+        >= _DOMINANT_HANDLE_METAL_Q50_MIN
+        and float(metallic_summary.get("q90", 0.0) or 0.0)
+        >= _DOMINANT_HANDLE_METAL_Q90_MIN
+        and float(metallic_summary.get("coverage_above_0_25", 0.0) or 0.0)
+        >= _DOMINANT_HANDLE_METAL_COVERAGE_MIN
+    )
     source_category = str(
         refined.get("material_category", "") or ""
     ).strip().casefold()
@@ -365,7 +606,7 @@ def _refine_synthesized_material_contract(
     )
     if (
         str(refined.get("shader_family", "") or "").strip().casefold()
-        in {"standard", "standard_v2"}
+        in {"standard", "standard_v2", "emissive_v2"}
         and source_category == "metal"
         and source_reason.casefold()
         in _EQUIPMENT_FAMILY_METAL_REASONS
@@ -394,7 +635,28 @@ def _refine_synthesized_material_contract(
             refined["material_response_promoted"] = False
     elif (
         str(refined.get("shader_family", "") or "").strip().casefold()
-        in {"standard", "standard_v2"}
+        in {"standard", "standard_v2", "emissive_v2"}
+        and source_category == "leather"
+        and source_reason.casefold() == "nonmetal:leather_token"
+        and equipment_path
+        and authoritative_pac_graph
+        and _source_contract_owned_wrapper_has_token(source_contract, "handle")
+        and dominant_handle_metal
+    ):
+        # ``handle`` normally denotes a leather grip and remains authoritative
+        # for sparse/dielectric responses.  A conserved PAC wrapper plus a
+        # uniformly dense decoded metal channel is stronger evidence for the
+        # exceptional all-metal handle used by some equipment assets.
+        refined["material_category_pre_synthesis_reason"] = source_reason
+        refined["material_category"] = "metal"
+        refined["material_category_confidence"] = 0.88
+        refined["material_category_reason"] = (
+            "metal:dominant_decoded_equipment_metal_channel"
+        )
+        refined["material_response_promoted"] = True
+    elif (
+        str(refined.get("shader_family", "") or "").strip().casefold()
+        in {"standard", "standard_v2", "emissive_v2"}
         and source_category == "generic"
         and source_reason.casefold() in {"", "generic:no_strong_material_token"}
         and (equipment_path or authoritative_pac_graph)
@@ -753,8 +1015,38 @@ def _synthesize_dotnet_material_channels(
     output_dir: Path,
     batch_index: int,
     cancelled: Callable[[], bool] | None,
+    support_map_max_dimension: int = 256,
+    requested_output_channels: frozenset[str] | None = None,
 ) -> tuple[dict[str, str], dict[str, object], tuple[str, ...]]:
     inputs = _package_synthesis_inputs(source, raw_contract)
+    normalized_requested_outputs = (
+        None
+        if requested_output_channels is None
+        else frozenset(
+            "metalness"
+            if str(channel or "").strip().casefold() == "metallic"
+            else str(channel or "").strip().casefold()
+            for channel in requested_output_channels
+            if str(channel or "").strip()
+        )
+    )
+    base_output_requested = bool(
+        normalized_requested_outputs is None
+        or normalized_requested_outputs & {"base", "albedo", "diffuse"}
+    )
+    if not base_output_requested:
+        # A native compositor may have already produced the exact base layer.
+        # Its color inputs cannot contribute to normal or scalar support maps,
+        # so avoid decoding them again for a result this caller will discard.
+        required_mask_ids = {
+            id(item) for item in _mask_inputs_for_albedo(inputs).values()
+        }
+        inputs = tuple(
+            item
+            for item in inputs
+            if _synthesis_input_channel(item) != "base"
+            or id(item) in required_mask_ids
+        )
     inputs = tuple(
         item
         for item in inputs
@@ -803,6 +1095,7 @@ def _synthesize_dotnet_material_channels(
             inputs,
             raw_channels,
             cancelled=cancelled,
+            support_map_max_dimension=support_map_max_dimension,
         )
         base_alpha_summary = (
             _decoded_base_alpha_summary(
@@ -832,8 +1125,10 @@ def _synthesize_dotnet_material_channels(
                 normal_strength_floor=0.5,
                 normal_strength_cap=1.0,
                 height_amount=0.04,
-                support_map_max_dimension=256,
+                support_map_max_dimension=support_map_max_dimension,
                 preserve_texture_orientation=True,
+                requested_output_channels=normalized_requested_outputs,
+                base_output_available=not base_output_requested,
             ),
             cancelled=cancelled,
         )
@@ -994,6 +1289,8 @@ def _dotnet_submesh_material_payload(
     role: str,
     include_resources: bool,
     cancelled: Callable[[], bool] | None,
+    support_map_max_dimension: int = 256,
+    requested_output_channels: frozenset[str] | None = None,
 ) -> dict[str, object]:
     submesh_map = submesh if isinstance(submesh, Mapping) else {}
     texture = str(submesh_map.get("texture", "") or "").strip()
@@ -1003,12 +1300,20 @@ def _dotnet_submesh_material_payload(
         raw_channels,
         source_asset_path=source_asset_path,
     )
+    direct_fallback_channels = _exact_owner_direct_fallback_channels(
+        raw_channels,
+        raw_contract,
+    )
     if include_resources:
         synthesis_key = _material_synthesis_cache_key(
             source_submesh,
             raw_channels,
             raw_contract,
         )
+        if requested_output_channels is not None:
+            synthesis_key += "|requested=" + ",".join(
+                sorted(str(channel or "").strip().casefold() for channel in requested_output_channels)
+            )
         cached_synthesis = synthesis_cache.get(synthesis_key)
         if cached_synthesis is None:
             resolved_channels, synthesis, generated = _synthesize_dotnet_material_channels(
@@ -1018,6 +1323,8 @@ def _dotnet_submesh_material_payload(
                 output_dir=package_dir / "material_synthesis" / f"submesh_{fallback_index:03d}",
                 batch_index=fallback_index,
                 cancelled=cancelled,
+                support_map_max_dimension=support_map_max_dimension,
+                requested_output_channels=requested_output_channels,
             )
             synthesis_cache[synthesis_key] = (
                 copy.deepcopy(resolved_channels),
@@ -1129,6 +1436,7 @@ def _dotnet_submesh_material_payload(
         "texture": texture,
         "channels": _dotnet_texture_channels(texture),
         "raw_resolved_channels": raw_channels,
+        "direct_fallback_channels": direct_fallback_channels,
         "resolved_channels": resolved_channels,
         "packaged_channels": packaged_channels,
         "resource_channels": resource_channels,
@@ -1233,6 +1541,10 @@ def compile_mesh_dotnet_material_manifest(
     absolute_resource_paths: bool = False,
     include_resources: bool = True,
     cancelled: Callable[[], bool] | None = None,
+    support_map_max_dimension: int = 256,
+    requested_synthesis_channels_by_submesh: Mapping[
+        int, frozenset[str]
+    ] | None = None,
 ) -> dict[str, object]:
     """Compile the canonical initial/resident .NET material manifest."""
 
@@ -1247,6 +1559,15 @@ def compile_mesh_dotnet_material_manifest(
     source_asset_path = str(getattr(mesh, "path", "") or "").strip()
     submesh_payloads = []
     for index, submesh in enumerate(submeshes):
+        requested_output_channels = None
+        if requested_synthesis_channels_by_submesh is not None:
+            requested = requested_synthesis_channels_by_submesh.get(index)
+            if requested is not None:
+                requested_output_channels = frozenset(
+                    str(channel or "").strip().casefold()
+                    for channel in requested
+                    if str(channel or "").strip()
+                )
         submesh_row = dict(submesh) if isinstance(submesh, Mapping) else submesh
         if isinstance(submesh_row, dict) and (
             str(role or "replacement") != "replacement" or submesh_index_offset
@@ -1274,6 +1595,8 @@ def compile_mesh_dotnet_material_manifest(
                 role=effective_role,
                 include_resources=include_resources,
                 cancelled=cancelled,
+                support_map_max_dimension=support_map_max_dimension,
+                requested_output_channels=requested_output_channels,
             )
         )
     if absolute_resource_paths:

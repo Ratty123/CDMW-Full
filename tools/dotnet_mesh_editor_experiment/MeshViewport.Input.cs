@@ -20,7 +20,24 @@ internal sealed partial class MeshViewport
     internal Action<string>? InputBoundaryFaultInjector { get; set; }
     private readonly MeshEditOperatorController _editOperators = new();
     private readonly MeshViewportInputAdapter _inputAdapter = new();
-    internal Dictionary<string, object?> EditOperatorDiagnostics() => _editOperators.Diagnostics();
+    private long _mouseDownCount;
+    private string _lastMouseDownRoute = "none";
+    private string _lastMouseDownPane = string.Empty;
+    private string _lastMouseDownModifiers = "---";
+    private bool _lastMouseDownFocused;
+    private bool _lastMouseDownCaptured;
+
+    internal Dictionary<string, object?> EditOperatorDiagnostics()
+    {
+        var diagnostics = _editOperators.Diagnostics();
+        diagnostics["mouse_down_count"] = _mouseDownCount;
+        diagnostics["last_mouse_down_route"] = _lastMouseDownRoute;
+        diagnostics["last_mouse_down_pane"] = _lastMouseDownPane;
+        diagnostics["last_mouse_down_modifiers"] = _lastMouseDownModifiers;
+        diagnostics["last_mouse_down_focused"] = _lastMouseDownFocused;
+        diagnostics["last_mouse_down_captured"] = _lastMouseDownCaptured;
+        return diagnostics;
+    }
 
     private bool BeginEditOperator(
         string kind,
@@ -104,6 +121,8 @@ internal sealed partial class MeshViewport
     {
         if (disposing)
         {
+            DisposeResidentNativeReplication();
+            DisposeResidentNativeSnapshotPreparation();
             ReleaseResidentNativeInteraction();
             CancelPaintProjectionBuild();
             StopPerformanceRenderPump();
@@ -169,9 +188,20 @@ internal sealed partial class MeshViewport
         MeshPointerInput input,
         MouseEventArgs platformEvent)
     {
+        _mouseDownCount++;
+        _lastMouseDownRoute = "received";
+        _lastMouseDownPane = string.Empty;
+        _lastMouseDownModifiers = string.Concat(
+            input.Alt ? "A" : "-",
+            input.Control ? "C" : "-",
+            input.Shift ? "S" : "-");
+        _lastMouseDownFocused = input.HasFocus;
+        _lastMouseDownCaptured = input.HasCapture;
         var paneId = PaneAt(input.Location);
+        _lastMouseDownPane = paneId;
         if (paneId.Length == 0)
         {
+            _lastMouseDownRoute = "outside_pane";
             return;
         }
         FocusPresentationPane(paneId);
@@ -183,6 +213,7 @@ internal sealed partial class MeshViewport
         _lastMouse = input.Location;
         if (IsPanGesture(input))
         {
+            _lastMouseDownRoute = "camera_pan";
             _rotating = false;
             _panning = true;
             base.OnMouseDown(platformEvent);
@@ -190,6 +221,7 @@ internal sealed partial class MeshViewport
         }
         if (IsOrbitOverrideGesture(input))
         {
+            _lastMouseDownRoute = "camera_orbit_override";
             _rotating = true;
             _panning = false;
             base.OnMouseDown(platformEvent);
@@ -197,6 +229,7 @@ internal sealed partial class MeshViewport
         }
         if (!PresentationInteractionAllowed)
         {
+            _lastMouseDownRoute = "presentation_locked_camera";
             _rotating = input.Changed(MeshPointerButtons.Left);
             _panning = false;
             base.OnMouseDown(platformEvent);
@@ -207,14 +240,17 @@ internal sealed partial class MeshViewport
         {
             if (TryBeginPlacementGizmoDrag(input.Location))
             {
+                _lastMouseDownRoute = "placement_gizmo";
                 return;
             }
             if (PartPickEnabled)
             {
+                _lastMouseDownRoute = "part_pick";
                 BeginSelectionDrag(input.Location, "source");
                 base.OnMouseDown(platformEvent);
                 return;
             }
+            _lastMouseDownRoute = "placement_camera";
             _rotating = true;
             base.OnMouseDown(platformEvent);
             return;
@@ -223,6 +259,7 @@ internal sealed partial class MeshViewport
         {
             if (string.Equals(ActiveTool, "select", StringComparison.OrdinalIgnoreCase))
             {
+                _lastMouseDownRoute = "select_dispatch";
                 var targetMode = CurrentTargetMode();
                 if (string.Equals(targetMode, "edge", StringComparison.OrdinalIgnoreCase))
                 {
@@ -242,10 +279,12 @@ internal sealed partial class MeshViewport
             }
             else if (IsStrokeTool(ActiveTool))
             {
+                _lastMouseDownRoute = "stroke_dispatch";
                 BeginEditorStroke(input.Location);
             }
             else
             {
+                _lastMouseDownRoute = "unknown_tool_camera";
                 // An unknown tool must orbit rather than open a stroke the host
                 // is guaranteed to reject.
                 _rotating = true;
@@ -253,6 +292,7 @@ internal sealed partial class MeshViewport
             base.OnMouseDown(platformEvent);
             return;
         }
+        _lastMouseDownRoute = "default_camera";
         _rotating = input.Changed(MeshPointerButtons.Left);
         _panning = false;
         base.OnMouseDown(platformEvent);
@@ -575,8 +615,21 @@ internal sealed partial class MeshViewport
         }
         if (ResidentNativeInteractionRequired)
         {
-            if (!ResidentNativeInteractionReady
-                || !BeginResidentNativeStroke(location, _strokeTool, gestureId))
+            if (ResidentNativeReplicationBlocked)
+            {
+                _editOperators.Cancel(gestureId);
+                _strokeTool = string.Empty;
+                StatusRequested?.Invoke("Syncing edits…");
+                return;
+            }
+            if (!ResidentNativeSnapshotAvailableForInput())
+            {
+                _editOperators.Cancel(gestureId);
+                _strokeTool = string.Empty;
+                StatusRequested?.Invoke("Preparing indexed mesh interaction…");
+                return;
+            }
+            if (!BeginResidentNativeStroke(location, _strokeTool, gestureId))
             {
                 _editOperators.Cancel(gestureId);
                 _strokeTool = string.Empty;
@@ -1016,18 +1069,35 @@ internal sealed partial class MeshViewport
                 (mode ?? "edge").Trim().ToLowerInvariant(),
                 gestureId))
         {
+            _lastMouseDownRoute = "select_operator_blocked";
             return;
         }
         if (meshEdit
             && (mode ?? string.Empty).Trim().ToLowerInvariant() is "vertex" or "edge" or "face"
             && ResidentNativeInteractionRequired)
         {
-            if (!ResidentNativeInteractionReady
-                || !BeginResidentNativeSelection(point, mode ?? "vertex", gestureId))
+            if (ResidentNativeReplicationBlocked)
             {
+                _lastMouseDownRoute = "select_native_sync_blocked";
+                _editOperators.Cancel(gestureId);
+                StatusRequested?.Invoke("Syncing edits…");
+                return;
+            }
+            if (!ResidentNativeSnapshotAvailableForInput())
+            {
+                _lastMouseDownRoute = "select_native_snapshot_pending";
+                _editOperators.Cancel(gestureId);
+                ClearProvisionalSelectionEcho();
+                StatusRequested?.Invoke("Preparing indexed mesh interaction…");
+                return;
+            }
+            if (!BeginResidentNativeSelection(point, mode ?? "vertex", gestureId))
+            {
+                _lastMouseDownRoute = "select_native_begin_rejected";
                 _editOperators.Cancel(gestureId);
                 return;
             }
+            _lastMouseDownRoute = "select_native_active";
             _edgeDragActive = true;
             _selectionDragTargetMode = (mode ?? "vertex").Trim().ToLowerInvariant();
             _edgeDragStart = point;

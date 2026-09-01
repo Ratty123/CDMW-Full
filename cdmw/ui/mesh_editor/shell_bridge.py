@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -132,6 +134,413 @@ class MeshEditorShellBridgeMixin:
         active_entry = getattr(active_request, "target_entry", None)
         return self._mesh_editor_entry_key(active_entry)
 
+    def _mesh_editor_selected_backend_is_rust(self) -> bool:
+        """Compatibility query for callers that still name the retired selector."""
+
+        return True
+
+    @staticmethod
+    def _mesh_editor_package_matches_archive_entry(
+        package_path: Path,
+        entry: ArchiveEntry,
+    ) -> bool:
+        package = Path(package_path)
+        expected_path = entry.identity.normalized_path
+
+        def normalized_path(value: object) -> str:
+            return str(value or "").replace("\\", "/").strip().strip("/").casefold()
+
+        def load_mapping(name: str) -> Mapping[str, object] | None:
+            try:
+                payload = json.loads((package / name).read_text(encoding="utf-8-sig"))
+            except (OSError, TypeError, ValueError):
+                return None
+            return payload if isinstance(payload, Mapping) else None
+
+        def load_path_mapping(path: Path) -> Mapping[str, object] | None:
+            try:
+                payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+            except (OSError, TypeError, ValueError):
+                return None
+            return payload if isinstance(payload, Mapping) else None
+
+        def normalized_file_path(value: object) -> str:
+            return str(value or "").replace("\\", "/").strip().casefold()
+
+        def declared_identity_matches(declared_identity: object) -> bool:
+            if not isinstance(declared_identity, Mapping):
+                return False
+            identity = entry.identity
+            declared_identity_path = normalized_path(
+                declared_identity.get("normalized_path", "")
+                or declared_identity.get("path", "")
+            )
+            declared_pamt = normalized_file_path(
+                declared_identity.get("source_pamt", "")
+                or declared_identity.get("pamt_path", "")
+            )
+            if (
+                not declared_identity_path
+                or declared_identity_path != identity.normalized_path
+                or not declared_pamt
+                or declared_pamt != identity.source_pamt
+                or "paz_index" not in declared_identity
+            ):
+                return False
+            offset_key = (
+                "entry_offset"
+                if "entry_offset" in declared_identity
+                else "offset"
+                if "offset" in declared_identity
+                else ""
+            )
+            if not offset_key:
+                return False
+            try:
+                return bool(
+                    int(declared_identity["paz_index"]) == identity.paz_index
+                    and int(declared_identity[offset_key]) == identity.entry_offset
+                )
+            except (TypeError, ValueError, OverflowError):
+                return False
+
+        def exact_archive_identity_matches(declared_identity: object) -> bool:
+            identity = entry.identity
+            expected_paz = normalized_file_path(entry.paz_file)
+            if isinstance(declared_identity, Mapping):
+                declared_path = normalized_path(
+                    declared_identity.get("normalized_path", "")
+                    or declared_identity.get("path", "")
+                )
+                declared_pamt = normalized_file_path(
+                    declared_identity.get("source_pamt", "")
+                    or declared_identity.get("pamt_path", "")
+                )
+                declared_paz = normalized_file_path(
+                    declared_identity.get("paz_file", "")
+                    or declared_identity.get("source_paz", "")
+                )
+                try:
+                    declared_paz_index = int(declared_identity["paz_index"])
+                    declared_offset = int(
+                        declared_identity.get(
+                            "entry_offset",
+                            declared_identity.get("offset"),
+                        )
+                    )
+                except (KeyError, TypeError, ValueError, OverflowError):
+                    return False
+                return bool(
+                    declared_path == identity.normalized_path
+                    and declared_pamt == identity.source_pamt
+                    and declared_paz == expected_paz
+                    and declared_paz_index == identity.paz_index
+                    and declared_offset == identity.entry_offset
+                )
+
+            raw = str(declared_identity or "").strip()
+            if not raw:
+                return False
+            parts = raw.split("::")
+            # Reference-preview packages retain this explicit archive identity.
+            if len(parts) == 5:
+                pamt, paz, offset, comp_size, source_path = parts
+                try:
+                    return bool(
+                        normalized_file_path(pamt) == identity.source_pamt
+                        and normalized_file_path(paz) == expected_paz
+                        and int(offset) == identity.entry_offset
+                        and int(comp_size) == int(entry.comp_size)
+                        and normalized_path(source_path) == identity.normalized_path
+                    )
+                except (TypeError, ValueError, OverflowError):
+                    return False
+            # Archive Browser's durable Python-preview cache key begins with
+            # the complete selected-entry identity before renderer settings.
+            if len(parts) >= 12 and parts[6].startswith("quality:"):
+                try:
+                    return bool(
+                        normalized_path(parts[0]) == identity.normalized_path
+                        and normalized_file_path(parts[1]) == identity.source_pamt
+                        and normalized_file_path(parts[3]) == expected_paz
+                        and int(parts[7]) == identity.entry_offset
+                        and int(parts[8]) == int(entry.comp_size)
+                        and int(parts[9]) == int(entry.orig_size)
+                        and int(parts[10]) == int(entry.flags)
+                        and int(parts[11]) == identity.paz_index
+                    )
+                except (TypeError, ValueError, OverflowError):
+                    return False
+            return False
+
+        def cache_dependency_identity_matches(cache_metadata: object) -> bool:
+            if not isinstance(cache_metadata, Mapping):
+                return False
+            diagnostics = cache_metadata.get("diagnostics")
+            if not isinstance(diagnostics, Mapping):
+                return False
+            dependencies = diagnostics.get("cache_dependency_entries")
+            if not isinstance(dependencies, Sequence) or isinstance(
+                dependencies,
+                (str, bytes, bytearray),
+            ):
+                return False
+            return any(
+                exact_archive_identity_matches(dependency)
+                for dependency in dependencies
+            )
+
+        manifest_path = package / "manifest.json"
+        if manifest_path.is_file():
+            manifest = load_mapping("manifest.json")
+            if manifest is None:
+                return False
+            if normalized_path(manifest.get("source_path", "")) != expected_path:
+                return False
+            if "source_identity" in manifest:
+                return declared_identity_matches(manifest.get("source_identity"))
+            return cache_dependency_identity_matches(
+                load_path_mapping(package.parent / "cache_entry.json")
+            )
+
+        # Resident Vortice packages compiled from the Python preview model do
+        # not retain preview-core's manifest.json.  Their public identity is
+        # the source mesh named by net_materials.json; the launch manifest
+        # binds that material payload and scene state into one package.
+        launch = load_mapping("dotnet_launch.json")
+        scene = load_mapping("dotnet_scene.json")
+        materials = load_mapping("net_materials.json")
+        if launch is None or scene is None or materials is None:
+            return False
+        launch_input = launch.get("input")
+        if (
+            launch.get("format") != "cdmw_mesh_dotnet_experiment_handoff_v1"
+            or not isinstance(launch_input, Mapping)
+            or normalized_path(launch_input.get("scene_state", "")) != "dotnet_scene.json"
+            or normalized_path(launch_input.get("materials", "")) != "net_materials.json"
+            or scene.get("renderer_authority") != "dotnet_vortice_resident_scene"
+            or materials.get("renderer_authority") != "dotnet_mesh_editor"
+        ):
+            return False
+        if normalized_path(materials.get("source_mesh", "")) != expected_path:
+            return False
+        scene_identity = scene.get("source_identity")
+        cache_metadata = load_path_mapping(package.parent / "cache_entry.json")
+        cache_identity = None
+        if cache_metadata is not None:
+            cache_identity = cache_metadata.get(
+                "source_identity"
+            ) or cache_metadata.get("archive_identity")
+        if not (
+            exact_archive_identity_matches(scene_identity)
+            or exact_archive_identity_matches(cache_identity)
+        ):
+            return False
+        launch_signature = str(launch_input.get("material_signature", "") or "").strip()
+        material_signature = str(materials.get("material_signature", "") or "").strip()
+        return bool(launch_signature) and launch_signature == material_signature
+
+    def _mesh_editor_active_textured_package_for_entry(
+        self,
+        entry: ArchiveEntry,
+    ) -> Path | None:
+        package_path = getattr(
+            self,
+            "archive_isolated_renderer_active_package",
+            None,
+        )
+        has_textures = getattr(self, "_archive_active_package_has_textures", None)
+        if package_path is None or not callable(has_textures):
+            return None
+        try:
+            package = Path(package_path)
+            if not bool(has_textures()):
+                return None
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return None
+        return (
+            package
+            if self._mesh_editor_package_matches_archive_entry(package, entry)
+            else None
+        )
+
+    def _defer_rust_mesh_editor_for_archive_textures(
+        self,
+        entry: ArchiveEntry,
+    ) -> bool:
+        """Wait for Archive Browser's exact native material package before Rust."""
+        identity = archive_entry_identity_key(entry)
+        if getattr(self, "_mesh_editor_rust_texture_bypass_identity", None) == identity:
+            self._mesh_editor_rust_texture_bypass_identity = None
+            return False
+        if self._mesh_editor_active_textured_package_for_entry(entry) is not None:
+            return False
+
+        pending = getattr(self, "_mesh_editor_pending_rust_texture_launch", None)
+        if isinstance(pending, Mapping):
+            if (
+                pending.get("identity") == identity
+                and int(pending.get("request_id", 0) or 0)
+                == int(getattr(self, "_archive_texture_request_id", 0) or 0)
+                and bool(getattr(self, "_archive_texture_request_loading", False))
+            ):
+                return True
+            self._mesh_editor_pending_rust_texture_launch = None
+
+        current_entry = getattr(self, "_current_archive_entry", lambda: None)()
+        if not isinstance(current_entry, ArchiveEntry) or current_entry.identity != identity:
+            return False
+        request_textures = getattr(self, "_request_archive_preview_textures", None)
+        if not callable(request_textures):
+            return False
+        request_textures(automatic=True)
+        request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
+        if not request_id or not bool(
+            getattr(self, "_archive_texture_request_loading", False)
+        ):
+            return False
+        generation = int(
+            getattr(self, "_mesh_editor_rust_texture_launch_generation", 0) or 0
+        ) + 1
+        self._mesh_editor_rust_texture_launch_generation = generation
+        self._mesh_editor_pending_rust_texture_launch = {
+            "generation": generation,
+            "request_id": request_id,
+            "identity": identity,
+            "entry": copy.deepcopy(entry),
+        }
+        self.set_status_message(
+            "Resolving this mesh's textures before Mesh Editor opens..."
+        )
+        return True
+
+    def _finish_pending_rust_mesh_editor_texture_launch(
+        self,
+        *,
+        request_id: int,
+        success: bool,
+        message: str = "",
+    ) -> None:
+        failure_reason = str(message or "").strip()
+        pending = getattr(self, "_mesh_editor_pending_rust_texture_launch", None)
+        if not isinstance(pending, Mapping):
+            return
+        if int(pending.get("request_id", 0) or 0) != int(request_id or 0):
+            return
+        generation = int(pending.get("generation", 0) or 0)
+        if generation != int(
+            getattr(self, "_mesh_editor_rust_texture_launch_generation", 0) or 0
+        ):
+            return
+        self._mesh_editor_pending_rust_texture_launch = None
+        if bool(getattr(self, "_shutting_down", False)):
+            return
+        entry = pending.get("entry")
+        identity = pending.get("identity")
+        current_entry = getattr(self, "_current_archive_entry", lambda: None)()
+        if (
+            not isinstance(entry, ArchiveEntry)
+            or not isinstance(current_entry, ArchiveEntry)
+            or current_entry.identity != identity
+        ):
+            return
+        textured_package = self._mesh_editor_active_textured_package_for_entry(entry)
+        failed = not bool(success) or textured_package is None
+        if failed:
+            self._mesh_editor_rust_texture_bypass_identity = identity
+        self._launch_archive_mesh_editor_for_entry(entry)
+        if failed and failure_reason:
+            tab = getattr(self, "mesh_editor_tab", None)
+            if tab is not None:
+                tab.standalone_rust_texture_unavailable_reason = failure_reason
+            self.set_status_message(
+                "Texture loading failed; the untextured model remains available: "
+                f"{failure_reason}",
+                error=True,
+            )
+
+    def _refresh_active_rust_material_context_from_archive(
+        self,
+        entry: ArchiveEntry,
+    ) -> bool:
+        tab = getattr(self, "mesh_editor_tab", None)
+        replace_lease = getattr(
+            tab,
+            "_replace_archive_material_context_package_lease",
+            None,
+        )
+        package = self._mesh_editor_active_textured_package_for_entry(entry)
+        if package is None or not callable(replace_lease):
+            return False
+        material_source_identity = getattr(
+            tab, "archive_material_context_source_identity", None
+        )
+        if material_source_identity != entry.identity:
+            tab.archive_material_context_verified_for_rust = False
+            return False
+        lease = acquire_dotnet_preview_package_cache_lease_for_path(package)
+        if lease is None:
+            return False
+        try:
+            replace_lease(lease)
+            tab.archive_material_context_package_path = str(package)
+            preview_model = getattr(
+                tab,
+                "standalone_archive_material_preview_model",
+                None,
+            )
+            model_ready = getattr(
+                tab,
+                "_archive_material_preview_model_ready",
+                None,
+            )
+            tab.archive_material_context_verified_for_rust = bool(
+                callable(model_ready) and model_ready(preview_model)
+            )
+            tab.standalone_rust_texture_unavailable_reason = ""
+        except RuntimeError:
+            release = getattr(lease, "release", None)
+            if callable(release):
+                release()
+            return False
+        return True
+
+    def _relaunch_idle_rust_editor_for_active_session(
+        self,
+        entry: ArchiveEntry | None = None,
+    ) -> bool:
+        """Redispatch an exited Rust child without replacing its edit session."""
+        tab = getattr(self, "mesh_editor_tab", None)
+        controller = getattr(tab, "standalone_controller", None)
+        rust_task_active = getattr(tab, "_rust_editor_task_active", None)
+        launch_selected = getattr(tab, "_start_selected_mesh_editor", None)
+        if (
+            controller is None
+            or not callable(rust_task_active)
+            or not callable(launch_selected)
+        ):
+            return False
+        try:
+            if bool(rust_task_active()):
+                queue_relaunch = getattr(
+                    tab,
+                    "_queue_rust_relaunch_after_dispose",
+                    None,
+                )
+                if callable(queue_relaunch) and bool(queue_relaunch(controller)):
+                    if isinstance(entry, ArchiveEntry):
+                        self._refresh_active_rust_material_context_from_archive(entry)
+                    self.set_status_message("Launching Mesh Editor...")
+                    return True
+                return False
+        except RuntimeError:
+            return False
+        if isinstance(entry, ArchiveEntry):
+            self._refresh_active_rust_material_context_from_archive(entry)
+        self.set_status_message("Launching Mesh Editor...")
+        launch_selected(controller)
+        return True
+
     def _prepare_mesh_editor_archive_launch(self, entry: ArchiveEntry) -> bool:
         if not isinstance(entry, ArchiveEntry):
             return False
@@ -145,6 +554,8 @@ class MeshEditorShellBridgeMixin:
             current_target = self.mesh_editor_tab._current_target_entry()
             if self._mesh_editor_entry_key(current_target) == self._mesh_editor_entry_key(entry):
                 self._activate_tool_widget(self.mesh_editor_tab)
+                if self._relaunch_idle_rust_editor_for_active_session(entry):
+                    return False
                 self.set_status_message("Mesh Editor is already open for this target.")
                 return False
             controller = getattr(self.mesh_editor_tab, "standalone_controller", None)
@@ -200,13 +611,59 @@ class MeshEditorShellBridgeMixin:
         if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
             self.set_status_message("Select a supported archive mesh before opening Mesh Editor.", error=True)
             return
+        tab = getattr(self, "mesh_editor_tab", None)
+        preflight = getattr(tab, "_rust_open_preflight_reason", None)
+        if callable(preflight):
+            try:
+                preflight_reason = str(preflight() or "").strip()
+            except RuntimeError as exc:
+                preflight_reason = str(exc or "Mesh Editor preflight failed").strip()
+            if preflight_reason:
+                sync_controls = getattr(tab, "_sync_mesh_editor_backend_controls", None)
+                if callable(sync_controls):
+                    sync_controls()
+                self._activate_tool_widget(tab)
+                self.set_status_message(
+                    f"Mesh Editor cannot open: {preflight_reason}.",
+                    error=True,
+                )
+                return
+        if self._defer_rust_mesh_editor_for_archive_textures(entry):
+            return
         if not self._prepare_mesh_editor_archive_launch(entry):
             return
         current_preview = getattr(self, "current_archive_preview_result", None)
         material_preview_model = getattr(current_preview, "preview_model", None)
+        current_entry_getter = getattr(self, "_current_archive_entry", None)
+        current_preview_entry = (
+            current_entry_getter() if callable(current_entry_getter) else entry
+        )
+        preview_matches_entry = bool(
+            isinstance(current_preview_entry, ArchiveEntry)
+            and archive_entry_identity_key(current_preview_entry)
+            == archive_entry_identity_key(entry)
+        )
+        if not preview_matches_entry:
+            material_preview_model = None
         material_package_path = str(
             getattr(current_preview, "dotnet_preview_package_path", "") or ""
         ).strip()
+        if not preview_matches_entry:
+            material_package_path = ""
+        material_source_identity = (
+            entry.identity if material_preview_model is not None else None
+        )
+        material_context_verified_for_rust = False
+        textured_package = self._mesh_editor_active_textured_package_for_entry(entry)
+        if textured_package is not None:
+            # Keep the Archive Browser's resolved PAC/PAC_XML material model.
+            # The native package owns the immutable DDS lease, while rebuilding
+            # from flattened batch rows would drop dye/layer parameters.
+            material_package_path = str(textured_package)
+            material_context_verified_for_rust = bool(
+                material_preview_model is not None
+                and material_source_identity == entry.identity
+            )
         material_package_lease = (
             acquire_dotnet_preview_package_cache_lease_for_path(
                 Path(material_package_path)
@@ -222,6 +679,8 @@ class MeshEditorShellBridgeMixin:
             material_companion_entry=material_companion_entry,
             material_package_path=material_package_path,
             material_package_lease=material_package_lease,
+            material_context_verified_for_rust=material_context_verified_for_rust,
+            material_source_identity=material_source_identity,
         )
         self._activate_tool_widget(self.mesh_editor_tab)
         self.set_status_message(f"Opening {entry.basename} directly in Mesh Editor.")

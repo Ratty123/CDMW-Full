@@ -253,14 +253,13 @@ def test_dotnet_material_environment_uses_sdr_bounded_split_sum_ibl() -> None:
     assert "litDiffuse + environmentDiffuse" in shader
 
 
-def test_every_material_aware_preview_route_uses_the_shared_material_renderer() -> None:
+def test_every_retained_vortice_preview_route_uses_the_shared_material_renderer() -> None:
     route_hosts = {
         "archive browser": ROOT / "cdmw/ui/archive_browser/preview_layout.py",
         "archive reference": ROOT / "cdmw/ui/archive_browser/reference_preview.py",
         "archive attachment placement": ROOT / "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
         "material sidecar": ROOT / "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py",
         "static replacement": ROOT / "cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py",
-        "mesh editor": ROOT / "cdmw/ui/mesh_editor/workspace_shell_builder.py",
         "model library": ROOT / "cdmw/ui/model_library/preview.py",
         "new item model": ROOT / "cdmw/ui/new_item/item_preview.py",
         "new item effects": ROOT / "cdmw/ui/new_item/effect_placement_dialog.py",

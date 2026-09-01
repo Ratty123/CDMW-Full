@@ -1686,7 +1686,15 @@ class MeshEditorActionBarTests(unittest.TestCase):
         ):
             output = workspace.findChild(QToolButton, output_name)
             assert output is not None
-            self.assertFalse(output.isHidden(), output_name)
+            # High-level output actions are no longer exposed beside the live
+            # editor.  The Rust host reveals its revision-pinned result page
+            # only after Finish has been accepted.  Close Session remains a
+            # CDMW-owned escape action outside the embedded child.
+            self.assertEqual(
+                output_name != "MeshEditorCloseSessionButton",
+                output.isHidden(),
+                output_name,
+            )
         legacy_dotnet = workspace.findChild(QPushButton, "MeshEditorDotNetExperimentButton")
         assert legacy_dotnet is not None
         self.assertTrue(legacy_dotnet.isHidden())
@@ -4479,6 +4487,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    @unittest.skip("The direct Vortice Mesh Editor prewarm/reuse path is retired.")
     def test_mesh_editor_tab_never_reuses_a_helper_still_holding_the_prewarm_scene(self) -> None:
         """A resident helper is only reusable while it holds the cached scene.
 
@@ -4540,6 +4549,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    @unittest.skip("The direct Vortice Mesh Editor package-build path is retired.")
     def test_mesh_editor_tab_leaves_an_in_flight_package_build_alone(self) -> None:
         """A second start while a package is building must decide nothing.
 
@@ -4592,6 +4602,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    @unittest.skip("The direct Vortice Mesh Editor resident-reuse path is retired.")
     def test_mesh_editor_tab_reuses_a_helper_that_holds_the_cached_scene(self) -> None:
         """The other half of the contract: a real resident scene is still reused.
 
@@ -4636,6 +4647,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    @unittest.skip("Rust latest-wins reopen coverage replaces the Vortice handoff path.")
     def test_mesh_editor_tab_loads_a_second_mesh_into_a_released_resident_helper(self) -> None:
         """A second mesh must open in a Mesh Editor that already showed one.
 
@@ -5054,6 +5066,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    @unittest.skip("Bundled Rust preflight replaces the retired native/Vortice availability path.")
     def test_mesh_editor_tab_reports_native_editor_unavailable_and_disables_native_tools(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativeUnavailable"))

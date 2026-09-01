@@ -285,6 +285,39 @@ def _overlapping_uv_island_mesh() -> ParsedMesh:
 
 
 class MeshServiceEditingTests(unittest.TestCase):
+    def test_owned_shadow_session_adopts_its_disposable_working_mesh(self) -> None:
+        mesh = _quad_mesh()
+        service = MeshService()
+        base = _quad_mesh()
+        with (
+            patch(
+                "cdmw.services.mesh_service._clone_mesh_pair_for_session_open",
+                side_effect=AssertionError("adopted shadow must not clone a working pair"),
+            ),
+            patch(
+                "cdmw.services.mesh_service._clone_mesh_for_service_native_snapshot",
+                return_value=base,
+            ) as base_clone,
+        ):
+            view = service.open_edit_session(
+                mesh,
+                session_id="owned-shadow",
+                mode="edit",
+                load_layer_project=False,
+                adopt_owned_mesh=True,
+            )
+
+        self.assertIs(mesh, service.working_mesh(view.session_id, clone=False))
+        self.assertIs(base, service._session(view.session_id).base_mesh)
+        base_clone.assert_called_once()
+
+        with self.assertRaisesRegex(ValueError, "cannot load a mutable layer project"):
+            MeshService().open_edit_session(
+                _quad_mesh(),
+                load_layer_project=True,
+                adopt_owned_mesh=True,
+            )
+
     def test_native_screen_selection_payload_strips_legacy_camera_fields(self) -> None:
         payload: dict[str, object] = {}
 

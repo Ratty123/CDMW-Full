@@ -229,6 +229,7 @@ def _apply_spec_gloss_albedo(
     batch_index: int,
     flip_vertical: bool,
     base_map_max_dimension: int,
+    prefer_largest_source_domain: bool,
     preserve_base_alpha: bool,
     base_source: str,
     base_note: str,
@@ -260,7 +261,12 @@ def _apply_spec_gloss_albedo(
         output_dir,
         f"batch_{batch_index:03d}",
         flip_vertical=flip_vertical,
-        max_dimension=min(base_map_max_dimension, 512),
+        max_dimension=(
+            base_map_max_dimension
+            if prefer_largest_source_domain
+            else min(base_map_max_dimension, 512)
+        ),
+        prefer_largest_source_domain=prefer_largest_source_domain,
         preserve_base_alpha=preserve_base_alpha,
         cancelled=cancelled,
     )
@@ -373,6 +379,36 @@ def combine_preview_material(
         "transparent",
     }
     inputs = tuple(getattr(payload, "material_texture_inputs", ()) or ())
+    requested_output_channels = settings.requested_output_channels
+    normalized_requested_outputs = (
+        None
+        if requested_output_channels is None
+        else frozenset(
+            "metalness"
+            if str(channel or "").strip().casefold() == "metallic"
+            else str(channel or "").strip().casefold()
+            for channel in requested_output_channels
+            if str(channel or "").strip()
+        )
+    )
+
+    def output_requested(*channels: str) -> bool:
+        return normalized_requested_outputs is None or any(
+            str(channel or "").strip().casefold() in normalized_requested_outputs
+            for channel in channels
+        )
+
+    base_output_requested = output_requested("base", "albedo", "diffuse")
+    normal_output_requested = output_requested("normal")
+    height_output_requested = output_requested("height")
+    requested_material_slots = (
+        None
+        if normalized_requested_outputs is None
+        else frozenset(
+            normalized_requested_outputs
+            & {"occlusion", "roughness", "metalness", "specular"}
+        )
+    )
     shader_rule = _shader_rule_for_inputs(inputs, payload)
     shader_families = tuple(
         dict.fromkeys(
@@ -391,8 +427,17 @@ def combine_preview_material(
     parameter_count = sum(_material_parameter_count(item) for item in inputs)
     if parameter_count > 0:
         notes.append(f"sidecar parameters:{parameter_count}")
-    support_map_max_dimension = max(96, min(256, int(settings.support_map_max_dimension or 256)))
-    base_map_max_dimension = max(512, min(1024, support_map_max_dimension * 4))
+    requested_support_map_max_dimension = int(settings.support_map_max_dimension or 256)
+    support_map_max_dimension = max(
+        96,
+        min(2048, requested_support_map_max_dimension),
+    )
+    preserve_largest_source_domain = requested_support_map_max_dimension >= 2048
+    base_map_max_dimension = (
+        support_map_max_dimension
+        if preserve_largest_source_domain
+        else max(512, min(1024, support_map_max_dimension * 4))
+    )
 
     base_source = ""
     base_note = ""
@@ -401,12 +446,16 @@ def combine_preview_material(
     selected_base_low_authority = False
     # PAC emissive/intensity inputs are additive controls, never full albedo.
     # Only exact color/base bindings may seed the whole base surface.
-    base_candidates = [
-        item
-        for item in inputs
-        if str(item.slot_kind or "").strip().lower() in {"base", "color"}
-        and _visible_layer_role(item) != "emissive"
-    ]
+    base_candidates = (
+        [
+            item
+            for item in inputs
+            if str(item.slot_kind or "").strip().lower() in {"base", "color"}
+            and _visible_layer_role(item) != "emissive"
+        ]
+        if base_output_requested
+        else []
+    )
     for item in base_candidates:
         _raise_if_material_combiner_cancelled(cancelled)
         if _is_layer_only_base_color(item):
@@ -442,7 +491,11 @@ def combine_preview_material(
                 notes.append(f"base alpha preserved:{alpha_mode}")
             break
 
-    visible_layer_inputs = _select_visible_layer_inputs(inputs, selected_base=selected_base_item)
+    visible_layer_inputs = (
+        _select_visible_layer_inputs(inputs, selected_base=selected_base_item)
+        if base_output_requested
+        else ()
+    )
     force_layer_synthesis = bool(
         shader_rule == "static_multitextured"
         and any(_visible_layer_role(item) == "layer" for item in visible_layer_inputs)
@@ -482,7 +535,12 @@ def combine_preview_material(
             output_dir,
             f"batch_{batch_index:03d}",
             flip_vertical=prepare_flip_vertical,
-            max_dimension=min(base_map_max_dimension, 512),
+            max_dimension=(
+                base_map_max_dimension
+                if preserve_largest_source_domain
+                else min(base_map_max_dimension, 512)
+            ),
+            prefer_largest_source_domain=preserve_largest_source_domain,
             neutral_base_color=neutral_base_color,
             color_blending_mask_input=color_blending_mask,
             color_blending_tints=color_blending_tints,
@@ -500,35 +558,40 @@ def combine_preview_material(
     if not base_source and base_candidates:
         notes.append("no reliable base DDS")
 
-    base_source, base_note = _apply_spec_gloss_albedo(
-        inputs,
-        selected_base_image=selected_base_image,
-        output_dir=output_dir,
-        batch_index=batch_index,
-        flip_vertical=prepare_flip_vertical,
-        base_map_max_dimension=base_map_max_dimension,
-        preserve_base_alpha=preserve_base_alpha,
-        base_source=base_source,
-        base_note=base_note,
-        notes=notes,
-        outputs=outputs,
-        cancelled=cancelled,
-    )
+    if base_output_requested:
+        base_source, base_note = _apply_spec_gloss_albedo(
+            inputs,
+            selected_base_image=selected_base_image,
+            output_dir=output_dir,
+            batch_index=batch_index,
+            flip_vertical=prepare_flip_vertical,
+            base_map_max_dimension=base_map_max_dimension,
+            prefer_largest_source_domain=preserve_largest_source_domain,
+            preserve_base_alpha=preserve_base_alpha,
+            base_source=base_source,
+            base_note=base_note,
+            notes=notes,
+            outputs=outputs,
+            cancelled=cancelled,
+        )
 
     tangents_usable = bool(getattr(payload, "tangents_usable", False))
-    normal_source, normal_strength = _prepare_normal_source(
-        payload,
-        inputs,
-        settings=settings,
-        output_dir=output_dir,
-        batch_index=batch_index,
-        tangents_usable=tangents_usable,
-        flip_vertical=prepare_flip_vertical,
-        support_map_max_dimension=support_map_max_dimension,
-        notes=notes,
-        outputs=outputs,
-        cancelled=cancelled,
-    )
+    if normal_output_requested:
+        normal_source, normal_strength = _prepare_normal_source(
+            payload,
+            inputs,
+            settings=settings,
+            output_dir=output_dir,
+            batch_index=batch_index,
+            tangents_usable=tangents_usable,
+            flip_vertical=prepare_flip_vertical,
+            support_map_max_dimension=support_map_max_dimension,
+            notes=notes,
+            outputs=outputs,
+            cancelled=cancelled,
+        )
+    else:
+        normal_source, normal_strength = "", 0.0
 
     occlusion_source = ""
     roughness_source = ""
@@ -547,15 +610,19 @@ def combine_preview_material(
         "metalness": [],
         "specular": [],
     }
-    raw_material_candidates = [
-        item
-        for item in inputs
-        if (
-            str(item.slot_kind or "").strip().lower()
-            in {"material", "material_mask", "detail_mask", "occlusion", "ao", "roughness", "metalness", "specular", "glossiness"}
-        )
-        and not _is_visible_color_input(item)
-    ]
+    raw_material_candidates = (
+        [
+            item
+            for item in inputs
+            if (
+                str(item.slot_kind or "").strip().lower()
+                in {"material", "material_mask", "detail_mask", "occlusion", "ao", "roughness", "metalness", "specular", "glossiness"}
+            )
+            and not _is_visible_color_input(item)
+        ]
+        if requested_material_slots is None or requested_material_slots
+        else []
+    )
     material_candidates, culled_material_count = _select_material_candidates_for_payload(raw_material_candidates, payload)
     if culled_material_count > 0:
         notes.append(f"material inputs culled:{len(raw_material_candidates)}->{len(material_candidates)}")
@@ -620,7 +687,10 @@ def combine_preview_material(
             continue
         if mask_item is not None:
             layer_mask_channel = mask_channel or "r"
-            layer_weight = _layer_weight_from_parameters(item, has_base=bool(base_source))
+            layer_weight = _layer_weight_from_parameters(
+                item,
+                has_base=bool(base_source) or settings.base_output_available,
+            )
             if layer_weight <= 0.001:
                 notes.append(f"material layer disabled by colorBlendingFlag:{mask_label}")
             layer_mask_image = _image_reader(
@@ -645,6 +715,8 @@ def combine_preview_material(
             layer_weight=layer_weight,
             flip_vertical=prepare_flip_vertical,
             max_dimension=support_map_max_dimension,
+            prefer_largest_source_domain=preserve_largest_source_domain,
+            requested_slots=requested_material_slots,
             cancelled=cancelled,
         )
         if generated_slots:
@@ -684,6 +756,8 @@ def combine_preview_material(
             layers,
             output_dir,
             f"batch_{batch_index:03d}_combined",
+            max_dimension=support_map_max_dimension,
+            prefer_largest_source_domain=preserve_largest_source_domain,
             cancelled=cancelled,
         )
         if not combined_source:
@@ -709,7 +783,7 @@ def combine_preview_material(
     }
     slots = tuple(slot_name for slot_name in ("occlusion", "roughness", "metalness", "specular") if material_sources[slot_name])
     legacy_material_source = ""
-    if slots:
+    if slots and output_requested("legacy_material"):
         legacy_material_source = _generate_legacy_pbr_response_map(
             output_dir,
             f"batch_{batch_index:03d}_combined",
@@ -735,7 +809,16 @@ def combine_preview_material(
     height_source = ""
     height_amount = 0.0
     height_image = QImage()
-    height_candidates = [item for item in inputs if str(item.slot_kind or "").strip().lower() == "height"]
+    height_candidates = (
+        [
+            item
+            for item in inputs
+            if str(item.slot_kind or "").strip().lower() == "height"
+        ]
+        if height_output_requested
+        or (normal_output_requested and not normal_source)
+        else []
+    )
     best_height_contrast = -1.0
     best_height_index = -1
     selected_height_source = ""
@@ -777,7 +860,8 @@ def combine_preview_material(
             0.0,
             0.12,
         )
-        outputs.append("height")
+        if height_output_requested:
+            outputs.append("height")
         if height_parameter:
             notes.append(f"height scale:{height_multiplier:.2f} from {height_parameter}")
         if len(height_candidates) > 1:
@@ -798,6 +882,9 @@ def combine_preview_material(
             notes.append("normal derived from height")
         elif height_candidates:
             notes.append(f"height normal derivation skipped:{contrast:.3f}")
+    if not height_output_requested:
+        height_source = ""
+        height_amount = 0.0
 
     _raise_if_material_combiner_cancelled(cancelled)
     return MaterialPreviewCombinerResult(

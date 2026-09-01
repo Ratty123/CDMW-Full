@@ -12,19 +12,24 @@ internal sealed class ResidentInteractionTransactionLease : IDisposable
         string mappingName,
         byte[] payload,
         ulong gestureId,
+        ulong transactionSequence,
         string operatorGestureId,
         NativeMeshInteractionTool tool,
         ulong baseMeshRevision,
         ulong targetMeshRevision,
         ulong baseSelectionRevision,
         ulong targetSelectionRevision,
-        ulong topologyGeneration)
+        ulong topologyGeneration,
+        IReadOnlyDictionary<int, SortedDictionary<uint, (double X, double Y, double Z)>> geometry,
+        Dictionary<int, Dictionary<uint, Vec3>> baselineGeometry,
+        MeshViewport.ResidentMutationSelectionSnapshot baselineSelection)
     {
         _mapping = mapping;
         MappingName = mappingName;
         Length = payload.Length;
         Sha256 = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
         GestureId = gestureId;
+        TransactionSequence = transactionSequence;
         OperatorGestureId = operatorGestureId;
         Tool = tool;
         BaseMeshRevision = baseMeshRevision;
@@ -32,12 +37,16 @@ internal sealed class ResidentInteractionTransactionLease : IDisposable
         BaseSelectionRevision = baseSelectionRevision;
         TargetSelectionRevision = targetSelectionRevision;
         TopologyGeneration = topologyGeneration;
+        Geometry = geometry;
+        BaselineGeometry = baselineGeometry;
+        BaselineSelection = baselineSelection;
     }
 
     internal string MappingName { get; }
     internal int Length { get; }
     internal string Sha256 { get; }
     internal ulong GestureId { get; }
+    internal ulong TransactionSequence { get; }
     internal string OperatorGestureId { get; }
     internal NativeMeshInteractionTool Tool { get; }
     internal ulong BaseMeshRevision { get; }
@@ -45,18 +54,27 @@ internal sealed class ResidentInteractionTransactionLease : IDisposable
     internal ulong BaseSelectionRevision { get; }
     internal ulong TargetSelectionRevision { get; }
     internal ulong TopologyGeneration { get; }
+    internal IReadOnlyDictionary<int, SortedDictionary<uint, (double X, double Y, double Z)>> Geometry { get; }
+    internal Dictionary<int, Dictionary<uint, Vec3>> BaselineGeometry { get; }
+    internal MeshViewport.ResidentMutationSelectionSnapshot BaselineSelection { get; }
     internal long RequestId { get; set; }
+    internal DateTime PublishedUtc { get; set; }
+    internal int RetryCount { get; set; }
 
     internal static ResidentInteractionTransactionLease Create(
         byte[] payload,
         ulong gestureId,
+        ulong transactionSequence,
         string operatorGestureId,
         NativeMeshInteractionTool tool,
         ulong baseMeshRevision,
         ulong targetMeshRevision,
         ulong baseSelectionRevision,
         ulong targetSelectionRevision,
-        ulong topologyGeneration)
+        ulong topologyGeneration,
+        IReadOnlyDictionary<int, SortedDictionary<uint, (double X, double Y, double Z)>> geometry,
+        Dictionary<int, Dictionary<uint, Vec3>> baselineGeometry,
+        MeshViewport.ResidentMutationSelectionSnapshot baselineSelection)
     {
         ArgumentNullException.ThrowIfNull(payload);
         var name = $"Local\\CDMW.MeshInteraction.{Guid.NewGuid():N}";
@@ -74,13 +92,17 @@ internal sealed class ResidentInteractionTransactionLease : IDisposable
             name,
             payload,
             gestureId,
+            transactionSequence,
             operatorGestureId,
             tool,
             baseMeshRevision,
             targetMeshRevision,
             baseSelectionRevision,
             targetSelectionRevision,
-            topologyGeneration);
+            topologyGeneration,
+            geometry,
+            baselineGeometry,
+            baselineSelection);
     }
 
     internal Dictionary<string, object?> Descriptor(string sessionId) => new()
@@ -90,10 +112,15 @@ internal sealed class ResidentInteractionTransactionLease : IDisposable
         ["sha256"] = Sha256,
         ["session_id"] = sessionId,
         ["gesture_id"] = GestureId,
+        ["transaction_sequence"] = TransactionSequence,
+        ["tool"] = (uint)Tool,
         ["base_revision"] = BaseMeshRevision,
+        ["target_revision"] = TargetMeshRevision,
         ["base_selection_revision"] = BaseSelectionRevision,
+        ["target_selection_revision"] = TargetSelectionRevision,
         ["topology_generation"] = TopologyGeneration,
-        ["format_version"] = 1,
+        ["helper_process_id"] = Environment.ProcessId,
+        ["format_version"] = 2,
     };
 
     public void Dispose()

@@ -347,6 +347,10 @@ class MeshEditorStateMixin(
             has_archive_target=has_archive_target,
             output_task_active=self._mesh_editor_task_active(include_package_build=False),
         )
+        self._sync_mesh_editor_backend_controls(
+            has_active_session=has_standalone,
+            task_active=task_active or self._rust_editor_task_active(),
+        )
     def _handle_action_requested(self, action: object) -> None:
         if self.has_active_standalone_session():
             self._run_standalone_action(action)

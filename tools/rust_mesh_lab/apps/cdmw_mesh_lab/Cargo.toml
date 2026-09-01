@@ -15,6 +15,7 @@ cdmw_mesh = { path = "../../crates/cdmw_mesh" }
 cdmw_oracle = { path = "../../crates/cdmw_oracle" }
 cdmw_render_wgpu = { path = "../../crates/cdmw_render_wgpu" }
 cdmw_texture = { path = "../../crates/cdmw_texture" }
+cdmw_win32_embed = { path = "../../crates/cdmw_win32_embed" }
 crossbeam-channel.workspace = true
 egui.workspace = true
 egui-wgpu.workspace = true
@@ -22,11 +23,17 @@ egui-winit.workspace = true
 glam.workspace = true
 pollster.workspace = true
 rfd.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 wgpu.workspace = true
 winit.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

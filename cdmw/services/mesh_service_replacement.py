@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import copy
 import sys
+from collections.abc import Sequence
 
 from cdmw.domain.mesh import MeshObjectTransformState
+from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy, output_policy_state
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.mesh_service_state import (
     MeshPreparedWorkingMeshReplacement,
     _MeshEditSession,
+    _MeshHistorySnapshot,
+    _MeshMorphSessionState,
 )
 
 
@@ -53,6 +58,10 @@ class MeshWorkingReplacementServiceMixin:
         self,
         session_id: str,
         mesh: ParsedMesh,
+        *,
+        validation_output_policy: str | None = None,
+        validation_output_destination: str | None = None,
+        validation_output_destination_ready: bool | None = None,
     ) -> MeshPreparedWorkingMeshReplacement:
         """Build and validate an immutable candidate without publishing live state."""
 
@@ -86,7 +95,10 @@ class MeshWorkingReplacementServiceMixin:
             ):
                 _service_call("validate_obj_sidecar_source_identity", mesh, session.original_data)
             working_mesh = _service_call(
-                "apply_operation_channels_to_original", session.base_mesh, mesh
+                "apply_operation_channels_to_original",
+                session.base_mesh,
+                mesh,
+                active_lod_index=session.lod_index,
             )
             if session.original_data:
                 setattr(working_mesh, "_cdmw_original_data", session.original_data)
@@ -111,6 +123,39 @@ class MeshWorkingReplacementServiceMixin:
                 bool(getattr(working_mesh, "_cdmw_imported_from_obj", False))
                 and bool(getattr(working_mesh, "_cdmw_obj_sidecar_present", False))
             )
+            requested_output_policy = (
+                session.output_policy
+                if validation_output_policy is None
+                else str(validation_output_policy)
+            )
+            requested_output_destination = (
+                session.output_destination
+                if validation_output_destination is None
+                else str(validation_output_destination)
+            )
+            requested_output_destination_ready = (
+                session.output_destination_ready
+                if validation_output_destination_ready is None
+                else bool(validation_output_destination_ready)
+            )
+            validation_policy = output_policy_state(
+                session.mesh_format,
+                lod_index=session.lod_index,
+                requested_policy=requested_output_policy,
+                output_destination=requested_output_destination,
+                destination_ready=requested_output_destination_ready,
+            )
+            if validation_policy.policy.value != requested_output_policy:
+                raise RuntimeError(
+                    validation_policy.reason
+                    or "The requested Mesh Editor output policy is unavailable."
+                )
+            allowed_operation_lods = (
+                (session.lod_index,)
+                if validation_policy.policy is MeshOutputPolicy.FREE_EDIT
+                and validation_policy.authoring_enabled
+                else None
+            )
             validation_report = _service_call(
                 "validate_mesh_export",
                 working_mesh,
@@ -128,6 +173,11 @@ class MeshWorkingReplacementServiceMixin:
                 sidecar_warnings=sidecar_warnings,
                 edit_operations=edit_operations,
                 requires_edit_operations=requires_edit_operations,
+                allowed_operation_lod_indices=allowed_operation_lods,
+                require_operation_source_mapping=(
+                    validation_policy.policy is not MeshOutputPolicy.FREE_EDIT
+                ),
+                exact_output=(validation_policy.policy is not MeshOutputPolicy.FREE_EDIT),
             )
             return MeshPreparedWorkingMeshReplacement(
                 session_id=session.session_id,
@@ -149,6 +199,26 @@ class MeshWorkingReplacementServiceMixin:
     def commit_prepared_working_mesh_replacement(
         self,
         prepared: MeshPreparedWorkingMeshReplacement,
+        *,
+        history_action: str = "replace_working_mesh",
+        history_label: str = "Replace Working Mesh",
+        geometry_layers: Sequence[object] | None = None,
+        active_geometry_layer_id: str | None = None,
+        geometry_layer_copy_counter: int | None = None,
+        object_transform: MeshObjectTransformState | None = None,
+        output_policy: str | None = None,
+        output_destination: str | None = None,
+        output_destination_ready: bool | None = None,
+        expected_geometry_layer_revision: int | None = None,
+        expected_morph_session_revision: int | None = None,
+        morph_session_state: _MeshMorphSessionState | None = None,
+        morph_profile_root: str | None = None,
+        morph_profile_root_existed: bool | None = None,
+        morph_profile_files: Sequence[tuple[str, bytes]] | None = None,
+        morph_profile_after_root_existed: bool | None = None,
+        morph_profile_after_files: Sequence[tuple[str, bytes]] | None = None,
+        morph_profile_expected_fingerprint: str | None = None,
+        require_reversible_history: bool = False,
     ):
         """Atomically publish a validated replacement if its session is unchanged."""
 
@@ -163,27 +233,340 @@ class MeshWorkingReplacementServiceMixin:
                     "Prepared mesh replacement is stale: "
                     f"expected revision {prepared.expected_revision}, current revision {session.revision}."
                 )
+            if (
+                expected_geometry_layer_revision is not None
+                and session.geometry_layer_revision
+                != int(expected_geometry_layer_revision)
+            ):
+                raise RuntimeError(
+                    "Prepared mesh replacement geometry layers are stale: "
+                    f"expected revision {int(expected_geometry_layer_revision)}, "
+                    f"current revision {session.geometry_layer_revision}."
+                )
+            if (
+                expected_morph_session_revision is not None
+                and session.morph_session_revision
+                != int(expected_morph_session_revision)
+            ):
+                raise RuntimeError(
+                    "Prepared mesh replacement Morph & Refit state is stale: "
+                    f"expected revision {int(expected_morph_session_revision)}, "
+                    f"current revision {session.morph_session_revision}."
+                )
 
-            history_snapshot = _service_call("_snapshot", session, prefer_native=True)
-            history_snapshot.history_action = "replace_working_mesh"
-            history_snapshot.history_label = "Replace Working Mesh"
-            history_snapshot.retained_bytes = _service_call(
-                "_history_snapshot_retained_bytes", history_snapshot
-            )
+            if morph_session_state is not None and not isinstance(
+                morph_session_state,
+                _MeshMorphSessionState,
+            ):
+                raise TypeError("morph_session_state must be a captured Mesh Morph session state")
+
+            history_snapshot = None
+            try:
+                history_snapshot = _service_call("_snapshot", session, prefer_native=True)
+                history_snapshot.history_action = str(history_action or "replace_working_mesh")
+                history_snapshot.history_label = str(history_label or "Replace Working Mesh")
+                if session.native_editor_mesh_dirty:
+                    previous_native_snapshot = _service_call(
+                        "snapshot_native_mesh_submeshes",
+                        prepared.previous_working_mesh,
+                    )
+                    if previous_native_snapshot is None:
+                        raise RuntimeError(
+                            "Prepared mesh replacement could not capture the authoritative "
+                            "resident geometry for reversible history."
+                        )
+                    history_snapshot.mesh = None
+                    history_snapshot.native_submesh_snapshot = previous_native_snapshot
+                if geometry_layers is not None:
+                    history_snapshot.geometry_layers = tuple(copy.deepcopy(session.geometry_layers))
+                    history_snapshot.active_geometry_layer_id = session.active_geometry_layer_id
+                    history_snapshot.geometry_layer_copy_counter = session.geometry_layer_copy_counter
+                    history_snapshot.restore_geometry_layer_state = True
+                if output_policy is not None:
+                    history_snapshot.output_policy = session.output_policy
+                if output_destination is not None:
+                    history_snapshot.output_destination = session.output_destination
+                if output_destination_ready is not None:
+                    history_snapshot.output_destination_ready = session.output_destination_ready
+                if morph_session_state is not None:
+                    history_snapshot.morph_session_state = (
+                        self._capture_morph_session_state_locked(session)
+                    )
+                if morph_profile_root is not None:
+                    if (
+                        morph_profile_root_existed is None
+                        or morph_profile_files is None
+                        or not str(morph_profile_expected_fingerprint or "").strip()
+                    ):
+                        raise ValueError(
+                            "Morph profile history requires the prior tree and expected fingerprint"
+                        )
+                    if require_reversible_history and (
+                        morph_profile_after_root_existed is None
+                        or morph_profile_after_files is None
+                    ):
+                        raise ValueError(
+                            "Reversible Morph profile history requires the committed tree state"
+                        )
+                    history_snapshot.morph_profile_root = str(morph_profile_root)
+                    history_snapshot.morph_profile_root_existed = bool(morph_profile_root_existed)
+                    history_snapshot.morph_profile_files = tuple(
+                        (str(relative), bytes(data)) for relative, data in morph_profile_files
+                    )
+                    history_snapshot.morph_profile_expected_fingerprint = str(
+                        morph_profile_expected_fingerprint
+                    ).upper()
+                history_snapshot.retained_bytes = _service_call(
+                    "_history_snapshot_retained_bytes", history_snapshot
+                )
+                if require_reversible_history:
+                    history_limit = max(0, int(self.max_history_bytes or 0))
+                    if history_snapshot.retained_bytes > history_limit:
+                        raise RuntimeError(
+                            "Rust Edit Session cannot be committed because its reversible history "
+                            "snapshot exceeds the configured history memory limit."
+                        )
+                    after_snapshot = _MeshHistorySnapshot(
+                        mesh=prepared.working_mesh,
+                        mode=session.mode,
+                        selection=prepared.selection,
+                        edit_operations=tuple(prepared.edit_operations),
+                        geometry_layers=(
+                            tuple(copy.deepcopy(tuple(geometry_layers)))
+                            if geometry_layers is not None
+                            else None
+                        ),
+                        active_geometry_layer_id=(
+                            str(active_geometry_layer_id or "base")
+                            if geometry_layers is not None
+                            else None
+                        ),
+                        geometry_layer_copy_counter=(
+                            max(0, int(geometry_layer_copy_counter or 0))
+                            if geometry_layers is not None
+                            else None
+                        ),
+                        restore_geometry_layer_state=geometry_layers is not None,
+                        output_policy=(str(output_policy) if output_policy is not None else None),
+                        output_destination=(
+                            str(output_destination) if output_destination is not None else None
+                        ),
+                        output_destination_ready=(
+                            bool(output_destination_ready)
+                            if output_destination_ready is not None
+                            else None
+                        ),
+                        morph_profile_root=(
+                            str(morph_profile_root) if morph_profile_root is not None else None
+                        ),
+                        morph_profile_root_existed=(
+                            bool(morph_profile_after_root_existed)
+                            if morph_profile_root is not None
+                            else None
+                        ),
+                        morph_profile_files=(
+                            tuple(
+                                (str(relative), bytes(data))
+                                for relative, data in tuple(morph_profile_after_files or ())
+                            )
+                            if morph_profile_root is not None
+                            else None
+                        ),
+                        morph_profile_expected_fingerprint=(
+                            str(morph_profile_expected_fingerprint or "").upper()
+                            if morph_profile_root is not None
+                            else None
+                        ),
+                        morph_session_state=morph_session_state,
+                        object_transform=(
+                            copy.deepcopy(object_transform)
+                            if object_transform is not None
+                            else copy.deepcopy(session.object_transform)
+                        ),
+                    )
+                    after_retained_bytes = int(
+                        _service_call("_history_snapshot_retained_bytes", after_snapshot)
+                    )
+                    if after_retained_bytes > history_limit:
+                        raise RuntimeError(
+                            "Rust Edit Session cannot be committed because its result cannot fit "
+                            "the configured reversible history memory limit."
+                        )
+            except Exception:
+                if history_snapshot is not None:
+                    _service_call("_dispose_history_snapshot", history_snapshot)
+                raise
             old_undo = list(session.undo_stack)
             old_redo = list(session.redo_stack)
-            _service_call("_close_native_editor_session", session)
-            session.undo_stack.append(history_snapshot)
+            old_geometry_layers = session.geometry_layers
+            old_active_geometry_layer_id = session.active_geometry_layer_id
+            old_geometry_layer_copy_counter = session.geometry_layer_copy_counter
+            old_geometry_layer_revision = session.geometry_layer_revision
+            old_output_policy = session.output_policy
+            old_output_destination = session.output_destination
+            old_output_destination_ready = session.output_destination_ready
+            old_morph_session_revision = session.morph_session_revision
+            removed_after_commit: list[_MeshHistorySnapshot] = []
+            try:
+                next_undo: list[_MeshHistorySnapshot] = []
+                for snapshot in old_undo:
+                    if snapshot.native_editor_history:
+                        removed_after_commit.append(snapshot)
+                    else:
+                        next_undo.append(snapshot)
+                removed_after_commit.extend(old_redo)
+                next_undo.append(history_snapshot)
+                next_redo: list[_MeshHistorySnapshot] = []
+                max_count = max(1, int(self.max_history or 1))
+                max_bytes = max(0, int(self.max_history_bytes or 0))
+                while next_undo or next_redo:
+                    retained = int(
+                        _service_call("_history_stack_retained_bytes", next_undo)
+                    ) + int(_service_call("_history_stack_retained_bytes", next_redo))
+                    if len(next_undo) + len(next_redo) <= max_count and retained <= max_bytes:
+                        break
+                    trim_stack = next_undo if next_undo else next_redo
+                    removed_after_commit.append(trim_stack.pop(0))
+                if require_reversible_history and not any(
+                    snapshot is history_snapshot for snapshot in next_undo
+                ):
+                    raise RuntimeError(
+                        "Rust Edit Session cannot be committed because its reversible history "
+                        "entry would be evicted immediately."
+                    )
+            except Exception:
+                _service_call("_dispose_history_snapshot", history_snapshot)
+                raise
+            try:
+                _service_call("_close_native_editor_session", session)
+            except Exception:
+                _service_call("_dispose_history_snapshot", history_snapshot)
+                raise
             try:
                 _publish_prepared_replacement(session, prepared)
-            except Exception:
-                _restore_previous_replacement_state(session, prepared)
-                session.undo_stack[:] = old_undo
-                session.redo_stack[:] = old_redo
-                raise
-            _service_call("_clear_history_stack", session.redo_stack)
-            self._trim_session_history(session)
-            return self._session_view_locked(session)
+                if geometry_layers is not None:
+                    session.geometry_layers = tuple(copy.deepcopy(tuple(geometry_layers)))
+                    if active_geometry_layer_id is not None:
+                        session.active_geometry_layer_id = str(active_geometry_layer_id or "base")
+                    if geometry_layer_copy_counter is not None:
+                        session.geometry_layer_copy_counter = max(
+                            0,
+                            int(geometry_layer_copy_counter),
+                        )
+                    session.geometry_layer_revision = old_geometry_layer_revision + 1
+                if object_transform is not None:
+                    if not isinstance(object_transform, MeshObjectTransformState):
+                        raise TypeError("object_transform must be MeshObjectTransformState")
+                    session.object_transform = copy.deepcopy(object_transform)
+                if output_policy is not None:
+                    session.output_policy = str(output_policy)
+                if output_destination is not None:
+                    session.output_destination = str(output_destination)
+                if output_destination_ready is not None:
+                    session.output_destination_ready = bool(output_destination_ready)
+                if morph_session_state is not None:
+                    self._install_morph_session_state_locked(
+                        session,
+                        morph_session_state,
+                    )
+                if morph_profile_root is not None and morph_session_state is None:
+                    self._morph_sessions.pop(prepared.session_id, None)
+                session.undo_stack[:] = next_undo
+                session.redo_stack[:] = next_redo
+                committed_view = self._session_view_locked(session)
+            except Exception as commit_error:
+                close_error = None
+                try:
+                    _service_call("_close_native_editor_session", session)
+                except Exception as exc:
+                    close_error = exc
+                rollback_errors: list[Exception] = []
+                try:
+                    _restore_previous_replacement_state(session, prepared)
+                    session.geometry_layers = old_geometry_layers
+                    session.active_geometry_layer_id = old_active_geometry_layer_id
+                    session.geometry_layer_copy_counter = old_geometry_layer_copy_counter
+                    session.geometry_layer_revision = old_geometry_layer_revision
+                    session.output_policy = old_output_policy
+                    session.output_destination = old_output_destination
+                    session.output_destination_ready = old_output_destination_ready
+                    # The resident history was destroyed at the replacement
+                    # boundary. Keep only history entries that remain valid.
+                    session.undo_stack[:] = [
+                        snapshot for snapshot in old_undo if not snapshot.native_editor_history
+                    ]
+                    session.redo_stack[:] = [
+                        snapshot for snapshot in old_redo if not snapshot.native_editor_history
+                    ]
+                except Exception as exc:
+                    rollback_errors.append(exc)
+                morph_restore_error = None
+                if history_snapshot.morph_session_state is not None:
+                    try:
+                        self._install_morph_session_state_locked(
+                            session,
+                            history_snapshot.morph_session_state,
+                            reconcile_profiles=False,
+                            advance_revision=False,
+                        )
+                    except Exception as exc:  # pragma: no cover - catastrophic native rollback
+                        morph_restore_error = exc
+                try:
+                    _service_call("_dispose_history_snapshot", history_snapshot)
+                except Exception as exc:
+                    session.mesh_layer_autosave_error = f"{type(exc).__name__}: {exc}"
+                for invalid_marker in (
+                    snapshot
+                    for snapshot in (*old_undo, *old_redo)
+                    if snapshot.native_editor_history
+                ):
+                    try:
+                        _service_call("_dispose_history_snapshot", invalid_marker)
+                    except Exception as exc:
+                        session.mesh_layer_autosave_error = f"{type(exc).__name__}: {exc}"
+                if close_error is not None:
+                    session.mesh_layer_autosave_error = (
+                        f"{type(close_error).__name__}: {close_error}"
+                    )
+                if morph_restore_error is not None:
+                    rollback_errors.append(morph_restore_error)
+                if close_error is not None or rollback_errors:
+                    # A partial/failed rollback must never advertise the old
+                    # CAS tokens for state that may no longer match them.
+                    session.revision = max(
+                        int(session.revision),
+                        int(prepared.expected_revision),
+                    ) + 1
+                    session.geometry_layer_revision = max(
+                        int(session.geometry_layer_revision),
+                        int(old_geometry_layer_revision),
+                    ) + 1
+                    session.morph_session_revision = max(
+                        int(session.morph_session_revision),
+                        int(old_morph_session_revision),
+                    ) + 1
+                else:
+                    session.morph_session_revision = old_morph_session_revision
+                if rollback_errors:
+                    raise RuntimeError(
+                        "Prepared mesh replacement failed and its authoritative rollback also failed."
+                    ) from rollback_errors[0]
+                raise commit_error
+            disposed: set[int] = set()
+            for snapshot in removed_after_commit:
+                if id(snapshot) in disposed:
+                    continue
+                disposed.add(id(snapshot))
+                try:
+                    _service_call("_dispose_history_snapshot", snapshot)
+                except Exception as exc:
+                    session.mesh_layer_autosave_error = f"{type(exc).__name__}: {exc}"
+            if geometry_layers is not None:
+                try:
+                    self._schedule_mesh_layer_autosave(session)
+                except Exception as exc:
+                    session.mesh_layer_autosave_error = f"{type(exc).__name__}: {exc}"
+            return committed_view
 
 
 __all__ = ["MeshWorkingReplacementServiceMixin"]

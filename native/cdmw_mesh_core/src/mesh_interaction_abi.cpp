@@ -36,6 +36,7 @@ uint32_t cdmw_mesh_interaction_struct_size(uint32_t struct_id) {
     case CDMW_MESH_STRUCT_SELECTION_CHANGE_V1: return sizeof(CdmwMeshSelectionChangeV1);
     case CDMW_MESH_STRUCT_RESULT_V1: return sizeof(CdmwMeshInteractionResultV1);
     case CDMW_MESH_STRUCT_PROJECTION_V1: return sizeof(CdmwMeshProjectionV1);
+    case CDMW_MESH_STRUCT_PREPARE_SNAPSHOT_V1: return sizeof(CdmwMeshInteractionPrepareSnapshotV1);
     default: return 0;
     }
 }
@@ -59,6 +60,13 @@ uint32_t cdmw_mesh_interaction_sync(
     CdmwMeshInteractionResultV1* result
 ) {
     return cdmw_mesh_core::interaction_abi_sync(request, result);
+}
+
+uint32_t cdmw_mesh_interaction_prepare_snapshot_v1(
+    const CdmwMeshInteractionPrepareSnapshotV1* request,
+    CdmwMeshInteractionResultV1* result
+) {
+    return cdmw_mesh_core::interaction_abi_prepare_snapshot(request, result);
 }
 
 uint32_t cdmw_mesh_interaction_begin(

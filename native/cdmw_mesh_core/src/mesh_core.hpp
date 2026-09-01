@@ -25,6 +25,10 @@ uint32_t interaction_abi_sync(
     const CdmwMeshInteractionSyncV1* request,
     CdmwMeshInteractionResultV1* result
 );
+uint32_t interaction_abi_prepare_snapshot(
+    const CdmwMeshInteractionPrepareSnapshotV1* request,
+    CdmwMeshInteractionResultV1* result
+);
 uint32_t interaction_abi_begin(
     const CdmwMeshInteractionGestureV1* request,
     CdmwMeshInteractionResultV1* result

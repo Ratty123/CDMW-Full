@@ -718,7 +718,8 @@ def _pac_missing_rebuild_metadata(parsed_mesh: ParsedMesh | None) -> list[str]:
             missing.append(f"PAC submesh {index} is missing source vertex stride metadata.")
         if not getattr(submesh, "source_vertex_offsets", None):
             missing.append(f"PAC submesh {index} is missing source vertex record offsets.")
-        if int(getattr(submesh, "source_descriptor_offset", -1) or -1) < 0:
+        source_descriptor_offset = getattr(submesh, "source_descriptor_offset", None)
+        if int(-1 if source_descriptor_offset is None else source_descriptor_offset) < 0:
             missing.append(f"PAC submesh {index} is missing descriptor offset metadata.")
     return _dedupe(missing)
 

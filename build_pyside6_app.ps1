@@ -1037,6 +1037,194 @@ function Invoke-DotNetMeshEditorBuild {
     }
 }
 
+function Get-RustMeshEditorSourceFingerprint {
+    $rustRoot = Join-Path $scriptDir "tools\rust_mesh_lab"
+    $rustRootPrefix = [IO.Path]::GetFullPath($rustRoot)
+    $separator = [string][IO.Path]::DirectorySeparatorChar
+    if (-not $rustRootPrefix.EndsWith($separator)) {
+        $rustRootPrefix += $separator
+    }
+    $sourceFiles = @(
+        Get-ChildItem -LiteralPath $rustRoot -Recurse -File |
+            Where-Object {
+                $_.FullName -notlike "*\target\*" -and
+                ($_.Extension -eq ".rs" -or $_.Name -in @("Cargo.toml", "Cargo.lock", "rust-toolchain.toml"))
+            } |
+            Sort-Object FullName
+    )
+    if ($sourceFiles.Count -eq 0) {
+        throw "Rust Mesh Editor source fingerprint has no inputs under $rustRoot."
+    }
+    $rows = foreach ($sourceFile in $sourceFiles) {
+        $sourceFullName = [IO.Path]::GetFullPath($sourceFile.FullName)
+        if (-not $sourceFullName.StartsWith($rustRootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Rust Mesh Editor source fingerprint entry escaped its workspace: $sourceFullName"
+        }
+        # Path.GetRelativePath is unavailable under Windows PowerShell 5.1's
+        # .NET Framework runtime. Every enumerated source is already contained
+        # by the checked prefix, so a bounded substring is equivalent here.
+        $relative = $sourceFullName.Substring($rustRootPrefix.Length).Replace('\', '/')
+        "$relative|$(Get-Sha256Hex -LiteralPath $sourceFile.FullName)"
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return -join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($rows -join "`n")) | ForEach-Object { $_.ToString("x2") })
+    } finally {
+        $sha.Dispose()
+    }
+}
+
+function Assert-RustMeshEditorControlContract {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$RustContract
+    )
+
+    if ($RustContract.ok -ne $true) {
+        throw "The Rust Mesh Editor control contract did not report success."
+    }
+    if (
+        $RustContract.renderer -ne "wgpu_d3d12_rust" -or
+        $RustContract.edit_backend -ne "cdmw_rust_mesh_0.1"
+    ) {
+        throw "Rust Mesh Editor provenance does not match its CDMW integration contract."
+    }
+    if ([string]$RustContract.schema -ne "cdmw_rust_mesh_editor_control_contract_v2") {
+        throw "Rust Mesh Editor control-contract schema is not v2."
+    }
+
+    $rustRows = @($RustContract.rows)
+    if ([int]$RustContract.row_count -ne $rustRows.Count -or $rustRows.Count -eq 0) {
+        throw "Rust Mesh Editor control row count is invalid."
+    }
+
+    $seenKeys = @{}
+    $expectedFeedback = @("disabled", "enabled", "failure_reason", "hover", "pressed", "selected")
+    foreach ($rustRow in $rustRows) {
+        $rowKey = [string]$rustRow.key
+        if ([string]::IsNullOrWhiteSpace($rowKey) -or $seenKeys.ContainsKey($rowKey)) {
+            throw "Rust Mesh Editor control contract has an empty or duplicate key '$rowKey'."
+        }
+        $seenKeys[$rowKey] = $true
+        if ($rustRow.rust_implemented -ne $true) {
+            throw "Rust Mesh Editor row '$rowKey' is not implemented."
+        }
+        if ($rustRow.disposition -eq "deliberately_disabled" -and [string]::IsNullOrWhiteSpace([string]$rustRow.reason)) {
+            throw "Rust Mesh Editor disabled row '$rowKey' has no visible reason."
+        }
+        $feedback = @($rustRow.rust_state_feedback | ForEach-Object { [string]$_ } | Sort-Object)
+        if ((ConvertTo-Json $feedback -Compress) -cne (ConvertTo-Json $expectedFeedback -Compress)) {
+            throw "Rust Mesh Editor row '$rowKey' does not expose the required UI feedback states."
+        }
+    }
+}
+
+function Invoke-RustMeshEditorBuild {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Release", "Debug")]
+        [string]$Configuration,
+        [switch]$Required
+    )
+
+    $rustRoot = Join-Path $scriptDir "tools\rust_mesh_lab"
+    $manifestPath = Join-Path $rustRoot "Cargo.toml"
+    $toolchainPath = Join-Path $rustRoot "rust-toolchain.toml"
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or -not (Test-Path -LiteralPath $toolchainPath -PathType Leaf)) {
+        if ($Required) {
+            throw "Required pinned Rust Mesh Editor workspace is missing under $rustRoot."
+        }
+        Write-Warning "Pinned Rust Mesh Editor workspace was not found; skipping its build."
+        return
+    }
+    $cargo = Get-Command cargo -ErrorAction SilentlyContinue
+    if ($null -eq $cargo) {
+        if ($Required) {
+            throw "Cargo is required to build the Rust Mesh Editor."
+        }
+        Write-Warning "Cargo was not found; skipping the Rust Mesh Editor build."
+        return
+    }
+
+    $cargoArguments = @("build", "--locked", "-p", "cdmw_mesh_lab")
+    $profileDirectory = "debug"
+    if ($Configuration -eq "Release") {
+        $cargoArguments += "--release"
+        $profileDirectory = "release"
+    }
+    Write-Host "Building Rust Mesh Editor with the pinned toolchain ($Configuration)..."
+    Push-Location $rustRoot
+    try {
+        & $cargo.Source @cargoArguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "Rust Mesh Editor cargo build failed with exit code $LASTEXITCODE."
+        }
+    } finally {
+        Pop-Location
+    }
+
+    $builtExecutable = Join-Path $rustRoot "target\$profileDirectory\cdmw_mesh_lab.exe"
+    if (-not (Test-Path -LiteralPath $builtExecutable -PathType Leaf)) {
+        throw "Rust Mesh Editor build did not create $builtExecutable."
+    }
+    $outputDir = Join-Path $scriptDir "native\rust_mesh_editor\build\$Configuration"
+    Remove-PathWithRetries -LiteralPath $outputDir -Recurse
+    New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+    $stagedExecutable = Join-Path $outputDir "cdmw_mesh_lab.exe"
+    Copy-Item -LiteralPath $builtExecutable -Destination $stagedExecutable -Force
+
+    $controlContractPath = Join-Path $outputDir "cdmw_mesh_lab.control-contract.json"
+    $contractProcess = Start-Process -FilePath $stagedExecutable -ArgumentList @(
+        "--control-contract-json", "`"$controlContractPath`""
+    ) -Wait -PassThru -WindowStyle Hidden
+    if ($contractProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $controlContractPath -PathType Leaf)) {
+        throw "Rust Mesh Editor control-contract probe failed with exit code $($contractProcess.ExitCode)."
+    }
+    try {
+        # Windows PowerShell 5.1 treats UTF-8 without a BOM as the active ANSI
+        # code page, so decode the Rust-owned report explicitly.
+        $contract = Get-Content -LiteralPath $controlContractPath -Encoding UTF8 -Raw | ConvertFrom-Json
+    } catch {
+        throw "Mesh Editor control-contract output is not valid JSON: $($_.Exception.Message)"
+    }
+    Assert-RustMeshEditorControlContract -RustContract $contract
+
+    $sourceRevision = (& git -C $scriptDir rev-parse HEAD 2>$null | Select-Object -First 1)
+    if (-not $sourceRevision) {
+        $sourceRevision = "unavailable"
+    }
+    $cargoVersion = (& $cargo.Source --version | Select-Object -First 1)
+    $rustcVersion = (& rustc --version | Select-Object -First 1)
+    $provenance = [ordered]@{
+        schema = "cdmw_rust_mesh_editor_build_provenance_v1"
+        renderer = "wgpu_d3d12_rust"
+        edit_backend = "cdmw_rust_mesh_0.1"
+        protocol = "cdmw_rust_mesh_editor_protocol_v1"
+        authoring_package = "cdmw_rust_mesh_authoring_package_v1"
+        build_profile = $Configuration.ToLowerInvariant()
+        locked_dependencies = $true
+        executable = "cdmw_mesh_lab.exe"
+        control_contract = "cdmw_mesh_lab.control-contract.json"
+        control_contract_schema = "cdmw_rust_mesh_editor_control_contract_v2"
+        capabilities = @("embedded_child_window_v1")
+        source_revision = [string]$sourceRevision
+        source_tree_sha256 = Get-RustMeshEditorSourceFingerprint
+        cargo_lock_sha256 = Get-Sha256Hex -LiteralPath (Join-Path $rustRoot "Cargo.lock")
+        executable_sha256 = Get-Sha256Hex -LiteralPath $stagedExecutable
+        control_contract_sha256 = Get-Sha256Hex -LiteralPath $controlContractPath
+        cargo_version = [string]$cargoVersion
+        rustc_version = [string]$rustcVersion
+    }
+    $provenancePath = Join-Path $outputDir "cdmw_mesh_lab.manifest.json"
+    [IO.File]::WriteAllText(
+        $provenancePath,
+        ($provenance | ConvertTo-Json -Depth 8),
+        [Text.UTF8Encoding]::new($false)
+    )
+    Write-Host "Rust Mesh Editor staged: $stagedExecutable"
+    Write-Host "Rust Mesh Editor SHA-256: $($provenance.executable_sha256)"
+}
+
 . (Join-Path $scriptDir "scripts\full_archive_backend_release.ps1")
 
 function Invoke-NativeHelperPreparation {
@@ -1058,6 +1246,7 @@ function Invoke-NativeHelperPreparation {
         throw "Native helper build failed with exit code $LASTEXITCODE."
     }
     Invoke-DotNetMeshEditorBuild -Configuration $Configuration -Required:$RequireDotNet
+    Invoke-RustMeshEditorBuild -Configuration $Configuration -Required:$RequireDotNet
     Invoke-FullArchiveBackendBuild `
         -Configuration $Configuration `
         -Clean:$Clean `
@@ -1107,7 +1296,7 @@ function Write-BuildSummary {
     Write-Host "  Work cache: $pyInstallerWorkDir"
     Write-Host "  Temporary output: $pyInstallerDistDir"
     Write-Host "  Final output: $OutputPath"
-    Write-Host "  .NET helpers: self-contained Mesh Editor plus standalone archive worker/DLL"
+    Write-Host "  Native helpers: Rust Mesh Editor, Vortice Archive Preview, and standalone archive worker/DLL"
     Write-Host ""
 }
 
@@ -1124,7 +1313,7 @@ if ($NativeHelpersOnly) {
     }
     $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
     if ($DescribeOnly) {
-        Write-Host "Native helper-only gate: rebuild $nativeConfig helpers, publish the self-contained .NET Mesh Editor and full archive worker/DLL, then run the hidden d3d11_vortice_shader smoke and full archive synthetic gates."
+        Write-Host "Native helper-only gate: rebuild $nativeConfig helpers, publish the pinned Rust Mesh Editor and Vortice Archive Preview plus full archive worker/DLL, then run their contract/provenance checks and existing synthetic gates."
         return
     }
     Invoke-NativeHelperPreparation `
@@ -1196,7 +1385,7 @@ if ($LASTEXITCODE -ne 0) {
 # cannot read fails in seconds rather than at the end of the compile.
 Write-BuildProgress -Percent 4 -Stage "Reading .NET helper protocol contract"
 $helperContractPreflight = Get-DotNetMeshEditorHelperContract
-Write-Host "Mesh Editor helper contract: $($helperContractPreflight.Capabilities.Count) capabilities, protocol $($helperContractPreflight.ProtocolVersion), version $($helperContractPreflight.SemanticVersion)."
+Write-Host "Vortice Archive Preview helper contract: $($helperContractPreflight.Capabilities.Count) capabilities, protocol $($helperContractPreflight.ProtocolVersion), version $($helperContractPreflight.SemanticVersion)."
 
 if ($BuildProfile -eq "release") {
     Write-BuildProgress -Percent 4 -Stage "Verifying release dependency pins"
@@ -1240,7 +1429,8 @@ if (-not $SkipNativeBuild) {
     Write-BuildProgress -Percent 16 -Stage "Native helper build skipped"
 }
 
-# PyInstaller packages the renderer from the staging tree, not from the .NET
+# PyInstaller packages the retained Vortice Archive Preview renderer from the
+# staging tree, not from the .NET
 # build output, so a skipped or failed publish leaves the previous helper in
 # place and the build ships it without complaint.  That is silent: the app then
 # runs an old shader while the source tree looks correct.  Compare the staged
@@ -1249,14 +1439,14 @@ $stagedShader = Join-Path $scriptDir "native\cdmw_mesh_dotnet_editor\build\$(if 
 $sourceShader = Join-Path $scriptDir "tools\dotnet_mesh_editor_experiment\D3D11MaterialShaders.hlsl"
 if (Test-Path -LiteralPath $sourceShader -PathType Leaf) {
     if (-not (Test-Path -LiteralPath $stagedShader -PathType Leaf)) {
-        throw "The packaged Mesh Editor renderer is missing its shader: $stagedShader`nRun a build without -SkipNativeBuild, or publish the helper:`n  dotnet publish tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o native\cdmw_mesh_dotnet_editor\build\Release"
+        throw "The packaged Vortice Archive Preview renderer is missing its shader: $stagedShader`nRun a build without -SkipNativeBuild, or publish the helper:`n  dotnet publish tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o native\cdmw_mesh_dotnet_editor\build\Release"
     }
     $stagedHash = Get-Sha256Hex -LiteralPath $stagedShader
     $sourceHash = Get-Sha256Hex -LiteralPath $sourceShader
     if ($stagedHash -ne $sourceHash) {
-        throw "The staged Mesh Editor shader is stale, so this build would ship an old renderer.`n  staged: $stagedShader`n  source: $sourceShader`nRepublish the helper:`n  dotnet publish tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o native\cdmw_mesh_dotnet_editor\build\Release"
+        throw "The staged Vortice Archive Preview shader is stale, so this build would ship an old preview renderer.`n  staged: $stagedShader`n  source: $sourceShader`nRepublish the helper:`n  dotnet publish tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o native\cdmw_mesh_dotnet_editor\build\Release"
     }
-    Write-Host "Staged Mesh Editor shader matches the source tree."
+    Write-Host "Staged Vortice Archive Preview shader matches the source tree."
 }
 
 $pyInstallerArgs = @(

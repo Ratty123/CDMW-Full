@@ -175,6 +175,19 @@ class PacXmlProfileTests(unittest.TestCase):
         self.assertTrue(is_stock_runtime_texture_path("character/texture/cd_temp_r_m.dds"))
         self.assertTrue(is_stock_runtime_texture_path("cd_texturelayer_003_0001_sp.dds"))
 
+    def test_standard_skinned_mesh_shader_is_not_a_skin_profile(self) -> None:
+        standard = classify_pac_xml_profile(
+            "character/modelproperty/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0002_02.pac_xml",
+            '<Material _materialName="SkinnedMeshStandard_Ver2"/>',
+        )
+        skin = classify_pac_xml_profile(
+            "character/modelproperty/1_pc/1_phm/head/head/cd_phm_00_head_00_0001.pac_xml",
+            '<Material _materialName="SkinnedMeshSkin_Ver2"/>',
+        )
+
+        self.assertNotIn("skin", standard.profiles)
+        self.assertIn("skin", skin.profiles)
+
     def test_shader_family_and_texture_contract_validation(self) -> None:
         self.assertEqual("Cloth", classify_pac_xml_shader_family("SkinnedMeshTornCloth_Ver2"))
         self.assertEqual("EyeCover", classify_pac_xml_shader_family("SkinnedMeshEyeCover_Ver2"))

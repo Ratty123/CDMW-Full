@@ -1,6 +1,9 @@
 #![forbid(unsafe_code)]
 
 mod camera;
+mod cdmw_session;
+mod cdmw_ui;
+mod control_contract;
 #[cfg(test)]
 mod headless_stress_tests;
 #[cfg(test)]
@@ -10,32 +13,41 @@ mod headless_ui_tests;
 mod loader;
 mod viewport;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use camera::{OrbitCamera, StandardView};
 use cdmw_archive::ArchiveCatalog;
 use cdmw_formats::MeshDocument;
 use cdmw_interaction::{
-    OperatorController, SelectionCommand, SelectionDomain, SelectionOperation, SelectionQueryStats,
-    selection_after_command,
+    OperatorController, SelectionCommand, SelectionDomain, SelectionOperation, SelectionQuery,
+    SelectionQueryStats, SelectionShape, query_selection, selection_after_command,
 };
-#[cfg(test)]
-use cdmw_mesh::Selection;
-use cdmw_mesh::{History, MeshError, VertexHandle, WorkingMesh};
-use cdmw_render_wgpu::{MaterialPreviewFactors, ViewMode, WindowRenderer};
+use cdmw_mesh::{
+    DrawSnapshot, History, MeshError, Provenance, Selection, VertexHandle, WorkingMesh,
+};
+use cdmw_render_wgpu::{
+    HeadlessFrameStats, HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput,
+    HeadlessMaterialFactors, HeadlessMaterialTexture, MaterialPreviewFactors, ViewMode,
+    WindowRenderer,
+};
+use cdmw_session::{CdmwBridge, HostEvent, LoadedCdmwSessionPackage, SessionMaterialPresentation};
 use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
 use glam::{Quat, Vec2, Vec3};
-use loader::{LoadEvent, LoadedMesh, Loader};
-use std::collections::VecDeque;
+use loader::{LoadEvent, LoadedMaterialFactors, LoadedMesh, LoadedTexture, Loader};
+use serde_json::{Value, json};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 use tracing::error;
 use viewport::{
-    BrushFalloff, EditGesture, GizmoAxis, PointerEventQueue, SelectionGesture, SelectionTool,
-    ViewportPointerEvent, ViewportProjection, ViewportTool, brush_vertex_weights,
+    BrushFalloff, EditGesture, GizmoAxis, PointerEventQueue, SculptSymmetry, SculptSymmetryMap,
+    SelectionGesture, SelectionTool, ViewportPointerEvent, ViewportProjection, ViewportTool,
+    brush_vertex_weights, brush_vertex_weights_unclipped,
 };
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, WindowEvent};
@@ -50,33 +62,571 @@ fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .with_target(false)
+        .with_writer(std::io::stderr)
         .try_init()
         .ok();
-    let (mesh_path, archive_root) = parse_startup_paths();
+    let options = parse_startup_options()?;
+    if let Some(path) = options.control_contract_json {
+        control_contract::write_control_contract(&path)?;
+        return Ok(());
+    }
+    if let Some(manifest_path) = options.capture_cdmw_session {
+        let output_path = options
+            .capture_output
+            .as_deref()
+            .context("--capture-cdmw-session requires --capture-output <bmp>")?;
+        capture_cdmw_session(
+            &manifest_path,
+            output_path,
+            options.capture_report_json.as_deref(),
+        )?;
+        return Ok(());
+    }
     let event_loop = EventLoop::new().context("failed to create the Windows event loop")?;
     event_loop.set_control_flow(ControlFlow::Wait);
-    let mut application = LabApplication::new(mesh_path, archive_root);
+    let mut application = if let Some(manifest_path) = options.cdmw_session {
+        let (bridge, document) = CdmwBridge::open(&manifest_path).with_context(|| {
+            format!(
+                "failed to open CDMW Rust session {}",
+                manifest_path.display()
+            )
+        })?;
+        LabApplication::new_cdmw(bridge, document, options.embedded_parent_hwnd)?
+    } else {
+        LabApplication::new(options.mesh_path, options.archive_root)
+    };
     event_loop
         .run_app(&mut application)
         .context("Rust Mesh Lab event loop failed")?;
     Ok(())
 }
 
-fn parse_startup_paths() -> (Option<PathBuf>, Option<PathBuf>) {
-    let mut arguments = env::args().skip(1);
-    let mut mesh_path = None;
-    let mut archive_root = None;
+#[derive(Debug, Default)]
+struct StartupOptions {
+    mesh_path: Option<PathBuf>,
+    archive_root: Option<PathBuf>,
+    cdmw_session: Option<PathBuf>,
+    capture_cdmw_session: Option<PathBuf>,
+    capture_output: Option<PathBuf>,
+    capture_report_json: Option<PathBuf>,
+    control_contract_json: Option<PathBuf>,
+    embedded_parent_hwnd: Option<u64>,
+}
+
+fn parse_startup_options() -> Result<StartupOptions> {
+    parse_startup_options_from(env::args().skip(1))
+}
+
+fn parse_startup_options_from(
+    arguments: impl IntoIterator<Item = String>,
+) -> Result<StartupOptions> {
+    let mut arguments = arguments.into_iter();
+    let mut options = StartupOptions::default();
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
-            "--mesh" => mesh_path = arguments.next().map(PathBuf::from),
-            "--archive-root" => archive_root = arguments.next().map(PathBuf::from),
+            "--mesh" => options.mesh_path = Some(required_path(&mut arguments, "--mesh")?),
+            "--archive-root" => {
+                options.archive_root = Some(required_path(&mut arguments, "--archive-root")?);
+            }
+            "--cdmw-session" => {
+                options.cdmw_session = Some(required_path(&mut arguments, "--cdmw-session")?);
+            }
+            "--capture-cdmw-session" => {
+                options.capture_cdmw_session =
+                    Some(required_path(&mut arguments, "--capture-cdmw-session")?);
+            }
+            "--capture-output" => {
+                options.capture_output = Some(required_path(&mut arguments, "--capture-output")?);
+            }
+            "--capture-report-json" => {
+                options.capture_report_json =
+                    Some(required_path(&mut arguments, "--capture-report-json")?);
+            }
+            "--control-contract-json" => {
+                options.control_contract_json =
+                    Some(required_path(&mut arguments, "--control-contract-json")?);
+            }
+            "--embedded-parent-hwnd" => {
+                let value = arguments
+                    .next()
+                    .context("--embedded-parent-hwnd requires a decimal HWND")?;
+                let hwnd = value
+                    .parse::<u64>()
+                    .with_context(|| format!("invalid --embedded-parent-hwnd value '{value}'"))?;
+                if hwnd == 0 {
+                    bail!("--embedded-parent-hwnd must be greater than zero");
+                }
+                options.embedded_parent_hwnd = Some(hwnd);
+            }
             _ => {}
         }
     }
-    (mesh_path, archive_root)
+    if options.cdmw_session.is_some()
+        && (options.mesh_path.is_some()
+            || options.archive_root.is_some()
+            || options.capture_cdmw_session.is_some())
+    {
+        bail!("--cdmw-session cannot be combined with standalone or capture options");
+    }
+    if options.capture_cdmw_session.is_some()
+        && (options.mesh_path.is_some()
+            || options.archive_root.is_some()
+            || options.control_contract_json.is_some())
+    {
+        bail!("--capture-cdmw-session cannot be combined with windowed or contract options");
+    }
+    if options.capture_cdmw_session.is_some() != options.capture_output.is_some() {
+        bail!("--capture-cdmw-session and --capture-output must be supplied together");
+    }
+    if options.capture_report_json.is_some() && options.capture_cdmw_session.is_none() {
+        bail!("--capture-report-json requires --capture-cdmw-session");
+    }
+    if options.embedded_parent_hwnd.is_some() && options.cdmw_session.is_none() {
+        bail!("--embedded-parent-hwnd requires --cdmw-session");
+    }
+    Ok(options)
 }
 
-#[derive(Debug, Clone, Copy)]
+fn required_path(arguments: &mut impl Iterator<Item = String>, option: &str) -> Result<PathBuf> {
+    arguments
+        .next()
+        .filter(|value| !value.trim().is_empty())
+        .map(PathBuf::from)
+        .with_context(|| format!("{option} requires a path"))
+}
+
+#[derive(Debug, Clone)]
+struct CdmwCapturePaths {
+    textured: PathBuf,
+    base_color: PathBuf,
+    part_id: PathBuf,
+    report: PathBuf,
+}
+
+static CAPTURE_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Debug)]
+struct CdmwCapturePublication {
+    final_paths: CdmwCapturePaths,
+    temporary_paths: CdmwCapturePaths,
+    published_paths: Vec<PathBuf>,
+    committed: bool,
+}
+
+impl CdmwCapturePublication {
+    fn reserve(final_paths: CdmwCapturePaths) -> Result<Self> {
+        let mut reserved = Vec::with_capacity(4);
+        for final_path in final_paths.iter() {
+            if let Err(error) = reject_existing_capture_target(final_path) {
+                for path in reserved {
+                    let _ = fs::remove_file(path);
+                }
+                return Err(error);
+            }
+            match reserve_capture_temporary(final_path) {
+                Ok(path) => reserved.push(path),
+                Err(error) => {
+                    for path in reserved {
+                        let _ = fs::remove_file(path);
+                    }
+                    return Err(error);
+                }
+            }
+        }
+        let temporary_paths = CdmwCapturePaths {
+            textured: reserved.remove(0),
+            base_color: reserved.remove(0),
+            part_id: reserved.remove(0),
+            report: reserved.remove(0),
+        };
+        Ok(Self {
+            final_paths,
+            temporary_paths,
+            published_paths: Vec::new(),
+            committed: false,
+        })
+    }
+
+    fn publish(mut self) -> Result<CdmwCapturePaths> {
+        for (temporary, final_path) in self.temporary_paths.iter().zip(self.final_paths.iter()) {
+            reject_existing_capture_target(final_path)?;
+            fs::rename(temporary, final_path).with_context(|| {
+                format!(
+                    "failed to atomically publish capture {}",
+                    final_path.display()
+                )
+            })?;
+            self.published_paths.push(final_path.to_path_buf());
+        }
+        self.committed = true;
+        Ok(self.final_paths.clone())
+    }
+}
+
+impl Drop for CdmwCapturePublication {
+    fn drop(&mut self) {
+        for path in self.temporary_paths.iter() {
+            let _ = fs::remove_file(path);
+        }
+        if !self.committed {
+            for path in &self.published_paths {
+                let _ = fs::remove_file(path);
+            }
+        }
+    }
+}
+
+impl CdmwCapturePaths {
+    fn iter(&self) -> impl Iterator<Item = &Path> {
+        [
+            self.textured.as_path(),
+            self.base_color.as_path(),
+            self.part_id.as_path(),
+            self.report.as_path(),
+        ]
+        .into_iter()
+    }
+}
+
+fn cdmw_capture_paths(output: &Path, report: Option<&Path>) -> Result<CdmwCapturePaths> {
+    if output
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_none_or(|extension| !extension.eq_ignore_ascii_case("bmp"))
+    {
+        bail!("--capture-output must name a .bmp file");
+    }
+    let stem = output
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.trim().is_empty())
+        .context("--capture-output must have a file name")?;
+    let parent = output.parent().unwrap_or_else(|| Path::new(""));
+    let report = report.map_or_else(
+        || parent.join(format!("{stem}-report.json")),
+        Path::to_path_buf,
+    );
+    if report
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_none_or(|extension| !extension.eq_ignore_ascii_case("json"))
+    {
+        bail!("--capture-report-json must name a .json file");
+    }
+    Ok(CdmwCapturePaths {
+        textured: output.to_path_buf(),
+        base_color: parent.join(format!("{stem}-base-color.bmp")),
+        part_id: parent.join(format!("{stem}-part-id.bmp")),
+        report,
+    })
+}
+
+fn validated_cdmw_capture_paths(
+    paths: &CdmwCapturePaths,
+    session_root: &Path,
+) -> Result<CdmwCapturePaths> {
+    let session_root = fs::canonicalize(session_root).with_context(|| {
+        format!(
+            "failed to canonicalize CDMW session root {}",
+            session_root.display()
+        )
+    })?;
+    let mut resolved = Vec::with_capacity(4);
+    let mut distinct = HashSet::with_capacity(4);
+    for path in paths.iter() {
+        let path = canonical_new_capture_target(path, &session_root)?;
+        let key = path.to_string_lossy().to_lowercase();
+        if !distinct.insert(key) {
+            bail!("capture outputs must name four distinct files");
+        }
+        resolved.push(path);
+    }
+    Ok(CdmwCapturePaths {
+        textured: resolved.remove(0),
+        base_color: resolved.remove(0),
+        part_id: resolved.remove(0),
+        report: resolved.remove(0),
+    })
+}
+
+fn canonical_new_capture_target(path: &Path, session_root: &Path) -> Result<PathBuf> {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        env::current_dir()
+            .context("failed to resolve the current capture directory")?
+            .join(path)
+    };
+    if absolute
+        .components()
+        .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        bail!(
+            "capture output paths cannot contain parent traversal: {}",
+            path.display()
+        );
+    }
+    let file_name = absolute
+        .file_name()
+        .filter(|name| !name.is_empty())
+        .context("capture output must have a file name")?
+        .to_owned();
+    let requested_parent = absolute
+        .parent()
+        .context("capture output has no parent directory")?;
+    let mut existing_parent = requested_parent;
+    let mut missing_components = Vec::new();
+    while !existing_parent.exists() {
+        let name = existing_parent
+            .file_name()
+            .context("capture output has no existing ancestor")?;
+        missing_components.push(name.to_owned());
+        existing_parent = existing_parent
+            .parent()
+            .context("capture output has no existing ancestor")?;
+    }
+    let mut resolved_parent = fs::canonicalize(existing_parent).with_context(|| {
+        format!(
+            "failed to canonicalize capture directory {}",
+            existing_parent.display()
+        )
+    })?;
+    for component in missing_components.iter().rev() {
+        resolved_parent.push(component);
+    }
+    if resolved_parent == session_root || resolved_parent.starts_with(session_root) {
+        bail!(
+            "capture outputs must be outside the CDMW session directory {}",
+            session_root.display()
+        );
+    }
+    fs::create_dir_all(&resolved_parent).with_context(|| {
+        format!(
+            "failed to create capture directory {}",
+            resolved_parent.display()
+        )
+    })?;
+    resolved_parent = fs::canonicalize(&resolved_parent).with_context(|| {
+        format!(
+            "failed to canonicalize capture directory {}",
+            resolved_parent.display()
+        )
+    })?;
+    if resolved_parent == session_root || resolved_parent.starts_with(session_root) {
+        bail!(
+            "capture outputs must be outside the CDMW session directory {}",
+            session_root.display()
+        );
+    }
+    let target = resolved_parent.join(file_name);
+    reject_existing_capture_target(&target)?;
+    Ok(target)
+}
+
+fn reject_existing_capture_target(path: &Path) -> Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => bail!(
+            "capture output already exists and will not be overwritten: {}",
+            path.display()
+        ),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error)
+            .with_context(|| format!("failed to inspect capture output {}", path.display())),
+    }
+}
+
+fn reserve_capture_temporary(final_path: &Path) -> Result<PathBuf> {
+    let parent = final_path
+        .parent()
+        .context("capture output has no parent directory")?;
+    let file_name = final_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .context("capture output file name is not valid Unicode")?;
+    for _ in 0..128 {
+        let sequence = CAPTURE_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let temporary = parent.join(format!(
+            ".{file_name}.cdmw-capture-{}-{sequence}.tmp",
+            std::process::id()
+        ));
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+        {
+            Ok(_) => return Ok(temporary),
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "failed to reserve capture temporary file {}",
+                        temporary.display()
+                    )
+                });
+            }
+        }
+    }
+    bail!(
+        "failed to reserve a unique capture temporary beside {}",
+        final_path.display()
+    )
+}
+
+fn frame_stats_json(stats: &HeadlessFrameStats) -> Value {
+    json!({
+        "non_background_pixels": stats.non_background_pixels,
+        "mean_luma_255": stats.mean_luma_255,
+        "p05_luma_255": stats.p05_luma_255,
+        "p50_luma_255": stats.p50_luma_255,
+        "p95_luma_255": stats.p95_luma_255,
+        "mean_chroma_255": stats.mean_chroma_255,
+        "near_white_percent": stats.near_white_percent,
+        "light_pixel_percent": stats.light_pixel_percent,
+    })
+}
+
+fn capture_cdmw_session(
+    manifest_path: &Path,
+    output_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<()> {
+    let requested_paths = cdmw_capture_paths(output_path, report_path)?;
+    let mut package = LoadedCdmwSessionPackage::load(manifest_path).with_context(|| {
+        format!(
+            "failed to load CDMW Rust capture package {}",
+            manifest_path.display()
+        )
+    })?;
+    let paths = validated_cdmw_capture_paths(&requested_paths, package.root())?;
+    let publication = CdmwCapturePublication::reserve(paths.clone())?;
+    let temporary_paths = &publication.temporary_paths;
+    let source_lod_index = package.source_lod_index();
+    let lod_count = package.document().lods.len();
+    let snapshot = WorkingMesh::from_document_lod(package.document(), source_lod_index)
+        .with_context(|| format!("capture could not create LOD{source_lod_index}"))?
+        .draw_snapshot();
+    let session_id = package.manifest().session_id.clone();
+    let process_generation = package.manifest().process_generation;
+    let source_path = package
+        .manifest()
+        .source
+        .get("path")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let textures = package.take_textures();
+    let presentations = package.take_material_presentations();
+    let owned_factors = presentations
+        .iter()
+        .map(|presentation| {
+            (
+                cdmw_material_preview_factors(presentation),
+                cdmw_material_ownership(presentation, lod_count),
+            )
+        })
+        .collect::<Vec<_>>();
+    let texture_uploads = textures
+        .iter()
+        .map(|texture| HeadlessMaterialTexture {
+            bytes: &texture.bytes,
+            role: texture.role,
+            material_indices_by_lod: &texture.material_indices_by_lod,
+        })
+        .collect::<Vec<_>>();
+    let factor_uploads = owned_factors
+        .iter()
+        .map(|(factors, ownership)| HeadlessMaterialFactors {
+            factors: *factors,
+            material_indices_by_lod: ownership,
+        })
+        .collect::<Vec<_>>();
+    let report = pollster::block_on(cdmw_render_wgpu::run_headless_material_capture(
+        &snapshot,
+        &texture_uploads,
+        &factor_uploads,
+        HeadlessMaterialCaptureOptions {
+            lod_index: source_lod_index,
+            ..HeadlessMaterialCaptureOptions::default()
+        },
+        HeadlessMaterialCaptureOutput {
+            textured_bmp: &temporary_paths.textured,
+            base_color_bmp: &temporary_paths.base_color,
+            part_id_bmp: &temporary_paths.part_id,
+        },
+    ))
+    .context("CDMW Rust material capture failed")?;
+    let owners = report
+        .owner_coverage
+        .iter()
+        .map(|owner| {
+            json!({
+                "material_index": owner.material_index,
+                "part_id": owner.part_id,
+                "pixel_count": owner.pixel_count,
+                "frame_percent": owner.frame_percent,
+                "textured_mean_luma_255": owner.textured_mean_luma_255,
+                "textured_mean_chroma_255": owner.textured_mean_chroma_255,
+                "base_color_mean_luma_255": owner.base_color_mean_luma_255,
+                "base_color_mean_chroma_255": owner.base_color_mean_chroma_255,
+            })
+        })
+        .collect::<Vec<_>>();
+    let payload = json!({
+        "schema": "cdmw_rust_mesh_material_capture_v1",
+        "renderer": "wgpu_d3d12_rust",
+        "session_id": session_id,
+        "process_generation": process_generation,
+        "source_path": source_path,
+        "source_lod_index": source_lod_index,
+        "adapter": {
+            "name": report.adapter.name,
+            "backend": report.adapter.backend,
+            "device_type": report.adapter.device_type,
+            "driver": report.adapter.driver,
+            "driver_info": report.adapter.driver_info,
+        },
+        "quality": {
+            "sample_count": report.sample_count,
+            "anisotropy_clamp": report.anisotropy_clamp,
+        },
+        "dimensions": [report.width, report.height],
+        "dds_textures_uploaded": report.dds_textures_uploaded,
+        "texture_bound_materials": report.texture_bound_materials,
+        "active_material_bindings": report.active_material_bindings,
+        "material_ranges_rendered": report.material_ranges_rendered,
+        "frames": {
+            "textured": frame_stats_json(&report.textured),
+            "base_color": frame_stats_json(&report.base_color),
+            "part_id": frame_stats_json(&report.part_id),
+        },
+        "owner_coverage": owners,
+        "outputs": {
+            "textured_bmp": paths.textured.display().to_string(),
+            "base_color_bmp": paths.base_color.display().to_string(),
+            "part_id_bmp": paths.part_id.display().to_string(),
+            "report_json": paths.report.display().to_string(),
+        }
+    });
+    fs::write(
+        &temporary_paths.report,
+        serde_json::to_vec_pretty(&payload)?,
+    )
+    .with_context(|| {
+        format!(
+            "failed to write capture report temporary {}",
+            temporary_paths.report.display()
+        )
+    })?;
+    let paths = publication.publish()?;
+    eprintln!(
+        "CDMW Rust material capture wrote {} and {}",
+        paths.textured.display(),
+        paths.report.display()
+    );
+    Ok(())
+}
+
+#[derive(Debug, Clone)]
 enum UiAction {
     OpenArchive,
     OpenMesh,
@@ -104,6 +654,71 @@ enum UiAction {
     Undo,
     Redo,
     ExportObj,
+    ChooseCdmwImportPackage,
+    FinishCdmw,
+    OrbitMode,
+    OrbitYaw(f32),
+    Nudge(Vec3),
+    RotateStep {
+        axis: Vec3,
+        degrees: f32,
+    },
+    ScaleStep(Vec3),
+    CdmwCommand {
+        command: &'static str,
+        arguments: Value,
+        label: &'static str,
+    },
+    CdmwMeshAction {
+        action: &'static str,
+        label: &'static str,
+        params: Value,
+    },
+    CdmwTopology {
+        action: &'static str,
+        label: &'static str,
+        params: Value,
+    },
+    SetPartSelection(Vec<u32>),
+}
+
+fn cdmw_import_editable_package_action(path: &Path) -> UiAction {
+    UiAction::CdmwCommand {
+        command: "import_editable_package",
+        arguments: json!({"path": path.to_string_lossy()}),
+        label: "Import editable package",
+    }
+}
+
+impl UiAction {
+    fn allowed_while_cdmw_pending(&self) -> bool {
+        matches!(
+            self,
+            Self::FrameAll
+                | Self::FrameSelected
+                | Self::StandardView(_)
+                | Self::OrbitMode
+                | Self::OrbitYaw(_)
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CdmwRailPage {
+    Select,
+    Move,
+    Rotate,
+    Scale,
+    Grab,
+    Smooth,
+    Inflate,
+    Pinch,
+    Topology,
+    Cleanup,
+    Normals,
+    Uv,
+    RigWeights,
+    MorphRefit,
 }
 
 struct LodSession {
@@ -144,6 +759,112 @@ struct SkeletonInspectorEntry {
     bones: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct CdmwSkeletonOverlay {
+    bone_count: usize,
+    lines: Vec<[f32; 3]>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CdmwPendingRequest {
+    request_id: u64,
+    event: &'static str,
+    label: String,
+    origin: Option<CdmwRequestOrigin>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CdmwRequestOrigin {
+    Normals,
+    Uv,
+    MorphValue(String),
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct CdmwResultFeedback {
+    status: Option<String>,
+    diagnostics: Vec<String>,
+}
+
+fn cdmw_result_feedback(payload: &Value) -> CdmwResultFeedback {
+    fn append_diagnostics(value: Option<&Value>, output: &mut Vec<String>) {
+        let Some(values) = value
+            .and_then(|entry| entry.get("diagnostics"))
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        for message in values.iter().filter_map(Value::as_str) {
+            let message = message.trim();
+            if !message.is_empty() && !output.iter().any(|known| known == message) {
+                output.push(message.to_owned());
+            }
+        }
+    }
+
+    let result = payload.get("result");
+    let state = payload.get("state").unwrap_or(payload);
+    let operation_feedback = state.get("operation_feedback");
+    let status = result
+        .and_then(|value| value.get("status"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            operation_feedback
+                .and_then(|value| value.get("status"))
+                .and_then(Value::as_str)
+        })
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    let mut diagnostics = Vec::new();
+    append_diagnostics(result, &mut diagnostics);
+    append_diagnostics(operation_feedback, &mut diagnostics);
+    CdmwResultFeedback {
+        status,
+        diagnostics,
+    }
+}
+
+fn cdmw_request_origin(command: &str, arguments: &Value) -> Option<CdmwRequestOrigin> {
+    if command == "morph_set_value" {
+        return arguments
+            .get("definition_id")
+            .and_then(Value::as_str)
+            .filter(|definition_id| !definition_id.trim().is_empty())
+            .map(|definition_id| CdmwRequestOrigin::MorphValue(definition_id.to_owned()));
+    }
+    if command != "mesh_action" {
+        return None;
+    }
+    match arguments.get("action").and_then(Value::as_str) {
+        Some("uv_transform") => Some(CdmwRequestOrigin::Uv),
+        Some(
+            "recalculate_normals"
+            | "generate_tangents"
+            | "flip_normals"
+            | "sharpen_normals"
+            | "soften_normals"
+            | "weighted_normals"
+            | "copy_normals",
+        ) => Some(CdmwRequestOrigin::Normals),
+        _ => None,
+    }
+}
+
+fn stage_cdmw_morph_value(
+    drafts: &mut HashMap<String, f64>,
+    definition_id: &str,
+    value: f64,
+    changed: bool,
+    interaction_active: bool,
+    interaction_finished: bool,
+) -> Option<f64> {
+    if changed {
+        drafts.insert(definition_id.to_owned(), value);
+    }
+    (interaction_finished || (changed && !interaction_active))
+        .then(|| drafts.get(definition_id).copied().unwrap_or(value))
+}
+
 fn format_material_ownership(material_indices_by_lod: &[Vec<u32>]) -> String {
     let ownership = material_indices_by_lod
         .iter()
@@ -168,12 +889,239 @@ fn format_material_ownership(material_indices_by_lod: &[Vec<u32>]) -> String {
     }
 }
 
+fn same_source_part(previous: &cdmw_formats::Submesh, next: &cdmw_formats::Submesh) -> bool {
+    previous.name == next.name
+        && previous.material == next.material
+        && previous.source_range == next.source_range
+        && previous.vertex_stride == next.vertex_stride
+        && previous.layout == next.layout
+}
+
+fn remap_texture_ownership(
+    textures: &[LoadedTexture],
+    previous_document: &MeshDocument,
+    next_document: &MeshDocument,
+) -> Vec<LoadedTexture> {
+    textures
+        .iter()
+        .cloned()
+        .map(|mut texture| {
+            let remapped = next_document
+                .lods
+                .iter()
+                .enumerate()
+                .map(|(lod_index, next_lod)| {
+                    let Some(previous_lod) = previous_document.lods.get(lod_index) else {
+                        return Vec::new();
+                    };
+                    let Some(previous_owners) = texture.material_indices_by_lod.get(lod_index)
+                    else {
+                        return Vec::new();
+                    };
+                    let mut owners =
+                        previous_owners
+                            .iter()
+                            .filter_map(|previous_index| {
+                                let previous_index = usize::try_from(*previous_index).ok()?;
+                                let previous_part = previous_lod.submeshes.get(previous_index)?;
+                                if previous_lod
+                                    .submeshes
+                                    .iter()
+                                    .filter(|candidate| same_source_part(previous_part, candidate))
+                                    .count()
+                                    != 1
+                                {
+                                    return None;
+                                }
+                                let mut matches = next_lod.submeshes.iter().enumerate().filter(
+                                    |(_, candidate)| same_source_part(previous_part, candidate),
+                                );
+                                let (next_index, _) = matches.next()?;
+                                if matches.next().is_some() {
+                                    return None;
+                                }
+                                u32::try_from(next_index).ok()
+                            })
+                            .collect::<Vec<_>>();
+                    owners.sort_unstable();
+                    owners.dedup();
+                    owners
+                })
+                .collect();
+            texture.material_indices_by_lod = remapped;
+            texture
+        })
+        .collect()
+}
+
 fn format_pass_count(passes: u32) -> String {
     format!("{passes} {}", if passes == 1 { "pass" } else { "passes" })
 }
 
+struct PersistentDeformationReference {
+    mesh: WorkingMesh,
+    visible_submeshes: Option<HashSet<u32>>,
+    positions: Vec<[f32; 3]>,
+}
+
+impl PersistentDeformationReference {
+    fn new(mesh: WorkingMesh) -> Self {
+        let positions = mesh.draw_snapshot().positions;
+        Self {
+            mesh,
+            visible_submeshes: None,
+            positions,
+        }
+    }
+
+    fn matches_loaded_mesh(&self, mesh: &WorkingMesh) -> bool {
+        let reference = self.mesh.draw_snapshot();
+        let candidate = mesh.draw_snapshot();
+        reference.positions.len() == candidate.positions.len()
+            && reference.indices == candidate.indices
+            && reference.triangle_materials == candidate.triangle_materials
+            && self
+                .mesh
+                .faces()
+                .map(|(_, face)| (face.submesh, face.material, face.provenance))
+                .eq(mesh
+                    .faces()
+                    .map(|(_, face)| (face.submesh, face.material, face.provenance)))
+            && self
+                .mesh
+                .vertices()
+                .map(|(_, vertex)| vertex.provenance)
+                .eq(mesh.vertices().map(|(_, vertex)| vertex.provenance))
+    }
+
+    fn positions_for_snapshot(
+        &mut self,
+        visible_submeshes: Option<&HashSet<u32>>,
+        snapshot: &DrawSnapshot,
+    ) -> Option<&[[f32; 3]]> {
+        if self.mesh.topology_generation != snapshot.topology_generation {
+            return None;
+        }
+        if self.visible_submeshes.as_ref() != visible_submeshes {
+            self.positions = visible_submeshes
+                .map_or_else(
+                    || self.mesh.draw_snapshot(),
+                    |visible| self.mesh.draw_snapshot_for_submeshes(visible),
+                )
+                .positions;
+            self.visible_submeshes = visible_submeshes.cloned();
+        }
+        (self.positions.len() == snapshot.positions.len()).then_some(self.positions.as_slice())
+    }
+}
+
+fn deformation_reference_for_snapshot<'a>(
+    enabled: bool,
+    reference: Option<&'a mut PersistentDeformationReference>,
+    visible_submeshes: Option<&HashSet<u32>>,
+    snapshot: &DrawSnapshot,
+) -> Option<&'a [[f32; 3]]> {
+    if !enabled {
+        return None;
+    }
+    reference?.positions_for_snapshot(visible_submeshes, snapshot)
+}
+
+fn cdmw_material_ownership(
+    presentation: &SessionMaterialPresentation,
+    lod_count: usize,
+) -> Vec<Vec<u32>> {
+    let mut ownership = vec![Vec::new(); lod_count];
+    if let Some(materials) = usize::try_from(presentation.lod_index)
+        .ok()
+        .and_then(|lod_index| ownership.get_mut(lod_index))
+    {
+        materials.push(presentation.material_index);
+    }
+    ownership
+}
+
+fn cdmw_material_preview_factors(
+    presentation: &SessionMaterialPresentation,
+) -> MaterialPreviewFactors {
+    MaterialPreviewFactors {
+        emissive_color: presentation.emissive_color,
+        emissive_intensity: presentation.emissive_intensity,
+        roughness: presentation.roughness,
+        metalness: presentation.metalness,
+        specular: presentation.specular,
+        height_scale: presentation.height_scale,
+        texture_tint: presentation.texture_tint,
+        base_tint_strength: presentation.base_tint_strength,
+        alpha_cutoff: presentation.alpha_cutoff,
+        hair_anisotropy: Some(presentation.hair_anisotropy),
+        layer_mask_channel: None,
+        category_code: Some(presentation.category_code),
+        category_confidence: Some(presentation.category_confidence),
+        normal_y_inverted: Some(presentation.normal_y_inverted),
+        skin_detail_scale: presentation.skin_detail_scale,
+        skin_detail_opacity: presentation.skin_detail_opacity,
+    }
+}
+
+fn loaded_cdmw_material_factor(
+    presentation: &SessionMaterialPresentation,
+    lod_count: usize,
+) -> LoadedMaterialFactors {
+    LoadedMaterialFactors {
+        sidecar_label: format!(
+            "CDMW {} material contract · {} · {} alpha · slot {}{}",
+            presentation.material_category,
+            presentation.shader_family,
+            presentation.alpha_mode,
+            presentation.material_slot_index,
+            if presentation.double_sided {
+                " · double-sided"
+            } else {
+                ""
+            }
+        ),
+        emissive_color: presentation.emissive_color,
+        emissive_intensity: presentation.emissive_intensity,
+        roughness: presentation.roughness,
+        metalness: presentation.metalness,
+        specular: presentation.specular,
+        height_scale: presentation.height_scale,
+        texture_tint: presentation.texture_tint,
+        base_tint_strength: presentation.base_tint_strength,
+        alpha_cutoff: presentation.alpha_cutoff,
+        hair_anisotropy: Some(presentation.hair_anisotropy),
+        layer_mask_channel: None,
+        skin_detail_scale: presentation.skin_detail_scale,
+        skin_detail_opacity: presentation.skin_detail_opacity,
+        material_indices_by_lod: cdmw_material_ownership(presentation, lod_count),
+    }
+}
+
+fn add_cdmw_material_presentations(
+    renderer: &mut WindowRenderer,
+    presentations: &[SessionMaterialPresentation],
+    lod_count: usize,
+) -> Result<usize> {
+    let mut uploaded = 0_usize;
+    for presentation in presentations {
+        let ownership = cdmw_material_ownership(presentation, lod_count);
+        renderer
+            .add_material_factors(cdmw_material_preview_factors(presentation), &ownership)
+            .with_context(|| {
+                format!(
+                    "CDMW LOD{} material {} presentation could not be installed",
+                    presentation.lod_index, presentation.material_index
+                )
+            })?;
+        uploaded = uploaded.saturating_add(1);
+    }
+    Ok(uploaded)
+}
+
 struct LabApplication {
     window: Option<Arc<Window>>,
+    embedded_parent_hwnd: Option<u64>,
     renderer: Option<WindowRenderer>,
     egui_context: egui::Context,
     egui_state: Option<egui_winit::State>,
@@ -191,7 +1139,15 @@ struct LabApplication {
     texture_entries: Vec<TextureInspectorEntry>,
     material_parameter_entries: Vec<MaterialParameterInspectorEntry>,
     material_factor_entries: Vec<MaterialFactorInspectorEntry>,
+    cdmw_texture_resources: Vec<LoadedTexture>,
+    cdmw_material_presentations: Vec<SessionMaterialPresentation>,
+    cdmw_uploaded_texture_count: usize,
+    cdmw_textured_mode_available: bool,
+    cdmw_textured_mode_reason: String,
+    cdmw_texture_package_reason: String,
     skeleton_entry: Option<SkeletonInspectorEntry>,
+    skeleton_overlay_lines: Vec<[f32; 3]>,
+    cdmw_skeleton_overlay_reason: String,
     source_label: String,
     status: String,
     history: History,
@@ -206,13 +1162,29 @@ struct LabApplication {
     show_normals: bool,
     show_bounds: bool,
     show_bones: bool,
+    deformation_heatmap_enabled: bool,
+    deformation_heatmap_applied: bool,
+    deformation_reference: Option<PersistentDeformationReference>,
+    overlay_wire_colour: Color32,
+    overlay_vertex_colour: Color32,
+    overlay_selection_colour: Color32,
+    overlay_live_selection_colour: Color32,
+    viewport_background_colour: Color32,
+    viewport_grid_colour: Color32,
+    overlay_wire_width: f32,
+    overlay_vertex_size: f32,
     viewport_tool: ViewportTool,
     selection_tool: SelectionTool,
     brush_radius: f32,
     brush_strength: f32,
     brush_falloff: BrushFalloff,
+    sculpt_symmetry: SculptSymmetry,
     smooth_iterations: u32,
+    transform_translate_step: f32,
+    transform_rotate_step: f32,
+    transform_scale_factor: f32,
     extrude_distance: f32,
+    cdmw_extrude_axis: String,
     inset_amount: f32,
     selection_gesture: Option<SelectionGesture>,
     edit_gesture: Option<EditGesture>,
@@ -227,6 +1199,45 @@ struct LabApplication {
     raw_primary_captured: bool,
     raw_orbit_captured: bool,
     raw_pan_captured: bool,
+    cdmw_bridge: Option<CdmwBridge>,
+    cdmw_state: Value,
+    cdmw_pending_request: Option<CdmwPendingRequest>,
+    cdmw_normals_feedback: Option<String>,
+    cdmw_uv_feedback: Option<String>,
+    cdmw_morph_value_drafts: HashMap<String, f64>,
+    cdmw_host_connected: bool,
+    cdmw_orbit_mode: bool,
+    cdmw_rail_page: Option<CdmwRailPage>,
+    cdmw_layer_name: String,
+    cdmw_morph_profile_name: String,
+    cdmw_morph_definition_label: String,
+    cdmw_morph_rule: String,
+    cdmw_morph_axis: String,
+    cdmw_morph_amount: f32,
+    cdmw_morph_feather: u32,
+    cdmw_morph_falloff: String,
+    cdmw_morph_mirror_mode: String,
+    cdmw_morph_preset_name: String,
+    cdmw_refit_enabled: bool,
+    cdmw_refit_intensity: f32,
+    cdmw_refit_mode: String,
+    cdmw_refit_clearance: f32,
+    cdmw_refit_hydration_key: String,
+    cdmw_refit_settings_dirty: bool,
+    cdmw_cleanup_merge_distance: f32,
+    cdmw_loop_cut_count: u32,
+    cdmw_loop_cut_factor: f32,
+    cdmw_refine_strength: f32,
+    cdmw_refine_iterations: u32,
+    cdmw_weld_distance: f32,
+    cdmw_uv_offset_step: f32,
+    cdmw_uv_scale_factor: f32,
+    cdmw_uv_pixel_resolution: u32,
+    cdmw_weight_step: f32,
+    cdmw_exit_requested: bool,
+    cdmw_finish_accepted: bool,
+    #[cfg(test)]
+    cdmw_transaction_attempts: usize,
 }
 
 impl LabApplication {
@@ -253,6 +1264,7 @@ impl LabApplication {
         }
         Self {
             window: None,
+            embedded_parent_hwnd: None,
             renderer: None,
             egui_context: egui::Context::default(),
             egui_state: None,
@@ -270,7 +1282,17 @@ impl LabApplication {
             texture_entries: Vec::new(),
             material_parameter_entries: Vec::new(),
             material_factor_entries: Vec::new(),
+            cdmw_texture_resources: Vec::new(),
+            cdmw_material_presentations: Vec::new(),
+            cdmw_uploaded_texture_count: 0,
+            cdmw_textured_mode_available: false,
+            cdmw_textured_mode_reason:
+                "Solid (Textured) is unavailable because no usable DDS material texture has been uploaded."
+                    .to_owned(),
+            cdmw_texture_package_reason: String::new(),
             skeleton_entry: None,
+            skeleton_overlay_lines: Vec::new(),
+            cdmw_skeleton_overlay_reason: "No complete skeleton hierarchy is available".to_owned(),
             source_label: "No asset loaded".to_owned(),
             status,
             history: History::new(HISTORY_BUDGET_BYTES),
@@ -285,13 +1307,29 @@ impl LabApplication {
             show_normals: false,
             show_bounds: false,
             show_bones: false,
+            deformation_heatmap_enabled: true,
+            deformation_heatmap_applied: true,
+            deformation_reference: None,
+            overlay_wire_colour: Color32::from_rgb(105, 125, 155),
+            overlay_vertex_colour: Color32::from_gray(205),
+            overlay_selection_colour: Color32::from_rgb(255, 145, 35),
+            overlay_live_selection_colour: Color32::from_rgb(80, 190, 255),
+            viewport_background_colour: Color32::from_rgb(6, 8, 10),
+            viewport_grid_colour: Color32::from_rgb(42, 48, 58),
+            overlay_wire_width: 1.2,
+            overlay_vertex_size: 2.5,
             viewport_tool: ViewportTool::Select,
             selection_tool: SelectionTool::Click,
             brush_radius: 48.0,
             brush_strength: 0.18,
             brush_falloff: BrushFalloff::Smooth,
+            sculpt_symmetry: SculptSymmetry::Off,
             smooth_iterations: 1,
+            transform_translate_step: 0.02,
+            transform_rotate_step: 15.0,
+            transform_scale_factor: 1.1,
             extrude_distance: 0.02,
+            cdmw_extrude_axis: "z".to_owned(),
             inset_amount: 0.15,
             selection_gesture: None,
             edit_gesture: None,
@@ -306,7 +1344,753 @@ impl LabApplication {
             raw_primary_captured: false,
             raw_orbit_captured: false,
             raw_pan_captured: false,
+            cdmw_bridge: None,
+            cdmw_state: Value::Null,
+            cdmw_pending_request: None,
+            cdmw_normals_feedback: None,
+            cdmw_uv_feedback: None,
+            cdmw_morph_value_drafts: HashMap::new(),
+            cdmw_host_connected: false,
+            cdmw_orbit_mode: false,
+            cdmw_rail_page: None,
+            cdmw_layer_name: "Rust Layer".to_owned(),
+            cdmw_morph_profile_name: "Rust Morph Profile".to_owned(),
+            cdmw_morph_definition_label: "Rust Morph".to_owned(),
+            cdmw_morph_rule: "volume".to_owned(),
+            cdmw_morph_axis: "y".to_owned(),
+            cdmw_morph_amount: 0.1,
+            cdmw_morph_feather: 2,
+            cdmw_morph_falloff: "smooth".to_owned(),
+            cdmw_morph_mirror_mode: "off".to_owned(),
+            cdmw_morph_preset_name: "Rust Preset".to_owned(),
+            cdmw_refit_enabled: true,
+            cdmw_refit_intensity: 100.0,
+            cdmw_refit_mode: "surface".to_owned(),
+            cdmw_refit_clearance: 0.0,
+            cdmw_refit_hydration_key: String::new(),
+            cdmw_refit_settings_dirty: false,
+            cdmw_cleanup_merge_distance: 0.0001,
+            cdmw_loop_cut_count: 1,
+            cdmw_loop_cut_factor: 0.5,
+            cdmw_refine_strength: 0.5,
+            cdmw_refine_iterations: 2,
+            cdmw_weld_distance: 0.0001,
+            cdmw_uv_offset_step: 0.05,
+            cdmw_uv_scale_factor: 1.1,
+            cdmw_uv_pixel_resolution: 1024,
+            cdmw_weight_step: 0.1,
+            cdmw_exit_requested: false,
+            cdmw_finish_accepted: false,
+            #[cfg(test)]
+            cdmw_transaction_attempts: 0,
         }
+    }
+
+    fn new_cdmw(
+        mut bridge: CdmwBridge,
+        document: MeshDocument,
+        embedded_parent_hwnd: Option<u64>,
+    ) -> Result<Self> {
+        let source_lod_index = bridge.source_lod_index();
+        let source_path = bridge
+            .manifest()
+            .source
+            .get("path")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .map_or_else(|| PathBuf::from("cdmw-shadow.pac"), PathBuf::from);
+        let mesh = WorkingMesh::from_document(&document)
+            .context("CDMW authoring document could not create LOD0")?;
+        let other_lod_meshes = (1..document.lods.len())
+            .map(|index| {
+                WorkingMesh::from_document_lod(&document, index)
+                    .with_context(|| format!("CDMW authoring document could not create LOD{index}"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let initial_state = bridge.manifest().state.clone();
+        let authoritative_base_revision = bridge.manifest().base_revision;
+        let output_policy = bridge
+            .manifest()
+            .output_policy
+            .get("policy")
+            .and_then(Value::as_str)
+            .unwrap_or("exact_game_asset")
+            .to_owned();
+        let initial_shadow_revision = bridge.shadow_revision();
+        let cdmw_texture_package_reason = bridge
+            .manifest()
+            .texture_status
+            .get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim()
+            .to_owned();
+        let cdmw_texture_resources = bridge
+            .take_textures()
+            .into_iter()
+            .map(|texture| LoadedTexture {
+                requested_reference: texture.label.clone(),
+                label: texture.label,
+                metadata: texture.metadata,
+                bytes: texture.bytes,
+                role: texture.role,
+                parameter_name: None,
+                sidecar_label: Some("CDMW isolated authoring package".to_owned()),
+                resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
+                archive_compression: None,
+                material_indices_by_lod: texture.material_indices_by_lod,
+            })
+            .collect::<Vec<_>>();
+        let cdmw_material_presentations = bridge.take_material_presentations();
+        let cdmw_material_factors = cdmw_material_presentations
+            .iter()
+            .map(|presentation| loaded_cdmw_material_factor(presentation, document.lods.len()))
+            .collect::<Vec<_>>();
+        let mut application = Self::new(None, None);
+        application.embedded_parent_hwnd = embedded_parent_hwnd;
+        application.install_loaded_mesh(LoadedMesh {
+            path: source_path,
+            document,
+            mesh,
+            other_lod_meshes,
+            textures: cdmw_texture_resources.clone(),
+            material_parameters: Vec::new(),
+            material_factors: cdmw_material_factors,
+            skeleton: None,
+        });
+        if source_lod_index != 0 {
+            application.switch_lod(source_lod_index);
+            if application.active_lod_index != source_lod_index {
+                anyhow::bail!("CDMW source LOD {source_lod_index} could not be activated");
+            }
+        }
+        if let Some(mesh) = &application.mesh {
+            application.camera.frame_integrated_startup(mesh);
+        }
+        application.cdmw_state = initial_state;
+        application.cdmw_bridge = Some(bridge);
+        application.cdmw_texture_resources = cdmw_texture_resources;
+        application.cdmw_material_presentations = cdmw_material_presentations;
+        application.cdmw_texture_package_reason = cdmw_texture_package_reason;
+        application.refresh_cdmw_skeleton_overlay();
+        application.apply_cdmw_theme();
+        application.cdmw_orbit_mode = true;
+        application.status = format!(
+            "CDMW shadow session loaded · Orbit mode · {output_policy} · base {authoritative_base_revision} · shadow {initial_shadow_revision} · edits are isolated until Finish Edit Mesh"
+        );
+        application.apply_cdmw_selection_state();
+        Ok(application)
+    }
+
+    fn cdmw_mode(&self) -> bool {
+        self.cdmw_bridge.is_some()
+    }
+
+    fn record_cdmw_texture_uploads(
+        &mut self,
+        resource_count: usize,
+        uploaded_texture_count: usize,
+        bound_material_count: usize,
+        warning: Option<&str>,
+    ) {
+        self.cdmw_uploaded_texture_count = uploaded_texture_count;
+        self.cdmw_textured_mode_available = uploaded_texture_count > 0 && bound_material_count > 0;
+        self.cdmw_textured_mode_reason = if self.cdmw_textured_mode_available {
+            String::new()
+        } else if resource_count == 0 {
+            if self.cdmw_texture_package_reason.is_empty() {
+                "Solid (Textured) is unavailable because this session has no resolved DDS material texture."
+                    .to_owned()
+            } else {
+                format!(
+                    "Solid (Textured) is unavailable: {}",
+                    self.cdmw_texture_package_reason
+                )
+            }
+        } else if uploaded_texture_count == 0 {
+            warning.map_or_else(
+                || {
+                    "Solid (Textured) is unavailable because no DDS material texture could be uploaded."
+                        .to_owned()
+                },
+                |reason| {
+                    format!(
+                        "Solid (Textured) is unavailable because no DDS material texture could be uploaded: {reason}"
+                    )
+                },
+            )
+        } else {
+            warning.map_or_else(
+                || {
+                    "Solid (Textured) is unavailable because uploaded textures have no unambiguous owner in this mesh revision."
+                        .to_owned()
+                },
+                |reason| {
+                    format!(
+                        "Solid (Textured) is unavailable because uploaded textures could not bind to this mesh revision: {reason}"
+                    )
+                },
+            )
+        };
+        if !self.cdmw_textured_mode_available && self.view_mode == ViewMode::TexturedSolid {
+            self.view_mode = ViewMode::Solid;
+        }
+    }
+
+    fn cdmw_visible_submeshes(&self) -> Option<HashSet<u32>> {
+        if !self.cdmw_mode() {
+            return None;
+        }
+        let expected = self.mesh.as_ref()?.submesh_indices();
+        let layers = self
+            .cdmw_state
+            .get("geometry_layers")?
+            .get("layers")?
+            .as_array()?;
+        if layers.is_empty() {
+            return None;
+        }
+        let mut assigned = HashSet::new();
+        let mut visible = HashSet::new();
+        for layer in layers {
+            let indices = layer.get("submesh_indices")?.as_array()?;
+            let parsed = indices
+                .iter()
+                .map(|value| value.as_u64().and_then(|index| u32::try_from(index).ok()))
+                .collect::<Option<Vec<_>>>()?;
+            for index in &parsed {
+                if !expected.contains(index) || !assigned.insert(*index) {
+                    return None;
+                }
+            }
+            if layer.get("base").and_then(Value::as_bool) == Some(true)
+                || layer.get("visible").and_then(Value::as_bool) == Some(true)
+            {
+                visible.extend(parsed);
+            }
+        }
+        (assigned == expected).then_some(visible)
+    }
+
+    fn refresh_cdmw_skeleton_overlay(&mut self) {
+        match parse_cdmw_skeleton_overlay(&self.cdmw_state) {
+            Ok(overlay) => {
+                self.skeleton_overlay_lines = overlay.lines;
+                self.cdmw_skeleton_overlay_reason = format!(
+                    "{} complete bones · {} hierarchy segments",
+                    overlay.bone_count,
+                    self.skeleton_overlay_lines.len() / 2
+                );
+            }
+            Err(reason) => {
+                self.skeleton_overlay_lines.clear();
+                self.cdmw_skeleton_overlay_reason = reason;
+                self.show_bones = false;
+            }
+        }
+        if let Some(renderer) = &mut self.renderer
+            && let Err(error) = renderer.set_skeleton_lines(&self.skeleton_overlay_lines)
+        {
+            self.show_bones = false;
+            self.status = format!("Skeleton overlay upload failed: {error}");
+        }
+    }
+
+    fn cdmw_busy(&self) -> bool {
+        self.cdmw_pending_request.is_some()
+    }
+
+    fn submit_cdmw_transaction(&mut self, label: &str) {
+        if self.cdmw_busy() {
+            self.status = "Finish the pending CDMW operation before editing again".to_owned();
+            return;
+        }
+        #[cfg(test)]
+        {
+            self.cdmw_transaction_attempts = self.cdmw_transaction_attempts.saturating_add(1);
+        }
+        let result = match (&mut self.cdmw_bridge, &self.document, &self.mesh) {
+            (Some(bridge), Some(document), Some(mesh)) => {
+                bridge.submit_transaction(document, mesh, label)
+            }
+            _ => return,
+        };
+        match result {
+            Ok(request_id) => {
+                self.cdmw_pending_request = Some(CdmwPendingRequest {
+                    request_id,
+                    event: "transaction_result",
+                    label: label.to_owned(),
+                    origin: None,
+                });
+                self.status = format!("Recording {label} in the isolated CDMW shadow history…");
+            }
+            Err(error) => self.status = format!("Could not queue Rust edit transaction: {error}"),
+        }
+    }
+
+    fn submit_cdmw_command(&mut self, command: &str, arguments: Value, label: &str) {
+        if self.cdmw_busy() {
+            self.status = "Finish the pending CDMW operation before starting another".to_owned();
+            return;
+        }
+        let origin = cdmw_request_origin(command, &arguments);
+        let arguments = match self.cdmw_command_arguments(command, arguments) {
+            Ok(arguments) => arguments,
+            Err(error) => {
+                self.status = format!("Could not queue {label}: {error}");
+                return;
+            }
+        };
+        let Some(bridge) = &mut self.cdmw_bridge else {
+            return;
+        };
+        match bridge.submit_command(command, arguments) {
+            Ok(request_id) => {
+                self.cdmw_pending_request = Some(CdmwPendingRequest {
+                    request_id,
+                    event: "command_result",
+                    label: label.to_owned(),
+                    origin,
+                });
+                self.status = format!("{label}…");
+            }
+            Err(error) => self.status = format!("Could not queue {label}: {error}"),
+        }
+    }
+
+    fn cdmw_command_arguments(&self, command: &str, arguments: Value) -> Result<Value, String> {
+        if !matches!(
+            command,
+            "rig_adjust_weight" | "rig_normalize_weights" | "rig_transfer_weights"
+        ) {
+            return Ok(arguments);
+        }
+        let selection = self
+            .mesh
+            .as_ref()
+            .map_or_else(|| Ok(json!({})), cdmw_session::selection_payload)
+            .map_err(|error| format!("could not map the rig-weight selection: {error}"))?;
+        let mut object = arguments
+            .as_object()
+            .cloned()
+            .ok_or_else(|| "command arguments must be an object".to_owned())?;
+        object.insert("selection".to_owned(), selection);
+        Ok(Value::Object(object))
+    }
+
+    fn submit_cdmw_topology(&mut self, action: &'static str, label: &str, params: Value) {
+        let selection = self
+            .mesh
+            .as_ref()
+            .map_or_else(|| Ok(json!({})), cdmw_session::selection_payload);
+        match selection {
+            Ok(selection) => self.submit_cdmw_command(
+                "topology",
+                json!({
+                    "action": action,
+                    "selection": selection,
+                    "params": params,
+                    "label": label
+                }),
+                label,
+            ),
+            Err(error) => self.status = format!("Could not map topology selection: {error}"),
+        }
+    }
+
+    fn submit_cdmw_mesh_action(&mut self, action: &'static str, label: &str, params: Value) {
+        let selection = self
+            .mesh
+            .as_ref()
+            .map_or_else(|| Ok(json!({})), cdmw_session::selection_payload);
+        match selection {
+            Ok(selection) => self.submit_cdmw_command(
+                "mesh_action",
+                json!({
+                    "action": action,
+                    "selection": selection,
+                    "params": params,
+                    "label": label
+                }),
+                label,
+            ),
+            Err(error) => self.status = format!("Could not map mesh action selection: {error}"),
+        }
+    }
+
+    fn submit_cdmw_finish(&mut self) {
+        if self.cdmw_busy() {
+            self.status =
+                "Finish Edit Mesh is waiting for the current shadow transaction".to_owned();
+            return;
+        }
+        let Some(bridge) = &mut self.cdmw_bridge else {
+            return;
+        };
+        match bridge.submit_finish() {
+            Ok(request_id) => {
+                self.cdmw_pending_request = Some(CdmwPendingRequest {
+                    request_id,
+                    event: "finish_result",
+                    label: "Finish Edit Mesh".to_owned(),
+                    origin: None,
+                });
+                self.status = "Validating the complete shadow snapshot in CDMW…".to_owned();
+            }
+            Err(error) => self.status = format!("Could not request Finish Edit Mesh: {error}"),
+        }
+    }
+
+    fn poll_cdmw(&mut self) -> bool {
+        let events = self
+            .cdmw_bridge
+            .as_mut()
+            .map(CdmwBridge::poll)
+            .unwrap_or_default();
+        let changed = !events.is_empty();
+        for event in events {
+            self.handle_cdmw_host_event(event);
+        }
+        changed
+    }
+
+    fn handle_cdmw_host_event(&mut self, event: HostEvent) {
+        match event {
+            HostEvent::Hello | HostEvent::Ready => {
+                self.cdmw_host_connected = true;
+                self.status =
+                    "CDMW connected · Rust edits remain isolated until Finish Edit Mesh".to_owned();
+            }
+            HostEvent::StateSnapshot(state) => {
+                if self.cdmw_busy() {
+                    self.handle_cdmw_host_event(HostEvent::Fatal(
+                        "host state snapshot arrived while a request was pending".to_owned(),
+                    ));
+                    return;
+                }
+                self.apply_cdmw_state(state);
+            }
+            HostEvent::Theme(theme) => {
+                self.apply_cdmw_theme_payload(&theme);
+            }
+            HostEvent::Result {
+                event,
+                request_id,
+                base_revision,
+                ok,
+                payload,
+                error,
+            } => self.handle_cdmw_result(&event, request_id, base_revision, ok, payload, &error),
+            HostEvent::Cancel(reason) => {
+                self.status = reason;
+                self.cdmw_exit_requested = true;
+            }
+            HostEvent::Fatal(message) => {
+                self.status = format!("CDMW protocol failure: {message}");
+                if let Some(bridge) = &mut self.cdmw_bridge {
+                    let _ = bridge.cancel("Rust protocol failure");
+                }
+                self.cdmw_exit_requested = true;
+            }
+        }
+    }
+
+    fn handle_cdmw_result(
+        &mut self,
+        event: &str,
+        request_id: u64,
+        base_revision: u64,
+        ok: bool,
+        payload: Value,
+        error: &str,
+    ) {
+        let Some(pending) = self.cdmw_pending_request.as_ref() else {
+            self.handle_cdmw_host_event(HostEvent::Fatal(format!(
+                "unexpected {event} for request {request_id}"
+            )));
+            return;
+        };
+        let prepared = match self.cdmw_bridge.as_ref().map(|bridge| {
+            bridge.prepare_host_result(
+                pending.event,
+                pending.request_id,
+                event,
+                request_id,
+                base_revision,
+                ok,
+                &payload,
+            )
+        }) {
+            Some(Ok(prepared)) => prepared,
+            Some(Err(error)) => {
+                self.handle_cdmw_host_event(HostEvent::Fatal(error.to_string()));
+                return;
+            }
+            None => {
+                self.handle_cdmw_host_event(HostEvent::Fatal(
+                    "host result arrived without an active CDMW bridge".to_owned(),
+                ));
+                return;
+            }
+        };
+        let label = pending.label.clone();
+        let origin = pending.origin.clone();
+        let feedback = cdmw_result_feedback(&payload);
+        let (revision, state, document) = prepared.into_parts();
+        if let Some(state) = state
+            && let Err(error) = self.install_validated_cdmw_state(state, document)
+        {
+            self.handle_cdmw_host_event(HostEvent::Fatal(error.to_string()));
+            return;
+        }
+        if let Some(bridge) = &mut self.cdmw_bridge
+            && let Err(error) = bridge.accept_prepared_revision(revision)
+        {
+            self.handle_cdmw_host_event(HostEvent::Fatal(error.to_string()));
+            return;
+        }
+        self.cdmw_pending_request.take();
+        if let Some(CdmwRequestOrigin::MorphValue(definition_id)) = &origin {
+            self.cdmw_morph_value_drafts.remove(definition_id);
+        }
+        if label == "Apply garment refit settings" {
+            self.cdmw_refit_settings_dirty = false;
+            self.cdmw_refit_hydration_key.clear();
+        }
+        if !ok {
+            self.status = format!("{label} rejected: {}", error.trim());
+            self.remember_cdmw_page_feedback(origin.as_ref());
+            return;
+        }
+        if event == "finish_result" {
+            self.cdmw_finish_accepted = true;
+            self.cdmw_exit_requested = true;
+            self.status = "Finish Edit Mesh accepted by CDMW".to_owned();
+            return;
+        }
+        let diagnostic = feedback.diagnostics.join("; ");
+        if feedback.status.as_deref() == Some("noop") {
+            self.status = if diagnostic.is_empty() {
+                format!("{label} made no change")
+            } else {
+                format!("{label} made no change: {diagnostic}")
+            };
+        } else if diagnostic.is_empty() {
+            self.status = format!("{} completed · shadow revision {base_revision}", label);
+        } else {
+            self.status =
+                format!("{label} completed · {diagnostic} · shadow revision {base_revision}");
+        }
+        self.remember_cdmw_page_feedback(origin.as_ref());
+    }
+
+    fn remember_cdmw_page_feedback(&mut self, origin: Option<&CdmwRequestOrigin>) {
+        match origin {
+            Some(CdmwRequestOrigin::Normals) => {
+                self.cdmw_normals_feedback = Some(self.status.clone());
+            }
+            Some(CdmwRequestOrigin::Uv) => {
+                self.cdmw_uv_feedback = Some(self.status.clone());
+            }
+            Some(CdmwRequestOrigin::MorphValue(_)) | None => {}
+        }
+    }
+
+    fn apply_cdmw_state(&mut self, state: Value) {
+        self.cdmw_morph_value_drafts.clear();
+        let prepared = match self
+            .cdmw_bridge
+            .as_ref()
+            .map(|bridge| bridge.prepare_state_snapshot(state))
+        {
+            Some(Ok(prepared)) => prepared,
+            Some(Err(error)) => {
+                self.handle_cdmw_host_event(HostEvent::Fatal(error.to_string()));
+                return;
+            }
+            None => {
+                self.handle_cdmw_host_event(HostEvent::Fatal(
+                    "host state arrived without an active CDMW bridge".to_owned(),
+                ));
+                return;
+            }
+        };
+        let (revision, state, document) = prepared.into_parts();
+        let result = state
+            .ok_or_else(|| anyhow::anyhow!("host state snapshot was empty"))
+            .and_then(|state| self.install_validated_cdmw_state(state, document));
+        if let Err(error) = result {
+            self.handle_cdmw_host_event(HostEvent::Fatal(error.to_string()));
+            return;
+        }
+        if let Some(bridge) = &mut self.cdmw_bridge
+            && let Err(error) = bridge.accept_prepared_revision(revision)
+        {
+            self.handle_cdmw_host_event(HostEvent::Fatal(error.to_string()));
+        }
+    }
+
+    fn install_validated_cdmw_state(
+        &mut self,
+        state: Value,
+        document: Option<MeshDocument>,
+    ) -> Result<()> {
+        let previous_state = std::mem::replace(&mut self.cdmw_state, state);
+        let result = if let Some(document) = document {
+            self.install_cdmw_document(document)
+        } else {
+            self.apply_cdmw_selection_state();
+            Ok(())
+        };
+        if result.is_err() {
+            self.cdmw_state = previous_state;
+        } else {
+            self.refresh_cdmw_skeleton_overlay();
+        }
+        result
+    }
+
+    fn install_cdmw_document(&mut self, document: MeshDocument) -> Result<()> {
+        let path = PathBuf::from(&self.source_label);
+        let camera = self.camera.clone();
+        let orbit_mode = self.cdmw_orbit_mode;
+        let rail_page = self.cdmw_rail_page;
+        let viewport_tool = self.viewport_tool;
+        let active_lod_index = self.active_lod_index;
+        let textures = self.document.as_ref().map_or_else(
+            || self.cdmw_texture_resources.clone(),
+            |previous_document| {
+                remap_texture_ownership(&self.cdmw_texture_resources, previous_document, &document)
+            },
+        );
+        let mesh = WorkingMesh::from_document(&document).context("invalid CDMW LOD0 state")?;
+        let other_lod_meshes = (1..document.lods.len())
+            .map(|index| {
+                WorkingMesh::from_document_lod(&document, index)
+                    .with_context(|| format!("invalid CDMW LOD{index} state"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let material_factors = self
+            .cdmw_material_presentations
+            .iter()
+            .map(|presentation| loaded_cdmw_material_factor(presentation, document.lods.len()))
+            .collect::<Vec<_>>();
+        self.install_loaded_mesh(LoadedMesh {
+            path,
+            document,
+            mesh,
+            other_lod_meshes,
+            textures: textures.clone(),
+            material_parameters: Vec::new(),
+            material_factors,
+            skeleton: None,
+        });
+        self.cdmw_texture_resources = textures;
+        if let Some(renderer) = &mut self.renderer {
+            add_cdmw_material_presentations(
+                renderer,
+                &self.cdmw_material_presentations,
+                self.document
+                    .as_ref()
+                    .map_or(0, |document| document.lods.len()),
+            )?;
+            renderer
+                .set_material_lod(active_lod_index)
+                .context("CDMW material presentation LOD could not be restored")?;
+        }
+        if active_lod_index != 0 {
+            self.switch_lod(active_lod_index);
+            if self.active_lod_index != active_lod_index {
+                anyhow::bail!("invalid CDMW source LOD {active_lod_index} state");
+            }
+        }
+        self.camera = camera;
+        self.cdmw_orbit_mode = orbit_mode;
+        self.cdmw_rail_page = rail_page;
+        self.viewport_tool = viewport_tool;
+        self.apply_cdmw_selection_state();
+        Ok(())
+    }
+
+    fn apply_cdmw_selection_state(&mut self) {
+        let visible_submeshes = self.cdmw_visible_submeshes();
+        let Some(mesh) = &mut self.mesh else {
+            return;
+        };
+        let selection_value = self
+            .cdmw_state
+            .get("selection")
+            .cloned()
+            .unwrap_or(Value::Null);
+        if selection_value.is_null() {
+            return;
+        }
+        let vertices = index_map(&selection_value, "vertices_by_submesh");
+        let faces = index_map(&selection_value, "faces_by_submesh");
+        let edges = edge_map(&selection_value, "edges_by_submesh");
+        let mut selection = Selection::default();
+        for (handle, vertex) in mesh.vertices() {
+            if let Provenance::Source { submesh, element } = vertex.provenance
+                && vertices
+                    .get(&submesh)
+                    .is_some_and(|values| values.contains(&element))
+            {
+                selection.vertices.insert(handle);
+            }
+        }
+        for (handle, face) in mesh.faces() {
+            if let Provenance::Source { element, .. } = face.provenance
+                && faces
+                    .get(&face.submesh)
+                    .is_some_and(|values| values.contains(&element))
+            {
+                selection.faces.insert(handle);
+            }
+        }
+        for (handle, edge) in mesh.edges() {
+            let endpoints = edge.vertices.map(|vertex_handle| {
+                mesh.vertex(vertex_handle)
+                    .and_then(|vertex| match vertex.provenance {
+                        Provenance::Source { submesh, element } => Some((submesh, element)),
+                        Provenance::Generated { .. } => None,
+                    })
+            });
+            if let [Some(first), Some(second)] = endpoints
+                && first.0 == second.0
+                && edges.get(&first.0).is_some_and(|values| {
+                    values.contains(&(first.1.min(second.1), first.1.max(second.1)))
+                })
+            {
+                selection.edges.insert(handle);
+            }
+        }
+        selection.submeshes.extend(
+            selection_value
+                .get("source_indices")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_u64)
+                .filter_map(|value| u32::try_from(value).ok()),
+        );
+        if let Some(visible_submeshes) = &visible_submeshes {
+            let visible = mesh.element_handles_for_submeshes(visible_submeshes);
+            selection
+                .vertices
+                .retain(|handle| visible.vertices.contains(handle));
+            selection
+                .edges
+                .retain(|handle| visible.edges.contains(handle));
+            selection
+                .faces
+                .retain(|handle| visible.faces.contains(handle));
+            selection
+                .submeshes
+                .retain(|submesh| visible_submeshes.contains(submesh));
+        }
+        let _ = mesh.set_selection(selection);
+        self.publish_mesh_snapshot();
     }
 
     fn poll_loader(&mut self) -> bool {
@@ -411,6 +2195,17 @@ impl LabApplication {
             skeleton,
         } = loaded;
         let editable_lod_count = other_lod_meshes.len().saturating_add(1);
+        let texture_resource_count = textures.len();
+        let renderer_available = self.renderer.is_some();
+        let cdmw_mode = self.cdmw_mode();
+        let preserve_deformation_reference = cdmw_mode
+            && self
+                .deformation_reference
+                .as_ref()
+                .is_some_and(|reference| reference.matches_loaded_mesh(&mesh));
+        if !preserve_deformation_reference {
+            self.deformation_reference = Some(PersistentDeformationReference::new(mesh.clone()));
+        }
         debug_assert_eq!(editable_lod_count, document.lods.len());
         let per_lod_history_budget = HISTORY_BUDGET_BYTES / editable_lod_count.max(1);
 
@@ -421,7 +2216,11 @@ impl LabApplication {
             mesh.faces().count(),
             document.parser
         );
-        self.camera.frame_all(&mesh);
+        if let Some(rectangle) = self.viewport_rect {
+            self.camera.frame_all_in_viewport(&mesh, rectangle);
+        } else {
+            self.camera.frame_all(&mesh);
+        }
         self.projection = None;
         self.selection_gesture = None;
         self.edit_gesture = None;
@@ -434,6 +2233,7 @@ impl LabApplication {
             .as_ref()
             .map(|loaded| loaded.document.line_vertices())
             .unwrap_or_default();
+        self.skeleton_overlay_lines.clone_from(&skeleton_lines);
         let skeleton_entry = skeleton.as_ref().map(|loaded| {
             let mut provenance = format!("Resolved via {:?}", loaded.resolution_method);
             if let Some(compression) = loaded.archive_compression {
@@ -634,9 +2434,14 @@ impl LabApplication {
                         metalness: factors.metalness,
                         specular: factors.specular,
                         height_scale: factors.height_scale,
+                        texture_tint: factors.texture_tint,
+                        base_tint_strength: factors.base_tint_strength,
                         alpha_cutoff: factors.alpha_cutoff,
                         hair_anisotropy: factors.hair_anisotropy,
                         layer_mask_channel: factors.layer_mask_channel,
+                        skin_detail_scale: factors.skin_detail_scale,
+                        skin_detail_opacity: factors.skin_detail_opacity,
+                        ..MaterialPreviewFactors::default()
                     },
                     &factors.material_indices_by_lod,
                 ) {
@@ -648,12 +2453,29 @@ impl LabApplication {
                 Ok(count) => bound_material_count = count,
                 Err(error) => gpu_errors.push(error.to_string()),
             }
-            if let Err(error) = renderer.set_snapshot(&mesh.draw_snapshot()) {
+            let snapshot = mesh.draw_snapshot();
+            let deformation_reference = deformation_reference_for_snapshot(
+                self.deformation_heatmap_enabled,
+                self.deformation_reference.as_mut(),
+                None,
+                &snapshot,
+            );
+            if let Err(error) =
+                renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
+            {
                 gpu_errors.push(format!("mesh upload failed: {error}"));
             }
             if let Err(error) = renderer.set_skeleton_lines(&skeleton_lines) {
                 gpu_errors.push(format!("skeleton overlay upload failed: {error}"));
             }
+        }
+        if self.cdmw_mode() && renderer_available {
+            self.record_cdmw_texture_uploads(
+                texture_resource_count,
+                texture_upload_count,
+                bound_material_count,
+                gpu_errors.first().map(String::as_str),
+            );
         }
         if texture_upload_count > 0 {
             self.status.push_str(&format!(
@@ -707,6 +2529,9 @@ impl LabApplication {
     }
 
     fn draw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
+        if self.cdmw_mode() {
+            return self.draw_cdmw_ui(root_ui);
+        }
         let mut actions = Vec::new();
         egui::Panel::top("notice").show(root_ui, |ui| {
             ui.horizontal_wrapped(|ui| {
@@ -1352,7 +3177,16 @@ impl LabApplication {
 
     fn handle_actions(&mut self, actions: Vec<UiAction>) {
         let mut publish_mesh = false;
+        let mut cdmw_transaction: Option<String> = None;
         for action in actions {
+            if self.cdmw_mode()
+                && (self.cdmw_busy() || cdmw_transaction.is_some())
+                && !action.allowed_while_cdmw_pending()
+            {
+                self.status =
+                    "Wait for the current CDMW shadow transaction before another edit".to_owned();
+                continue;
+            }
             match action {
                 UiAction::OpenArchive => self.choose_archive(),
                 UiAction::OpenMesh => self.choose_mesh(),
@@ -1366,6 +3200,7 @@ impl LabApplication {
                         SelectionDomain::Vertex,
                         SelectionCommand::SelectAll,
                     );
+                    cdmw_transaction = Some("Select all vertices".to_owned());
                 }
                 UiAction::SelectAllEdges => {
                     self.selection_domain = SelectionDomain::Edge;
@@ -1374,6 +3209,7 @@ impl LabApplication {
                         SelectionDomain::Edge,
                         SelectionCommand::SelectAll,
                     );
+                    cdmw_transaction = Some("Select all edges".to_owned());
                 }
                 UiAction::SelectAllFaces => {
                     self.selection_domain = SelectionDomain::Face;
@@ -1382,6 +3218,7 @@ impl LabApplication {
                         SelectionDomain::Face,
                         SelectionCommand::SelectAll,
                     );
+                    cdmw_transaction = Some("Select all faces".to_owned());
                 }
                 UiAction::SelectLinked(domain) => {
                     self.selection_domain = domain;
@@ -1390,6 +3227,7 @@ impl LabApplication {
                         domain,
                         SelectionCommand::SelectLinked,
                     );
+                    cdmw_transaction = Some(format!("Select linked {domain:?}"));
                 }
                 UiAction::GrowSelection(domain) => {
                     self.selection_domain = domain;
@@ -1398,6 +3236,7 @@ impl LabApplication {
                         domain,
                         SelectionCommand::Grow,
                     );
+                    cdmw_transaction = Some(format!("Grow {domain:?} selection"));
                 }
                 UiAction::ShrinkSelection(domain) => {
                     self.selection_domain = domain;
@@ -1406,6 +3245,7 @@ impl LabApplication {
                         domain,
                         SelectionCommand::Shrink,
                     );
+                    cdmw_transaction = Some(format!("Shrink {domain:?} selection"));
                 }
                 UiAction::InvertSelection(domain) => {
                     self.selection_domain = domain;
@@ -1414,22 +3254,34 @@ impl LabApplication {
                         domain,
                         SelectionCommand::Invert,
                     );
+                    cdmw_transaction = Some(format!("Invert {domain:?} selection"));
                 }
-                UiAction::ClearSelection => self.run_selection_command(
-                    "Clear selection",
-                    self.selection_domain,
-                    SelectionCommand::Clear,
-                ),
+                UiAction::ClearSelection => {
+                    self.run_selection_command(
+                        "Clear selection",
+                        self.selection_domain,
+                        SelectionCommand::Clear,
+                    );
+                    cdmw_transaction = Some("Clear selection".to_owned());
+                }
                 UiAction::FrameAll => {
                     if let Some(mesh) = &self.mesh {
-                        self.camera.frame_all(mesh);
+                        if let Some(rectangle) = self.viewport_rect {
+                            self.camera.frame_all_in_viewport(mesh, rectangle);
+                        } else {
+                            self.camera.frame_all(mesh);
+                        }
                         self.projection = None;
                         self.status = "Camera framed the complete mesh".to_owned();
                     }
                 }
                 UiAction::FrameSelected => {
                     if let Some(mesh) = &self.mesh {
-                        self.camera.frame_selected(mesh);
+                        if let Some(rectangle) = self.viewport_rect {
+                            self.camera.frame_selected_in_viewport(mesh, rectangle);
+                        } else {
+                            self.camera.frame_selected(mesh);
+                        }
                         self.projection = None;
                         self.status = "Camera framed the selected elements".to_owned();
                     }
@@ -1440,45 +3292,91 @@ impl LabApplication {
                     self.status = format!("Camera switched to {view:?} view");
                 }
                 UiAction::DeleteFaces => {
-                    self.run_topology("Delete faces", |mesh, faces| mesh.delete_faces(faces));
-                    publish_mesh = true;
+                    if self.cdmw_mode() {
+                        self.submit_cdmw_topology("delete", "Delete selection", json!({}));
+                    } else {
+                        self.run_topology("Delete faces", |mesh, faces| mesh.delete_faces(faces));
+                        publish_mesh = true;
+                    }
                 }
                 UiAction::SubdivideEdges => {
-                    self.run_edge_topology("Subdivide edges", |mesh, edges| {
-                        mesh.subdivide_edges(edges).map(|_| ())
-                    });
-                    publish_mesh = true;
-                }
-                UiAction::SubdivideFaces => self.run_topology("Subdivide faces", |mesh, faces| {
-                    publish_mesh = true;
-                    mesh.subdivide_faces(faces).map(|_| ())
-                }),
-                UiAction::DuplicateFaces => self.run_topology("Duplicate faces", |mesh, faces| {
-                    publish_mesh = true;
-                    mesh.duplicate_faces(faces).map(|_| ())
-                }),
-                UiAction::DuplicateFacesToNewSubmesh => {
-                    self.run_topology("Duplicate faces as new part", |mesh, faces| {
+                    if self.cdmw_mode() {
+                        self.submit_cdmw_topology("edge_split", "Subdivide edges", json!({}));
+                    } else {
+                        self.run_edge_topology("Subdivide edges", |mesh, edges| {
+                            mesh.subdivide_edges(edges).map(|_| ())
+                        });
                         publish_mesh = true;
-                        mesh.duplicate_faces_to_new_submesh(faces).map(|_| ())
-                    })
+                    }
+                }
+                UiAction::SubdivideFaces => {
+                    if self.cdmw_mode() {
+                        self.submit_cdmw_topology("subdivide", "Subdivide faces", json!({}));
+                    } else {
+                        self.run_topology("Subdivide faces", |mesh, faces| {
+                            publish_mesh = true;
+                            mesh.subdivide_faces(faces).map(|_| ())
+                        });
+                    }
+                }
+                UiAction::DuplicateFaces => {
+                    if self.cdmw_mode() {
+                        self.submit_cdmw_topology("duplicate", "Duplicate faces", json!({}));
+                    } else {
+                        self.run_topology("Duplicate faces", |mesh, faces| {
+                            publish_mesh = true;
+                            mesh.duplicate_faces(faces).map(|_| ())
+                        });
+                    }
+                }
+                UiAction::DuplicateFacesToNewSubmesh => {
+                    if self.cdmw_mode() {
+                        self.submit_cdmw_topology(
+                            "separate",
+                            "Duplicate faces as new part",
+                            json!({}),
+                        );
+                    } else {
+                        self.run_topology("Duplicate faces as new part", |mesh, faces| {
+                            publish_mesh = true;
+                            mesh.duplicate_faces_to_new_submesh(faces).map(|_| ())
+                        });
+                    }
                 }
                 UiAction::ExtrudeFaces => {
                     let distance = self.extrude_distance;
-                    self.run_topology("Extrude faces", |mesh, faces| {
-                        publish_mesh = true;
-                        mesh.extrude_faces(faces, distance).map(|_| ())
-                    })
+                    if self.cdmw_mode() {
+                        self.submit_cdmw_topology(
+                            "extrude",
+                            "Extrude faces",
+                            json!({"distance": distance}),
+                        );
+                    } else {
+                        self.run_topology("Extrude faces", |mesh, faces| {
+                            publish_mesh = true;
+                            mesh.extrude_faces(faces, distance).map(|_| ())
+                        });
+                    }
                 }
                 UiAction::InsetFaces => {
                     let amount = self.inset_amount;
-                    self.run_topology("Inset faces individually", |mesh, faces| {
-                        publish_mesh = true;
-                        mesh.inset_faces(faces, amount).map(|_| ())
-                    })
+                    if self.cdmw_mode() {
+                        self.submit_cdmw_topology(
+                            "inset",
+                            "Inset faces individually",
+                            json!({"amount": amount}),
+                        );
+                    } else {
+                        self.run_topology("Inset faces individually", |mesh, faces| {
+                            publish_mesh = true;
+                            mesh.inset_faces(faces, amount).map(|_| ())
+                        });
+                    }
                 }
                 UiAction::Undo => {
-                    if let Some(mesh) = &mut self.mesh {
+                    if self.cdmw_mode() {
+                        self.submit_cdmw_command("undo", json!({}), "Undo");
+                    } else if let Some(mesh) = &mut self.mesh {
                         match self.history.undo(mesh) {
                             Ok(()) => {
                                 self.status = "Undo restored geometry and selection".to_owned();
@@ -1490,7 +3388,9 @@ impl LabApplication {
                     self.projection = None;
                 }
                 UiAction::Redo => {
-                    if let Some(mesh) = &mut self.mesh {
+                    if self.cdmw_mode() {
+                        self.submit_cdmw_command("redo", json!({}), "Redo");
+                    } else if let Some(mesh) = &mut self.mesh {
                         match self.history.redo(mesh) {
                             Ok(()) => {
                                 self.status = "Redo restored geometry and selection".to_owned();
@@ -1502,10 +3402,169 @@ impl LabApplication {
                     self.projection = None;
                 }
                 UiAction::ExportObj => self.choose_export(),
+                UiAction::ChooseCdmwImportPackage => self.choose_cdmw_import_package(),
+                UiAction::FinishCdmw => self.submit_cdmw_finish(),
+                UiAction::OrbitMode => {
+                    self.cdmw_orbit_mode = true;
+                    self.cdmw_rail_page = None;
+                    self.status = "Orbit mode · edit tools are inactive".to_owned();
+                }
+                UiAction::OrbitYaw(degrees) => {
+                    self.camera
+                        .orbit(Vec2::new(-degrees.to_radians() / 0.008, 0.0));
+                    self.projection = None;
+                    self.status = format!("Camera yaw changed by {degrees:+.0}°");
+                }
+                UiAction::Nudge(delta) => {
+                    let result = (|| {
+                        let mesh = self.mesh.as_mut().ok_or(MeshError::EmptyOperation)?;
+                        let handles = mesh.selected_vertex_scope();
+                        if handles.is_empty() {
+                            return Err(MeshError::EmptyOperation);
+                        }
+                        let gesture_id = self
+                            .operator
+                            .begin(mesh, "Axis move")
+                            .map_err(|_| MeshError::EmptyOperation)?;
+                        if self
+                            .operator
+                            .translate(mesh, gesture_id, &handles, delta)
+                            .is_err()
+                        {
+                            let _ = self.operator.cancel(mesh, gesture_id);
+                            return Err(MeshError::EmptyOperation);
+                        }
+                        self.operator
+                            .confirm(mesh, &mut self.history, gesture_id)
+                            .map_err(|_| MeshError::EmptyOperation)
+                    })();
+                    match result {
+                        Ok(()) => {
+                            cdmw_transaction = Some("Axis move".to_owned());
+                            self.projection = None;
+                        }
+                        Err(error) => self.status = format!("Axis move failed: {error}"),
+                    }
+                }
+                UiAction::RotateStep { axis, degrees } => {
+                    let result = (|| {
+                        let mesh = self.mesh.as_mut().ok_or(MeshError::EmptyOperation)?;
+                        let handles = mesh.selected_vertex_scope();
+                        let pivot =
+                            center_of_handles(mesh, &handles).ok_or(MeshError::EmptyOperation)?;
+                        if handles.is_empty() || axis.length_squared() <= f32::EPSILON {
+                            return Err(MeshError::EmptyOperation);
+                        }
+                        let gesture_id = self
+                            .operator
+                            .begin(mesh, "Axis rotate")
+                            .map_err(|_| MeshError::EmptyOperation)?;
+                        if self
+                            .operator
+                            .rotate(
+                                mesh,
+                                gesture_id,
+                                &handles,
+                                pivot,
+                                Quat::from_axis_angle(axis.normalize(), degrees.to_radians()),
+                            )
+                            .is_err()
+                        {
+                            let _ = self.operator.cancel(mesh, gesture_id);
+                            return Err(MeshError::EmptyOperation);
+                        }
+                        self.operator
+                            .confirm(mesh, &mut self.history, gesture_id)
+                            .map_err(|_| MeshError::EmptyOperation)
+                    })();
+                    match result {
+                        Ok(()) => {
+                            cdmw_transaction = Some("Axis rotate".to_owned());
+                            self.projection = None;
+                        }
+                        Err(error) => self.status = format!("Axis rotate failed: {error}"),
+                    }
+                }
+                UiAction::ScaleStep(scale) => {
+                    let result = (|| {
+                        let mesh = self.mesh.as_mut().ok_or(MeshError::EmptyOperation)?;
+                        let handles = mesh.selected_vertex_scope();
+                        let pivot =
+                            center_of_handles(mesh, &handles).ok_or(MeshError::EmptyOperation)?;
+                        if handles.is_empty() || scale.x <= 0.0 || scale.y <= 0.0 || scale.z <= 0.0
+                        {
+                            return Err(MeshError::EmptyOperation);
+                        }
+                        let gesture_id = self
+                            .operator
+                            .begin(mesh, "Axis scale")
+                            .map_err(|_| MeshError::EmptyOperation)?;
+                        if self
+                            .operator
+                            .scale(mesh, gesture_id, &handles, pivot, scale)
+                            .is_err()
+                        {
+                            let _ = self.operator.cancel(mesh, gesture_id);
+                            return Err(MeshError::EmptyOperation);
+                        }
+                        self.operator
+                            .confirm(mesh, &mut self.history, gesture_id)
+                            .map_err(|_| MeshError::EmptyOperation)
+                    })();
+                    match result {
+                        Ok(()) => {
+                            cdmw_transaction = Some("Axis scale".to_owned());
+                            self.projection = None;
+                        }
+                        Err(error) => self.status = format!("Axis scale failed: {error}"),
+                    }
+                }
+                UiAction::CdmwCommand {
+                    command,
+                    arguments,
+                    label,
+                } => self.submit_cdmw_command(command, arguments, label),
+                UiAction::CdmwMeshAction {
+                    action,
+                    label,
+                    params,
+                } => self.submit_cdmw_mesh_action(action, label, params),
+                UiAction::CdmwTopology {
+                    action,
+                    label,
+                    params,
+                } => self.submit_cdmw_topology(action, label, params),
+                UiAction::SetPartSelection(indices) => {
+                    let visible_submeshes = self.cdmw_visible_submeshes();
+                    if let Some(mesh) = &mut self.mesh {
+                        let selection = Selection {
+                            submeshes: indices
+                                .into_iter()
+                                .filter(|index| {
+                                    visible_submeshes
+                                        .as_ref()
+                                        .is_none_or(|visible| visible.contains(index))
+                                })
+                                .collect(),
+                            ..Selection::default()
+                        };
+                        match mesh.set_selection(selection) {
+                            Ok(()) => cdmw_transaction = Some("Select parts".to_owned()),
+                            Err(error) => {
+                                self.status = format!("Part selection failed: {error}");
+                            }
+                        }
+                    }
+                }
             }
         }
         if publish_mesh {
             self.publish_mesh_snapshot();
+        }
+        if self.cdmw_mode()
+            && let Some(label) = cdmw_transaction
+        {
+            self.submit_cdmw_transaction(&label);
         }
     }
 
@@ -1593,6 +3652,11 @@ impl LabApplication {
             history: current_history,
         });
         self.mesh = Some(target_mesh);
+        self.deformation_reference = self
+            .mesh
+            .as_ref()
+            .cloned()
+            .map(PersistentDeformationReference::new);
         self.active_lod_index = target_index;
         self.operator = OperatorController::default();
         self.selection_gesture = None;
@@ -1614,16 +3678,32 @@ impl LabApplication {
                 mesh.faces().count()
             );
         }
+        let renderer_available = self.renderer.is_some();
+        let mut bound_material_count = 0_usize;
+        let mut texture_warning = None;
         if let Some(renderer) = &mut self.renderer {
             match renderer.set_material_lod(target_index) {
-                Ok(count) if count > 0 => self
-                    .status
-                    .push_str(&format!(" · {count} material range(s) textured")),
-                Ok(_) => {}
-                Err(error) => self
-                    .status
-                    .push_str(&format!(" · texture binding warning: {error}")),
+                Ok(count) => {
+                    bound_material_count = count;
+                    if count > 0 {
+                        self.status
+                            .push_str(&format!(" · {count} material range(s) textured"));
+                    }
+                }
+                Err(error) => {
+                    texture_warning = Some(error.to_string());
+                    self.status
+                        .push_str(&format!(" · texture binding warning: {error}"));
+                }
             }
+        }
+        if self.cdmw_mode() && renderer_available {
+            self.record_cdmw_texture_uploads(
+                self.cdmw_texture_resources.len(),
+                self.cdmw_uploaded_texture_count,
+                bound_material_count,
+                texture_warning.as_deref(),
+            );
         }
         self.publish_mesh_snapshot();
     }
@@ -1634,9 +3714,19 @@ impl LabApplication {
         domain: SelectionDomain,
         command: SelectionCommand,
     ) {
+        let visible_submeshes = self.cdmw_visible_submeshes();
         let result = (|| -> Result<bool, MeshError> {
             let mesh = self.mesh.as_mut().ok_or(MeshError::EmptyOperation)?;
-            let next = selection_after_command(mesh, domain, command);
+            let mut next = selection_after_command(mesh, domain, command);
+            if let Some(visible_submeshes) = &visible_submeshes {
+                let visible = mesh.element_handles_for_submeshes(visible_submeshes);
+                next.vertices
+                    .retain(|handle| visible.vertices.contains(handle));
+                next.edges.retain(|handle| visible.edges.contains(handle));
+                next.faces.retain(|handle| visible.faces.contains(handle));
+                next.submeshes
+                    .retain(|submesh| visible_submeshes.contains(submesh));
+            }
             if mesh.selection == next {
                 return Ok(false);
             }
@@ -1702,6 +3792,16 @@ impl LabApplication {
         }
     }
 
+    fn choose_cdmw_import_package(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .set_title("Choose an editable mesh package")
+            .pick_folder()
+        else {
+            return;
+        };
+        self.handle_actions(vec![cdmw_import_editable_package_action(&path)]);
+    }
+
     fn run_topology(
         &mut self,
         label: &str,
@@ -1740,10 +3840,41 @@ impl LabApplication {
         }
     }
 
+    fn ensure_deformation_reference(&mut self) {
+        let Some(mesh) = self.mesh.as_ref() else {
+            self.deformation_reference = None;
+            return;
+        };
+        let needs_reset = self
+            .deformation_reference
+            .as_ref()
+            .is_none_or(|reference| reference.mesh.topology_generation != mesh.topology_generation);
+        if needs_reset {
+            self.deformation_reference = Some(PersistentDeformationReference::new(mesh.clone()));
+        }
+    }
+
     fn publish_mesh_snapshot(&mut self) {
         self.projection = None;
-        if let (Some(renderer), Some(mesh)) = (&mut self.renderer, &self.mesh)
-            && let Err(error) = renderer.set_snapshot(&mesh.draw_snapshot())
+        self.ensure_deformation_reference();
+        let visible_submeshes = self.cdmw_visible_submeshes();
+        let snapshot = self.mesh.as_ref().map(|mesh| {
+            visible_submeshes.as_ref().map_or_else(
+                || mesh.draw_snapshot(),
+                |visible| mesh.draw_snapshot_for_submeshes(visible),
+            )
+        });
+        let deformation_reference = snapshot.as_ref().and_then(|snapshot| {
+            deformation_reference_for_snapshot(
+                self.deformation_heatmap_enabled,
+                self.deformation_reference.as_mut(),
+                visible_submeshes.as_ref(),
+                snapshot,
+            )
+        });
+        if let (Some(renderer), Some(snapshot)) = (&mut self.renderer, snapshot)
+            && let Err(error) =
+                renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
         {
             self.status = format!("GPU update failed: {error}");
         }
@@ -1758,25 +3889,47 @@ impl LabApplication {
         {
             self.cancel_active_gesture("Viewport changed; active gesture cancelled");
         }
+        let first_viewport = self.viewport_rect.is_none();
         self.viewport_rect = Some(rectangle);
         self.viewport_revision = self.viewport_revision.saturating_add(1);
         self.projection = None;
+        if first_viewport && let Some(mesh) = &self.mesh {
+            self.camera.frame_all_in_viewport(mesh, rectangle);
+        }
     }
 
     fn ensure_projection(&mut self, rectangle: egui::Rect) -> bool {
+        let visible_submeshes = self.cdmw_visible_submeshes();
         let Some(mesh) = &self.mesh else {
             self.projection = None;
             return false;
         };
         let matches = self.projection.as_ref().is_some_and(|projection| {
-            projection.matches(mesh, &self.camera, rectangle, self.viewport_revision)
+            visible_submeshes.as_ref().map_or_else(
+                || projection.matches(mesh, &self.camera, rectangle, self.viewport_revision),
+                |visible| {
+                    projection.matches_for_submeshes(
+                        mesh,
+                        &self.camera,
+                        rectangle,
+                        self.viewport_revision,
+                        visible,
+                    )
+                },
+            )
         });
         if !matches {
-            self.projection = Some(ViewportProjection::build(
-                mesh,
-                &self.camera,
-                rectangle,
-                self.viewport_revision,
+            self.projection = Some(visible_submeshes.as_ref().map_or_else(
+                || ViewportProjection::build(mesh, &self.camera, rectangle, self.viewport_revision),
+                |visible| {
+                    ViewportProjection::build_for_submeshes(
+                        mesh,
+                        &self.camera,
+                        rectangle,
+                        self.viewport_revision,
+                        visible,
+                    )
+                },
             ));
         }
         true
@@ -1793,8 +3946,14 @@ impl LabApplication {
                 self.raw_pointer_position = Some(next);
                 let mut captured = false;
                 if self.raw_primary_captured {
-                    self.pointer_events
-                        .push(ViewportPointerEvent::PrimaryMoved(next));
+                    if self.viewport_tool == ViewportTool::Select
+                        && self.selection_tool == SelectionTool::Lasso
+                    {
+                        self.pointer_events.push_primary_path_point(next);
+                    } else {
+                        self.pointer_events
+                            .push(ViewportPointerEvent::PrimaryMoved(next));
+                    }
                     captured = true;
                 }
                 if self.raw_orbit_captured && delta != Vec2::ZERO {
@@ -1909,21 +4068,30 @@ impl LabApplication {
                 && let Some(mesh) = &self.mesh
             {
                 if mesh.selected_vertex_scope().is_empty() {
-                    self.camera.frame_all(mesh);
+                    self.camera.frame_all_in_viewport(mesh, rectangle);
                 } else {
-                    self.camera.frame_selected(mesh);
+                    self.camera.frame_selected_in_viewport(mesh, rectangle);
                 }
                 self.projection = None;
             }
         }
 
-        if self.selection_gesture.is_some() || self.edit_gesture.is_some() {
-            ui.ctx().request_repaint();
-        }
+        // Raw viewport pointer events already request a redraw. Keeping a gesture open does not
+        // animate anything by itself, so an unconditional repaint loop only competes with brush
+        // projection and GPU uploads while the pointer is stationary.
     }
 
     fn begin_primary_gesture(&mut self, rectangle: egui::Rect, point: Vec2) {
         if self.mesh.is_none() || self.selection_gesture.is_some() || self.edit_gesture.is_some() {
+            return;
+        }
+        if self.cdmw_mode() && (self.cdmw_busy() || self.cdmw_orbit_mode) {
+            self.status = if self.cdmw_busy() {
+                "The current shadow operation must finish before another gesture starts".to_owned()
+            } else {
+                "Choose Select, Move, Rotate, Scale, Grab, Smooth, Inflate, or Pinch to edit"
+                    .to_owned()
+            };
             return;
         }
         if self.viewport_tool == ViewportTool::Select {
@@ -1968,17 +4136,23 @@ impl LabApplication {
         if is_sculpt && !self.ensure_projection(rectangle) {
             return;
         }
+        self.ensure_deformation_reference();
         let Some(mesh) = &self.mesh else {
             return;
         };
         let selected_handles = mesh.selected_vertex_scope();
         let pivot = OrbitCamera::selected_center(mesh).unwrap_or_else(|| self.camera.target());
+        let mut symmetry_map = SculptSymmetryMap::build(mesh, SculptSymmetry::Off);
+        let mut symmetry_primary_weights = HashMap::new();
+        let mut symmetry_mirrored_weights = HashMap::new();
+        let mut symmetry_plane_weights = HashMap::new();
         let (axis, handles, sculpt_weights) = if matches!(
             self.viewport_tool,
             ViewportTool::Move | ViewportTool::Rotate | ViewportTool::Scale
         ) {
             if selected_handles.is_empty() {
-                self.status = "Select vertices, edges, or faces before transforming".to_owned();
+                self.status =
+                    "Select vertices, edges, faces, or Parts before transforming".to_owned();
                 return;
             }
             let Some(axis) = self.hit_test_gizmo(self.viewport_tool, point, pivot, rectangle)
@@ -1988,30 +4162,67 @@ impl LabApplication {
             };
             (axis, selected_handles, Default::default())
         } else {
-            let sculpt_weights = self
+            symmetry_map = SculptSymmetryMap::build(mesh, self.sculpt_symmetry);
+            let source_weights = self
                 .projection
                 .as_ref()
                 .and_then(|projection| {
-                    brush_vertex_weights(
-                        mesh,
-                        projection,
-                        point,
-                        self.brush_radius,
-                        true,
-                        self.brush_falloff,
-                    )
+                    if self.sculpt_symmetry == SculptSymmetry::Off {
+                        brush_vertex_weights(
+                            mesh,
+                            projection,
+                            point,
+                            self.brush_radius,
+                            true,
+                            self.brush_falloff,
+                        )
+                    } else {
+                        brush_vertex_weights_unclipped(
+                            projection,
+                            point,
+                            self.brush_radius,
+                            true,
+                            self.brush_falloff,
+                        )
+                    }
                     .ok()
                 })
                 .unwrap_or_default();
+            let expanded = symmetry_map.expand_weights(mesh, &source_weights);
+            symmetry_primary_weights = expanded.primary;
+            symmetry_mirrored_weights = expanded.mirrored;
+            symmetry_plane_weights = expanded.plane;
+            let sculpt_weights = expanded.combined;
             let handles = sculpt_weights
                 .keys()
                 .copied()
                 .collect::<std::collections::HashSet<_>>();
             if handles.is_empty() {
-                self.status = "The sculpt brush has no eligible vertices here".to_owned();
+                self.status = if self.sculpt_symmetry == SculptSymmetry::Off {
+                    "The sculpt brush has no eligible vertices here".to_owned()
+                } else {
+                    format!(
+                        "{} symmetry has no paired eligible vertices here · {} unmatched vertices remain untouched",
+                        self.sculpt_symmetry.label(),
+                        symmetry_map.unmatched_vertices()
+                    )
+                };
                 return;
             }
             (GizmoAxis::Free, handles, sculpt_weights)
+        };
+        let symmetry_status = if self.sculpt_symmetry != SculptSymmetry::Off
+            && self.viewport_tool.sculpt_tool().is_some()
+        {
+            format!(
+                " · {} symmetry: {} mirrored, {} on plane, {} unmatched untouched",
+                self.sculpt_symmetry.label(),
+                symmetry_map.paired_vertices(),
+                symmetry_map.plane_vertices(),
+                symmetry_map.unmatched_vertices()
+            )
+        } else {
+            String::new()
         };
         let pivot = center_of_handles(mesh, &handles).unwrap_or(pivot);
         let gesture_id = match self.operator.begin(mesh, self.viewport_tool.label()) {
@@ -2027,6 +4238,10 @@ impl LabApplication {
             axis,
             handles,
             sculpt_weights,
+            symmetry_map,
+            symmetry_primary_weights,
+            symmetry_mirrored_weights,
+            symmetry_plane_weights,
             pivot,
             last_pointer: point,
             last_sample: point,
@@ -2038,8 +4253,9 @@ impl LabApplication {
             }
         }
         self.status = format!(
-            "{} preview · release to commit · Esc cancels",
-            self.viewport_tool.label()
+            "{} preview · release to commit · Esc cancels{}",
+            self.viewport_tool.label(),
+            symmetry_status
         );
     }
 
@@ -2164,26 +4380,81 @@ impl LabApplication {
                 }
                 ViewportTool::Grab => {
                     let delta = self.camera.screen_delta_to_world(screen_delta, rectangle);
-                    self.operator.sculpt_weighted(
-                        mesh,
-                        gesture.gesture_id,
-                        cdmw_interaction::SculptTool::Grab,
-                        &gesture.sculpt_weights,
-                        gesture.pivot,
-                        delta,
-                        1.0,
-                    )
+                    if gesture.symmetry_map.mode == SculptSymmetry::Off {
+                        self.operator.sculpt_weighted(
+                            mesh,
+                            gesture.gesture_id,
+                            cdmw_interaction::SculptTool::Grab,
+                            &gesture.sculpt_weights,
+                            gesture.pivot,
+                            delta,
+                            1.0,
+                        )
+                    } else {
+                        sculpt_weighted_if_any(
+                            &self.operator,
+                            mesh,
+                            gesture.gesture_id,
+                            cdmw_interaction::SculptTool::Grab,
+                            &gesture.symmetry_primary_weights,
+                            gesture.pivot,
+                            delta,
+                            1.0,
+                        )?;
+                        sculpt_weighted_if_any(
+                            &self.operator,
+                            mesh,
+                            gesture.gesture_id,
+                            cdmw_interaction::SculptTool::Grab,
+                            &gesture.symmetry_mirrored_weights,
+                            gesture.symmetry_map.mode.reflect_point(gesture.pivot),
+                            gesture.symmetry_map.mode.reflect_point(delta),
+                            1.0,
+                        )?;
+                        sculpt_weighted_if_any(
+                            &self.operator,
+                            mesh,
+                            gesture.gesture_id,
+                            cdmw_interaction::SculptTool::Grab,
+                            &gesture.symmetry_plane_weights,
+                            gesture.symmetry_map.mode.plane_vector(gesture.pivot),
+                            gesture.symmetry_map.mode.plane_vector(delta),
+                            1.0,
+                        )?;
+                        Ok(())
+                    }
                 }
                 ViewportTool::Smooth | ViewportTool::Inflate | ViewportTool::Pinch => {
                     if let Some(projection) = &self.projection {
-                        gesture.sculpt_weights = brush_vertex_weights(
-                            mesh,
-                            projection,
-                            point,
-                            self.brush_radius,
-                            true,
-                            self.brush_falloff,
-                        )?;
+                        let source_weights = if gesture.symmetry_map.mode == SculptSymmetry::Off {
+                            brush_vertex_weights(
+                                mesh,
+                                projection,
+                                point,
+                                self.brush_radius,
+                                true,
+                                self.brush_falloff,
+                            )
+                        } else {
+                            brush_vertex_weights_unclipped(
+                                projection,
+                                point,
+                                self.brush_radius,
+                                true,
+                                self.brush_falloff,
+                            )
+                        }?;
+                        let expanded = gesture.symmetry_map.expand_weights(mesh, &source_weights);
+                        // Leaving the editable surface during an otherwise valid stroke is a
+                        // normal no-hit sample, not malformed pointer input. Keep every prior
+                        // deformation in this gesture and wait for the next eligible sample.
+                        if expanded.combined.is_empty() {
+                            return Ok(());
+                        }
+                        gesture.sculpt_weights = expanded.combined;
+                        gesture.symmetry_primary_weights = expanded.primary;
+                        gesture.symmetry_mirrored_weights = expanded.mirrored;
+                        gesture.symmetry_plane_weights = expanded.plane;
                         gesture.handles = gesture.sculpt_weights.keys().copied().collect();
                     }
                     gesture.pivot = center_of_handles(mesh, &gesture.handles)
@@ -2212,15 +4483,50 @@ impl LabApplication {
                         1
                     };
                     for _ in 0..passes {
-                        self.operator.sculpt_weighted(
-                            mesh,
-                            gesture.gesture_id,
-                            tool,
-                            &gesture.sculpt_weights,
-                            gesture.pivot,
-                            Vec3::ZERO,
-                            strength,
-                        )?;
+                        if tool == cdmw_interaction::SculptTool::Pinch
+                            && gesture.symmetry_map.mode != SculptSymmetry::Off
+                        {
+                            sculpt_weighted_if_any(
+                                &self.operator,
+                                mesh,
+                                gesture.gesture_id,
+                                tool,
+                                &gesture.symmetry_primary_weights,
+                                gesture.pivot,
+                                Vec3::ZERO,
+                                strength,
+                            )?;
+                            sculpt_weighted_if_any(
+                                &self.operator,
+                                mesh,
+                                gesture.gesture_id,
+                                tool,
+                                &gesture.symmetry_mirrored_weights,
+                                gesture.symmetry_map.mode.reflect_point(gesture.pivot),
+                                Vec3::ZERO,
+                                strength,
+                            )?;
+                            sculpt_weighted_if_any(
+                                &self.operator,
+                                mesh,
+                                gesture.gesture_id,
+                                tool,
+                                &gesture.symmetry_plane_weights,
+                                gesture.symmetry_map.mode.plane_vector(gesture.pivot),
+                                Vec3::ZERO,
+                                strength,
+                            )?;
+                        } else {
+                            self.operator.sculpt_weighted(
+                                mesh,
+                                gesture.gesture_id,
+                                tool,
+                                &gesture.sculpt_weights,
+                                gesture.pivot,
+                                Vec3::ZERO,
+                                strength,
+                            )?;
+                        }
                     }
                     Ok(())
                 }
@@ -2245,16 +4551,21 @@ impl LabApplication {
     }
 
     fn finish_primary_gesture(&mut self) {
+        let mut cdmw_transaction = None;
         if let Some(gesture) = self.selection_gesture.take() {
             let result = self
                 .mesh
                 .as_ref()
                 .map_or(Ok(false), |mesh| gesture.commit(mesh, &mut self.history));
             self.status = match result {
-                Ok(true) => format!(
-                    "{} selection committed as one undo entry",
-                    self.selection_tool.label()
-                ),
+                Ok(true) => {
+                    let label = format!("{} selection", self.selection_tool.label());
+                    cdmw_transaction = Some(label);
+                    format!(
+                        "{} selection committed as one undo entry",
+                        self.selection_tool.label()
+                    )
+                }
                 Ok(false) => "Selection gesture made no change".to_owned(),
                 Err(error) => format!("Selection commit failed: {error}"),
             };
@@ -2268,9 +4579,17 @@ impl LabApplication {
                 },
             );
             self.status = match result {
-                Ok(()) => format!("{} committed as one undo entry", gesture.tool.label()),
+                Ok(()) => {
+                    cdmw_transaction = Some(gesture.tool.label().to_owned());
+                    format!("{} committed as one undo entry", gesture.tool.label())
+                }
                 Err(error) => format!("Tool commit failed: {error}"),
             };
+        }
+        if self.cdmw_mode()
+            && let Some(label) = cdmw_transaction
+        {
+            self.submit_cdmw_transaction(&label);
         }
     }
 
@@ -2306,32 +4625,61 @@ impl LabApplication {
             return;
         };
         let painter = ui.painter();
-        let show_vertices = matches!(self.view_mode, ViewMode::Vertices | ViewMode::WireVertices)
-            || (self.viewport_tool == ViewportTool::Select
-                && self.selection_domain == SelectionDomain::Vertex);
-        if show_vertices {
-            for projected in projection
-                .vertices
-                .values()
-                .filter(|point| point.inside_view)
-            {
-                painter.circle_filled(
-                    egui::pos2(projected.screen.x, projected.screen.y),
-                    1.4,
-                    Color32::from_white_alpha(125),
-                );
+        // Wireframe and point display are rendered by the depth-tested wgpu pipelines. Painting
+        // the same base geometry again in egui made every rear edge/vertex look permanently
+        // X-rayed. Egui owns only the interactive selection overlay.
+        let selection_xray = !self.selection_visible_only || self.view_mode == ViewMode::XRay;
+        let mut depth_visible = Selection::default();
+        if !selection_xray {
+            let query_domain = |domain| {
+                query_selection(
+                    &projection.interaction,
+                    &SelectionQuery {
+                        domain,
+                        operation: SelectionOperation::Replace,
+                        visible_only: true,
+                        shape: SelectionShape::Rectangle {
+                            minimum: Vec2::new(rectangle.left(), rectangle.top()),
+                            maximum: Vec2::new(rectangle.right(), rectangle.bottom()),
+                        },
+                        geometry_revision: projection.interaction.geometry_revision,
+                        topology_generation: projection.interaction.topology_generation,
+                        camera_revision: projection.interaction.camera_revision,
+                        viewport_revision: projection.interaction.viewport_revision,
+                    },
+                )
+                .unwrap_or_default()
+            };
+            if !mesh.selection.vertices.is_empty() {
+                depth_visible.vertices = query_domain(SelectionDomain::Vertex).vertices;
+            }
+            if !mesh.selection.edges.is_empty() {
+                depth_visible.edges = query_domain(SelectionDomain::Edge).edges;
+            }
+            if !mesh.selection.faces.is_empty() || !mesh.selection.submeshes.is_empty() {
+                depth_visible.faces = query_domain(SelectionDomain::Face).faces;
             }
         }
-        for handle in &mesh.selection.vertices {
+        for handle in mesh
+            .selection
+            .vertices
+            .iter()
+            .filter(|handle| selection_xray || depth_visible.vertices.contains(handle))
+        {
             if let Some(projected) = projection.vertices.get(handle) {
                 painter.circle_filled(
                     egui::pos2(projected.screen.x, projected.screen.y),
-                    4.0,
-                    Color32::from_rgb(255, 145, 35),
+                    (self.overlay_vertex_size + 1.5).max(2.0),
+                    self.overlay_selection_colour,
                 );
             }
         }
-        for handle in &mesh.selection.edges {
+        for handle in mesh
+            .selection
+            .edges
+            .iter()
+            .filter(|handle| selection_xray || depth_visible.edges.contains(handle))
+        {
             if let Some(edge) = mesh.edge(*handle)
                 && let (Some(first), Some(second)) = (
                     projection.vertices.get(&edge.vertices[0]),
@@ -2343,14 +4691,40 @@ impl LabApplication {
                         egui::pos2(first.screen.x, first.screen.y),
                         egui::pos2(second.screen.x, second.screen.y),
                     ],
-                    Stroke::new(2.0, Color32::from_rgb(255, 145, 35)),
+                    Stroke::new(
+                        (self.overlay_wire_width + 0.8).max(1.0),
+                        self.overlay_selection_colour,
+                    ),
                 );
             }
         }
-        let detailed_faces = mesh.selection.faces.len() <= 4_000;
-        let outline_faces = mesh.selection.faces.len() <= DETAILED_FACE_OUTLINE_LIMIT;
-        for handle in &mesh.selection.faces {
-            let Some(face) = mesh.face(*handle) else {
+        let selected_faces = mesh
+            .faces()
+            .filter_map(|(handle, face)| {
+                (mesh.selection.faces.contains(&handle)
+                    || mesh.selection.submeshes.contains(&face.submesh))
+                .then_some(handle)
+            })
+            .filter(|handle| selection_xray || depth_visible.faces.contains(handle))
+            .collect::<Vec<_>>();
+        let detailed_faces = selected_faces.len() <= 4_000;
+        let outline_faces = selected_faces.len() <= DETAILED_FACE_OUTLINE_LIMIT;
+        let face_fill = Color32::from_rgba_unmultiplied(
+            self.overlay_selection_colour.r(),
+            self.overlay_selection_colour.g(),
+            self.overlay_selection_colour.b(),
+            72,
+        );
+        let mut face_fill_mesh = egui::Mesh::default();
+        face_fill_mesh.reserve_vertices(selected_faces.len().saturating_mul(3));
+        face_fill_mesh.reserve_triangles(selected_faces.len());
+        let mut face_outline_segments = Vec::with_capacity(if outline_faces {
+            selected_faces.len().saturating_mul(3)
+        } else {
+            0
+        });
+        for handle in selected_faces {
+            let Some(face) = mesh.face(handle) else {
                 continue;
             };
             let points = face
@@ -2363,15 +4737,20 @@ impl LabApplication {
                 continue;
             }
             if detailed_faces {
-                painter.add(egui::Shape::convex_polygon(
-                    points,
-                    Color32::from_rgba_unmultiplied(255, 125, 25, 72),
-                    if outline_faces {
-                        Stroke::new(1.0, Color32::from_rgb(255, 145, 35))
-                    } else {
-                        Stroke::NONE
-                    },
-                ));
+                let Ok(first_vertex) = u32::try_from(face_fill_mesh.vertices.len()) else {
+                    continue;
+                };
+                for point in &points {
+                    face_fill_mesh.colored_vertex(*point, face_fill);
+                }
+                face_fill_mesh.add_triangle(first_vertex, first_vertex + 1, first_vertex + 2);
+                if outline_faces {
+                    face_outline_segments.extend([
+                        [points[0], points[1]],
+                        [points[1], points[2]],
+                        [points[2], points[0]],
+                    ]);
+                }
             } else {
                 let center = points
                     .iter()
@@ -2380,9 +4759,29 @@ impl LabApplication {
                 painter.circle_filled(
                     egui::pos2(center.x, center.y),
                     1.2,
-                    Color32::from_rgba_unmultiplied(255, 145, 35, 150),
+                    Color32::from_rgba_unmultiplied(
+                        self.overlay_selection_colour.r(),
+                        self.overlay_selection_colour.g(),
+                        self.overlay_selection_colour.b(),
+                        150,
+                    ),
                 );
             }
+        }
+        if !face_fill_mesh.is_empty() {
+            // Submit selected faces as raw triangles. `Shape::convex_polygon` creates a closed
+            // anti-aliased path whose fill feather also uses unbounded miter joins at acute
+            // corners, even when its explicit stroke is disabled.
+            painter.add(egui::Shape::mesh(face_fill_mesh));
+        }
+        for segment in face_outline_segments {
+            // A stroked closed triangle goes through egui's miter-join path. Very acute
+            // projected faces can expand that join into screen-spanning rays. Independent
+            // two-point segments retain the outline without a corner join to amplify.
+            painter.line_segment(
+                segment,
+                Stroke::new(self.overlay_wire_width, self.overlay_selection_colour),
+            );
         }
         self.paint_active_shape(ui);
         self.paint_gizmo(ui, rectangle);
@@ -2390,7 +4789,7 @@ impl LabApplication {
 
     fn paint_active_shape(&self, ui: &egui::Ui) {
         let painter = ui.painter();
-        let stroke = Stroke::new(2.0, Color32::from_rgb(80, 190, 255));
+        let stroke = Stroke::new(2.0, self.overlay_live_selection_colour);
         if let Some(gesture) = &self.selection_gesture {
             match gesture.tool {
                 SelectionTool::Click | SelectionTool::Brush => {
@@ -2548,6 +4947,10 @@ impl LabApplication {
             );
         }
         self.handle_actions(actions);
+        if self.deformation_heatmap_applied != self.deformation_heatmap_enabled {
+            self.deformation_heatmap_applied = self.deformation_heatmap_enabled;
+            self.publish_mesh_snapshot();
+        }
         let paint_jobs = context.tessellate(full_output.shapes, full_output.pixels_per_point);
         let camera_matrix = self
             .viewport_rect
@@ -2556,10 +4959,20 @@ impl LabApplication {
         let show_normals = self.show_normals;
         let show_bounds = self.show_bounds;
         let show_bones = self.show_bones;
+        let background = self.viewport_background_colour;
+        let wire_colour = renderer_colour(self.overlay_wire_colour);
+        let point_colour = renderer_colour(self.overlay_vertex_colour);
         let render_error = if let Some(renderer) = &mut self.renderer {
             renderer.set_view_mode(view_mode);
             renderer.set_overlays(show_normals, show_bounds);
+            renderer.set_overlay_colours(wire_colour, point_colour);
             renderer.set_bone_overlay(show_bones);
+            renderer.set_clear_colour([
+                f32::from(background.r()) / 255.0,
+                f32::from(background.g()) / 255.0,
+                f32::from(background.b()) / 255.0,
+                1.0,
+            ]);
             if let Some(camera_matrix) = camera_matrix {
                 renderer.set_camera(camera_matrix);
             }
@@ -2612,6 +5025,168 @@ fn path_is_within(path: &std::path::Path, root: &std::path::Path) -> bool {
     path_text == root_text || path_text.starts_with(format!("{root_text}/").as_str())
 }
 
+fn parse_cdmw_skeleton_overlay(state: &Value) -> Result<CdmwSkeletonOverlay, String> {
+    let skeleton = state
+        .get("skeleton")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "No skeleton hierarchy is present in this authoring session".to_owned())?;
+    if skeleton.get("available").and_then(Value::as_bool) != Some(true) {
+        return Err("The host did not provide an editable skeleton hierarchy".to_owned());
+    }
+    if skeleton.get("bones_truncated").and_then(Value::as_bool) != Some(false) {
+        return Err("The skeleton hierarchy is truncated, so its overlay is disabled".to_owned());
+    }
+    if skeleton
+        .get("skeleton_parse_warning")
+        .and_then(Value::as_str)
+        .is_some_and(|warning| !warning.trim().is_empty())
+    {
+        return Err("The skeleton parser reported an incomplete hierarchy".to_owned());
+    }
+    let bone_count = skeleton
+        .get("bone_count")
+        .and_then(Value::as_u64)
+        .and_then(|count| usize::try_from(count).ok())
+        .filter(|count| *count > 0 && *count <= 4_096)
+        .ok_or_else(|| "The skeleton hierarchy has no bounded bone count".to_owned())?;
+    let linked_count = skeleton
+        .get("skeleton_bone_count")
+        .and_then(Value::as_u64)
+        .and_then(|count| usize::try_from(count).ok())
+        .ok_or_else(|| "No complete linked skeleton hierarchy is available".to_owned())?;
+    let bones = skeleton
+        .get("bones")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "The skeleton hierarchy omitted its bone rows".to_owned())?;
+    if linked_count != bone_count || bones.len() != bone_count {
+        return Err("The skeleton hierarchy bone counts do not match".to_owned());
+    }
+
+    let mut positions = vec![None; bone_count];
+    let mut parents = vec![None; bone_count];
+    for bone in bones {
+        let index = bone
+            .get("index")
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .filter(|index| *index < bone_count)
+            .ok_or_else(|| "The skeleton hierarchy contains an invalid bone index".to_owned())?;
+        if positions[index].is_some() {
+            return Err("The skeleton hierarchy contains a duplicate bone index".to_owned());
+        }
+        let coordinates = bone
+            .get("position")
+            .and_then(Value::as_array)
+            .filter(|values| values.len() == 3)
+            .ok_or_else(|| {
+                "The skeleton hierarchy contains an incomplete bone position".to_owned()
+            })?;
+        let mut position = [0.0_f32; 3];
+        for (target, value) in position.iter_mut().zip(coordinates) {
+            let coordinate = value
+                .as_f64()
+                .filter(|coordinate| coordinate.is_finite())
+                .ok_or_else(|| {
+                    "The skeleton hierarchy contains a non-finite bone position".to_owned()
+                })? as f32;
+            if !coordinate.is_finite() {
+                return Err(
+                    "The skeleton hierarchy contains an out-of-range bone position".to_owned(),
+                );
+            }
+            *target = coordinate;
+        }
+        let parent = bone
+            .get("parent_index")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| "The skeleton hierarchy omitted a parent index".to_owned())?;
+        parents[index] = if parent < 0 {
+            None
+        } else {
+            let parent = usize::try_from(parent)
+                .ok()
+                .filter(|parent| *parent < bone_count && *parent != index)
+                .ok_or_else(|| {
+                    "The skeleton hierarchy contains an invalid parent index".to_owned()
+                })?;
+            Some(parent)
+        };
+        positions[index] = Some(position);
+    }
+    if positions.iter().any(Option::is_none) || parents.iter().all(Option::is_some) {
+        return Err("The skeleton hierarchy is incomplete or has no root".to_owned());
+    }
+    for start in 0..bone_count {
+        let mut visited = HashSet::new();
+        let mut current = Some(start);
+        while let Some(index) = current {
+            if !visited.insert(index) {
+                return Err("The skeleton hierarchy contains a parent cycle".to_owned());
+            }
+            current = parents[index];
+        }
+    }
+    let positions = positions
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| "The skeleton hierarchy omitted a bone position".to_owned())?;
+    let mut lines = Vec::with_capacity(bone_count.saturating_sub(1).saturating_mul(2));
+    for (index, parent) in parents.into_iter().enumerate() {
+        if let Some(parent) = parent {
+            lines.push(positions[parent]);
+            lines.push(positions[index]);
+        }
+    }
+    if lines.is_empty() {
+        return Err("The skeleton hierarchy has no parent-child segments to draw".to_owned());
+    }
+    Ok(CdmwSkeletonOverlay { bone_count, lines })
+}
+
+fn index_map(value: &Value, key: &str) -> HashMap<u32, HashSet<u32>> {
+    value
+        .get(key)
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .filter_map(|(submesh, values)| {
+            let submesh = submesh.parse::<u32>().ok()?;
+            let indices = values
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_u64)
+                .filter_map(|item| u32::try_from(item).ok())
+                .collect::<HashSet<_>>();
+            Some((submesh, indices))
+        })
+        .collect()
+}
+
+fn edge_map(value: &Value, key: &str) -> HashMap<u32, HashSet<(u32, u32)>> {
+    value
+        .get(key)
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .filter_map(|(submesh, values)| {
+            let submesh = submesh.parse::<u32>().ok()?;
+            let edges = values
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_array)
+                .filter_map(|edge| {
+                    let first = u32::try_from(edge.first()?.as_u64()?).ok()?;
+                    let second = u32::try_from(edge.get(1)?.as_u64()?).ok()?;
+                    Some((first.min(second), first.max(second)))
+                })
+                .collect::<HashSet<_>>();
+            Some((submesh, edges))
+        })
+        .collect()
+}
+
 fn push_latency_sample(samples: &mut VecDeque<f64>, value: f64) {
     if !value.is_finite() || value < 0.0 {
         return;
@@ -2638,6 +5213,22 @@ fn percentile95(samples: &VecDeque<f64>) -> Option<f64> {
     ordered.get(index).copied()
 }
 
+fn sculpt_weighted_if_any(
+    operator: &OperatorController,
+    mesh: &mut WorkingMesh,
+    gesture_id: u64,
+    tool: cdmw_interaction::SculptTool,
+    weights: &HashMap<VertexHandle, f32>,
+    center: Vec3,
+    delta: Vec3,
+    strength: f32,
+) -> Result<(), cdmw_interaction::InteractionError> {
+    if weights.is_empty() {
+        return Ok(());
+    }
+    operator.sculpt_weighted(mesh, gesture_id, tool, weights, center, delta, strength)
+}
+
 fn center_of_handles(
     mesh: &WorkingMesh,
     handles: &std::collections::HashSet<VertexHandle>,
@@ -2654,6 +5245,15 @@ fn center_of_handles(
         }
     }
     (count > 0).then_some(total / count as f32)
+}
+
+fn renderer_colour(colour: Color32) -> [f32; 4] {
+    [
+        f32::from(colour.r()) / 255.0,
+        f32::from(colour.g()) / 255.0,
+        f32::from(colour.b()) / 255.0,
+        f32::from(colour.a()) / 255.0,
+    ]
 }
 
 fn axis_colors() -> [(GizmoAxis, Color32); 3] {
@@ -2736,9 +5336,26 @@ impl ApplicationHandler for LabApplication {
         if self.window.is_some() {
             return;
         }
-        let attributes = WindowAttributes::default()
-            .with_title("CDMW Rust Mesh Lab")
+        let mut attributes = WindowAttributes::default()
+            .with_title(if self.cdmw_mode() {
+                "CDMW — Mesh Editor"
+            } else {
+                "CDMW Rust Mesh Lab"
+            })
             .with_inner_size(winit::dpi::LogicalSize::new(1440.0, 900.0));
+        if let Some(parent_hwnd) = self.embedded_parent_hwnd {
+            attributes = match cdmw_win32_embed::with_parent_window(
+                attributes.with_decorations(false).with_visible(false),
+                parent_hwnd,
+            ) {
+                Ok(attributes) => attributes,
+                Err(error) => {
+                    error!("embedded parent window is invalid: {error}");
+                    event_loop.exit();
+                    return;
+                }
+            };
+        }
         let window = match event_loop.create_window(attributes) {
             Ok(window) => Arc::new(window),
             Err(error) => {
@@ -2756,7 +5373,75 @@ impl ApplicationHandler for LabApplication {
             }
         };
         let adapter = renderer.adapter_report();
-        self.status = format!("D3D12 adapter: {} ({})", adapter.name, adapter.driver_info);
+        let quality = renderer.quality_report();
+        self.status = format!(
+            "D3D12 adapter: {} ({}) · {}x AA · {}x texture filtering",
+            adapter.name, adapter.driver_info, quality.sample_count, quality.anisotropy_clamp,
+        );
+        let mut renderer = renderer;
+        let mut texture_upload_count = 0_usize;
+        let mut bound_material_count = 0_usize;
+        let mut texture_warning = None;
+        if !self.cdmw_texture_resources.is_empty() || !self.cdmw_material_presentations.is_empty() {
+            renderer.reset_texture();
+            for texture in &self.cdmw_texture_resources {
+                match renderer.add_dds_texture(
+                    &texture.bytes,
+                    texture.role,
+                    &texture.material_indices_by_lod,
+                ) {
+                    Ok(()) => texture_upload_count = texture_upload_count.saturating_add(1),
+                    Err(error) => {
+                        texture_warning.get_or_insert_with(|| error.to_string());
+                    }
+                }
+            }
+            if let Err(error) = add_cdmw_material_presentations(
+                &mut renderer,
+                &self.cdmw_material_presentations,
+                self.document
+                    .as_ref()
+                    .map_or(0, |document| document.lods.len()),
+            ) {
+                texture_warning.get_or_insert_with(|| error.to_string());
+            }
+            match renderer.set_material_lod(self.active_lod_index) {
+                Ok(count) => bound_material_count = count,
+                Err(error) => {
+                    texture_warning.get_or_insert_with(|| error.to_string());
+                }
+            }
+        }
+        if self.cdmw_mode() {
+            self.record_cdmw_texture_uploads(
+                self.cdmw_texture_resources.len(),
+                texture_upload_count,
+                bound_material_count,
+                texture_warning.as_deref(),
+            );
+        }
+        if let Some(mesh) = &self.mesh {
+            let visible_submeshes = self.cdmw_visible_submeshes();
+            let snapshot = visible_submeshes.as_ref().map_or_else(
+                || mesh.draw_snapshot(),
+                |visible| mesh.draw_snapshot_for_submeshes(visible),
+            );
+            let deformation_reference = deformation_reference_for_snapshot(
+                self.deformation_heatmap_enabled,
+                self.deformation_reference.as_mut(),
+                visible_submeshes.as_ref(),
+                &snapshot,
+            );
+            if let Err(error) =
+                renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
+            {
+                self.status = format!("CDMW mesh upload failed: {error}");
+            }
+        }
+        if let Err(error) = renderer.set_skeleton_lines(&self.skeleton_overlay_lines) {
+            self.show_bones = false;
+            self.status = format!("Skeleton overlay upload failed: {error}");
+        }
         let egui_state = egui_winit::State::new(
             self.egui_context.clone(),
             egui::ViewportId::ROOT,
@@ -2766,9 +5451,31 @@ impl ApplicationHandler for LabApplication {
             None,
         );
         window.request_redraw();
+        let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
         self.renderer = Some(renderer);
         self.egui_state = Some(egui_state);
         self.window = Some(window);
+        if let Some(bridge) = &self.cdmw_bridge {
+            if let Err(error) =
+                bridge.announce_ready(child_hwnd, self.embedded_parent_hwnd.unwrap_or(0))
+            {
+                self.status = format!("CDMW handshake failed: {error}");
+                self.cdmw_exit_requested = true;
+            } else {
+                self.status = format!(
+                    "D3D12 adapter: {} ({}) · {}x AA · {}x texture filtering · waiting for CDMW · {texture_upload_count} texture(s) ready{}",
+                    adapter.name,
+                    adapter.driver_info,
+                    quality.sample_count,
+                    quality.anisotropy_clamp,
+                    texture_warning
+                        .as_ref()
+                        .map_or_else(String::new, |warning| format!(
+                            " · texture warning: {warning}"
+                        ))
+                );
+            }
+        }
     }
 
     fn window_event(
@@ -2796,7 +5503,14 @@ impl ApplicationHandler for LabApplication {
             window.request_redraw();
         }
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => {
+                if let Some(bridge) = &mut self.cdmw_bridge
+                    && !self.cdmw_finish_accepted
+                {
+                    let _ = bridge.cancel("Mesh Editor window closed");
+                }
+                event_loop.exit();
+            }
             WindowEvent::Resized(size) => {
                 self.cancel_active_gesture("Resize cancelled the active gesture");
                 self.pointer_events.clear();
@@ -2822,11 +5536,13 @@ impl ApplicationHandler for LabApplication {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if self.poll_loader()
-            && let Some(window) = &self.window
-        {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let changed = self.poll_loader() | self.poll_cdmw();
+        if changed && let Some(window) = &self.window {
             window.request_redraw();
+        }
+        if self.cdmw_exit_requested {
+            event_loop.exit();
         }
     }
 }
@@ -2834,6 +5550,36 @@ impl ApplicationHandler for LabApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn z_elongated_document() -> MeshDocument {
+        let positions = vec![[-0.20, -0.04, -1.0], [0.20, -0.04, 1.0], [0.0, 0.04, 1.0]];
+        MeshDocument {
+            format: cdmw_formats::MeshFormat::Pac,
+            source_sha256: String::new(),
+            parser: "integrated-camera-test".to_owned(),
+            lod_count_reported: 1,
+            lods: vec![cdmw_formats::MeshLod {
+                level: 0,
+                submeshes: vec![cdmw_formats::Submesh {
+                    name: "sword".to_owned(),
+                    material: "sword".to_owned(),
+                    normals: vec![[0.0, 0.0, 1.0]; positions.len()],
+                    uvs: vec![[0.0, 0.0]; positions.len()],
+                    source_vertex_indices: vec![0, 1, 2],
+                    positions,
+                    indices: vec![0, 1, 2],
+                    source_range: cdmw_formats::SourceRange {
+                        offset: 0,
+                        length: 0,
+                    },
+                    vertex_stride: 0,
+                    layout: "integrated-camera-test".to_owned(),
+                }],
+            }],
+            warnings: Vec::new(),
+            structural_fingerprint: String::new(),
+        }
+    }
 
     #[test]
     fn quarter_circle_gizmo_drag_produces_a_quarter_turn() {
@@ -2850,5 +5596,67 @@ mod tests {
         assert_eq!(samples.len(), LATENCY_SAMPLE_WINDOW);
         assert_eq!(samples.front(), Some(&45.0));
         assert_eq!(percentile95(&samples), Some(288.0));
+    }
+
+    #[test]
+    fn embedded_parent_hwnd_requires_and_accepts_cdmw_session_mode() {
+        let options = parse_startup_options_from(
+            [
+                "--cdmw-session",
+                "session.json",
+                "--embedded-parent-hwnd",
+                "4242",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap_or_else(|error| panic!("embedded options failed: {error}"));
+        assert_eq!(options.cdmw_session, Some(PathBuf::from("session.json")));
+        assert_eq!(options.embedded_parent_hwnd, Some(4242));
+
+        let standalone = parse_startup_options_from(
+            ["--embedded-parent-hwnd", "4242"]
+                .into_iter()
+                .map(str::to_owned),
+        );
+        assert!(standalone.is_err());
+    }
+
+    #[test]
+    fn integrated_session_applies_the_startup_broadside_camera() {
+        let root = tempfile::tempdir().unwrap_or_else(|error| panic!("tempdir failed: {error}"));
+        let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "camera-session", 1, 0);
+
+        let mut application = LabApplication::new_cdmw(bridge, z_elongated_document(), None)
+            .unwrap_or_else(|error| panic!("integrated application failed: {error}"));
+
+        assert!(application.cdmw_mode());
+        assert!(application.camera.forward().x.abs() > 0.75);
+        assert!(application.camera.forward().y.abs() > 0.40);
+        assert!(application.camera.forward().z.abs() < 1.0e-5);
+        let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1_600.0, 600.0));
+        application.update_viewport_rect(viewport);
+        let projected = application
+            .mesh
+            .as_ref()
+            .unwrap_or_else(|| panic!("integrated mesh missing"))
+            .vertices()
+            .map(|(_, vertex)| {
+                application
+                    .camera
+                    .project(Vec3::from_array(vertex.position), viewport)
+                    .unwrap_or_else(|| panic!("integrated weapon point did not project"))
+            })
+            .collect::<Vec<_>>();
+        assert!(projected.iter().all(|point| point.inside_view));
+        let minimum_x = projected
+            .iter()
+            .map(|point| point.screen.x)
+            .fold(f32::INFINITY, f32::min);
+        let maximum_x = projected
+            .iter()
+            .map(|point| point.screen.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(maximum_x - minimum_x > viewport.width() * 0.75);
     }
 }

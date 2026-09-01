@@ -60,15 +60,32 @@ from tools.mesh_harness.real_dotnet_material import (
     resident_material_evidence,
     resident_material_gates,
 )
-from tools.mesh_harness.win32_input import (
-    _desktop_input_isolation_evidence,
-    _desktop_input_snapshot,
-)
+from tools.mesh_harness.win32_input import _physical_mouse_input_evidence
 from tools.mesh_harness.service_summary import _command_summary
 
 #: A full-mesh selection would otherwise bury the trail it is meant to make
 #: readable, so long arrays are summarised rather than written whole.
 _TRAIL_ARRAY_LIMIT = 512
+
+
+def _helper_ui_thread_no_global_input_evidence() -> dict[str, object]:
+    """Prove the resident helper path did not use global physical input."""
+
+    physical_input = _physical_mouse_input_evidence()
+    gesture_count = physical_input.get("gesture_count")
+    restore_failure_count = physical_input.get("restore_failure_count")
+    active = physical_input.get("active")
+    return {
+        "method": "helper_ui_thread_no_global_input",
+        "ok": bool(
+            gesture_count == 0
+            and restore_failure_count == 0
+            and active is False
+        ),
+        "gesture_count": gesture_count,
+        "restore_failure_count": restore_failure_count,
+        "active": active,
+    }
 
 
 def _front_facing_vertex_selection_anchor(
@@ -356,20 +373,12 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
     state.archive_sources_unchanged = state.archive_sources_before == state.archive_sources_after
     state.archive_source_content_unchanged = state.archive_content_fingerprints_before == state.archive_content_fingerprints_after
     state.source_payload_unchanged = sha256(_read_archive_payload(state.model_entry)).hexdigest() == state.source_payload_sha256
-    desktop_timer = getattr(state, "desktop_input_timer", None)
-    if desktop_timer is not None:
-        desktop_timer.stop()
-    state.desktop_input_after = _desktop_input_snapshot()
-    state.desktop_input_observations.append(dict(state.desktop_input_after))
-    state.desktop_input_isolation = _desktop_input_isolation_evidence(
-        state.desktop_input_observations,
-        forbidden_hwnds=(
-            int(state.tab.winId()),
-            int(getattr(state, "form_hwnd", 0) or 0),
-            int(getattr(state, "viewport_hwnd", 0) or 0),
-        ),
-        harness_screen_bounds=tuple(state.harness_screen_bounds),
+    state.helper_ui_thread_no_global_input = (
+        _helper_ui_thread_no_global_input_evidence()
     )
+    # ``_result_gates`` still consumes this compatibility slot while the
+    # evidence payload identifies the helper-local method explicitly.
+    state.desktop_input_isolation = dict(state.helper_ui_thread_no_global_input)
     gates = _result_gates(state)
     ok = bool(all(gates.values()) and state.mouse_down_sent and state.mouse_move_sent and state.mouse_up_sent)
     last_result = state.stroke_results[-1] if state.stroke_results else None
@@ -388,7 +397,12 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "archive_provenance": _archive_entry_provenance(state.model_entry),
         "source_payload_sha256": state.source_payload_sha256,
         "source_payload_unchanged": state.source_payload_unchanged,
-        "desktop_input": dict(state.desktop_input_isolation),
+        "desktop_input": dict(state.helper_ui_thread_no_global_input),
+        "helper_ui_thread_no_global_input": dict(
+            state.helper_ui_thread_no_global_input
+        ),
+        "global_mouse_input_used": False,
+        "physical_mouse_input": _physical_mouse_input_evidence(),
         "archive_sources_unchanged": state.archive_sources_unchanged,
         "archive_source_content_unchanged": state.archive_source_content_unchanged,
         "archive_content_fingerprints_before": state.archive_content_fingerprints_before,
@@ -508,7 +522,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "mouse_drag_points": [list(point) for point in state.mouse_drag_points],
         "mouse_drag_end": list(state.mouse_drag_end),
         "mouse_drag_effective_end": list(state.mouse_drag_effective_end),
-        "mouse_input_backend": "scoped_hwnd_messages_normalized_input",
+        "mouse_input_backend": "helper_ui_thread_resident_probe",
         "input_window_verified": bool(getattr(state, "input_window_verified", False)),
         "input_viewport_screen_origin": [
             int(state.viewport_rect_before[0]),

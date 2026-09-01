@@ -32,6 +32,19 @@ This file is a practical notice list for repository and release packaging. For a
 
 ## Native Libraries
 
+### CDMW Rust Edit Mesh runtime dependencies
+
+- Purpose: the embedded wgpu/D3D12 production Mesh Editor and standalone Rust Mesh Lab
+- Principal upstreams: [wgpu](https://github.com/gfx-rs/wgpu),
+  [egui](https://github.com/emilk/egui), and
+  [winit](https://github.com/rust-windowing/winit)
+- Licences: principally MIT OR Apache-2.0, with the locked transitive graph's
+  additional permissive terms listed in
+  `tools/rust_mesh_lab/THIRD_PARTY_NOTICES.md`
+- Notes: release packaging includes that Rust-specific notice beside
+  `native/rust_mesh_editor/cdmw_mesh_lab.exe`; exact versions are pinned by
+  `tools/rust_mesh_lab/Cargo.lock`
+
 ### DirectXTex
 
 - Purpose: DDS preview conversion, DDS staging, and final DDS rebuild

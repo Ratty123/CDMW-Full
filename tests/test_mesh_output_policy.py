@@ -3,9 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 import hashlib
 import json
+import os
 import threading
 
 import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.mesh.authoring_capability import (

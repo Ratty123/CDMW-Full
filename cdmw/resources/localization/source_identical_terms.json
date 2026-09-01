@@ -1817,6 +1817,7 @@
       "node": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "normalize": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "obj": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "occlusion": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "oiiotool": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "ok": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "ollama": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",

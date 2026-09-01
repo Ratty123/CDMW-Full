@@ -22,18 +22,33 @@ uint32_t interaction_abi_read_vertices(
             "vertex read position_capacity is measured in doubles and is too small"
         );
     }
-    std::lock_guard<std::mutex> lock(g_mesh_interaction_abi_mutex);
-    MeshInteractionAbiSession* runtime = mesh_interaction_abi_find_session(request->session_handle);
+    std::shared_ptr<MeshInteractionAbiSession> runtime;
+    {
+        std::shared_lock<std::shared_mutex> registry_lock(g_mesh_interaction_abi_registry_mutex);
+        runtime = mesh_interaction_abi_find_session(request->session_handle);
+    }
     if (runtime == nullptr) {
         return mesh_interaction_abi_fail(
             result, CDMW_MESH_INTERACTION_SESSION_NOT_FOUND, "session handle is not open"
+        );
+    }
+    std::lock_guard<std::mutex> session_lock(runtime->mutex);
+    if (runtime->closed) {
+        return mesh_interaction_abi_fail(
+            result, CDMW_MESH_INTERACTION_SESSION_NOT_FOUND, "session handle is closed"
         );
     }
     MeshEditorSession* editor = mesh_interaction_abi_find_editor(*runtime);
     if (editor == nullptr) {
         return mesh_interaction_abi_fail(result, CDMW_MESH_INTERACTION_INTERNAL_ERROR, "resident editor is missing");
     }
-    const auto& submeshes = mesh_editor_submeshes(*editor);
+    const auto* submeshes_pointer = mesh_interaction_abi_find_submeshes(*runtime);
+    if (submeshes_pointer == nullptr) {
+        return mesh_interaction_abi_fail(
+            result, CDMW_MESH_INTERACTION_INTERNAL_ERROR, "resident mesh session is missing"
+        );
+    }
+    const auto& submeshes = *submeshes_pointer;
     const auto found = submeshes.find(request->submesh_index);
     if (found == submeshes.end()
         || request->first_vertex > found->second.vertices.size()
@@ -50,5 +65,5 @@ uint32_t interaction_abi_read_vertices(
         destination[2] = value[2];
     }
     request->written_vertex_count = request->vertex_count;
-    return mesh_interaction_abi_finish_result(runtime, result, {}, {});
+    return mesh_interaction_abi_finish_result(runtime.get(), result, {}, {});
 }

@@ -5,8 +5,10 @@ from __future__ import annotations
 import copy
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from pathlib import PurePosixPath, PureWindowsPath
 
 from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
+from cdmw.rendering.crimson_shader_registry import decode_crimson_texture_binding
 from cdmw.services.mesh_dotnet_material_channels import _color3
 
 
@@ -517,7 +519,113 @@ def _native_material_parameter_input(value: object) -> PreviewMaterialParameterI
     return PreviewMaterialParameterInput(**payload)
 
 
-def _native_material_texture_input(value: object) -> PreviewMaterialTextureInput | None:
+def _native_archive_texture_path(value: object) -> str:
+    """Return one safe package-independent archive DDS identity."""
+
+    text = str(value or "").replace("\\", "/").strip()
+    if not text or any(ord(character) < 32 for character in text):
+        return ""
+    posix_path = PurePosixPath(text)
+    windows_path = PureWindowsPath(text)
+    parts = tuple(part for part in posix_path.parts if part not in ("", "."))
+    if (
+        not parts
+        or posix_path.is_absolute()
+        or bool(windows_path.drive)
+        or bool(windows_path.root)
+        or any(part in {".", ".."} or ":" in part for part in parts)
+        or posix_path.suffix.casefold() != ".dds"
+    ):
+        return ""
+    return PurePosixPath(*parts).as_posix()
+
+
+def _native_material_transport_path(value: object) -> str:
+    if not isinstance(value, Mapping):
+        return ""
+    return str(
+        value.get("source_path", "")
+        or value.get("source_dds_path", "")
+        or value.get("preview_texture_path", "")
+        or ""
+    ).strip()
+
+
+def _native_material_paths_match(left: object, right: object) -> bool:
+    return bool(left and right) and (
+        str(left).replace("\\", "/").strip().casefold()
+        == str(right).replace("\\", "/").strip().casefold()
+    )
+
+
+def _native_exact_sidecar_decode(
+    value: Mapping[str, object],
+    payload: Mapping[str, object],
+    *,
+    archive_path: str,
+    primary_base_path: str,
+) -> dict[str, str]:
+    """Decode only a strongly owned PAC XML texture declaration."""
+
+    sidecar_kind = str(value.get("sidecar_kind", "") or "").strip().casefold()
+    if (
+        not archive_path
+        or sidecar_kind not in {".pac_xml", "pac_xml"}
+        or str(value.get("source_authority", "") or "").strip().casefold()
+        != "exact_sidecar"
+        or str(value.get("relation_confidence", "") or "").strip().casefold()
+        != "authoritative"
+        or _safe_int(payload.get("owner_slot_index", -1), -1) < 0
+    ):
+        return {}
+
+    decoded = decode_crimson_texture_binding(
+        shader_family=payload.get("shader_family", ""),
+        parameter_name=payload.get("parameter_name", ""),
+        source_path=archive_path,
+        slot_name=payload.get("slot_kind", ""),
+        semantic_subtype=payload.get("semantic_subtype", ""),
+        packed_channels=payload.get("packed_channels", ()),
+        layer_channel=payload.get("layer_channel", ""),
+        blend_flags=payload.get("blend_flags", ()),
+        sidecar_kind="pac_xml",
+        parameter_declared_by=payload.get("parameter_declared_by", ""),
+    )
+    if (
+        not bool(decoded.get("known_slot", False))
+        or str(decoded.get("authority", "") or "").strip().casefold()
+        != "authoritative"
+    ):
+        return {}
+
+    disposition = str(decoded.get("disposition", "") or "").strip()
+    source_kind = str(decoded.get("source_kind", "") or "").strip()
+    if (
+        str(decoded.get("slot", "") or "").strip().casefold() == "base"
+        and disposition.casefold() == "promoted"
+    ):
+        visible_class = str(value.get("visible_class", "") or "").strip().casefold()
+        transport_path = _native_material_transport_path(value)
+        primary_visible_base = (
+            visible_class == "primary_visible"
+            and _native_material_paths_match(transport_path, primary_base_path)
+        )
+        if not primary_visible_base:
+            disposition = "layer_only"
+            source_kind = "crimson_layer_base"
+
+    return {
+        "binding_authority": str(decoded.get("authority", "") or "").strip(),
+        "binding_disposition": disposition,
+        "source_kind": source_kind,
+    }
+
+
+def _native_material_texture_input(
+    value: object,
+    *,
+    primary_base_path: str = "",
+) -> PreviewMaterialTextureInput | None:
     """Hydrate a native-manifest descriptor into the production graph type."""
 
     if isinstance(value, PreviewMaterialTextureInput):
@@ -529,29 +637,46 @@ def _native_material_texture_input(value: object) -> PreviewMaterialTextureInput
     payload["slot_kind"] = str(
         payload.get("slot_kind") or value.get("slot") or "material"
     ).strip()
-    source_path = str(
-        value.get("source_path", "")
-        or payload.get("source_dds_path", "")
-        or payload.get("source_texture_path", "")
-        or payload.get("preview_texture_path", "")
-        or ""
-    ).strip()
+    source_path = _native_material_transport_path(value)
     if source_path:
-        for field_name in (
-            "source_dds_path",
-            "source_texture_path",
-            "preview_texture_path",
-        ):
+        for field_name in ("source_dds_path", "preview_texture_path"):
             if not str(payload.get(field_name, "") or "").strip():
                 payload[field_name] = source_path
+    archive_path = _native_archive_texture_path(value.get("archive_path", ""))
+    if archive_path and not str(payload.get("source_texture_path", "") or "").strip():
+        payload["source_texture_path"] = archive_path
+    if archive_path and not str(payload.get("texture_name", "") or "").strip():
+        payload["texture_name"] = PurePosixPath(archive_path).name
     for field_name in ("packed_channels", "blend_flags"):
-        raw_items = payload.get(field_name, ())
+        raw_items = payload.get(field_name, value.get(field_name, ()))
         if isinstance(raw_items, Sequence) and not isinstance(
             raw_items, (str, bytes, bytearray)
         ):
             payload[field_name] = tuple(str(item or "") for item in raw_items)
+        elif isinstance(raw_items, str):
+            payload[field_name] = (
+                _native_packed_channel_semantics(raw_items)
+                if field_name == "packed_channels"
+                else tuple(
+                    item.strip()
+                    for item in raw_items.split(",")
+                    if item.strip()
+                )
+            )
         else:
             payload[field_name] = ()
+    decoded = _native_exact_sidecar_decode(
+        value,
+        payload,
+        archive_path=archive_path,
+        primary_base_path=primary_base_path,
+    )
+    for field_name, decoded_value in decoded.items():
+        if (
+            decoded_value
+            and not str(payload.get(field_name, "") or "").strip()
+        ):
+            payload[field_name] = decoded_value
     raw_parameters = value.get("material_parameters", ())
     if isinstance(raw_parameters, Sequence) and not isinstance(
         raw_parameters, (str, bytes, bytearray)
@@ -564,6 +689,119 @@ def _native_material_texture_input(value: object) -> PreviewMaterialTextureInput
             if parameter is not None
         )
     return PreviewMaterialTextureInput(**payload)
+
+
+def _native_color_seed_parameters(
+    batch: Mapping[str, object],
+) -> tuple[tuple[str, ...], tuple[PreviewMaterialParameterInput, ...]]:
+    """Recover the exact PAC RGB selector palette emitted by the native core.
+
+    Native Preview Core publishes the chosen per-channel color parameter in
+    ``material_layers``.  Its DDS transport descriptors intentionally do not
+    duplicate the complete PAC parameter table, so retain these three exact
+    values on the selector input before the shared image combiner runs.
+    """
+
+    raw_layers = batch.get("material_layers", ())
+    if not isinstance(raw_layers, Sequence) or isinstance(
+        raw_layers,
+        (str, bytes, bytearray),
+    ):
+        return (), ()
+    mask_parameters: list[str] = []
+    parameters_by_channel: dict[str, PreviewMaterialParameterInput] = {}
+    for raw_layer in raw_layers:
+        if not isinstance(raw_layer, Mapping):
+            continue
+        if str(raw_layer.get("layer_role", "") or "").strip().casefold() != "color_seed":
+            continue
+        channel = str(raw_layer.get("mask_channel", "") or "").strip().casefold()
+        source_parameter = str(
+            raw_layer.get("source_parameter", "") or ""
+        ).strip()
+        mask_parameter = str(raw_layer.get("mask_parameter", "") or "").strip()
+        raw_tint = raw_layer.get("tint", ())
+        if (
+            channel not in {"r", "g", "b"}
+            or not source_parameter
+            or not isinstance(raw_tint, Sequence)
+            or isinstance(raw_tint, (str, bytes, bytearray))
+            or len(raw_tint) < 3
+        ):
+            continue
+        try:
+            color = tuple(
+                max(0.0, min(1.0, float(component)))
+                for component in raw_tint[:3]
+            )
+        except (TypeError, ValueError, OverflowError):
+            continue
+        normalized_mask_parameters = {
+            value.casefold() for value in mask_parameters
+        }
+        if mask_parameter and mask_parameter.casefold() not in normalized_mask_parameters:
+            mask_parameters.append(mask_parameter)
+        parameters_by_channel[channel] = PreviewMaterialParameterInput(
+            parameter_kind="color",
+            parameter_name=source_parameter,
+            color_value=color,
+        )
+    return (
+        tuple(mask_parameters),
+        tuple(
+            parameters_by_channel[channel]
+            for channel in ("r", "g", "b")
+            if channel in parameters_by_channel
+        ),
+    )
+
+
+def _attach_native_color_seed_parameters(
+    material_inputs: tuple[PreviewMaterialTextureInput, ...],
+    batch: Mapping[str, object],
+) -> tuple[PreviewMaterialTextureInput, ...]:
+    mask_parameters, seed_parameters = _native_color_seed_parameters(batch)
+    if not material_inputs or not mask_parameters or not seed_parameters:
+        return material_inputs
+    normalized_masks = {value.casefold() for value in mask_parameters}
+    changed = False
+    attached: list[PreviewMaterialTextureInput] = []
+    for item in material_inputs:
+        if str(item.parameter_name or "").strip().casefold() not in normalized_masks:
+            attached.append(item)
+            continue
+        existing = tuple(item.material_parameters or ())
+        existing_names = {
+            str(parameter.parameter_name or "").strip().casefold()
+            for parameter in existing
+            if str(parameter.parameter_name or "").strip()
+        }
+        additions = tuple(
+            parameter
+            for parameter in seed_parameters
+            if str(parameter.parameter_name or "").strip().casefold()
+            not in existing_names
+        )
+        normalized = replace(
+            item,
+            sidecar_kind="pac_xml",
+            binding_authority=(
+                str(item.binding_authority or "").strip()
+                or "authoritative"
+            ),
+            binding_disposition=(
+                str(item.binding_disposition or "").strip()
+                or "layer_only"
+            ),
+            source_kind=(
+                str(item.source_kind or "").strip()
+                or "crimson_color_blending_mask"
+            ),
+            material_parameters=existing + additions,
+        )
+        attached.append(normalized)
+        changed = changed or normalized != item
+    return tuple(attached) if changed else material_inputs
 
 
 def _native_material_input_identity(value: PreviewMaterialTextureInput) -> tuple[object, ...]:
@@ -661,7 +899,10 @@ def _native_material_input_is_primary_base(value: object) -> bool:
 
     layer_role = field("layer_role").casefold()
     layer_channel = field("layer_channel").casefold()
-    disposition = field("disposition").casefold()
+    disposition = (
+        field("binding_disposition").casefold()
+        or field("disposition").casefold()
+    )
     if (
         layer_role in _DOTNET_LAYER_ONLY_MATERIAL_ROLES
         or layer_channel
@@ -762,6 +1003,116 @@ def _native_batch_base_descriptor_is_layer_only(
     )
 
 
+def _native_authoritative_hair_base_input(
+    batch: Mapping[str, object],
+    dds_textures: Mapping[str, object],
+) -> PreviewMaterialTextureInput | None:
+    """Promote only the exact visible Hair base selected by the native owner.
+
+    Hair PAC wrappers describe their visible albedo as a layer even when the
+    Native Preview Core has already selected that exact sidecar DDS as the
+    owner's base. Treating every ``layer`` binding as technical removes feather
+    and fur colour entirely in Rust. The exception stays deliberately narrow:
+    Hair category/family, the native ``base`` descriptor, exact-sidecar
+    authority, primary-visible classification, and the declared base-colour
+    parameter must all agree on the same file.
+    """
+
+    category = str(batch.get("material_category", "") or "").strip().casefold()
+    shader_family = str(
+        batch.get("material_shader_family", "")
+        or batch.get("shader_family", "")
+        or ""
+    ).strip().casefold()
+    if category != "hair" and "hair" not in shader_family:
+        return None
+    base_path = _native_material_descriptor_path(dds_textures.get("base"))
+    raw_inputs = dds_textures.get("material_inputs")
+    if not base_path or not isinstance(raw_inputs, Sequence) or isinstance(
+        raw_inputs,
+        (str, bytes, bytearray),
+    ):
+        return None
+    normalized_base = base_path.replace("\\", "/").strip().casefold()
+    for raw_input in raw_inputs:
+        if not isinstance(raw_input, Mapping):
+            continue
+        if (
+            _native_material_descriptor_path(raw_input)
+            .replace("\\", "/")
+            .strip()
+            .casefold()
+            != normalized_base
+        ):
+            continue
+        slot = str(
+            raw_input.get("slot", raw_input.get("slot_kind", "")) or ""
+        ).strip().casefold()
+        semantic = str(raw_input.get("semantic_type", "") or "").strip().casefold()
+        if slot not in {"albedo", "base", "base_color", "color", "diffuse"}:
+            continue
+        if semantic not in {"albedo", "base", "base_color", "color", "diffuse"}:
+            continue
+        if (
+            str(raw_input.get("parameter_name", "") or "").strip().casefold()
+            != "_basecolortexture"
+        ):
+            continue
+        if (
+            str(raw_input.get("source_authority", "") or "").strip().casefold()
+            != "exact_sidecar"
+        ):
+            continue
+        if (
+            str(raw_input.get("visible_class", "") or "").strip().casefold()
+            != "primary_visible"
+        ):
+            continue
+        input_shader = str(raw_input.get("shader_family", "") or "").strip().casefold()
+        if "hair" not in input_shader:
+            continue
+        typed = _native_material_texture_input(
+            raw_input,
+            primary_base_path=base_path,
+        )
+        if typed is None:
+            continue
+        return replace(
+            typed,
+            layer_role="",
+            layer_channel="",
+            binding_authority="authoritative",
+            binding_disposition="promoted",
+            source_kind="crimson_hair_base",
+        )
+    return None
+
+
+def _replace_native_hair_base_input(
+    material_inputs: tuple[PreviewMaterialTextureInput, ...],
+    promoted: PreviewMaterialTextureInput,
+) -> tuple[PreviewMaterialTextureInput, ...]:
+    promoted_path = str(promoted.source_dds_path or promoted.preview_texture_path or "")
+    normalized_path = promoted_path.replace("\\", "/").strip().casefold()
+    replaced = False
+    result: list[PreviewMaterialTextureInput] = []
+    for item in material_inputs:
+        item_path = str(item.source_dds_path or item.preview_texture_path or "")
+        same_path = item_path.replace("\\", "/").strip().casefold() == normalized_path
+        same_parameter = (
+            str(item.parameter_name or "").strip().casefold()
+            == str(promoted.parameter_name or "").strip().casefold()
+        )
+        if not replaced and same_path and same_parameter:
+            result.append(promoted)
+            replaced = True
+        else:
+            result.append(item)
+    if not replaced:
+        result.insert(0, promoted)
+    return tuple(result)
+
+
 def _clear_dotnet_primary_base_bindings(target: object) -> None:
     for attr in (
         "texture",
@@ -797,8 +1148,16 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
         return False
     raw_dds = batch.get("dds_textures")
     dds_textures = raw_dds if isinstance(raw_dds, Mapping) else {}
+    primary_base_path = _native_material_descriptor_path(dds_textures.get("base"))
     layer_only_base_descriptor = _native_batch_base_descriptor_is_layer_only(
         dds_textures
+    )
+    authoritative_hair_base = _native_authoritative_hair_base_input(
+        batch,
+        dds_textures,
+    )
+    rejected_layer_only_base = (
+        layer_only_base_descriptor and authoritative_hair_base is None
     )
     raw_material_inputs = dds_textures.get("material_inputs")
     has_primary_base_input = bool(
@@ -812,7 +1171,7 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
     tint_only_base = bool(batch.get("base_tint_only_fallback", False)) or (
         _native_batch_explicitly_omits_base_source(batch, dds_textures)
     ) or (
-        layer_only_base_descriptor and not has_primary_base_input
+        rejected_layer_only_base and not has_primary_base_input
     )
     slot_attrs = {
         "base": ("preview_texture_path", "preview_texture_dds_path"),
@@ -822,7 +1181,7 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
         "emissive": ("preview_emissive_texture_path", "preview_emissive_texture_dds_path"),
     }
     for slot, attrs in slot_attrs.items():
-        if slot == "base" and layer_only_base_descriptor:
+        if slot == "base" and rejected_layer_only_base:
             continue
         path = _native_material_descriptor_path(dds_textures.get(slot))
         if not path:
@@ -834,11 +1193,19 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
     material_inputs = tuple(
         typed
         for typed in (
-            _native_material_texture_input(item)
+            _native_material_texture_input(
+                item,
+                primary_base_path=primary_base_path,
+            )
             for item in raw_inputs
         )
         if typed is not None
     ) if isinstance(raw_inputs, Sequence) and not isinstance(raw_inputs, (str, bytes, bytearray)) else ()
+    if authoritative_hair_base is not None:
+        material_inputs = _replace_native_hair_base_input(
+            material_inputs,
+            authoritative_hair_base,
+        )
     if not material_inputs:
         material_inputs = tuple(
             typed
@@ -850,11 +1217,13 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
                         **copy.deepcopy(dict(descriptor)),
                         "slot": str(slot),
                         "slot_kind": str(slot),
-                    }
+                    },
+                    primary_base_path=primary_base_path,
                 ),
             )
             if typed is not None
         )
+    material_inputs = _attach_native_color_seed_parameters(material_inputs, batch)
     # Prepared preview inputs own the source material graph. Native-manifest
     # descriptors are post-package transport evidence and must not replace it.
     # They can, however, point the same identity-checked graph edges at durable
@@ -867,6 +1236,17 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
             existing_material_inputs,
             material_inputs,
         )
+        if (
+            authoritative_hair_base is not None
+            and not any(
+                _native_material_input_has_primary_base_source(item)
+                for item in rebased_material_inputs
+            )
+        ):
+            rebased_material_inputs = (
+                authoritative_hair_base,
+                *rebased_material_inputs,
+            )
         if rebased_material_inputs is not existing_material_inputs:
             setattr(target, "preview_material_texture_inputs", rebased_material_inputs)
     elif material_inputs:

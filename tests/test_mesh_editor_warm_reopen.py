@@ -4,6 +4,8 @@ from pathlib import Path
 import tempfile
 from unittest.mock import patch
 
+import pytest
+
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
@@ -13,6 +15,13 @@ from tests.test_mesh_editor_action_bar import (
     _FakeProcess,
     _dotnet_test_package,
     _install_shared_dotnet_test_process,
+)
+
+pytestmark = pytest.mark.skip(
+    reason=(
+        "The direct Vortice warm-helper reuse policy is retired; Rust close/reopen "
+        "uses a fresh shadow and owned process generation."
+    )
 )
 
 

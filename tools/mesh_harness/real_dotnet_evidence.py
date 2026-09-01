@@ -64,6 +64,7 @@ from tools.mesh_harness.real_dotnet_input import (
 from tools.mesh_harness.win32_input import (
     _desktop_input_isolation_evidence,
     _desktop_input_snapshot,
+    _physical_mouse_input_evidence,
 )
 
 
@@ -95,6 +96,7 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         harness_screen_bounds=tuple(
             getattr(state, "harness_screen_bounds", (0, 0, 0, 0))
         ),
+        allow_transient_harness_input=False,
     )
     before = dict(getattr(state, "archive_content_fingerprints_before", {}) or {})
     after = _archive_content_fingerprints(getattr(state, "fingerprint_paths", ())) if before else {}
@@ -137,6 +139,8 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         "no_synthetic_fallback": no_synthetic_fallback,
         "error": str(message),
         "desktop_input": desktop_isolation,
+        "global_mouse_input_used": False,
+        "physical_mouse_input": _physical_mouse_input_evidence(),
         "production_flow": list(getattr(state, "production_flow", ()) or ()),
         "geometry_display": dict(getattr(state, "geometry_display_evidence", {}) or {}),
         "builder_presentation": dict(getattr(state, "builder_presentation_evidence", {}) or {}),

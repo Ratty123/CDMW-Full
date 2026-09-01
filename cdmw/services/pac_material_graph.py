@@ -42,8 +42,21 @@ def _normalized_path(value: object) -> str:
 def _input_source_path(item: object) -> str:
     """Return the canonical PAC reference, independent of local transport."""
 
+    source_path = str(_value(item, "source_texture_path") or "").strip()
+    texture_name = str(_value(item, "texture_name") or "").replace("\\", "/").strip()
+    exact_texture_name = (
+        PurePosixPath(texture_name).name
+        if PurePosixPath(texture_name).suffix.casefold() == ".dds"
+        else ""
+    )
     return str(
-        _value(item, "source_texture_path")
+        source_path
+        # Native preview packages may retain only the exact PAC basename while
+        # rebasing the resident DDS to a hashed package path.  The basename is
+        # still stronger source identity than that local transport filename and
+        # lets the graph match the original PAC parameter without weakening
+        # owner or wrapper checks.
+        or exact_texture_name
         or _value(item, "source_dds_path")
         or _value(item, "preview_texture_path")
         or ""

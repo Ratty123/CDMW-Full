@@ -1,5 +1,41 @@
 [
   {
+    "path": "cdmw/services/mesh_rust_authoring.py",
+    "symbol": "_rust_texture_candidate_basenames",
+    "source": "{value_0}_disp.dds",
+    "reason": "Generated DDS lookup filename; the suffix and placeholder are machine-readable archive identity syntax and must remain invariant."
+  },
+  {
+    "path": "cdmw/services/mesh_rust_authoring.py",
+    "symbol": "_rust_texture_candidate_basenames",
+    "source": "{value_0}_e.dds",
+    "reason": "Generated DDS lookup filename; the suffix and placeholder are machine-readable archive identity syntax and must remain invariant."
+  },
+  {
+    "path": "cdmw/services/mesh_rust_authoring.py",
+    "symbol": "_rust_texture_candidate_basenames",
+    "source": "{value_0}_m.dds",
+    "reason": "Generated DDS lookup filename; the suffix and placeholder are machine-readable archive identity syntax and must remain invariant."
+  },
+  {
+    "path": "cdmw/services/mesh_rust_authoring.py",
+    "symbol": "_rust_texture_candidate_basenames",
+    "source": "{value_0}_n.dds",
+    "reason": "Generated DDS lookup filename; the suffix and placeholder are machine-readable archive identity syntax and must remain invariant."
+  },
+  {
+    "path": "cdmw/services/mesh_rust_authoring.py",
+    "symbol": "_rust_texture_candidate_basenames",
+    "source": "{value_0}_sp.dds",
+    "reason": "Generated DDS lookup filename; the suffix and placeholder are machine-readable archive identity syntax and must remain invariant."
+  },
+  {
+    "path": "cdmw/services/mesh_service.py",
+    "symbol": "ValueError",
+    "source": "an adopted owned mesh cannot load a mutable layer project",
+    "reason": "Internal ownership invariant for the disposable Rust shadow service; it is not presented through the production GUI."
+  },
+  {
     "path": "cdmw/ui/archive_browser/mesh_builder_startup_smoke.py",
     "symbol": "developer_harness",
     "source": "*",

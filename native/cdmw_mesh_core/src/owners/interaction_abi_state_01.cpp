@@ -1,4 +1,60 @@
+struct MeshInteractionProjectedVertex {
+    int submesh_index = -1;
+    int vertex_index = -1;
+    double x = 0.0;
+    double y = 0.0;
+    double depth = 0.0;
+};
+
+struct MeshInteractionProjectedEdge {
+    int submesh_index = -1;
+    int vertex_a = -1;
+    int vertex_b = -1;
+    std::array<double, 4> bounds{};
+};
+
+struct MeshInteractionProjectedFace {
+    int submesh_index = -1;
+    int face_index = -1;
+    std::array<int, 3> vertices{};
+    std::array<double, 9> projected{};
+    std::array<double, 4> bounds{};
+};
+
+struct MeshInteractionDepthBvhNode {
+    std::array<double, 4> bounds{};
+    int left = -1;
+    int right = -1;
+    std::size_t first = 0;
+    std::size_t count = 0;
+};
+
+struct MeshInteractionSnapshot {
+    bool ready = false;
+    uint64_t mesh_revision = 0;
+    uint64_t topology_generation = 0;
+    uint64_t camera_revision = 0;
+    uint64_t viewport_revision = 0;
+    uint64_t visible_parts_revision = 0;
+    uint64_t model_transform_revision = 0;
+    bool xray = false;
+    std::vector<MeshInteractionProjectedVertex> vertices;
+    std::map<int, std::vector<std::size_t>> vertex_lookup;
+    std::unordered_map<int64_t, std::vector<std::size_t>> vertex_buckets;
+    std::vector<MeshInteractionProjectedEdge> edges;
+    std::unordered_map<int64_t, std::vector<std::size_t>> edge_buckets;
+    std::vector<std::size_t> large_edges;
+    std::vector<MeshInteractionProjectedFace> faces;
+    std::unordered_map<int64_t, std::vector<std::size_t>> face_buckets;
+    std::vector<std::size_t> large_faces;
+    std::map<int, std::vector<std::vector<int>>> adjacency;
+    std::vector<std::size_t> depth_face_order;
+    std::vector<MeshInteractionDepthBvhNode> depth_bvh;
+};
+
 struct MeshInteractionAbiSession {
+    std::mutex mutex;
+    bool closed = false;
     uint64_t handle = 0;
     uint64_t session_key = 0;
     std::string editor_session_id;
@@ -19,6 +75,13 @@ struct MeshInteractionAbiSession {
     MeshEditorSelection baseline_selection;
     MeshEditorSelection gesture_selection_candidates;
     MeshEditorSelection last_selection;
+    MeshInteractionSnapshot snapshot;
+    std::map<int, std::map<int, Vec3>> gesture_before_positions;
+    std::map<int, std::map<int, double>> gesture_weights;
+    std::map<int, std::set<int>> gesture_changed_vertices;
+    std::map<int, std::set<int>> last_dirty_vertices;
+    double previous_screen_x = 0.0;
+    double previous_screen_y = 0.0;
 };
 
 struct MeshInteractionAbiDirtySet {
@@ -27,10 +90,15 @@ struct MeshInteractionAbiDirtySet {
     std::set<int> indices;
 };
 
-std::map<uint64_t, MeshInteractionAbiSession> g_mesh_interaction_abi_sessions;
+std::map<uint64_t, std::shared_ptr<MeshInteractionAbiSession>> g_mesh_interaction_abi_sessions;
 std::map<uint64_t, uint64_t> g_mesh_interaction_abi_session_keys;
 uint64_t g_mesh_interaction_abi_next_handle = 1;
-std::mutex g_mesh_interaction_abi_mutex;
+std::shared_mutex g_mesh_interaction_abi_registry_mutex;
+std::shared_mutex g_mesh_interaction_abi_editor_registry_mutex;
+
+std::map<int, MeshSessionSubmesh>* mesh_interaction_abi_find_submeshes(
+    const MeshInteractionAbiSession& session
+);
 
 JsonValue mesh_interaction_abi_json_number(double value) {
     JsonValue result;
@@ -192,10 +260,12 @@ void mesh_interaction_abi_append_dirty_sets(
 }
 
 void mesh_interaction_abi_collect_full_dirty(
-    const MeshEditorSession& editor,
+    const MeshInteractionAbiSession& runtime,
     std::map<int, MeshInteractionAbiDirtySet>& dirty
 ) {
-    for (const auto& item : mesh_editor_submeshes(editor)) {
+    const auto* submeshes = mesh_interaction_abi_find_submeshes(runtime);
+    if (submeshes == nullptr) return;
+    for (const auto& item : *submeshes) {
         MeshInteractionAbiDirtySet& target = dirty[item.first];
         target.full = true;
         target.vertex_count = static_cast<uint32_t>(item.second.vertices.size());
@@ -204,11 +274,13 @@ void mesh_interaction_abi_collect_full_dirty(
 }
 
 void mesh_interaction_abi_collect_history_dirty(
-    const MeshEditorSession& editor,
+    const MeshInteractionAbiSession& runtime,
     const MeshEditorHistoryEntry& entry,
     std::map<int, MeshInteractionAbiDirtySet>& dirty
 ) {
-    const auto& submeshes = mesh_editor_submeshes(editor);
+    const auto* submeshes_pointer = mesh_interaction_abi_find_submeshes(runtime);
+    if (submeshes_pointer == nullptr) return;
+    const auto& submeshes = *submeshes_pointer;
     for (const auto& item : entry.deltas) {
         MeshInteractionAbiDirtySet& target = dirty[item.first];
         if (!item.second.vertices.before_replacement.empty()
@@ -236,6 +308,7 @@ void mesh_interaction_abi_collect_history_dirty(
 }
 
 void mesh_interaction_abi_collect_stroke_dirty(
+    const MeshInteractionAbiSession& runtime,
     const MeshEditorSession& editor,
     uint64_t gesture_id,
     std::map<int, MeshInteractionAbiDirtySet>& dirty
@@ -243,7 +316,7 @@ void mesh_interaction_abi_collect_stroke_dirty(
     const std::string stroke_id = std::to_string(gesture_id);
     for (auto item = editor.undo_stack.rbegin(); item != editor.undo_stack.rend(); ++item) {
         if (item->stroke_id != stroke_id) break;
-        mesh_interaction_abi_collect_history_dirty(editor, *item, dirty);
+        mesh_interaction_abi_collect_history_dirty(runtime, *item, dirty);
     }
 }
 

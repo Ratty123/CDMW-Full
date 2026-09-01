@@ -1910,6 +1910,56 @@ def _serialized(payload: object) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=False) + "\n"
 
 
+def _manifest_freshness_view(payload: object) -> object:
+    """Return the manifest contract with informational source lines removed."""
+    if not isinstance(payload, dict):
+        return payload
+    normalized = dict(payload)
+    entries = payload.get("entries")
+    if not isinstance(entries, list):
+        return normalized
+    normalized_entries: list[object] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            normalized_entries.append(entry)
+            continue
+        normalized_entry = dict(entry)
+        origins = entry.get("origins")
+        if isinstance(origins, list):
+            normalized_origins = [
+                (
+                    {key: value for key, value in origin.items() if key != "line"}
+                    if isinstance(origin, dict)
+                    else origin
+                )
+                for origin in origins
+            ]
+            normalized_entry["origins"] = sorted(
+                normalized_origins,
+                key=lambda origin: json.dumps(
+                    origin,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            )
+        normalized_entries.append(normalized_entry)
+    normalized["entries"] = normalized_entries
+    return normalized
+
+
+def _content_is_current(path: Path, actual: str, expected: str) -> bool:
+    if path != MANIFEST_PATH:
+        return actual == expected
+    try:
+        actual_payload = json.loads(actual)
+        expected_payload = json.loads(expected)
+    except (TypeError, ValueError):
+        return False
+    return _manifest_freshness_view(actual_payload) == _manifest_freshness_view(
+        expected_payload
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write", action="store_true", help="Write the manifest and English catalog.")
@@ -1933,7 +1983,7 @@ def main() -> int:
     stale = []
     for path, text in expected.items():
         actual = path.read_text(encoding="utf-8") if path.is_file() else ""
-        if actual != text:
+        if not _content_is_current(path, actual, text):
             stale.append(path.relative_to(ROOT))
     if stale:
         print("Stale UI localization files: " + ", ".join(str(path) for path in stale))

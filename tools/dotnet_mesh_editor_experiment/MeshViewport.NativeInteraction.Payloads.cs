@@ -93,12 +93,22 @@ internal sealed partial class MeshViewport
         return values;
     }
 
-    private NativeMeshProjectionData[] ResidentNativeProjections(NetViewportCamera camera) =>
-        VisibleEditableSubmeshIndices()
+    private NativeMeshProjectionData[] ResidentNativeProjections(
+        NetViewportCamera camera,
+        IReadOnlyList<int>? visibleParts = null) =>
+        (visibleParts ?? VisibleEditableSubmeshIndices())
             .Select(submeshIndex => new NativeMeshProjectionData(
                 submeshIndex,
                 MatrixRowMajorArray(
                     ActiveSceneModelMatrix(submeshIndex) * camera.WorldViewProjection)))
+            .ToArray();
+
+    private NativeMeshProjectionData[] ResidentNativeModelTransforms(
+        IReadOnlyList<int> visibleParts) =>
+        visibleParts
+            .Select(submeshIndex => new NativeMeshProjectionData(
+                submeshIndex,
+                MatrixRowMajorArray(ActiveSceneModelMatrix(submeshIndex))))
             .ToArray();
 
     private static bool ResidentNativeProjectionsEqual(

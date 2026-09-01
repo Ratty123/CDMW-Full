@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
 
@@ -17,7 +18,11 @@ internal sealed record NetMaterialLayerSurfaceSource(
 
 internal static class NetMaterialLayerCompiler
 {
-    private const int MaximumDimension = 512;
+    // Preserve the highest authored skin/armour maps used by the real PAC
+    // material graphs.  The previous 1024 cap reduced 2048 body surface maps
+    // before Rust ever received them, while still leaving the original albedo
+    // and normal maps at 2048 and making the response look visibly softer.
+    private const int MaximumDimension = 2048;
 
     public static Bitmap? Compile(Bitmap? baseBitmap, IReadOnlyList<NetMaterialLayerSource> layers)
     {
@@ -28,13 +33,13 @@ internal static class NetMaterialLayerCompiler
             return null;
         }
 
-        var scale = Math.Min(1.0, MaximumDimension / (double)Math.Max(source.Width, source.Height));
-        var width = Math.Max(1, (int)Math.Round(source.Width * scale));
-        var height = Math.Max(1, (int)Math.Round(source.Height * scale));
+        var layerSeed = baseBitmap is null ? firstLayer : null;
+        var (width, height) = OutputSize(
+            baseBitmap,
+            ColorSizingSources(layers, layerSeed));
         var target = ScaleToBgra(source, width, height);
         var targetPixels = ReadBgra(target);
         ApplyColorSeedPalette(targetPixels, width, height, layers);
-        var layerSeed = baseBitmap is null ? firstLayer : null;
         if (layerSeed is not null)
         {
             ApplyTint(targetPixels, layerSeed.Binding);
@@ -210,12 +215,12 @@ internal static class NetMaterialLayerCompiler
             return null;
         }
 
-        var scale = Math.Min(1.0, MaximumDimension / (double)Math.Max(source.Width, source.Height));
-        var width = Math.Max(1, (int)Math.Round(source.Width * scale));
-        var height = Math.Max(1, (int)Math.Round(source.Height * scale));
+        var layerSeed = baseMaterial is null ? firstLayer : null;
+        var (width, height) = OutputSize(
+            baseMaterial,
+            SurfaceSizingSources(layers, layerSeed));
         var target = ScaleToBgra(source, width, height);
         var targetPixels = ReadBgra(target);
-        var layerSeed = baseMaterial is null ? firstLayer : null;
         foreach (var layer in layers)
         {
             if (string.Equals(layer.Binding.LayerRole, "base", StringComparison.OrdinalIgnoreCase)
@@ -381,6 +386,181 @@ internal static class NetMaterialLayerCompiler
                 .All(color => Math.Max(color.R, Math.Max(color.G, color.B)) < 254);
     }
 
+    public static Dictionary<string, object?> BoundedSourceSizingProof()
+    {
+        var binding = new NetMaterialLayerBinding(
+            "detail", "r", 1.0f, 1.0f, 1.0f, 1.0f, "detail", "");
+        using var seed64 = new Bitmap(64, 64, PixelFormat.Format32bppArgb);
+        using var detail512 = new Bitmap(512, 512, PixelFormat.Format32bppArgb);
+        using var promoted = CompileSurface(
+            seed64,
+            new[] { new NetMaterialLayerSurfaceSource(binding, detail512, null) });
+        using var colorPromoted = Compile(
+            seed64,
+            new[] { new NetMaterialLayerSource(binding, detail512, null) });
+
+        using var detail2048 = new Bitmap(2048, 1024, PixelFormat.Format32bppArgb);
+        using var capped = CompileSurface(
+            null,
+            new[] { new NetMaterialLayerSurfaceSource(binding, detail2048, null) });
+
+        using var detail4096 = new Bitmap(4096, 1024, PixelFormat.Format32bppArgb);
+        using var bounded = CompileSurface(
+            null,
+            new[] { new NetMaterialLayerSurfaceSource(binding, detail4096, null) });
+
+        using var detail800x400 = new Bitmap(800, 400, PixelFormat.Format32bppArgb);
+        using var aspect = CompileSurface(
+            null,
+            new[] { new NetMaterialLayerSurfaceSource(binding, detail800x400, null) });
+
+        using var baseTie = new Bitmap(512, 256, PixelFormat.Format32bppArgb);
+        using var layerTie = new Bitmap(256, 512, PixelFormat.Format32bppArgb);
+        using var tied = CompileSurface(
+            baseTie,
+            new[] { new NetMaterialLayerSurfaceSource(binding, layerTie, null) });
+
+        using var base256 = new Bitmap(256, 256, PixelFormat.Format32bppArgb);
+        using var detail256 = new Bitmap(256, 256, PixelFormat.Format32bppArgb);
+        using var mask512 = new Bitmap(512, 512, PixelFormat.Format32bppArgb);
+        using var colorMaskPromoted = Compile(
+            base256,
+            new[] { new NetMaterialLayerSource(binding, detail256, mask512) });
+        using var surfaceMaskPromoted = CompileSurface(
+            base256,
+            new[] { new NetMaterialLayerSurfaceSource(binding, detail256, mask512) });
+
+        var gates = new Dictionary<string, bool>
+        {
+            ["small_seed_uses_512_detail_resolution"] = promoted is not null
+                && promoted.Width == 512 && promoted.Height == 512,
+            ["colour_compiler_uses_512_detail_resolution"] = colorPromoted is not null
+                && colorPromoted.Width == 512 && colorPromoted.Height == 512,
+            ["2048_source_is_preserved"] = capped is not null
+                && capped.Width == 2048 && capped.Height == 1024,
+            ["4096_source_is_bounded_at_2048"] = bounded is not null
+                && bounded.Width == 2048 && bounded.Height == 512,
+            ["non_square_aspect_is_preserved"] = aspect is not null
+                && aspect.Width == 800 && aspect.Height == 400,
+            ["base_wins_equal_resolution_tie"] = tied is not null
+                && tied.Width == 512 && tied.Height == 256,
+            ["active_colour_mask_preserves_512_coverage_detail"] = colorMaskPromoted is not null
+                && colorMaskPromoted.Width == 512 && colorMaskPromoted.Height == 512,
+            ["active_surface_mask_preserves_512_coverage_detail"] = surfaceMaskPromoted is not null
+                && surfaceMaskPromoted.Width == 512 && surfaceMaskPromoted.Height == 512,
+            ["existing_source_orientation_is_preserved"] = PreservesSourceOrientation(),
+            ["existing_surface_mask_composite_is_preserved"] = CompositesSurfaceThroughMask(),
+            ["existing_colour_palette_composite_is_preserved"] = CompositesColorPaletteThroughSelector(),
+        };
+        return new Dictionary<string, object?>
+        {
+            ["schema"] = "cdmw_material_layer_compiler_sizing_v1",
+            ["maximum_dimension"] = MaximumDimension,
+            ["promoted_dimensions"] = Dimensions(promoted),
+            ["color_promoted_dimensions"] = Dimensions(colorPromoted),
+            ["capped_dimensions"] = Dimensions(capped),
+            ["bounded_dimensions"] = Dimensions(bounded),
+            ["aspect_dimensions"] = Dimensions(aspect),
+            ["tie_dimensions"] = Dimensions(tied),
+            ["colour_mask_dimensions"] = Dimensions(colorMaskPromoted),
+            ["surface_mask_dimensions"] = Dimensions(surfaceMaskPromoted),
+            ["gates"] = gates,
+            ["ok"] = gates.Values.All(value => value),
+        };
+    }
+
+    private static Dictionary<string, int>? Dimensions(Bitmap? bitmap) => bitmap is null
+        ? null
+        : new Dictionary<string, int>
+        {
+            ["width"] = bitmap.Width,
+            ["height"] = bitmap.Height,
+        };
+
+    private static (int Width, int Height) OutputSize(
+        Bitmap? baseSource,
+        IEnumerable<Bitmap> layerSources)
+    {
+        Bitmap? selected = IsUsable(baseSource) ? baseSource : null;
+        foreach (var candidate in layerSources)
+        {
+            if (!IsUsable(candidate))
+            {
+                continue;
+            }
+            if (selected is null || HasHigherResolution(candidate, selected))
+            {
+                selected = candidate;
+            }
+        }
+        if (selected is null)
+        {
+            throw new InvalidOperationException("Material layer compilation requires a usable colour or material source.");
+        }
+
+        // The strictly-higher test keeps the base source authoritative for
+        // equal-resolution ties. Active masks are candidates because their
+        // authored coverage edges are visible in the compiled result.
+        var scale = Math.Min(
+            1.0,
+            MaximumDimension / (double)Math.Max(selected.Width, selected.Height));
+        return (
+            Math.Max(1, (int)Math.Round(selected.Width * scale)),
+            Math.Max(1, (int)Math.Round(selected.Height * scale)));
+    }
+
+    private static IEnumerable<Bitmap> ColorSizingSources(
+        IReadOnlyList<NetMaterialLayerSource> layers,
+        NetMaterialLayerSource? layerSeed)
+    {
+        foreach (var layer in layers)
+        {
+            yield return layer.Diffuse;
+            if (layer.Mask is not null
+                && !ReferenceEquals(layer, layerSeed)
+                && !string.Equals(layer.Binding.LayerRole, "base", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(layer.Binding.LayerRole, "color_seed", StringComparison.OrdinalIgnoreCase)
+                    || layer.Binding.Weight > 0.001f))
+            {
+                yield return layer.Mask;
+            }
+        }
+    }
+
+    private static IEnumerable<Bitmap> SurfaceSizingSources(
+        IReadOnlyList<NetMaterialLayerSurfaceSource> layers,
+        NetMaterialLayerSurfaceSource? layerSeed)
+    {
+        foreach (var layer in layers)
+        {
+            yield return layer.Material;
+            if (layer.Mask is not null
+                && !ReferenceEquals(layer, layerSeed)
+                && !string.Equals(layer.Binding.LayerRole, "base", StringComparison.OrdinalIgnoreCase)
+                && layer.Binding.Weight > 0.001f)
+            {
+                yield return layer.Mask;
+            }
+        }
+    }
+
+    private static bool IsUsable(Bitmap? bitmap) => bitmap is not null
+        && bitmap.Width > 0
+        && bitmap.Height > 0;
+
+    private static bool HasHigherResolution(Bitmap candidate, Bitmap current)
+    {
+        var candidateArea = checked((long)candidate.Width * candidate.Height);
+        var currentArea = checked((long)current.Width * current.Height);
+        if (candidateArea != currentArea)
+        {
+            return candidateArea > currentArea;
+        }
+        var candidateLongestSide = Math.Max(candidate.Width, candidate.Height);
+        var currentLongestSide = Math.Max(current.Width, current.Height);
+        return candidateLongestSide > currentLongestSide;
+    }
+
     private static byte Blend(byte background, float foreground, float alpha)
     {
         return (byte)Math.Clamp(
@@ -448,5 +628,21 @@ internal static class NetMaterialLayerCompiler
         {
             bitmap.UnlockBits(data);
         }
+    }
+}
+
+internal static class MaterialLayerCompilerSizingProof
+{
+    private const string ProofFlag = "--material-layer-compiler-sizing-proof";
+
+    public static bool IsRequested(string[] args) => Array.Exists(
+        args,
+        argument => string.Equals(argument, ProofFlag, StringComparison.OrdinalIgnoreCase));
+
+    public static int Run()
+    {
+        var report = NetMaterialLayerCompiler.BoundedSourceSizingProof();
+        Console.WriteLine(JsonSerializer.Serialize(report));
+        return report.GetValueOrDefault("ok") is true ? 0 : 1;
     }
 }

@@ -186,14 +186,14 @@ jobs:
         shell: pwsh
         run: .\.venv\Scripts\python -m compileall -q cdmw tests tools
 
-      - name: Build the exact Mesh Editor helper exercised by QA
+      - name: Build the Mesh Editor helper for canonical QA
+        if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         run: dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release --nologo --verbosity:minimal
 
-      # Focused area gates run before a change is committed. The remote push
-      # gate owns assembled shell, manifest, localization and Qt-lifetime smoke;
-      # repeating the complete suite here delayed all feedback by about an hour
-      # without preventing the already-pushed commit.
+      # Ordinary pushes keep assembled-shell smoke and executable Mesh protocol
+      # contracts separate. The latter builds its own helper; neither route runs
+      # the broad mesh-unit or full suites.
       - name: Run fast main-push validation
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
         shell: pwsh
@@ -203,6 +203,8 @@ jobs:
         run: |
           $baseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-smoke-${{ matrix.python-version }}"
           .\scripts\codex_check.ps1 -Area smoke -PytestBaseTemp $baseTemp
+          $meshBaseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-mesh-contract-${{ matrix.python-version }}"
+          .\scripts\codex_check.ps1 -Area mesh-contract -PytestBaseTemp $meshBaseTemp
 
       - name: Run canonical nonvisual QA
         if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')

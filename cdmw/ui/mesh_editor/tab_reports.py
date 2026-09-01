@@ -648,14 +648,57 @@ class MeshEditorReportsMixin:
             return
         choice = _tab.QMessageBox(self)
         choice.setWindowTitle("Build Mod")
-        choice.setText("Choose the mesh-only mod package format.")
-        loose_button = choice.addButton("Loose Mod Folder", _tab.QMessageBox.AcceptRole)
+        choice.setText("Choose the mesh-only mod package and manager.")
+        choice.setInformativeText(
+            "Loose packages use each manager's expected folder layout and metadata. "
+            "The DMM archive group is a prebuilt manager-mounted archive; neither choice changes shipped archives."
+        )
+        dmm_loose_button = choice.addButton("DMM Loose Mesh", _tab.QMessageBox.ActionRole)
+        jmm_button = choice.addButton("JMM Loose Mesh", _tab.QMessageBox.ActionRole)
+        cdumm_button = choice.addButton("CDUMM Loose Mesh", _tab.QMessageBox.ActionRole)
+        crimson_sharp_button = choice.addButton("Crimson Sharp Loose Mesh", _tab.QMessageBox.ActionRole)
         overlay_button = choice.addButton("DMM Archive Group", _tab.QMessageBox.ActionRole)
         choice.addButton(_tab.QMessageBox.Cancel)
+        choices = {
+            dmm_loose_button: ("loose_mod", "dmm", "dmm", "dmm_loose"),
+            jmm_button: ("loose_mod", "jmm", "jmm", "jmm_loose"),
+            cdumm_button: ("loose_mod", "cdumm", "cdumm", "cdumm_loose"),
+            crimson_sharp_button: (
+                "loose_mod",
+                "crimson_sharp",
+                "crimson-sharp",
+                "crimson_sharp_loose",
+            ),
+            overlay_button: ("overlay_package", "dmm", "dmm-archive", "dmm_archive"),
+        }
+        saved_choice = str(
+            self.settings.value("mesh_editor/last_mod_output_choice", "") or ""
+        ).strip()
+        saved_profile = str(
+            self.settings.value("mesh_editor/last_mod_manager_profile", "dmm") or "dmm"
+        ).strip()
+        default_button = next(
+            (
+                button
+                for button, (_kind, _profile, _suffix, choice_id) in choices.items()
+                if choice_id == saved_choice
+            ),
+            next(
+                (
+                    button
+                    for button, (_kind, profile, _suffix, _choice_id) in choices.items()
+                    if profile == saved_profile
+                ),
+                dmm_loose_button,
+            ),
+        )
+        choice.setDefaultButton(default_button)
         choice.exec()
         selected = choice.clickedButton()
-        if selected not in {loose_button, overlay_button}:
+        selected_output = choices.get(selected)
+        if selected_output is None:
             return
+        kind, manager_profile, output_suffix, output_choice = selected_output
         parent = _tab.QFileDialog.getExistingDirectory(
             self,
             "Choose Build Mod Output Folder",
@@ -664,10 +707,16 @@ class MeshEditorReportsMixin:
         if not parent:
             return
         self.settings.setValue("mesh_editor/last_mod_output_dir", parent)
+        self.settings.setValue("mesh_editor/last_mod_manager_profile", manager_profile)
+        self.settings.setValue("mesh_editor/last_mod_output_choice", output_choice)
         stem = Path(str(entry.basename or "mesh")).stem or "mesh"
-        output_root = find_available_output_path(Path(parent) / f"{stem}-mesh-mod")
-        kind = "loose_mod" if selected is loose_button else "overlay_package"
-        self._start_mesh_direct_output_worker(kind, entry, output_path=output_root)
+        output_root = find_available_output_path(Path(parent) / f"{stem}-mesh-mod-{output_suffix}")
+        self._start_mesh_direct_output_worker(
+            kind,
+            entry,
+            output_path=output_root,
+            manager_profile=manager_profile,
+        )
 
     def _start_mesh_overlay_prepare_requested(self) -> None:
         entry = self._mesh_output_target()
@@ -697,6 +746,7 @@ class MeshEditorReportsMixin:
         *,
         output_path: Path | None = None,
         mutation_service: object | None = None,
+        manager_profile: str = "dmm",
     ) -> bool:
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
@@ -713,6 +763,8 @@ class MeshEditorReportsMixin:
             entry,
             kind=kind,
             output_path=output_path,
+            manager_profile=manager_profile,
+            expected_mesh_revision=self.standalone_export_validation_revision,
             texture_updates_waiter=self._wait_for_dotnet_export_updates,
         )
         thread = QThread(self)

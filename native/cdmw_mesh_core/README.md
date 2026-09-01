@@ -17,21 +17,40 @@ cdmw-mesh-core mesh-editor-session-json job.json report.json
 cdmw-mesh-core --version
 ```
 
-Python keeps the service/session/history authority. Batch commands can use
-their documented Python compatibility paths, but active resident-interaction
-failures fail closed instead of silently switching mutation authority.
+Python keeps durable session, history, output, and archive authority. The
+native session owns only the live pointer-critical state. Batch commands keep
+their documented Python compatibility paths, but resident-interaction failures
+fail closed instead of silently switching mutation authority.
 
 The packaged .NET/Vortice Mesh Editor uses the exported
 `resident_interaction_abi_v1` in `cdmw-mesh-core.dll` for live
 Select/Move/Grab/Smooth/Inflate/Pinch input. ABI v1 exposes identity and struct
-size probes plus open, close, sync, begin, update, end, cancel, authoritative
-decision, and vertex-read operations. Each gesture accumulates against its
-immutable begin-state baseline and publishes one bounded shared-memory sparse
-terminal transaction. `MeshService` validates and commits that transaction as
-one history entry; the host then acknowledges acceptance or rejection, while
-Undo and Redo authoritatively resynchronize mesh, selection, and topology
-revisions. Packaged startup verifies the DLL hash, ABI version and contract,
-header hash, and backend identity before enabling these controls.
+size probes plus open, close, sync, snapshot preparation, begin, update, end,
+cancel, authoritative decision, and vertex-read operations. Snapshot preparation
+builds the stamped screen-space buckets, exact large-element lists, triangle
+depth BVH, and adjacency off the pointer handler; stale generations are not
+published. Begin/Update/End use typed native operations under a per-session
+lock and never construct JSON or call the generic edit dispatcher. Every
+gesture accumulates against an immutable Begin baseline, End creates one native
+history entry, and cancellation restores that baseline exactly.
+
+The helper applies and validates the terminal sparse delta locally, refreshes
+its `ObjDocument`, normal channels, committed selection, and D3D11 buffers, then
+self-accepts the native revision before asynchronously replicating the same
+immutable `CDMWMIT2` payload to Python. `resident_interaction_commit_v2` binds
+the transaction to session/process identity, monotonic sequence, gesture,
+base/target revisions, topology, mapping, length, and SHA-256. Python commits a
+FIFO durable ledger and replies with a geometry-free
+`resident_interaction_commit_ack`; it does not echo helper geometry through
+`resident_mutation_batch_v3`. The helper retains at most 16 unacknowledged
+transactions or 64 MiB and blocks further authoring/output until durable state
+catches up. A transport loss can resend one byte-identical transaction; a
+semantic rejection rolls the local leases back and rehydrates the last durable
+state without killing the helper. Undo/Redo and host-originated topology,
+material, and morph changes continue to resynchronize mesh, selection, and
+topology revisions through their existing authority path. Packaged startup
+verifies the DLL hash, ABI version and contract, header hash, and backend
+identity before enabling these controls.
 
 `mesh-editor-session-json` is the resident Edit Mesh protocol. It stores live
 submeshes, selection masks, undo/redo history, topology revisions, and sparse

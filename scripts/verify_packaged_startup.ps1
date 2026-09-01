@@ -45,10 +45,163 @@ function Assert-PackagedStartupResult {
         throw "Packaged startup smoke result did not contain a valid process id."
     }
     Assert-PackagedBundledHelpers -Payload $payload
+    Assert-PackagedRustMeshEditorEvidence -Payload $payload
     if ($ExpectedTarget -eq "mesh_archive_textures") {
         Assert-PackagedMeshTextureEvidence -Payload $payload
     }
     return $payload
+}
+
+
+function Assert-PackagedRustMeshEditorEvidence {
+    param([Parameter(Mandatory = $true)]$Payload)
+
+    if (-not ($Payload.PSObject.Properties.Name -contains "rust_mesh_editor")) {
+        throw (
+            "Packaged startup smoke reported no independent rust_mesh_editor section. " +
+            "The build cannot prove that Rust Edit Mesh was bundled."
+        )
+    }
+    $proof = $Payload.rust_mesh_editor
+    if ($null -eq $proof) {
+        throw "Packaged startup smoke reported an empty rust_mesh_editor section."
+    }
+    $requiredProofFields = @(
+        "schema",
+        "status",
+        "reason",
+        "source",
+        "frozen",
+        "path",
+        "relative_path",
+        "inside_bundle_root",
+        "executable_sha256",
+        "provenance_path",
+        "provenance_relative_path",
+        "provenance_inside_bundle_root",
+        "provenance_sha256",
+        "provenance"
+    )
+    $missingProofFields = @(
+        $requiredProofFields |
+            Where-Object { $proof.PSObject.Properties.Name -notcontains $_ }
+    )
+    if ($missingProofFields.Count -gt 0) {
+        throw (
+            "Packaged Rust Edit Mesh evidence is incomplete: " +
+            ($missingProofFields -join ", ")
+        )
+    }
+    if ([string]$proof.schema -ne "cdmw_packaged_rust_mesh_editor_v1") {
+        throw "Packaged Rust Edit Mesh evidence returned an unknown schema."
+    }
+    if ([string]$proof.status -ne "available") {
+        $reason = [string]$proof.reason
+        $suffix = if ([string]::IsNullOrWhiteSpace($reason)) { "" } else { " Reason: $reason" }
+        throw "Packaged Rust Edit Mesh is unavailable.$suffix"
+    }
+    if (
+        $proof.frozen -ne $true -or
+        [string]$proof.source -ne "frozen" -or
+        $proof.inside_bundle_root -ne $true -or
+        [string]$proof.relative_path -cne "native/rust_mesh_editor/cdmw_mesh_lab.exe" -or
+        [System.IO.Path]::GetFileName([string]$proof.path) -cne "cdmw_mesh_lab.exe"
+    ) {
+        throw (
+            "Packaged Rust Edit Mesh did not resolve as " +
+            "native/rust_mesh_editor/cdmw_mesh_lab.exe inside the frozen bundle."
+        )
+    }
+    if (
+        $proof.provenance_inside_bundle_root -ne $true -or
+        [string]$proof.provenance_relative_path -cne "native/rust_mesh_editor/cdmw_mesh_lab.manifest.json" -or
+        [System.IO.Path]::GetFileName([string]$proof.provenance_path) -cne "cdmw_mesh_lab.manifest.json" -or
+        [System.IO.Path]::GetDirectoryName([string]$proof.path) -cne `
+            [System.IO.Path]::GetDirectoryName([string]$proof.provenance_path)
+    ) {
+        throw "Packaged Rust Edit Mesh did not report its sibling provenance manifest."
+    }
+    if (
+        [string]$proof.executable_sha256 -notmatch "^[0-9a-fA-F]{64}$" -or
+        [string]$proof.provenance_sha256 -notmatch "^[0-9a-fA-F]{64}$"
+    ) {
+        throw "Packaged Rust Edit Mesh did not report valid observed file hashes."
+    }
+
+    $provenance = $proof.provenance
+    if ($null -eq $provenance) {
+        throw "Packaged Rust Edit Mesh reported no provenance manifest payload."
+    }
+    $requiredProvenanceFields = @(
+        "schema",
+        "renderer",
+        "edit_backend",
+        "protocol",
+        "authoring_package",
+        "build_profile",
+        "locked_dependencies",
+        "executable",
+        "control_contract",
+        "control_contract_schema",
+        "capabilities",
+        "source_revision",
+        "source_tree_sha256",
+        "cargo_lock_sha256",
+        "executable_sha256",
+        "control_contract_sha256",
+        "cargo_version",
+        "rustc_version"
+    )
+    $missingProvenanceFields = @(
+        $requiredProvenanceFields |
+            Where-Object { $provenance.PSObject.Properties.Name -notcontains $_ }
+    )
+    if ($missingProvenanceFields.Count -gt 0) {
+        throw (
+            "Packaged Rust Edit Mesh provenance is incomplete: " +
+            ($missingProvenanceFields -join ", ")
+        )
+    }
+    if (
+        [string]$provenance.schema -ne "cdmw_rust_mesh_editor_build_provenance_v1" -or
+        [string]$provenance.renderer -ne "wgpu_d3d12_rust" -or
+        [string]$provenance.edit_backend -ne "cdmw_rust_mesh_0.1" -or
+        [string]$provenance.protocol -ne "cdmw_rust_mesh_editor_protocol_v1" -or
+        [string]$provenance.authoring_package -ne "cdmw_rust_mesh_authoring_package_v1" -or
+        [string]$provenance.build_profile -ne "release" -or
+        $provenance.locked_dependencies -ne $true -or
+        [string]$provenance.executable -cne "cdmw_mesh_lab.exe" -or
+        [string]$provenance.control_contract -cne "cdmw_mesh_lab.control-contract.json" -or
+        [string]$provenance.control_contract_schema -ne "cdmw_rust_mesh_editor_control_contract_v2" -or
+        @($provenance.capabilities) -notcontains "embedded_child_window_v1" -or
+        [string]$provenance.source_revision -notmatch "^[0-9a-fA-F]{40}$" -or
+        [string]$provenance.source_tree_sha256 -notmatch "^[0-9a-fA-F]{64}$" -or
+        [string]$provenance.cargo_lock_sha256 -notmatch "^[0-9a-fA-F]{64}$" -or
+        [string]$provenance.control_contract_sha256 -notmatch "^[0-9a-fA-F]{64}$" -or
+        [string]::IsNullOrWhiteSpace([string]$provenance.cargo_version) -or
+        [string]::IsNullOrWhiteSpace([string]$provenance.rustc_version)
+    ) {
+        throw (
+            "Packaged Rust Edit Mesh provenance did not prove the locked Release " +
+            "wgpu/D3D12 Rust editor contract."
+        )
+    }
+    if (
+        -not [string]::Equals(
+            [string]$provenance.executable_sha256,
+            [string]$proof.executable_sha256,
+            [System.StringComparison]::OrdinalIgnoreCase
+        )
+    ) {
+        throw "Packaged Rust Edit Mesh executable hash does not match its provenance manifest."
+    }
+    Write-Host (
+        "Packaged Rust Edit Mesh verified: path={0}, renderer={1}, edit_backend={2}, protocol={3}" -f `
+            [string]$proof.relative_path, `
+            [string]$provenance.renderer, `
+            [string]$provenance.edit_backend, `
+            [string]$provenance.protocol
+    )
 }
 
 
@@ -68,9 +221,12 @@ function Assert-PackagedMeshTextureEvidence {
     if (
         [string]$evidence.production_route -ne "MainWindow._launch_archive_mesh_editor_for_entry" -or
         $evidence.actual_csharp_controls -ne $true -or
-        $evidence.global_mouse_input_used -ne $false
+        $evidence.global_mouse_input_used -ne $false -or
+        [int64]$evidence.physical_mouse_input.gesture_count -ne 0 -or
+        $evidence.physical_mouse_input.active -ne $false -or
+        [int64]$evidence.physical_mouse_input.restore_failure_count -ne 0
     ) {
-        throw "Packaged Mesh Editor smoke did not exercise the production route through real controls without global mouse input."
+        throw "Packaged Mesh Editor smoke used global desktop input instead of the helper-local UI-thread probe."
     }
     $viewport = $evidence.viewport_availability
     if (
@@ -112,8 +268,8 @@ function Assert-PackagedMeshTextureEvidence {
     if (
         $evidence.select.ok -ne $true -or
         $evidence.select.actual_control -ne $true -or
-        [string]$evidence.select.input_backend -ne "scoped_hwnd_messages_no_global_cursor" -or
-        [int64]$evidence.select.input_target_pid -ne [int64]$evidence.helper.process_id
+        [string]$evidence.select.input_backend -ne "helper_ui_thread_resident_probe" -or
+        $evidence.select.global_mouse_input_used -ne $false
     ) {
         throw "Packaged Mesh Editor smoke did not prove the real Select control and authoritative helper-owned selection path."
     }
@@ -127,7 +283,7 @@ function Assert-PackagedMeshTextureEvidence {
     if (
         $evidence.control_continuity.ok -ne $true -or
         $evidence.control_continuity.actual_controls -ne $true -or
-        [int64]$evidence.control_continuity.case_count -ne 9 -or
+        [int64]$evidence.control_continuity.case_count -ne 8 -or
         [double]$evidence.control_continuity.settlement_p95_ms -gt 50.0 -or
         @($evidence.control_continuity.cases | Where-Object { $_.stable -ne $true }).Count -ne 0
     ) {
@@ -142,12 +298,83 @@ function Assert-PackagedMeshTextureEvidence {
     ) {
         throw "Packaged Mesh Editor smoke did not prove Grab, Undo, Grab, Undo, and Redo through the real controls."
     }
+    if (-not ($evidence.PSObject.Properties.Name -contains "resident_interactions")) {
+        throw "Packaged Mesh Editor smoke reported no resident interaction proof for the required tools."
+    }
+    $residentInteractions = $evidence.resident_interactions
+    $requiredResidentTools = @("select", "move", "grab", "smooth", "inflate", "pinch")
+    $residentCorrelationFields = @(
+        "process_generation",
+        "helper_process_id",
+        "request_id",
+        "gesture_id",
+        "transaction_sequence",
+        "base_revision",
+        "target_revision",
+        "base_selection_revision",
+        "target_selection_revision",
+        "topology_generation"
+    )
+    $residentTimingFields = @(
+        "begin_ms",
+        "input_sample_p95_ms",
+        "input_sample_max_ms",
+        "finish_ms",
+        "total_ms"
+    )
+    foreach ($residentTool in $requiredResidentTools) {
+        $residentProperty = $residentInteractions.PSObject.Properties[$residentTool]
+        if ($null -eq $residentProperty) {
+            throw "Packaged Mesh Editor smoke did not report resident interaction evidence for '$residentTool'."
+        }
+        $resident = $residentProperty.Value
+        $residentGates = @($resident.gates.PSObject.Properties | Where-Object { $_.Value -ne $true })
+        $gesture = $resident.gesture
+        $transaction = $gesture.resident_interaction_transaction
+        $acknowledgement = $gesture.commit_v2_acknowledgement
+        $missingTiming = @(
+            $residentTimingFields |
+                Where-Object { $gesture.timing.PSObject.Properties.Name -notcontains $_ }
+        )
+        if (
+            $resident.ok -ne $true -or
+            [string]$gesture.input_backend -ne "helper_ui_thread_resident_probe" -or
+            $gesture.global_mouse_input_used -ne $false -or
+            [int64]$gesture.resident_interaction_transaction_count -ne 1 -or
+            [int64]$gesture.helper_originated_mutation_echo_count -ne 0 -or
+            [string]$gesture.terminal_event -ne "resident_interaction_transaction" -or
+            [string]$gesture.operator.state -ne "idle" -or
+            $gesture.probe_acknowledgement.ok -ne $true -or
+            [string]$gesture.probe_acknowledgement.status -ne "applied" -or
+            [string]$acknowledgement.status -ne "applied" -or
+            $missingTiming.Count -ne 0 -or
+            @($residentTimingFields | Where-Object { [double]$gesture.timing.$_ -lt 0.0 }).Count -ne 0 -or
+            $residentGates.Count -ne 0
+        ) {
+            throw "Packaged Mesh Editor smoke did not prove an idle, one-transaction, applied resident '$residentTool' interaction."
+        }
+        if (
+            [int64]$gesture.probe_acknowledgement.request_id -ne [int64]$transaction.request_id -or
+            [int64]$acknowledgement.request_id -ne [int64]$transaction.request_id -or
+            [string]$acknowledgement.session_id -ne [string]$transaction.session_id -or
+            [string]$acknowledgement.sha256 -ne [string]$transaction.sha256
+        ) {
+            throw "Packaged Mesh Editor smoke lost resident '$residentTool' request/session/digest correlation."
+        }
+        foreach ($residentField in $residentCorrelationFields) {
+            if ([int64]$acknowledgement.$residentField -ne [int64]$transaction.$residentField) {
+                throw "Packaged Mesh Editor smoke lost resident '$residentTool' commit-v2 correlation field '$residentField'."
+            }
+        }
+    }
     if (
         $evidence.desktop_input.ok -ne $true -or
-        [int64]$evidence.desktop_input.harness_foreground_count -ne 0 -or
-        [int64]$evidence.desktop_input.cursor_on_harness_screen_count -ne 0
+        [string]$evidence.desktop_input.method -ne "helper_ui_thread_no_global_input" -or
+        [int64]$evidence.desktop_input.gesture_count -ne 0 -or
+        $evidence.desktop_input.active -ne $false -or
+        [int64]$evidence.desktop_input.restore_failure_count -ne 0
     ) {
-        throw "Packaged Mesh Editor smoke did not preserve desktop input isolation."
+        throw "Packaged Mesh Editor smoke did not keep all interaction inside the helper UI thread."
     }
     if (
         [string]::IsNullOrWhiteSpace([string]$evidence.helper.path) -or
@@ -197,11 +424,11 @@ function Assert-PackagedMeshTextureEvidence {
         throw "Packaged Mesh Editor texture smoke recorded material failures."
     }
     Write-Host (
-        "Packaged Mesh Editor controls verified: model={0}, resources={1}, live_srvs={2}, select_pid={3}" -f `
+        "Packaged Mesh Editor controls verified: model={0}, resources={1}, live_srvs={2}, select_backend={3}" -f `
             [string]$evidence.model_path, `
             [int64]$evidence.material_update.resource_count, `
             [int64]$evidence.solid_textured.renderer_resources.live_texture_srvs, `
-            [int64]$evidence.select.input_target_pid
+            [string]$evidence.select.input_backend
     )
 }
 

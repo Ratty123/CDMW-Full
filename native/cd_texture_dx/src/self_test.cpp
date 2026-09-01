@@ -65,6 +65,55 @@ bool texture_codec_self_test(std::string& failed_component) {
     );
     if (FAILED(hr)) return finish(false, "save_source_png");
 
+    constexpr uint8_t untagged_png_bytes[] = {
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+        0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+        0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41,
+        0x54, 0x78, 0x9c, 0x63, 0x68, 0x70, 0x50, 0x10,
+        0x04, 0x00, 0x03, 0x16, 0x00, 0xf2, 0xc0, 0xb4,
+        0x97, 0xe4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+        0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    };
+    const fs::path untagged_png = root / L"untagged-source.png";
+    if (!write_text_file(
+            untagged_png,
+            std::string(
+                reinterpret_cast<const char*>(untagged_png_bytes),
+                sizeof(untagged_png_bytes)
+            ))) {
+        return finish(false, "write_untagged_source_png");
+    }
+
+    EncodeJob assumed_srgb_job;
+    assumed_srgb_job.input = untagged_png.wstring();
+    assumed_srgb_job.output = (root / L"assumed-srgb.dds").wstring();
+    assumed_srgb_job.format = "R8G8B8A8_UNORM_SRGB";
+    assumed_srgb_job.source_color_policy = "assume_srgb";
+    if (!encoded_ok(encode_dds_job(assumed_srgb_job))) {
+        return finish(false, "encode_assumed_srgb");
+    }
+    DirectX::ScratchImage assumed_srgb;
+    DirectX::TexMetadata assumed_srgb_metadata{};
+    hr = DirectX::LoadFromDDSFile(
+        assumed_srgb_job.output.c_str(),
+        DirectX::DDS_FLAGS_NONE,
+        &assumed_srgb_metadata,
+        assumed_srgb
+    );
+    if (FAILED(hr) || assumed_srgb_metadata.format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) {
+        return finish(false, "load_assumed_srgb");
+    }
+    const DirectX::Image* assumed_srgb_frame = assumed_srgb.GetImage(0, 0, 0);
+    if (!assumed_srgb_frame) return finish(false, "get_assumed_srgb_frame");
+    constexpr uint8_t expected_assumed_srgb[] = {128, 64, 32, 17};
+    for (size_t channel = 0; channel < 4; ++channel) {
+        if (assumed_srgb_frame->pixels[channel] != expected_assumed_srgb[channel]) {
+            return finish(false, "compare_assumed_srgb_numeric_bytes");
+        }
+    }
+
     EncodeJob linear_job;
     linear_job.input = source_png.wstring();
     linear_job.output = (root / L"linear.dds").wstring();

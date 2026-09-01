@@ -21,26 +21,46 @@ from cdmw.services.mesh_dotnet_experiment import resolve_mesh_dotnet_experiment_
 from cdmw.ui.archive_browser.mesh_builder_startup_smoke import (
     configure_synthetic_archive_context,
 )
-from tools.mesh_harness.constants import (
-    _MK_LBUTTON,
-    _WM_LBUTTONDOWN,
-    _WM_LBUTTONUP,
-    _WM_MOUSEMOVE,
-)
 from tools.mesh_harness.real_dotnet_capture import capture_dotnet_viewport
+from tools.mesh_harness.real_dotnet_input import (
+    request_resident_interaction_probe,
+    resident_interaction_commit_ack,
+)
 from tools.mesh_harness.win32_input import (
     _click_button_by_text,
-    _desktop_input_isolation_evidence,
     _desktop_input_snapshot,
     _enumerate_child_windows,
     _host_window_rect,
+    _physical_mouse_input_evidence,
+    _render_surface_input_owner_hwnd,
     _scoped_input_target_matches,
     _select_combo_item_by_text,
-    _send_mouse_message,
     _show_window_without_activation,
     _window_process_id,
     _window_parent_hwnd,
 )
+
+
+def _helper_ui_thread_no_global_input_evidence(
+    physical_input: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """Describe the helper-local input path without judging the user's desktop."""
+
+    counters = dict(physical_input or _physical_mouse_input_evidence())
+    gesture_count = int(counters.get("gesture_count", 0) or 0)
+    restore_failure_count = int(counters.get("restore_failure_count", 0) or 0)
+    active = counters.get("active")
+    return {
+        "method": "helper_ui_thread_no_global_input",
+        "ok": bool(
+            gesture_count == 0
+            and restore_failure_count == 0
+            and active is False
+        ),
+        "gesture_count": gesture_count,
+        "restore_failure_count": restore_failure_count,
+        "active": active,
+    }
 
 
 # This PHW model is the escaped packaged-runtime regression: its visible body
@@ -479,7 +499,7 @@ def _exercise_actual_control_continuity(
     # below that row, so this order keeps the next real control on screen and
     # measures activation rather than an automation-only scroll/layout pass.
     controls = (
-        *(("page", text, "") for text in ("Viewport", "Morph & Refit", "Topology")),
+        *(("page", text, "") for text in ("Morph & Refit", "Topology")),
         *(("tool", text, tool) for text, tool in (
             ("Pinch", "pinch"),
             ("Inflate", "inflate"),
@@ -508,7 +528,12 @@ def _exercise_actual_control_continuity(
             expected_pid=helper_pid,
         )
         cursor = len(_protocol_events(mesh_editor_tab))
-        control = _click_button_by_text(form_hwnd, text, expected_pid=helper_pid)
+        control = _click_button_by_text(
+            form_hwnd,
+            text,
+            expected_pid=helper_pid,
+            scroll_clipped=True,
+        )
         if control.get("ok") is not True:
             raise RuntimeError(f"The real {text} control could not be pressed: {control!r}")
         post_dispatch_started = time.perf_counter()
@@ -622,9 +647,8 @@ def _activate_solid_textured_control(
     helper_pid: int,
     desktop_observations: list[Mapping[str, object]],
 ) -> dict[str, object]:
-    page_control = _click_button_by_text(form_hwnd, "Viewport", expected_pid=helper_pid)
-    if page_control.get("ok") is not True:
-        raise RuntimeError(f"The real Viewport control could not be pressed: {page_control!r}")
+    # Display controls are pinned beside every Tool Rail page. There is no
+    # separate Viewport page in the production layout.
     app.processEvents()
 
     untextured_cursor = len(_protocol_events(mesh_editor_tab))
@@ -703,7 +727,7 @@ def _activate_solid_textured_control(
     )
     return {
         "actual_controls": True,
-        "page_control": page_control,
+        "viewport_controls_pinned": True,
         "untextured_control": untextured_control,
         "textured_control": textured_control,
         "control_request_ms": round(control_request_ms, 3),
@@ -762,6 +786,179 @@ def _query_helper_selection(
     return applied
 
 
+def _request_packaged_interaction_probe(
+    app: QApplication,
+    mesh_editor_tab: object,
+    *,
+    mode: str,
+    start: tuple[int, int],
+    end: tuple[int, int],
+    sample_count: int,
+    desktop_observations: list[Mapping[str, object]],
+) -> tuple[dict[str, object], float]:
+    probe_state = SimpleNamespace(tab=mesh_editor_tab)
+
+    def pump_probe(_state: object, predicate: Callable[[], bool], timeout: float) -> bool:
+        _pump_until(
+            app,
+            predicate,
+            timeout_seconds=timeout,
+            label=f"helper-local {mode} interaction probe",
+            desktop_observations=desktop_observations,
+        )
+        return True
+
+    started = time.perf_counter()
+    result = request_resident_interaction_probe(
+        probe_state,
+        mode=mode,
+        start=start,
+        end=end,
+        sample_count=sample_count,
+        pump_until=pump_probe,
+    )
+    return result, max(0.0, (time.perf_counter() - started) * 1000.0)
+
+
+_RESIDENT_PROBE_TOOL_IDS = {
+    "select_brush_vertex": 1,
+    "select_brush_edge": 1,
+    "select_brush_face": 1,
+    "move": 2,
+    "grab": 3,
+    "smooth": 4,
+    "inflate": 5,
+    "pinch": 6,
+}
+_RESIDENT_PROBE_COMMIT_FIELDS = (
+    "process_generation",
+    "helper_process_id",
+    "request_id",
+    "gesture_id",
+    "transaction_sequence",
+    "base_revision",
+    "target_revision",
+    "base_selection_revision",
+    "target_selection_revision",
+    "topology_generation",
+)
+
+
+def _validate_packaged_resident_probe(
+    probe: Mapping[str, object],
+    *,
+    mode: str,
+) -> tuple[dict[str, object], dict[str, object]]:
+    """Require one native terminal transaction and its exact commit-v2 ACK."""
+
+    normalized_mode = str(mode or "").strip().lower()
+    expected_tool = _RESIDENT_PROBE_TOOL_IDS.get(normalized_mode)
+    if expected_tool is None:
+        raise RuntimeError(f"Unsupported packaged resident probe mode: {mode!r}")
+    if probe.get("ok") is not True:
+        raise RuntimeError(f"The helper-local {normalized_mode} probe failed: {probe!r}")
+
+    transactions = [
+        dict(item)
+        for item in tuple(probe.get("resident_interaction_transactions", ()) or ())
+        if isinstance(item, Mapping)
+    ]
+    if len(transactions) != 1:
+        raise RuntimeError(
+            f"The helper-local {normalized_mode} probe emitted {len(transactions)} "
+            f"resident transactions instead of exactly one: {probe!r}"
+        )
+    transaction = transactions[0]
+    if int(transaction.get("tool", 0) or 0) != expected_tool:
+        raise RuntimeError(
+            f"The helper-local {normalized_mode} probe committed the wrong native "
+            f"tool: {transaction!r}"
+        )
+    request = probe.get("request", {})
+    request = dict(request) if isinstance(request, Mapping) else {}
+    probe_ack = probe.get("probe_acknowledgement", {})
+    probe_ack = dict(probe_ack) if isinstance(probe_ack, Mapping) else {}
+    request_id = int(transaction.get("request_id", 0) or 0)
+    if request_id <= 0 or int(request.get("request_id", 0) or 0) != request_id:
+        raise RuntimeError(
+            f"The helper-local {normalized_mode} probe lost request correlation: "
+            f"request={request!r}, transaction={transaction!r}"
+        )
+    if int(probe_ack.get("request_id", 0) or 0) != request_id:
+        raise RuntimeError(
+            f"The helper-local {normalized_mode} probe acknowledgement was not "
+            f"correlated to its transaction: {probe_ack!r}"
+        )
+    if (
+        str(probe_ack.get("status", "") or "").strip().lower() != "applied"
+        or probe_ack.get("ok") is not True
+        or str(probe.get("terminal_event", "resident_interaction_transaction"))
+        not in {"", "resident_interaction_transaction"}
+    ):
+        raise RuntimeError(
+            f"The helper-local {normalized_mode} probe did not report an applied "
+            f"terminal route: {probe_ack!r}, probe={probe!r}"
+        )
+    operator_state = str(probe.get("final_operator_state", "") or "").strip().lower()
+    if operator_state != "idle":
+        raise RuntimeError(
+            f"The helper-local {normalized_mode} probe left the operator active: "
+            f"{probe!r}"
+        )
+    if probe.get("native_gesture_active_after") is not False:
+        raise RuntimeError(
+            f"The helper-local {normalized_mode} probe left a native gesture active."
+        )
+    if int(probe.get("helper_originated_mutation_echo_count", 0) or 0) != 0:
+        raise RuntimeError(
+            f"The helper-local {normalized_mode} probe echoed its transaction through "
+            f"resident_mutation_batch_v3: {probe!r}"
+        )
+
+    acknowledgement = probe.get("authority_acknowledgement", {})
+    acknowledgement = dict(acknowledgement) if isinstance(acknowledgement, Mapping) else {}
+    if str(acknowledgement.get("status", "") or "").strip().lower() != "applied":
+        raise RuntimeError(
+            f"The helper-local {normalized_mode} transaction was not commit-v2 "
+            f"acknowledged as applied: {acknowledgement!r}"
+        )
+    for field in ("session_id", "sha256"):
+        expected = str(transaction.get(field, "") or "")
+        actual = str(acknowledgement.get(field, "") or "")
+        if field == "sha256":
+            expected = expected.lower()
+            actual = actual.lower()
+        if not expected or actual != expected:
+            raise RuntimeError(
+                f"The helper-local {normalized_mode} commit-v2 ACK disagreed on "
+                f"{field}: transaction={transaction!r}, acknowledgement={acknowledgement!r}"
+            )
+    for field in _RESIDENT_PROBE_COMMIT_FIELDS:
+        if int(acknowledgement.get(field, 0) or 0) != int(transaction.get(field, 0) or 0):
+            raise RuntimeError(
+                f"The helper-local {normalized_mode} commit-v2 ACK disagreed on "
+                f"{field}: transaction={transaction!r}, acknowledgement={acknowledgement!r}"
+            )
+    for field in (
+        "begin_ms",
+        "input_sample_p95_ms",
+        "input_sample_max_ms",
+        "finish_ms",
+        "total_ms",
+    ):
+        if field not in probe:
+            raise RuntimeError(
+                f"The helper-local {normalized_mode} probe omitted timing {field}."
+            )
+        value = float(probe.get(field, 0.0) or 0.0)
+        if value < 0.0:
+            raise RuntimeError(
+                f"The helper-local {normalized_mode} probe reported negative timing "
+                f"{field}: {probe!r}"
+            )
+    return transaction, acknowledgement
+
+
 def _perform_actual_select_attempt(
     app: QApplication,
     mesh_editor_tab: object,
@@ -772,66 +969,31 @@ def _perform_actual_select_attempt(
 ) -> tuple[dict[str, object], dict[str, object]]:
     end = (start[0] + 8, start[1])
     cursor = len(_protocol_events(mesh_editor_tab))
-    moved = _send_mouse_message(viewport_hwnd, _WM_MOUSEMOVE, *start)
-    down = _send_mouse_message(
-        viewport_hwnd,
-        _WM_LBUTTONDOWN,
-        *start,
-        wparam=_MK_LBUTTON,
-    )
-    drag = bool(
-        down
-        and _send_mouse_message(
-            viewport_hwnd,
-            _WM_MOUSEMOVE,
-            start[0] + 4,
-            start[1],
-            wparam=_MK_LBUTTON,
-        )
-    )
-    up = _send_mouse_message(viewport_hwnd, _WM_LBUTTONUP, *end)
-    _pump_until(
+    probe, ack_ms = _request_packaged_interaction_probe(
         app,
-        lambda: bool(
-            _latest_event(
-                mesh_editor_tab,
-                "resident_interaction_transaction",
-                cursor=cursor,
-            )
-        ),
-        timeout_seconds=5.0,
-        label="physical Select resident transaction",
+        mesh_editor_tab,
+        mode="select_brush_vertex",
+        start=start,
+        end=end,
+        sample_count=4,
         desktop_observations=desktop_observations,
     )
-    terminal = _latest_event(
-        mesh_editor_tab,
-        "resident_interaction_transaction",
-        cursor=cursor,
+    terminal, acknowledgement = _validate_packaged_resident_probe(
+        probe,
+        mode="select_brush_vertex",
     )
     request_id = int(terminal.get("request_id", 0) or 0)
-    ack_ms = _pump_until(
-        app,
-        lambda: bool(
-            _latest_event(
-                mesh_editor_tab,
-                "resident_mutation_batch_ack",
-                cursor=cursor,
-                predicate=lambda event: int(event.get("request_id", 0) or 0)
-                == request_id
-                and str(event.get("status", "") or "").lower()
-                in {"applied", "already_applied"},
-            )
-        ),
-        timeout_seconds=15.0,
-        label="authoritative Select acknowledgement",
-        desktop_observations=desktop_observations,
-    )
-    acknowledgement = _latest_event(
-        mesh_editor_tab,
-        "resident_mutation_batch_ack",
-        cursor=cursor,
-        predicate=lambda event: int(event.get("request_id", 0) or 0) == request_id,
-    )
+    mutation_echoes = [
+        event
+        for event in _protocol_events(mesh_editor_tab)[cursor:]
+        if str(event.get("event", "") or "") == "resident_mutation_batch_ack"
+        and int(event.get("request_id", 0) or 0) == request_id
+    ]
+    if mutation_echoes:
+        raise RuntimeError(
+            "The helper-originated Select transaction was echoed through "
+            f"resident_mutation_batch_v3: {mutation_echoes!r}"
+        )
     applied = _query_helper_selection(
         app,
         mesh_editor_tab,
@@ -842,14 +1004,32 @@ def _perform_actual_select_attempt(
     return (
         {
             "point": list(start),
-            "mouse_move_sent": bool(moved),
-            "mouse_down_sent": bool(down),
-            "drag_sent": bool(drag),
-            "mouse_up_sent": bool(up),
+            "input_backend": "helper_ui_thread_resident_probe",
+            "global_mouse_input_used": False,
+            "probe_acknowledgement": dict(
+                probe.get("probe_acknowledgement", {}) or {}
+            ),
             "request_id": request_id,
             "resident_interaction_transaction": terminal,
             "authority_acknowledgement": acknowledgement,
+            "commit_v2_acknowledgement": acknowledgement,
             "authority_ack_ms": round(ack_ms, 3),
+            "helper_originated_mutation_echo_count": len(mutation_echoes),
+            "resident_interaction_transaction_count": 1,
+            "terminal_event": str(probe.get("terminal_event", "") or ""),
+            "operator": {
+                "state": str(probe.get("final_operator_state", "") or "")
+            },
+            "timing": {
+                key: float(probe.get(key, 0.0) or 0.0)
+                for key in (
+                    "begin_ms",
+                    "input_sample_p95_ms",
+                    "input_sample_max_ms",
+                    "finish_ms",
+                    "total_ms",
+                )
+            },
             "tool_state_applied": applied,
             "selection_nonempty": _selection_is_nonempty(local_selection),
         },
@@ -867,7 +1047,12 @@ def _exercise_actual_select_control(
     desktop_observations: list[Mapping[str, object]],
 ) -> dict[str, object]:
     tool_cursor = len(_protocol_events(mesh_editor_tab))
-    select_control = _click_button_by_text(form_hwnd, "Select", expected_pid=helper_pid)
+    select_control = _click_button_by_text(
+        form_hwnd,
+        "Select",
+        expected_pid=helper_pid,
+        scroll_clipped=True,
+    )
     if select_control.get("ok") is not True:
         raise RuntimeError(f"The real Select control could not be pressed: {select_control!r}")
     tool_changed_ms = _pump_until(
@@ -927,14 +1112,18 @@ def _exercise_actual_select_control(
                     == "select",
                 ),
                 "tool_changed_ms": round(tool_changed_ms, 3),
-                "input_backend": "scoped_hwnd_messages_no_global_cursor",
-                "input_target_hwnd": int(viewport_hwnd),
-                "input_target_pid": _window_process_id(viewport_hwnd),
+                "input_backend": "helper_ui_thread_resident_probe",
+                "global_mouse_input_used": False,
+                "render_surface_hwnd": int(viewport_hwnd),
+                "input_target_hwnd": _render_surface_input_owner_hwnd(viewport_hwnd),
+                "input_target_pid": _window_process_id(
+                    _render_surface_input_owner_hwnd(viewport_hwnd)
+                ),
                 "attempts": attempts,
                 "selected": local_selection,
             }
     raise RuntimeError(
-        "The real Select control armed, but physical helper-owned viewport gestures "
+        "The real Select control armed, but helper-local viewport gestures "
         f"produced no authoritative mesh selection: {attempts!r}"
     )
 
@@ -966,6 +1155,7 @@ def _wait_for_authoritative_request(
     cursor: int,
     event_name: str,
     command: str = "",
+    commit_ack_cursor: int = 0,
     desktop_observations: list[Mapping[str, object]],
 ) -> tuple[dict[str, object], dict[str, object]]:
     predicate = (
@@ -996,6 +1186,41 @@ def _wait_for_authoritative_request(
     request_id = int(request.get("request_id", 0) or 0)
     if request_id <= 0:
         raise RuntimeError(f"The {event_name} request had no correlation id: {request!r}")
+    if event_name == "resident_interaction_transaction":
+        acknowledgement: dict[str, object] = {}
+
+        def commit_acknowledged() -> bool:
+            nonlocal acknowledgement
+            acknowledgement = resident_interaction_commit_ack(
+                request,
+                after_monotonic_ns=commit_ack_cursor,
+            )
+            return bool(acknowledgement)
+
+        _pump_until(
+            app,
+            commit_acknowledged,
+            timeout_seconds=20.0,
+            label=f"authoritative {event_name} acknowledgement",
+            desktop_observations=desktop_observations,
+        )
+        if str(acknowledgement.get("status", "") or "").lower() != "applied":
+            raise RuntimeError(
+                f"The {event_name} transaction was durably rejected: "
+                f"{acknowledgement!r}"
+            )
+        mutation_echoes = [
+            event
+            for event in _protocol_events(mesh_editor_tab)[cursor:]
+            if str(event.get("event", "") or "") == "resident_mutation_batch_ack"
+            and int(event.get("request_id", 0) or 0) == request_id
+        ]
+        if mutation_echoes:
+            raise RuntimeError(
+                "The helper-originated interaction was echoed through "
+                f"resident_mutation_batch_v3: {mutation_echoes!r}"
+            )
+        return request, acknowledgement
     _pump_until(
         app,
         lambda: bool(
@@ -1022,13 +1247,15 @@ def _wait_for_authoritative_request(
     return request, acknowledgement
 
 
-def _perform_actual_grab(
+def _perform_actual_resident_tool(
     app: QApplication,
     mesh_editor_tab: object,
     *,
     form_hwnd: int,
     viewport_hwnd: int,
     helper_pid: int,
+    tool_text: str,
+    mode: str,
     start: tuple[int, int],
     desktop_observations: list[Mapping[str, object]],
 ) -> dict[str, object]:
@@ -1049,7 +1276,7 @@ def _perform_actual_grab(
             )
         ),
         timeout_seconds=5.0,
-        label="visible Grab rail reset",
+        label=f"visible {tool_text} rail reset",
         desktop_observations=desktop_observations,
     )
     rail_reset = _latest_event(
@@ -1059,9 +1286,14 @@ def _perform_actual_grab(
         predicate=lambda event: str(event.get("tool", "") or "").lower() == "orbit",
     )
     tool_cursor = len(_protocol_events(mesh_editor_tab))
-    grab_control = _click_button_by_text(form_hwnd, "Grab", expected_pid=helper_pid)
-    if grab_control.get("ok") is not True:
-        raise RuntimeError(f"The real Grab control could not be pressed: {grab_control!r}")
+    tool_control = _click_button_by_text(
+        form_hwnd,
+        tool_text,
+        expected_pid=helper_pid,
+        scroll_clipped=True,
+    )
+    if tool_control.get("ok") is not True:
+        raise RuntimeError(f"The real {tool_text} control could not be pressed: {tool_control!r}")
     _pump_until(
         app,
         lambda: bool(
@@ -1070,57 +1302,43 @@ def _perform_actual_grab(
                 "tool_changed",
                 cursor=tool_cursor,
                 predicate=lambda event: str(event.get("tool", "") or "").lower()
-                == "grab",
+                == mode,
             )
         ),
         timeout_seconds=10.0,
-        label="actual Grab activation",
+        label=f"actual {tool_text} activation",
         desktop_observations=desktop_observations,
     )
     rect = _host_window_rect(viewport_hwnd)
     if rect is None or not _scoped_input_target_matches(viewport_hwnd, helper_pid):
-        raise RuntimeError("The D3D11 viewport is not a safe Grab input target.")
+        raise RuntimeError(f"The D3D11 viewport is not a safe {tool_text} input target.")
     width = int(rect[2] - rect[0])
     height = int(rect[3] - rect[1])
     start_x = max(4, min(width - 64, int(start[0])))
     start_y = max(4, min(height - 16, int(start[1])))
     end = (min(width - 4, start_x + 48), max(4, start_y - 8))
-    cursor = len(_protocol_events(mesh_editor_tab))
-    moved = _send_mouse_message(viewport_hwnd, _WM_MOUSEMOVE, start_x, start_y)
-    down = _send_mouse_message(
-        viewport_hwnd,
-        _WM_LBUTTONDOWN,
-        start_x,
-        start_y,
-        wparam=_MK_LBUTTON,
-    )
     drag_points: list[list[int]] = []
     for step in range(1, 7):
         x = start_x + round((end[0] - start_x) * step / 6)
         y = start_y + round((end[1] - start_y) * step / 6)
-        if not _send_mouse_message(
-            viewport_hwnd,
-            _WM_MOUSEMOVE,
-            x,
-            y,
-            wparam=_MK_LBUTTON,
-        ):
-            raise RuntimeError("The helper-owned Grab drag message was rejected.")
         drag_points.append([x, y])
-        app.processEvents()
-        time.sleep(0.02)
-    up = _send_mouse_message(viewport_hwnd, _WM_LBUTTONUP, *end)
-    request, acknowledgement = _wait_for_authoritative_request(
+    probe, _probe_elapsed_ms = _request_packaged_interaction_probe(
         app,
         mesh_editor_tab,
-        cursor=cursor,
-        event_name="resident_interaction_transaction",
+        mode=mode,
+        start=(start_x, start_y),
+        end=end,
+        sample_count=len(drag_points),
         desktop_observations=desktop_observations,
+    )
+    request, acknowledgement = _validate_packaged_resident_probe(
+        probe,
+        mode=mode,
     )
     renderer = _request_renderer_status(
         app,
         mesh_editor_tab,
-        label="after actual Grab commit",
+        label=f"after actual {tool_text} commit",
         desktop_observations=desktop_observations,
     )
     operator = dict(renderer.get("edit_operator", {})) if isinstance(
@@ -1128,28 +1346,78 @@ def _perform_actual_grab(
     ) else {}
     snapshot = _mesh_geometry_snapshot(mesh_editor_tab)
     if str(operator.get("state", "") or "").lower() != "idle":
-        raise RuntimeError(f"Grab left its edit operator active: {operator!r}")
+        raise RuntimeError(f"{tool_text} left its edit operator active: {operator!r}")
     if int(renderer.get("last_applied_edit_revision", 0) or 0) != int(
         snapshot["resident_revision"]
     ):
         raise RuntimeError(
-            "Grab renderer and service revisions diverged: "
+            f"{tool_text} renderer and service revisions diverged: "
             f"renderer={renderer.get('last_applied_edit_revision')!r}, service={snapshot!r}."
         )
     return {
-        "ok": bool(moved and down and up),
-        "actual_control": grab_control,
+        "ok": True,
+        "tool": tool_text,
+        "mode": mode,
+        "actual_control": tool_control,
         "visible_control_rail_reset": rail_reset,
         "visible_control_rail_reset_ms": round(rail_reset_ms, 3),
-        "input_backend": "scoped_hwnd_messages_no_global_cursor",
+        "input_backend": "helper_ui_thread_resident_probe",
+        "global_mouse_input_used": False,
+        "render_surface_hwnd": int(viewport_hwnd),
         "start": [start_x, start_y],
         "drag_points": drag_points,
         "end": list(end),
+        "probe_acknowledgement": dict(
+            probe.get("probe_acknowledgement", {}) or {}
+        ),
+        "resident_interaction_transaction": request,
+        "resident_interaction_transaction_count": 1,
         "request": request,
         "acknowledgement": acknowledgement,
+        "commit_v2_acknowledgement": acknowledgement,
+        "helper_originated_mutation_echo_count": int(
+            probe.get("helper_originated_mutation_echo_count", 0) or 0
+        ),
+        "timing": {
+            key: float(probe.get(key, 0.0) or 0.0)
+            for key in (
+                "begin_ms",
+                "input_sample_p95_ms",
+                "input_sample_max_ms",
+                "finish_ms",
+                "total_ms",
+            )
+        },
+        "terminal_event": str(probe.get("terminal_event", "") or ""),
+        "terminal_transaction_sequence": int(
+            probe.get("terminal_transaction_sequence", 0) or 0
+        ),
         "operator": operator,
         "snapshot": snapshot,
     }
+
+
+def _perform_actual_grab(
+    app: QApplication,
+    mesh_editor_tab: object,
+    *,
+    form_hwnd: int,
+    viewport_hwnd: int,
+    helper_pid: int,
+    start: tuple[int, int],
+    desktop_observations: list[Mapping[str, object]],
+) -> dict[str, object]:
+    return _perform_actual_resident_tool(
+        app,
+        mesh_editor_tab,
+        form_hwnd=form_hwnd,
+        viewport_hwnd=viewport_hwnd,
+        helper_pid=helper_pid,
+        tool_text="Grab",
+        mode="grab",
+        start=start,
+        desktop_observations=desktop_observations,
+    )
 
 
 def _perform_actual_history_command(
@@ -1313,6 +1581,144 @@ def _exercise_actual_grab_undo_redo(
             f"gates={gates!r}, baseline={baseline!r}, first={first!r}, "
             f"undone={undone!r}, second={second!r}, redone={redone!r}."
         )
+
+    # Leave the shared selection and geometry at the pre-tool baseline before
+    # exercising the remaining native operators. Every operator below gets a
+    # fresh one-entry history assertion and an explicit Undo back to this
+    # exact digest; no deformation is allowed to become the next tool's input.
+    restored_after_redo = _perform_actual_history_command(
+        app,
+        mesh_editor_tab,
+        form_hwnd=form_hwnd,
+        helper_pid=helper_pid,
+        command_text="Undo",
+        desktop_observations=desktop_observations,
+    )
+    restored_baseline = dict(restored_after_redo["snapshot"])
+    if (
+        restored_baseline["sha256"] != baseline["sha256"]
+        or restored_baseline["history_cursor"] != baseline["history_cursor"]
+    ):
+        raise RuntimeError(
+            "The final Grab undo did not restore the deformation baseline before "
+            f"the remaining resident tools: baseline={baseline!r}, "
+            f"restored={restored_baseline!r}."
+        )
+
+    resident_tools: dict[str, object] = {
+        "grab": {
+            "ok": True,
+            "tool": "Grab",
+            "mode": "grab",
+            "baseline": baseline,
+            "gesture": first_grab,
+            "undo": first_undo,
+            "gates": {
+                "transaction_count_one": first_grab.get(
+                    "resident_interaction_transaction_count", 0
+                )
+                == 1,
+                "commit_v2_ack_applied": str(
+                    first_grab.get("commit_v2_acknowledgement", {}).get("status", "")
+                    if isinstance(first_grab.get("commit_v2_acknowledgement"), Mapping)
+                    else ""
+                ).lower()
+                == "applied",
+                "geometry_changed": gates["first_grab_changed_geometry"],
+                "one_history_transaction": gates["first_grab_one_history_entry"],
+                "undo_restored_exact_baseline": gates[
+                    "first_undo_restored_exact_baseline"
+                ],
+                "undo_restored_history_cursor": gates[
+                    "first_undo_restored_history_cursor"
+                ],
+                "operator_idle": str(first_grab["operator"].get("state", "")).lower()
+                == "idle"
+                and str(first_undo["operator"].get("state", "")).lower() == "idle",
+                "native_backend": first_grab["input_backend"]
+                == "helper_ui_thread_resident_probe",
+                "no_mutation_echo": first_grab.get(
+                    "helper_originated_mutation_echo_count", 1
+                )
+                == 0,
+            },
+        }
+    }
+    for tool_text, mode in (
+        ("Move", "move"),
+        ("Smooth", "smooth"),
+        ("Inflate", "inflate"),
+        ("Pinch", "pinch"),
+    ):
+        tool_baseline = _mesh_geometry_snapshot(mesh_editor_tab)
+        gesture = _perform_actual_resident_tool(
+            app,
+            mesh_editor_tab,
+            form_hwnd=form_hwnd,
+            viewport_hwnd=viewport_hwnd,
+            helper_pid=helper_pid,
+            tool_text=tool_text,
+            mode=mode,
+            start=(point[0], point[1]),
+            desktop_observations=desktop_observations,
+        )
+        changed = dict(gesture["snapshot"])
+        undo = _perform_actual_history_command(
+            app,
+            mesh_editor_tab,
+            form_hwnd=form_hwnd,
+            helper_pid=helper_pid,
+            command_text="Undo",
+            desktop_observations=desktop_observations,
+        )
+        undone_tool = dict(undo["snapshot"])
+        gates_for_tool = {
+            "transaction_count_one": bool(
+                gesture.get("resident_interaction_transaction")
+            ),
+            "commit_v2_ack_applied": str(
+                gesture.get("commit_v2_acknowledgement", {}).get("status", "")
+                if isinstance(gesture.get("commit_v2_acknowledgement"), Mapping)
+                else ""
+            ).lower()
+            == "applied",
+            "geometry_changed": changed["sha256"] != tool_baseline["sha256"],
+            "one_history_transaction": changed["history_cursor"]
+            == tool_baseline["history_cursor"] + 1,
+            "undo_restored_exact_baseline": undone_tool["sha256"]
+            == tool_baseline["sha256"],
+            "undo_restored_history_cursor": undone_tool["history_cursor"]
+            == tool_baseline["history_cursor"],
+            "operator_idle": str(gesture["operator"].get("state", "")).lower()
+            == "idle"
+            and str(undo["operator"].get("state", "")).lower() == "idle",
+            "native_backend": gesture.get("input_backend")
+            == "helper_ui_thread_resident_probe",
+            "no_mutation_echo": int(
+                gesture.get("probe_acknowledgement", {}).get(
+                    "helper_originated_mutation_echo_count", 0
+                )
+                if isinstance(gesture.get("probe_acknowledgement"), Mapping)
+                else 1
+            )
+            == 0,
+        }
+        if not all(gates_for_tool.values()):
+            raise RuntimeError(
+                f"The actual {tool_text} resident interaction violated its "
+                f"transaction/history invariants: gates={gates_for_tool!r}, "
+                f"baseline={tool_baseline!r}, changed={changed!r}, "
+                f"undone={undone_tool!r}."
+            )
+        resident_tools[mode] = {
+            "ok": True,
+            "tool": tool_text,
+            "mode": mode,
+            "baseline": tool_baseline,
+            "gesture": gesture,
+            "undo": undo,
+            "gates": gates_for_tool,
+        }
     return {
         "ok": True,
         "actual_controls": True,
@@ -1323,6 +1729,8 @@ def _exercise_actual_grab_undo_redo(
         "second_grab": second_grab,
         "second_undo": second_undo,
         "redo": redo,
+        "restored_after_redo": restored_after_redo,
+        "resident_tools": resident_tools,
     }
 
 
@@ -1389,14 +1797,8 @@ def _raise_packaged_smoke_failure(
 ) -> None:
     input_timer.stop()
     desktop_observations.append(_desktop_input_snapshot())
-    try:
-        desktop_input = _desktop_input_isolation_evidence(
-            desktop_observations,
-            forbidden_hwnds=(int(window.winId()), form_hwnd, viewport_hwnd),
-            harness_screen_bounds=harness_screen_bounds,
-        )
-    except Exception as isolation_exc:
-        desktop_input = {"ok": False, "error": str(isolation_exc)}
+    physical_mouse_input = _physical_mouse_input_evidence()
+    desktop_input = _helper_ui_thread_no_global_input_evidence(physical_mouse_input)
     helper = _helper_identity(mesh_editor_tab)
     failure_diagnostics = {
         "schema": "cdmw_packaged_mesh_editor_controls_failure_v2",
@@ -1407,6 +1809,7 @@ def _raise_packaged_smoke_failure(
         "application": _application_identity(helper),
         "viewport_shell": _viewport_shell_state(mesh_editor_tab),
         "renderer": _renderer_texture_state(mesh_editor_tab),
+        "physical_mouse_input": physical_mouse_input,
         "form_hwnd": form_hwnd,
         "viewport_hwnd": viewport_hwnd,
         "helper_pid": helper_pid,
@@ -1655,6 +2058,81 @@ def verify_packaged_mesh_texture_smoke_target(
             selection=selection,
             desktop_observations=desktop_observations,
         )
+        select_attempt = next(
+            (
+                attempt
+                for attempt in reversed(tuple(selection.get("attempts", ()) or ()))
+                if isinstance(attempt, Mapping)
+                and attempt.get("selection_nonempty") is True
+            ),
+            None,
+        )
+        if not isinstance(select_attempt, Mapping):
+            raise RuntimeError("Packaged Select proof has no successful resident gesture evidence.")
+        select_gates = {
+            "transaction_count_one": int(
+                select_attempt.get("resident_interaction_transaction_count", 0) or 0
+            )
+            == 1,
+            "commit_v2_ack_applied": str(
+                select_attempt.get("commit_v2_acknowledgement", {}).get("status", "")
+                if isinstance(select_attempt.get("commit_v2_acknowledgement"), Mapping)
+                else ""
+            ).lower()
+            == "applied",
+            "operator_idle": str(
+                select_attempt.get("operator", {}).get("state", "")
+                if isinstance(select_attempt.get("operator"), Mapping)
+                else ""
+            ).lower()
+            == "idle",
+            "native_backend": select_attempt.get("input_backend")
+            == "helper_ui_thread_resident_probe",
+            "no_mutation_echo": int(
+                select_attempt.get("helper_originated_mutation_echo_count", 1) or 1
+            )
+            == 0,
+        }
+        if not all(select_gates.values()):
+            raise RuntimeError(
+                f"The actual Select resident interaction violated its transaction "
+                f"invariants: gates={select_gates!r}, attempt={select_attempt!r}."
+            )
+        resident_interactions = {
+            "select": {
+                "ok": True,
+                "tool": "Select",
+                "mode": "select_brush_vertex",
+                "gesture": dict(select_attempt),
+                "gates": select_gates,
+            },
+            **dict(grab_history.get("resident_tools", {}) or {}),
+        }
+        expected_resident_modes = (
+            "select",
+            "move",
+            "grab",
+            "smooth",
+            "inflate",
+            "pinch",
+        )
+        if any(
+            not isinstance(resident_interactions.get(mode), Mapping)
+            or resident_interactions[mode].get("ok") is not True
+            or not all(
+                bool(value)
+                for value in tuple(
+                    resident_interactions[mode].get("gates", {}).values()
+                    if isinstance(resident_interactions[mode].get("gates"), Mapping)
+                    else ()
+                )
+            )
+            for mode in expected_resident_modes
+        ):
+            raise RuntimeError(
+                "Packaged resident interaction proof did not cover every required "
+                f"tool: {resident_interactions!r}"
+            )
         history_capture_path = output_root / "grab-redo-production-viewport.png"
         history_capture = capture_dotnet_viewport(capture_state, history_capture_path)
         if history_capture.get("ok") is not True:
@@ -1722,14 +2200,14 @@ def verify_packaged_mesh_texture_smoke_target(
 
         input_timer.stop()
         desktop_observations.append(_desktop_input_snapshot())
-        desktop_input = _desktop_input_isolation_evidence(
-            desktop_observations,
-            forbidden_hwnds=(int(window.winId()), form_hwnd, viewport_hwnd),
-            harness_screen_bounds=harness_screen_bounds,
+        physical_mouse_input = _physical_mouse_input_evidence()
+        desktop_input = _helper_ui_thread_no_global_input_evidence(
+            physical_mouse_input
         )
         if desktop_input.get("ok") is not True:
             raise RuntimeError(
-                f"The production smoke interfered with desktop input isolation: {desktop_input!r}"
+                "The production smoke unexpectedly used global physical input: "
+                f"{physical_mouse_input!r}"
             )
         return {
             "schema": "cdmw_packaged_mesh_editor_controls_smoke_v3",
@@ -1737,6 +2215,7 @@ def verify_packaged_mesh_texture_smoke_target(
             "production_route": "MainWindow._launch_archive_mesh_editor_for_entry",
             "actual_csharp_controls": True,
             "global_mouse_input_used": False,
+            "physical_mouse_input": physical_mouse_input,
             "model_path": entry.path,
             "pamt_path": str(pamt_path),
             "load_ms": round(load_ms, 3),
@@ -1754,6 +2233,7 @@ def verify_packaged_mesh_texture_smoke_target(
             "solid_textured": textured,
             "select": selection,
             "grab_undo_redo": grab_history,
+            "resident_interactions": resident_interactions,
             "grab_redo_capture": {
                 **history_capture,
                 "path": str(history_capture_path),

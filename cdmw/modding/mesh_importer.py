@@ -255,24 +255,32 @@ def _build_prepared_mesh_bytes(
         return build_pac_topology_rebuild(
             original_mesh, mesh, original_data, report=topology_report
         )
+    operations = mesh_edit_operations_from_dicts(
+        getattr(mesh, "_cdmw_edit_operations", ()) or ()
+    )
+    requires_python_skin_writer = fmt == "pac" and any(
+        mesh_edit_operation_changed_channel(operation.operation) == "skin_weights"
+        for operation in operations
+    )
     native_data = None
-    try:
-        from cdmw.core.mesh_native import build_mesh_native
+    if not requires_python_skin_writer:
+        try:
+            from cdmw.core.mesh_native import build_mesh_native
 
-        native_data = build_mesh_native(mesh, original_data)
-        if native_data is not None:
-            if fmt == "pac":
-                parsed_native = parse_pac(native_data, mesh.path)
-            elif fmt == "pam":
-                parsed_native = parse_pam(native_data, mesh.path)
-            elif fmt == "pamlod":
-                parsed_native = parse_pamlod(native_data, mesh.path)
-            else:
-                parsed_native = None
-            if parsed_native is None or len(parsed_native.submeshes) != len(mesh.submeshes):
-                native_data = None
-    except Exception:
-        native_data = None
+            native_data = build_mesh_native(mesh, original_data)
+            if native_data is not None:
+                if fmt == "pac":
+                    parsed_native = parse_pac(native_data, mesh.path)
+                elif fmt == "pam":
+                    parsed_native = parse_pam(native_data, mesh.path)
+                elif fmt == "pamlod":
+                    parsed_native = parse_pamlod(native_data, mesh.path)
+                else:
+                    parsed_native = None
+                if parsed_native is None or len(parsed_native.submeshes) != len(mesh.submeshes):
+                    native_data = None
+        except Exception:
+            native_data = None
     if native_data is not None:
         rebuilt = native_data
     elif fmt == "pac":
@@ -284,6 +292,12 @@ def _build_prepared_mesh_bytes(
     else:
         raise ValueError(f"Unsupported mesh format for rebuild: {fmt}")
     _validate_pac_obj_protected_vertex_bytes(fmt, mesh, original_data, rebuilt)
+    _validate_exact_pac_skin_weight_byte_ownership(
+        fmt,
+        mesh,
+        original_data,
+        rebuilt,
+    )
     return rebuilt
 
 
@@ -316,6 +330,10 @@ def _validate_pac_obj_protected_vertex_bytes(
         "positions": range(0, 6),
         "uv0": range(8, 12),
         "normals": range(16, 20),
+        # Only the six proven palette slots and their six u8 weights are owned
+        # by replace_skin_weights_same_count.  The two extra influence lanes at
+        # 12:16 and 34:36 remain protected.
+        "skin_weights": tuple(range(20, 34)),
     }
     editable_by_submesh: dict[int, set[int]] = {}
     for operation in operations:
@@ -356,6 +374,106 @@ def _validate_pac_obj_protected_vertex_bytes(
                         "OBJ round-trip changed protected PAC vertex bytes for "
                         f"submesh {submesh_index} vertex {vertex_index} at record bytes {start}:{end}."
                     )
+
+
+def _validate_exact_pac_skin_weight_byte_ownership(
+    fmt: str,
+    mesh: ParsedMesh,
+    original_data: bytes,
+    rebuilt_data: bytes,
+) -> None:
+    """Prove that a skin-weight-only PAC rebuild changed only owned lanes."""
+
+    if fmt != "pac":
+        return
+    operations = mesh_edit_operations_from_dicts(
+        getattr(mesh, "_cdmw_edit_operations", ()) or ()
+    )
+    if not operations:
+        return
+    changed_channels = {
+        mesh_edit_operation_changed_channel(operation.operation)
+        for operation in operations
+    }
+    if changed_channels != {"skin_weights"}:
+        return
+    if len(rebuilt_data) != len(original_data):
+        raise ValueError(
+            "Exact PAC skin-weight replacement changed the file size; byte ownership could not be proven."
+        )
+
+    if any(
+        operation.lod_index != 0 or operation.submesh_index < 0
+        for operation in operations
+    ):
+        raise ValueError(
+            "Exact PAC skin-weight replacement may target only valid LOD 0 submeshes."
+        )
+    target_submeshes = {
+        operation.submesh_index
+        for operation in operations
+        if operation.lod_index == 0 and operation.submesh_index >= 0
+    }
+
+    owned_ranges: list[tuple[int, int]] = []
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    for submesh_index in sorted(target_submeshes):
+        if not 0 <= submesh_index < len(submeshes):
+            raise ValueError(
+                f"Exact PAC skin-weight replacement targets missing submesh {submesh_index}."
+            )
+        submesh = submeshes[submesh_index]
+        stride = int(getattr(submesh, "source_vertex_stride", 0) or 0)
+        offsets = tuple(
+            int(value)
+            for value in tuple(
+                getattr(submesh, "source_vertex_offsets", ()) or ()
+            )
+        )
+        vertices = tuple(getattr(submesh, "vertices", ()) or ())
+        if stride != 40 or len(offsets) != len(vertices):
+            raise ValueError(
+                "Exact PAC skin-weight replacement lacks the proven 40-byte source records for "
+                f"submesh {submesh_index}."
+            )
+        for vertex_index, offset in enumerate(offsets):
+            start = offset + 20
+            end = offset + 34
+            if offset < 0 or end > len(original_data):
+                raise ValueError(
+                    "Exact PAC skin-weight replacement source record is outside the file for "
+                    f"submesh {submesh_index} vertex {vertex_index}."
+                )
+            owned_ranges.append((start, end))
+
+    owned_ranges.sort()
+    merged_ranges: list[tuple[int, int]] = []
+    for start, end in owned_ranges:
+        if merged_ranges and start <= merged_ranges[-1][1]:
+            previous_start, previous_end = merged_ranges[-1]
+            merged_ranges[-1] = (previous_start, max(previous_end, end))
+        else:
+            merged_ranges.append((start, end))
+
+    range_index = 0
+    for offset, (original_byte, rebuilt_byte) in enumerate(
+        zip(original_data, rebuilt_data)
+    ):
+        if original_byte == rebuilt_byte:
+            continue
+        while (
+            range_index < len(merged_ranges)
+            and merged_ranges[range_index][1] <= offset
+        ):
+            range_index += 1
+        if (
+            range_index >= len(merged_ranges)
+            or offset < merged_ranges[range_index][0]
+        ):
+            raise ValueError(
+                "Exact PAC skin-weight replacement changed an unowned byte at "
+                f"file offset {offset}; only record bytes 20:34 are authorized."
+            )
 
 
 def _build_rebuild_report(
@@ -412,7 +530,12 @@ def _validate_mesh_rebuild_operations(mesh: ParsedMesh, *, original_mesh: Parsed
         raise ValueError(f"Mesh edit operation blocked rebuild: {blockers[0].message}")
 
 
-def _apply_operation_channels_to_original(original_mesh: ParsedMesh, edited_mesh: ParsedMesh) -> ParsedMesh:
+def _apply_operation_channels_to_original(
+    original_mesh: ParsedMesh,
+    edited_mesh: ParsedMesh,
+    *,
+    active_lod_index: int | None = None,
+) -> ParsedMesh:
     operations = mesh_edit_operations_from_dicts(getattr(edited_mesh, "_cdmw_edit_operations", ()) or ())
     if not operations:
         return edited_mesh
@@ -420,21 +543,53 @@ def _apply_operation_channels_to_original(original_mesh: ParsedMesh, edited_mesh
     _copy_cdmw_attrs(edited_mesh, rebuilt)
     rebuilt.path = str(edited_mesh.path or rebuilt.path or "")
     rebuilt.format = str(edited_mesh.format or rebuilt.format or "")
+    try:
+        resolved_active_lod_index = int(
+            active_lod_index
+            if active_lod_index is not None
+            else getattr(
+                edited_mesh,
+                "active_lod_index",
+                getattr(edited_mesh, "displayed_lod_index", 0),
+            )
+            or 0
+        )
+    except (TypeError, ValueError, OverflowError):
+        resolved_active_lod_index = 0
     for operation in operations:
         channel = mesh_edit_operation_changed_channel(operation.operation)
         if not channel or channel == "visibility":
             continue
-        source = _operation_target_submesh(edited_mesh, operation.lod_index, operation.submesh_index)
+        source = _operation_target_submesh(
+            edited_mesh,
+            operation.lod_index,
+            operation.submesh_index,
+            active_lod_index=resolved_active_lod_index,
+        )
         target = _operation_target_submesh(rebuilt, operation.lod_index, operation.submesh_index)
         if source is None or target is None:
             continue
         _copy_operation_channel(source, target, channel)
+    lod_levels = getattr(rebuilt, "lod_levels", None) or []
+    if lod_levels:
+        if 0 <= resolved_active_lod_index < len(lod_levels):
+            rebuilt.active_lod_index = resolved_active_lod_index
+            rebuilt.submeshes = lod_levels[resolved_active_lod_index]
     _refresh_mesh_counts(rebuilt)
     return rebuilt
 
 
-def apply_operation_channels_to_original(original_mesh: ParsedMesh, edited_mesh: ParsedMesh) -> ParsedMesh:
-    return _apply_operation_channels_to_original(original_mesh, edited_mesh)
+def apply_operation_channels_to_original(
+    original_mesh: ParsedMesh,
+    edited_mesh: ParsedMesh,
+    *,
+    active_lod_index: int | None = None,
+) -> ParsedMesh:
+    return _apply_operation_channels_to_original(
+        original_mesh,
+        edited_mesh,
+        active_lod_index=active_lod_index,
+    )
 
 
 def _copy_cdmw_attrs(source: ParsedMesh, target: ParsedMesh) -> None:
@@ -443,9 +598,19 @@ def _copy_cdmw_attrs(source: ParsedMesh, target: ParsedMesh) -> None:
             setattr(target, name, copy.deepcopy(value))
 
 
-def _operation_target_submesh(mesh: ParsedMesh, lod_index: int, submesh_index: int) -> object | None:
+def _operation_target_submesh(
+    mesh: ParsedMesh,
+    lod_index: int,
+    submesh_index: int,
+    *,
+    active_lod_index: int | None = None,
+) -> object | None:
     if submesh_index < 0:
         return None
+    if active_lod_index is not None and lod_index == active_lod_index:
+        active_submeshes = getattr(mesh, "submeshes", None) or []
+        if 0 <= submesh_index < len(active_submeshes):
+            return active_submeshes[submesh_index]
     lod_levels = getattr(mesh, "lod_levels", None) or []
     if lod_levels:
         if not 0 <= lod_index < len(lod_levels):
@@ -465,6 +630,11 @@ def _copy_operation_channel(source: object, target: object, channel: str) -> Non
         target.tangents = copy.deepcopy(getattr(source, "tangents", []) or [])
     elif channel == "uv0":
         target.uvs = copy.deepcopy(getattr(source, "uvs", []) or [])
+    elif channel == "skin_weights":
+        # This branch is reachable only through the explicit operation mapping;
+        # there is deliberately no inference from changed rows.
+        target.bone_indices = copy.deepcopy(getattr(source, "bone_indices", []) or [])
+        target.bone_weights = copy.deepcopy(getattr(source, "bone_weights", []) or [])
     elif channel == "bounds":
         target.source_bbox_min = tuple(getattr(source, "source_bbox_min", ()) or getattr(target, "source_bbox_min", ()))
         target.source_bbox_extent = tuple(getattr(source, "source_bbox_extent", ()) or getattr(target, "source_bbox_extent", ()))

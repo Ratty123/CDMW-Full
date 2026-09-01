@@ -23,37 +23,48 @@ internal sealed partial class MeshViewport
         {
             return;
         }
-        try
+        AcknowledgeResidentInteractionCommit(
+            requestId,
+            lease.TransactionSequence,
+            lease.Sha256,
+            targetMeshRevision,
+            targetSelectionRevision,
+            topologyGeneration);
+    }
+
+    internal bool AcknowledgeResidentInteractionCommit(
+        long requestId,
+        ulong transactionSequence,
+        string sha256,
+        long targetMeshRevision,
+        long targetSelectionRevision,
+        long topologyGeneration)
+    {
+        if (!_residentNativeTransactionsByRequest.TryGetValue(requestId, out var lease)
+            || lease.TransactionSequence != transactionSequence
+            || !string.Equals(lease.Sha256, sha256, StringComparison.OrdinalIgnoreCase)
+            || lease.TargetMeshRevision != checked((ulong)Math.Max(0, targetMeshRevision))
+            || lease.TargetSelectionRevision != checked((ulong)Math.Max(0, targetSelectionRevision))
+            || lease.TopologyGeneration != checked((ulong)Math.Max(0, topologyGeneration)))
         {
-            var targetMesh = checked((ulong)Math.Max(0, targetMeshRevision));
-            var targetSelection = checked((ulong)Math.Max(0, targetSelectionRevision));
-            var targetTopology = checked((ulong)Math.Max(0, topologyGeneration));
-            var result = RequireResidentNativeSession().ApplyAuthority(
-                new NativeMeshInteractionAuthorityRequest(
-                    lease.GestureId,
-                    NativeMeshInteractionAuthorityAction.Accepted,
-                    lease.BaseMeshRevision,
-                    targetMesh,
-                    lease.BaseSelectionRevision,
-                    targetSelection,
-                    lease.TopologyGeneration,
-                    targetTopology));
-            RequireResidentNativeSuccess(result, "authoritative acceptance");
-            _residentNativeMeshRevision = targetMesh;
-            _residentNativeSelectionRevision = targetSelection;
-            _residentNativeTopologyGeneration = targetTopology;
-            _editOperators.ApplyAuthoritativeResult(lease.OperatorGestureId);
-            ClearResidentNativePreview();
-            _editOperators.CompleteRenderer(lease.OperatorGestureId);
+            return false;
         }
-        catch (Exception ex)
+        var oldest = _residentNativeTransactions.Values
+            .OrderBy(candidate => candidate.TransactionSequence)
+            .FirstOrDefault();
+        if (!ReferenceEquals(oldest, lease))
         {
-            RecoverResidentNativeAfterAcceptedFailure(lease, ex);
+            return false;
         }
-        finally
+        _residentNativeDurableRevision = lease.TargetMeshRevision;
+        _residentNativeDurableSelectionRevision = lease.TargetSelectionRevision;
+        _residentNativeDurableTopologyGeneration = lease.TopologyGeneration;
+        RemoveResidentNativeTransaction(lease);
+        if (!ResidentNativeReplicationPending)
         {
-            RemoveResidentNativeTransaction(lease);
+            StatusRequested?.Invoke("Mesh edits synchronized.");
         }
+        return true;
     }
 
     internal void RejectResidentInteraction(long requestId, string reason)
@@ -62,19 +73,36 @@ internal sealed partial class MeshViewport
         {
             return;
         }
-        try
+        var rejected = _residentNativeTransactions.Values
+            .Where(candidate => candidate.TransactionSequence >= lease.TransactionSequence)
+            .OrderByDescending(candidate => candidate.TransactionSequence)
+            .ToArray();
+        foreach (var candidate in rejected)
         {
-            ApplyResidentNativeRejection(lease);
+            RestoreResidentNativeTransactionBaseline(candidate);
         }
-        finally
+        _residentNativeMeshRevision = lease.BaseMeshRevision;
+        _residentNativeSelectionRevision = lease.BaseSelectionRevision;
+        _residentNativeTopologyGeneration = lease.TopologyGeneration;
+        _residentNativeDurableRevision = lease.BaseMeshRevision;
+        _residentNativeDurableSelectionRevision = lease.BaseSelectionRevision;
+        _residentNativeDurableTopologyGeneration = lease.TopologyGeneration;
+        _residentNativeReplicationRejected = true;
+        CloseResidentNativeSession();
+        OpenResidentNativeSession(
+            lease.BaseMeshRevision,
+            lease.BaseSelectionRevision,
+            lease.TopologyGeneration);
+        foreach (var candidate in rejected)
         {
-            ClearResidentNativePreview();
             _editOperators.Reject(
-                lease.OperatorGestureId,
+                candidate.OperatorGestureId,
                 "resident_interaction_rejected",
                 reason);
-            RemoveResidentNativeTransaction(lease);
+            RemoveResidentNativeTransaction(candidate);
         }
+        ClearResidentNativePreview();
+        StatusRequested?.Invoke($"Mesh edit sync was rejected: {reason}. Restored the last durable state.");
     }
 
     internal void ApplyResidentNativeHistory(
@@ -214,8 +242,11 @@ internal sealed partial class MeshViewport
         {
             _residentNativeTransactionsByRequest.Remove(lease.RequestId);
         }
+        _residentNativePendingTransactionBytes = Math.Max(
+            0,
+            _residentNativePendingTransactionBytes - lease.Length);
         lease.Dispose();
-        _residentNativeAwaitingAuthority = _residentNativeTransactions.Count > 0;
+        _residentNativeAwaitingAuthority = false;
     }
 
     private void RejectAllResidentNativeTransactions(string reason)
@@ -232,6 +263,7 @@ internal sealed partial class MeshViewport
         }
         _residentNativeTransactions.Clear();
         _residentNativeTransactionsByRequest.Clear();
+        _residentNativePendingTransactionBytes = 0;
         _residentNativeAwaitingAuthority = false;
         ClearResidentNativePreview();
     }

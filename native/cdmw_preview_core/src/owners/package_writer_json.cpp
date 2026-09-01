@@ -55,6 +55,32 @@ static void append_package_material_slot_and_decision(
         << "}";
 }
 
+static void append_material_parameter_records_json(
+    std::ostringstream& out,
+    const std::vector<MaterialParameterRecord>& parameters
+) {
+    out << "\"material_parameters\":[";
+    bool first = true;
+    for (const MaterialParameterRecord& parameter : parameters) {
+        if (!first) out << ",";
+        first = false;
+        out << "{"
+            << "\"parameter_kind\":\"" << json_escape(parameter.kind) << "\","
+            << "\"parameter_name\":\"" << json_escape(parameter.name) << "\","
+            << "\"value\":\"" << json_escape(parameter.value) << "\","
+            << "\"color_value\":[";
+        if (parameter.kind == "color") {
+            const std::array<float, 4> color = color_parameter_value(parameter.value);
+            out << color[0] << "," << color[1] << "," << color[2];
+        }
+        out << "],\"numeric_value\":";
+        if (parameter.has_numeric) out << parameter.numeric_value;
+        else out << "null";
+        out << "}";
+    }
+    out << "]";
+}
+
 static void append_package_material_inputs(
     PackageWriteState& state,
     const PackageBatchState& batch
@@ -108,6 +134,7 @@ static void append_package_material_inputs(
             << "\"layer_role\":\"" << json_escape(binding.layer_role) << "\","
             << "\"layer_channel\":\"" << json_escape(binding.layer_channel) << "\","
             << "\"layer_weight\":" << binding.layer_weight << ","
+            << "\"detail_scale\":" << binding.detail_scale << ","
             << "\"roughness_hint\":" << binding.roughness_hint << ","
             << "\"metalness_hint\":" << binding.metalness_hint << ","
             << "\"specular_hint\":" << binding.specular_hint << ","
@@ -117,6 +144,9 @@ static void append_package_material_inputs(
             << "," << binding.tint_color[2] << "," << binding.tint_color[3] << "],"
             << "\"blend_flags\":\"" << json_escape(binding.blend_flags) << "\","
             << "\"material_parameter_names\":\"" << json_escape(binding.material_parameter_names) << "\","
+            ;
+        append_material_parameter_records_json(state.batches_json, binding.material_parameters);
+        state.batches_json << ","
             << "\"alpha_test_enabled\":" << (binding.alpha_test_enabled ? "true" : "false") << ","
             << "\"pbd_simulation_material\":\"" << json_escape(binding.pbd_simulation_material_name) << "\","
             << "\"pbd_simulation_kind\":\"" << json_escape(binding.pbd_simulation_kind) << "\","

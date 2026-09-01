@@ -22,12 +22,21 @@ internal sealed partial class ExperimentForm
                 _lastAppliedEditRevision,
                 _lastObservedSessionRevision);
             message["session_id"] = _residentMaterialSessionId;
-            message["request_id"] = ++_outgoingMutationRequestSequence;
+            var retainedResidentRequestId = string.Equals(
+                    eventName,
+                    "resident_interaction_transaction",
+                    StringComparison.OrdinalIgnoreCase)
+                ? Math.Max(0, DictionaryLong(message, "request_id"))
+                : 0;
+            message["request_id"] = retainedResidentRequestId > 0
+                ? retainedResidentRequestId
+                : ++_outgoingMutationRequestSequence;
             message.TryAdd("base_revision", observedRevision);
             var requestRevision = Math.Max(0, DictionaryLong(message, "base_revision"));
             message["revision"] = requestRevision;
             message["edit_revision"] = requestRevision;
             message["process_generation"] = _residentProcessGeneration;
+            message["helper_process_id"] = Environment.ProcessId;
             message["protocol_version"] = 3;
             if (string.Equals(eventName, "save_request", StringComparison.OrdinalIgnoreCase))
             {
@@ -89,6 +98,15 @@ internal sealed partial class ExperimentForm
 
     private void SaveAndReport()
     {
+        if (_viewport.ResidentNativeReplicationPending
+            || _viewport.ResidentNativeReplicationBlocked
+            || (_viewport.ResidentNativeInteractionRequired
+                && _lastDurableEditRevision < _lastAppliedEditRevision))
+        {
+            _statusLabel.Text = "Syncing edits… Save will be available when the durable revision catches up.";
+            ApplyResidentReplicationControlState();
+            return;
+        }
         SaveOutput(_options, _document, _editedSubmeshes, _viewport.Metrics, RendererStatusWithLifecycle());
         _saved = true;
         _statusLabel.Text = $"Saved edited package: {_options.OutputDir}";

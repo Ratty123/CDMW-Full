@@ -139,6 +139,7 @@ class MeshEditorWorkspace(
     build_mod_requested = Signal()
     install_overlay_requested = Signal()
     restore_overlay_requested = Signal()
+    reopen_edit_requested = Signal()
     close_session_requested = Signal()
     save_rebuild_report_requested = Signal()
 
@@ -195,7 +196,7 @@ class MeshEditorWorkspace(
         status_strip = self._build_status_strip()
         root.addWidget(status_strip)
         if not embedded_controls_only:
-            # The resident .NET/Vortice form owns the visible editing workspace.
+            # The resident Rust child owns the visible editing workspace.
             # These Qt controls remain constructed for compatibility consumers,
             # but normal Mesh Editor sessions must not wrap the resident tool rail
             # in a second Tools/Edit/UV/Rig shell or a duplicate log/status panel.

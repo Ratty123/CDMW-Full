@@ -59,4 +59,5 @@ def test_resident_mutation_batch_contract_executes_csharp_behavior() -> None:
         "wrong_session_rejected",
         "wrong_process_generation_rejected",
         "invalid_base_revision_rejected",
+        "prelatched_revision_bootstrap_select_then_brush",
     }.issubset(payload["gates"])

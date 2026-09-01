@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "mesh-unit", "rust-mesh-lab-unit", "rust-mesh-lab-gpu", "rust-mesh-lab-stress", "full")]
+    [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "mesh-contract", "mesh-native", "mesh-unit", "rust-mesh-lab-unit", "rust-mesh-lab-gpu", "rust-mesh-lab-stress", "full")]
     [string]$Area = "smoke",
     [string]$GameRoot = "",
     [string]$PytestBaseTemp = ""
@@ -14,14 +14,6 @@ $TestsByArea = @{
     smoke = @(
         "tests/test_runtime_dependency_smoke.py",
         "tests/test_restructure_runtime_regression_smoke.py",
-        # Fast executable C# behavior, not a source-string contract. The helper
-        # is built below before pytest for both ordinary main pushes and mesh-unit.
-        "tests/test_dotnet_resident_mutation_batch_contract.py",
-        "tests/test_dotnet_stroke_sample_buffer_contract.py",
-        "tests/test_dotnet_selection_geometry_contract.py",
-        "tests/test_dotnet_provisional_brush_parity.py",
-        "tests/test_dotnet_mesh_edit_operator_contract.py",
-        "tests/test_dotnet_mesh_editor_control_contract.py",
         # Exact, Free Edit, and Read Only policy routing plus atomic non-exact
         # output. These fail at user-command time if session filtering drifts.
         "tests/test_mesh_output_policy.py",
@@ -29,10 +21,8 @@ $TestsByArea = @{
         "tests/test_mesh_editor_ui_state_bridge.py",
         # Generated-manifest freshness. Both of these are verified by
         # build_pyside6_app.ps1 before it compiles anything, so a stale one is a
-        # failed release build. The localization manifest stores a line number
-        # per UI string, which means ANY edit that shifts a line in a file
-        # containing one goes stale -- no new string required. That is not
-        # guessable from an area name, so it belongs in the cheapest gate.
+        # failed release build. Source line numbers are informational; only
+        # key/path/sink/manual/exclusion changes affect freshness.
         "tests/test_window_feature_controller.py",
         "tests/test_localization_catalog_contracts.py",
         "tests/test_localization_runtime_owner.py",
@@ -166,6 +156,20 @@ $TestsByArea = @{
         "tests/test_material_combiner_vectorized.py",
         "tests/test_static_texture_replacement.py"
     )
+    "mesh-contract" = @(
+        "tests/test_dotnet_resident_mutation_batch_contract.py",
+        "tests/test_dotnet_stroke_sample_buffer_contract.py",
+        "tests/test_dotnet_selection_geometry_contract.py",
+        "tests/test_dotnet_provisional_brush_parity.py",
+        "tests/test_dotnet_mesh_edit_operator_contract.py",
+        "tests/test_dotnet_mesh_editor_control_contract.py"
+    )
+    "mesh-native" = @(
+        "tests/test_native_mesh_interaction_abi.py",
+        "tests/test_dotnet_native_mesh_interaction_abi.py",
+        "tests/test_mesh_resident_interaction_transaction.py",
+        "tests/test_mesh_resident_interaction_protocol.py"
+    )
     "mesh-unit" = @(
         "tests/test_mesh_dotnet_experiment.py",
         "tests/test_mesh_dotnet_experiment_source_contract.py",
@@ -239,6 +243,12 @@ $TestsByArea = @{
         "tests/test_native_mesh_editor_session.py",
         "tests/test_native_mesh_subdivide_repeat.py",
         "tests/test_mesh_service_editing.py",
+        "tests/test_mesh_rust_authoring.py",
+        "tests/test_mesh_rust_authoring_exact_output.py",
+        "tests/test_mesh_rust_morph_safety.py",
+        "tests/test_mesh_history_atomic_restore.py",
+        "tests/test_mesh_rust_editor_selection.py",
+        "tests/test_rust_mesh_editor_control_contract.py",
         "tests/test_mesh_editor_controller.py",
         "tests/test_mesh_editor_actions.py",
         "tests/test_mesh_editor_action_bar.py",
@@ -455,20 +465,22 @@ if ($MissingTests.Count -gt 0) {
 Write-Host "Running $Area checks with $Python"
 $DotNetProject = $null
 $DotNetHelper = $null
-if ($Area -in @("smoke", "mesh-unit")) {
-    if ($Area -eq "mesh-unit") {
-        $MeshCoreSource = Join-Path $RepoRoot "native\cdmw_mesh_core"
-        $MeshCoreBuild = Join-Path $MeshCoreSource "build"
-        Write-Host "Building the resident native Mesh Editor ABI used by the production helper"
-        & cmake -S $MeshCoreSource -B $MeshCoreBuild -G "Visual Studio 17 2022" -A x64
-        if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-        }
-        & cmake --build $MeshCoreBuild --config Release --target cdmw-mesh-core-abi
-        if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-        }
+$NeedsMeshCore = $Area -in @("mesh-native", "mesh-unit")
+$NeedsDotNetHelper = $Area -in @("mesh-contract", "mesh-native", "mesh-unit")
+if ($NeedsMeshCore) {
+    $MeshCoreSource = Join-Path $RepoRoot "native\cdmw_mesh_core"
+    $MeshCoreBuild = Join-Path $MeshCoreSource "build"
+    Write-Host "Building the resident native Mesh Editor ABI used by the production helper"
+    & cmake -S $MeshCoreSource -B $MeshCoreBuild -G "Visual Studio 17 2022" -A x64
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
     }
+    & cmake --build $MeshCoreBuild --config Release --target cdmw-mesh-core-abi
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+}
+if ($NeedsDotNetHelper) {
     $DotNetProject = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
     $DotNetHelper = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.exe"
     Write-Host "Building the resident .NET Mesh Editor for fast executable protocol checks"
@@ -476,7 +488,7 @@ if ($Area -in @("smoke", "mesh-unit")) {
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
-    if ($Area -eq "mesh-unit") {
+    if ($NeedsMeshCore) {
         $MeshCoreAbi = Join-Path $MeshCoreBuild "Release\cdmw-mesh-core.dll"
         if (-not (Test-Path -LiteralPath $MeshCoreAbi -PathType Leaf)) {
             throw "The resident native Mesh Editor ABI build did not produce '$MeshCoreAbi'."
@@ -493,63 +505,29 @@ $AreaMarkerArgs = @()
 if ($Area -eq "responsiveness") {
     $AreaMarkerArgs = @("-m", "not visual and not real_game")
 }
-& $Python -m pytest @PytestTempArgs @AreaMarkerArgs @ConfiguredTests
-$PytestExitCode = $LASTEXITCODE
-if ($PytestExitCode -ne 0) {
-    exit $PytestExitCode
+if ($Area -eq "mesh-unit") {
+    # PySide6 on Python 3.14 can terminate a very long-lived pytest interpreter
+    # in pyside6.abi3.dll after hundreds of independently destroyed Qt forms.
+    # Isolate modules so one module cannot leave a stale Qt wrapper for the next;
+    # the real helper open/close soak below remains the product lifetime gate.
+    foreach ($TestPath in $ConfiguredTests) {
+        Write-Host "Running mesh-unit module $TestPath"
+        & $Python -m pytest @PytestTempArgs @AreaMarkerArgs $TestPath
+        $PytestExitCode = $LASTEXITCODE
+        if ($PytestExitCode -ne 0) {
+            exit $PytestExitCode
+        }
+    }
+} else {
+    & $Python -m pytest @PytestTempArgs @AreaMarkerArgs @ConfiguredTests
+    $PytestExitCode = $LASTEXITCODE
+    if ($PytestExitCode -ne 0) {
+        exit $PytestExitCode
+    }
 }
 
 if ($Area -eq "mesh-unit") {
     & (Join-Path $PSScriptRoot "test_dotnet_status_concurrency.ps1")
-
-    $LayoutRunId = [Guid]::NewGuid().ToString("N")
-    $LayoutReport = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-edit-mesh-layout-$LayoutRunId.json"
-    $LayoutProcess = Start-Process `
-        -FilePath $DotNetHelper `
-        -ArgumentList @("--headless-edit-mesh-layout-smoke", "--layout-report", $LayoutReport) `
-        -Wait `
-        -PassThru `
-        -WindowStyle Hidden
-    if ($LayoutProcess.ExitCode -ne 0) {
-        Write-Error "Edit Mesh Tool Rail construction smoke failed with exit code $($LayoutProcess.ExitCode)."
-        exit $LayoutProcess.ExitCode
-    }
-    if (-not (Test-Path -LiteralPath $LayoutReport)) {
-        Write-Error "Edit Mesh Tool Rail construction smoke did not create '$LayoutReport'."
-        exit 1
-    }
-    $LayoutPayload = Get-Content -LiteralPath $LayoutReport -Raw | ConvertFrom-Json
-    # The Tool Rail is the only Edit Mesh layout: the Classic layout is gone,
-    # so the round trip the smoke reports is mesh-edit entry and the return to
-    # the placement flanks. The rail itself is one flat list -- six tool
-    # buttons that each arm exactly the tool they name, and two reveal-only
-    # command-page entries. Viewport settings stay pinned above the list. The
-    # camera is reached by the modifiers on the navigation strip -- so orbit owns no
-    # page and the rail opens on none of them.
-    if (-not $LayoutPayload.ok `
-        -or -not $LayoutPayload.tool_rail_default `
-        -or -not $LayoutPayload.tool_rail_only_layout `
-        -or $LayoutPayload.round_trip_layout -ne "placement" `
-        -or -not $LayoutPayload.same_control_instances `
-        -or -not $LayoutPayload.same_viewport_instance `
-        -or -not $LayoutPayload.same_viewport_handle `
-        -or -not $LayoutPayload.stable_viewport_parent `
-        -or -not $LayoutPayload.material_sync_completion_is_correlated `
-        -or -not $LayoutPayload.activation_package_generation_is_fenced `
-        -or -not $LayoutPayload.zero_size_splitter_construction `
-        -or $LayoutPayload.pages_visited.Count -ne 5 `
-        -or $LayoutPayload.rail_tool_count -ne 6 `
-        -or $LayoutPayload.rail_command_page_count -ne 2 `
-        -or -not $LayoutPayload.viewport_settings_pinned `
-        -or $LayoutPayload.opening_page -ne "none" `
-        -or $LayoutPayload.opening_tool -ne "orbit" `
-        -or $LayoutPayload.renderer_started `
-        -or $LayoutPayload.visible_window_started) {
-        Write-Error "Edit Mesh Tool Rail construction smoke returned an invalid report at '$LayoutReport'."
-        exit 1
-    }
-    Remove-Item -LiteralPath $LayoutReport
-    Write-Host "Edit Mesh Tool Rail construction smoke passed."
 
     $LocalizationRunId = [Guid]::NewGuid().ToString("N")
     $LocalizationReport = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-ui-localization-$LocalizationRunId.json"

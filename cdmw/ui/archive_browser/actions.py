@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import copy
 import time
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QPushButton
 
@@ -351,6 +352,20 @@ class ArchiveBrowserActionMixin:
             return
         menu.exec(self.archive_tree.viewport().mapToGlobal(position))
 
+    def _queue_archive_mesh_editor_context_launch(self, entry: ArchiveEntry) -> None:
+        """Open Mesh Editor after the native context-menu loop has unwound."""
+
+        if not isinstance(entry, ArchiveEntry):
+            return
+        entry_snapshot = copy.deepcopy(entry)
+
+        def launch() -> None:
+            if bool(getattr(self, "_shutting_down", False)):
+                return
+            self._launch_archive_mesh_editor_for_entry(entry_snapshot)
+
+        QTimer.singleShot(0, launch)
+
     def _show_archive_tree_context_menu(self, position) -> None:
         context_started_at = time.perf_counter()
         item = self.archive_tree.itemAt(position)
@@ -376,6 +391,7 @@ class ArchiveBrowserActionMixin:
         self._schedule_archive_selection_state_update()
 
         menu = QMenu(self)
+        open_mesh_editor_action = None
         if hasattr(menu, "setToolTipsVisible"):
             menu.setToolTipsVisible(True)
 
@@ -460,9 +476,6 @@ class ArchiveBrowserActionMixin:
             )
             _add_menu_section("mesh", "Mesh Edit")
             open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor")
-            open_mesh_editor_action.triggered.connect(
-                lambda _checked=False, current_entry=entry: self._launch_archive_mesh_editor_for_entry(current_entry)
-            )
 
         if entry.extension in {".hkx", ".hkt"}:
             _add_menu_section("physics", "Physics / HKX")
@@ -518,7 +531,9 @@ class ArchiveBrowserActionMixin:
             f"Archive context menu timing | build={elapsed_ms:.0f}ms | path={entry.path}",
             verbose=True,
         )
-        menu.exec(self.archive_tree.viewport().mapToGlobal(position))
+        chosen_action = menu.exec(self.archive_tree.viewport().mapToGlobal(position))
+        if open_mesh_editor_action is not None and chosen_action is open_mesh_editor_action:
+            self._queue_archive_mesh_editor_context_launch(entry)
 
     def _preview_current_archive_entry(self) -> None:
         entry = self._current_archive_action_entry("Preview")

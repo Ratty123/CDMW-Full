@@ -652,10 +652,18 @@ def clone_native_mesh_affine_transformed_submesh(
         vertex_count=len(transformed_vertices),
         face_count=len(transformed_faces) if transformed_faces is not None else len(source_faces),
         source_vertex_offsets=list(getattr(submesh, "source_vertex_offsets", ()) or ()),
-        source_index_offset=int(getattr(submesh, "source_index_offset", -1) or -1),
+        source_index_offset=int(
+            -1
+            if getattr(submesh, "source_index_offset", None) is None
+            else getattr(submesh, "source_index_offset")
+        ),
         source_index_count=int(getattr(submesh, "source_index_count", 0) or 0),
         source_vertex_stride=int(getattr(submesh, "source_vertex_stride", 0) or 0),
-        source_descriptor_offset=int(getattr(submesh, "source_descriptor_offset", -1) or -1),
+        source_descriptor_offset=int(
+            -1
+            if getattr(submesh, "source_descriptor_offset", None) is None
+            else getattr(submesh, "source_descriptor_offset")
+        ),
         source_bbox_min=_vec3(getattr(submesh, "source_bbox_min", (0.0, 0.0, 0.0)), fallback=0.0),
         source_bbox_extent=_vec3(getattr(submesh, "source_bbox_extent", (0.0, 0.0, 0.0)), fallback=0.0),
         source_lod_count=int(getattr(submesh, "source_lod_count", 0) or 0),

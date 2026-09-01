@@ -17,6 +17,7 @@ internal static class HelperBuildProvenance
         "resident_mutation_envelope_v2",
         "resident_mutation_batch_v3",
         "resident_interaction_abi_v1",
+        "resident_interaction_commit_v2",
         "host_tool_state_v1",
         "correlated_selection_strokes_v1",
         "geometry_layers_v1",
@@ -81,6 +82,7 @@ internal static class HelperBuildProvenance
                 or "resident_mutation_envelope_v2"
                 or "resident_mutation_batch_v3"
                 or "resident_interaction_abi_v1"
+                or "resident_interaction_commit_v2"
                 or "host_tool_state_v1"
                 or "correlated_selection_strokes_v1"
                 or "geometry_layers_v1"

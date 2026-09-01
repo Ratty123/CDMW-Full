@@ -30,6 +30,7 @@ from pathlib import Path
 OWNED_HELPER_BINARY_NAMES = frozenset(
     {
         "cdmw-mesh-dotnet-editor.exe",
+        "cdmw_mesh_lab.exe",
         "cdmw-full-archive-worker.exe",
         "cdmw-mesh-core.exe",
         "cdmw-preview-core.exe",

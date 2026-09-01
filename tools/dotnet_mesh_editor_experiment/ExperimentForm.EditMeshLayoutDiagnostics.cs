@@ -179,8 +179,8 @@ internal sealed partial class ExperimentForm
     {
         try
         {
-            page.Enabled = visible;
             page.TabStop = visible;
+            _ = ToolRailNative.EnableWindow(page.Handle, visible);
             _ = ToolRailNative.ShowWindow(
                 page.Handle,
                 visible ? ToolRailNative.SwShowNoActivate : ToolRailNative.SwHide);
@@ -265,6 +265,9 @@ internal sealed partial class ExperimentForm
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         internal static extern bool IsWindow(IntPtr hwnd);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern bool EnableWindow(IntPtr hwnd, bool enable);
 
         [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
         internal static extern int GetWindowLong(IntPtr hwnd, int index);

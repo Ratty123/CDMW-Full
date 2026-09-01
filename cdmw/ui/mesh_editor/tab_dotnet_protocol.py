@@ -131,6 +131,13 @@ class MeshEditorDotNetProtocolMixin(
 
     def _reset_resident_mutation_ui_state(self) -> None:
         self.standalone_dotnet_pending_mutation_commits.clear()
+        clear_resident_interactions = getattr(
+            self,
+            "_clear_dotnet_resident_interaction_queue",
+            None,
+        )
+        if callable(clear_resident_interactions):
+            clear_resident_interactions()
         self.standalone_dotnet_recovery_failure_reported = False
 
     def _finalize_resident_mutation_ui_commit(self, payload: Mapping[str, object]) -> None:
@@ -472,6 +479,12 @@ class MeshEditorDotNetProtocolMixin(
             "performance_capture_complete",
         }:
             self.standalone_dotnet_status_payload["performance_capture"] = dict(payload)
+            return True
+        if event == "resident_interaction_probe_applied":
+            # The visible real-helper harness asks the resident WinForms UI
+            # thread to drive its own pointer core.  This acknowledgement is
+            # diagnostic only; the actual edit still arrives separately as a
+            # resident_interaction_transaction and follows the durable lane.
             return True
         if event == "renderer_status":
             renderer = payload.get("renderer")

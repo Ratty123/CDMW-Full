@@ -16,6 +16,9 @@ from cdmw.rendering.crimson_shader_registry import (
     infer_shader_family_contract,
     normalize_shader_family,
 )
+from cdmw.rendering.native_preview_material_contract import (
+    resolve_material_identity_category,
+)
 from cdmw.services.mesh_dotnet_material_bindings import (
     _canonical_dotnet_material_source,
     _dotnet_material_name,
@@ -381,6 +384,39 @@ def _dotnet_material_semantic_contract(
         minimum=0.0,
         maximum=1.0,
     )
+    material_category_reason = str(
+        overrides.get("material_category_reason", "") or ""
+    ).strip()
+    if (
+        source is not None
+        and material_category == "generic"
+        and (material_category_confidence or 0.35) <= 0.35
+        and material_category_reason.casefold()
+        in {"", "generic:no_strong_material_token"}
+    ):
+        identity_category, identity_confidence, identity_reason = (
+            resolve_material_identity_category(
+                shader_family=shader_family,
+                source_path=(
+                    str(getattr(source, "preview_source_asset_path", "") or "").strip()
+                    or str(source_asset_path or "").strip()
+                ),
+                material_name=_dotnet_material_name(source),
+                preview_role=(
+                    getattr(source, "preview_role", "")
+                    or getattr(source, "editor_role", "")
+                ),
+                part_name=getattr(source, "name", ""),
+                texture_name=_dotnet_texture_name(source),
+                explicit_metalness=bool(
+                    channels.get("metallic") or channels.get("metalness")
+                ),
+            )
+        )
+        if identity_category != "generic" or identity_confidence > 0.35:
+            material_category = identity_category
+            material_category_confidence = identity_confidence
+            material_category_reason = identity_reason
     raw_material_response_promoted = overrides.get("material_response_promoted", False)
     material_response_promoted = (
         raw_material_response_promoted.strip().casefold() in {"1", "true", "yes", "on"}
@@ -409,7 +445,7 @@ def _dotnet_material_semantic_contract(
             0.35 if material_category_confidence is None else material_category_confidence
         ),
         "material_category_reason": str(
-            overrides.get("material_category_reason", "") or ""
+            material_category_reason or ""
         ).strip(),
         "material_response_promoted": material_response_promoted,
         "channel_color_spaces": dict(sorted(color_spaces.items())),

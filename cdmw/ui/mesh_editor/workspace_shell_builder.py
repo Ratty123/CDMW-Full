@@ -43,8 +43,8 @@ from cdmw.ui.mesh_editor.actions import (
     mesh_editor_actions_by_key,
 )
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
-from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 from cdmw.ui.native_preview_panel import NativePreviewPanel
+from cdmw.ui.mesh_editor.rust_host import RustMeshEditorHostFrame
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     MESH_PREVIEW_COMPACT_DISPLAY_MODE_OPTIONS,
     MESH_PREVIEW_DEFAULT_DISPLAY_MODE,
@@ -204,7 +204,7 @@ class WorkspaceShellBuilderMixin:
         return splitter
 
     def _install_direct_output_controls(self, parent: QWidget) -> None:
-        """Keep required Qt-owned outputs on the otherwise resident-only surface."""
+        """Keep compatibility actions constructed while Rust owns the visible surface."""
 
         controls = self.preview_controls_layout
         direct_buttons = (
@@ -216,14 +216,22 @@ class WorkspaceShellBuilderMixin:
             self.restore_overlay_button,
         )
         self.run_validation_report_button.setText("Run validation")
-        for index, button in enumerate(direct_buttons):
+        for button in direct_buttons:
             button.setParent(parent)
-            controls.insertWidget(index, button)
-            button.setVisible(True)
-        # The resident helper is already the active editor. Re-launching the old
-        # experiment from inside that editor is the obsolete extra entry point
-        # shown beside Export/Import/Open in the previous shell.
+            button.setVisible(False)
+        # Rust contains the complete editing surface. These retained widgets
+        # remain state adapters for older callers, but no duplicate authoring
+        # or Vortice launcher is shown around the embedded child.
+        for button in (
+            self.export_editable_package_button,
+            self.import_edited_package_button,
+            self.open_editable_package_folder_button,
+            self.native_preview_button,
+        ):
+            button.setVisible(False)
         self.dotnet_editor_button.setVisible(False)
+        self.native_performance_status_label.setVisible(False)
+        self.native_part_pick_status_label.setVisible(False)
 
     def _build_left_palette(self) -> QWidget:
         frame = QFrame(self)
@@ -372,15 +380,23 @@ class WorkspaceShellBuilderMixin:
         layout.setSpacing(4)
         self.preview_stack = QStackedWidget(frame)
         self.preview_stack.setObjectName("MeshEditorStandalonePreviewStack")
-        self.native_host_frame = DotNetPreviewHostFrame(
+        self.native_host_frame = RustMeshEditorHostFrame(
             frame,
-            profile=DotNetPreviewProfile.AUTHORING,
-            direct_authoring=True,
-            theme_key=theme_key,
+            theme_key=self._theme_key,
         )
-        self.native_host_frame.setObjectName("MeshEditorStandaloneDotNetVorticeHost")
-        # Retained off-stack as a data/settings compatibility adapter.  The
-        # resident Vortice host is the only visible model-preview widget.
+        self.native_host_frame.run_validation_requested.connect(
+            self.validation_report_requested.emit
+        )
+        self.native_host_frame.build_mod_requested.connect(self.build_mod_requested.emit)
+        self.native_host_frame.install_overlay_requested.connect(
+            self.install_overlay_requested.emit
+        )
+        self.native_host_frame.restore_overlay_requested.connect(
+            self.restore_overlay_requested.emit
+        )
+        self.native_host_frame.reopen_edit_requested.connect(self.reopen_edit_requested.emit)
+        self.native_host_frame.close_session_requested.connect(self.close_session_requested.emit)
+        # Retained off-stack as a data/settings compatibility adapter only.
         self.preview = NativePreviewPanel("Mesh Editor preview.", theme_key=theme_key)
         self.preview.setObjectName("MeshEditorStandalonePreviewCompatibilityAdapter")
         self.preview.setParent(frame)
@@ -392,9 +408,9 @@ class WorkspaceShellBuilderMixin:
         controls = QHBoxLayout()
         controls.setSpacing(6)
         self.preview_controls_layout = controls
-        self.native_preview_button = QPushButton(".NET/Vortice", frame)
+        self.native_preview_button = QPushButton("Mesh Editor", frame)
         self.native_preview_button.setObjectName("MeshEditorStandaloneNativePreviewButton")
-        self.native_preview_button.setToolTip("Reload the resident .NET/Vortice preview.")
+        self.native_preview_button.setToolTip("The production Mesh Editor is the embedded Rust surface.")
         self.native_preview_button.setMinimumHeight(28)
         self.native_preview_button.setVisible(False)
         self.native_preview_button.setEnabled(False)
@@ -429,8 +445,8 @@ class WorkspaceShellBuilderMixin:
         controls.addWidget(self.dotnet_editor_button)
         self.native_performance_status_label = QLabel("FPS: -- | Frame: -- ms", frame)
         self.native_performance_status_label.setObjectName("MeshEditorNativePerformanceStatus")
-        self.native_performance_status_label.setAccessibleName(".NET/Vortice preview performance")
-        self.native_performance_status_label.setToolTip(".NET/Vortice preview FPS and frame timing.")
+        self.native_performance_status_label.setAccessibleName("Mesh Editor performance")
+        self.native_performance_status_label.setToolTip("Embedded Mesh Editor FPS and frame timing.")
         self.native_performance_status_label.setMinimumWidth(180)
         self.native_performance_status_label.setProperty("nativePerformanceAvailable", False)
         controls.addWidget(self.native_performance_status_label)

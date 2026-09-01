@@ -123,6 +123,7 @@ def _synthesis_preview_profile(
     item: object,
     *,
     high_resolution_mask: bool = False,
+    support_map_max_dimension: int = 256,
 ) -> tuple[int, str, str, str]:
     slot = str(_input_value(item, "slot_kind") or "").strip().casefold()
     semantic = str(_input_value(item, "semantic_type") or "").strip().casefold()
@@ -136,8 +137,15 @@ def _synthesis_preview_profile(
     normal_input = slot == "normal" or semantic == "normal"
     # This decode is where support-map resolution is actually decided. Nothing
     # downstream can recover detail it drops; support-map preparation only
-    # downscales. Sources are overwhelmingly 256 or smaller.
-    max_dimension = 512 if color_input or high_resolution_mask else 256
+    # downscales. The ordinary preview/compiler contract remains capped at 256,
+    # while callers preparing an editable close-up viewport may explicitly ask
+    # to retain more of the source DDS detail.
+    support_dimension = max(96, min(2048, int(support_map_max_dimension or 256)))
+    max_dimension = (
+        max(512, support_dimension)
+        if color_input or high_resolution_mask
+        else support_dimension
+    )
     decode_slot = "base" if color_input else ("normal" if normal_input else "material")
     srgb = str(_input_value(item, "srgb_mode") or "").strip().casefold()
     if not srgb:
@@ -151,6 +159,7 @@ def _decode_synthesis_input_previews(
     raw_channels: Mapping[str, str],
     *,
     cancelled: Callable[[], bool] | None,
+    support_map_max_dimension: int = 256,
 ) -> tuple[tuple[object, ...], int, dict[str, set[str]], dict[str, object]]:
     from cdmw.core.texture_native import (
         directxtex_preview_result_key,
@@ -261,6 +270,7 @@ def _decode_synthesis_input_previews(
         max_dimension, slot_kind, srgb, normal_space = _synthesis_preview_profile(
             item,
             high_resolution_mask=id(item) in albedo_mask_ids,
+            support_map_max_dimension=support_map_max_dimension,
         )
         jobs.append(
             {

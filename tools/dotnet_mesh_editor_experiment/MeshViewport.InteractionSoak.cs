@@ -75,6 +75,247 @@ internal sealed partial class MeshViewport
         return !_paintProjectionBuildActive && _paintProjection is not null;
     }
 
+    /// <summary>
+    /// Runs one diagnostic gesture through the resident native interaction core.
+    /// Unlike the older interaction-soak helpers this never establishes or
+    /// advances host authority; it is only the same begin/update/end route that
+    /// the viewport's physical pointer handlers use after their input boundary.
+    /// The caller must be on the WinForms UI thread so the normal terminal
+    /// transaction event is delivered without a second synthetic input path.
+    /// </summary>
+    internal Dictionary<string, object?> RunResidentInteractionProbe(
+        string mode,
+        Point start,
+        Point end,
+        int requestedSampleCount)
+    {
+        var result = new Dictionary<string, object?>
+        {
+            ["ok"] = false,
+            ["status"] = "rejected",
+            ["requested_mode"] = mode ?? string.Empty,
+            ["mode"] = string.Empty,
+            ["point_count"] = 0,
+            ["sample_count"] = 0,
+            ["mouse_down_route"] = "resident_probe_direct",
+            ["core_route"] = "resident_native_interaction",
+            ["terminal_event"] = string.Empty,
+            ["begin_ms"] = 0.0,
+            ["input_sample_p95_ms"] = 0.0,
+            ["input_sample_max_ms"] = 0.0,
+            ["finish_ms"] = 0.0,
+            ["total_ms"] = 0.0,
+        };
+        var totalStarted = Stopwatch.GetTimestamp();
+        var sampleDurations = new List<double>();
+        var originalTool = ActiveTool;
+        var originalSelectionShape = _selectionDragMode;
+        var isSelection = false;
+        var began = false;
+        var startingTransactionSequence = _residentNativeTransactionSequence;
+        var terminalTransactionSequence = startingTransactionSequence;
+        var beginMs = 0.0;
+        var finishMs = 0.0;
+
+        try
+        {
+            var normalizedMode = NormalizeInteractionSoakMode(mode ?? string.Empty);
+            result["mode"] = normalizedMode;
+            var (selectionShape, selectionTarget) = SelectionInteractionSoakMode(normalizedMode);
+            isSelection = selectionShape.Length > 0;
+            if (isSelection && selectionShape != "brush")
+            {
+                throw new InvalidOperationException(
+                    "Resident interaction probes support Select brush vertex, edge, or face only.");
+            }
+            if (!string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Resident interaction probes require the Mesh Edit interaction mode.");
+            }
+            if (!ResidentNativeInteractionReady)
+            {
+                throw new InvalidOperationException(
+                    "The resident native interaction session is not ready.");
+            }
+            if (_residentNativeGesture is not null
+                || _editorStrokeActive
+                || _edgeDragActive
+                || !string.IsNullOrWhiteSpace(_selectionStrokeId)
+                || _editOperators.State != MeshEditOperatorState.Idle)
+            {
+                throw new InvalidOperationException(
+                    "Resident interaction probe requires an idle viewport.");
+            }
+
+            var sampleCount = (int)Math.Clamp(
+                requestedSampleCount == 0 ? 16L : requestedSampleCount,
+                2L,
+                256L);
+            result["point_count"] = sampleCount;
+            result["sample_count"] = sampleCount - 1;
+            result["start"] = new[] { start.X, start.Y };
+            result["end"] = new[] { end.X, end.Y };
+
+            if (isSelection)
+            {
+                // BeginSelectionDrag owns the operator and native selection
+                // session setup. It does not acquire WinForms capture when
+                // called directly from this UI-thread diagnostic route.
+                ActiveTool = "select";
+                SetSelectionDragMode("brush");
+                var beginStarted = Stopwatch.GetTimestamp();
+                BeginSelectionDrag(start, selectionTarget);
+                beginMs = Stopwatch.GetElapsedTime(beginStarted).TotalMilliseconds;
+                began = _residentNativeGesture is not null && _edgeDragActive;
+            }
+            else
+            {
+                // BeginEditorStroke uses the requested resident tool and the
+                // existing committed selection; it is deliberately not the
+                // synthetic selection setup used by BeginInteractionSoak.
+                ActiveTool = normalizedMode;
+                var beginStarted = Stopwatch.GetTimestamp();
+                BeginEditorStroke(start);
+                beginMs = Stopwatch.GetElapsedTime(beginStarted).TotalMilliseconds;
+                began = _residentNativeGesture is not null && _editorStrokeActive;
+            }
+            result["begin_ms"] = ResidentProbeMilliseconds(beginMs);
+            result["last_mouse_down_route"] = _lastMouseDownRoute;
+            result["native_gesture_started"] = began;
+            if (!began)
+            {
+                result["error"] = "resident_core_begin_rejected";
+                return result;
+            }
+
+            for (var index = 1; index < sampleCount; index++)
+            {
+                var ratio = index / (double)(sampleCount - 1);
+                var point = new Point(
+                    (int)Math.Round(start.X + ((end.X - start.X) * ratio), MidpointRounding.AwayFromZero),
+                    (int)Math.Round(start.Y + ((end.Y - start.Y) * ratio), MidpointRounding.AwayFromZero));
+                var sampleStarted = Stopwatch.GetTimestamp();
+                UpdateResidentNativeInteraction(point);
+                sampleDurations.Add(Stopwatch.GetElapsedTime(sampleStarted).TotalMilliseconds);
+            }
+
+            var finishStarted = Stopwatch.GetTimestamp();
+            if (isSelection)
+            {
+                FinishSelectionGesture(end, cancelled: false);
+            }
+            else
+            {
+                EndEditorStroke(end, cancelled: false);
+            }
+            finishMs = Stopwatch.GetElapsedTime(finishStarted).TotalMilliseconds;
+            terminalTransactionSequence = _residentNativeTransactionSequence;
+            result["finish_ms"] = ResidentProbeMilliseconds(finishMs);
+            result["status"] = "applied";
+            result["ok"] = true;
+        }
+        catch (Exception exception)
+        {
+            result["status"] = "rejected";
+            result["error"] = $"{exception.GetType().Name}: {exception.Message}";
+        }
+        finally
+        {
+            try
+            {
+                // A fault between Begin and the terminal call must never leave
+                // the native operator resident. These cancellation methods
+                // restore their captured baseline and publish no transaction.
+                if (_edgeDragActive || _residentNativeGesture?.Tool == NativeMeshInteractionTool.Select)
+                {
+                    FinishSelectionGesture(end, cancelled: true);
+                }
+                if (_editorStrokeActive)
+                {
+                    EndEditorStroke(end, cancelled: true);
+                }
+                if (_residentNativeGesture is not null)
+                {
+                    CancelResidentNativeGesture(_residentNativeGesture, "probe_cleanup");
+                }
+                if (_editOperators.State != MeshEditOperatorState.Idle)
+                {
+                    _editOperators.Fail(
+                        "probe_cleanup",
+                        "Resident interaction probe cleanup restored the operator.");
+                    _editOperators.RecoverToIdle();
+                }
+            }
+            catch (Exception cleanupException)
+            {
+                result["cleanup_error"] = $"{cleanupException.GetType().Name}: {cleanupException.Message}";
+            }
+
+            // A diagnostic probe must leave the visible tool/shape choice as it
+            // found it. The native transaction and its immutable terminal delta
+            // have already been staged before this restoration.
+            try
+            {
+                SetSelectionDragMode(originalSelectionShape);
+                if (!string.Equals(ActiveTool, originalTool, StringComparison.OrdinalIgnoreCase))
+                {
+                    ActiveTool = originalTool;
+                }
+            }
+            catch (Exception restoreException)
+            {
+                result["restore_error"] = $"{restoreException.GetType().Name}: {restoreException.Message}";
+            }
+
+            result["terminal_event"] = terminalTransactionSequence > startingTransactionSequence
+                ? "resident_interaction_transaction"
+                : "none";
+            result["terminal_transaction_sequence"] = terminalTransactionSequence;
+            result["resident_native_pending_transactions"] = _residentNativeTransactions.Count;
+            result["resident_native_awaiting_authority"] = _residentNativeAwaitingAuthority;
+            result["resident_native_replication_blocked"] = ResidentNativeReplicationBlocked;
+            result["resident_native_failure"] = _residentNativeFailure;
+            result["resident_native_last_gesture_failure"] = _residentNativeLastGestureFailure;
+            result["final_operator_state"] = _editOperators.State.ToString().ToLowerInvariant();
+            result["native_gesture_active_after"] = _residentNativeGesture is not null;
+            result["selection_counts"] = new Dictionary<string, object?>
+            {
+                ["vertices"] = _selectedVertices.Values.Sum(values => values.Count),
+                ["edges"] = _selectedEdges.Count,
+                ["faces"] = _selectedFaces.Values.Sum(values => values.Count),
+                ["parts"] = _selectedSources.Count,
+            };
+            result["input_sample_p95_ms"] = ResidentProbeMilliseconds(
+                ResidentProbePercentile(sampleDurations));
+            result["input_sample_max_ms"] = ResidentProbeMilliseconds(
+                sampleDurations.Count == 0 ? 0.0 : sampleDurations.Max());
+            result["sample_durations_ms"] = sampleDurations
+                .Select(ResidentProbeMilliseconds)
+                .ToArray();
+            result["begin_ms"] = ResidentProbeMilliseconds(beginMs);
+            result["finish_ms"] = ResidentProbeMilliseconds(finishMs);
+            result["total_ms"] = ResidentProbeMilliseconds(
+                Stopwatch.GetElapsedTime(totalStarted).TotalMilliseconds);
+        }
+
+        return result;
+    }
+
+    private static double ResidentProbePercentile(IReadOnlyList<double> samples)
+    {
+        if (samples.Count == 0)
+        {
+            return 0.0;
+        }
+        var ordered = samples.OrderBy(value => value).ToArray();
+        var index = (int)Math.Ceiling(ordered.Length * 0.95) - 1;
+        return ordered[Math.Clamp(index, 0, ordered.Length - 1)];
+    }
+
+    private static double ResidentProbeMilliseconds(double milliseconds) =>
+        Math.Round(Math.Max(0.0, milliseconds), 3, MidpointRounding.AwayFromZero);
+
     internal void BeginInteractionSoak(string mode, Point start)
     {
         _interactionSoakMode = NormalizeInteractionSoakMode(mode);

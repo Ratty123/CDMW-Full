@@ -47,7 +47,9 @@ _DIRECTXTEX_BINARY_STATE_LOCK = threading.Lock()
 _last_directxtex_binary_path: Optional[Path] = None
 _UNSUPPORTED_NATIVE_DDS_REASON = "DDS format is not a supported 2D texture format"
 
-_SOURCE_COLOR_POLICIES = frozenset({"auto", "ignore_srgb_metadata"})
+_SOURCE_COLOR_POLICIES = frozenset(
+    {"auto", "ignore_srgb_metadata", "assume_srgb"}
+)
 _MIP_ALPHA_POLICIES = frozenset({"default", "separate", "preserve_coverage"})
 _DDS_ALPHA_MODES = frozenset({"unknown", "straight", "premultiplied", "opaque", "custom"})
 _OUTPUT_PIXEL_TYPES = frozenset({"rgba8", "gray16"})

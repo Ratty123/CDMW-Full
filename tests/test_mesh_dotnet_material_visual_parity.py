@@ -7,6 +7,9 @@ from unittest.mock import patch
 import pytest
 
 from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
+from cdmw.rendering.material_combiner_rules import (
+    _authoritative_color_blending_tint_seed,
+)
 from cdmw.services import mesh_dotnet_material_state
 from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_material_state_payload
 from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_bindings
@@ -58,6 +61,49 @@ def test_textured_material_transports_explicit_texture_tint(tmp_path: Path) -> N
     assert parameters["base_tint_color"] == [0.57, 0.39, 0.29]
     assert parameters["base_tint_strength"] == 0.85
     assert parameters["texture_tint"] == [0.73, 0.44, 0.24]
+
+
+def test_hair_uses_exact_source_level_dye_without_changing_its_texture_contract(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "hair_base.dds"
+    base.write_bytes(b"base-with-alpha")
+    mesh = _mesh()
+    hair = mesh.submeshes[0]
+    hair.material = "cd_m0003_00_crow_fur_0001"
+    hair.preview_sidecar_shader_family = "SkinnedMeshHair"
+    hair.preview_alpha_mode = "cutout"
+    hair.preview_material_parameters = (
+        PreviewMaterialParameterInput(
+            parameter_kind="color",
+            parameter_name="_hairDyeingColor",
+            color_value=(45 / 255.0, 4 / 255.0, 4 / 255.0),
+        ),
+    )
+    hair.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            semantic_type="base",
+            source_dds_path=str(base),
+            shader_family="SkinnedMeshHair",
+            sidecar_kind="pac_xml",
+            binding_authority="authoritative",
+            owner_slot_index=1,
+            owner_wrapper_item_id="328",
+        ),
+    )
+
+    payload = mesh_dotnet_material_state_payload(
+        mesh,
+        session_id="hair-source-dye",
+        edit_revision=0,
+        generation=1,
+    )
+
+    binding = payload["submeshes"][0]
+    assert binding["parameters"]["texture_tint"] == pytest.approx(
+        [45 / 255.0, 4 / 255.0, 4 / 255.0]
+    )
+    assert hair.preview_alpha_mode == "cutout"
 
 
 def test_imported_gltf_base_color_factor_is_only_multiplicative_texture_tint(
@@ -129,6 +175,71 @@ def test_native_material_batch_binding_preserves_explicit_texture_tint(tmp_path:
     assert parameters["base_tint_strength"] == 0.35
     assert parameters["base_tint_metallic"] is True
     assert parameters["texture_tint"] == [0.73, 0.44, 0.24]
+
+
+def test_native_detail_dyes_do_not_become_an_rgb_selector_base_palette(
+    tmp_path: Path,
+) -> None:
+    selector = tmp_path / "cd_phm_00_hel_0350_ma.dds"
+    selector.write_bytes(b"DDS selector")
+    model = _mesh()
+    target = model.submeshes[0]
+
+    assert mesh_dotnet_material_state.apply_dotnet_native_material_batch_binding(
+        target,
+        {
+            "dds_textures": {
+                "material_inputs": [
+                    {
+                        "slot": "material",
+                        "parameter_name": "_colorBlendingMaskTexture",
+                        "source_path": str(selector),
+                        "semantic_type": "packed_material",
+                        "layer_role": "material_response",
+                        "layer_channel": "r",
+                        "binding_disposition": "layer_only",
+                    }
+                ]
+            },
+            "material_layers": [
+                {
+                    "layer_role": "color_seed",
+                    "mask_channel": "r",
+                    "source_parameter": "_dyeingDetailLayerColorMaskR",
+                    "mask_parameter": "_colorBlendingMaskTexture",
+                    "tint": [1.0, 0.862745, 0.521569, 1.0],
+                },
+                {
+                    "layer_role": "color_seed",
+                    "mask_channel": "g",
+                    "source_parameter": "_dyeingDetailLayerColorMaskG",
+                    "mask_parameter": "_colorBlendingMaskTexture",
+                    "tint": [1.0, 0.862745, 0.521569, 1.0],
+                },
+                {
+                    "layer_role": "color_seed",
+                    "mask_channel": "b",
+                    "source_parameter": "_dyeingDetailLayerColorMaskB",
+                    "mask_parameter": "_colorBlendingMaskTexture",
+                    "tint": [1.0, 0.862745, 0.521569, 1.0],
+                },
+            ],
+        },
+    )
+
+    inputs = tuple(target.preview_material_texture_inputs)
+    assert [
+        parameter.parameter_name
+        for parameter in inputs[0].material_parameters
+    ] == [
+        "_dyeingDetailLayerColorMaskR",
+        "_dyeingDetailLayerColorMaskG",
+        "_dyeingDetailLayerColorMaskB",
+    ]
+    selected_mask, palette, source = _authoritative_color_blending_tint_seed(inputs)
+    assert selected_mask is None
+    assert palette == ()
+    assert source == ""
 
 
 def test_native_material_hints_remain_distinct_from_texture_transforms(tmp_path: Path) -> None:

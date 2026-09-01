@@ -6,11 +6,21 @@ internal sealed partial class MeshViewport
 {
     private bool BeginResidentNativeStroke(Point point, string tool, string operatorGestureId)
     {
+        if (ResidentNativeReplicationBlocked)
+        {
+            StatusRequested?.Invoke("Syncing edits…");
+            return false;
+        }
         if (!TryMapResidentNativeTool(tool, out var nativeTool))
         {
             return false;
         }
-        EnsureResidentNativePresentationState();
+        if (!ResidentNativeSnapshotReady(ShowXRay))
+        {
+            QueueResidentNativeSnapshotPreparation();
+            StatusRequested?.Invoke("Preparing indexed mesh interaction…");
+            return false;
+        }
         SynchronizeResidentNativeSelection(expandSelectedParts: true);
         var gesture = NewResidentNativeGesture(
             nativeTool,
@@ -24,10 +34,12 @@ internal sealed partial class MeshViewport
             ResidentNativeGestureRequest(gesture, point, point));
         if (!result.IsSuccess)
         {
+            _residentNativeLastGestureFailure = $"{result.Status}: {result.Message}";
             ClearResidentNativePreview();
             StatusRequested?.Invoke($"Mesh Editor {tool} could not start: {result.Message}");
             return false;
         }
+        _residentNativeLastGestureFailure = string.Empty;
         _residentNativeGesture = gesture;
         ApplyResidentNativeResult(result);
         return true;
@@ -38,7 +50,17 @@ internal sealed partial class MeshViewport
         string targetMode,
         string operatorGestureId)
     {
-        EnsureResidentNativePresentationState();
+        if (ResidentNativeReplicationBlocked)
+        {
+            StatusRequested?.Invoke("Syncing edits…");
+            return false;
+        }
+        if (!ResidentNativeSnapshotReady(ShowXRay))
+        {
+            QueueResidentNativeSnapshotPreparation();
+            StatusRequested?.Invoke("Preparing indexed mesh interaction…");
+            return false;
+        }
         SynchronizeResidentNativeSelection(expandSelectedParts: false);
         var gesture = NewResidentNativeGesture(
             NativeMeshInteractionTool.Select,
@@ -52,10 +74,12 @@ internal sealed partial class MeshViewport
             ResidentNativeGestureRequest(gesture, point, point));
         if (!result.IsSuccess)
         {
+            _residentNativeLastGestureFailure = $"{result.Status}: {result.Message}";
             ClearProvisionalSelectionEcho();
             StatusRequested?.Invoke($"Mesh Editor Select could not start: {result.Message}");
             return false;
         }
+        _residentNativeLastGestureFailure = string.Empty;
         _residentNativeGesture = gesture;
         ApplyResidentNativeResult(result);
         return true;
@@ -93,7 +117,10 @@ internal sealed partial class MeshViewport
             return;
         }
         var provisionalFeedbackStarted = ResidentNativeTimingTimestamp();
-        EnsureResidentNativePresentationState();
+        // Begin validated the indexed snapshot for this gesture. Mesh-edit input
+        // owns the pointer until its terminal event, so camera and viewport state
+        // cannot change here. Rebuilding every projected vertex on each mouse
+        // sample made brush interaction scale with the whole mesh.
         var result = TimeResidentNativeUpdate(gesture, point);
         RequireResidentNativeSuccess(result, "gesture update");
         gesture.Previous = point;
@@ -131,15 +158,24 @@ internal sealed partial class MeshViewport
             RejectResidentNativeGestureWithoutHost(gesture, "no_change");
             return;
         }
-        _residentNativeTransactions[gesture.GestureId] = lease;
-        _residentNativeAwaitingAuthority = true;
+        if (!CanQueueResidentNativeTransaction(lease))
+        {
+            lease.Dispose();
+            RejectResidentNativeGestureWithoutHost(gesture, "replication_queue_full");
+            StatusRequested?.Invoke("Syncing edits…");
+            return;
+        }
         if (!_editOperators.Confirm(gesture.OperatorGestureId))
         {
+            lease.Dispose();
             RejectResidentNativeGestureWithoutHost(gesture, "operator_confirmation_failed");
             return;
         }
+        _residentNativeTransactions[gesture.GestureId] = lease;
+        _residentNativePendingTransactionBytes += lease.Length;
         try
         {
+            CommitResidentNativeTransaction(lease);
             EditorEventRequested?.Invoke(
                 "resident_interaction_transaction",
                 lease.Descriptor(_residentNativeSessionId));
@@ -147,11 +183,22 @@ internal sealed partial class MeshViewport
             {
                 throw new InvalidOperationException("The host did not register the resident transaction request.");
             }
+            lease.PublishedUtc = DateTime.UtcNow;
         }
-        catch
+        catch (Exception ex)
         {
-            RejectResidentNativeGestureWithoutHost(gesture, "transaction_publish_failed");
-            throw;
+            RestoreResidentNativeTransactionBaseline(lease);
+            CloseResidentNativeSession();
+            OpenResidentNativeSession(
+                lease.BaseMeshRevision,
+                lease.BaseSelectionRevision,
+                lease.TopologyGeneration);
+            RemoveResidentNativeTransaction(lease);
+            _editOperators.Reject(
+                gesture.OperatorGestureId,
+                "transaction_publish_failed",
+                ex.Message);
+            StatusRequested?.Invoke($"Mesh Editor edit was restored because sync could not start: {ex.Message}");
         }
     }
 

@@ -131,7 +131,8 @@ static TextureBinding make_sidecar_texture_binding(
     binding.linked_mesh_path = parsed.parameter_summary.linked_mesh_path;
     binding.packed_channels = packed_channels_for_role(
         binding.role, basename, parameter_lower, binding.shader_rule);
-    binding.srgb_mode = srgb_mode_for_role(binding.role, technique_parameter);
+    binding.srgb_mode = srgb_mode_for_role(
+        binding.role, binding.parameter_name, technique_parameter);
     binding.parameter_declared_by = technique_parameter != nullptr ? "technique" : "";
     binding.visible_class = visible_class_for_binding(binding.parameter_name, binding.archive_path, binding.role);
     binding.source_authority = "sidecar";
@@ -143,16 +144,26 @@ static TextureBinding make_sidecar_texture_binding(
     binding.layer_role = layer_role_from_parameter(binding.parameter_name, binding.role);
     binding.layer_channel = layer_channel_from_parameter(binding.parameter_name);
     binding.layer_weight = layer_weight_from_parameters(ref.material_parameters, binding.layer_role, binding.layer_channel);
+    if (parameter_is_skin_detail_support(binding.parameter_name)) {
+        binding.detail_scale = skin_detail_scale_from_parameters(ref.material_parameters);
+    }
     binding.tint_color = tint_for_layer(ref.material_parameters, binding.layer_role, binding.layer_channel);
     for (size_t channel = 0; channel < binding.color_blending_tints.size(); ++channel) {
         binding.color_blending_tints[channel] = tint_for_layer(
             ref.material_parameters,
-            "grime",
+            "color_seed",
             std::string(1, "rgb"[channel]));
     }
     binding.blend_flags = normalized_key(binding.parameter_name).find("colorblending") != std::string::npos
         ? "color_blending_mask" : "";
-    binding.material_parameter_names = joined_parameter_names(ref.material_parameters);
+    binding.material_parameter_names = joined_parameter_names_with_color_seed_sources(
+        ref.material_parameters);
+    binding.material_parameters = filtered_preview_material_parameters(
+        ref.material_parameters);
+    // The diagnostic name list is normally capped, but 0350's authoritative
+    // dye colors occur after that cap. Retain the three selected palette-source
+    // names so layer compilation can distinguish an authored white channel
+    // from the neutral default without copying the entire PAC parameter table.
     binding.alpha_test_enabled = material_parameters_enable_flag(
         ref.material_parameters, {"AlphaTest", "AlphaClip", "AlphaCutout", "Cutout", "_alphaTest"});
     binding.roughness_hint = std::clamp(scalar_parameter_hint(
@@ -242,6 +253,16 @@ static bool process_sidecar_texture_ref(
     const std::string role = role_from_parameter_shader_and_name(
         ref.parameter_name, shader_rule, basename, technique_parameter);
     const std::string parameter_key = normalized_key(ref.parameter_name);
+    const bool exact_skin_detail_support = shader_rule == "skin"
+        && parameter_is_skin_detail_support(ref.parameter_name);
+    const bool exact_emissive_layer_support = shader_rule == "emissive"
+        && wrapper_order_authoritative
+        && ref.material_wrapper_index >= 0
+        && !ref.material_name.empty()
+        && !ref.parameter_name.empty()
+        && (parameter_key.find("detail") != std::string::npos
+            || parameter_key.find("grime") != std::string::npos
+            || parameter_key.find("dye") != std::string::npos);
     const bool keep_layer_stack_aux = shader_rule.find("standard") != std::string::npos
         || shader_rule.find("cloth") != std::string::npos
         || shader_rule.find("multitextured") != std::string::npos
@@ -249,6 +270,8 @@ static bool process_sidecar_texture_ref(
             && native_pbd_hints_have_soft_physics(parsed.pbd_hints));
     if (normalize_visible_texture_mode(state.job.visible_texture_mode) == "mesh_base_first"
         && !keep_layer_stack_aux
+        && !exact_skin_detail_support
+        && !exact_emissive_layer_support
         && (parameter_key.find("detail") != std::string::npos
             || parameter_key.find("grime") != std::string::npos
             || parameter_key.find("dye") != std::string::npos)

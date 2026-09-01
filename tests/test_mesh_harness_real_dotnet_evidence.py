@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Mapping
 from pathlib import Path
 import re
 import time
@@ -36,12 +37,7 @@ def _resident_projection_protocol_waiter(tool_state_events, standalone_events):
             return next(tool_state_events)
         assert event == "resident_interaction_transaction"
         transaction = {"event": event, "request_id": 9}
-        standalone_events.extend(
-            (
-                transaction,
-                {"event": "resident_mutation_batch_ack", "request_id": 9, "status": "applied"},
-            )
-        )
+        standalone_events.append(transaction)
         return transaction
 
     return wait_protocol_event
@@ -167,11 +163,11 @@ def test_real_dotnet_projection_probe_waits_for_v3_renderer_authority() -> None:
     )[0]
     assert "expected_revision" in probe
     assert "request_id" in probe
-    assert '"resident_interaction_transaction"' in probe
-    assert '== "resident_mutation_batch_ack"' in probe
-    assert '{"applied", "already_applied"}' in probe
-    assert 'get("active_revision", 0)' in probe
-    assert 'get("pending_depth", 0)' in probe
+    assert "request_resident_interaction_probe(" in probe
+    assert 'mode="select_brush_vertex"' in probe
+    assert '== "applied"' in probe
+    assert "helper_originated_mutation_echo_count" in probe
+    assert 'result.get("authority_settled")' in probe
     assert 'get("rejected_updates", 0)' in probe
     assert probe.index("queue_settled") < probe.index(
         "state.projection_probe_authority_settled"
@@ -184,9 +180,10 @@ def test_real_dotnet_projection_probe_waits_for_v3_renderer_authority() -> None:
         "def _capture_selected_projection_state", 1
     )[0]
     assert "if not state.projection_probe_authority_settled:" in selection
-    assert "clear_update = state.controller.native_update_for_result(state.select_result)" in selection
-    assert "clear_update," in selection
-    assert "result=state.select_result" in selection
+    assert "state.physical_select_gesture = dict(result)" in probe
+    assert '"resident_probe_selection_is_authoritative"' in probe
+    assert "_send_dotnet_native_update(" not in selection
+    assert "resident_mutation_batch_ack" not in selection
     assert "_send_dotnet_session_state()" not in selection
 
 
@@ -288,6 +285,49 @@ def test_top_level_window_hwnd_uses_ga_root_without_activation() -> None:
         assert win32_input._top_level_window_hwnd(12) == 91
 
 
+def test_scoped_mouse_message_uses_bounded_synchronous_hwnd_dispatch() -> None:
+    from tools.mesh_harness import win32_input
+
+    with (
+        patch.object(win32_input.os, "name", "nt"),
+        patch.object(
+            win32_input,
+            "_send_control_message",
+            return_value=(True, 0),
+        ) as send,
+        patch.object(win32_input, "_render_surface_input_owner_hwnd", return_value=23),
+    ):
+        sent = win32_input._send_mouse_message(
+            23,
+            0x0201,
+            17,
+            29,
+            wparam=1,
+        )
+
+    assert sent is True
+    send.assert_called_once_with(
+        23,
+        0x0201,
+        wparam=1,
+        lparam=(29 << 16) | 17,
+    )
+
+
+def test_render_surface_mouse_messages_route_to_same_bounds_winforms_owner() -> None:
+    from tools.mesh_harness import win32_input
+
+    with (
+        patch.object(win32_input.os, "name", "nt"),
+        patch.object(win32_input, "_window_parent_hwnd", return_value=31),
+        patch.object(win32_input, "_window_process_id", return_value=77),
+        patch.object(win32_input, "_host_window_rect", return_value=(10, 20, 110, 120)),
+    ):
+        owner = win32_input._render_surface_input_owner_hwnd(23)
+
+    assert owner == 31
+
+
 def test_button_click_rejects_a_logically_visible_control_clipped_outside_form() -> None:
     from tools.mesh_harness import win32_input
 
@@ -314,6 +354,56 @@ def test_button_click_rejects_a_logically_visible_control_clipped_outside_form()
     send.assert_not_called()
 
 
+def test_button_click_scrolls_owning_panel_before_pressing_a_clipped_control() -> None:
+    from tools.mesh_harness import win32_input
+
+    control_rect = [40, 1382, 180, 1427]
+    control = {
+        "hwnd": 23,
+        "pid": 42,
+        "text": "Morph & Refit",
+        "class_name": "WindowsForms10.BUTTON.app.0.141b42a_r8_ad1",
+        "visible": True,
+        "enabled": True,
+        "rect": list(control_rect),
+    }
+
+    def window_rect(hwnd: int):
+        return (0, 0, 640, 1080) if hwnd == 11 else tuple(control_rect)
+
+    def send_message(hwnd: int, message: int, **_kwargs):
+        if hwnd == 31 and message == win32_input._WM_VSCROLL:
+            control_rect[:] = [40, 880, 180, 925]
+        return True, 0
+
+    user32 = SimpleNamespace(IsWindow=lambda _hwnd: 1)
+    with (
+        patch.object(win32_input.os, "name", "nt"),
+        patch.object(win32_input.ctypes, "windll", SimpleNamespace(user32=user32)),
+        patch.object(win32_input, "_enumerate_child_windows", return_value=(control,)),
+        patch.object(win32_input, "_host_window_rect", side_effect=window_rect),
+        patch.object(
+            win32_input,
+            "_parent_window",
+            side_effect=lambda hwnd: 31 if hwnd == 23 else 11 if hwnd == 31 else 0,
+        ),
+        patch.object(win32_input, "_window_process_id", return_value=42),
+        patch.object(win32_input, "_send_control_message", side_effect=send_message) as send,
+    ):
+        result = win32_input._click_button_by_text(
+            11,
+            "Morph & Refit",
+            expected_pid=42,
+            scroll_clipped=True,
+        )
+
+    assert result["ok"] is True
+    assert result["intersects_root"] is True
+    assert result["scroll"]["ok"] is True
+    assert result["scroll"]["parent_hwnd"] == 31
+    assert send.call_count == 2
+
+
 def test_show_without_activation_rejects_a_failed_top_level_z_order_change() -> None:
     from tools.mesh_harness import win32_input
 
@@ -331,7 +421,9 @@ def test_show_without_activation_rejects_a_failed_top_level_z_order_change() -> 
         assert win32_input._show_window_without_activation(12, topmost=True) is False
 
 
-def test_real_dotnet_stroke_never_sends_scoped_input_without_visible_process_ownership(tmp_path: Path) -> None:
+def test_real_dotnet_stroke_reports_rejected_helper_probe_without_desktop_input(
+    tmp_path: Path,
+) -> None:
     from tools.mesh_harness.real_dotnet import _drive_viewport_stroke
 
     state = SimpleNamespace(
@@ -344,15 +436,14 @@ def test_real_dotnet_stroke_never_sends_scoped_input_without_visible_process_own
         heartbeat_started=0.0,
         tab=SimpleNamespace(
             standalone_dotnet_protocol_events=[],
+            _send_dotnet_protocol_message=lambda _payload: False,
+            _standalone_action_worker_active=lambda: False,
             standalone_dotnet_update_queue=SimpleNamespace(metrics=lambda: {"active_revision": 0}),
         ),
         after_capture_path=tmp_path / "after.png",
     )
     with (
         patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(0, 0, 100, 100)),
-        patch("tools.mesh_harness.real_dotnet_input._show_window_without_activation", return_value=False),
-        patch("tools.mesh_harness.real_dotnet_input._scoped_input_target_matches", return_value=False),
-        patch("tools.mesh_harness.real_dotnet_input._send_mouse_message") as send_message,
         # _drive_viewport_stroke and the helpers it resolves now live in
         # real_dotnet_evidence; patching them on real_dotnet would no longer
         # intercept, and the stroke would run for real.
@@ -366,20 +457,34 @@ def test_real_dotnet_stroke_never_sends_scoped_input_without_visible_process_own
     ):
         result = _drive_viewport_stroke(state)
 
-    assert result == {
-        "error": "The .NET viewport was not an owned scoped input target with a live rectangle."
-    }
-    send_message.assert_not_called()
+    assert isinstance(result, dict)
+    assert "published no terminal resident interaction transaction" in str(
+        result.get("error", "")
+    )
 
 
 def _drive_resident_stroke_case(
     tmp_path: Path,
     terminal_events: list[dict[str, object]],
-) -> tuple[SimpleNamespace, object, list[tuple[int, int, int, int]]]:
+    commit_ack: dict[str, object] | None = None,
+) -> tuple[SimpleNamespace, object, list[dict[str, object]]]:
     from tools.mesh_harness.real_dotnet_input import drive_viewport_stroke
 
     events: list[dict[str, object]] = []
-    sent: list[tuple[int, int, int, int]] = []
+    sent: list[dict[str, object]] = []
+
+    def send_protocol(payload: Mapping[str, object]) -> bool:
+        sent.append(dict(payload))
+        events.extend(dict(event) for event in terminal_events)
+        events.append(
+            {
+                "event": "resident_interaction_probe_applied",
+                "request_id": int(payload.get("request_id", 0) or 0),
+                "status": "applied",
+                "ok": True,
+            }
+        )
+        return True
     state = SimpleNamespace(
         viewport={"width": 100, "height": 100, "screen_x": 0, "screen_y": 0},
         projected_center=(20.0, 20.0),
@@ -390,6 +495,7 @@ def _drive_resident_stroke_case(
         heartbeat_started=time.perf_counter(),
         tab=SimpleNamespace(
             standalone_dotnet_protocol_events=events,
+            _send_dotnet_protocol_message=send_protocol,
             _standalone_action_worker_active=lambda: False,
             standalone_dotnet_update_queue=SimpleNamespace(
                 metrics=lambda: {"active_revision": 0, "pending_depth": 0}
@@ -397,12 +503,6 @@ def _drive_resident_stroke_case(
         ),
         after_capture_path=tmp_path / "after.png",
     )
-
-    def send_message(hwnd: int, message: int, x: int, y: int, *, wparam: int = 0) -> bool:
-        sent.append((hwnd, message, x, y))
-        if message == 0x0202:
-            events.extend(dict(event) for event in terminal_events)
-        return True
 
     def wait_event(
         _state: SimpleNamespace,
@@ -418,10 +518,10 @@ def _drive_resident_stroke_case(
 
     with (
         patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(0, 0, 100, 100)),
-        patch("tools.mesh_harness.real_dotnet_input._show_window_without_activation", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._scoped_input_target_matches", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._window_process_id", return_value=42),
-        patch("tools.mesh_harness.real_dotnet_input._send_mouse_message", side_effect=send_message),
+        patch(
+            "tools.mesh_harness.real_dotnet_input.resident_interaction_commit_ack",
+            return_value=dict(commit_ack or {}),
+        ),
     ):
         result = drive_viewport_stroke(
             state,
@@ -444,19 +544,22 @@ def test_real_dotnet_stroke_requires_one_authoritative_terminal_transaction(
         "mapping_name": "Local\\drag",
     }
     acknowledgement = {
-        "event": "resident_mutation_batch_ack",
+        "event": "resident_interaction_commit_ack",
         "request_id": 9,
         "status": "applied",
     }
 
     state, result, sent = _drive_resident_stroke_case(
         tmp_path,
-        [transaction, acknowledgement],
+        [transaction],
+        acknowledgement,
     )
 
     assert result is None
     assert len(state.mouse_drag_points) == 40
-    assert {hwnd for hwnd, _message, _x, _y in sent} == {state.viewport_hwnd}
+    assert len(sent) == 1
+    assert sent[0]["event"] == "resident_interaction_probe"
+    assert sent[0]["mode"] == "move"
     assert state.stroke_terminal_coverage == {
         "requested_end": [60, 20],
         "effective_end": [60, 20],
@@ -481,28 +584,29 @@ def test_real_dotnet_stroke_rejects_missing_duplicate_and_uncorrelated_terminals
 ) -> None:
     transaction = {"event": "resident_interaction_transaction", "request_id": 9}
     cases = (
-        ([], "published no terminal resident interaction transaction"),
-        ([transaction, transaction], "published duplicate terminal resident interaction transactions"),
+        ([], {}, "published no terminal resident interaction transaction"),
         (
-            [
-                transaction,
-                {"event": "resident_mutation_batch_ack", "request_id": 10, "status": "applied"},
-            ],
+            [transaction, transaction],
+            {"event": "resident_interaction_commit_ack", "request_id": 9, "status": "applied"},
+            "published duplicate terminal resident interaction transactions",
+        ),
+        (
+            [transaction],
+            {},
             "was not authoritatively correlated",
         ),
         (
-            [
-                transaction,
-                {"event": "resident_mutation_batch_ack", "request_id": 9, "status": "rejected"},
-            ],
+            [transaction],
+            {"event": "resident_interaction_commit_ack", "request_id": 9, "status": "rejected"},
             "did not settle with one accepted acknowledgement",
         ),
     )
 
-    for index, (events, expected) in enumerate(cases):
+    for index, (events, acknowledgement, expected) in enumerate(cases):
         _state, result, _sent = _drive_resident_stroke_case(
             tmp_path / str(index),
             list(events),
+            dict(acknowledgement),
         )
         assert isinstance(result, dict)
         assert expected in str(result.get("error", ""))
@@ -524,12 +628,55 @@ def test_real_dotnet_harness_targets_editable_pane_coordinates_on_shared_hwnd() 
     stroke_driver = input_source.split("def _drive_scoped_viewport_stroke(", 1)[1].split(
         "def _settle_viewport_stroke", 1
     )[0]
-    assert "_send_mouse_message" in stroke_driver
+    assert "request_resident_interaction_probe" in stroke_driver
     assert "_standalone_action_worker_active" in input_source
     assert '"resident_interaction_transaction"' in input_source
+    assert '"resident_interaction_commit_ack"' in input_source
     assert '"resident_mutation_batch_ack"' in input_source
     for legacy_event in ("stroke_begin", "stroke_update", "stroke_end"):
         assert f'"{legacy_event}"' not in input_source
+
+
+def test_commit_v2_ack_is_read_from_the_correlated_host_to_helper_record() -> None:
+    from tools.mesh_harness.real_dotnet_input import resident_interaction_commit_ack
+
+    transaction = {
+        "session_id": "session-1",
+        "process_generation": 2,
+        "helper_process_id": 404,
+        "request_id": 9,
+        "gesture_id": 44,
+        "transaction_sequence": 3,
+        "sha256": "ab" * 32,
+        "base_revision": 6,
+        "target_revision": 7,
+        "base_selection_revision": 4,
+        "target_selection_revision": 5,
+        "topology_generation": 1,
+    }
+    acknowledgement = {
+        **transaction,
+        "event": "resident_interaction_commit_ack",
+        "status": "applied",
+        "direction": "host_to_helper",
+        "sent": True,
+        "monotonic_ns": 201,
+        "durable_revision": 7,
+        "durable_selection_revision": 5,
+    }
+    wrong_direction = {**acknowledgement, "direction": "helper_to_host"}
+    stale = {**acknowledgement, "monotonic_ns": 99}
+
+    with patch(
+        "tools.mesh_harness.real_dotnet_input.mesh_interaction_diagnostics_snapshot",
+        return_value={"recent_events": [wrong_direction, stale, acknowledgement]},
+    ):
+        result = resident_interaction_commit_ack(
+            transaction,
+            after_monotonic_ns=100,
+        )
+
+    assert result == acknowledgement
 
 
 def test_topology_evidence_waits_for_final_gpu_shrink_frame() -> None:
@@ -662,14 +809,12 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
         )
     )
     renderer_status = _resident_projection_status()
-    select_calls: list[dict[str, object]] = []
-    physical_points: list[tuple[float, float]] = []
+    probe_starts: list[tuple[int, int]] = []
     standalone_events: list[dict[str, object]] = []
     state = SimpleNamespace(
         submesh=submesh,
         submesh_index=0,
         controller=SimpleNamespace(
-            select=lambda **kwargs: select_calls.append(dict(kwargs)) or SimpleNamespace(ok=True),
             native_update_for_result=lambda result: result,
             session_view=lambda: SimpleNamespace(resident_revision=1),
             working_mesh=lambda *, clone: SimpleNamespace(
@@ -709,7 +854,23 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
 
     monkeypatch.setattr(real_dotnet, "refresh_editable_viewport_rectangle", lambda *_args: {})
     monkeypatch.setattr(real_dotnet, "request_full_renderer_status", lambda *_args: renderer_status)
-    monkeypatch.setattr(real_dotnet, "_send_mouse_message", lambda *_args, **_kwargs: True)
+    def resident_probe(*_args, **kwargs):
+        probe_starts.append(tuple(kwargs["start"]))
+        return {
+            "ok": True,
+            "request": {"event": "resident_interaction_probe"},
+            "resident_interaction_transactions": [
+                {"event": "resident_interaction_transaction", "request_id": 9}
+            ],
+            "authority_acknowledgement": {
+                "event": "resident_interaction_commit_ack",
+                "request_id": 9,
+                "status": "applied",
+            },
+            "authority_settled": True,
+        }
+
+    monkeypatch.setattr(real_dotnet, "request_resident_interaction_probe", resident_probe)
 
     monkeypatch.setattr(
         real_dotnet,
@@ -729,15 +890,12 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
         lambda _matrix, point, **_kwargs: projected_world_points.append(tuple(point)) or (50.0, 50.0),
     )
     monkeypatch.setattr(real_dotnet, "_pump_for", lambda *_args: None)
-    monkeypatch.setattr(real_dotnet, "_pump_until", lambda *_args: True)
-    monkeypatch.setattr(real_dotnet, "_capture_viewport", lambda *_args: {})
     monkeypatch.setattr(
         real_dotnet,
-        "drive_viewport_selection",
-        lambda _state, *, point, **_kwargs: physical_points.append(tuple(point))
-        or {"ok": True, "resident_interaction_transaction_count": 1},
+        "_pump_until",
+        lambda _state, predicate, _timeout: bool(predicate()),
     )
-
+    monkeypatch.setattr(real_dotnet, "_capture_viewport", lambda *_args: {})
     error = real_dotnet._configure_selection_and_projection(state)
 
     assert error is None
@@ -749,10 +907,7 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
     assert len(state.before_vertices) == 3
     assert state.projected_anchor_faces == (0,)
     assert projected_world_points == [(11.0, 1.0, 0.0)]
-    assert physical_points == [(50.0, 50.0)]
-    assert select_calls == [
-        {"operation": "replace"},
-    ]
+    assert probe_starts == [(50, 50)]
     assert state.part_selection_remained_empty is True
     assert state.viewport_mesh_selection_armed is True
 
@@ -826,35 +981,251 @@ def test_desktop_input_gate_allows_user_activity_only_outside_the_harness_screen
     assert cursor_violation["cursor_on_harness_screen_count"] == 1
 
 
-def test_harness_has_no_global_mouse_or_focus_mutation_api() -> None:
-    source = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in (Path("tools/mesh_harness")).glob("*.py")
+def test_desktop_input_gate_accepts_authorized_transient_input_only_after_restore(
+    monkeypatch,
+) -> None:
+    import tools.mesh_harness.win32_input as win32_input
+
+    monkeypatch.setattr(win32_input, "os", SimpleNamespace(name="posix"))
+    evidence = win32_input._desktop_input_isolation_evidence(
+        [
+            {"available": True, "foreground_hwnd": 41, "cursor": [-400, 340]},
+            {"available": True, "foreground_hwnd": 42, "cursor": [120, 340]},
+        ],
+        forbidden_hwnds=(101, 102),
+        harness_screen_bounds=(-1920, 0, 0, 1080),
+        allow_transient_harness_input=True,
     )
 
+    assert evidence["ok"] is True
+    assert evidence["cursor_on_harness_screen_count"] == 1
+    assert evidence["transient_harness_input_allowed"] is True
+    assert evidence["restored_at_end"] is True
+
+
+def test_visible_physical_mouse_driver_restores_cursor_focus_and_button(
+    monkeypatch,
+) -> None:
+    import tools.mesh_harness.win32_input as win32_input
+
+    class FakeUser32:
+        def __init__(self) -> None:
+            self.cursor = [12, 34]
+            self.foreground = 55
+            self.mouse_events: list[int] = []
+
+        def SetCursorPos(self, x: int, y: int) -> int:
+            self.cursor = [int(x), int(y)]
+            return 1
+
+        def SendInput(self, count: int, payload: object, _size: int) -> int:
+            self.mouse_events.append(int(payload._obj.mouse.dwFlags))
+            return int(count)
+
+        def IsWindow(self, _hwnd: object) -> int:
+            return 1
+
+        def GetAncestor(self, hwnd: object, _kind: int) -> int:
+            value = int(getattr(hwnd, "value", 0) or 0)
+            return 500 if value in {90, 91, 100, 500} else value
+
+        def GetForegroundWindow(self) -> int:
+            return self.foreground
+
+        def GetWindowThreadProcessId(self, hwnd: object, _process: object) -> int:
+            return int(getattr(hwnd, "value", 0) or 0) + 1000
+
+        def AttachThreadInput(self, *_args: object) -> int:
+            return 1
+
+        def SetForegroundWindow(self, hwnd: object) -> int:
+            self.foreground = int(getattr(hwnd, "value", 0) or 0)
+            return 1
+
+        def SetFocus(self, _hwnd: object) -> int:
+            return 1
+
+    class FakeKernel32:
+        def GetCurrentThreadId(self) -> int:
+            return 2000
+
+    user32 = FakeUser32()
+    monkeypatch.setattr(win32_input, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(
+        win32_input.ctypes,
+        "windll",
+        SimpleNamespace(user32=user32, kernel32=FakeKernel32()),
+    )
+    monkeypatch.setattr(win32_input, "_host_window_rect", lambda _hwnd: (100, 200, 500, 600))
+    monkeypatch.setattr(win32_input, "_render_surface_input_owner_hwnd", lambda _hwnd: 90)
+    monkeypatch.setattr(win32_input, "_window_process_id", lambda _hwnd: 777)
+    monkeypatch.setattr(win32_input, "_scoped_input_target_matches", lambda *_args: True)
+    monkeypatch.setattr(win32_input, "_window_at_screen_point", lambda *_args: 91)
+    monkeypatch.setattr(win32_input, "_window_is_same_or_child", lambda *_args: True)
+    monkeypatch.setattr(
+        win32_input,
+        "_desktop_input_snapshot",
+        lambda: {
+            "available": True,
+            "foreground_hwnd": user32.foreground,
+            "cursor": list(user32.cursor),
+        },
+    )
+    monkeypatch.setattr(win32_input, "_physical_mouse_state", None)
+    monkeypatch.setattr(win32_input, "_physical_mouse_gesture_count", 0)
+    monkeypatch.setattr(win32_input, "_physical_mouse_restore_failures", 0)
+    monkeypatch.setattr(win32_input, "_physical_mouse_last_restore", {})
+
+    assert win32_input._send_physical_mouse_message(100, 0x0200, 10, 20)
+    assert win32_input._send_physical_mouse_message(100, 0x0201, 10, 20, wparam=1)
+    assert win32_input._send_physical_mouse_message(100, 0x0202, 20, 30)
+    assert win32_input._restore_physical_mouse_state() is True
+
+    evidence = win32_input._physical_mouse_input_evidence()
+    assert user32.mouse_events == [0x0002, 0x0004]
+    assert user32.cursor == [12, 34]
+    assert user32.foreground == 55
+    assert evidence["gesture_count"] == 1
+    assert evidence["active"] is False
+    assert evidence["restored"] is True
+    assert evidence["target_root_hwnd"] == 500
+    assert evidence["activated_root_hwnd"] == 500
+    assert evidence["last_restore"]["button_released"] is True
+
+
+def test_real_dotnet_report_uses_helper_local_no_global_input_evidence(monkeypatch) -> None:
+    from tools.mesh_harness import real_dotnet_report
+
+    monkeypatch.setattr(
+        real_dotnet_report,
+        "_physical_mouse_input_evidence",
+        lambda: {
+            "gesture_count": 0,
+            "restore_failure_count": 0,
+            "active": False,
+            "last_restore": {
+                "cursor": [10, 20],
+                "foreground_hwnd": 99,
+            },
+        },
+    )
+
+    result = real_dotnet_report._helper_ui_thread_no_global_input_evidence()
+
+    assert result == {
+        "method": "helper_ui_thread_no_global_input",
+        "ok": True,
+        "gesture_count": 0,
+        "restore_failure_count": 0,
+        "active": False,
+    }
+
+
+def test_real_dotnet_report_no_global_input_evidence_fails_closed(monkeypatch) -> None:
+    from tools.mesh_harness import real_dotnet_report
+
+    for physical_input, expected_ok in (
+        ({}, False),
+        ({"gesture_count": 1, "restore_failure_count": 0, "active": False}, False),
+        ({"gesture_count": 0, "restore_failure_count": 1, "active": False}, False),
+        ({"gesture_count": 0, "restore_failure_count": 0, "active": True}, False),
+    ):
+        monkeypatch.setattr(
+            real_dotnet_report,
+            "_physical_mouse_input_evidence",
+            lambda physical_input=physical_input: physical_input,
+        )
+        assert (
+            real_dotnet_report._helper_ui_thread_no_global_input_evidence()["ok"]
+            is expected_ok
+        )
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "tools"
+        / "mesh_harness"
+        / "real_dotnet_report.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"method": "helper_ui_thread_no_global_input"' in source
+    assert "_physical_mouse_input_evidence()" in source
+    assert (
+        "state.desktop_input_isolation = dict(state.helper_ui_thread_no_global_input)"
+        in source
+    )
     for forbidden in (
+        "_desktop_input_snapshot",
+        "_desktop_input_isolation_evidence",
+        "_restore_physical_mouse_state",
+        "GetCursorPos",
+        "GetForegroundWindow",
         "SetCursorPos",
-        "SendInput",
-        "mouse_event",
         "SetForegroundWindow",
-        "SetActiveWindow",
-        "SetFocus",
-        "BringWindowToTop",
     ):
         assert forbidden not in source
 
 
-def test_scoped_select_gesture_emits_helper_selection_and_waits_for_authority() -> None:
+def test_global_mouse_mutation_is_confined_to_authorized_visible_driver() -> None:
+    sources = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in (Path("tools/mesh_harness")).glob("*.py")
+    }
+
+    for api in (
+        "SetCursorPos",
+        "SendInput",
+        "SetForegroundWindow",
+        "AttachThreadInput",
+        "SetFocus",
+    ):
+        assert api in sources["win32_input.py"]
+        assert all(
+            api not in source
+            for name, source in sources.items()
+            if name != "win32_input.py"
+        )
+    for forbidden in ("mouse_event", "SetActiveWindow", "BringWindowToTop"):
+        assert all(forbidden not in source for source in sources.values())
+    assert "_send_physical_mouse_message" not in sources["real_dotnet_input.py"]
+    assert "_send_physical_mouse_message" not in sources[
+        "packaged_mesh_texture_smoke.py"
+    ]
+    assert '"resident_interaction_probe"' in sources["real_dotnet_input.py"]
+
+
+def test_helper_local_select_probe_emits_transaction_and_waits_for_authority() -> None:
     from tools.mesh_harness.real_dotnet_input import drive_viewport_selection
 
-    button = {"down": False}
+    events: list[dict[str, object]] = []
+
+    def send_protocol(payload: Mapping[str, object]) -> bool:
+        request_id = int(payload.get("request_id", 0) or 0)
+        events.extend(
+            [
+                {
+                    "event": "resident_interaction_transaction",
+                    "request_id": 9,
+                    "session_id": "session-a",
+                    "sha256": "ab" * 32,
+                },
+                {
+                    "event": "resident_interaction_probe_applied",
+                    "request_id": request_id,
+                    "status": "applied",
+                    "ok": True,
+                },
+            ]
+        )
+        return True
+
     state = SimpleNamespace(
         viewport={"width": 100, "height": 100, "screen_x": 10, "screen_y": 20},
         viewport_hwnd=101,
         production_process_pid=77,
         form_hwnd=100,
         tab=SimpleNamespace(
-            standalone_dotnet_protocol_events=[],
+            standalone_dotnet_protocol_events=events,
+            _send_dotnet_protocol_message=send_protocol,
             _standalone_action_worker_active=lambda: False,
             standalone_dotnet_update_queue=SimpleNamespace(
                 metrics=lambda: {"active_revision": 0, "pending_depth": 0}
@@ -862,44 +1233,18 @@ def test_scoped_select_gesture_emits_helper_selection_and_waits_for_authority() 
         ),
     )
 
-    def send_message(
-        _hwnd: int,
-        message: int,
-        _x: int,
-        _y: int,
-        *,
-        wparam: int = 0,
-    ) -> bool:
-        was_down = button["down"]
-        if message == 0x0201:
-            button["down"] = True
-        elif message == 0x0202:
-            button["down"] = False
-        if was_down and message == 0x0202:
-            state.tab.standalone_dotnet_protocol_events.append(
-                {
-                    "event": "resident_interaction_transaction",
-                    "request_id": 9,
-                }
-            )
-            state.tab.standalone_dotnet_protocol_events.append(
-                {
-                    "event": "resident_mutation_batch_ack",
-                    "request_id": 9,
-                    "status": "applied",
-                }
-            )
-        return True
-
     def pump_for(_state, _seconds: float) -> None:
         return None
 
     with (
-        patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(10, 20, 110, 120)),
-        patch("tools.mesh_harness.real_dotnet_input._show_window_without_activation", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._scoped_input_target_matches", return_value=True),
-        patch("tools.mesh_harness.real_dotnet_input._window_process_id", return_value=77),
-        patch("tools.mesh_harness.real_dotnet_input._send_mouse_message", side_effect=send_message),
+        patch(
+            "tools.mesh_harness.real_dotnet_input.resident_interaction_commit_ack",
+            return_value={
+                "event": "resident_interaction_commit_ack",
+                "request_id": 9,
+                "status": "applied",
+            },
+        ),
     ):
         result = drive_viewport_selection(
             state,
@@ -909,7 +1254,8 @@ def test_scoped_select_gesture_emits_helper_selection_and_waits_for_authority() 
         )
 
     assert result["ok"] is True
-    assert result["backend"] == "scoped_hwnd_messages_normalized_input"
+    assert result["backend"] == "helper_ui_thread_resident_probe"
+    assert result["global_mouse_input_used"] is False
     assert result["start"] == [50, 50]
     assert result["end"] == [58, 50]
     assert result["resident_interaction_transaction_count"] == 1

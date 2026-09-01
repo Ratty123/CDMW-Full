@@ -34,6 +34,7 @@ from cdmw.rendering.material_combiner_decode import (
 from cdmw.rendering.material_combiner_images import _generate_material_maps
 from cdmw.rendering.material_combiner_rules import (
     _authoritative_color_blending_tint_seed,
+    _layer_tint,
     _layer_weight_from_parameters,
     _material_surface_category,
 )
@@ -233,6 +234,69 @@ def test_structural_body_and_foot_tokens_are_not_misclassified_as_skin() -> None
     assert category("WarRobot_Foot_Armor") == "metal"
     assert category("Deerila_Golem_Body") == "generic"
     assert category("CD_PHM_00_Body") == "skin"
+
+
+def test_machine_local_cache_parent_does_not_change_material_response(
+    tmp_path: Path,
+) -> None:
+    material = QImage(1, 1, QImage.Format.Format_RGBA8888)
+    material.setPixelColor(0, 0, QColor(0, 128, 255, 255))
+    common = {
+        "slot_kind": "material",
+        "parameter_name": "_detailMaterialMaskR",
+        "texture_name": "cd_texturelayer_003_0001_sp.dds",
+        "semantic_type": "material",
+        "semantic_subtype": "material_mask",
+        "material_name": "CD_PHM_00_Hel_0350",
+        "part_name": "CD_PHM_00_Hel_0350",
+        "shader_family": "SkinnedMeshStandard_Ver2",
+        "sidecar_kind": "pac_xml",
+        "parameter_declared_by": "pac_xml",
+        "layer_role": "detail",
+        "layer_channel": "r",
+        "binding_authority": "authoritative",
+        "binding_disposition": "layer_material_response",
+        "source_kind": "crimson_layer_material_response",
+    }
+    slots_by_parent: dict[str, tuple[str, ...]] = {}
+    metal_pixels_by_parent: dict[str, int] = {}
+    for parent_name in ("neutral-cache", "hair-cache"):
+        source = tmp_path / parent_name / "cd_texturelayer_003_0001_sp.dds"
+        item = PreviewMaterialTextureInput(
+            **common,
+            source_texture_path=str(source),
+            source_dds_path=str(source),
+        )
+        category = _material_surface_category(item)
+        slots, paths = _generate_material_maps(
+            material,
+            tmp_path / f"out-{parent_name}",
+            "layer",
+            decode_mode="standard_v2_material",
+            input_item=item,
+            surface_category=category,
+            force_nonmetal_surface=False,
+            flip_vertical=False,
+            max_dimension=16,
+        )
+        metalness = QImage(QUrl(paths[2]).toLocalFile())
+        assert not metalness.isNull()
+        slots_by_parent[parent_name] = slots
+        metal_pixels_by_parent[parent_name] = metalness.pixelColor(0, 0).red()
+
+    assert slots_by_parent["neutral-cache"] == slots_by_parent["hair-cache"]
+    assert "metalness" in slots_by_parent["hair-cache"]
+    assert metal_pixels_by_parent["neutral-cache"] == metal_pixels_by_parent[
+        "hair-cache"
+    ]
+    assert _material_surface_category(
+        PreviewMaterialTextureInput(
+            material_name="anonymous",
+            shader_family="SkinnedMeshStandard_Ver2",
+            source_texture_path="character/armor/anonymous_surface.dds",
+            source_dds_path="C:/cache/anonymous_surface.dds",
+        )
+    ) == "metal"
 
 
 def test_exact_pac_layer_preserves_strong_metal_islands_inside_soft_surface(
@@ -704,6 +768,46 @@ def test_pac_material_graph_keeps_canonical_reference_when_transport_is_rebased(
     ]
 
 
+def test_pac_material_graph_matches_exact_texture_name_to_rebased_transport() -> None:
+    parameter = PreviewMaterialParameterInput(
+        parameter_kind="texture",
+        parameter_name="_colorBlendingMaskTexture",
+        texture_path="character/texture/cd_phm_00_hel_0350_ma.dds",
+    )
+    binding = PreviewMaterialTextureInput(
+        slot_kind="material",
+        parameter_name="_colorBlendingMaskTexture",
+        source_dds_path=(
+            "C:/audit/package/textures/"
+            "mask_72405d4d97_cd_phm_00_hel_0350_ma.dds"
+        ),
+        texture_name="cd_phm_00_hel_0350_ma.dds",
+        semantic_type="material",
+        semantic_subtype="color_blending_mask",
+        shader_family="SkinnedMeshStandard_Ver2",
+        sidecar_kind="pac_xml",
+        owner_slot_index=4,
+        owner_wrapper_item_id="331",
+        binding_authority="authoritative",
+        binding_disposition="layer_only",
+        source_kind="crimson_color_blending_mask",
+        material_parameters=(),
+    )
+    source = SimpleNamespace(
+        preview_pac_material_owner_slot_index=4,
+        preview_sidecar_shader_family="SkinnedMeshStandard_Ver2",
+        preview_material_parameters=(parameter,),
+        preview_material_texture_inputs=(binding,),
+    )
+
+    graph = build_pac_material_graph_v1(source, {})
+
+    assert graph["bindings"][0]["source_reference"] == binding.texture_name
+    assert graph["bindings"][0]["transport_reference"] == binding.source_dds_path
+    assert graph["binding_conservation"]["conserved"] is True
+    assert graph["binding_conservation"]["dropped_parameters"] == []
+
+
 def test_pac_material_graph_classifies_none_texture_sentinels_as_diagnostic() -> None:
     placeholders = (
         PreviewMaterialParameterInput(
@@ -937,7 +1041,7 @@ def test_sword_0014_blade_keeps_gold_layer_graph_without_using_texturelayer_as_a
     assert parameters["_dyeingDetailLayerColorMaskR"]["disposition"] == "baked"
 
 
-def test_sword_0014_color_mask_bakes_silver_field_and_local_gold_without_emissive_as_base() -> None:
+def test_sword_0014_tint_and_scratch_layers_do_not_become_selector_base_dyes() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
 
@@ -1069,20 +1173,20 @@ def test_sword_0014_color_mask_bakes_silver_field_and_local_gold_without_emissiv
         assert "standard_v2_mask" not in combined.decode_modes
         assert "neutral_metal_base_synthesized" in "; ".join(combined.notes)
         assert "albedo synthesized:grime:r,grime:g,grime:b" in "; ".join(combined.notes)
-        assert "pac_color_blending_tint_seed:r,g,b" in "; ".join(combined.notes)
-        assert "pac_color_layers_modulated" in "; ".join(combined.notes)
+        assert "pac_color_blending_tint_seed:r,g,b" not in "; ".join(combined.notes)
+        assert "pac_color_layers_modulated" not in "; ".join(combined.notes)
         albedo = QImage(QUrl(combined.base_source).toLocalFile())
         assert not albedo.isNull()
-        silver = albedo.pixelColor(0, 0)
-        gold_g = albedo.pixelColor(1, 0)
-        gold_b = albedo.pixelColor(2, 0)
+        layer_r = albedo.pixelColor(0, 0)
+        layer_g = albedo.pixelColor(1, 0)
+        layer_b = albedo.pixelColor(2, 0)
         untouched = albedo.pixelColor(3, 0)
-        assert max(silver.red(), silver.green(), silver.blue()) - min(
-            silver.red(), silver.green(), silver.blue()
-        ) <= 20
-        assert silver.red() >= 175
-        assert gold_g.red() - gold_g.blue() >= 45
-        assert gold_b.red() - gold_b.blue() >= 45
+        for layer_color in (layer_r, layer_g, layer_b):
+            assert not (
+                layer_color.red() >= 220
+                and layer_color.blue() >= 220
+                and layer_color.green() <= 40
+            )
         assert max(untouched.red(), untouched.green(), untouched.blue()) - min(
             untouched.red(), untouched.green(), untouched.blue()
         ) <= 12
@@ -1208,7 +1312,9 @@ def test_color_blending_region_owns_detail_layer_and_dye_tint() -> None:
         selected = albedo.pixelColor(0, 0)
         untouched = albedo.pixelColor(1, 0)
         assert selected.blue() - selected.red() >= 35
-        assert untouched.red() - untouched.blue() >= 35
+        assert max(untouched.red(), untouched.green(), untouched.blue()) - min(
+            untouched.red(), untouched.green(), untouched.blue()
+        ) <= 2
         assert "pac_detail_dye_tints_masked" in "; ".join(combined.notes)
 
 
@@ -1260,7 +1366,7 @@ def test_authoritative_pac_detail_opacity_is_not_attenuated_by_property_blend() 
     assert _layer_weight_from_parameters(legacy, has_base=True) == 0.25
 
 
-def test_color_blending_seed_uses_primary_palette_for_neutral_scratch_defaults() -> None:
+def test_color_blending_seed_does_not_promote_tint_or_scratch_colors_to_base_dye() -> None:
     parameters = (
         PreviewMaterialParameterInput(
             parameter_kind="color",
@@ -1306,24 +1412,145 @@ def test_color_blending_seed_uses_primary_palette_for_neutral_scratch_defaults()
 
     selected_mask, tints, palette_source = _authoritative_color_blending_tint_seed((mask,))
 
+    assert selected_mask is None
+    assert tints == ()
+    assert palette_source == ""
+
+
+def test_color_blending_seed_does_not_promote_detail_dyes_to_base_dye() -> None:
+    parameters = tuple(
+        PreviewMaterialParameterInput(
+            parameter_kind="color",
+            parameter_name=f"_dyeingDetailLayerColorMask{channel.upper()}",
+            color_value=(1.0, 0.863, 0.522),
+        )
+        for channel in "rgb"
+    )
+    mask = PreviewMaterialTextureInput(
+        material_name="cd_phm_00_hel_0350",
+        shader_family="SkinnedMeshStandard_Ver2",
+        sidecar_kind="pac_xml",
+        parameter_declared_by="pac_xml",
+        binding_authority="authoritative",
+        material_parameters=parameters,
+        slot_kind="material",
+        parameter_name="_colorBlendingMaskTexture",
+        source_texture_path="character/texture/cd_phm_00_hel_0350_ma.dds",
+        semantic_type="mask",
+        semantic_subtype="material_mask",
+        binding_disposition="layer_only",
+        source_kind="crimson_color_blending_mask",
+    )
+
+    selected_mask, tints, palette_source = _authoritative_color_blending_tint_seed(
+        (mask,)
+    )
+
+    assert selected_mask is None
+    assert tints == ()
+    assert palette_source == ""
+
+
+def test_0350_color_blending_seed_keeps_missing_base_dyes_transparent() -> None:
+    """Real 0350 velvet neck-cloth selector colors.
+
+    The green channel has an explicit red dye while all three channels retain
+    their layer tints. Treating the tint as universally authoritative makes the
+    cloth gold/skin-coloured instead of the icon's red fabric with gold detail.
+    """
+
+    parameters = tuple(
+        PreviewMaterialParameterInput(
+            parameter_kind="color",
+            parameter_name=parameter_name,
+            value=("#ee5f5fff" if parameter_name == "_dyeingColorMaskG" else ""),
+            color_value=color,
+        )
+        for parameter_name, color in (
+            ("_tintColorR", (1.0, 0.792, 0.639)),
+            ("_tintColorG", (1.0, 0.831, 0.333)),
+            ("_tintColorB", (1.0, 0.831, 0.333)),
+            ("_dyeingColorMaskG", (0.933, 0.373, 0.373)),
+        )
+    )
+    mask = PreviewMaterialTextureInput(
+        material_name="cd_phm_00_hel_0350_02",
+        shader_family="SkinnedMeshCloth_Ver2",
+        sidecar_kind="pac_xml",
+        parameter_declared_by="pac_xml",
+        binding_authority="authoritative",
+        material_parameters=parameters,
+        slot_kind="material",
+        parameter_name="_colorBlendingMaskTexture",
+        source_texture_path="character/texture/cd_phm_00_hel_0350_02_ma.dds",
+        semantic_type="mask",
+        semantic_subtype="material_mask",
+        binding_disposition="layer_only",
+        source_kind="crimson_color_blending_mask",
+    )
+
+    selected_mask, tints, palette_source = _authoritative_color_blending_tint_seed(
+        (mask,)
+    )
+
     assert selected_mask is mask
-    assert palette_source == "primary_scratch_fallback"
+    assert palette_source == "sparse_dye"
     assert tints == (
-        (0.902, 0.875, 0.875),
-        (0.784, 0.643, 0.314),
-        (0.784, 0.643, 0.314),
+        (),
+        (0.933, 0.373, 0.373, 1.0),
+        (),
     )
 
 
-def test_color_blending_seed_uses_the_authored_layer_tints_not_the_scratch_accent() -> None:
+def test_color_blending_seed_treats_authored_zero_alpha_dye_as_transparent() -> None:
+    mask = PreviewMaterialTextureInput(
+        material_name="zero-alpha-dye",
+        shader_family="SkinnedMeshCloth_Ver2",
+        sidecar_kind="pac_xml",
+        parameter_declared_by="pac_xml",
+        binding_authority="authoritative",
+        material_parameters=(
+            PreviewMaterialParameterInput(
+                parameter_kind="color",
+                parameter_name="_dyeingColorMaskG",
+                value="#ee5f5f00",
+                color_value=(0.933, 0.373, 0.373),
+            ),
+        ),
+        slot_kind="material",
+        parameter_name="_colorBlendingMaskTexture",
+        semantic_type="mask",
+        semantic_subtype="material_mask",
+        binding_disposition="layer_only",
+        source_kind="crimson_color_blending_mask",
+    )
+
+    assert _authoritative_color_blending_tint_seed((mask,)) == (None, (), "")
+
+
+def test_detail_layer_tint_treats_authored_zero_alpha_dye_as_transparent() -> None:
+    detail = PreviewMaterialTextureInput(
+        layer_role="detail",
+        layer_channel="r",
+        material_parameters=(
+            PreviewMaterialParameterInput(
+                parameter_kind="color",
+                parameter_name="_dyeingDetailLayerColorMaskR",
+                value="#ffd06c00",
+                color_value=(1.0, 0.816, 0.424),
+            ),
+        ),
+    )
+
+    assert _layer_tint(detail) == ()
+
+
+def test_color_blending_seed_does_not_promote_authored_layer_tints() -> None:
     """Real cd_phm_02_sword_0014 blade values.
 
-    This asset is why the preference was inverted. ``_tintColor{R,G,B}`` pairs
-    one-for-one with the ``_grimeDiffuseTexture{R,G,B}`` layers the mask selects
-    and is the surface colour; ``_scratchTintColor{R,G,B}`` is the wear accent
-    for the same channels. Preferring the chromatic scratch palette painted the
-    blade near-white (0.859 grey) and the grip yellow instead of the authored
-    #ae8c54 gold and #625142 brown.
+    ``_tintColor{R,G,B}`` and ``_scratchTintColor{R,G,B}`` remain available to
+    their layer/grime stages. Neither is an opaque base-dye declaration for the
+    RGB selector.
     """
 
     parameters = tuple(
@@ -1370,20 +1597,16 @@ def test_color_blending_seed_uses_the_authored_layer_tints_not_the_scratch_accen
 
     selected_mask, tints, palette_source = _authoritative_color_blending_tint_seed((mask,))
 
-    assert selected_mask is mask
-    assert palette_source == "primary_over_scratch"
-    assert tints == (
-        (0.231, 0.231, 0.231),
-        (0.682, 0.549, 0.329),
-        (0.384, 0.318, 0.259),
-    )
+    assert selected_mask is None
+    assert tints == ()
+    assert palette_source == ""
 
 
 def test_color_blending_seed_skips_an_earlier_non_authoritative_duplicate() -> None:
     parameters = tuple(
         PreviewMaterialParameterInput(
             parameter_kind="color",
-            parameter_name=f"_scratchTintColor{channel.upper()}",
+            parameter_name=f"_dyeingColorMask{channel.upper()}",
             color_value=color,
         )
         for channel, color in zip(
@@ -1413,13 +1636,11 @@ def test_color_blending_seed_skips_an_earlier_non_authoritative_duplicate() -> N
 
     assert selected_mask is authoritative
     assert tints == (
-        (0.8, 0.8, 0.8),
-        (0.7, 0.5, 0.2),
-        (0.6, 0.4, 0.1),
+        (0.8, 0.8, 0.8, 1.0),
+        (0.7, 0.5, 0.2, 1.0),
+        (0.6, 0.4, 0.1, 1.0),
     )
-    # Only _scratchTintColor is declared here, so it is the fallback rather than
-    # the preferred palette; the resolved colours are unchanged.
-    assert palette_source == "primary_scratch_fallback"
+    assert palette_source == "dye"
 
 
 def test_authoritative_layer_key_preserves_owner_slot_zero() -> None:

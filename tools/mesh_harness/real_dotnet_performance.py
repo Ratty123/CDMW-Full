@@ -10,7 +10,11 @@ from tools.mesh_harness.performance_contract import (
     service_performance_heartbeat,
 )
 from tools.mesh_harness.real_dotnet_evidence import _pump_for, _pump_until
-from tools.mesh_harness.win32_input import _host_window_rect, _send_mouse_message
+from tools.mesh_harness.win32_input import (
+    _host_window_rect,
+    _restore_physical_mouse_state,
+    _send_physical_mouse_message as _send_mouse_message,
+)
 
 
 class _PerformanceInteractionDriver:
@@ -190,18 +194,26 @@ class _PerformanceInteractionDriver:
 
     def end(self, interaction: PerformanceInteraction, _sent: int) -> bool:
         if interaction.name == "textured-orbit-pan-zoom":
-            up_ok = _send_mouse_message(self.state.viewport_hwnd, _WM_LBUTTONUP, *self.center)
-            restore_ok = self.tab._send_dotnet_protocol_message(
-                {"event": "tool_state", "tool": "move", "target_mode": "source"}
-            )
-            return bool(up_ok and restore_ok)
+            try:
+                up_ok = _send_mouse_message(self.state.viewport_hwnd, _WM_LBUTTONUP, *self.center)
+                _pump_for(self.state, 0.05)
+                restore_ok = self.tab._send_dotnet_protocol_message(
+                    {"event": "tool_state", "tool": "move", "target_mode": "source"}
+                )
+                return bool(up_ok and restore_ok)
+            finally:
+                _restore_physical_mouse_state()
         if interaction.name == "side-by-side":
-            up_ok = _send_mouse_message(self.state.viewport_hwnd, _WM_LBUTTONUP, *self.center)
-            restore_tool_ok = self.tab._send_dotnet_protocol_message(
-                {"event": "tool_state", "tool": "move", "target_mode": "source"}
-            )
-            restore_scene_ok = self.tab._send_dotnet_scene_state(comparison_mode="replacement_only")
-            return bool(up_ok and restore_tool_ok and restore_scene_ok)
+            try:
+                up_ok = _send_mouse_message(self.state.viewport_hwnd, _WM_LBUTTONUP, *self.center)
+                _pump_for(self.state, 0.05)
+                restore_tool_ok = self.tab._send_dotnet_protocol_message(
+                    {"event": "tool_state", "tool": "move", "target_mode": "source"}
+                )
+                restore_scene_ok = self.tab._send_dotnet_scene_state(comparison_mode="replacement_only")
+                return bool(up_ok and restore_tool_ok and restore_scene_ok)
+            finally:
+                _restore_physical_mouse_state()
         if interaction.name == "wire-vertices-part-highlight":
             return bool(
                 self.tab._send_dotnet_protocol_message(
@@ -213,11 +225,15 @@ class _PerformanceInteractionDriver:
                 )
             )
         if interaction.name == "selection-brush-burst":
-            up_ok = _send_mouse_message(self.state.viewport_hwnd, _WM_LBUTTONUP, *self.center)
-            restore_ok = self.tab._send_dotnet_protocol_message(
-                {"event": "tool_state", "tool": "move", "target_mode": "source"}
-            )
-            return bool(up_ok and restore_ok)
+            try:
+                up_ok = _send_mouse_message(self.state.viewport_hwnd, _WM_LBUTTONUP, *self.center)
+                _pump_for(self.state, 0.05)
+                restore_ok = self.tab._send_dotnet_protocol_message(
+                    {"event": "tool_state", "tool": "move", "target_mode": "source"}
+                )
+                return bool(up_ok and restore_ok)
+            finally:
+                _restore_physical_mouse_state()
         if interaction.name == "material-update":
             final_group = {
                 "source_submesh_indices": [int(self.state.submesh_index)],
@@ -292,7 +308,7 @@ class _PerformanceInteractionDriver:
         service_performance_heartbeat(self.state)
 
     def finish(self, execution: dict[str, object]) -> dict[str, object]:
-        execution["input_backend"] = "scoped_hwnd_messages_plus_correlated_protocol"
+        execution["input_backend"] = "restored_physical_mouse_input"
         execution["final_interaction"] = self.active_name
         _pump_for(self.state, 0.1)
         interaction_events = tuple(self.tab.standalone_dotnet_protocol_events or ())[self.protocol_cursor:]
@@ -332,14 +348,18 @@ def _run_performance_interactions(
     request: PerformanceRequest,
 ) -> dict[str, object]:
     driver = _PerformanceInteractionDriver(state, request)
-    execution = run_performance_interaction_schedule(
-        request,
-        begin=driver.begin,
-        send=driver.send,
-        end=driver.end,
-        service=driver.service,
-    )
-    return driver.finish(execution)
+    try:
+        execution = run_performance_interaction_schedule(
+            request,
+            begin=driver.begin,
+            send=driver.send,
+            end=driver.end,
+            service=driver.service,
+        )
+        return driver.finish(execution)
+    finally:
+        # Covers a schedule abort while a physical stroke is still down.
+        _restore_physical_mouse_state()
 
 
 def _configure_performance_viewport(state: SimpleNamespace, request: PerformanceRequest) -> bool:

@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
+import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import sys
@@ -33,10 +35,12 @@ if legacy_renderer_payloads:
     )
 
 
-def _add_data_if_exists(items, source, destination):
+def _add_data_if_exists(items, source, destination, *, required_release=False):
     path = ROOT / source
     if path.exists():
         items.append((str(path), destination))
+    elif required_release and PROFILE == "release":
+        raise SystemExit(f"Required release data is missing: {path}")
 
 
 def _add_data_tree_if_exists(items, source, destination, *, suffixes=None):
@@ -193,6 +197,115 @@ def _add_native_binary_tree(source, destination, *, required_release=False, suff
         binaries.append((str(path), str(relative_parent)))
 
 
+def _sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_rust_mesh_editor_payload(root, *, required_release=False):
+    expected_files = {
+        "executable": root / "cdmw_mesh_lab.exe",
+        "control_contract": root / "cdmw_mesh_lab.control-contract.json",
+        "manifest": root / "cdmw_mesh_lab.manifest.json",
+    }
+    missing = [path for path in expected_files.values() if not path.is_file()]
+    if missing:
+        if required_release or len(missing) != len(expected_files):
+            rendered = ", ".join(str(path) for path in missing)
+            raise SystemExit(f"Rust Mesh Editor payload is incomplete: {rendered}")
+        return
+
+    try:
+        manifest = json.loads(expected_files["manifest"].read_text(encoding="utf-8"))
+        rust_contract = json.loads(
+            expected_files["control_contract"].read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, ValueError, TypeError) as error:
+        raise SystemExit(f"Rust Mesh Editor payload JSON is unreadable: {error}") from error
+
+    expected_manifest = {
+        "schema": "cdmw_rust_mesh_editor_build_provenance_v1",
+        "renderer": "wgpu_d3d12_rust",
+        "edit_backend": "cdmw_rust_mesh_0.1",
+        "protocol": "cdmw_rust_mesh_editor_protocol_v1",
+        "authoring_package": "cdmw_rust_mesh_authoring_package_v1",
+        "build_profile": NATIVE_CONFIGURATION.lower(),
+        "locked_dependencies": True,
+        "executable": expected_files["executable"].name,
+        "control_contract": expected_files["control_contract"].name,
+        "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
+        "capabilities": ["embedded_child_window_v1"],
+    }
+    mismatches = [
+        f"{field}={manifest.get(field)!r}"
+        for field, expected in expected_manifest.items()
+        if manifest.get(field) != expected
+    ]
+    if mismatches:
+        raise SystemExit(
+            "Rust Mesh Editor manifest fields do not match the packaged payload: "
+            + ", ".join(mismatches)
+        )
+
+    for field in ("source_tree_sha256", "cargo_lock_sha256"):
+        digest = str(manifest.get(field, "")).lower()
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+            raise SystemExit(f"Rust Mesh Editor manifest has an invalid {field}: {digest!r}")
+    for field in ("source_revision", "cargo_version", "rustc_version"):
+        if not str(manifest.get(field, "")).strip():
+            raise SystemExit(f"Rust Mesh Editor manifest is missing {field}.")
+
+    hash_pairs = (
+        ("executable_sha256", expected_files["executable"]),
+        ("control_contract_sha256", expected_files["control_contract"]),
+    )
+    for field, path in hash_pairs:
+        expected_hash = str(manifest.get(field, "")).lower()
+        actual_hash = _sha256(path)
+        if expected_hash != actual_hash:
+            raise SystemExit(
+                f"Rust Mesh Editor {field} does not match {path.name}: "
+                f"manifest={expected_hash!r}, actual={actual_hash!r}"
+            )
+
+    rust_rows = rust_contract.get("rows", ())
+    if (
+        rust_contract.get("ok") is not True
+        or rust_contract.get("schema") != "cdmw_rust_mesh_editor_control_contract_v2"
+        or rust_contract.get("row_count") != len(rust_rows)
+        or not rust_rows
+    ):
+        raise SystemExit(
+            "Rust Mesh Editor packaged control contract is invalid."
+        )
+    seen_keys = set()
+    for row_index, rust_row in enumerate(rust_rows):
+        row_key = str(rust_row.get("key", ""))
+        if not row_key or row_key in seen_keys:
+            raise SystemExit("Rust Mesh Editor packaged control keys are not unique.")
+        seen_keys.add(row_key)
+        if rust_row.get("rust_implemented") is not True:
+            raise SystemExit(
+                f"Rust Mesh Editor packaged row {rust_row.get('key', row_index)!r} "
+                "is not implemented."
+            )
+        if set(rust_row.get("rust_state_feedback", ())) != {
+            "enabled",
+            "disabled",
+            "selected",
+            "hover",
+            "pressed",
+            "failure_reason",
+        }:
+            raise SystemExit(
+                f"Rust Mesh Editor packaged row {rust_row.get('key', row_index)!r} "
+                "does not expose every required UI feedback state."
+            )
+
+
 _add_native_binary(f"native/cd_texture_dx/build/{NATIVE_CONFIGURATION}/cd-texture-dx.exe", "native", required_release=True)
 _add_native_binary(f"native/cdmw_preview_core/build/{NATIVE_CONFIGURATION}/cdmw-preview-core.exe", "native", required_release=True)
 _add_native_binary(
@@ -210,6 +323,32 @@ _add_native_binary_tree(
     # The ABI is collected from its CMake output above, which makes it an
     # explicit release requirement rather than an incidental helper-tree DLL.
     excluded_names={"cdmw-mesh-core.dll"},
+)
+rust_mesh_editor_stage = f"native/rust_mesh_editor/build/{NATIVE_CONFIGURATION}"
+_validate_rust_mesh_editor_payload(
+    ROOT / rust_mesh_editor_stage,
+    required_release=(PROFILE == "release"),
+)
+_add_native_binary(
+    f"{rust_mesh_editor_stage}/cdmw_mesh_lab.exe",
+    "native/rust_mesh_editor",
+    required_release=True,
+)
+for rust_mesh_editor_data in (
+    "cdmw_mesh_lab.manifest.json",
+    "cdmw_mesh_lab.control-contract.json",
+):
+    _add_data_if_exists(
+        datas,
+        f"{rust_mesh_editor_stage}/{rust_mesh_editor_data}",
+        "native/rust_mesh_editor",
+        required_release=True,
+    )
+_add_data_if_exists(
+    datas,
+    "tools/rust_mesh_lab/THIRD_PARTY_NOTICES.md",
+    "native/rust_mesh_editor",
+    required_release=True,
 )
 _add_native_binary_tree(
     f"native/cdmw_full_archive_backend/build/{NATIVE_CONFIGURATION}",

@@ -609,6 +609,7 @@ class NativeTextureBackendTests(unittest.TestCase):
             output_a = root / "out" / "a.dds"
             output_b = root / "out" / "b.dds"
             run_commands = []
+            run_jobs = []
 
             def fake_run(command, **_kwargs):
                 run_commands.append(command)
@@ -617,6 +618,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                 job = json.loads(job_path.read_text(encoding="utf-8"))
                 self.assertEqual(2, job["version"])
                 self.assertEqual("directxtex_native_0.2", job["backend"])
+                run_jobs.extend(job["jobs"])
                 items = []
                 for item in job["jobs"]:
                     output = Path(item["output"])
@@ -650,6 +652,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                                 "width": 256,
                                 "height": 256,
                                 "mip_count": 4,
+                                "source_color_policy": "assume_srgb",
                             },
                             {
                                 "png_path": str(png_b),
@@ -664,6 +667,10 @@ class NativeTextureBackendTests(unittest.TestCase):
 
             self.assertEqual(1, len(run_commands))
             self.assertEqual({"batch-encode-json"}, {Path(run_commands[0][1]).name})
+            self.assertEqual(
+                ["assume_srgb", "auto"],
+                [job["source_color_policy"] for job in run_jobs],
+            )
             self.assertFalse(Path(run_commands[0][2]).parent.exists())
             self.assertEqual({str(output_a.resolve()), str(output_b.resolve())}, set(results))
             self.assertEqual("BC7_UNORM", results[str(output_a.resolve())]["format"])

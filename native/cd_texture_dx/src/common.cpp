@@ -456,11 +456,17 @@ bool json_parser_self_test() {
                 "mip_alpha_policy": "preserve_coverage",
                 "alpha_coverage_reference": 0.25,
                 "dds_alpha_mode": "straight"
+            },
+            {
+                "input": "C:\\source\\generated-base.png",
+                "output": "C:\\output\\generated-base.dds",
+                "format": "BC7_UNORM_SRGB",
+                "source_color_policy": "assume_srgb"
             }
         ]
     })json";
     const std::vector<EncodeJob> encodes = parse_encode_jobs(encode_json);
-    return encodes.size() == 1 &&
+    return encodes.size() == 2 &&
         wide_to_utf8(encodes[0].input) == "C:\\source\\a\"b.png" &&
         wide_to_utf8(encodes[0].output) == "C:\\output\\a.dds" &&
         encodes[0].format == "BC7_UNORM" &&
@@ -469,7 +475,11 @@ bool json_parser_self_test() {
         encodes[0].source_color_policy == "ignore_srgb_metadata" &&
         encodes[0].mip_alpha_policy == "preserve_coverage" &&
         std::abs(encodes[0].alpha_coverage_reference - 0.25f) < 0.001f &&
-        encodes[0].dds_alpha_mode == "straight";
+        encodes[0].dds_alpha_mode == "straight" &&
+        wide_to_utf8(encodes[1].input) == "C:\\source\\generated-base.png" &&
+        wide_to_utf8(encodes[1].output) == "C:\\output\\generated-base.dds" &&
+        encodes[1].format == "BC7_UNORM_SRGB" &&
+        encodes[1].source_color_policy == "assume_srgb";
 }
 
 static std::string upper_copy(std::string value) {

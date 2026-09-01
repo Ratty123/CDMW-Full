@@ -117,8 +117,62 @@ internal static class ResidentMutationBatchContractSmoke
         TestTopology(gates);
         TestAuthority(gates);
         TestIdempotency(gates);
+        TestPrelatchedRevisionBootstrap(gates);
         return gates;
     }
+
+    private static void TestPrelatchedRevisionBootstrap(Dictionary<string, bool> gates)
+    {
+        var initialized = false;
+        var appliedRevision = 0L;
+        var firstPacketAdopted = ExperimentForm.TryAdoptAuthoritativeResidentRevision(
+            ref initialized,
+            ref appliedRevision,
+            authoritativeRevision: 1);
+        var repeatedPacketIgnored = !ExperimentForm.TryAdoptAuthoritativeResidentRevision(
+            ref initialized,
+            ref appliedRevision,
+            authoritativeRevision: 9);
+
+        var firstSelect = AuthorityPayload(baseRevision: 1, targetRevision: 2, requestId: 101);
+        var firstAccepted = ExperimentForm.ResidentMutationAuthorityReason(
+            firstSelect,
+            "mesh-session",
+            currentProcessGeneration: 7,
+            currentRevision: appliedRevision).Length == 0;
+        if (firstAccepted)
+        {
+            appliedRevision = 2;
+        }
+
+        var secondBrush = AuthorityPayload(baseRevision: 2, targetRevision: 3, requestId: 102);
+        var secondAccepted = ExperimentForm.ResidentMutationAuthorityReason(
+            secondBrush,
+            "mesh-session",
+            currentProcessGeneration: 7,
+            currentRevision: appliedRevision).Length == 0;
+        if (secondAccepted)
+        {
+            appliedRevision = 3;
+        }
+
+        gates["prelatched_revision_bootstrap_select_then_brush"] = firstPacketAdopted
+            && repeatedPacketIgnored
+            && firstAccepted
+            && secondAccepted
+            && appliedRevision == 3;
+    }
+
+    private static JsonElement AuthorityPayload(long baseRevision, long targetRevision, long requestId) =>
+        JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+        {
+            ["session_id"] = "mesh-session",
+            ["process_generation"] = 7,
+            ["request_id"] = requestId,
+            ["base_revision"] = baseRevision,
+            ["target_revision"] = targetRevision,
+            ["protocol_version"] = 3,
+        });
 
     private static void TestTopology(Dictionary<string, bool> gates)
     {

@@ -74,6 +74,33 @@ internal sealed unsafe class NativeMeshInteractionSession : IDisposable
     internal NativeMeshInteractionResult Begin(NativeMeshInteractionGestureRequest value) =>
         InvokeGesture(value, GestureCall.Begin);
 
+    internal NativeMeshInteractionResult PrepareSnapshot(
+        NativeMeshInteractionPrepareSnapshotRequest value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        NativeMeshInteractionPrepareSnapshotV1 request;
+        lock (_callGate)
+        {
+            EnsureOpen();
+            request = new NativeMeshInteractionPrepareSnapshotV1
+            {
+                StructSize = NativeMeshInteractionMarshaller.SizeOf<NativeMeshInteractionPrepareSnapshotV1>(),
+                StructVersion = NativeMeshInteractionAbi.AbiVersion,
+                SessionHandle = SessionHandle,
+                MeshRevision = value.MeshRevision,
+                SelectionRevision = value.SelectionRevision,
+                TopologyGeneration = value.TopologyGeneration,
+                CameraRevision = value.CameraRevision,
+                ViewportRevision = value.ViewportRevision,
+                VisiblePartsRevision = value.VisiblePartsRevision,
+                ModelTransformRevision = value.ModelTransformRevision,
+                XRay = value.XRay ? 1u : 0u,
+            };
+        }
+        var buffer = new NativeMeshInteractionResultBuffer(0, 0);
+        return _owner.PrepareSnapshot(ref request, buffer);
+    }
+
     internal NativeMeshInteractionResult Update(NativeMeshInteractionGestureRequest value) =>
         InvokeGesture(value, GestureCall.Update);
 

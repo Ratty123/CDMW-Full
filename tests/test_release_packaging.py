@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -296,14 +297,22 @@ def test_windows_workflow_keeps_ordinary_main_pushes_fast() -> None:
     """A normal push must not spend an hour rerunning release-grade QA."""
 
     source = WORKFLOW.read_text(encoding="utf-8")
+    helper_start = source.index("- name: Build the Mesh Editor helper for canonical QA")
     fast_start = source.index("- name: Run fast main-push validation")
     canonical_start = source.index("- name: Run canonical nonvisual QA")
     package_start = source.index("  package:", canonical_start)
+    helper_step = source[helper_start:fast_start]
     fast_step = source[fast_start:canonical_start]
     canonical_step = source[canonical_start:package_start]
 
+    assert (
+        "if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')"
+        in helper_step
+    )
     assert "if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')" in fast_step
     assert "codex_check.ps1 -Area smoke" in fast_step
+    assert "codex_check.ps1 -Area mesh-contract" in fast_step
+    assert "codex_check.ps1 -Area mesh-unit" not in fast_step
     assert "codex_check.ps1 -Area full" not in fast_step
     assert (
         "if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')"
@@ -311,9 +320,32 @@ def test_windows_workflow_keeps_ordinary_main_pushes_fast() -> None:
     )
     assert "codex_check.ps1 -Area full" in canonical_step
     assert "codex_check.ps1 -Area smoke" not in canonical_step
+    assert "codex_check.ps1 -Area mesh-contract" not in canonical_step
     assert "$nativeAccessViolation" not in canonical_step
     assert "for ($attempt = 1; $attempt -le 3; $attempt++)" not in canonical_step
     assert "retrying the same full one-process suite" not in canonical_step
+
+
+def test_codex_check_keeps_smoke_build_free_and_splits_mesh_contracts() -> None:
+    source = (ROOT / "scripts" / "codex_check.ps1").read_text(encoding="utf-8")
+    smoke_start = source.index("    smoke = @(")
+    smoke_end = source.index("    )", smoke_start)
+    contract_start = source.index('    "mesh-contract" = @(')
+    contract_end = source.index("    )", contract_start)
+    native_start = source.index('    "mesh-native" = @(')
+    native_end = source.index("    )", native_start)
+
+    smoke = source[smoke_start:smoke_end]
+    contract = source[contract_start:contract_end]
+    native = source[native_start:native_end]
+    assert "test_dotnet_resident_mutation_batch_contract.py" not in smoke
+    assert "test_dotnet_resident_mutation_batch_contract.py" in contract
+    assert "test_dotnet_mesh_editor_control_contract.py" in contract
+    assert "test_native_mesh_interaction_abi.py" in native
+    assert "test_dotnet_native_mesh_interaction_abi.py" in native
+    assert '$NeedsDotNetHelper = $Area -in @("mesh-contract", "mesh-native", "mesh-unit")' in source
+    assert '$NeedsMeshCore = $Area -in @("mesh-native", "mesh-unit")' in source
+    assert '$Area -in @("smoke", "mesh-unit")' not in source
 
 
 def test_windows_workflow_uses_only_approved_action_commit_shas() -> None:
@@ -344,17 +376,71 @@ def test_packaged_startup_result_readback_requires_post_construction(tmp_path: P
     # resolved, and the verifier rejects a result without it. These fixtures
     # carry the same shape a real run writes so this test keeps proving the
     # stage/target/pid readback rather than tripping over that newer section.
-    resolved_helpers = (
-        '"bundled_helpers":['
-        '{"key":"openimageio","status":"available","source":"bundled_lookup","path":"oiio"},'
-        '{"key":"cdmw_mesh_core","status":"available","source":"bundled_lookup","path":"mesh"}]'
-    )
+    resolved_helpers = [
+        {"key": "openimageio", "status": "available", "source": "bundled_lookup", "path": "oiio"},
+        {"key": "cdmw_mesh_core", "status": "available", "source": "bundled_lookup", "path": "mesh"},
+    ]
+    rust_editor = {
+        "schema": "cdmw_packaged_rust_mesh_editor_v1",
+        "status": "available",
+        "reason": "",
+        "source": "frozen",
+        "frozen": True,
+        "path": "C:/Temp/payload/native/rust_mesh_editor/cdmw_mesh_lab.exe",
+        "relative_path": "native/rust_mesh_editor/cdmw_mesh_lab.exe",
+        "inside_bundle_root": True,
+        "executable_sha256": "a" * 64,
+        "provenance_path": "C:/Temp/payload/native/rust_mesh_editor/cdmw_mesh_lab.manifest.json",
+        "provenance_relative_path": "native/rust_mesh_editor/cdmw_mesh_lab.manifest.json",
+        "provenance_inside_bundle_root": True,
+        "provenance_sha256": "b" * 64,
+        "provenance": {
+            "schema": "cdmw_rust_mesh_editor_build_provenance_v1",
+            "renderer": "wgpu_d3d12_rust",
+            "edit_backend": "cdmw_rust_mesh_0.1",
+            "protocol": "cdmw_rust_mesh_editor_protocol_v1",
+            "authoring_package": "cdmw_rust_mesh_authoring_package_v1",
+            "build_profile": "release",
+            "locked_dependencies": True,
+            "executable": "cdmw_mesh_lab.exe",
+            "control_contract": "cdmw_mesh_lab.control-contract.json",
+            "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
+            "capabilities": ["embedded_child_window_v1"],
+            "source_revision": "c" * 40,
+            "source_tree_sha256": "d" * 64,
+            "cargo_lock_sha256": "e" * 64,
+            "executable_sha256": "a" * 64,
+            "control_contract_sha256": "f" * 64,
+            "cargo_version": "cargo 1.88.0",
+            "rustc_version": "rustc 1.88.0",
+        },
+    }
     valid.write_text(
-        '{"ok":true,"pid":42,"stage":"post_construction","target":"default",' + resolved_helpers + "}\n",
+        json.dumps(
+            {
+                "ok": True,
+                "pid": 42,
+                "stage": "post_construction",
+                "target": "default",
+                "bundled_helpers": resolved_helpers,
+                "rust_mesh_editor": rust_editor,
+            }
+        )
+        + "\n",
         encoding="utf-8",
     )
     builder.write_text(
-        '{"ok":true,"pid":43,"stage":"post_construction","target":"mesh_builder",' + resolved_helpers + "}\n",
+        json.dumps(
+            {
+                "ok": True,
+                "pid": 43,
+                "stage": "post_construction",
+                "target": "mesh_builder",
+                "bundled_helpers": resolved_helpers,
+                "rust_mesh_editor": rust_editor,
+            }
+        )
+        + "\n",
         encoding="utf-8",
     )
     # Left without the section on purpose: the stage check runs first, so this

@@ -12,6 +12,7 @@ from cdmw.ui.shell.settings_bridge import read_bool_setting
 from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
 from cdmw.services.mesh_service_resident_transaction import (
     RESIDENT_INTERACTION_FORMAT_VERSION,
+    RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION,
     RESIDENT_INTERACTION_MAPPING_PREFIX,
 )
 
@@ -46,9 +47,16 @@ _RESIDENT_INTERACTION_DESCRIPTOR_FIELDS = (
     "sha256",
     "session_id",
     "gesture_id",
+    "transaction_sequence",
+    "tool",
     "base_revision",
+    "target_revision",
     "base_selection_revision",
+    "target_selection_revision",
     "topology_generation",
+    "request_id",
+    "process_generation",
+    "helper_process_id",
     "format_version",
 )
 
@@ -58,7 +66,28 @@ def _resident_interaction_descriptor(payload: Mapping[str, object]) -> dict[str,
     mapping_name = str(descriptor["mapping_name"] or "")
     suffix = mapping_name.removeprefix(RESIDENT_INTERACTION_MAPPING_PREFIX)
     sha256 = str(descriptor["sha256"] or "")
-    integer_fields = _RESIDENT_INTERACTION_DESCRIPTOR_FIELDS[4:]
+    format_version = descriptor["format_version"]
+    if type(format_version) is not int:
+        raise ValueError("Invalid resident interaction transaction descriptor.")
+    required_names = {
+        "gesture_id",
+        "base_revision",
+        "base_selection_revision",
+        "topology_generation",
+        "format_version",
+    }
+    if int(format_version) == RESIDENT_INTERACTION_FORMAT_VERSION:
+        required_names.update(
+            {
+                "transaction_sequence",
+                "tool",
+                "target_revision",
+                "target_selection_revision",
+                "request_id",
+                "process_generation",
+                "helper_process_id",
+            }
+        )
     if (
         not mapping_name.startswith(RESIDENT_INTERACTION_MAPPING_PREFIX)
         or len(suffix) != 32
@@ -66,16 +95,43 @@ def _resident_interaction_descriptor(payload: Mapping[str, object]) -> dict[str,
         or len(sha256) != 64
         or any(character not in string.hexdigits for character in sha256)
         or not str(descriptor["session_id"] or "")
-        or any(type(descriptor[name]) is not int for name in integer_fields)
+        or any(type(descriptor[name]) is not int for name in required_names)
         or type(descriptor["length"]) is not int
         or int(descriptor["length"] or 0) <= 0
         or int(descriptor["gesture_id"] or 0) <= 0
-        or int(descriptor["format_version"] or 0) != RESIDENT_INTERACTION_FORMAT_VERSION
+        or int(descriptor["format_version"] or 0) not in {
+            RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION,
+            RESIDENT_INTERACTION_FORMAT_VERSION,
+        }
+        or (
+            int(descriptor["format_version"] or 0) == RESIDENT_INTERACTION_FORMAT_VERSION
+            and (
+                int(descriptor["transaction_sequence"] or 0) <= 0
+                or int(descriptor["request_id"] or 0) <= 0
+                or int(descriptor["process_generation"] or 0) <= 0
+                or int(descriptor["helper_process_id"] or 0) <= 0
+            )
+        )
     ):
         raise ValueError("Invalid resident interaction transaction descriptor.")
     descriptor["mapping_name"] = mapping_name
     descriptor["sha256"] = sha256.lower()
     descriptor["session_id"] = str(descriptor["session_id"])
+    if int(format_version) == RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION:
+        descriptor = {
+            name: descriptor[name]
+            for name in (
+                "mapping_name",
+                "length",
+                "sha256",
+                "session_id",
+                "gesture_id",
+                "base_revision",
+                "base_selection_revision",
+                "topology_generation",
+                "format_version",
+            )
+        }
     return descriptor
 
 
@@ -88,8 +144,6 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
         if controller is None:
             self._reject_dotnet_request_without_session("resident_interaction", payload)
             return False
-        if self._reject_dotnet_mutation_while_busy("resident_interaction", payload):
-            return True
         try:
             descriptor = _resident_interaction_descriptor(payload)
             command = _tab.MeshEditCommand(
@@ -114,6 +168,9 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
             base_revision=int(descriptor["base_revision"]),
             transaction_bytes=int(descriptor["length"]),
         )
+        enqueue = getattr(self, "_enqueue_dotnet_resident_interaction", None)
+        if callable(enqueue):
+            return bool(enqueue(controller, command, request_payload=payload))
         return self._start_dotnet_action_worker(
             controller,
             command,

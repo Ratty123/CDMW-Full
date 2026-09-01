@@ -7,7 +7,16 @@ import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+pytestmark = pytest.mark.skip(
+    reason=(
+        "The resident Vortice Mesh Editor material UI is retired; Archive Preview "
+        "and the Rust material handoff have separate production coverage."
+    )
+)
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication

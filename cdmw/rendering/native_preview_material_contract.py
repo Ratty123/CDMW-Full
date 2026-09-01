@@ -1186,6 +1186,44 @@ def _batch_has_authoritative_pac_material_graph(batch: PreparedModelPreviewBatch
 
 def sidecar_preview_texture_tint_for_batch(batch: PreparedModelPreviewBatch, *, source_path: object = "") -> Tuple[float, float, float]:
     descriptor = _material_input_descriptor(batch)
+    # Hair dye is an unsuffixed whole-surface PAC parameter, unlike the
+    # channel-qualified equipment dye masks handled by the layer compositor.
+    # Rust snapshots keep a shared parameter table on the source batch, so
+    # inspect both that table and any input-local override before applying the
+    # usual equipment/flag tint gate.
+    parameter_groups = [
+        tuple(getattr(batch, "preview_material_parameters", ()) or ())
+    ]
+    parameter_groups.extend(
+        tuple(getattr(texture_input, "material_parameters", ()) or ())
+        for texture_input in tuple(
+            getattr(batch, "preview_material_texture_inputs", ()) or ()
+        )
+        if isinstance(texture_input, PreviewMaterialTextureInput)
+    )
+    if (
+        _batch_has_authoritative_pac_material_graph(batch)
+        and _material_contract_shader_family(batch) == "hair"
+    ):
+        for parameters in parameter_groups:
+            for parameter in parameters:
+                if (
+                    _normalized_material_key(
+                        getattr(parameter, "parameter_name", "")
+                    )
+                    != "hairdyeingcolor"
+                ):
+                    continue
+                color = tuple(
+                    _safe_float(value, 1.0)
+                    for value in tuple(
+                        getattr(parameter, "color_value", ()) or ()
+                    )[:3]
+                )
+                if len(color) >= 3:
+                    return tuple(
+                        max(0.0, min(1.35, float(value))) for value in color
+                    )
     if not _descriptor_prefers_sidecar_tint(source_path, descriptor):
         return ()
     if _batch_weapon_masked_base_tint_should_stay_masked(batch, source_path=source_path):
@@ -1375,6 +1413,115 @@ def _descriptor_has_mixed_soft_accessory(value: object) -> bool:
     )
 
 
+def resolve_material_identity_category(
+    *,
+    shader_family: object = "",
+    source_path: object = "",
+    material_name: object = "",
+    preview_role: object = "",
+    part_name: object = "",
+    texture_name: object = "",
+    explicit_metalness: bool = False,
+) -> Tuple[str, float, str]:
+    """Classify only strong material identity evidence shared by all previews.
+
+    This deliberately excludes scalar guesses and decoded pixel statistics.
+    Those remain later-stage evidence.  It makes exact PAC part/material names
+    resolve identically in Archive Browser, the .NET package, and Rust.
+    """
+
+    family = normalize_shader_family(shader_family)
+    if family == "skin":
+        return "skin", 0.90, "nonmetal:skin_token"
+    if family == "hair":
+        return "hair", 0.90, "nonmetal:hair_token"
+    if family in {"cloth", "cloth_v2"}:
+        return "cloth", 0.84, "nonmetal:cloth_token"
+
+    normalized_source_path = str(source_path or "").replace("\\", "/").lower()
+    local_descriptor = " ".join(
+        str(value or "").replace("\\", "/")
+        for value in (material_name, preview_role, part_name)
+        if str(value or "").strip()
+    ).lower()
+    local_apparel_descriptor = " ".join(
+        str(value or "").replace("\\", "/")
+        for value in (material_name, part_name, texture_name)
+        if str(value or "").strip()
+    ).lower()
+    if (
+        family in {"standard", "standard_v2"}
+        and "/nude/" in normalized_source_path
+        and any(
+            _descriptor_contains_token(local_descriptor, token)
+            for token in ("head", "hand", "body", "nude")
+        )
+    ):
+        # Some nude PACs retain same-name Standard fallback wrappers beside
+        # their Skin wrappers.  The exact nude path plus a local anatomical
+        # identity is strong enough to preserve skin response without making
+        # unrelated Standard head/body materials skin.
+        return "skin", 0.86, "nonmetal:skin_token"
+
+    descriptor = " ".join(
+        str(value or "").replace("\\", "/")
+        for value in (source_path, local_descriptor, texture_name)
+        if str(value or "").strip()
+    ).lower()
+    local_strong_nonmetal = _descriptor_has_local_strong_nonmetal_token(
+        local_descriptor
+    )
+    if (
+        any(
+            _descriptor_contains_token(local_descriptor, token)
+            for token in (
+                "metal",
+                "steel",
+                "iron",
+                "blade",
+                "guard",
+                "hilt",
+                "pommel",
+                "plate",
+                "silver",
+                "gold",
+                "copper",
+                "bronze",
+                "brass",
+                "chrome",
+            )
+        )
+        and not local_strong_nonmetal
+    ):
+        return (
+            "metal",
+            0.90 if explicit_metalness else 0.78,
+            "metal:material_or_part_token",
+        )
+    if _descriptor_has_mixed_soft_accessory(local_descriptor):
+        return "generic", 0.72, "generic:mixed_soft_accessory_token"
+
+    for category, tokens, confidence, reason_prefix in (
+        ("leather", ("leather", "hide", "strap", "belt", "grip", "wrap", "handle"), 0.72, "nonmetal"),
+        ("wood", ("wood", "timber", "stick", "shaft", "haft"), 0.72, "nonmetal"),
+        ("glass", ("glass", "crystal"), 0.72, "glossy_nonmetal"),
+        ("gem", ("gem", "jewel", "diamond", "ruby", "sapphire", "emerald"), 0.72, "glossy_nonmetal"),
+        ("stone", ("stone", "rock", "ceramic"), 0.72, "nonmetal"),
+        ("eye", ("eye", "iris", "pupil", "cornea"), 0.76, "glossy_nonmetal"),
+        ("tooth", ("tooth", "teeth"), 0.76, "nonmetal"),
+        ("hair", ("hair", "fur", "beard", "brow", "eyebrow", "lash", "eyelash"), 0.76, "nonmetal"),
+    ):
+        if any(_descriptor_contains_token(descriptor, token) for token in tokens):
+            return category, confidence, f"{reason_prefix}:{category}_token"
+
+    if (
+        _descriptor_has_apparel_cloth_slot(local_apparel_descriptor)
+        and not _descriptor_has_structural_metal_slot(local_descriptor)
+    ):
+        return "cloth", 0.72, "nonmetal:apparel_slot_token"
+    return "generic", 0.35, "generic:no_strong_material_token"
+
+
 def _resolved_batch_material_category(
     batch: PreparedModelPreviewBatch,
     *,
@@ -1385,12 +1532,19 @@ def _resolved_batch_material_category(
     source_path: object = "",
 ) -> Tuple[str, float]:
     family = str(material_contract.get("shader_family", "") or "").strip().lower()
-    if family == "skin":
-        return "skin", 0.90
-    if family == "hair":
-        return "hair", 0.90
-    if family in {"cloth", "cloth_v2"}:
-        return "cloth", 0.84
+    identity_category, identity_confidence, _identity_reason = (
+        resolve_material_identity_category(
+            shader_family=family,
+            source_path=source_path,
+            material_name=getattr(batch, "material_name", ""),
+            preview_role=getattr(batch, "preview_role", ""),
+            part_name=getattr(batch, "name", ""),
+            texture_name=getattr(batch, "texture_name", ""),
+            explicit_metalness=_batch_has_explicit_metalness_slot(batch),
+        )
+    )
+    if identity_category != "generic" or identity_confidence > 0.35:
+        return identity_category, identity_confidence
 
     descriptor = _material_input_descriptor(batch)
     local_descriptor = " ".join(
@@ -1509,7 +1663,7 @@ def _resolved_batch_material_category(
 
     packed_text = " ".join(str(value or "") for value in tuple(material_contract.get("packed_channels", ()) or ())).lower()
     apparel_cloth_descriptor = (
-        _descriptor_has_apparel_cloth_slot(" ".join((str(source_path or ""), descriptor, local_descriptor)))
+        _descriptor_has_apparel_cloth_slot(descriptor)
         and not _descriptor_has_structural_metal_slot(local_descriptor)
     )
 
@@ -1959,6 +2113,7 @@ __all__ = [
     "_resolved_batch_material_category",
     "_resolved_batch_material_category_reason",
     "_resolved_batch_material_finish",
+    "resolve_material_identity_category",
     "_sanitize_nonfile_manifest_source_paths",
     "sidecar_preview_texture_tint_for_batch",
     "_slot_has_resolved_texture",

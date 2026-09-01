@@ -816,6 +816,31 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         command_name: str = "",
         request_payload: Mapping[str, object] | None = None,
     ) -> bool:
+        resident_history = bool(
+            isinstance(request_payload, Mapping)
+            and str(request_payload.get("event", "") or "").strip().lower()
+            == "resident_interaction_transaction"
+        )
+        if resident_history:
+            if self.standalone_dotnet_target_embedded:
+                self._commit_embedded_edit_result(
+                    result,
+                    command_name=command_name,
+                    request_payload=request_payload,
+                    resident_history=True,
+                )
+                self._refresh_embedded_workspace_from_builder(include_derived=True)
+            view = controller.session_view()
+            return self._send_dotnet_resident_interaction_commit_ack(
+                request_payload,
+                status=(
+                    "rejected"
+                    if str(result.status or "").strip().lower() == "error"
+                    else "applied"
+                ),
+                session_view=view,
+                diagnostics=tuple(result.diagnostics or ()),
+            )
         try:
             update = controller.native_update_for_result(result)
         except Exception as exc:
@@ -832,11 +857,6 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "select",
             "clear_selection",
         }
-        resident_history = bool(
-            isinstance(request_payload, Mapping)
-            and str(request_payload.get("event", "") or "").strip().lower()
-            == "resident_interaction_transaction"
-        )
         has_update_payload = bool(
             update.vertex_groups
             or update.triangle_groups
@@ -900,3 +920,87 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         if refresh_morph_state and not has_update_payload:
             self._send_dotnet_cached_morph_state(request_payload=request_payload)
         return str(result.status or "").strip().lower() != "error"
+
+    def _send_dotnet_resident_interaction_commit_ack(
+        self,
+        request_payload: Mapping[str, object],
+        *,
+        status: str,
+        session_view: _tab.MeshEditSessionView | None = None,
+        diagnostics: tuple[str, ...] = (),
+    ) -> bool:
+        normalized_status = str(status or "rejected").strip().lower()
+        if session_view is None:
+            controller = self._dotnet_target_controller()
+            if controller is not None and controller.active_session_id:
+                try:
+                    session_view = controller.session_view()
+                except (KeyError, RuntimeError, ValueError):
+                    session_view = None
+        history_entries = []
+        if session_view is not None:
+            history_entries = [
+                {
+                    "action": entry.action,
+                    "label": entry.label,
+                    "state": entry.state,
+                }
+                for entry in session_view.history_entries
+            ]
+        payload: dict[str, object] = {
+            "event": "resident_interaction_commit_ack",
+            "status": "applied" if normalized_status == "applied" else "rejected",
+            "session_id": str(request_payload.get("session_id", "") or ""),
+            "process_generation": int(request_payload.get("process_generation", 0) or 0),
+            "helper_process_id": int(request_payload.get("helper_process_id", 0) or 0),
+            "request_id": int(request_payload.get("request_id", 0) or 0),
+            "gesture_id": int(request_payload.get("gesture_id", 0) or 0),
+            "transaction_sequence": int(
+                request_payload.get("transaction_sequence", 0) or 0
+            ),
+            "sha256": str(request_payload.get("sha256", "") or "").lower(),
+            "base_revision": int(request_payload.get("base_revision", 0) or 0),
+            "target_revision": int(request_payload.get("target_revision", 0) or 0),
+            "base_selection_revision": int(
+                request_payload.get("base_selection_revision", 0) or 0
+            ),
+            "target_selection_revision": int(
+                request_payload.get("target_selection_revision", 0) or 0
+            ),
+            "topology_generation": int(
+                request_payload.get("topology_generation", 0) or 0
+            ),
+            "durable_revision": (
+                session_view.resident_revision if session_view is not None else 0
+            ),
+            "durable_selection_revision": (
+                session_view.selection_revision if session_view is not None else 0
+            ),
+            "durable_topology_generation": (
+                session_view.topology_generation if session_view is not None else 0
+            ),
+            "undo_count": session_view.undo_count if session_view is not None else 0,
+            "redo_count": session_view.redo_count if session_view is not None else 0,
+            "history_cursor": session_view.history_cursor if session_view is not None else 0,
+            "history_entries": history_entries,
+            "diagnostics": [str(item) for item in diagnostics if str(item)],
+        }
+        sent = self._send_dotnet_protocol_message(payload)
+        if sent:
+            if payload["status"] == "applied" and session_view is not None:
+                # The helper already committed this immutable transaction
+                # locally. Advance the host-originated mutation lane to the
+                # same renderer watermark so the next topology/material/UV
+                # batch starts from the revision the helper actually owns.
+                self.standalone_dotnet_update_queue.set_context(
+                    session_id=str(payload["session_id"]),
+                    process_generation=int(payload["process_generation"]),
+                    renderer_revision=int(payload["durable_revision"]),
+                )
+            self._set_dotnet_status(
+                "Mesh edits synchronized."
+                if payload["status"] == "applied"
+                else "Mesh edit sync was rejected; restoring the durable state.",
+                error=payload["status"] != "applied",
+            )
+        return bool(sent)

@@ -33,6 +33,14 @@ internal static class Program
             {
                 return MaterialResourcePolicyProbe.Run(args);
             }
+            if (MaterialLayerCompositeExport.IsRequested(args))
+            {
+                return MaterialLayerCompositeExport.Run(args);
+            }
+            if (MaterialLayerCompilerSizingProof.IsRequested(args))
+            {
+                return MaterialLayerCompilerSizingProof.Run();
+            }
             if (CaptureCameraParityProof.IsRequested(args))
             {
                 return CaptureCameraParityProof.Run(args);
@@ -183,6 +191,8 @@ internal static class Program
             || string.Equals(arg, "--capture-package", StringComparison.OrdinalIgnoreCase)
             || string.Equals(arg, "--visual-audit-batch", StringComparison.OrdinalIgnoreCase)
             || string.Equals(arg, "--material-resource-policy-report", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--export-material-layer-composites", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--material-layer-compiler-sizing-proof", StringComparison.OrdinalIgnoreCase)
             || string.Equals(arg, "--helper-provenance-report", StringComparison.OrdinalIgnoreCase));
         if (!suppressDialog)
         {

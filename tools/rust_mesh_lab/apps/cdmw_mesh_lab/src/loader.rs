@@ -42,7 +42,7 @@ pub struct LoadedSkeleton {
     pub archive_compression: Option<CompressionOutcome>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LoadedTexture {
     pub label: String,
     pub metadata: DdsMetadata,
@@ -73,9 +73,13 @@ pub struct LoadedMaterialFactors {
     pub metalness: Option<f32>,
     pub specular: Option<f32>,
     pub height_scale: Option<f32>,
+    pub texture_tint: Option<[f32; 3]>,
+    pub base_tint_strength: Option<f32>,
     pub alpha_cutoff: Option<f32>,
     pub hair_anisotropy: Option<bool>,
     pub layer_mask_channel: Option<u32>,
+    pub skin_detail_scale: Option<f32>,
+    pub skin_detail_opacity: Option<f32>,
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
@@ -1512,9 +1516,13 @@ fn resolve_material_parameters(
                     metalness: metalness.map(f32::from_bits),
                     specular: specular.map(f32::from_bits),
                     height_scale: height_scale.map(f32::from_bits),
+                    texture_tint: None,
+                    base_tint_strength: None,
                     alpha_cutoff: alpha_cutoff.map(f32::from_bits),
                     hair_anisotropy,
                     layer_mask_channel,
+                    skin_detail_scale: None,
+                    skin_detail_opacity: None,
                     material_indices_by_lod: ownership,
                 }
             },
@@ -1825,6 +1833,9 @@ const fn is_preview_sampled_role(role: TextureRole) -> bool {
             | TextureRole::Height
             | TextureRole::Flow
             | TextureRole::LayerMask
+            | TextureRole::SkinDetailMask
+            | TextureRole::SkinDetailNormal
+            | TextureRole::SkinDetailMaterial
     )
 }
 
@@ -2150,6 +2161,9 @@ fn relation_kind(role: TextureRole) -> RelationKind {
         TextureRole::Height => RelationKind::HeightTexture,
         TextureRole::Flow => RelationKind::FlowTexture,
         TextureRole::LayerMask => RelationKind::LayerMaskTexture,
+        TextureRole::SkinDetailMask => RelationKind::LayerMaskTexture,
+        TextureRole::SkinDetailNormal => RelationKind::NormalTexture,
+        TextureRole::SkinDetailMaterial => RelationKind::MaterialTexture,
         TextureRole::Unknown => RelationKind::Companion,
     }
 }

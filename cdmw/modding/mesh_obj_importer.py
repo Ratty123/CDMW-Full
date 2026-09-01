@@ -36,8 +36,17 @@ def _obj_roundtrip_sidecar_candidates(obj_path: Path) -> tuple[Path, ...]:
     return (Path(f"{obj_path}.meta.json"),)
 
 
-def _load_obj_roundtrip_sidecar(obj_path: str) -> Optional[dict[str, object]]:
-    for candidate in _obj_roundtrip_sidecar_candidates(Path(obj_path)):
+def _load_obj_roundtrip_sidecar(
+    obj_path: str,
+    *,
+    sidecar_path: str | Path | None = None,
+) -> Optional[dict[str, object]]:
+    candidates = (
+        (Path(sidecar_path),)
+        if sidecar_path is not None
+        else _obj_roundtrip_sidecar_candidates(Path(obj_path))
+    )
+    for candidate in candidates:
         if not candidate.is_file():
             continue
         try:
@@ -680,7 +689,11 @@ def _match_obj_roundtrip_sidecar_submeshes(
 #  OBJ IMPORTER
 # ═══════════════════════════════════════════════════════════════════════
 
-def import_obj(obj_path: str) -> ParsedMesh:
+def import_obj(
+    obj_path: str,
+    *,
+    sidecar_path: str | Path | None = None,
+) -> ParsedMesh:
     """Import an OBJ file back into a ParsedMesh.
 
     Reads OBJ round-trip metadata comments (source_path, source_format)
@@ -689,7 +702,10 @@ def import_obj(obj_path: str) -> ParsedMesh:
     Returns:
         ParsedMesh with vertices, UVs, normals, faces per submesh.
     """
-    sidecar_payload = _load_obj_roundtrip_sidecar(obj_path)
+    sidecar_payload = _load_obj_roundtrip_sidecar(
+        obj_path,
+        sidecar_path=sidecar_path,
+    )
     material_texture_map = _load_obj_material_texture_map(obj_path)
     source_path = ""
     source_format = ""

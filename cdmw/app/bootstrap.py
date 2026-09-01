@@ -67,7 +67,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.isolated_renderer_host:
         parser.error(
             "Legacy isolated renderer hosts were removed; model previews use the resident "
-            ".NET/Vortice renderer."
+            ".NET/Vortice Archive Preview renderer."
         )
 
     run_gui_mode = not args.cli and not args.isolated_renderer_host

@@ -1475,8 +1475,17 @@ std::string mesh_editor_morph_upload_session_report(
     next->active_change_id.clear();
     next->active_definition_id.clear();
     next->state_revision = ++session.morph_state_revision;
+    MeshEditorHistoryEntry history;
+    history.operation = "morph_upload";
+    history.morph_before = session.morph;
     session.morph = std::move(next);
-    return mesh_editor_morph_report_json("morph_upload", session_id, session, {}, {}, false, "", false, started);
+    const bool suppress_history = bool_or(root.get("suppress_history"), false);
+    const bool history_published = suppress_history
+        ? false
+        : mesh_editor_publish_morph_history(session, std::move(history), {}, "", false);
+    return mesh_editor_morph_report_json(
+        "morph_upload", session_id, session, {}, {}, history_published, "", false, started
+    );
 }
 
 bool mesh_editor_cancel_morph_change(
@@ -1641,8 +1650,16 @@ std::string mesh_editor_morph_set_driver_session_report(
     if (next->refit) throw std::runtime_error("Clear the active garment refit before changing its driver");
     next->change_id = "set-driver";
     next->state_revision = ++session.morph_state_revision;
+    MeshEditorHistoryEntry history;
+    history.operation = "morph_set_driver";
+    history.morph_before = session.morph;
     session.morph = std::move(next);
-    return mesh_editor_morph_report_json("morph_set_driver", session_id, session, {}, {}, false, "", false, started);
+    const bool history_published = mesh_editor_publish_morph_history(
+        session, std::move(history), {}, "", false
+    );
+    return mesh_editor_morph_report_json(
+        "morph_set_driver", session_id, session, {}, {}, history_published, "", false, started
+    );
 }
 
 std::string mesh_editor_morph_bind_session_report(

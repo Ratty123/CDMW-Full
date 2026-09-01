@@ -20,6 +20,8 @@ internal sealed partial class ExperimentForm
     private volatile bool _hostDisconnected;
     private long _lastAppliedEditRevision;
     private long _lastObservedSessionRevision;
+    private long _lastDurableEditRevision;
+    private bool _authoritativeRevisionInitialized;
     private long _outgoingMutationRequestSequence = HelperOriginatedRequestIdBase;
     private long _residentProcessGeneration;
     private long _activationRequestId;
@@ -641,6 +643,12 @@ internal sealed partial class ExperimentForm
                         message.PreparedMutationBatch,
                         message.MutationBatchPrepared);
                     break;
+                case "resident_interaction_commit_ack":
+                    HandleResidentInteractionCommitAck(root);
+                    break;
+                case "resident_interaction_probe":
+                    HandleResidentInteractionProbe(root);
+                    break;
                 case "material_state_update":
                     HandleMaterialStateUpdate(root);
                     break;
@@ -1042,6 +1050,8 @@ internal sealed partial class ExperimentForm
         }
         var baseRevision = Math.Max(0, JsonLongValue(root, "base_revision"));
         _lastAppliedEditRevision = baseRevision;
+        _lastDurableEditRevision = baseRevision;
+        _authoritativeRevisionInitialized = true;
         var sawGeometry = false;
         _applyingResidentStateResync = true;
         try

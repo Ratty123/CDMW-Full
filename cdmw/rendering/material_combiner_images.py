@@ -11,7 +11,7 @@ from PySide6.QtCore import QSize, QUrl, Qt
 from PySide6.QtGui import QColor, QImage, QImageReader
 
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.rendering.material_combiner_pixels import image_to_rgba_array, mask_alpha_array, numpy_module, rgba_array_to_image, to_byte_array
+from cdmw.rendering.material_combiner_pixels import numpy_module, to_byte_array
 from cdmw.models import PreviewMaterialTextureInput
 from cdmw.rendering.material_combiner_decode import (
     _apply_external_material_factors,
@@ -24,6 +24,7 @@ from cdmw.rendering.material_combiner_rules import (
     _LAYER_CHANNEL_INDEX,
     _NONMETAL_RESPONSE_LIMITS,
     _apply_nonmetal_response_limits,
+    _byte4_channels,
     _nonmetal_response_limits,
     _clamp,
     _finite_float,
@@ -45,6 +46,7 @@ from cdmw.rendering.material_combiner_rules import (
 _IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS = tuple(
     min(0.5, 0.1 * attempt) for attempt in range(1, 20)
 )
+_NUMPY_ROW_CHUNK = 32
 
 
 def _raise_if_material_combiner_cancelled(
@@ -88,11 +90,263 @@ def _mask_alpha(
     return _clamp(values[index] if index < len(values) else values[0])
 
 
+def _selector_dye_strengths(tints: Sequence[Sequence[float]]) -> Tuple[float, float, float]:
+    strengths: list[float] = []
+    for channel in range(3):
+        try:
+            color = tuple(tints[channel] or ()) if channel < len(tints) else ()
+            strength = (
+                _clamp(float(color[3]))
+                if len(color) >= 4
+                else (1.0 if len(color) >= 3 else 0.0)
+            )
+        except (TypeError, ValueError, OverflowError):
+            strength = 0.0
+        strengths.append(strength)
+    return tuple(strengths)  # type: ignore[return-value]
+
+
+def _pac_layer_sampling_transform(
+    input_item: Optional[PreviewMaterialTextureInput],
+) -> Optional[Tuple[float, float, float, float, float]]:
+    """Decode one channel's PAC detail-layer UV transform.
+
+    The shipped character shader gives the R, G and B detail layers separate
+    Byte4 transforms on properties 0, 1 and 3. The matching byte in
+    ``_dyeingPropertyBlend`` is the quantized rotation. A missing transform is
+    deliberately different from an all-zero Byte4: the former means no
+    transform, while the latter is an authored very-small scale.
+    """
+
+    if input_item is None:
+        return None
+    channel = _layer_channel(input_item)
+    channel_index = {"r": 0, "g": 1, "b": 2}.get(channel)
+    property_suffix = {"r": "0", "g": "1", "b": "3"}.get(channel)
+    if channel_index is None or property_suffix is None:
+        return None
+
+    transform_name = f"dyeingtransformproperty{property_suffix}"
+    transform_channels: Tuple[float, ...] = ()
+    rotation_channels: Tuple[float, ...] = ()
+    for parameter in tuple(getattr(input_item, "material_parameters", ()) or ()):
+        key = "".join(
+            character
+            for character in str(getattr(parameter, "parameter_name", "") or "").casefold()
+            if character.isalnum()
+        )
+        if key == transform_name:
+            transform_channels = _byte4_channels(getattr(parameter, "value", ""))
+        elif key == "dyeingpropertyblend":
+            rotation_channels = _byte4_channels(getattr(parameter, "value", ""))
+
+    if len(transform_channels) < 4:
+        return None
+    scale_x, scale_y, offset_x, offset_y = (
+        float(value) for value in transform_channels[:4]
+    )
+    angle = 0.0
+    if len(rotation_channels) > channel_index:
+        angle = (float(rotation_channels[channel_index]) * (2.0 * math.pi)) - math.pi
+
+    # 127 and 128 are the two Byte4 encodings nearest zero rotation. Treat
+    # their half-step quantization as identity when every other component is
+    # also identity, avoiding a needless full-image resample and byte drift.
+    quantized_zero_angle = math.pi / 255.0
+    if (
+        abs(scale_x - 1.0) <= 1e-12
+        and abs(scale_y - 1.0) <= 1e-12
+        and abs(offset_x) <= 1e-12
+        and abs(offset_y) <= 1e-12
+        and abs(angle) <= quantized_zero_angle + 1e-12
+    ):
+        return None
+    return scale_x, scale_y, offset_x, offset_y, angle
+
+
+def _apply_pac_layer_sampling_transform(
+    image: QImage,
+    input_item: Optional[PreviewMaterialTextureInput],
+    *,
+    cancelled: Callable[[], bool] | None = None,
+) -> QImage:
+    """Bake the shader's repeat-sampled PAC layer UV transform into an image."""
+
+    transform = _pac_layer_sampling_transform(input_item)
+    if image.isNull() or transform is None:
+        return image
+    width, height = int(image.width()), int(image.height())
+    if width <= 0 or height <= 0:
+        return image
+
+    scale_x, scale_y, offset_x, offset_y, angle = transform
+    scale_x = max(scale_x, 1e-5)
+    scale_y = max(scale_y, 1e-5)
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    source = image.convertToFormat(QImage.Format.Format_RGBA8888)
+    result = QImage(width, height, QImage.Format.Format_RGBA8888)
+    source_view, source_stride = _image_rgba8888_view(source, width, height)
+    result_view, result_stride = _image_rgba8888_write_view(result, width, height)
+    numpy = _numpy_module()
+
+    if numpy is not None and source_view is not None and result_view is not None:
+        try:
+            source_bytes = numpy.ndarray(
+                (height, width, 4),
+                dtype=numpy.uint8,
+                buffer=source_view,
+                strides=(source_stride, 4, 1),
+            )
+            output_x = (numpy.arange(width, dtype=numpy.float64) + 0.5) / float(width)
+            for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+                _raise_if_material_combiner_cancelled(cancelled)
+                row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+                output_y = (
+                    numpy.arange(row_start, row_start + row_count, dtype=numpy.float64)
+                    + 0.5
+                ) / float(height)
+                centered_x = (output_x[None, :] - 0.5 - offset_x) / scale_x
+                centered_y = (output_y[:, None] - 0.5 + offset_y) / scale_y
+                sample_u = numpy.mod(
+                    (centered_x * cosine) - (centered_y * sine) + 0.5,
+                    1.0,
+                )
+                sample_v = numpy.mod(
+                    (centered_x * sine) + (centered_y * cosine) + 0.5,
+                    1.0,
+                )
+                source_x = (sample_u * float(width)) - 0.5
+                source_y = (sample_v * float(height)) - 0.5
+                x0_floor = numpy.floor(source_x)
+                y0_floor = numpy.floor(source_y)
+                fraction_x = source_x - x0_floor
+                fraction_y = source_y - y0_floor
+                x0 = x0_floor.astype(numpy.int64) % width
+                y0 = y0_floor.astype(numpy.int64) % height
+                x1 = (x0 + 1) % width
+                y1 = (y0 + 1) % height
+                top = (
+                    source_bytes[y0, x0].astype(numpy.float64)
+                    * (1.0 - fraction_x)[:, :, None]
+                    + source_bytes[y0, x1].astype(numpy.float64)
+                    * fraction_x[:, :, None]
+                )
+                bottom = (
+                    source_bytes[y1, x0].astype(numpy.float64)
+                    * (1.0 - fraction_x)[:, :, None]
+                    + source_bytes[y1, x1].astype(numpy.float64)
+                    * fraction_x[:, :, None]
+                )
+                sampled = (
+                    top * (1.0 - fraction_y)[:, :, None]
+                    + bottom * fraction_y[:, :, None]
+                )
+                output = _numpy_write_row_chunk(
+                    numpy,
+                    result_view,
+                    result_stride,
+                    width,
+                    row_start,
+                    row_count,
+                    4,
+                )
+                output[:, :, :] = numpy.rint(
+                    numpy.clip(sampled, 0.0, 255.0)
+                ).astype(numpy.uint8)
+            return result
+        except (BufferError, MemoryError, TypeError, ValueError):
+            pass
+
+    def repeated_bilinear(u: float, v: float) -> QColor:
+        source_x = ((u % 1.0) * width) - 0.5
+        source_y = ((v % 1.0) * height) - 0.5
+        x0_floor = math.floor(source_x)
+        y0_floor = math.floor(source_y)
+        fraction_x = source_x - x0_floor
+        fraction_y = source_y - y0_floor
+        x0, y0 = x0_floor % width, y0_floor % height
+        x1, y1 = (x0 + 1) % width, (y0 + 1) % height
+        colors = (
+            source.pixelColor(x0, y0),
+            source.pixelColor(x1, y0),
+            source.pixelColor(x0, y1),
+            source.pixelColor(x1, y1),
+        )
+        values: list[int] = []
+        for component in (QColor.red, QColor.green, QColor.blue, QColor.alpha):
+            top = (component(colors[0]) * (1.0 - fraction_x)) + (
+                component(colors[1]) * fraction_x
+            )
+            bottom = (component(colors[2]) * (1.0 - fraction_x)) + (
+                component(colors[3]) * fraction_x
+            )
+            values.append(
+                max(
+                    0,
+                    min(
+                        255,
+                        int(round(top * (1.0 - fraction_y) + bottom * fraction_y)),
+                    ),
+                )
+            )
+        return QColor(*values)
+
+    result = QImage(width, height, QImage.Format.Format_RGBA8888)
+    for y in range(height):
+        _raise_if_material_combiner_cancelled(cancelled)
+        output_v = (y + 0.5) / float(height)
+        for x in range(width):
+            output_u = (x + 0.5) / float(width)
+            centered_x = (output_u - 0.5 - offset_x) / scale_x
+            centered_y = (output_v - 0.5 + offset_y) / scale_y
+            sample_u = (centered_x * cosine) - (centered_y * sine) + 0.5
+            sample_v = (centered_x * sine) + (centered_y * cosine) + 0.5
+            result.setPixelColor(x, y, repeated_bilinear(sample_u, sample_v))
+    return result
+
+
+def _largest_meaningful_image_size(
+    images: Sequence[QImage],
+    *,
+    max_dimension: int = 0,
+) -> QSize:
+    """Return one real source/control domain, optionally reduced to the caller cap.
+
+    The result is selected from the available images instead of filling the
+    requested maximum.  That lets a high-resolution authoring caller preserve
+    a 512x1024 selector domain without inflating a genuinely 256x256-only
+    material to 2048x2048.
+    """
+
+    candidates = [
+        image
+        for image in images
+        if not image.isNull() and int(image.width()) > 0 and int(image.height()) > 0
+    ]
+    if not candidates:
+        return QSize()
+    source = max(
+        candidates,
+        key=lambda image: (
+            int(image.width()) * int(image.height()),
+            max(int(image.width()), int(image.height())),
+        ),
+    )
+    width = int(source.width())
+    height = int(source.height())
+    limit = max(0, int(max_dimension or 0))
+    if limit > 0 and max(width, height) > limit:
+        return QSize(width, height).scaled(limit, limit, Qt.KeepAspectRatio)
+    return QSize(width, height)
+
+
 def _initialize_synthesized_albedo_target(
     prepared_base: QImage,
     source_layers: Sequence[Tuple[PreviewMaterialTextureInput, QImage]],
     fallback_image: QImage,
     neutral_base_color: Tuple[float, float, float],
+    control_images: Sequence[QImage] = (),
     *,
     preserve_base_alpha: bool,
     cancelled: Callable[[], bool] | None,
@@ -106,18 +360,13 @@ def _initialize_synthesized_albedo_target(
             prepared_base,
             *(image for _item, image in source_layers),
             fallback_image,
+            *control_images,
         )
         if not image.isNull() and int(image.width()) > 0 and int(image.height()) > 0
     ]
-    target_size_source = max(
-        size_candidates,
-        key=lambda image: (
-            int(image.width()) * int(image.height()),
-            max(int(image.width()), int(image.height())),
-        ),
-    )
-    width = int(target_size_source.width())
-    height = int(target_size_source.height())
+    target_size = _largest_meaningful_image_size(size_candidates)
+    width = int(target_size.width())
+    height = int(target_size.height())
     if not prepared_base.isNull():
         target_base = prepared_base
         if int(target_base.width()) != width or int(target_base.height()) != height:
@@ -147,7 +396,16 @@ def _initialize_synthesized_albedo_target(
     # When the PAC RGB selector will seed the base, the first visible layer is
     # only a fallback surface for selector gaps. Its channel-local dye remains
     # masked and is applied in the normal layer loop below.
-    tint = _layer_tint(first_item) if first_item is not None and not color_seed_available else ()
+    first_layer_is_channel_local = bool(
+        first_item is not None and _layer_channel(first_item)
+    )
+    tint = (
+        _layer_tint(first_item)
+        if first_item is not None
+        and not color_seed_available
+        and not first_layer_is_channel_local
+        else ()
+    )
     if int(first_image.width()) != width or int(first_image.height()) != height:
         first_image = first_image.scaled(
             width,
@@ -155,9 +413,20 @@ def _initialize_synthesized_albedo_target(
             Qt.IgnoreAspectRatio,
             Qt.SmoothTransformation,
         )
-    seeded = _seed_target_from_layer(first_image, tint, target_format=target_format, preserve_base_alpha=preserve_base_alpha)
+    seeded = _seed_target_from_layer(
+        first_image,
+        tint,
+        target_format=target_format,
+        preserve_base_alpha=preserve_base_alpha,
+        cancelled=cancelled,
+    )
     if seeded is not None:
-        return seeded, width, height, 0 if color_seed_available else 1
+        return (
+            seeded,
+            width,
+            height,
+            0 if color_seed_available or first_layer_is_channel_local else 1,
+        )
     for y in range(height):
         _raise_if_material_combiner_cancelled(cancelled)
         for x in range(width):
@@ -177,21 +446,71 @@ def _initialize_synthesized_albedo_target(
                     color.alpha() if preserve_base_alpha else 255,
                 ),
             )
-    return target, width, height, 0 if color_seed_available else 1
+    return (
+        target,
+        width,
+        height,
+        0 if color_seed_available or first_layer_is_channel_local else 1,
+    )
 
 
-def _seed_target_from_layer(first_image, tint, *, target_format, preserve_base_alpha: bool):
-    """The first visible layer, tinted, as the target image; None without NumPy."""
+def _seed_target_from_layer(
+    first_image,
+    tint,
+    *,
+    target_format,
+    preserve_base_alpha: bool,
+    cancelled=None,
+):
+    """Seed the target from the first visible layer in bounded row tiles."""
 
     numpy = numpy_module()
-    array = image_to_rgba_array(first_image) if numpy is not None else None
-    if array is None:
+    if numpy is None or first_image.isNull():
         return None
-    red, green, blue = array[:, :, 0], array[:, :, 1], array[:, :, 2]
-    if tint:
-        red, green, blue = red * float(tint[0]), green * float(tint[1]), blue * float(tint[2])
-    alpha = to_byte_array(array[:, :, 3]) if preserve_base_alpha else numpy.full(red.shape, 255, dtype=numpy.uint8)
-    return rgba_array_to_image(red, green, blue, alpha, target_format=target_format)
+    source = first_image.convertToFormat(QImage.Format.Format_RGBA8888)
+    width, height = int(source.width()), int(source.height())
+    source_view, source_stride = _image_rgba8888_view(source, width, height)
+    target = QImage(width, height, target_format)
+    if target_format == QImage.Format.Format_RGBA8888:
+        target_view, target_stride = _image_rgba8888_write_view(target, width, height)
+        target_channels = 4
+    else:
+        target_view, target_stride = _image_rgb888_write_view(target, width, height)
+        target_channels = 3
+    if source_view is None or target_view is None:
+        return None
+    tint_values = (
+        numpy.array([float(value) for value in tint[:3]], dtype=numpy.float64)
+        if tint
+        else None
+    )
+    try:
+        for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+            _raise_if_material_combiner_cancelled(cancelled)
+            row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+            source_bytes = _numpy_rgba_byte_rows(
+                numpy, source_view, source_stride, width, row_start, row_count
+            )
+            rgb = (
+                source_bytes[:, :, :3].astype(numpy.float32) / numpy.float32(255.0)
+            ).astype(numpy.float64)
+            if tint_values is not None:
+                rgb *= tint_values
+            output = _numpy_write_row_chunk(
+                numpy,
+                target_view,
+                target_stride,
+                width,
+                row_start,
+                row_count,
+                target_channels,
+            )
+            output[:, :, :3] = _numpy_unit_bytes(numpy, rgb)
+            if target_channels == 4:
+                output[:, :, 3] = source_bytes[:, :, 3] if preserve_base_alpha else 255
+    except (BufferError, MemoryError, TypeError, ValueError):
+        return None
+    return target
 
 
 def _generate_synthesized_albedo_map(
@@ -207,6 +526,7 @@ def _generate_synthesized_albedo_map(
     color_blending_mask_input: Optional[PreviewMaterialTextureInput] = None,
     color_blending_tints: Sequence[Tuple[float, float, float]] = (),
     preserve_base_alpha: bool = False,
+    prefer_largest_source_domain: bool = False,
     cancelled: Callable[[], bool] | None = None,
 ) -> Tuple[str, str]:
     _raise_if_material_combiner_cancelled(cancelled)
@@ -224,6 +544,11 @@ def _generate_synthesized_albedo_map(
         prepared = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
         if prepared.isNull():
             continue
+        prepared = _apply_pac_layer_sampling_transform(
+            prepared,
+            item,
+            cancelled=cancelled,
+        )
         source_layers.append((item, prepared.convertToFormat(QImage.Format.Format_RGBA8888)))
     color_blending_mask = QImage()
     if color_blending_mask_input is not None and len(color_blending_tints) >= 3:
@@ -240,18 +565,43 @@ def _generate_synthesized_albedo_map(
     if prepared_base.isNull() and not source_layers and color_blending_mask.isNull():
         return "", ""
 
+    prepared_masks: dict[str, QImage] = {}
+    for role, item in mask_inputs.items():
+        _raise_if_material_combiner_cancelled(cancelled)
+        image = _image_reader(
+            str(getattr(item, "preview_texture_path", "") or ""),
+            max_dimension=max_dimension,
+        )
+        if image.isNull():
+            continue
+        prepared = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+        if prepared.isNull():
+            continue
+        prepared_masks[role] = prepared.convertToFormat(QImage.Format.Format_RGBA8888)
+
     target_format = QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888
     target, width, height, layer_start = _initialize_synthesized_albedo_target(
         prepared_base,
         source_layers,
         color_blending_mask,
         neutral_base_color,
+        tuple(prepared_masks.values()) if prefer_largest_source_domain else (),
         preserve_base_alpha=preserve_base_alpha,
         cancelled=cancelled,
     )
 
     color_blending_seed_applied = False
-    if not color_blending_mask.isNull() and len(color_blending_tints) >= 3:
+    color_blending_dye_strengths = _selector_dye_strengths(
+        color_blending_tints
+    )
+    has_color_blending_dye = any(
+        strength > 1.0 / 255.0 for strength in color_blending_dye_strengths
+    )
+    if (
+        not color_blending_mask.isNull()
+        and len(color_blending_tints) >= 3
+        and has_color_blending_dye
+    ):
         if int(color_blending_mask.width()) != width or int(color_blending_mask.height()) != height:
             color_blending_mask = color_blending_mask.scaled(
                 width,
@@ -277,14 +627,24 @@ def _generate_synthesized_albedo_map(
                 _raise_if_material_combiner_cancelled(cancelled)
                 for x in range(width):
                     selector = color_blending_mask.pixelColor(x, y)
-                    weights = (selector.redF(), selector.greenF(), selector.blueF())
+                    weights = tuple(
+                        selector_component * color_blending_dye_strengths[channel]
+                        for channel, selector_component in enumerate(
+                            (selector.redF(), selector.greenF(), selector.blueF())
+                        )
+                    )
                     total = sum(weights)
                     if total <= 0.001:
                         continue
                     normalized = tuple(weight / total for weight in weights)
                     seeded = tuple(
                         sum(
-                            float(color_blending_tints[channel][component]) * normalized[channel]
+                            (
+                                float(color_blending_tints[channel][component])
+                                if len(tuple(color_blending_tints[channel] or ())) >= 3
+                                else 0.0
+                            )
+                            * normalized[channel]
                             for channel in range(3)
                         )
                         for component in range(3)
@@ -318,15 +678,7 @@ def _generate_synthesized_albedo_map(
                     )
         color_blending_seed_applied = True
 
-    prepared_masks: dict[str, QImage] = {}
-    for role, item in mask_inputs.items():
-        _raise_if_material_combiner_cancelled(cancelled)
-        image = _image_reader(str(getattr(item, "preview_texture_path", "") or ""), max_dimension=max_dimension)
-        if image.isNull():
-            continue
-        prepared = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
-        if prepared.isNull():
-            continue
+    for role, prepared in tuple(prepared_masks.items()):
         if int(prepared.width()) != width or int(prepared.height()) != height:
             prepared = prepared.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         prepared_masks[role] = prepared.convertToFormat(QImage.Format.Format_RGBA8888)
@@ -354,6 +706,7 @@ def _generate_synthesized_albedo_map(
             target, layer, mask, channel=channel, weight=weight, tint=tint, role=role,
             color_blending_seed_applied=color_blending_seed_applied,
             target_format=target_format, preserve_base_alpha=preserve_base_alpha,
+            cancelled=cancelled,
         )
         if composed is not None:
             target, layer_tinted_detail = composed
@@ -371,7 +724,7 @@ def _generate_synthesized_albedo_map(
                 red = overlay.redF()
                 green = overlay.greenF()
                 blue = overlay.blueF()
-                if color_blending_seed_applied and role == "detail" and tint:
+                if role == "detail" and tint:
                     # Detail dye colors are channel-local PAC authority.  Keep
                     # them behind the detail-mask channel instead of promoting
                     # them to a global tint or discarding them after the RGB
@@ -379,15 +732,18 @@ def _generate_synthesized_albedo_map(
                     luma = _clamp((0.299 * red) + (0.587 * green) + (0.114 * blue))
                     modulation = 0.82 + (0.36 * luma)
                     tinted = tuple(_clamp(float(component) * modulation) for component in tint[:3])
-                    out_r = (base.redF() * (1.0 - alpha)) + (tinted[0] * alpha)
-                    out_g = (base.greenF() * (1.0 - alpha)) + (tinted[1] * alpha)
-                    out_b = (base.blueF() * (1.0 - alpha)) + (tinted[2] * alpha)
+                    dye_alpha = alpha * (
+                        _clamp(float(tint[3])) if len(tint) >= 4 else 1.0
+                    )
+                    out_r = (base.redF() * (1.0 - dye_alpha)) + (tinted[0] * dye_alpha)
+                    out_g = (base.greenF() * (1.0 - dye_alpha)) + (tinted[1] * dye_alpha)
+                    out_b = (base.blueF() * (1.0 - dye_alpha)) + (tinted[2] * dye_alpha)
                     masked_detail_dye_tint_applied = True
-                elif color_blending_seed_applied and role in {"detail", "grime", "layer", "damage"}:
-                    # The RGB PAC selector and its channel-local tint own the
-                    # surface color. Detail/grime DDS inputs add micro-variation;
-                    # alpha-replacing the tint with their brown/grey pixels is
-                    # what turned silver blades and dyed cloth into muddy albedo.
+                elif color_blending_seed_applied and role in {"grime", "layer", "damage"}:
+                    # These auxiliary overlays add micro-variation behind the
+                    # selector dye. Detail diffuse is intentionally excluded:
+                    # with no exact detail dye, the shipped shader retains the
+                    # sampled detail RGB instead of reducing it to luminance.
                     luma = _clamp((0.299 * red) + (0.587 * green) + (0.114 * blue))
                     modulation = 0.82 + (0.36 * luma)
                     factor = (1.0 - alpha) + (modulation * alpha)
@@ -488,62 +844,149 @@ def _blend_selector_tints(
     """Apply the PAC RGB palette without erasing the source texture's value detail."""
 
     numpy = numpy_module()
-    base = image_to_rgba_array(target) if numpy is not None else None
-    selector = image_to_rgba_array(selector_mask) if base is not None else None
-    if base is None or selector is None or selector.shape[:2] != base.shape[:2]:
+    if numpy is None or target.isNull() or selector_mask.isNull():
         return None
-    weights = selector[:, :, :3]
-    # summed and combined left to right, the order the per-pixel loop uses: a pairwise
-    # sum lands a few texels the other side of a rounding boundary
-    total = weights[:, :, 0] + weights[:, :, 1] + weights[:, :, 2]
-    live = total > 0.001
-    safe = numpy.where(live, total, 1.0)
-    normalized = weights / safe[:, :, None]
-    seeded = numpy.empty_like(normalized)
-    for component in range(3):
-        seeded[:, :, component] = (
-            (float(tints[0][component]) * normalized[:, :, 0])
-            + (float(tints[1][component]) * normalized[:, :, 1])
-            + (float(tints[2][component]) * normalized[:, :, 2])
-        )
-    source_luma = (
-        base[:, :, 0] * 0.2126
-        + base[:, :, 1] * 0.7152
-        + base[:, :, 2] * 0.0722
-    )
-    visible = source_luma > (1.0 / 255.0)
-    visible_weights = weights * visible[:, :, None]
-    weight_totals = visible_weights.sum(axis=(0, 1))
-    weighted_lumas = (visible_weights * source_luma[:, :, None]).sum(axis=(0, 1))
-    fallback = float(source_luma[visible].mean()) if visible.any() else 0.5
-    reference_lumas = numpy.array(
-        [
-            weighted_lumas[channel] / weight_totals[channel]
-            if weight_totals[channel] > 0.001
-            else fallback
-            for channel in range(3)
-        ],
+    palette = numpy.zeros((3, 3), dtype=numpy.float64)
+    channel_strengths = numpy.array(
+        _selector_dye_strengths(tints),
         dtype=numpy.float64,
     )
-    reference_lumas = numpy.rint(
-        numpy.clip(reference_lumas, 1.0 / 255.0, 1.0) * 4096.0
-    ) / 4096.0
-    reference_luma = (
-        normalized[:, :, 0] * reference_lumas[0]
-        + normalized[:, :, 1] * reference_lumas[1]
-        + normalized[:, :, 2] * reference_lumas[2]
-    )
-    detail_scale = numpy.clip(
-        source_luma / numpy.maximum(reference_luma, 1.0 / 255.0),
-        0.55,
-        1.25,
-    )
-    seeded *= detail_scale[:, :, None]
-    coverage = numpy.clip(total, 0.0, 1.0)[:, :, None]
-    mixed = (base[:, :, :3] * (1.0 - coverage)) + (seeded * coverage)
-    out = numpy.where(live[:, :, None], mixed, base[:, :, :3])
-    alpha = to_byte_array(base[:, :, 3]) if preserve_base_alpha else numpy.full(out.shape[:2], 255, dtype=numpy.uint8)
-    return rgba_array_to_image(out[:, :, 0], out[:, :, 1], out[:, :, 2], alpha, target_format=target_format)
+    try:
+        for channel in range(3):
+            color = tuple(tints[channel] or ()) if channel < len(tints) else ()
+            if len(color) < 3:
+                continue
+            palette[channel, :] = [
+                _clamp(float(component)) for component in color[:3]
+            ]
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not bool(channel_strengths.any()):
+        return target.convertToFormat(target_format)
+    base_rgba = target.convertToFormat(QImage.Format.Format_RGBA8888)
+    selector_rgba = selector_mask.convertToFormat(QImage.Format.Format_RGBA8888)
+    width = int(base_rgba.width())
+    height = int(base_rgba.height())
+    if (
+        width <= 0
+        or height <= 0
+        or int(selector_rgba.width()) != width
+        or int(selector_rgba.height()) != height
+    ):
+        return None
+    base_view, base_stride = _image_rgba8888_view(base_rgba, width, height)
+    selector_view, selector_stride = _image_rgba8888_view(selector_rgba, width, height)
+    result = QImage(width, height, target_format)
+    if target_format == QImage.Format.Format_RGBA8888:
+        result_view, result_stride = _image_rgba8888_write_view(result, width, height)
+        result_channels = 4
+    else:
+        result_view, result_stride = _image_rgb888_write_view(result, width, height)
+        result_channels = 3
+    if base_view is None or selector_view is None or result_view is None:
+        return None
+
+    # The reference value is global, so obtain its five scalar reductions in a
+    # first tiled pass. No source-sized float plane survives between tiles.
+    weighted_lumas = numpy.zeros(3, dtype=numpy.float64)
+    weight_totals = numpy.zeros(3, dtype=numpy.float64)
+    visible_luma = 0.0
+    visible_count = 0
+    try:
+        for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+            _raise_if_material_combiner_cancelled(cancelled)
+            row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+            base = _numpy_rgba_row_chunk(
+                numpy, base_view, base_stride, width, row_start, row_count
+            )
+            weights = _numpy_rgba_row_chunk(
+                numpy, selector_view, selector_stride, width, row_start, row_count
+            )[:, :, :3] * channel_strengths
+            source_luma = (
+                base[:, :, 0] * 0.2126
+                + base[:, :, 1] * 0.7152
+                + base[:, :, 2] * 0.0722
+            )
+            visible = source_luma > (1.0 / 255.0)
+            visible_weights = weights * visible[:, :, None]
+            weight_totals += visible_weights.sum(axis=(0, 1))
+            weighted_lumas += (
+                visible_weights * source_luma[:, :, None]
+            ).sum(axis=(0, 1))
+            visible_luma += float(source_luma[visible].sum())
+            visible_count += int(numpy.count_nonzero(visible))
+        fallback = visible_luma / visible_count if visible_count else 0.5
+        reference_lumas = numpy.array(
+            [
+                weighted_lumas[channel] / weight_totals[channel]
+                if weight_totals[channel] > 0.001
+                else fallback
+                for channel in range(3)
+            ],
+            dtype=numpy.float64,
+        )
+        reference_lumas = numpy.rint(
+            numpy.clip(reference_lumas, 1.0 / 255.0, 1.0) * 4096.0
+        ) / 4096.0
+
+        for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+            _raise_if_material_combiner_cancelled(cancelled)
+            row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+            base_bytes = _numpy_rgba_byte_rows(
+                numpy, base_view, base_stride, width, row_start, row_count
+            )
+            base = (
+                base_bytes.astype(numpy.float32) / numpy.float32(255.0)
+            ).astype(numpy.float64)
+            weights = _numpy_rgba_row_chunk(
+                numpy, selector_view, selector_stride, width, row_start, row_count
+            )[:, :, :3] * channel_strengths
+            # Summed left to right, matching the original per-pixel expression.
+            total = weights[:, :, 0] + weights[:, :, 1] + weights[:, :, 2]
+            live = total > 0.001
+            safe = numpy.where(live, total, 1.0)
+            normalized = weights / safe[:, :, None]
+            seeded = numpy.empty_like(normalized)
+            for component in range(3):
+                seeded[:, :, component] = (
+                    (palette[0, component] * normalized[:, :, 0])
+                    + (palette[1, component] * normalized[:, :, 1])
+                    + (palette[2, component] * normalized[:, :, 2])
+                )
+            source_luma = (
+                base[:, :, 0] * 0.2126
+                + base[:, :, 1] * 0.7152
+                + base[:, :, 2] * 0.0722
+            )
+            reference_luma = (
+                normalized[:, :, 0] * reference_lumas[0]
+                + normalized[:, :, 1] * reference_lumas[1]
+                + normalized[:, :, 2] * reference_lumas[2]
+            )
+            detail_scale = numpy.clip(
+                source_luma / numpy.maximum(reference_luma, 1.0 / 255.0),
+                0.55,
+                1.25,
+            )
+            seeded *= detail_scale[:, :, None]
+            coverage = numpy.clip(total, 0.0, 1.0)[:, :, None]
+            mixed = (base[:, :, :3] * (1.0 - coverage)) + (seeded * coverage)
+            out = numpy.where(live[:, :, None], mixed, base[:, :, :3])
+            result_bytes = _numpy_write_row_chunk(
+                numpy,
+                result_view,
+                result_stride,
+                width,
+                row_start,
+                row_count,
+                result_channels,
+            )
+            result_bytes[:, :, :3] = _numpy_unit_bytes(numpy, out)
+            if result_channels == 4:
+                result_bytes[:, :, 3] = base_bytes[:, :, 3] if preserve_base_alpha else 255
+    except (BufferError, MemoryError, TypeError, ValueError):
+        return None
+    return result
 
 
 def _compose_albedo_layer(
@@ -558,6 +1001,7 @@ def _compose_albedo_layer(
     color_blending_seed_applied: bool,
     target_format,
     preserve_base_alpha: bool,
+    cancelled=None,
 ):
     """One albedo layer over the target, whole-image; `(image, tinted_detail)` or None.
 
@@ -567,40 +1011,102 @@ def _compose_albedo_layer(
     """
 
     numpy = numpy_module()
-    base = image_to_rgba_array(target) if numpy is not None else None
-    if base is None:
+    if numpy is None or target.isNull() or layer.isNull():
         return None
-    over = image_to_rgba_array(layer)
-    if over is None or over.shape[:2] != base.shape[:2]:
+    base_rgba = target.convertToFormat(QImage.Format.Format_RGBA8888)
+    layer_rgba = layer.convertToFormat(QImage.Format.Format_RGBA8888)
+    height, width = int(base_rgba.height()), int(base_rgba.width())
+    if (
+        width <= 0
+        or height <= 0
+        or int(layer_rgba.width()) != width
+        or int(layer_rgba.height()) != height
+    ):
         return None
-    height, width = base.shape[:2]
-    mask_alpha = mask_alpha_array(mask, channel=channel, width=width, height=height)
-    if mask_alpha is None:
-        return None
-    alpha = numpy.clip(float(weight) * mask_alpha, 0.0, 1.0)[:, :, None]
-    red, green, blue = over[:, :, 0], over[:, :, 1], over[:, :, 2]
-    tinted_detail = False
-    if color_blending_seed_applied and role == "detail" and tint:
-        luma = numpy.clip((0.299 * red) + (0.587 * green) + (0.114 * blue), 0.0, 1.0)
-        modulation = (0.82 + (0.36 * luma))[:, :, None]
-        dye = numpy.clip(numpy.array([float(value) for value in tint[:3]], dtype=numpy.float64) * modulation, 0.0, 1.0)
-        out = (base[:, :, :3] * (1.0 - alpha)) + (dye * alpha)
-        tinted_detail = True
-    elif color_blending_seed_applied and role in {"detail", "grime", "layer", "damage"}:
-        luma = numpy.clip((0.299 * red) + (0.587 * green) + (0.114 * blue), 0.0, 1.0)
-        modulation = (0.82 + (0.36 * luma))[:, :, None]
-        factor = (1.0 - alpha) + (modulation * alpha)
-        out = numpy.clip(base[:, :, :3] * factor, 0.0, 1.0)
+    base_view, base_stride = _image_rgba8888_view(base_rgba, width, height)
+    layer_view, layer_stride = _image_rgba8888_view(layer_rgba, width, height)
+    mask_rgba = QImage()
+    mask_view = None
+    mask_stride = 0
+    if mask is not None and not mask.isNull():
+        mask_rgba = mask.convertToFormat(QImage.Format.Format_RGBA8888)
+        if int(mask_rgba.width()) != width or int(mask_rgba.height()) != height:
+            return None
+        mask_view, mask_stride = _image_rgba8888_view(mask_rgba, width, height)
+    result = QImage(width, height, target_format)
+    if target_format == QImage.Format.Format_RGBA8888:
+        result_view, result_stride = _image_rgba8888_write_view(result, width, height)
+        result_channels = 4
     else:
-        overlay = numpy.stack((red, green, blue), axis=2)
-        if tint:
-            overlay = overlay * numpy.array([float(value) for value in tint[:3]], dtype=numpy.float64)
-        out = (base[:, :, :3] * (1.0 - alpha)) + (numpy.clip(overlay, 0.0, 1.0) * alpha)
-    alpha_out = to_byte_array(base[:, :, 3]) if preserve_base_alpha else numpy.full((height, width), 255, dtype=numpy.uint8)
-    image = rgba_array_to_image(out[:, :, 0], out[:, :, 1], out[:, :, 2], alpha_out, target_format=target_format)
-    if image is None:
+        result_view, result_stride = _image_rgb888_write_view(result, width, height)
+        result_channels = 3
+    if base_view is None or layer_view is None or result_view is None or (not mask_rgba.isNull() and mask_view is None):
         return None
-    return image, tinted_detail
+    tinted_detail = False
+    dye_values = None
+    if role == "detail" and tint:
+        dye_values = numpy.array([float(value) for value in tint[:3]], dtype=numpy.float64)
+        tinted_detail = True
+    tint_values = (
+        numpy.array([float(value) for value in tint[:3]], dtype=numpy.float64)
+        if tint
+        else None
+    )
+    try:
+        for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+            _raise_if_material_combiner_cancelled(cancelled)
+            row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+            base_bytes = _numpy_rgba_byte_rows(
+                numpy, base_view, base_stride, width, row_start, row_count
+            )
+            base = (
+                base_bytes.astype(numpy.float32) / numpy.float32(255.0)
+            ).astype(numpy.float64)
+            over = _numpy_rgba_row_chunk(
+                numpy, layer_view, layer_stride, width, row_start, row_count
+            )
+            if mask_view is None:
+                mask_alpha = numpy.ones((row_count, width), dtype=numpy.float64)
+            else:
+                mask_alpha = _numpy_rgba_row_chunk(
+                    numpy, mask_view, mask_stride, width, row_start, row_count
+                )[:, :, _LAYER_CHANNEL_INDEX.get(channel, 0)]
+            alpha = numpy.clip(float(weight) * mask_alpha, 0.0, 1.0)[:, :, None]
+            red, green, blue = over[:, :, 0], over[:, :, 1], over[:, :, 2]
+            if dye_values is not None:
+                dye_strength = (
+                    _clamp(float(tint[3])) if len(tint) >= 4 else 1.0
+                )
+                alpha = alpha * dye_strength
+                luma = numpy.clip((0.299 * red) + (0.587 * green) + (0.114 * blue), 0.0, 1.0)
+                modulation = (0.82 + (0.36 * luma))[:, :, None]
+                dye = numpy.clip(dye_values * modulation, 0.0, 1.0)
+                out = (base[:, :, :3] * (1.0 - alpha)) + (dye * alpha)
+            elif color_blending_seed_applied and role in {"grime", "layer", "damage"}:
+                luma = numpy.clip((0.299 * red) + (0.587 * green) + (0.114 * blue), 0.0, 1.0)
+                modulation = (0.82 + (0.36 * luma))[:, :, None]
+                factor = (1.0 - alpha) + (modulation * alpha)
+                out = numpy.clip(base[:, :, :3] * factor, 0.0, 1.0)
+            else:
+                overlay = over[:, :, :3]
+                if tint_values is not None:
+                    overlay = overlay * tint_values
+                out = (base[:, :, :3] * (1.0 - alpha)) + (numpy.clip(overlay, 0.0, 1.0) * alpha)
+            result_bytes = _numpy_write_row_chunk(
+                numpy,
+                result_view,
+                result_stride,
+                width,
+                row_start,
+                row_count,
+                result_channels,
+            )
+            result_bytes[:, :, :3] = _numpy_unit_bytes(numpy, out)
+            if result_channels == 4:
+                result_bytes[:, :, 3] = base_bytes[:, :, 3] if preserve_base_alpha else 255
+    except (BufferError, MemoryError, TypeError, ValueError):
+        return None
+    return result, tinted_detail
 
 
 def _generate_spec_gloss_preview_albedo_map(
@@ -611,6 +1117,7 @@ def _generate_spec_gloss_preview_albedo_map(
     *,
     flip_vertical: bool,
     max_dimension: int,
+    prefer_largest_source_domain: bool = False,
     preserve_base_alpha: bool = False,
     cancelled: Callable[[], bool] | None = None,
 ) -> Tuple[str, str]:
@@ -618,47 +1125,172 @@ def _generate_spec_gloss_preview_albedo_map(
     spec_source = _support_source_image(spec_gloss_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
     if spec_source.isNull():
         return "", ""
-    width = int(spec_source.width())
-    height = int(spec_source.height())
+    base_source = _support_source_image(base_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+    if prefer_largest_source_domain:
+        target_size = _largest_meaningful_image_size(
+            (spec_source, base_source),
+            max_dimension=max_dimension,
+        )
+        width = int(target_size.width())
+        height = int(target_size.height())
+        if int(spec_source.width()) != width or int(spec_source.height()) != height:
+            spec_source = spec_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    else:
+        width = int(spec_source.width())
+        height = int(spec_source.height())
     if width <= 0 or height <= 0:
         return "", ""
-    base_source = _support_source_image(base_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
     if not base_source.isNull() and (int(base_source.width()) != width or int(base_source.height()) != height):
         base_source = base_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
     spec_rgba = spec_source.convertToFormat(QImage.Format.Format_RGBA8888)
     base_rgba = base_source.convertToFormat(QImage.Format.Format_RGBA8888) if not base_source.isNull() else QImage()
-    target = QImage(
+    target_format = (
+        QImage.Format.Format_RGBA8888
+        if preserve_base_alpha
+        else QImage.Format.Format_RGB888
+    )
+    target = QImage(width, height, target_format)
+    numpy = numpy_module()
+    spec_view, spec_stride = _image_rgba8888_view(
+        spec_rgba,
         width,
         height,
-        QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888,
     )
-    for y in range(height):
-        _raise_if_material_combiner_cancelled(cancelled)
-        for x in range(width):
-            spec = spec_rgba.pixelColor(x, y)
-            base = base_rgba.pixelColor(x, y) if not base_rgba.isNull() else QColor(0, 0, 0)
-            gloss = spec.alphaF()
-            spec_r, spec_g, spec_b = spec.redF(), spec.greenF(), spec.blueF()
-            base_r, base_g, base_b = base.redF(), base.greenF(), base.blueF()
-            spec_luma = (0.2126 * spec_r) + (0.7152 * spec_g) + (0.0722 * spec_b)
-            base_luma = (0.2126 * base_r) + (0.7152 * base_g) + (0.0722 * base_b)
-            if spec_luma <= max(base_luma * 1.20, 0.08):
-                out_r, out_g, out_b = base_r, base_g, base_b
-            else:
-                spec_weight = _clamp(0.72 + (gloss * 0.38), 0.72, 1.08)
-                out_r = max(base_r, spec_r * spec_weight)
-                out_g = max(base_g, spec_g * spec_weight)
-                out_b = max(base_b, spec_b * spec_weight)
-            target.setPixelColor(
-                x,
-                y,
-                QColor(
-                    _byte(out_r),
-                    _byte(out_g),
-                    _byte(out_b),
-                    base.alpha() if preserve_base_alpha and not base_rgba.isNull() else 255,
-                ),
-            )
+    base_view, base_stride = _image_rgba8888_view(
+        base_rgba,
+        width,
+        height,
+    )
+    if preserve_base_alpha:
+        target_view, target_stride = _image_rgba8888_write_view(
+            target,
+            width,
+            height,
+        )
+        target_channels = 4
+    else:
+        target_view, target_stride = _image_rgb888_write_view(
+            target,
+            width,
+            height,
+        )
+        target_channels = 3
+    vectorized = bool(
+        numpy is not None
+        and spec_view is not None
+        and target_view is not None
+        and (base_rgba.isNull() or base_view is not None)
+    )
+    if vectorized:
+        try:
+            for row_start in range(0, height, 32):
+                _raise_if_material_combiner_cancelled(cancelled)
+                row_count = min(32, height - row_start)
+                shape = (row_count, width, 4)
+                spec_bytes = numpy.ndarray(
+                    shape,
+                    dtype=numpy.uint8,
+                    buffer=spec_view,
+                    offset=row_start * spec_stride,
+                    strides=(spec_stride, 4, 1),
+                )
+                spec_array = (
+                    spec_bytes.astype(numpy.float32)
+                    / numpy.float32(255.0)
+                ).astype(numpy.float64)
+                if base_view is None:
+                    base_bytes = None
+                    base_rgb = numpy.zeros(
+                        (row_count, width, 3),
+                        dtype=numpy.float64,
+                    )
+                else:
+                    base_bytes = numpy.ndarray(
+                        shape,
+                        dtype=numpy.uint8,
+                        buffer=base_view,
+                        offset=row_start * base_stride,
+                        strides=(base_stride, 4, 1),
+                    )
+                    base_array = (
+                        base_bytes.astype(numpy.float32)
+                        / numpy.float32(255.0)
+                    ).astype(numpy.float64)
+                    base_rgb = base_array[:, :, :3]
+                spec_rgb = spec_array[:, :, :3]
+                spec_luma = (
+                    (0.2126 * spec_rgb[:, :, 0])
+                    + (0.7152 * spec_rgb[:, :, 1])
+                    + (0.0722 * spec_rgb[:, :, 2])
+                )
+                base_luma = (
+                    (0.2126 * base_rgb[:, :, 0])
+                    + (0.7152 * base_rgb[:, :, 1])
+                    + (0.0722 * base_rgb[:, :, 2])
+                )
+                use_specular_color = spec_luma > numpy.maximum(
+                    base_luma * 1.20,
+                    0.08,
+                )
+                spec_weight = numpy.clip(
+                    0.72 + (spec_array[:, :, 3] * 0.38),
+                    0.72,
+                    1.08,
+                )
+                highlighted = numpy.maximum(
+                    base_rgb,
+                    spec_rgb * spec_weight[:, :, None],
+                )
+                output_rgb = numpy.where(
+                    use_specular_color[:, :, None],
+                    highlighted,
+                    base_rgb,
+                )
+                target_array = numpy.ndarray(
+                    (row_count, width, target_channels),
+                    dtype=numpy.uint8,
+                    buffer=target_view,
+                    offset=row_start * target_stride,
+                    strides=(target_stride, target_channels, 1),
+                )
+                target_array[:, :, :3] = to_byte_array(output_rgb)
+                if target_channels == 4:
+                    target_array[:, :, 3] = (
+                        base_bytes[:, :, 3]
+                        if base_bytes is not None
+                        else 255
+                    )
+        except (BufferError, MemoryError, TypeError, ValueError):
+            vectorized = False
+    if not vectorized:
+        target = QImage(width, height, target_format)
+        for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            for x in range(width):
+                spec = spec_rgba.pixelColor(x, y)
+                base = base_rgba.pixelColor(x, y) if not base_rgba.isNull() else QColor(0, 0, 0)
+                gloss = spec.alphaF()
+                spec_r, spec_g, spec_b = spec.redF(), spec.greenF(), spec.blueF()
+                base_r, base_g, base_b = base.redF(), base.greenF(), base.blueF()
+                spec_luma = (0.2126 * spec_r) + (0.7152 * spec_g) + (0.0722 * spec_b)
+                base_luma = (0.2126 * base_r) + (0.7152 * base_g) + (0.0722 * base_b)
+                if spec_luma <= max(base_luma * 1.20, 0.08):
+                    out_r, out_g, out_b = base_r, base_g, base_b
+                else:
+                    spec_weight = _clamp(0.72 + (gloss * 0.38), 0.72, 1.08)
+                    out_r = max(base_r, spec_r * spec_weight)
+                    out_g = max(base_g, spec_g * spec_weight)
+                    out_b = max(base_b, spec_b * spec_weight)
+                target.setPixelColor(
+                    x,
+                    y,
+                    QColor(
+                        _byte(out_r),
+                        _byte(out_g),
+                        _byte(out_b),
+                        base.alpha() if preserve_base_alpha and not base_rgba.isNull() else 255,
+                    ),
+                )
     _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_spec_gloss_albedo.png"
@@ -884,10 +1516,57 @@ def _numpy_module():
     return numpy
 
 
-def _numpy_rgba_channels(np, view: memoryview, stride: int, width: int, height: int):
-    raw = np.frombuffer(view, dtype=np.uint8, count=stride * height)
-    rows = raw.reshape(height, stride)[:, : width * 4]
-    return rows.reshape(height, width, 4).astype(np.float32) / 255.0
+def _numpy_rgba_byte_rows(
+    np,
+    view: memoryview,
+    stride: int,
+    width: int,
+    row_start: int,
+    row_count: int,
+):
+    """Zero-copy RGBA8888 bytes for a bounded row tile."""
+
+    return np.ndarray(
+        (row_count, width, 4),
+        dtype=np.uint8,
+        buffer=view,
+        offset=row_start * stride,
+        strides=(stride, 4, 1),
+    )
+
+
+def _numpy_rgba_row_chunk(
+    np,
+    view: memoryview,
+    stride: int,
+    width: int,
+    row_start: int,
+    row_count: int,
+):
+    """Float64 RGBA for one row tile, matching QColor's float32 decode."""
+
+    rows = _numpy_rgba_byte_rows(np, view, stride, width, row_start, row_count)
+    return (rows.astype(np.float32) / np.float32(255.0)).astype(np.float64)
+
+
+def _numpy_write_row_chunk(
+    np,
+    view: memoryview,
+    stride: int,
+    width: int,
+    row_start: int,
+    row_count: int,
+    channels: int,
+):
+    """Zero-copy writable RGB/RGBA bytes for a bounded row tile."""
+
+    return np.ndarray(
+        (row_count, width, channels),
+        dtype=np.uint8,
+        buffer=view,
+        offset=row_start * stride,
+        strides=(stride, channels, 1),
+    )
 
 
 def _numpy_unit_bytes(np, values):
@@ -918,8 +1597,9 @@ def _vectorised_material_maps(
     emit: Tuple[bool, bool, bool, bool],
     views: Tuple[Optional[memoryview], ...],
     strides: Tuple[int, ...],
+    cancelled: Callable[[], bool] | None = None,
 ) -> Optional[Tuple[float, float, float]]:
-    """Decode and write every slot at once, mirroring the scalar loop exactly.
+    """Decode and write every slot in bounded row tiles, matching the scalar loop.
 
     Returns ``(metal_peak, spec_peak, contribution_peak)``, or ``None`` when this
     input needs the scalar path.
@@ -932,114 +1612,143 @@ def _vectorised_material_maps(
     if np is None:
         return None
 
-    source = _numpy_rgba_channels(np, source_view, source_stride, width, height)
-    r, g, b, a = source[..., 0], source[..., 1], source[..., 2], source[..., 3]
-    peak = np.maximum(np.maximum(r, g), np.maximum(b, a))
-    minimum = np.minimum(np.minimum(r, g), np.minimum(b, a))
-    terms = {
-        "r": r,
-        "g": g,
-        "b": b,
-        "a": a,
-        "b_minus_18": np.maximum(0.0, b - 0.18),
-        "variance": np.maximum(peak - minimum, 0.0),
-        "average": (r * 0.3333) + (g * 0.3333) + (b * 0.3334),
-        "one": np.ones_like(r),
-    }
+    has_external_factors = bool(getattr(external_factors, "input_present", False))
+    factor_mode = str(getattr(external_factors, "mode", "") or "")
+    roughness_factor = getattr(external_factors, "roughness_factor", None)
+    metallic_factor = getattr(external_factors, "metallic_factor", None)
+    glossiness_factor = getattr(external_factors, "glossiness_factor", None)
+    specular_factor = getattr(external_factors, "specular_factor", None)
+    specular_color = float(getattr(external_factors, "specular_color", 0.0) or 0.0)
+    occlusion_strength = getattr(external_factors, "occlusion_strength", None)
+    metal_cap, spec_cap, roughness_floor = _nonmetal_response_limits(surface_category)
+    mask_channel_index = _LAYER_CHANNEL_INDEX.get(mask_channel, 0)
+    metal_peak = 0.0
+    spec_peak = 0.0
+    contribution_peak = 1.0 if has_mask is False else 0.0
 
-    def slot(name: str):
-        term, offset, gain, low, high = affine[name]
-        return np.clip(offset + gain * terms[term], low, high)
+    try:
+        for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+            _raise_if_material_combiner_cancelled(cancelled)
+            row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+            source = _numpy_rgba_row_chunk(
+                np, source_view, source_stride, width, row_start, row_count
+            )
+            r, g, b, a = source[..., 0], source[..., 1], source[..., 2], source[..., 3]
+            peak = np.maximum(np.maximum(r, g), np.maximum(b, a))
+            minimum = np.minimum(np.minimum(r, g), np.minimum(b, a))
+            terms = {
+                "r": r,
+                "g": g,
+                "b": b,
+                "a": a,
+                "b_minus_18": np.maximum(0.0, b - 0.18),
+                "variance": np.maximum(peak - minimum, 0.0),
+                "average": (r * 0.3333) + (g * 0.3333) + (b * 0.3334),
+                "one": np.ones_like(r),
+            }
 
-    ao = slot("ao")
-    roughness = slot("roughness")
-    metalness = slot("metalness")
-    specular = slot("specular")
+            def slot(name: str):
+                term, offset, gain, low, high = affine[name]
+                return np.clip(offset + gain * terms[term], low, high)
 
-    if bool(getattr(external_factors, "input_present", False)):
-        factor_mode = str(getattr(external_factors, "mode", "") or "")
-        roughness_factor = getattr(external_factors, "roughness_factor", None)
-        metallic_factor = getattr(external_factors, "metallic_factor", None)
-        glossiness_factor = getattr(external_factors, "glossiness_factor", None)
-        specular_factor = getattr(external_factors, "specular_factor", None)
-        specular_color = float(getattr(external_factors, "specular_color", 0.0) or 0.0)
-        occlusion_strength = getattr(external_factors, "occlusion_strength", None)
-        if factor_mode == "metallic_roughness":
-            if roughness_factor is not None:
-                roughness = np.clip(roughness * float(roughness_factor), 0.0, 1.0)
-            if metallic_factor is not None:
-                metalness = np.clip(metalness * float(metallic_factor), 0.0, 1.0)
-        elif factor_mode in {"specular_glossiness", "glossiness"}:
-            if glossiness_factor is not None:
-                glossiness = np.clip((1.0 - roughness) * float(glossiness_factor), 0.0, 1.0)
-                roughness = np.clip(1.0 - glossiness, 0.04, 0.98)
-            if specular_factor is not None:
-                specular = np.clip(specular * float(specular_factor), 0.0, 1.0)
-            if specular_color > 0.0:
-                specular = np.clip(specular * specular_color, 0.0, 1.0)
-        elif factor_mode in {"specular", "clearcoat", "sheen"}:
-            if specular_factor is not None:
-                specular = np.clip(specular * float(specular_factor), 0.0, 1.0)
-            if specular_color > 0.0:
-                specular = np.clip(specular * specular_color, 0.0, 1.0)
-        if occlusion_strength is not None:
-            ao = np.clip(1.0 + (ao - 1.0) * float(occlusion_strength), 0.45, 1.0)
-        ao = np.clip(ao, 0.45, 1.0)
-        roughness = np.clip(roughness, 0.04, 1.0)
-        metalness = np.clip(metalness, 0.0, 1.0)
-        specular = np.clip(specular, 0.0, 1.0)
+            ao = slot("ao")
+            roughness = slot("roughness")
+            metalness = slot("metalness")
+            specular = slot("specular")
 
-    source_metalness = metalness
-    if force_nonmetal_skin:
-        metalness = np.zeros_like(metalness)
-        specular = np.minimum(specular, 0.42)
-    elif apply_sidecar_hints:
-        if metallic_hint > 0.02:
-            metalness = np.maximum(metalness, metallic_hint * 0.42)
-            specular = np.maximum(specular, 0.14 + metallic_hint * 0.32)
-        if roughness_hint > 0.02:
-            roughness = np.clip((roughness * 0.72) + (roughness_hint * 0.28), 0.04, 0.98)
-        if specular_hint > 0.02:
-            specular = np.maximum(specular, specular_hint * 0.58)
-        ao = np.clip(ao, 0.45, 1.0)
-        roughness = np.clip(roughness, 0.04, 1.0)
-        metalness = np.clip(metalness, 0.0, 1.0)
-        specular = np.clip(specular, 0.0, 1.0)
+            if has_external_factors:
+                if factor_mode == "metallic_roughness":
+                    if roughness_factor is not None:
+                        roughness = np.clip(roughness * float(roughness_factor), 0.0, 1.0)
+                    if metallic_factor is not None:
+                        metalness = np.clip(metalness * float(metallic_factor), 0.0, 1.0)
+                elif factor_mode in {"specular_glossiness", "glossiness"}:
+                    if glossiness_factor is not None:
+                        glossiness = np.clip((1.0 - roughness) * float(glossiness_factor), 0.0, 1.0)
+                        roughness = np.clip(1.0 - glossiness, 0.04, 0.98)
+                    if specular_factor is not None:
+                        specular = np.clip(specular * float(specular_factor), 0.0, 1.0)
+                    if specular_color > 0.0:
+                        specular = np.clip(specular * specular_color, 0.0, 1.0)
+                elif factor_mode in {"specular", "clearcoat", "sheen"}:
+                    if specular_factor is not None:
+                        specular = np.clip(specular * float(specular_factor), 0.0, 1.0)
+                    if specular_color > 0.0:
+                        specular = np.clip(specular * specular_color, 0.0, 1.0)
+                if occlusion_strength is not None:
+                    ao = np.clip(1.0 + (ao - 1.0) * float(occlusion_strength), 0.45, 1.0)
+                ao = np.clip(ao, 0.45, 1.0)
+                roughness = np.clip(roughness, 0.04, 1.0)
+                metalness = np.clip(metalness, 0.0, 1.0)
+                specular = np.clip(specular, 0.0, 1.0)
 
-    if force_nonmetal_surface:
-        metal_cap, spec_cap, roughness_floor = _nonmetal_response_limits(surface_category)
-        limited = np.ones_like(metalness, dtype=bool)
-        if preserve_authored_metal_islands:
-            limited = source_metalness < 0.35
-        metalness = np.where(limited, np.minimum(np.clip(metalness, 0.0, 1.0), metal_cap), metalness)
-        specular = np.where(limited, np.minimum(np.clip(specular, 0.0, 1.0), spec_cap), specular)
-        roughness = np.where(limited, np.maximum(np.clip(roughness, 0.0, 1.0), roughness_floor), roughness)
+            source_metalness = metalness
+            if force_nonmetal_skin:
+                metalness = np.zeros_like(metalness)
+                specular = np.minimum(specular, 0.42)
+            elif apply_sidecar_hints:
+                if metallic_hint > 0.02:
+                    metalness = np.maximum(metalness, metallic_hint * 0.42)
+                    specular = np.maximum(specular, 0.14 + metallic_hint * 0.32)
+                if roughness_hint > 0.02:
+                    roughness = np.clip((roughness * 0.72) + (roughness_hint * 0.28), 0.04, 0.98)
+                if specular_hint > 0.02:
+                    specular = np.maximum(specular, specular_hint * 0.58)
+                ao = np.clip(ao, 0.45, 1.0)
+                roughness = np.clip(roughness, 0.04, 1.0)
+                metalness = np.clip(metalness, 0.0, 1.0)
+                specular = np.clip(specular, 0.0, 1.0)
 
-    if mask_view is not None:
-        mask = _numpy_rgba_channels(np, mask_view, mask_stride, width, height)
-        coverage = np.clip(
-            mask[..., _LAYER_CHANNEL_INDEX.get(mask_channel, 0)] * effective_layer_weight,
-            0.0,
-            1.0,
-        )
-        contribution_peak = float(coverage.max())
-    else:
-        coverage = np.ones_like(r)
-        contribution_peak = 1.0 if has_mask is False else 0.0
+            if force_nonmetal_surface:
+                limited = np.ones_like(metalness, dtype=bool)
+                if preserve_authored_metal_islands:
+                    limited = source_metalness < 0.35
+                metalness = np.where(
+                    limited,
+                    np.minimum(np.clip(metalness, 0.0, 1.0), metal_cap),
+                    metalness,
+                )
+                specular = np.where(
+                    limited,
+                    np.minimum(np.clip(specular, 0.0, 1.0), spec_cap),
+                    specular,
+                )
+                roughness = np.where(
+                    limited,
+                    np.maximum(np.clip(roughness, 0.0, 1.0), roughness_floor),
+                    roughness,
+                )
 
-    metal_peak = float((metalness * coverage).max())
-    spec_peak = float((specular * coverage).max())
+            if mask_view is not None:
+                mask = _numpy_rgba_row_chunk(
+                    np, mask_view, mask_stride, width, row_start, row_count
+                )
+                coverage = np.clip(
+                    mask[..., mask_channel_index] * effective_layer_weight,
+                    0.0,
+                    1.0,
+                )
+                contribution_peak = max(contribution_peak, float(coverage.max()))
+            else:
+                coverage = np.ones_like(r)
 
-    coverage_bytes = _numpy_unit_bytes(np, coverage)
-    for emit_slot, view, stride, values in zip(emit, views, strides, (ao, roughness, metalness, specular)):
-        if not emit_slot or view is None:
-            continue
-        grey = _numpy_unit_bytes(np, values)
-        packed = np.stack((grey, grey, grey, coverage_bytes), axis=-1)
-        span = width * 4
-        for y in range(height):
-            offset = y * stride
-            view[offset : offset + span] = packed[y].tobytes()
+            metal_peak = max(metal_peak, float((metalness * coverage).max()))
+            spec_peak = max(spec_peak, float((specular * coverage).max()))
+            coverage_bytes = _numpy_unit_bytes(np, coverage)
+            for emit_slot, view, stride, values in zip(
+                emit, views, strides, (ao, roughness, metalness, specular)
+            ):
+                if not emit_slot or view is None:
+                    continue
+                grey = _numpy_unit_bytes(np, values)
+                output = _numpy_write_row_chunk(
+                    np, view, stride, width, row_start, row_count, 4
+                )
+                output[:, :, :3] = grey[:, :, None]
+                output[:, :, 3] = coverage_bytes
+    except (BufferError, MemoryError, TypeError, ValueError):
+        return None
+
     return metal_peak, spec_peak, contribution_peak
 
 
@@ -1082,6 +1791,8 @@ def _generate_material_maps(
     layer_weight: float = 1.0,
     flip_vertical: bool,
     max_dimension: int,
+    prefer_largest_source_domain: bool = False,
+    requested_slots: frozenset[str] | None = None,
     cancelled: Callable[[], bool] | None = None,
 ) -> Tuple[Tuple[str, ...], Tuple[str, str, str, str]]:
     _raise_if_material_combiner_cancelled(cancelled)
@@ -1090,20 +1801,39 @@ def _generate_material_maps(
     source = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
     if source.isNull():
         return (), ("", "", "", "")
-    width = int(source.width())
-    height = int(source.height())
+    source = _apply_pac_layer_sampling_transform(
+        source,
+        input_item,
+        cancelled=cancelled,
+    )
+    mask_source = QImage()
+    if layer_mask is not None and not layer_mask.isNull():
+        mask_source = _support_source_image(layer_mask, flip_vertical=flip_vertical, max_dimension=max_dimension)
+    if prefer_largest_source_domain and not mask_source.isNull():
+        target_size = _largest_meaningful_image_size(
+            (source, mask_source),
+            max_dimension=max_dimension,
+        )
+        width = int(target_size.width())
+        height = int(target_size.height())
+        if width <= 0 or height <= 0:
+            return (), ("", "", "", "")
+        if int(source.width()) != width or int(source.height()) != height:
+            source = source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    else:
+        width = int(source.width())
+        height = int(source.height())
     if width <= 0 or height <= 0:
         return (), ("", "", "", "")
     source_view, source_stride = _image_rgba8888_view(source, width, height)
     if source_view is None:
         return (), ("", "", "", "")
-    mask_source = QImage()
-    if layer_mask is not None and not layer_mask.isNull():
-        mask_source = _support_source_image(layer_mask, flip_vertical=flip_vertical, max_dimension=max_dimension)
-        if not mask_source.isNull() and (int(mask_source.width()) != width or int(mask_source.height()) != height):
-            mask_source = mask_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-        if not mask_source.isNull():
-            mask_source = mask_source.convertToFormat(QImage.Format.Format_RGBA8888)
+    if not mask_source.isNull() and (
+        int(mask_source.width()) != width or int(mask_source.height()) != height
+    ):
+        mask_source = mask_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    if not mask_source.isNull():
+        mask_source = mask_source.convertToFormat(QImage.Format.Format_RGBA8888)
     mask_view: Optional[memoryview] = None
     mask_stride = 0
     if not mask_source.isNull():
@@ -1116,6 +1846,17 @@ def _generate_material_maps(
     if not mask_source.isNull() and effective_layer_weight <= 0.001:
         return (), ("", "", "", "")
     emit_occlusion, emit_roughness, emit_metalness, emit_specular = _material_decode_output_flags(decode_mode)
+    if requested_slots is not None:
+        normalized_requested_slots = {
+            "metalness" if str(slot or "").strip().casefold() == "metallic" else str(slot or "").strip().casefold()
+            for slot in requested_slots
+        }
+        emit_occlusion = emit_occlusion and "occlusion" in normalized_requested_slots
+        emit_roughness = emit_roughness and "roughness" in normalized_requested_slots
+        emit_metalness = emit_metalness and "metalness" in normalized_requested_slots
+        emit_specular = emit_specular and "specular" in normalized_requested_slots
+    if not any((emit_occlusion, emit_roughness, emit_metalness, emit_specular)):
+        return (), ("", "", "", "")
     # Layer maps are RGBA: RGB carries the decoded value, alpha carries how much
     # of this layer's mask covers the texel.  Baking the uncovered value into RGB
     # instead loses coverage, and the blend step could then only average layers
@@ -1205,6 +1946,7 @@ def _generate_material_maps(
         emit=(emit_occlusion, emit_roughness, emit_metalness, emit_specular),
         views=(ao_view, rough_view, metal_view, spec_view),
         strides=(ao_stride, rough_stride, metal_stride, spec_stride),
+        cancelled=cancelled,
     )
     if fast is not None:
         metal_peak, spec_peak, contribution_peak = fast
@@ -1416,6 +2158,8 @@ def _combine_material_slot_maps(
     output_dir: Path,
     stem: str,
     *,
+    max_dimension: int = 0,
+    prefer_largest_source_domain: bool = False,
     cancelled: Callable[[], bool] | None = None,
 ) -> Tuple[str, str]:
     _raise_if_material_combiner_cancelled(cancelled)
@@ -1435,8 +2179,16 @@ def _combine_material_slot_maps(
     # to whatever value happened to be decoded outside the mask.
     valid_layers.sort(key=lambda item: item[0])
 
-    base_width = int(valid_layers[0][3].width())
-    base_height = int(valid_layers[0][3].height())
+    if prefer_largest_source_domain:
+        target_size = _largest_meaningful_image_size(
+            tuple(item[3] for item in valid_layers),
+            max_dimension=max_dimension,
+        )
+        base_width = int(target_size.width())
+        base_height = int(target_size.height())
+    else:
+        base_width = int(valid_layers[0][3].width())
+        base_height = int(valid_layers[0][3].height())
     if base_width <= 0 or base_height <= 0:
         return "", ""
     normalized_layers: list[Tuple[int, str, QImage]] = []

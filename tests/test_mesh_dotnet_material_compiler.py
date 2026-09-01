@@ -6,16 +6,17 @@ import pytest
 from PIL import Image
 
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.models import PreviewMaterialTextureInput
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.models import PreviewMaterialTextureInput
 from cdmw.services import mesh_dotnet_material_compiler
+from cdmw.services import mesh_dotnet_material_package as material_package_module
+from cdmw.services.mesh_dotnet_material_channels import _dotnet_material_input_channels
 from cdmw.services.mesh_dotnet_material_compiler import (
     MeshDotNetMaterialCompilationError,
     MeshDotNetMaterialCompileRequest,
     compile_mesh_dotnet_material_update,
     snapshot_mesh_dotnet_material_inputs,
 )
-from cdmw.services.mesh_dotnet_material_channels import _dotnet_material_input_channels
 from cdmw.services.mesh_dotnet_material_package import (
     _source_has_usable_tangents,
     compile_mesh_dotnet_material_manifest,
@@ -151,6 +152,80 @@ def test_initial_and_resident_paths_use_the_same_compiler_contract(tmp_path: Pat
     assert resident_submesh["resource_channels"] == initial_submesh["resource_channels"]
     assert resident_submesh["resolved_features"] == initial_submesh["resolved_features"]
     assert all(Path(resource["path"]).is_file() for resource in resident["resources"])
+
+
+def test_selective_initial_compile_skips_native_owned_outputs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    mesh = _mesh_with_layer_graph(tmp_path)
+    detail_normal = _image(
+        tmp_path / "detail-normal.png",
+        (145, 116, 248, 255),
+    )
+    source = mesh.submeshes[0]
+    source.preview_material_texture_inputs = (
+        *source.preview_material_texture_inputs,
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_detailNormalMaskG",
+            source_dds_path=str(detail_normal),
+            preview_texture_path=str(detail_normal),
+            semantic_type="normal",
+            semantic_subtype="normal",
+            shader_family="MultiTextured",
+            sidecar_kind="pac_xml",
+            layer_role="detail",
+            layer_channel="g",
+            owner_slot_index=3,
+            owner_wrapper_item_id="100",
+            binding_authority="authoritative",
+            binding_disposition="layer_only",
+            source_kind="crimson_layer_normal",
+        ),
+    )
+    full_manifest = compile_mesh_dotnet_material_manifest(
+        mesh,
+        package_dir=tmp_path / "full",
+        material_signature="full-rust-open-reference",
+    )
+    observed_settings = []
+    original_combine = material_package_module.combine_preview_material
+
+    def record_combine(*args, **kwargs):
+        observed_settings.append(kwargs["settings"])
+        return original_combine(*args, **kwargs)
+
+    monkeypatch.setattr(
+        material_package_module,
+        "combine_preview_material",
+        record_combine,
+    )
+    requested = frozenset({"normal", "occlusion", "specular", "height"})
+    manifest = compile_mesh_dotnet_material_manifest(
+        mesh,
+        package_dir=tmp_path / "selective",
+        material_signature="selective-rust-open",
+        requested_synthesis_channels_by_submesh={0: requested},
+    )
+
+    assert len(observed_settings) == 1
+    assert observed_settings[0].requested_output_channels == requested
+    assert observed_settings[0].base_output_available is True
+    synthesis = manifest["submeshes"][0]["material_synthesis"]
+    assert not {"base", "albedo", "diffuse", "roughness", "metallic"}.intersection(
+        synthesis["generated_channels"]
+    )
+    assert "albedo" not in synthesis["outputs"]
+    assert "legacy_material" not in synthesis["outputs"]
+    full_normal = Path(full_manifest["submeshes"][0]["resolved_channels"]["normal"])
+    selective_normal = Path(manifest["submeshes"][0]["resolved_channels"]["normal"])
+    with Image.open(full_normal) as full_image, Image.open(
+        selective_normal
+    ) as selective_image:
+        assert full_image.convert("RGBA").tobytes() == selective_image.convert(
+            "RGBA"
+        ).tobytes()
 
 
 def test_resident_compiler_accepts_exact_embedded_mesh_base_reference(

@@ -112,7 +112,7 @@ def test_workspace_theme_reaches_the_visible_resident_host() -> None:
 
         assert workspace._theme_key == "crimson_desert"
         assert workspace.native_host_frame._theme_key == "crimson_desert"
-        assert "#211814" in workspace.native_host_frame._status_panel.styleSheet()
+        assert workspace.native_host_frame.property("cdmwThemeKey") == "crimson_desert"
     finally:
         workspace.deleteLater()
         _APPLICATION.processEvents()

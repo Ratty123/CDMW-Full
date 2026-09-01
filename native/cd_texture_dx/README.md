@@ -26,7 +26,7 @@ cd-texture-dx.exe inspect-json path\to\texture.dds
 cd-texture-dx.exe batch-preview-json job.json report.json
 ```
 
-`batch-preview-json` accepts protocol-v2 decode requests with `input`, `output`, `slot`, `normal_space`, `max_dimension`, `requested_mip`, and `output_pixel_type`. `batch-encode-json` accepts explicit DDS format, dimensions, mip count, overwrite, source-color, mip-alpha, coverage-reference, and DDS alpha-metadata policies. The helper writes all outputs and a single report JSON so Python can batch texture work through one native process.
+`batch-preview-json` accepts protocol-v2 decode requests with `input`, `output`, `slot`, `normal_space`, `max_dimension`, `requested_mip`, and `output_pixel_type`. `batch-encode-json` accepts explicit DDS format, dimensions, mip count, overwrite, source-color, mip-alpha, coverage-reference, and DDS alpha-metadata policies. Source-colour policy is `auto`, `ignore_srgb_metadata`, or `assume_srgb`; the last option preserves untagged presentation-space colour bytes when targeting an sRGB DDS. The helper writes all outputs and a single report JSON so Python can batch texture work through one native process.
 
 The batch parser is a bounded, allocation-light JSON scanner rather than
 `std::regex`; this keeps preview decoding reliable while the main application is

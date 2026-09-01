@@ -121,20 +121,28 @@ def test_a_terminal_resident_stroke_forwards_native_history_ownership() -> None:
 def test_resident_transaction_result_marks_the_ack_commit_as_resident_history() -> None:
     bridge = _Bridge(_builder_recording_commits())
     bridge.standalone_dotnet_target_embedded = True
-    update = MeshEditorNativeUpdate(
-        vertex_groups=(
-            {
-                "preview_backend": "cdmw_mesh_core",
-                "source_submesh_index": 0,
-                "source_vertex_indices": [1],
-                "positions": [1.0, 2.0, 3.0],
-            },
-        ),
+    view = SimpleNamespace(
+        resident_revision=7,
+        selection_revision=2,
+        topology_generation=0,
+        undo_count=1,
+        redo_count=0,
+        history_cursor=1,
+        history_entries=(),
     )
-    controller = SimpleNamespace(native_update_for_result=lambda _result: update)
-    sends: list[dict[str, object]] = []
-    bridge._send_dotnet_native_update = (
-        lambda _update, **kwargs: sends.append(dict(kwargs)) or True
+    native_calls: list[object] = []
+    controller = SimpleNamespace(
+        native_update_for_result=lambda result: native_calls.append(result),
+        session_view=lambda: view,
+    )
+    acknowledgements: list[dict[str, object]] = []
+    refreshes: list[bool] = []
+    bridge._refresh_embedded_workspace_from_builder = (
+        lambda *, include_derived=True, session_view=None: refreshes.append(bool(include_derived))
+    )
+    bridge._send_dotnet_resident_interaction_commit_ack = (
+        lambda request_payload, **values:
+            acknowledgements.append({"request": dict(request_payload), **values}) or True
     )
     bridge._set_dotnet_status = lambda *_args, **_kwargs: None
 
@@ -148,8 +156,55 @@ def test_resident_transaction_result_marks_the_ack_commit_as_resident_history() 
         },
     )
 
-    assert sends[0]["commit_embedded"] is True
-    assert sends[0]["resident_history"] is True
+    assert bridge._builder.calls[0]["resident_history"] is True
+    assert refreshes == [True]
+    assert acknowledgements[0]["status"] == "applied"
+    assert acknowledgements[0]["session_view"] is view
+    assert native_calls == []
+
+
+def test_applied_resident_commit_advances_the_host_mutation_lane() -> None:
+    bridge = _Bridge(_builder_recording_commits())
+    contexts: list[dict[str, object]] = []
+    messages: list[dict[str, object]] = []
+    bridge.standalone_dotnet_update_queue = SimpleNamespace(
+        set_context=lambda **values: contexts.append(dict(values))
+    )
+    bridge._send_dotnet_protocol_message = (
+        lambda payload: messages.append(dict(payload)) or True
+    )
+    bridge._set_dotnet_status = lambda *_args, **_kwargs: None
+    view = SimpleNamespace(
+        resident_revision=8,
+        selection_revision=4,
+        topology_generation=2,
+        undo_count=2,
+        redo_count=0,
+        history_cursor=2,
+        history_entries=(),
+    )
+
+    assert bridge._send_dotnet_resident_interaction_commit_ack(
+        {
+            "session_id": "mesh-session",
+            "process_generation": 3,
+            "target_revision": 8,
+            "target_selection_revision": 4,
+            "topology_generation": 2,
+            "sha256": "a" * 64,
+        },
+        status="applied",
+        session_view=view,
+    )
+
+    assert messages[-1]["durable_revision"] == 8
+    assert contexts == [
+        {
+            "session_id": "mesh-session",
+            "process_generation": 3,
+            "renderer_revision": 8,
+        }
+    ]
 
 
 def test_a_builder_without_the_bridge_is_not_an_error() -> None:

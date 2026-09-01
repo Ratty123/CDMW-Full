@@ -37,10 +37,16 @@ internal static class MaterialResourcePolicyProbe
                 ["diagnostic"] = "symbolic material name is not a concrete required resource",
             };
             var residentParameterRefresh = EvaluateResidentParameterRefresh(root);
+            var normalYPolicyAlias = EvaluateNormalYPolicyAlias(root);
+            var synthesizedSurfaceSelectors = MaterialLayerCompositeExport.PackedSurfaceSelectorProof();
+            var resolvedFallbackOwnership = MaterialLayerCompositeExport.ResolvedFallbackOwnershipProof(root);
             var ok = required.GetValueOrDefault("ready_allowed") is false
                 && optional.GetValueOrDefault("ready_allowed") is true
                 && optional.GetValueOrDefault("fallback_policy") as string == "flat_normal"
-                && residentParameterRefresh.GetValueOrDefault("ok") is true;
+                && residentParameterRefresh.GetValueOrDefault("ok") is true
+                && normalYPolicyAlias.GetValueOrDefault("ok") is true
+                && synthesizedSurfaceSelectors.GetValueOrDefault("ok") is true
+                && resolvedFallbackOwnership.GetValueOrDefault("ok") is true;
             var report = new Dictionary<string, object?>
             {
                 ["schema"] = "cdmw_material_resource_policy_runtime_v1",
@@ -49,6 +55,9 @@ internal static class MaterialResourcePolicyProbe
                 ["optional_failure"] = optional,
                 ["symbolic_resource"] = symbolic,
                 ["resident_parameter_refresh"] = residentParameterRefresh,
+                ["normal_y_policy_alias"] = normalYPolicyAlias,
+                ["synthesized_surface_selectors"] = synthesizedSurfaceSelectors,
+                ["resolved_fallback_ownership"] = resolvedFallbackOwnership,
             };
             File.WriteAllText(
                 reportPath,
@@ -66,6 +75,38 @@ internal static class MaterialResourcePolicyProbe
                 // The probe reports policy behavior; temp cleanup is best effort.
             }
         }
+    }
+
+    private static Dictionary<string, object?> EvaluateNormalYPolicyAlias(string root)
+    {
+        var manifestPath = Path.Combine(root, "normal-y-policy-alias.json");
+        var manifest = new Dictionary<string, object?>
+        {
+            ["schema"] = "cdmw_mesh_material_state_v2",
+            ["material_signature"] = "normal-y-policy-alias",
+            ["material_slots"] = Array.Empty<object>(),
+            ["resources"] = Array.Empty<object>(),
+            ["submeshes"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["submesh_index"] = 0,
+                    ["material_slot_index"] = 0,
+                    ["material"] = "normal-y-policy-alias",
+                    ["resource_channels"] = new Dictionary<string, string>(),
+                    ["normal_y_policy"] = "shader_invert_legacy_compat",
+                },
+            },
+        };
+        File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest));
+        var materials = NetMaterialSet.Load(manifestPath);
+        var aliasInverts = materials.NormalYInvertedForSubmesh(0);
+        return new Dictionary<string, object?>
+        {
+            ["source_policy"] = "shader_invert_legacy_compat",
+            ["canonical_policy"] = aliasInverts ? "invert_green_for_directx" : "preserve",
+            ["ok"] = aliasInverts,
+        };
     }
 
     private static Dictionary<string, object?> EvaluateResidentParameterRefresh(string root)

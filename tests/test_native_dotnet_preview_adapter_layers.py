@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cdmw.services.native_dotnet_preview_adapter import (
+    native_dotnet_preview_adapter_is_current,
+)
 from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package
 
 
@@ -15,8 +18,10 @@ def _write_layered_native_package(tmp_path: Path) -> tuple[Path, dict[str, Path]
         "base": tmp_path / "shield_base.dds",
         "surface": tmp_path / "shield_surface.dds",
         "detail": tmp_path / "shield_detail.dds",
+        "detail_normal": tmp_path / "shield_detail_normal.dds",
         "mask": tmp_path / "shield_detail_mask.dds",
         "detail_surface": tmp_path / "shield_detail_surface.dds",
+        "detail_height": tmp_path / "shield_detail_height.dds",
     }
     for name, path in textures.items():
         path.write_bytes(name.encode("ascii"))
@@ -71,10 +76,14 @@ def _write_layered_native_package(tmp_path: Path) -> tuple[Path, dict[str, Path]
                         "layer_role": "detail",
                         "mask_channel": "g",
                         "weight": 0.68,
+                        "detail_scale": 3.5,
+                        "height_scale_hint": 0.12,
                         "tint": [0.4, 0.5, 0.6, 1.0],
                         "diffuse_source": str(textures["detail"]),
+                        "normal_source": str(textures["detail_normal"]),
                         "mask_source": str(textures["mask"]),
                         "material_source": str(textures["detail_surface"]),
+                        "height_source": str(textures["detail_height"]),
                     },
                 ],
             }
@@ -100,10 +109,83 @@ def test_schema8_adapter_preserves_authoritative_material_layers(tmp_path: Path)
     detail = binding["material_layers"][1]
     resources = {resource["resource_id"]: resource for resource in materials["resources"]}
     assert Path(resources[detail["diffuse_resource_id"]]["path"]) == textures["detail"].resolve()
+    assert Path(resources[detail["normal_resource_id"]]["path"]) == textures["detail_normal"].resolve()
     assert Path(resources[detail["mask_resource_id"]]["path"]) == textures["mask"].resolve()
     assert Path(resources[detail["material_resource_id"]]["path"]) == textures["detail_surface"].resolve()
+    assert Path(resources[detail["height_resource_id"]]["path"]) == textures["detail_height"].resolve()
+    assert detail["detail_scale"] == 3.5
+    assert detail["height_scale_hint"] == 0.12
     assert "material" in binding["resource_channels"]
     assert "roughness" not in binding["resource_channels"]
     assert "metallic" not in binding["resource_channels"]
-    marker = json.loads((package.package_dir / "cdmw_native_dotnet_adapter_v1.json").read_text(encoding="utf-8"))
-    assert marker["schema"] == 2
+    assert "roughness" not in binding["parameters"]
+    assert "roughness_scale" not in binding["parameters"]
+    assert "metalness" not in binding["parameters"]
+    assert "metalness_scale" not in binding["parameters"]
+    marker_path = package.package_dir / "cdmw_native_dotnet_adapter_v1.json"
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert marker["schema"] == 4
+    marker["schema"] = 3
+    marker_path.write_text(json.dumps(marker), encoding="utf-8")
+    assert native_dotnet_preview_adapter_is_current(package.package_dir) is False
+    rebuilt = build_or_lookup_dotnet_preview_package(
+        source_package,
+        cache_root=tmp_path / "preview-cache",
+        archive_identity="layered-shield",
+    )
+    assert rebuilt.package_dir == package.package_dir
+    rebuilt_marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert rebuilt_marker["schema"] == 4
+
+
+def test_schema8_adapter_keeps_scalar_fallback_without_layer_surface(tmp_path: Path) -> None:
+    source_package, _textures = _write_layered_native_package(tmp_path)
+    manifest_path = source_package / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    batch = manifest["batches"][0]
+    for layer in batch["material_layers"]:
+        layer.pop("material_source", None)
+    batch["dds_textures"].pop("material", None)
+    batch["dds_textures"]["material_inputs"] = [
+        descriptor
+        for descriptor in batch["dds_textures"]["material_inputs"]
+        if descriptor.get("slot") != "material"
+    ]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    package = build_or_lookup_dotnet_preview_package(
+        source_package,
+        cache_root=tmp_path / "preview-cache",
+        archive_identity="layered-shield-no-surface",
+    )
+
+    materials = json.loads((package.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+    parameters = materials["submeshes"][0]["parameters"]
+    assert parameters["roughness"] == 0.72
+    assert parameters["metalness"] == 0.2
+
+
+def test_schema8_adapter_preserves_support_only_normal_layer(tmp_path: Path) -> None:
+    source_package, textures = _write_layered_native_package(tmp_path)
+    manifest_path = source_package / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    support = manifest["batches"][0]["material_layers"][1]
+    support.pop("diffuse_source")
+    support.pop("material_source")
+    support.pop("height_source")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    package = build_or_lookup_dotnet_preview_package(
+        source_package,
+        cache_root=tmp_path / "preview-cache",
+        archive_identity="layered-shield-normal-support",
+    )
+
+    materials = json.loads((package.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+    support = materials["submeshes"][0]["material_layers"][1]
+    resources = {resource["resource_id"]: resource for resource in materials["resources"]}
+    assert "diffuse_resource_id" not in support
+    assert "material_resource_id" not in support
+    assert "height_resource_id" not in support
+    assert Path(resources[support["normal_resource_id"]]["path"]) == textures["detail_normal"].resolve()
+    assert Path(resources[support["mask_resource_id"]]["path"]) == textures["mask"].resolve()

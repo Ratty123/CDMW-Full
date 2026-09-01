@@ -248,11 +248,15 @@ internal sealed partial class NetMaterialSet
 
     public bool NormalYInvertedForSubmesh(int submeshIndex)
     {
-        var binding = BindingForSubmesh(submeshIndex);
+        var policy = BindingForSubmesh(submeshIndex)?.NormalYPolicy?.Trim();
         return string.Equals(
-            binding?.NormalYPolicy,
-            "invert_green_for_directx",
-            StringComparison.OrdinalIgnoreCase);
+                policy,
+                "invert_green_for_directx",
+                StringComparison.OrdinalIgnoreCase)
+            || string.Equals(
+                policy,
+                "shader_invert_legacy_compat",
+                StringComparison.OrdinalIgnoreCase);
     }
 
     public bool TextureFlipVerticalForSubmesh(int submeshIndex)

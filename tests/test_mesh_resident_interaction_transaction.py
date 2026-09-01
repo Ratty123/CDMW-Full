@@ -17,6 +17,7 @@ from cdmw.ui.mesh_editor.controller import MeshEditorController
 
 
 _HEADER = struct.Struct("<8sIIIIQQQQQQQIIQ")
+_HEADER_V2 = struct.Struct("<8sIIIIQQQQQQQQIIQ")
 _GEOMETRY_GROUP = struct.Struct("<iI")
 _VERTEX = struct.Struct("<I3d")
 _SELECTION = struct.Struct("<iIIIII")
@@ -47,6 +48,11 @@ def _transaction_bytes(
     tool: int,
     geometry: tuple[tuple[int, tuple[tuple[int, tuple[float, float, float]], ...]], ...] = (),
     selection: tuple[tuple[int, int, int, int, bool], ...] = (),
+    format_version: int = 1,
+    transaction_sequence: int = 1,
+    process_generation: int = 1,
+    request_id: int = 1,
+    helper_process_id: int = 1001,
 ) -> tuple[bytes, dict[str, object]]:
     session = service._sessions[session_id]
     base_revision = service.session_view(session_id).resident_revision
@@ -60,24 +66,32 @@ def _transaction_bytes(
             body.extend(_VERTEX.pack(vertex_index, *position))
     for submesh, target, first, second, selected in selection:
         body.extend(_SELECTION.pack(submesh, target, first, second, 1, int(selected)))
-    length = _HEADER.size + len(body)
-    header = _HEADER.pack(
-        b"CDMWMIT1",
-        1,
-        _HEADER.size,
+    header_type = _HEADER_V2 if format_version == 2 else _HEADER
+    length = header_type.size + len(body)
+    fields = [
+        b"CDMWMIT2" if format_version == 2 else b"CDMWMIT1",
+        format_version,
+        header_type.size,
         tool,
         flags,
         resident_interaction_session_key(session_id),
         gesture_id,
-        base_revision,
-        target_revision,
-        session.selection_revision,
-        target_selection,
-        session.topology_operation_revision,
-        len(geometry),
-        len(selection),
-        length,
+    ]
+    if format_version == 2:
+        fields.append(transaction_sequence)
+    fields.extend(
+        [
+            base_revision,
+            target_revision,
+            session.selection_revision,
+            target_selection,
+            session.topology_operation_revision,
+            len(geometry),
+            len(selection),
+            length,
+        ]
     )
+    header = header_type.pack(*fields)
     payload = header + body
     descriptor: dict[str, object] = {
         "session_id": session_id,
@@ -89,6 +103,19 @@ def _transaction_bytes(
         "length": len(payload),
         "sha256": hashlib.sha256(payload).hexdigest(),
     }
+    if format_version == 2:
+        descriptor.update(
+            {
+                "format_version": 2,
+                "transaction_sequence": transaction_sequence,
+                "tool": tool,
+                "target_revision": target_revision,
+                "target_selection_revision": target_selection,
+                "process_generation": process_generation,
+                "request_id": request_id,
+                "helper_process_id": helper_process_id,
+            }
+        )
     return payload, descriptor
 
 
@@ -235,6 +262,32 @@ def test_selection_transaction_has_one_exact_history_entry() -> None:
     assert service.session_view(view.session_id).selection.vertex_map() == {0: {2}}
 
 
+def test_committed_resident_face_selection_drives_the_next_topology_edit() -> None:
+    service = MeshService()
+    view = service.open_edit_session(
+        _mesh(), session_id="resident-select-topology", mode="edit"
+    )
+    payload, descriptor = _transaction_bytes(
+        service,
+        view.session_id,
+        gesture_id=302,
+        tool=1,
+        selection=((0, 3, 0, 0, True),),
+    )
+
+    selected = _apply(service, view.session_id, payload, descriptor, label="Select")
+    deleted = service.apply_command(view.session_id, MeshEditCommand("delete"))
+
+    assert selected.ok
+    assert selected.action == "select"
+    assert deleted.ok
+    assert deleted.topology_changed
+    edited = service.working_mesh(view.session_id).submeshes[0]
+    assert edited.vertices == []
+    assert edited.faces == []
+    assert service.session_view(view.session_id).selection.is_empty()
+
+
 def test_duplicate_stale_transaction_is_rejected_without_second_history_entry() -> None:
     service = MeshService()
     view = service.open_edit_session(_mesh(), session_id="resident-stale", mode="edit")
@@ -300,3 +353,160 @@ def test_out_of_range_payload_is_rejected_before_retiring_clean_legacy_session()
 
     assert session.native_editor_session_ready is True
     assert session.undo_stack == []
+
+
+def test_v2_commit_is_idempotent_and_never_echoes_geometry_to_the_helper() -> None:
+    service = MeshService()
+    view = service.open_edit_session(_mesh(), session_id="resident-v2-idempotent", mode="edit")
+    payload, descriptor = _transaction_bytes(
+        service,
+        view.session_id,
+        gesture_id=701,
+        tool=3,
+        geometry=((0, ((1, (1.25, 0.1, 0.2)),)),),
+        format_version=2,
+        transaction_sequence=1,
+    )
+
+    first = _apply(service, view.session_id, payload, descriptor, label="Grab")
+    retried = _apply(service, view.session_id, payload, descriptor, label="Grab")
+
+    assert first is retried
+    assert first.native_preview_vertex_update_groups == ()
+    assert first.native_selection_groups == ()
+    assert len(service._sessions[view.session_id].undo_stack) == 1
+    assert service._sessions[view.session_id].resident_interaction_last_sequence == 1
+
+    conflicting, conflicting_descriptor = _transaction_bytes(
+        service,
+        view.session_id,
+        gesture_id=702,
+        tool=3,
+        geometry=((0, ((1, (1.5, 0.2, 0.4)),)),),
+        format_version=2,
+        transaction_sequence=1,
+        request_id=2,
+    )
+    with pytest.raises(ValueError, match="reused with another digest"):
+        _apply(
+            service,
+            view.session_id,
+            conflicting,
+            conflicting_descriptor,
+            label="Grab",
+        )
+    assert len(service._sessions[view.session_id].undo_stack) == 1
+
+
+def test_v2_fifo_process_generation_and_topology_guards() -> None:
+    service = MeshService()
+    view = service.open_edit_session(_mesh(), session_id="resident-v2-fifo", mode="edit")
+    for sequence in range(1, 17):
+        payload, descriptor = _transaction_bytes(
+            service,
+            view.session_id,
+            gesture_id=800 + sequence,
+            tool=5,
+            geometry=((0, ((2, (0.0, 1.0, sequence / 100.0)),)),),
+            format_version=2,
+            transaction_sequence=sequence,
+            request_id=sequence,
+        )
+        result = _apply(service, view.session_id, payload, descriptor, label="Inflate")
+        assert result.ok
+    session = service._sessions[view.session_id]
+    assert session.resident_interaction_last_sequence == 16
+    assert list(session.resident_interaction_ledger) == list(range(1, 17))
+    assert len(session.undo_stack) == 16
+
+    restarted, restarted_descriptor = _transaction_bytes(
+        service,
+        view.session_id,
+        gesture_id=901,
+        tool=5,
+        geometry=((0, ((2, (0.0, 1.0, 0.5)),)),),
+        format_version=2,
+        transaction_sequence=1,
+        process_generation=2,
+        request_id=101,
+    )
+    assert _apply(
+        service,
+        view.session_id,
+        restarted,
+        restarted_descriptor,
+        label="Inflate",
+    ).ok
+    assert session.resident_interaction_process_generation == 2
+    assert session.resident_interaction_last_sequence == 1
+    assert list(session.resident_interaction_ledger) == [1]
+
+    stale, stale_descriptor = _transaction_bytes(
+        service,
+        view.session_id,
+        gesture_id=902,
+        tool=5,
+        geometry=((0, ((2, (0.0, 1.0, 0.6)),)),),
+        format_version=2,
+        transaction_sequence=2,
+        process_generation=1,
+        request_id=102,
+    )
+    with pytest.raises(RuntimeError, match="process generation is stale"):
+        _apply(service, view.session_id, stale, stale_descriptor, label="Inflate")
+
+    gap, gap_descriptor = _transaction_bytes(
+        service,
+        view.session_id,
+        gesture_id=903,
+        tool=5,
+        geometry=((0, ((2, (0.0, 1.0, 0.7)),)),),
+        format_version=2,
+        transaction_sequence=3,
+        process_generation=2,
+        request_id=103,
+    )
+    with pytest.raises(RuntimeError, match="out of order: expected 2"):
+        _apply(service, view.session_id, gap, gap_descriptor, label="Inflate")
+
+    topology_payload, topology_descriptor = _transaction_bytes(
+        service,
+        view.session_id,
+        gesture_id=904,
+        tool=5,
+        geometry=((0, ((2, (0.0, 1.0, 0.8)),)),),
+        format_version=2,
+        transaction_sequence=2,
+        process_generation=2,
+        request_id=104,
+    )
+    session.topology_operation_revision += 1
+    with pytest.raises(RuntimeError, match="topology generation is stale"):
+        _apply(
+            service,
+            view.session_id,
+            topology_payload,
+            topology_descriptor,
+            label="Inflate",
+        )
+
+
+def test_v2_selection_commit_has_no_helper_originated_selection_echo() -> None:
+    service = MeshService()
+    view = service.open_edit_session(_mesh(), session_id="resident-v2-selection", mode="edit")
+    payload, descriptor = _transaction_bytes(
+        service,
+        view.session_id,
+        gesture_id=1001,
+        tool=1,
+        selection=((0, 1, 2, 0, True),),
+        format_version=2,
+        transaction_sequence=1,
+    )
+
+    result = _apply(service, view.session_id, payload, descriptor, label="Select")
+
+    assert result.ok
+    assert result.native_selection_groups == ()
+    assert result.native_preview_vertex_update_groups == ()
+    assert service.session_view(view.session_id).selection.vertex_map() == {0: {2}}

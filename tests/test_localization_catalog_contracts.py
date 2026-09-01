@@ -61,7 +61,13 @@ from cdmw.workers.localization_workers import (
     LanguageImportRequest,
     run_language_import,
 )
-from scripts.generate_ui_localization_manifest import _html_segments, build_manifest
+from scripts.generate_ui_localization_manifest import (
+    MANIFEST_PATH,
+    _content_is_current,
+    _html_segments,
+    _manifest_freshness_view,
+    build_manifest,
+)
 from scripts.validate_ui_localization_catalogs import (
     _has_encoding_damage,
     _preserves_layout_whitespace,
@@ -1301,7 +1307,43 @@ def _packaged_source_manifest() -> dict[str, object]:
 
 def test_generated_manifest_is_current() -> None:
     packaged = _packaged_source_manifest()
-    assert packaged == build_manifest()
+    assert _manifest_freshness_view(packaged) == _manifest_freshness_view(
+        build_manifest()
+    )
+
+
+def test_generated_manifest_freshness_ignores_only_source_line_movement() -> None:
+    expected = {
+        "schema": "cdmw_ui_localization_source_manifest_v1",
+        "entries": [
+            {
+                "key": "Open",
+                "origins": [
+                    {"path": "cdmw/ui/example.py", "line": 10, "sink": "setText"},
+                    {
+                        "path": "cdmw/ui/example.py",
+                        "line": 20,
+                        "sink": "setToolTip",
+                    },
+                ],
+            }
+        ],
+        "exclusions": [],
+    }
+    moved = json.loads(json.dumps(expected))
+    moved["entries"][0]["origins"].reverse()
+    moved["entries"][0]["origins"][0]["line"] = 250
+    moved["entries"][0]["origins"][1]["line"] = 100
+    changed_sink = json.loads(json.dumps(moved))
+    changed_sink["entries"][0]["origins"][0]["sink"] = "setStatusTip"
+
+    expected_text = json.dumps(expected)
+    assert _content_is_current(MANIFEST_PATH, json.dumps(moved), expected_text)
+    assert not _content_is_current(
+        MANIFEST_PATH,
+        json.dumps(changed_sink),
+        expected_text,
+    )
 
 
 def test_generated_manifest_contains_reviewed_source_keys() -> None:

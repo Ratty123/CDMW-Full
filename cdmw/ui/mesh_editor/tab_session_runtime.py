@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -9,15 +10,91 @@ from PySide6.QtCore import QThread, QTimer, Qt
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
-# How often to re-check for the shell's deferred texture lookup while material
-# context resolution is holding for it, and for how long. The native lookup
-# build finishes in seconds; the Python fallback over a full archive can take
-# a minute, and the textured-view watchdog extends past both.
+# How often to re-check for the shell's deferred archive lookup while session
+# loading or material-context resolution is holding for it, and for how long.
+# The native lookup build finishes in seconds; the Python fallback over a full
+# archive can take a minute, and the textured-view watchdog extends past both.
 ARCHIVE_TEXTURE_INDEX_WAIT_INTERVAL_MS = 1_500
 ARCHIVE_TEXTURE_INDEX_WAIT_MAX_ATTEMPTS = 120
 
 
 class MeshEditorSessionMixin:
+    def _discard_queued_archive_session_open(
+        self,
+        *,
+        preserve_lease: object | None = None,
+    ) -> None:
+        pending = getattr(self, "archive_session_open_pending", None)
+        self.archive_session_open_pending = None
+        if not isinstance(pending, Mapping):
+            return
+        lease = pending.get("material_package_lease")
+        if lease is preserve_lease or lease is getattr(
+            self, "archive_material_context_package_lease", None
+        ):
+            # Either the newer request is carrying this lease forward, or the
+            # current session still owns it and its normal terminal close will
+            # release it. Do not invalidate either owner's DDS paths here.
+            return
+        release = getattr(lease, "release", None)
+        if callable(release):
+            release()
+
+    def _queue_archive_session_open(
+        self,
+        entry: _tab.ArchiveEntry,
+        *,
+        resume_manifest_path: Path | str | None,
+        material_preview_model: object | None,
+        material_companion_entry: _tab.ArchiveEntry | None,
+        material_package_path: Path | str | None,
+        material_package_lease: object | None,
+        material_context_verified_for_rust: bool,
+        material_source_identity: object | None,
+    ) -> None:
+        previous = getattr(self, "archive_session_open_pending", None)
+        previous_lease = (
+            previous.get("material_package_lease")
+            if isinstance(previous, Mapping)
+            else None
+        )
+        current_lease = getattr(self, "archive_material_context_package_lease", None)
+        if (
+            previous_lease is not None
+            and previous_lease is not current_lease
+            and previous_lease is not material_package_lease
+        ):
+            release = getattr(previous_lease, "release", None)
+            if callable(release):
+                release()
+        self.archive_session_open_pending = {
+            "entry": copy.deepcopy(entry),
+            "resume_manifest_path": resume_manifest_path,
+            "material_preview_model": material_preview_model,
+            "material_companion_entry": material_companion_entry,
+            "material_package_path": material_package_path,
+            "material_package_lease": material_package_lease,
+            "material_context_verified_for_rust": bool(
+                material_context_verified_for_rust
+            ),
+            "material_source_identity": material_source_identity,
+        }
+
+    def _resume_queued_archive_session_open(self) -> None:
+        pending = getattr(self, "archive_session_open_pending", None)
+        self.archive_session_open_pending = None
+        if not isinstance(pending, Mapping):
+            return
+        payload = dict(pending)
+        entry = payload.pop("entry", None)
+        if not isinstance(entry, _tab.ArchiveEntry):
+            lease = payload.get("material_package_lease")
+            release = getattr(lease, "release", None)
+            if callable(release):
+                release()
+            return
+        self.open_archive_session(entry, **payload)
+
     def open_archive_session(
         self,
         entry: _tab.ArchiveEntry,
@@ -27,20 +104,166 @@ class MeshEditorSessionMixin:
         material_companion_entry: _tab.ArchiveEntry | None = None,
         material_package_path: Path | str | None = None,
         material_package_lease: object | None = None,
-    ) -> int:
+        material_context_verified_for_rust: bool = False,
+        material_source_identity: object | None = None,
+    ) -> int | None:
         """Open an archive mesh directly in the resident authoring workspace."""
         if not isinstance(entry, _tab.ArchiveEntry):
             raise TypeError("entry must be ArchiveEntry")
-        if material_package_lease is getattr(
-            self,
-            "archive_material_context_package_lease",
-            None,
-        ):
+        if str(_tab.QApplication.platformName() or "").strip().lower() != "offscreen":
+            preflight_reason = self._rust_open_preflight_reason()
+            if preflight_reason:
+                message = f"Mesh Editor cannot open: {preflight_reason}."
+                self.empty_status_label.setText(message)
+                self.status_message_requested.emit(message, True)
+                self._sync_mesh_editor_backend_controls()
+                return None
+        # A newer explicit archive-open request supersedes any older queued
+        # replacement. The resume helper clears the queue before calling back
+        # into this method, so a legitimate one-shot resume is unaffected.
+        self._discard_queued_archive_session_open(
+            preserve_lease=material_package_lease
+        )
+        current_package_lease = getattr(
+            self, "archive_material_context_package_lease", None
+        )
+        carries_current_package_lease = bool(
+            material_package_lease is not None
+            and material_package_lease is current_package_lease
+        )
+        if carries_current_package_lease:
             self.archive_material_context_package_lease = None
-        self.close_standalone_session()
+        if self.close_standalone_session() is False:
+            if carries_current_package_lease:
+                self.archive_material_context_package_lease = current_package_lease
+            self._queue_archive_session_open(
+                entry,
+                resume_manifest_path=resume_manifest_path,
+                material_preview_model=material_preview_model,
+                material_companion_entry=material_companion_entry,
+                material_package_path=material_package_path,
+                material_package_lease=material_package_lease,
+                material_context_verified_for_rust=material_context_verified_for_rust,
+                material_source_identity=material_source_identity,
+            )
+            self.status_message_requested.emit(
+                "Mesh Editor will open the requested mesh after the current Rust Finish has stopped safely.",
+                False,
+            )
+            return None
         self.draft_banner.setVisible(False)
         self.archive_session_load_request_id += 1
         request_id = self.archive_session_load_request_id
+        entry_snapshot = copy.deepcopy(entry)
+        resume_path = Path(resume_manifest_path) if resume_manifest_path is not None else None
+        self.archive_session_load_entry = entry
+        self.archive_session_load_material_model = (
+            material_preview_model
+            if material_preview_model is not None
+            else (
+                self.get_archive_material_preview_model()
+                if callable(self.get_archive_material_preview_model)
+                else None
+            )
+        )
+        self.archive_material_context_companion_entry = material_companion_entry
+        self.archive_material_context_package_path = str(material_package_path or "").strip()
+        self._replace_archive_material_context_package_lease(material_package_lease)
+        material_identity_matches = bool(
+            material_source_identity is not None
+            and material_source_identity == entry.identity
+        )
+        self.archive_material_context_source_identity = (
+            material_source_identity if material_identity_matches else None
+        )
+        material_source_path = str(
+            getattr(self.archive_session_load_material_model, "path", "") or ""
+        ).replace("\\", "/").strip().strip("/").casefold()
+        self.archive_material_context_verified_for_rust = bool(
+            material_context_verified_for_rust
+            and material_identity_matches
+            and self._archive_material_preview_model_ready(
+                self.archive_session_load_material_model
+            )
+            and (
+                not material_source_path
+                or material_source_path == entry.identity.normalized_path
+            )
+        )
+        self.current_archive_selection = entry
+        self._set_mesh_editor_character_context_source(entry)
+        self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
+        self.standalone_mesh_label = str(entry.path)
+        self.empty_state.setVisible(False)
+        self.workspace_stack.setCurrentWidget(self.standalone_workspace)
+        self.standalone_status_label.setText(f"Loading archive mesh: {entry.path}")
+        self.update_editor_session_state(None)
+        self._sync_state()
+        self._start_archive_session_load_when_indexes_ready(
+            request_id,
+            entry_snapshot,
+            resume_manifest_path=resume_path,
+        )
+        self.status_message_requested.emit(f"Mesh Editor loading archive mesh: {entry.basename}", False)
+        return request_id
+
+    def _start_archive_session_load_when_indexes_ready(
+        self,
+        request_id: int,
+        entry: _tab.ArchiveEntry,
+        *,
+        resume_manifest_path: Path | None,
+        attempt: int = 0,
+    ) -> None:
+        if int(request_id) != int(self.archive_session_load_request_id):
+            return
+        archive_path_index, archive_basename_index = self._archive_texture_indexes()
+        if not archive_path_index and not archive_basename_index:
+            ensure = getattr(self, "ensure_archive_texture_indexes", None)
+            try:
+                building = bool(ensure()) if callable(ensure) else False
+            except Exception:
+                building = False
+            if building and int(attempt) < ARCHIVE_TEXTURE_INDEX_WAIT_MAX_ATTEMPTS:
+                if int(attempt) == 0:
+                    self.standalone_status_label.setText(
+                        f"Preparing archive index and matching skeleton: {entry.path}"
+                    )
+                QTimer.singleShot(
+                    ARCHIVE_TEXTURE_INDEX_WAIT_INTERVAL_MS,
+                    lambda target_request=request_id,
+                    target_entry=entry,
+                    target_resume=resume_manifest_path,
+                    target_attempt=int(attempt) + 1: self._start_archive_session_load_when_indexes_ready(
+                        target_request,
+                        target_entry,
+                        resume_manifest_path=target_resume,
+                        attempt=target_attempt,
+                    ),
+                )
+                return
+            # The lookup may have completed between the reads above and the
+            # ensure call. Capture its final immutable worker inputs once more.
+            archive_path_index, archive_basename_index = self._archive_texture_indexes()
+        self._start_archive_session_load_worker(
+            request_id,
+            entry,
+            resume_manifest_path=resume_manifest_path,
+            archive_path_index=archive_path_index,
+            archive_basename_index=archive_basename_index,
+        )
+
+    def _start_archive_session_load_worker(
+        self,
+        request_id: int,
+        entry: _tab.ArchiveEntry,
+        *,
+        resume_manifest_path: Path | None,
+        archive_path_index: Mapping[str, Sequence[_tab.ArchiveEntry]],
+        archive_basename_index: Mapping[str, Sequence[_tab.ArchiveEntry]],
+    ) -> None:
+        if int(request_id) != int(self.archive_session_load_request_id):
+            return
         worker = _tab.MeshArchiveSessionLoadWorker(
             request_id,
             entry,
@@ -48,6 +271,8 @@ class MeshEditorSessionMixin:
             mode="edit",
             draft_root=self.mesh_editor_draft_root,
             resume_manifest_path=resume_manifest_path,
+            archive_entries_by_normalized_path=archive_path_index,
+            archive_entries_by_basename=archive_basename_index,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -66,31 +291,8 @@ class MeshEditorSessionMixin:
         )
         self.archive_session_load_thread = thread
         self.archive_session_load_worker = worker
-        self.archive_session_load_entry = entry
-        self.archive_session_load_material_model = (
-            material_preview_model
-            if material_preview_model is not None
-            else (
-                self.get_archive_material_preview_model()
-                if callable(self.get_archive_material_preview_model)
-                else None
-            )
-        )
-        self.archive_material_context_companion_entry = material_companion_entry
-        self.archive_material_context_package_path = str(material_package_path or "").strip()
-        self._replace_archive_material_context_package_lease(material_package_lease)
-        self.current_archive_selection = entry
-        self._set_mesh_editor_character_context_source(entry)
-        self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
-        self.standalone_mesh_label = str(entry.path)
-        self.empty_state.setVisible(False)
-        self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self.standalone_status_label.setText(f"Loading archive mesh: {entry.path}")
-        self.update_editor_session_state(None)
-        self._sync_state()
         thread.start(QThread.LowPriority)
-        self.status_message_requested.emit(f"Mesh Editor loading archive mesh: {entry.basename}", False)
-        return request_id
 
     def _handle_archive_session_loaded(
         self,
@@ -108,6 +310,7 @@ class MeshEditorSessionMixin:
             self._handle_archive_session_load_error(request_id, "Archive loader returned an invalid result.")
             return
         self.standalone_controller = _tab.MeshEditorController(mesh_service=result.service)
+        self.standalone_source_skeleton = result.source_skeleton
         self.standalone_archive_material_preview_model = self.archive_session_load_material_model
         view = self.standalone_controller.attach_session(result.view.session_id)
         self._show_standalone_session(view, mesh=result.mesh, target_entry=entry)
@@ -134,6 +337,11 @@ class MeshEditorSessionMixin:
         self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
         self._update_restore_overlay_button()
         self._sync_state()
+        if result.skeleton_source_path:
+            self.status_message_requested.emit(
+                f"Mesh Editor automatically attached {Path(result.skeleton_source_path).name} for Rig & Skin Weights.",
+                False,
+            )
 
     @staticmethod
     def _discard_archive_session_result(result: object) -> None:
@@ -160,9 +368,12 @@ class MeshEditorSessionMixin:
         self.open_archive_session(
             entry,
             resume_manifest_path=manifest_path,
+            material_preview_model=self.standalone_archive_material_preview_model,
             material_companion_entry=self.archive_material_context_companion_entry,
             material_package_path=self.archive_material_context_package_path,
             material_package_lease=self.archive_material_context_package_lease,
+            material_context_verified_for_rust=self.archive_material_context_verified_for_rust,
+            material_source_identity=self.archive_material_context_source_identity,
         )
 
     def _dismiss_archive_draft_banner(self, _checked: bool = False) -> None:
@@ -214,9 +425,13 @@ class MeshEditorSessionMixin:
     def _cancel_archive_session_load(self) -> None:
         worker = self.archive_session_load_worker
         thread = self.archive_session_load_thread
-        if worker is None and thread is None:
-            return
+        # Also invalidates a timer-delayed loader that is waiting for the lazy
+        # archive index; such a request has no worker or thread to stop yet.
         self.archive_session_load_request_id += 1
+        if worker is None and thread is None:
+            self.archive_session_load_entry = None
+            self.archive_session_load_material_model = None
+            return
         if worker is not None:
             try:
                 worker.stop()
@@ -241,7 +456,14 @@ class MeshEditorSessionMixin:
     ) -> _tab.MeshEditSessionView:
         if not isinstance(mesh, _tab.ParsedMesh):
             raise TypeError("mesh must be ParsedMesh")
-        self.close_standalone_session()
+        if str(_tab.QApplication.platformName() or "").strip().lower() != "offscreen":
+            preflight_reason = self._rust_open_preflight_reason()
+            if preflight_reason:
+                raise RuntimeError(f"Mesh Editor cannot open: {preflight_reason}")
+        if self.close_standalone_session() is False:
+            raise RuntimeError(
+                "The current Rust Finish must stop before another mesh session can open."
+            )
         self.standalone_compare_mode = "edited"
         self.standalone_controller = _tab.MeshEditorController()
         self.standalone_source_skeleton = source_skeleton
@@ -266,7 +488,14 @@ class MeshEditorSessionMixin:
         source_skeleton: object | None = None,
     ) -> _tab.MeshEditSessionView:
         source_path = Path(path)
-        self.close_standalone_session()
+        if str(_tab.QApplication.platformName() or "").strip().lower() != "offscreen":
+            preflight_reason = self._rust_open_preflight_reason()
+            if preflight_reason:
+                raise RuntimeError(f"Mesh Editor cannot open: {preflight_reason}")
+        if self.close_standalone_session() is False:
+            raise RuntimeError(
+                "The current Rust Finish must stop before another mesh file can open."
+            )
         self.standalone_compare_mode = "edited"
         mesh_service = _tab.MeshService()
         mesh = mesh_service.load_mesh_file(source_path, run_roundtrip=True)
@@ -298,9 +527,22 @@ class MeshEditorSessionMixin:
         session_id: str = "",
         mode: str = "object",
         source_skeleton: object | None = None,
-    ) -> int:
+    ) -> int | None:
         source_path = Path(path)
-        self.close_standalone_session()
+        if str(_tab.QApplication.platformName() or "").strip().lower() != "offscreen":
+            preflight_reason = self._rust_open_preflight_reason()
+            if preflight_reason:
+                message = f"Mesh Editor cannot open: {preflight_reason}."
+                self.empty_status_label.setText(message)
+                self.status_message_requested.emit(message, True)
+                self._sync_mesh_editor_backend_controls()
+                return None
+        if self.close_standalone_session() is False:
+            self.status_message_requested.emit(
+                "The mesh file can open after the current Rust Finish has stopped safely.",
+                False,
+            )
+            return None
         self.standalone_file_load_request_id += 1
         request_id = self.standalone_file_load_request_id
         worker = _tab.MeshFileSessionLoadWorker(
@@ -393,15 +635,37 @@ class MeshEditorSessionMixin:
         self._sync_standalone_compare_combo()
         self.empty_state.setVisible(False)
         self.workspace_stack.setCurrentWidget(self.standalone_workspace)
-        self._refresh_standalone_preview()
+        host = getattr(self, "standalone_native_host_frame", None)
+        show_loading = getattr(host, "show_loading", None)
+        if callable(show_loading):
+            show_loading("Preparing the embedded Mesh Editor...")
         self.update_editor_session_state(view, active_selection_mode=self.standalone_controller.active_selection_mode)
         self.status_message_requested.emit(f"Mesh Editor loaded standalone mesh: {Path(self.standalone_mesh_label).name}", False)
+        if str(_tab.QApplication.platformName() or "").strip().lower() != "offscreen":
+            self._start_selected_mesh_editor(self.standalone_controller)
+    def close_standalone_session(self) -> bool:
+        defer_for_rust_finish = getattr(
+            self,
+            "_defer_standalone_close_for_rust_finish",
+            None,
+        )
+        if callable(defer_for_rust_finish) and defer_for_rust_finish():
+            return False
+        pending_open = getattr(self, "archive_session_open_pending", None)
+        pending_lease = (
+            pending_open.get("material_package_lease")
+            if isinstance(pending_open, Mapping)
+            else None
+        )
         if (
-            str(_tab.QApplication.platformName() or "").strip().lower() != "offscreen"
-            and self._dotnet_editor_executable_path(log=False) is not None
+            pending_lease is not None
+            and pending_lease
+            is getattr(self, "archive_material_context_package_lease", None)
         ):
-            self._start_dotnet_editor_requested(self.standalone_controller, embedded=False)
-    def close_standalone_session(self) -> None:
+            # Transfer the lease to the queued immutable open request before
+            # tearing down the old session. The resumed open will publish it
+            # again, so closing the old session must not release it first.
+            self.archive_material_context_package_lease = None
         close_ui_state = getattr(self, "_close_mesh_editor_ui_state", None)
         if callable(close_ui_state):
             close_ui_state()
@@ -410,6 +674,9 @@ class MeshEditorSessionMixin:
         self.standalone_archive_material_preview_model = None
         self.archive_material_context_companion_entry = None
         self.archive_material_context_package_path = ""
+        self.archive_material_context_verified_for_rust = False
+        self.archive_material_context_source_identity = None
+        self.archive_material_context_request_identity = None
         self._reset_mesh_character_context_session()
         self.standalone_animation_timer.stop()
         self.standalone_animation_last_tick = 0.0
@@ -423,6 +690,17 @@ class MeshEditorSessionMixin:
         if machine is not None:
             machine.reset_to_idle(reason="standalone_session_closed")
         controller = self.standalone_controller
+        cancel_rust_material_wait = getattr(
+            self,
+            "_cancel_rust_material_context_wait",
+            None,
+        )
+        if callable(cancel_rust_material_wait):
+            cancel_rust_material_wait()
+        if self._rust_editor_task_active() or self.standalone_rust_authoring_session is not None:
+            self._stop_rust_editor_process(
+                reason="Mesh Editor cancelled; CDMW mesh unchanged."
+            )
         self.standalone_controller = None
         self.standalone_native_selection_stroke_id = ""
         self.standalone_pending_dotnet_topology_request = None
@@ -491,6 +769,9 @@ class MeshEditorSessionMixin:
         self.standalone_native_status_timer.stop()
         self._request_standalone_native_part_picking(False)
         self._replace_archive_material_context_package_lease(None)
+        if isinstance(pending_open, Mapping):
+            QTimer.singleShot(0, self._resume_queued_archive_session_open)
+        return True
     def _replace_archive_material_context_package_lease(
         self,
         lease: object | None,
@@ -718,6 +999,16 @@ class MeshEditorSessionMixin:
         if self._start_archive_material_context_resolution(entry):
             return
         self._clear_archive_texture_index_wait()
+        resume_rust = getattr(
+            self,
+            "_resume_rust_editor_after_material_context",
+            None,
+        )
+        if callable(resume_rust) and resume_rust(
+            available=False,
+            reason="no resolved texture context became available",
+        ):
+            return
         if not bool(getattr(self, "standalone_dotnet_pending_textured_view", False)):
             return
         message = (
@@ -735,11 +1026,22 @@ class MeshEditorSessionMixin:
         self,
         entry: _tab.ArchiveEntry | None = None,
     ) -> bool:
-        if self.archive_material_context_thread is not None:
-            return bool(self.archive_material_context_pending)
         target_entry = entry if isinstance(entry, _tab.ArchiveEntry) else self.current_archive_selection
         if not isinstance(target_entry, _tab.ArchiveEntry):
             return False
+        if self.archive_material_context_thread is not None:
+            if bool(self.archive_material_context_pending):
+                return True
+            # A cancelled worker can retain its QThread until teardown is
+            # observed. Keep the new Rust launch pending and restart against an
+            # immutable entry snapshot from the cleanup callback.
+            self.archive_material_context_retry_after_cleanup_entry = copy.deepcopy(
+                target_entry
+            )
+            self.archive_material_context_pending = True
+            return True
+        self.archive_material_context_verified_for_rust = False
+        self.archive_material_context_source_identity = None
         path_index, basename_index = self._archive_texture_indexes()
         if not path_index and not basename_index:
             if self._wait_for_archive_texture_indexes(target_entry):
@@ -751,6 +1053,7 @@ class MeshEditorSessionMixin:
         sidecar_path_index, sidecar_basename_index = self._archive_sidecar_indexes()
         self.archive_material_context_request_id += 1
         request_id = self.archive_material_context_request_id
+        self.archive_material_context_request_identity = target_entry.identity
         worker = _tab.MeshArchiveMaterialContextWorker(
             request_id,
             target_entry,
@@ -764,7 +1067,13 @@ class MeshEditorSessionMixin:
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.resolved.connect(self._handle_archive_material_context_resolved)
+        context_resolved = getattr(worker, "context_resolved", None)
+        connect_context = getattr(context_resolved, "connect", None)
+        if callable(connect_context):
+            connect_context(self._handle_archive_material_context_result)
+        else:
+            # Compatibility for focused fake workers and older extensions.
+            worker.resolved.connect(self._handle_archive_material_context_resolved)
         worker.error.connect(self._handle_archive_material_context_error)
         worker.finished.connect(
             lambda target_worker=worker: self._finish_direct_session_worker_thread(target_worker),
@@ -782,11 +1091,81 @@ class MeshEditorSessionMixin:
         thread.start(QThread.LowPriority)
         return True
 
+    @staticmethod
+    def _release_archive_material_context_result(result: object) -> None:
+        release = getattr(result, "release", None)
+        if callable(release):
+            release()
+
+    def _handle_archive_material_context_result(
+        self,
+        request_id: int,
+        result: object,
+    ) -> None:
+        if int(request_id) != int(self.archive_material_context_request_id):
+            self._release_archive_material_context_result(result)
+            return
+        preview_model = getattr(result, "preview_model", None)
+        package_path = str(
+            getattr(result, "material_package_path", "") or ""
+        ).strip()
+        package_lease = getattr(result, "material_package_lease", None)
+        source_identity = getattr(result, "source_identity", None)
+        expected_identity = getattr(
+            self, "archive_material_context_request_identity", None
+        )
+        current_entry = getattr(self, "current_archive_selection", None)
+        current_identity = (
+            current_entry.identity
+            if isinstance(current_entry, _tab.ArchiveEntry)
+            else None
+        )
+        identity_mismatch = bool(
+            source_identity is None
+            or expected_identity is None
+            or source_identity != expected_identity
+            or (
+                current_identity is not None
+                and source_identity != current_identity
+            )
+        )
+        if (
+            preview_model is None
+            or (package_path and package_lease is None)
+            or identity_mismatch
+        ):
+            self._release_archive_material_context_result(result)
+            self._handle_archive_material_context_error(
+                request_id,
+                (
+                    "Archive material context belongs to a different archive entry."
+                    if identity_mismatch
+                    else "Archive material context returned an invalid texture package."
+                ),
+            )
+            return
+        # The worker acquired the new package lease before publishing. Swap it
+        # on the UI thread, then release the previous package through the
+        # existing replacement helper. This makes package/path/model publication
+        # one ordered operation from the session's perspective.
+        self.archive_material_context_package_path = package_path
+        self._replace_archive_material_context_package_lease(package_lease)
+        self.archive_material_context_source_identity = source_identity
+        self.archive_material_context_verified_for_rust = True
+        self._handle_archive_material_context_resolved(request_id, preview_model)
+
     def _handle_archive_material_context_resolved(self, request_id: int, preview_model: object) -> None:
         if int(request_id) != int(self.archive_material_context_request_id):
             return
         self.archive_material_context_pending = False
         self.standalone_archive_material_preview_model = preview_model
+        resume_rust = getattr(
+            self,
+            "_resume_rust_editor_after_material_context",
+            None,
+        )
+        if callable(resume_rust) and resume_rust(available=True):
+            return
         if not bool(self.standalone_dotnet_pending_textured_view):
             return
         if self.apply_resident_clone_material_resources(preview_model):
@@ -809,10 +1188,23 @@ class MeshEditorSessionMixin:
         if int(request_id) != int(self.archive_material_context_request_id):
             return
         self.archive_material_context_pending = False
+        self.archive_material_context_verified_for_rust = False
+        self.archive_material_context_request_identity = None
+        self.archive_material_context_source_identity = None
         self._record_mesh_dotnet_event(
             "mesh_dotnet_archive_material_context_failed",
             error=str(message or "Archive material context could not be resolved."),
         )
+        resume_rust = getattr(
+            self,
+            "_resume_rust_editor_after_material_context",
+            None,
+        )
+        if callable(resume_rust) and resume_rust(
+            available=False,
+            reason=str(message or "archive material context could not be resolved"),
+        ):
+            return
         if not bool(self.standalone_dotnet_pending_textured_view):
             return
         self._finish_pending_textured_view(
@@ -839,22 +1231,64 @@ class MeshEditorSessionMixin:
                 ),
             )
             return
+        retry_entry: _tab.ArchiveEntry | None = None
         if self.archive_material_context_thread is thread:
             self.archive_material_context_thread = None
         if self.archive_material_context_worker is worker:
             self.archive_material_context_worker = None
             self.archive_material_context_pending = False
+            candidate = getattr(
+                self,
+                "archive_material_context_retry_after_cleanup_entry",
+                None,
+            )
+            if isinstance(candidate, _tab.ArchiveEntry):
+                retry_entry = candidate
+            self.archive_material_context_retry_after_cleanup_entry = None
         worker.deleteLater()
         thread.deleteLater()
+        if retry_entry is not None:
+            QTimer.singleShot(
+                0,
+                lambda target_entry=retry_entry: self._retry_archive_material_context_after_cleanup(
+                    target_entry
+                ),
+            )
+
+    def _retry_archive_material_context_after_cleanup(
+        self,
+        entry: _tab.ArchiveEntry,
+    ) -> None:
+        current_entry = getattr(self, "current_archive_selection", None)
+        if (
+            getattr(self, "standalone_controller", None) is None
+            or not isinstance(current_entry, _tab.ArchiveEntry)
+            or current_entry.identity != entry.identity
+        ):
+            return
+        if self._start_archive_material_context_resolution(entry):
+            return
+        resume_rust = getattr(
+            self,
+            "_resume_rust_editor_after_material_context",
+            None,
+        )
+        if callable(resume_rust):
+            resume_rust(
+                available=False,
+                reason="no resolved texture context became available after resolver restart",
+            )
 
     def _cancel_archive_material_context_resolution(self) -> None:
         self._clear_archive_texture_index_wait()
+        self.archive_material_context_retry_after_cleanup_entry = None
+        self.archive_material_context_request_id += 1
+        self.archive_material_context_request_identity = None
         worker = self.archive_material_context_worker
         thread = self.archive_material_context_thread
         if worker is None and thread is None:
             self.archive_material_context_pending = False
             return
-        self.archive_material_context_request_id += 1
         self.archive_material_context_pending = False
         if worker is not None:
             try:

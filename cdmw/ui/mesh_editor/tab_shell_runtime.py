@@ -45,6 +45,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.archive_session_load_request_id = 0
         self.archive_session_load_entry: _tab.ArchiveEntry | None = None
         self.archive_session_load_material_model: object | None = None
+        self.archive_session_open_pending: dict[str, object] | None = None
         self.standalone_archive_material_preview_model: object | None = None
         self.archive_material_context_companion_entry: _tab.ArchiveEntry | None = None
         self.archive_material_context_package_path = ""
@@ -57,7 +58,15 @@ class MeshEditorTabShellRuntimeMixin:
         self.archive_material_context_thread: _tab.QThread | None = None
         self.archive_material_context_worker: _tab.MeshArchiveMaterialContextWorker | None = None
         self.archive_material_context_request_id = 0
+        self.archive_material_context_request_identity: object | None = None
+        self.archive_material_context_source_identity: object | None = None
         self.archive_material_context_pending = False
+        # Rust may only trust a material preview after the resolver has also
+        # published the exact package (and lease) that owns its DDS paths.
+        # Merely seeing DDS-looking metadata is insufficient: Archive Browser
+        # can have a newer textured package than the geometry package handed to
+        # Edit Mesh.
+        self.archive_material_context_verified_for_rust = False
         # The shell's deferred texture-lookup build, and the wait state used
         # while material context resolution holds for it. See
         # _wait_for_archive_texture_indexes for why resolving without the
@@ -223,6 +232,10 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_lifecycle_session_id = ""
         self.standalone_dotnet_process_generation = 0
         self.standalone_dotnet_pending_mutation_commits: dict[int, dict[str, object]] = {}
+        self.standalone_dotnet_resident_interaction_queue: list[
+            tuple[_tab.MeshEditorController, _tab.MeshEditCommand, dict[str, object]]
+        ] = []
+        self.standalone_dotnet_resident_interaction_queue_bytes = 0
         self.standalone_dotnet_recovery_failure_reported = False
         self.standalone_dotnet_morph_change_id = ""
         self.standalone_dotnet_morph_sent_state_revision = -1

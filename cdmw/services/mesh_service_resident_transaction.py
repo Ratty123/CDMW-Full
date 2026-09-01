@@ -22,12 +22,15 @@ from cdmw.services.mesh_service_state import (
 )
 
 
-RESIDENT_INTERACTION_FORMAT_VERSION = 1
+RESIDENT_INTERACTION_FORMAT_VERSION = 2
+RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION = 1
 RESIDENT_INTERACTION_MAPPING_PREFIX = "Local\\CDMW.MeshInteraction."
 RESIDENT_INTERACTION_MAX_BYTES = 128 * 1024 * 1024
 
-_MAGIC = b"CDMWMIT1"
-_HEADER = struct.Struct("<8sIIIIQQQQQQQIIQ")
+_MAGIC_V1 = b"CDMWMIT1"
+_MAGIC_V2 = b"CDMWMIT2"
+_HEADER_V1 = struct.Struct("<8sIIIIQQQQQQQIIQ")
+_HEADER_V2 = struct.Struct("<8sIIIIQQQQQQQQIIQ")
 _GEOMETRY_GROUP = struct.Struct("<iI")
 _VERTEX_POSITION = struct.Struct("<I3d")
 _SELECTION_CHANGE = struct.Struct("<iIIIII")
@@ -64,10 +67,12 @@ class ResidentSelectionChange:
 
 @dataclass(frozen=True, slots=True)
 class ResidentInteractionTransaction:
+    format_version: int
     tool: int
     flags: int
     session_key: int
     gesture_id: int
+    transaction_sequence: int
     base_revision: int
     target_revision: int
     base_selection_revision: int
@@ -83,35 +88,58 @@ def resident_interaction_session_key(session_id: str) -> int:
 
 
 def parse_resident_interaction_transaction(data: bytes) -> ResidentInteractionTransaction:
-    if len(data) < _HEADER.size:
+    if len(data) < _HEADER_V1.size:
         raise ValueError("Resident interaction transaction is shorter than its header.")
-    fields = _HEADER.unpack_from(data)
-    _validate_header(fields, len(data))
-    cursor = _HEADER.size
-    geometry_groups, cursor = _parse_geometry_groups(data, cursor, int(fields[12]))
-    selection_changes, cursor = _parse_selection_changes(data, cursor, int(fields[13]))
+    magic = data[:8]
+    if magic == _MAGIC_V2:
+        if len(data) < _HEADER_V2.size:
+            raise ValueError("Resident interaction transaction is shorter than its v2 header.")
+        fields = _HEADER_V2.unpack_from(data)
+        _validate_header(fields, len(data), version=2, header=_HEADER_V2)
+        cursor = _HEADER_V2.size
+        transaction_sequence = int(fields[7])
+        base_offset = 1
+    elif magic == _MAGIC_V1:
+        fields = _HEADER_V1.unpack_from(data)
+        _validate_header(fields, len(data), version=1, header=_HEADER_V1)
+        cursor = _HEADER_V1.size
+        transaction_sequence = 0
+        base_offset = 0
+    else:
+        raise ValueError("Resident interaction transaction magic is invalid.")
+    geometry_groups, cursor = _parse_geometry_groups(data, cursor, int(fields[12 + base_offset]))
+    selection_changes, cursor = _parse_selection_changes(data, cursor, int(fields[13 + base_offset]))
     if cursor != len(data):
         raise ValueError("Resident interaction transaction has trailing bytes.")
     return ResidentInteractionTransaction(
+        format_version=int(fields[1]),
         tool=int(fields[3]),
         flags=int(fields[4]),
         session_key=int(fields[5]),
         gesture_id=int(fields[6]),
-        base_revision=int(fields[7]),
-        target_revision=int(fields[8]),
-        base_selection_revision=int(fields[9]),
-        target_selection_revision=int(fields[10]),
-        topology_generation=int(fields[11]),
+        transaction_sequence=transaction_sequence,
+        base_revision=int(fields[7 + base_offset]),
+        target_revision=int(fields[8 + base_offset]),
+        base_selection_revision=int(fields[9 + base_offset]),
+        target_selection_revision=int(fields[10 + base_offset]),
+        topology_generation=int(fields[11 + base_offset]),
         geometry_groups=geometry_groups,
         selection_changes=selection_changes,
     )
 
 
-def _validate_header(fields: Sequence[object], actual_length: int) -> None:
-    magic, version, header_size, tool, flags = fields[:5]
-    if magic != _MAGIC:
-        raise ValueError("Resident interaction transaction magic is invalid.")
-    if int(version) != RESIDENT_INTERACTION_FORMAT_VERSION or int(header_size) != _HEADER.size:
+def _validate_header(
+    fields: Sequence[object],
+    actual_length: int,
+    *,
+    version: int,
+    header: struct.Struct,
+) -> None:
+    _magic, encoded_version, header_size, tool, flags = fields[:5]
+    if int(encoded_version) not in {
+        RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION,
+        RESIDENT_INTERACTION_FORMAT_VERSION,
+    } or int(encoded_version) != version or int(header_size) != header.size:
         raise ValueError("Resident interaction transaction version or header size is unsupported.")
     if int(tool) not in _TOOL_ACTION:
         raise ValueError("Resident interaction transaction tool is unsupported.")
@@ -119,7 +147,9 @@ def _validate_header(fields: Sequence[object], actual_length: int) -> None:
         raise ValueError("Resident interaction transaction flags are invalid.")
     if int(fields[6]) <= 0:
         raise ValueError("Resident interaction transaction gesture id must be positive.")
-    if int(fields[14]) != actual_length:
+    if version == RESIDENT_INTERACTION_FORMAT_VERSION and int(fields[7]) <= 0:
+        raise ValueError("Resident interaction transaction sequence must be positive.")
+    if int(fields[-1]) != actual_length:
         raise ValueError("Resident interaction transaction length does not match its header.")
 
 
@@ -180,7 +210,7 @@ def read_resident_interaction_transaction(
     descriptor: Mapping[str, object],
 ) -> ResidentInteractionTransaction:
     mapping_name = str(descriptor.get("mapping_name") or "")
-    length = _descriptor_int(descriptor, "length", minimum=_HEADER.size)
+    length = _descriptor_int(descriptor, "length", minimum=_HEADER_V1.size)
     expected_hash = str(descriptor.get("sha256") or "")
     if _MAPPING_NAME.fullmatch(mapping_name) is None:
         raise ValueError("Resident interaction mapping name is invalid.")
@@ -210,12 +240,23 @@ def _validate_descriptor(
 ) -> None:
     session_id = str(descriptor.get("session_id") or "")
     expected = {
-        "format_version": RESIDENT_INTERACTION_FORMAT_VERSION,
+        "format_version": transaction.format_version,
         "gesture_id": transaction.gesture_id,
         "base_revision": transaction.base_revision,
         "base_selection_revision": transaction.base_selection_revision,
         "topology_generation": transaction.topology_generation,
     }
+    if transaction.format_version >= RESIDENT_INTERACTION_FORMAT_VERSION:
+        expected.update(
+            {
+                "target_revision": transaction.target_revision,
+                "target_selection_revision": transaction.target_selection_revision,
+                "tool": transaction.tool,
+                "transaction_sequence": transaction.transaction_sequence,
+            }
+        )
+        for name in ("request_id", "process_generation", "helper_process_id"):
+            _descriptor_int(descriptor, name, minimum=1)
     if not session_id or transaction.session_key != resident_interaction_session_key(session_id):
         raise ValueError("Resident interaction descriptor session identity does not match.")
     for name, value in expected.items():
@@ -230,6 +271,9 @@ def apply_resident_interaction_transaction(
 ):
     descriptor = command.params or {}
     transaction = read_resident_interaction_transaction(descriptor)
+    duplicate = _resident_interaction_duplicate(session, transaction, descriptor)
+    if duplicate is not None:
+        return duplicate
     _validate_service_revisions(session, transaction, descriptor)
     geometry = _prepare_geometry(session, transaction)
     selection = _prepare_selection(session, transaction)
@@ -237,23 +281,82 @@ def apply_resident_interaction_transaction(
     raise_if_cancelled(stop_event, "Resident interaction transaction cancelled.")
     if not geometry[0] and selection == session.selection:
         action, _label = _TOOL_ACTION[transaction.tool]
-        return service._result(session, action, status="noop")
+        result = service._result(session, action, status="noop")
+        _remember_resident_interaction(session, transaction, descriptor, result)
+        return result
     _retire_legacy_native_session(session)
     _commit_transaction(service, session, command, transaction, geometry, selection)
     action, _label = _TOOL_ACTION[transaction.tool]
     changed = {delta.submesh_index: delta.vertex_indices for delta in geometry[0]}
-    return service._result(
+    result = service._result(
         session,
         action,
         affected=set(changed),
         changed=changed,
-        native_selection_groups=_selection_groups(selection) if action == "select" else (),
-        native_preview_vertex_update_groups=_preview_vertex_update_groups(session, changed),
+        native_selection_groups=(
+            _selection_groups(selection)
+            if action == "select" and transaction.format_version == 1
+            else ()
+        ),
+        native_preview_vertex_update_groups=(
+            _preview_vertex_update_groups(session, changed)
+            if transaction.format_version == 1
+            else ()
+        ),
         metrics={
             "resident_transaction_bytes": float(_descriptor_int(descriptor, "length")),
             "resident_transaction_gesture_id": float(transaction.gesture_id),
+            "resident_transaction_sequence": float(transaction.transaction_sequence),
         },
     )
+    _remember_resident_interaction(session, transaction, descriptor, result)
+    return result
+
+
+def _resident_interaction_duplicate(
+    session: _MeshEditSession,
+    transaction: ResidentInteractionTransaction,
+    descriptor: Mapping[str, object],
+):
+    if transaction.format_version < RESIDENT_INTERACTION_FORMAT_VERSION:
+        return None
+    process_generation = _descriptor_int(descriptor, "process_generation", minimum=1)
+    if process_generation < session.resident_interaction_process_generation:
+        raise RuntimeError("Resident interaction transaction process generation is stale.")
+    if process_generation > session.resident_interaction_process_generation:
+        session.resident_interaction_process_generation = process_generation
+        session.resident_interaction_last_sequence = 0
+        session.resident_interaction_ledger.clear()
+    digest = str(descriptor.get("sha256") or "").lower()
+    existing = session.resident_interaction_ledger.get(transaction.transaction_sequence)
+    if existing is not None:
+        if existing[0] != digest:
+            raise ValueError("Resident interaction transaction sequence was reused with another digest.")
+        return existing[1]
+    expected = session.resident_interaction_last_sequence + 1
+    if transaction.transaction_sequence != expected:
+        raise RuntimeError(
+            f"Resident interaction transaction sequence is out of order: expected {expected}."
+        )
+    return None
+
+
+def _remember_resident_interaction(
+    session: _MeshEditSession,
+    transaction: ResidentInteractionTransaction,
+    descriptor: Mapping[str, object],
+    result: object,
+) -> None:
+    if transaction.format_version < RESIDENT_INTERACTION_FORMAT_VERSION:
+        return
+    sequence = transaction.transaction_sequence
+    session.resident_interaction_last_sequence = sequence
+    session.resident_interaction_ledger[sequence] = (
+        str(descriptor.get("sha256") or "").lower(),
+        result,
+    )
+    while len(session.resident_interaction_ledger) > 256:
+        session.resident_interaction_ledger.pop(next(iter(session.resident_interaction_ledger)))
 
 
 def _validate_service_revisions(
@@ -475,6 +578,7 @@ def _preview_vertex_indices(submesh: SubMesh, changed: Sequence[int]) -> tuple[i
 
 __all__ = [
     "RESIDENT_INTERACTION_FORMAT_VERSION",
+    "RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION",
     "RESIDENT_INTERACTION_MAPPING_PREFIX",
     "ResidentInteractionTransaction",
     "apply_resident_interaction_transaction",

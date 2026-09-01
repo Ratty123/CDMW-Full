@@ -14,9 +14,10 @@ workflows, in-game swaps, and Texture Editor handoffs are not Mesh Editor
 features. Dedicated texture tools and Create New Item own those jobs.
 
 `tab.py` is the stable public Qt class. Bounded `tab_*.py` owners hold shell,
-native-preview, package, .NET protocol/process, report, session, state,
-interaction, and action behavior. `tab_compat.py` keeps historical public
-monkeypatch seams live without moving behavior back into the facade.
+Rust process/protocol, package, report, session, state, interaction, and action
+behavior. The retained `.NET` mixins are compatibility owners for Archive
+Browser and specialist preview consumers; normal Mesh Editor construction does
+not instantiate their host, resolve their executable, or launch them.
 
 `workspace.py` is the stable standalone Blender-style workspace class. Bounded
 `workspace_*.py` owners hold state synchronization, skeleton presentation,
@@ -38,9 +39,9 @@ fresh never deletes a draft. `MeshEditorTab.open_session()` remains a compatibil
 wrapper over this direct contract.
 
 `MeshEditorTab.open_mesh_session()` opens a scripted in-tab edit session for a
-`ParsedMesh` without starting Archive Browser UI. It routes toolbar
-actions through `MeshEditorController`, updates the native preview host when one
-is attached, and falls back to refreshing the lightweight preview panel.
+`ParsedMesh` without starting Archive Browser UI. It creates the same
+authoritative service session and embedded Rust shadow workflow as an archive
+open; it does not build a Vortice authoring package.
 `MeshEditorController.native_update_for_result()` is native-payload-only; Python
 mesh-based preview packing is explicit archive-only code behind
 `legacy_python_update_for_result(..., allow_archive_legacy_preview_rebuild=True)`.
@@ -50,14 +51,24 @@ session path for scripted callers. UI callers should use
 `MeshEditorTab.open_mesh_file_session_async()`, which runs file IO, parsing, and
 service session creation in `MeshFileSessionLoadWorker`, then attaches the
 controller and already-loaded mesh on the UI thread.
-The direct Mesh Editor viewport is .NET/Vortice-only. The helper launches with
-`--direct-authoring`: edit controls are visible immediately, placement and the
-Edit Mesh toggle are absent, and Qt owns close and output actions.
-Normal sessions expose only that resident **Mesh Edit Session** form plus the
-compact Qt-owned validation/output/package strip beneath it. The earlier Qt
-mode row, Tools/Edit/UV/Rig deck, duplicate part/material and report tabs, and
-status/performance log remain constructed only for compatibility callers and
-are hidden from the normal product surface.
+`tab_rust_editor.py` owns the only production editor route. The retired
+`mesh_editor_backend` preference is ignored and no engine selector is built.
+Before loading a mesh, CDMW validates the bundled `cdmw_mesh_lab.exe`; a missing
+or incompatible package blocks the open with a visible reason and never falls
+back to Vortice.
+
+After the authoritative archive `MeshService` exists, CDMW starts
+`cdmw_mesh_lab.exe --cdmw-session <manifest> --embedded-parent-hwnd <decimal>`.
+Rust creates one undecorated winit/wgpu child containing the complete editor UI.
+`rust_host.py` verifies the reported HWND belongs to the launched process,
+attaches it to the native Qt host, and synchronizes resize, show/hide, focus,
+DPI/screen changes, and Qt `WinIdChange` re-parenting. Failure terminates the
+owned process, leaves no detached window, and offers Retry from a fresh shadow.
+The compiled Rust UI emits the merged
+`cdmw_rust_mesh_editor_control_contract_v2`; every enabled row has a compiled UI
+and dispatch anchor, while every disabled row carries a reason. It has no
+Vortice contract input or build-time Vortice probe. Standalone Rust Lab modes
+remain independent.
 The five direct output buttons use explicit normal, hover, pressed, and disabled
 states. Validation-gated outputs and receipt-gated restore stay visibly
 unavailable until their prerequisites exist.
@@ -65,13 +76,137 @@ The session-state bridge carries one explicit output policy: **Exact Game
 Asset**, **Free Edit/Rebuild**, or **Read Only**. Exact PAC/PAM/PAMLOD LOD0
 sessions show only writer-safe actions, disable operations whose result cannot
 preserve protected records, expose the exact reason in help, and still defer the
-final decision to the writer and validator. Higher unproven LODs do not fall
-back to another policy. Imported OBJ/FBX/DAE/glTF sessions require the user to
-choose a new output folder before proven non-exact topology tools appear; the
-active revision is then published atomically as a validated OBJ/MTL package with
-provenance, never over the source asset. MeshInfo and unknown formats remain
-read-only for selection, inspection, comparison, and safe export. The Python
-host and resident C# form reject the same unavailable command before mutation.
+final decision to the writer and validator. Higher unproven LODs do not silently
+enter the exact policy; Free Edit may author the active higher LOD only to a new
+validated OBJ/MTL destination. Imported OBJ/FBX/DAE/glTF sessions likewise
+require the user to choose a new output folder before proven non-exact topology
+tools appear. MeshInfo and unknown formats remain read-only for selection,
+inspection, comparison, and safe export. The Python host and resident forms
+reject the same unavailable command before mutation.
+
+Integrated Rust authoring owns a disposable shadow `MeshService` under a single
+session directory. The preparation worker creates that isolated mesh once and
+the shadow service adopts it directly; it no longer performs two additional
+full-mesh clones before the helper can start. Protected channels, Geometry
+Layers, object transform, output state, provenance, and the native Morph & Refit
+runtime remain isolated from the authoritative session. The initial channel
+file references geometry already stored in `document.json` instead of writing a
+second positions/normals/UV/index copy. Revisioned local gestures and typed
+asynchronous service commands update only that shadow. Candidate payloads are
+consumed, superseded state files are pruned after safe replacement, generated
+layer and morph-profile trees are independently bounded, and the complete owned
+tree has an aggregate limit. Path escape, hash, length, unexpected-entry,
+stale-generation, replay, and out-of-order checks fail closed.
+
+The embedded child receives CDMW's active semantic palette, explicit light or
+dark variant, UI and data font sizes, scale, and density before reveal and after
+every live appearance change. Rust maps those roles to its panels, fields,
+buttons, selections, warnings, and disabled states instead of inheriting the OS
+theme. The session bar, camera strip, left tools, Parts, Layers, and History are
+split into named compact groups so controls remain scannable at constrained
+sizes.
+
+Select, Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch execute locally in
+Rust; numeric transform steps use the same revisioned transaction lane. Inflate
+uses signed strength, where positive values inflate and negative values deflate,
+and face Extrude sends an explicit world-X, Y, or Z offset. Cleanup, mirror,
+normals/tangents, UV0, bone selection and skin-weight editing are strict typed
+`MeshService` commands with explicit selection, allowlisted arguments,
+output-policy checks, disposable candidate preflight, and shadow history.
+Adjust/Normalize require explicitly selected Vertex elements; Transfer from
+Original may restore the immutable source skin channels into an unskinned
+working mesh from selected vertices or Parts. Loop Cut count/factor, Refine
+Smooth strength/passes, and Weld distance are carried with typed topology
+commands. Successful no-op results and host diagnostics are shown instead of
+claiming that an edit completed. Morph & Refit hydrates the selected bound
+garment's saved enabled/mode/intensity/clearance values before applying a
+change; profile creation exposes its rule, axis, amount, feather, falloff, and
+mirror inputs instead of creating a hard-coded deformation. Geometry Layer
+Copy/Paste names the required selection and Free Edit policy, and layer
+visibility removes hidden Parts from both rendering and picking. Cleanup and
+other topology-changing tools remain visibly locked by Exact output with a
+direct instruction to choose Free Edit. Bevel/chamfer, UV1 and a 2D UV
+workspace, true weight paint, posed skeleton deformation, normal-direction or
+edge extrusion, sculpt symmetry, and full layered/dye material composition
+remain open rather than being presented as functional controls.
+
+Archive PAC sessions resolve a proven matching PAB automatically from the same
+archive index before attaching it to the shadow service. The Rust window does
+not offer a misleading manual PAB picker: Rig & Skin Weights explains the exact
+PAC LOD0, palette, source-map, and record-layout requirements when automatic
+resolution cannot establish write-safe ownership.
+
+The integrated Rust viewport reuses Archive Browser's complete resolved
+PAC/PAC_XML material model together with the native material package for the
+same mesh identity. The asynchronous resolver publishes the full model, its
+exact owning package, and the acquired lease as one correlated result; native
+batch reconstruction is only a degraded fallback because those flattened rows
+do not retain the complete dye and layer parameter graph. Stale or cancelled
+results release their lease rather than leaving a geometry-only package paired
+with new material rows. Verification uses the complete archive identity
+(normalized path, source PAMT, PAZ index, and entry offset), so two entries with
+the same virtual path cannot exchange materials. CDMW carries that verified context into the isolated
+shadow package and copies only bounded, hash-checked DDS resources beneath the
+session root, retaining their role, LOD, and material range. Owner-conserved
+full-graph channels supersede simplified package composites, while a package
+composite fills only a channel the complete graph cannot produce. A missing,
+incomplete, or unusable preview package leaves geometry editing available on
+the neutral opaque surface and reports the exact texture fallback reason; it is
+never presented as successful textured display.
+
+If another archive mesh is requested while a Rust Finish is still reaching its
+terminal cancellation boundary, CDMW retains only the latest immutable open
+request and its package lease. The current session closes first, then the queued
+mesh opens once on the next UI turn; a late Finish close cannot tear down the
+replacement session. A newer open request supersedes the older one, while an
+explicit Close or application shutdown discards the queue and releases its
+distinct lease instead of reopening work during teardown.
+
+Height relief follows the same owner boundary. Rust uses the finite displacement
+strength attached to the exact authoritative height input first, then the
+owner's exact wrapper parameter, the native package amount, and finally the
+renderer default. Layer-only and unowned diagnostic height inputs cannot leak
+strength to another Part.
+
+The D3D12 renderer selects 4x MSAA only when the adapter supports both colour
+resolve and multisampled depth, otherwise it stays at 1x. Material samplers use
+linear minification, magnification, and mip filtering, with 16x anisotropy when
+the adapter supports it and a 1x fallback otherwise. **Solid + Wire** renders
+its wire pass with the same scene depth test and no depth writes or forward
+bias, so rear edges remain behind the surface. Only explicit **X-Ray** uses the
+no-depth wire pipeline. Wire and vertex
+appearance pickers update the GPU overlay colours, and the Normals overlay uses
+short, evenly sampled direction guides capped for dense meshes instead of
+painting a spike from every vertex. The UV page can switch directly to UV
+Checker so coordinate edits have an immediate visible comparison. The mesh
+buffers stay resident: same-topology position/normal changes update them in
+place, while a topology-generation or ownership change replaces the affected
+GPU geometry.
+The window waits when idle and requests another frame only for pointer/UI input,
+loader or CDMW state, resize, or an immediate egui repaint. Edit-change colours
+compare a same-topology gesture with its starting positions and distinguish
+outward, inward, and tangential movement; these colours are preview vertex data
+only and do not alter the authoritative mesh, materials, textures, or output.
+These behaviors have source/unit and offscreen renderer coverage, not visible
+Windows or licensed-game appearance proof.
+
+**Finish Edit Mesh** drains the shadow and prepares one replacement. Exact Game
+Asset uses the existing exact validator and in-memory writer without fallback.
+Free Edit rechecks the selected destination at Finish and again immediately
+before commit, then proves the complete mesh through OBJ export and reparse.
+The authoritative mesh revision, Geometry Layers revision, and Morph & Refit
+revision/state must all still match the opening snapshot. Geometry, layers,
+object transform, output state, morph profiles, and native Morph & Refit runtime
+then commit as one reversible
+`Rust Edit Session`; Undo and Redo restore that full state. Any rejection keeps
+Rust open and leaves authority unchanged. Cancel, close, crash, protocol
+failure, or forced termination discards the shadow and only its owned files.
+An accepted Finish is only the handoff into CDMW: the user must run validation
+for that exact revision before **Install as Overlay** or **Build Mod** can
+publish it. Build Mod supports DMM/JMM/CDUMM/Crimson Sharp loose packages and a
+DMM archive group through owned sibling staging; overlay installation keeps the
+existing confirmation, backup, rollback, receipt, and restore lifecycle. Neither
+route rewrites source PAMT/PAZ archives in place.
 `tab_ui_state.py` is the effect bridge into the domain reducer. Existing mixins
 still send protocol messages, run workers, load packages and record diagnostics,
 but action visibility, blocker reasons, report/output authority and the resident
@@ -81,23 +216,14 @@ base/target/service/renderer revisions and the stable recovery error code.
 The resident strip keeps **Close** at its far edge. It remains available while
 session work is active, confirms before discarding edits, and returns Mesh Editor
 to its no-session state through the same nonblocking worker and renderer teardown
-path. The standalone workspace and viewport host remain visible before a session
-and after close; no-session guidance is a compact banner above that workspace,
-not a replacement stack page. Opening an archive or file session hides the banner.
-`start_standalone_native_preview()` and its async counterpart are the live entry
-point into that renderer: they push session and scene state to a running .NET
-editor process, or start one when none is running. The Python D3D11 preview host
-was removed with the resident Vortice migration, so there is no D3D11 fallback
-and no host-command construction left to own.
-Helper status JSON commits are serialized per destination across processes,
-then published through a unique sibling file and an atomic replacement, so an
-overlapping helper or a monitor reading the prior status cannot collide with a
-new write. Fatal reporting is best effort: embedded and headless failures
-preserve the original exception on stderr and exit nonzero without opening a
-Windows application-error dialog even when the status destination is locked.
-
-`native_preview_payloads.py` owns Mesh Editor payloads for the .NET preview
-bridge; callers should not duplicate mesh-to-preview JSON/blob packing.
+path. The Rust host remains visible before a session and after close as a
+loading, availability, or result page. Opening an archive or file session
+replaces that page with the process-owned child. An accepted Finish disposes the
+shadow and shows Run Validation, Build Mod, Install as Overlay, Restore Last
+Overlay Install, Reopen Edit, and Close Session against the accepted
+authoritative revision. `native_preview_payloads.py` and the old helper-status
+path remain compatibility code for retained preview consumers; the direct
+editor does not invoke them.
 
 `controller.py` owns the feature-side edit-session bridge over `MeshService` and
 converts edit results into native preview update payloads.
@@ -173,6 +299,13 @@ not invalidate geometry reports, while an acknowledged geometry revision does;
 expected native-snapshot gaps remain unavailable instead of hydrating stale
 Python geometry, and unexpected exceptions remain visible and enter the runtime
 diagnostic trail.
+## Retained Vortice preview compatibility
+
+The following D3D11/.NET behavior is retained for Archive Browser, placement,
+static replacement, reference, material, and specialist preview dialogs. It is
+not a production Mesh Editor route, fallback, material-preparation step, or Rust
+build contract.
+
 Native D3D11 viewport part-pick and part-context events are compatibility no-ops.
 They cannot change a PARTS selection or open its menu. The historical
 `select_parts` action key is retained for settings/dynamic callers but presents
@@ -285,36 +418,49 @@ placement-gizmo, and active-pane buttons keep the sunken bevel after release,
 with color serving as a secondary state cue.
 Rendered Gizmo size and pointer hit testing share the Preview Settings values,
 so customized handles remain aligned with interaction.
-Native D3D11 viewport Move/Grab/Smooth/Inflate/Pinch stroke events also route
-through `MeshEditorController`/`MeshService` as resident native-session
-`transform`/`brush` commands with `stroke_phase` and `stroke_id` payloads.
-Move and Grab build their immutable projected candidates once and display an
-exact renderer-local preview on every pointer update. Native Grab captures the
-same initial weights and center on `stroke_begin`, then reuses that fixed scope
-even after the cursor leaves the mesh. Smooth, Inflate, and Pinch display the
-correlated resident-native result stream instead of a second local sculpt
-approximation. Protocol updates are bounded to 16 ms. Coalescing keeps exact
-first/final samples, points at least 2.5 px off the simplified path, turns of at
-least 12 degrees, and one point every 50 ms during slow motion. Each native
-packet carries at most 256 samples and 64 KiB; high-curvature gestures split
-into at most 16 queued packets with one overlapping boundary, one stroke ID,
-and one final history commit. The visible-depth mask spans the retained swept
-path and the dispatcher keeps one in-flight plus one pending update. The renderer publication lane is also
-acknowledgement-paced: while one geometry frame is applying it retains only the
-newest cumulative nonterminal stroke outcome, acknowledges every superseded
-request as coalesced, and treats end/cancel as an ordering boundary. Only a matching
-stroke ID, request, and revision can reconcile the result. Cancel restores every
-provisional segment to the baseline, and the terminal phase publishes one
-cumulative geometry frame and creates one history entry.
-When the shared helper adopts a new process generation or session identity, the
-revision queue adopts it at the same boundary, discards work addressed to the
-old identity, and restores the process's negotiated revision capabilities. A
-rejected mutation performs one authoritative resident-state resync; its applied
-acknowledgement clears recovery before the next edit is released, so a
-recovered Grab, sculpt, UV, or Morph update cannot remain stuck behind an
-already-completed resync. Activation acknowledgements are exposed to Mesh
-Editor only after the shared controller validates their request, process, and
-package generations.
+Production Select/Move/Grab/Smooth/Inflate/Pinch input stays inside the resident
+.NET/Vortice helper and `cdmw_mesh_core`; it does not round-trip through
+`MeshEditorController` or `MeshService` per pointer sample. `MeshViewport` owns
+one `NativeMeshInteractionSession`, captures the current mesh, topology,
+camera, viewport, X-Ray, visible-part, and model-transform revisions, and asks
+the native ABI to prepare a matching interaction snapshot on a cancellable
+background task. A later generation cancels or supersedes the earlier build,
+and completion publishes only when its session and every stamp still match.
+Pointer handlers only invoke typed native Begin/Update/End/Cancel operations
+against that prepared snapshot; they never build JSON, scan the whole mesh, or
+wait on Python.
+
+The native snapshot owns projected vertices, exact edge and face bounds,
+16-pixel candidate buckets, a triangle-depth BVH, exact large-face candidates,
+and Smooth adjacency. Each resident session has its own interaction lock; the
+global registry lock protects lookup and lifetime only. Move and Grab freeze
+their scope and weights at Begin and track the full projected pointer delta.
+Smooth, Inflate, and Pinch resample the retained path while updating projected
+candidates incrementally. Every gesture works from an immutable baseline:
+End creates one history entry, while Esc, focus loss, resize, camera takeover,
+tool change, explicit cancel, and shutdown restore the baseline without adding
+history.
+
+On End, the helper validates and applies the terminal sparse delta to its
+`ObjDocument`, committed selection, recomputed normal channels, and D3D11
+buffers, then accepts the native mesh/selection revision locally and returns
+the operator to idle. It subsequently sends the same immutable `CDMWMIT2`
+transaction to Python through the FIFO `resident_interaction_commit_v2` lane.
+Python records an idempotent durable ledger and answers with a geometry-free
+`resident_interaction_commit_ack`; helper-originated geometry is never echoed
+through `resident_mutation_batch_v3`. Sixteen unacknowledged transactions or
+64 MiB of pending data pauses new gestures and output with **Syncing edits…**.
+One transport retry reuses the same sequence and digest. A semantic rejection
+blocks authoring/output, retains the failed transaction for diagnostics, and
+rehydrates Python's last durable state without terminating the helper.
+
+The first authoritative packet initializes the resident revision exactly once,
+including when simple preview already latched the session identity. Later state
+packets cannot reset it. A new process generation or session identity retires
+stale snapshot work and queued transactions before adopting the new authority.
+Save, Export, Build Mod, Install, topology/material changes, Undo/Redo, and
+Finish Edit remain disabled until Python's durable revision catches the local
+native revision.
 Move requires an existing resident vertex, edge, face, or explicit PARTS
 selection and reports that prerequisite without starting a stroke when the
 selection is empty. Grab, Smooth, Inflate, and Pinch carry native
@@ -416,19 +562,17 @@ filter. Every fresh or resumed editor opens in Orbit with no selection armed;
 runtime tool, selection, camera, and Undo/Redo state are not restored from a
 draft. Moving between tool pages inside the same live session preserves the
 current tool.
-Selection gestures use the background latest-wins stroke dispatcher. Immutable
-begin/update/end/cancel requests carry stroke ID, sequence, target, operation,
-and bounded retained swept brush/region samples. One update may run while one merged
-update waits; native selection never runs inline on the Qt UI thread. Provisional
-geometry stays ahead of the last acknowledged base, and an old acknowledgement
-cannot clear a newer tail. The matching final acknowledgement creates exactly
-one selection-history entry; cancellation, failure, or session retirement
-restores the pre-stroke selection and clears the correlated provisional state.
-Lasso and toggle-paint use the same bounded spacing/curvature/time buffer while
-drawing and always append the exact mouse-up endpoint; local echo and native
-tests therefore share one tolerance-bounded outline instead of doing mouse-up
-work proportional to every raw event. Its immediate target-specific result remains visible until
-native authority answers.
+Selection gestures use the same resident typed native owner as deformation.
+Begin/Update/End/Cancel requests carry the gesture identity, element domain,
+shape, operation, visibility mode, and bounded retained brush/region path.
+Vertex, edge, and face Brush/Rectangle/Lasso selection query the indexed native
+snapshot, including exact large-face and visible-depth handling; no production
+selection path projects candidates in Python or the C# compatibility cache.
+The final local result is immediately authoritative in the helper and creates
+one selection-history entry. Cancellation or session retirement restores the
+exact pre-gesture selection. Lasso and toggle-paint retain spacing, curvature,
+slow-motion, and exact mouse-up samples without making terminal work
+proportional to every raw pointer event.
 All C# screen-selection predicates live in `SelectionGeometry`: calculations
 use doubles, coordinate/collinearity and inclusive boundaries use the native
 owner's 1e-9 tolerance, squared zero-length and projected-degenerate thresholds
@@ -438,33 +582,28 @@ areas; collinear segments intersect only when their inclusive bounds overlap.
 X-Ray bypasses depth/facing rejection but never presentation visibility or the
 active geometry-layer filter. The 25-case headless contract is executable math
 evidence; visible input and licensed-game appearance remain separate gates.
-`MeshEditorTab` routes those events to a resident native `select` command
-through `MeshService`, C++ expands the requested selection mask from the D3D11
-projection matrix, composes D3D11 per-source world transforms when alignment
-preview transforms are active, ignores leaked legacy groups for projected
-screen selection including source-specific projection override arrays, prevents
-non-overridden sources from using legacy camera defaults, treats region edge
-selection as projected segment hits with hit-point depth checks,
-treats region face selection as projected triangle hits, applies native
-visible-depth filtering when requested for brush or region selection, and pushes
-the resulting selection groups back to the D3D11 preview host.
+`MeshViewport` supplies D3D11 projection and per-source world transforms to the
+native snapshot. C++ composes alignment-preview transforms, rejects malformed
+or incomplete projection overrides, treats region edges as projected segment
+hits with hit-point depth checks, treats region faces as projected triangle
+hits, and applies native visible-depth filtering for brush and region
+selection. The helper applies the resulting selection map locally before its
+terminal transaction enters the durable Python lane.
 Topology commands first drain the final correlated selection request. A
 Subdivide, Refine Smooth or Create Part click made while Brush/Lasso selection is still
 provisional is queued without the helper's older `local_selection` snapshot and
 runs against resident selection authority after mouse-up; a failed or cancelled
 selection terminal cancels the queued command.
 
-Brush projection is resident across short gestures. Arming Select or settling the
-camera starts an immutable background projection build; a first dab that arrives early
-is queued against that correlated build rather than constructing the whole mesh on the
-WinForms input thread. Depth tiles are prepared only where the brush touches. Geometry,
-topology, vertex positions, camera/model matrices, viewport size, X-Ray, or visible and
-editable part changes invalidate the cache; ending a gesture and switching tool pages do
-not. The stable left viewport prevents ordinary menu/tool activation from changing its
-size and invalidating the projection. Selection status
-adds build, hit, invalidation, stale-build, and cold/warm first-dab timings, and the GPU
-interaction soak exercises repeated short Face Brush gestures as well as the existing
-held stroke and authoritative mouse-up paths.
+The indexed native snapshot is resident across short gestures. Arming Select or
+settling the camera schedules preparation before the next pointer handler.
+Geometry, topology, vertex positions, camera/model matrices, viewport size,
+X-Ray, and visible/editable-part changes invalidate its stamp; gesture end and
+tool-page navigation do not. A cold gesture waits in a visible preparation
+state instead of building the cache in the WinForms input handler. Production
+diagnostics identify `cdmw_mesh_core_0.1`, report snapshot generations and
+pointer-handler timings, and fail if resident authoring falls back to the C#
+projection implementation.
 
 Copy/Paste is an internal Mesh Editor clipboard (`Ctrl+C`/`Ctrl+V`), not the OS
 clipboard. Faces copy exactly; vertex or wire selections copy only fully
@@ -601,11 +740,12 @@ virtual dependency tree, writes a ready-to-import FBX under `cdmw_blender`, and
 lets a reopened loose PAC reproduce the same presentation after hash validation.
 Texture resolution is read-only. Mesh Editor reuses an already-resolved Archive
 Browser material context when one exists. A native Archive Browser handoff pins
-its resident package before retiring the Browser renderer and carries that path
-into the request-correlated material-context worker, which
-hydrates the already-resolved native material batches before attempting the slower
-Python archive resolver. The lease remains held for the direct edit session so cache
-pruning cannot remove its DDS sources. PAM/PAMLOD handoffs also retain their companion;
+its resident package before retiring the Browser renderer and carries both the
+resolved model and package path into the direct session. If that complete model
+is unavailable, the request-correlated material-context worker runs the full
+Archive Browser resolver before falling back to the package's flattened native
+batches. The lease remains held for the direct edit session so cache pruning
+cannot remove its DDS sources. PAM/PAMLOD handoffs also retain their companion;
 selecting **Solid (Textured)** waits on that worker and the resident material
 acknowledgement rather than failing because Archive Browser had not loaded textures
 first. If a required texture cannot decode or bind, the choice reports the failure
@@ -625,10 +765,17 @@ controls to identity because the imported geometry already contains its
 transform. The legacy separate Qt panel remains a compatibility surface and is
 not mounted beside the direct resident form.
 
-Mesh-only outputs first drain pending resident strokes, then capture one
+After an accepted Rust Finish, CDMW invalidates the previous output validation;
+the user must run **Run validation** for the new authoritative revision before a
+game/mod output becomes eligible. Mesh-only outputs first drain pending resident
+strokes, then capture one
 immutable validated session/revision snapshot. **Export Mesh File** atomically
 publishes the rebuilt asset and report. **Build Mod** publishes either a loose
-mesh-only folder or a DMM archive-group overlay package. **Install as Overlay**
+manager-profile mesh package (**DMM**, **JMM**, **CDUMM**, or **Crimson Sharp**)
+or a **DMM Archive Group** package. Both package forms stage in an owned sibling
+directory and publish once, so a stale revision, cancellation, or failure cannot
+leave a partial final folder. Field-JSON is not offered because its shared
+profile currently owns DDS rather than mesh payloads. **Install as Overlay**
 prepares the exact mount-list change, carry-forward set and backup targets before
 confirmation; apply rechecks the game state, stages and validates the complete
 overlay, backs up through `ArchiveMutationService`, and publishes the mount list

@@ -29,9 +29,10 @@ def _proof_screen(app: object) -> object:
     The primary screen by default, which is what every existing run used.
     ``CDMW_HARNESS_SCREEN`` names another one, by Qt screen name such as
     ``\\\\.\\DISPLAY1`` or by index, so a run can be kept off a display someone
-    is working on. The gate shows a real window without activating it; input is
-    posted only to the verified viewport HWND and never moves the user's global
-    cursor.
+    is working on. The gate shows a real window without activating it until an
+    authorized measured gesture. That gesture targets only the verified
+    viewport HWND, retains focus until the helper drains its terminal event,
+    then restores the user's exact foreground window and cursor position.
     """
     requested = str(os.environ.get("CDMW_HARNESS_SCREEN", "") or "").strip()
     primary = app.primaryScreen()

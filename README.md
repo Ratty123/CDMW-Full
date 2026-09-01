@@ -5,13 +5,14 @@
 ![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
-![renderer](https://img.shields.io/badge/renderer-D3D11-brightgreen?style=flat-square)
+![renderer](https://img.shields.io/badge/renderers-D3D12%20%2B%20D3D11-brightgreen?style=flat-square)
 ![archives](https://img.shields.io/badge/archives-explicit%20mutation-orange?style=flat-square)
 [![license](https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square)](LICENSE)
 
 A Windows desktop workbench for modding **Crimson Desert**: browse and extract
-game archives, create equipment items, preview and edit meshes on a native
-D3D11 renderer, place and customize visual effects, rebuild and author DDS
+game archives, create equipment items, edit meshes in the embedded native
+Rust/D3D12 workspace, preview other assets through the retained D3D11 renderer,
+place and customize visual effects, rebuild and author DDS
 textures, assemble replacement packages, and read formats that had to be
 reverse engineered from the shipped build.
 
@@ -101,7 +102,7 @@ services, workers, previews, or saved tool state.
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
 | **Model Library** | Scan and preview local or importable models, then send a selected model directly into Create New Item. |
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
-| **Mesh Editor** | Work in a permanent standalone viewport that remains available before and after a session. Open `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with layered materials, inspect referenced textures, and use capability-gated LOD0 authoring through the resident native interaction session: Select, Move, Grab, Smooth, Inflate, Pinch, one-entry gesture history, authoritative Undo/Redo resynchronisation, exact Face Delete where provenance is valid, morph profiles with per-garment refit, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview. Exact Game Asset and Free Edit controls stay visible but fail closed with their own reason when unavailable. |
+| **Mesh Editor** | Edit archive or local meshes in the single embedded Rust `wgpu`/D3D12 workspace. It exposes capability-gated Select, Move, Rotate, Scale, Grab, Smooth, Inflate, Pinch, topology, cleanup, normals/tangents, UV, rig/weights, history, layers, Morph & Refit, OBJ/FBX export, OBJ/DAE/glTF/GLB import, and Exact/Free Edit controls for the active LOD. Work stays in an isolated shadow session; only a validated **Finish Edit Mesh** atomically publishes one reversible result. A missing, incompatible, crashed, or unembeddable Rust helper is explained with Retry and never falls back to Vortice. Vortice remains an Archive Browser and specialist-preview dependency only. |
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
 | **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` native DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
 | **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
@@ -285,11 +286,12 @@ flowchart LR
         ACC["cdmw_archive_accelerator<br/>C++<br/>archive primitives"]
         TEX["cd_texture_dx<br/>C++<br/>DirectXTex"]
         HKX["cd_hkx<br/>Rust<br/>Havok containers"]
+        RUSTEDIT["cdmw_mesh_lab<br/>Rust / wgpu D3D12<br/>embedded Mesh Editor"]
     end
 
     subgraph dotnet[".NET 10 helpers"]
         direction TB
-        EDITOR["Mesh Editor host<br/>D3D11 / Vortice<br/>presentation + input"]
+        ARCHPREVIEW["Archive Preview host<br/>D3D11 / Vortice<br/>presentation + input"]
         ARCH["FullArchive.Worker<br/>archive backend"]
     end
 
@@ -299,8 +301,8 @@ flowchart LR
     WRK --> ACC
     WRK --> TEX
     WRK --> HKX
-    FEAT -->|embedded HWND| EDITOR
-    PREV -->|packages| EDITOR
+    FEAT -->|embedded HWND + JSONL| RUSTEDIT
+    PREV -->|preview packages| ARCHPREVIEW
 ```
 
 ### Layering rules
@@ -355,9 +357,11 @@ and never recycle a healthy process; only process, device, provenance, or
 protocol failure enters recovery.
 
 The `preview` profile exposes read-only presentation, picking, overlays, and
-capture. The `authoring` profile adds the Mesh Editor mutation protocol and
-rehydrates from authoritative `MeshService` state after a recovery. `Edit Mesh`
-changes mutation permission; it does not choose or restart the renderer.
+capture through .NET/Vortice for Archive Browser and specialist previews. Mesh
+Editor authoring is separate: the required Rust `wgpu`/D3D12 child is embedded
+inside CDMW, edits a disposable shadow `MeshService`, and publishes only through
+validated Finish. A Rust failure never switches to Vortice. See
+[Rust Edit Mesh Integration](docs/features/rust-edit-mesh-integration.md).
 
 ### Build system
 
@@ -432,8 +436,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mod
 
 Release builds install the complete CPython 3.11/3.14 Windows x64 wheel graph
 from the hash-checked `requirements-build.txt` lock, cross-check every version
-against `constraints-release.txt`, publish the bundled .NET Mesh Editor as a
-self-contained `win-x64` single file, and run an offscreen startup smoke.
+against `constraints-release.txt`, publish the retained Vortice Archive Preview
+helper as a self-contained `win-x64` single file, build the required Rust Mesh
+Editor from its pinned Cargo lock, and run an offscreen startup smoke. The Rust
+executable and its verified provenance are packaged at
+`native/rust_mesh_editor/cdmw_mesh_lab.exe`; Vortice is packaged separately for
+its preview consumers.
 Output is published only after the atomic result marker reports
 `post_construction`:
 
@@ -490,8 +498,8 @@ cdmw/                    application code
   domain/                pure rules: archive safety, texture policy, manifests
   workers/               worker protocols, result types, cancellation
   core/ modding/ rendering/   archive, DDS, import/export, packaging logic
-native/                  C++ helpers, plus the Rust cd_hkx backend
-tools/                   .NET 10 helper sources, audit and research scripts
+native/                  C++ helpers, the Rust cd_hkx backend, staged Rust editor
+tools/                   .NET 10 helpers, Rust Mesh Lab, audit and research source
 tools/dotnet_*           D3D11 host, archive worker, build UI -- all source
 schemas/                 versioned capability and package schemas
 tests/                   behaviour, protocol contract, and source-guard tests
@@ -542,9 +550,12 @@ expressible and was pulled for hanging the game; its menu entries in the Archive
 Browser are left disabled and untouched, so nothing inherits the name or the code
 path of the feature that crashed.
 
-**Mesh rebuild is LOD0-only.** `.pamlod` LOD1+ can be read but not re-authored,
-and `.meshinfo` is treated as read-only because its count/offset tables are
-unproven, so physics bounds and socket context cannot be edited.
+**Exact game-asset rebuild remains LOD0-only.** `.pamlod` LOD1+ cannot be
+published through the exact archive writer. Free Edit may author the active
+higher LOD into a new validated OBJ/MTL destination while retaining the other
+loaded LODs in the working session; it never presents that output as exact game
+writeback. `.meshinfo` is treated as read-only because its count/offset tables
+are unproven, so physics bounds and socket context cannot be edited.
 Mesh Editor is therefore a constrained game-mesh authoring editor with
 Blender-inspired controls, not a general modeller or a promise that every
 registered backend action can be published into an exact game mesh.

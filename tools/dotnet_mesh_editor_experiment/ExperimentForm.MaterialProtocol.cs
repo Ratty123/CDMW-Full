@@ -452,6 +452,7 @@ internal sealed partial class ExperimentForm
             || sessionChanged)
         {
             ResetPendingMutationAuthority();
+            _authoritativeRevisionInitialized = false;
         }
         _residentProcessGeneration = processGeneration;
         if (string.IsNullOrWhiteSpace(_residentMaterialSessionId))
@@ -460,8 +461,10 @@ internal sealed partial class ExperimentForm
             _residentSessionProvisional = provisional;
             _residentSessionReleased = false;
             _lastObservedSessionRevision = ProtocolEditRevision(root);
-            _lastAppliedEditRevision = _lastObservedSessionRevision;
-            _viewport.SetAuthoritativeEditRevision(_lastAppliedEditRevision);
+            if (!provisional)
+            {
+                AdoptAuthoritativeResidentRevisionOnce(_lastObservedSessionRevision);
+            }
             ResetSelectionGestureDefaultsForSession();
             // A textured mode picked before this session existed is owed now.
             ReplayPendingResidentDisplayRequest();
@@ -492,8 +495,7 @@ internal sealed partial class ExperimentForm
             // Neither a placeholder's history nor the released session's belongs
             // to anything the arriving session did.
             _lastObservedSessionRevision = ProtocolEditRevision(root);
-            _lastAppliedEditRevision = _lastObservedSessionRevision;
-            _viewport.SetAuthoritativeEditRevision(_lastAppliedEditRevision);
+            AdoptAuthoritativeResidentRevisionOnce(_lastObservedSessionRevision);
             WriteProtocolEvent("session_rebound", new Dictionary<string, object?>
             {
                 ["session_id"] = sessionId,
@@ -505,18 +507,43 @@ internal sealed partial class ExperimentForm
         }
         if (!provisional)
         {
-            // The same id promoted from placeholder to authoritative.
-            if (_residentSessionProvisional)
-            {
-                _lastAppliedEditRevision = ProtocolEditRevision(root);
-                _viewport.SetAuthoritativeEditRevision(_lastAppliedEditRevision);
-            }
+            // A simple-preview package can pre-latch this same id before the
+            // authoritative session packet arrives. Session identity therefore
+            // cannot stand in for revision initialization.
+            AdoptAuthoritativeResidentRevisionOnce(ProtocolEditRevision(root));
             _residentSessionProvisional = false;
         }
         // The owner came back for its own helper, so its release is withdrawn.
         _residentSessionReleased = false;
         _lastObservedSessionRevision = Math.Max(_lastObservedSessionRevision, ProtocolEditRevision(root));
         ReplayPendingResidentDisplayRequest();
+    }
+
+    private void AdoptAuthoritativeResidentRevisionOnce(long revision)
+    {
+        if (!TryAdoptAuthoritativeResidentRevision(
+                ref _authoritativeRevisionInitialized,
+                ref _lastAppliedEditRevision,
+                revision))
+        {
+            return;
+        }
+        _lastDurableEditRevision = _lastAppliedEditRevision;
+        _viewport.SetAuthoritativeEditRevision(_lastAppliedEditRevision);
+    }
+
+    internal static bool TryAdoptAuthoritativeResidentRevision(
+        ref bool initialized,
+        ref long appliedRevision,
+        long authoritativeRevision)
+    {
+        if (initialized)
+        {
+            return false;
+        }
+        appliedRevision = Math.Max(0, authoritativeRevision);
+        initialized = true;
+        return true;
     }
 
     private bool CanApplyMaterialEditRevision(long revision, out string reason)

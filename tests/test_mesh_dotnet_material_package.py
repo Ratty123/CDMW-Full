@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -7,7 +8,12 @@ from types import SimpleNamespace
 import pytest
 from PySide6.QtGui import QColor, QImage
 
-from cdmw.models import ModelPreviewData, ModelPreviewMesh, PreviewMaterialTextureInput
+from cdmw.models import (
+    ModelPreviewData,
+    ModelPreviewMesh,
+    PreviewMaterialParameterInput,
+    PreviewMaterialTextureInput,
+)
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.rendering import material_combiner, material_combiner_images
 from cdmw.services import mesh_dotnet_material_package
@@ -55,6 +61,218 @@ def _write_manifest(
         cancelled=cancelled,
     )
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_exact_owner_direct_fallback_metadata_keeps_primary_maps_only(
+    tmp_path: Path,
+) -> None:
+    paths = {
+        role: tmp_path / f"9d32f710_cd_owner_{role}.dds"
+        for role in ("base", "normal", "material", "height", "layer")
+    }
+    for role, path in paths.items():
+        path.write_bytes(b"DDS " + role.encode("ascii"))
+
+    def binding(
+        role: str,
+        parameter_name: str,
+        semantic: str,
+        disposition: str,
+        *,
+        owner: int = 7,
+        source_role: str | None = None,
+    ) -> dict[str, object]:
+        archive_role = source_role or role
+        return {
+            "owner_slot_index": owner,
+            "parameter_name": parameter_name,
+            "parameter_key": parameter_name,
+            "source_reference": f"character/texture/cd_owner_{archive_role}.dds",
+            "transport_reference": str(paths[archive_role]),
+            "semantic": semantic,
+            "binding_authority": "exact",
+            "binding_disposition": disposition,
+        }
+
+    bindings = [
+        binding("base", "_baseColorTexture", "color", "promoted"),
+        binding("normal", "_normalTexture", "normal", "promoted"),
+        binding(
+            "material",
+            "_materialTexture",
+            "packed_material",
+            "layer_material_response",
+        ),
+        binding("height", "_heightTexture", "height", "recorded"),
+        binding("layer", "_detailDiffuseMaskR", "color", "layer_only"),
+        binding(
+            "layer",
+            "_baseColorTexture",
+            "color",
+            "promoted",
+            owner=8,
+        ),
+    ]
+    raw_channels = {
+        "base": str(paths["base"]),
+        "albedo": str(paths["base"]),
+        "diffuse": str(paths["base"]),
+        "normal": str(paths["normal"]),
+        "material": str(paths["material"]),
+        "height": str(paths["height"]),
+    }
+    contract = {
+        "source_contract": {
+            "source_submesh_index": 7,
+            "bindings": bindings,
+        }
+    }
+
+    direct = mesh_dotnet_material_package._exact_owner_direct_fallback_channels(
+        raw_channels,
+        contract,
+    )
+
+    assert set(direct) == {"base_color", "normal", "material", "height"}
+    assert {entry["owner_slot_index"] for entry in direct.values()} == {7}
+    assert direct["base_color"]["path"] == str(paths["base"])
+    assert not any("detail" in entry["parameter_name"].casefold() for entry in direct.values())
+
+    wrong_owner = copy.deepcopy(contract)
+    wrong_owner["source_contract"]["source_submesh_index"] = 9
+    assert (
+        mesh_dotnet_material_package._exact_owner_direct_fallback_channels(
+            raw_channels,
+            wrong_owner,
+        )
+        == {}
+    )
+
+    unique_owner = copy.deepcopy(contract)
+    unique_owner["source_contract"]["source_submesh_index"] = -1
+    unique_owner["source_contract"]["bindings"] = bindings[:5]
+    unique = mesh_dotnet_material_package._exact_owner_direct_fallback_channels(
+        raw_channels,
+        unique_owner,
+    )
+    assert {entry["owner_attribution"] for entry in unique.values()} == {
+        "unique_exact_binding_owner"
+    }
+
+    ambiguous_owner = copy.deepcopy(unique_owner)
+    ambiguous_owner["source_contract"]["bindings"].append(
+        binding(
+            "base",
+            "_baseColorTexture",
+            "color",
+            "promoted",
+            owner=8,
+        )
+    )
+    assert (
+        mesh_dotnet_material_package._exact_owner_direct_fallback_channels(
+            raw_channels,
+            ambiguous_owner,
+        )
+        == {}
+    )
+
+
+def test_compiler_manifest_carries_exact_owner_direct_fallback_metadata(
+    tmp_path: Path,
+) -> None:
+    paths = {
+        role: tmp_path / f"cd_owner_{role}.dds"
+        for role in ("base", "normal", "material", "height")
+    }
+    for role, path in paths.items():
+        path.write_bytes(b"DDS " + role.encode("ascii"))
+    parameters = {
+        "base": ("_baseColorTexture", "color", "promoted"),
+        "normal": ("_normalTexture", "normal", "promoted"),
+        "material": (
+            "_materialTexture",
+            "packed_material",
+            "layer_material_response",
+        ),
+        "height": ("_heightTexture", "height", "recorded"),
+    }
+    submesh = _submesh("owner3")
+    submesh.preview_pac_material_owner_slot_index = 3
+    submesh.preview_texture_dds_path = str(paths["base"])
+    submesh.preview_normal_texture_dds_path = str(paths["normal"])
+    submesh.preview_material_texture_dds_path = str(paths["material"])
+    submesh.preview_height_texture_dds_path = str(paths["height"])
+    submesh.preview_material_texture_inputs = tuple(
+        PreviewMaterialTextureInput(
+            slot_kind=role,
+            parameter_name=parameter_name,
+            source_texture_path=f"character/texture/cd_owner_{role}.dds",
+            source_dds_path=str(paths[role]),
+            semantic_type=semantic,
+            owner_slot_index=3,
+            binding_authority="exact",
+            binding_disposition=disposition,
+        )
+        for role, (parameter_name, semantic, disposition) in parameters.items()
+    )
+
+    payload = mesh_dotnet_material_package.compile_mesh_dotnet_material_manifest(
+        ParsedMesh(
+            path="character/model/owner3.pac",
+            format="pac",
+            submeshes=[submesh],
+        ),
+        package_dir=tmp_path / "package",
+        material_signature="owner-direct-fallback",
+        include_resources=False,
+    )
+
+    direct = payload["submeshes"][0]["direct_fallback_channels"]
+    assert set(direct) == {"base_color", "normal", "material", "height"}
+    assert {entry["owner_slot_index"] for entry in direct.values()} == {3}
+
+
+def test_package_synthesis_reattaches_shared_source_parameters_only_to_empty_inputs() -> None:
+    shared_parameters = (
+        PreviewMaterialParameterInput(
+            parameter_kind="color",
+            parameter_name="_dyeingDetailLayerColorMaskR",
+            color_value=(1.0, 0.86, 0.52),
+        ),
+    )
+    distinct_parameters = (
+        PreviewMaterialParameterInput(
+            parameter_kind="color",
+            parameter_name="_inputLocalTint",
+            color_value=(0.2, 0.3, 0.4),
+        ),
+    )
+    shared_input = PreviewMaterialTextureInput(
+        slot_kind="base",
+        parameter_name="_detailDiffuseMaskR",
+        semantic_type="color",
+        layer_role="detail",
+        layer_channel="r",
+    )
+    distinct_input = PreviewMaterialTextureInput(
+        slot_kind="base",
+        parameter_name="_detailDiffuseMaskG",
+        semantic_type="color",
+        layer_role="detail",
+        layer_channel="g",
+        material_parameters=distinct_parameters,
+    )
+    source = SimpleNamespace(
+        preview_material_parameters=shared_parameters,
+        preview_material_texture_inputs=(shared_input, distinct_input),
+    )
+
+    inputs = mesh_dotnet_material_package._package_synthesis_inputs(source, {})
+
+    assert inputs[0].material_parameters == shared_parameters
+    assert inputs[1].material_parameters == distinct_parameters
+    assert shared_input.material_parameters == ()
 
 
 def test_identical_submesh_material_inputs_are_synthesized_once(
@@ -1133,6 +1351,222 @@ def test_native_only_manifest_layer_inputs_are_typed_and_synthesized(
     assert "base" in binding["material_synthesis"]["generated_channels"]
 
 
+def test_native_exact_pac_xml_inputs_restore_archive_identity_and_binding_semantics(
+    tmp_path: Path,
+) -> None:
+    paths = {
+        name: tmp_path / f"{name}.dds"
+        for name in ("base", "layer_base", "normal", "material", "height", "explicit")
+    }
+    for name, path in paths.items():
+        path.write_bytes(b"DDS " + name.encode("ascii"))
+    common = {
+        "sidecar_kind": ".pac_xml",
+        "source_authority": "exact_sidecar",
+        "relation_confidence": "authoritative",
+        "owner_slot_index": 2,
+        "shader_family": "Skin",
+    }
+    mesh = ParsedMesh(
+        path="character/model/body.pac",
+        format="pac",
+        submeshes=[_submesh("body")],
+    )
+
+    assert apply_dotnet_native_material_batch_bindings(
+        mesh,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "dds_textures": {
+                    "base": {"slot": "base", "source_path": str(paths["base"])},
+                    "material_inputs": [
+                        {
+                            **common,
+                            "slot": "base",
+                            "source_path": str(paths["base"]),
+                            "archive_path": "character/texture/body.dds",
+                            "parameter_name": "_baseColorTexture",
+                            "semantic_type": "color",
+                            "visible_class": "primary_visible",
+                        },
+                        {
+                            **common,
+                            "slot": "base",
+                            "source_path": str(paths["layer_base"]),
+                            "archive_path": "character/texture/body_layer.dds",
+                            "parameter_name": "_baseColorTexture",
+                            "semantic_type": "color",
+                            "visible_class": "layer_visible",
+                            "layer_role": "layer",
+                            "layer_channel": "r",
+                        },
+                        {
+                            **common,
+                            "slot": "normal",
+                            "source_path": str(paths["normal"]),
+                            "archive_path": "character/texture/body_n.dds",
+                            "parameter_name": "_normalTexture",
+                            "semantic_type": "normal",
+                        },
+                        {
+                            **common,
+                            "slot": "material",
+                            "source_path": str(paths["material"]),
+                            "archive_path": "character/texture/body_sp.dds",
+                            "parameter_name": "_materialTexture",
+                            "semantic_type": "material",
+                        },
+                        {
+                            **common,
+                            "slot": "height",
+                            "source_path": str(paths["height"]),
+                            "archive_path": "character/texture/body_disp.dds",
+                            "parameter_name": "_heightTexture",
+                            "semantic_type": "height",
+                        },
+                        {
+                            **common,
+                            "slot": "emissive",
+                            "source_path": str(paths["explicit"]),
+                            "archive_path": "character/texture/body_em.dds",
+                            "parameter_name": "_emissiveTexture",
+                            "binding_authority": "preserved_authority",
+                            "binding_disposition": "preserved_disposition",
+                            "source_kind": "preserved_source_kind",
+                        },
+                    ],
+                },
+            },
+        ),
+    ) == 1
+
+    by_transport = {
+        Path(item.source_dds_path).name: item
+        for item in mesh.submeshes[0].preview_material_texture_inputs
+    }
+    primary = by_transport["base.dds"]
+    assert primary.source_texture_path == "character/texture/body.dds"
+    assert primary.source_dds_path == str(paths["base"])
+    assert primary.preview_texture_path == str(paths["base"])
+    assert primary.texture_name == "body.dds"
+    assert primary.binding_authority == "authoritative"
+    assert primary.binding_disposition == "promoted"
+    assert primary.source_kind == "crimson_base_color"
+
+    layer = by_transport["layer_base.dds"]
+    assert layer.source_texture_path == "character/texture/body_layer.dds"
+    assert layer.binding_authority == "authoritative"
+    assert layer.binding_disposition == "layer_only"
+    assert layer.source_kind == "crimson_layer_base"
+
+    normal = by_transport["normal.dds"]
+    assert normal.binding_authority == "authoritative"
+    assert normal.binding_disposition == "promoted"
+    assert normal.source_kind == "crimson_normal"
+    material = by_transport["material.dds"]
+    assert material.binding_authority == "authoritative"
+    assert material.binding_disposition == "layer_material_response"
+    assert material.source_kind == "crimson_skin_material_response"
+    height = by_transport["height.dds"]
+    assert height.binding_authority == "authoritative"
+    assert height.binding_disposition == "recorded"
+    assert height.source_kind == "crimson_height"
+    explicit = by_transport["explicit.dds"]
+    assert explicit.binding_authority == "preserved_authority"
+    assert explicit.binding_disposition == "preserved_disposition"
+    assert explicit.source_kind == "preserved_source_kind"
+
+
+def test_native_sidecar_hydration_rejects_unsafe_guessed_and_unowned_rows(
+    tmp_path: Path,
+) -> None:
+    paths = {
+        name: tmp_path / f"{name}.dds"
+        for name in ("unsafe", "absolute", "guessed", "unowned")
+    }
+    for path in paths.values():
+        path.write_bytes(b"DDS ")
+    mesh = ParsedMesh(
+        path="character/model/body.pac",
+        format="pac",
+        submeshes=[_submesh("body")],
+    )
+
+    assert apply_dotnet_native_material_batch_bindings(
+        mesh,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "dds_textures": {
+                    "material_inputs": [
+                        {
+                            "slot": "normal",
+                            "source_path": str(paths["unsafe"]),
+                            "archive_path": "../outside/body_n.dds",
+                            "parameter_name": "_normalTexture",
+                            "sidecar_kind": ".pac_xml",
+                            "source_authority": "exact_sidecar",
+                            "relation_confidence": "authoritative",
+                            "owner_slot_index": 0,
+                        },
+                        {
+                            "slot": "normal",
+                            "source_path": str(paths["absolute"]),
+                            "archive_path": "C:/outside/body_n.dds",
+                            "parameter_name": "_normalTexture",
+                            "sidecar_kind": ".pac_xml",
+                            "source_authority": "exact_sidecar",
+                            "relation_confidence": "authoritative",
+                            "owner_slot_index": 0,
+                        },
+                        {
+                            "slot": "base",
+                            "source_path": str(paths["guessed"]),
+                            "archive_path": "character/texture/guess.dds",
+                            "parameter_name": "_baseColorTexture",
+                            "sidecar_kind": ".pac_xml",
+                            "source_authority": "basename_guess",
+                            "relation_confidence": "authoritative",
+                            "owner_slot_index": 0,
+                            "visible_class": "primary_visible",
+                        },
+                        {
+                            "slot": "normal",
+                            "source_path": str(paths["unowned"]),
+                            "archive_path": "character/texture/unowned_n.dds",
+                            "parameter_name": "_normalTexture",
+                            "sidecar_kind": "pac_xml",
+                            "source_authority": "exact_sidecar",
+                            "relation_confidence": "authoritative",
+                            "owner_slot_index": -1,
+                        },
+                    ]
+                },
+            },
+        ),
+    ) == 1
+
+    by_transport = {
+        Path(item.source_dds_path).name: item
+        for item in mesh.submeshes[0].preview_material_texture_inputs
+    }
+    unsafe = by_transport["unsafe.dds"]
+    assert unsafe.source_texture_path == ""
+    assert unsafe.preview_texture_path == str(paths["unsafe"])
+    absolute = by_transport["absolute.dds"]
+    assert absolute.source_texture_path == ""
+    assert absolute.preview_texture_path == str(paths["absolute"])
+    guessed = by_transport["guessed.dds"]
+    assert guessed.source_texture_path == "character/texture/guess.dds"
+    unowned = by_transport["unowned.dds"]
+    assert unowned.source_texture_path == "character/texture/unowned_n.dds"
+    for item in (unsafe, absolute, guessed, unowned):
+        assert item.binding_authority == ""
+        assert item.binding_disposition == ""
+        assert item.source_kind == ""
+
+
 def test_cancellation_during_material_pixel_synthesis_cleans_partial_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1308,6 +1742,114 @@ def test_dense_standard_v2_equipment_metal_response_survives_refinement() -> Non
     )
 
 
+def test_conserved_handle_uses_dense_decoded_metal_without_reclassifying_leather_grips() -> None:
+    def contract(
+        material_name: str,
+        *,
+        conserved: bool = True,
+    ) -> dict[str, object]:
+        return {
+            "shader_family": "standard_v2",
+            "material_category": "leather",
+            "material_category_confidence": 0.72,
+            "material_category_reason": "nonmetal:leather_token",
+            "material_response_promoted": False,
+            "source_contract": {
+                "source_kind": "pac_xml",
+                "source_submesh_index": 3,
+                "wrappers": [
+                    {
+                        "owner_slot_index": 3,
+                        "material_name": material_name,
+                        "part_name": material_name,
+                    }
+                ],
+                "binding_conservation": {"conserved": conserved},
+            },
+        }
+
+    two_handed = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        contract("CD_PHM_02_Handle_0014"),
+        {
+            "generated_channels": ["metallic", "roughness", "specular"],
+            "metallic_summary": {
+                "mean": 0.871,
+                "q50": 0.882,
+                "q90": 0.914,
+                "coverage_above_0_25": 1.0,
+            },
+        },
+        source_asset_path=(
+            "character/model/1_pc/1_phm/weapon/2_twohandweapon/"
+            "cd_phm_02_sword_0014.pac"
+        ),
+    )
+    one_handed = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        contract("CD_PHM_01_Handle_0001_mg"),
+        {
+            "generated_channels": ["metallic", "roughness", "specular"],
+            "metallic_summary": {
+                "mean": 0.046,
+                "q50": 0.004,
+                "q90": 0.1098,
+                "coverage_above_0_25": 0.0551,
+            },
+        },
+        source_asset_path=(
+            "character/model/1_pc/1_phm/weapon/1_onehandweapon/"
+            "cd_phm_01_sword_0001.pac"
+        ),
+    )
+    non_handle_wrapper = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        contract("CD_PHM_02_Blade_0014"),
+        {
+            "generated_channels": ["metallic", "roughness", "specular"],
+            "metallic_summary": {
+                "mean": 0.871,
+                "q50": 0.882,
+                "q90": 0.914,
+                "coverage_above_0_25": 1.0,
+            },
+        },
+        source_asset_path=(
+            "character/model/1_pc/1_phm/weapon/2_twohandweapon/"
+            "cd_phm_02_sword_0014.pac"
+        ),
+    )
+    nonconserved_handle = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        contract("CD_PHM_02_Handle_0014", conserved=False),
+        {
+            "generated_channels": ["metallic", "roughness", "specular"],
+            "metallic_summary": {
+                "mean": 0.871,
+                "q50": 0.882,
+                "q90": 0.914,
+                "coverage_above_0_25": 1.0,
+            },
+        },
+        source_asset_path=(
+            "character/model/1_pc/1_phm/weapon/2_twohandweapon/"
+            "cd_phm_02_sword_0014.pac"
+        ),
+    )
+
+    assert two_handed["material_category"] == "metal"
+    assert two_handed["material_category_confidence"] == 0.88
+    assert two_handed["material_response_promoted"] is True
+    assert two_handed["material_category_pre_synthesis_reason"] == (
+        "nonmetal:leather_token"
+    )
+    assert two_handed["material_category_reason"] == (
+        "metal:dominant_decoded_equipment_metal_channel"
+    )
+    for preserved in (one_handed, non_handle_wrapper, nonconserved_handle):
+        assert preserved["material_category"] == "leather"
+        assert preserved["material_category_confidence"] == 0.72
+        assert preserved["material_category_reason"] == "nonmetal:leather_token"
+        assert preserved["material_response_promoted"] is False
+        assert "material_category_pre_synthesis_reason" not in preserved
+
+
 def test_dense_standard_v2_generic_weapon_part_promotes_only_in_equipment_path() -> None:
     contract = {
         "shader_family": "standard_v2",
@@ -1346,6 +1888,164 @@ def test_dense_standard_v2_generic_weapon_part_promotes_only_in_equipment_path()
     )
     assert unrelated["material_category"] == "generic"
     assert unrelated["material_response_promoted"] is False
+
+
+def test_dense_emissive_v2_weapon_part_uses_its_decoded_metal_response() -> None:
+    refined = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        {
+            "shader_family": "emissive_v2",
+            "material_category": "generic",
+            "material_category_confidence": 0.35,
+            "material_category_reason": "generic:no_strong_material_token",
+            "material_response_promoted": False,
+            "source_contract": {
+                "source_kind": "pac_xml",
+                "binding_conservation": {"conserved": True},
+            },
+        },
+        {
+            "generated_channels": ["metallic", "roughness", "specular", "emissive"],
+            "metallic_summary": {
+                "q50": 0.878,
+                "q90": 0.906,
+                "coverage_above_0_25": 1.0,
+            },
+        },
+        source_asset_path=(
+            "character/model/1_pc/1_phm/weapon/2_twohandweapon/"
+            "cd_phm_02_sword_0036.pac"
+        ),
+    )
+
+    assert refined["material_category"] == "metal"
+    assert refined["material_category_confidence"] == 0.88
+    assert refined["material_response_promoted"] is True
+    assert refined["material_category_reason"] == (
+        "metal:dominant_decoded_equipment_metal_channel"
+    )
+
+
+@pytest.mark.parametrize(
+    ("source_path", "part_name", "material_name", "expected", "reason"),
+    (
+        (
+            "character/model/1_pc/9_ptm/armor/9_upperbody/cd_ptm_01_ub_0001.pac",
+            "CD_PTM_01_UB_0001",
+            "CD_PHM_00_UB_0001",
+            "cloth",
+            "nonmetal:apparel_slot_token",
+        ),
+        (
+            "character/model/monster/m0001/cd_m0001_00_ub_belt_0001.pac",
+            "CD_PTM_00_M0001_00_UB_Belt_0001",
+            "CD_M0001_00_UB_Belt_0001",
+            "leather",
+            "nonmetal:leather_token",
+        ),
+        (
+            "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001.pac",
+            "CD_PHM_01_Sword_Handle_0001",
+            "CD_PHM_01_Handle_0001_mg",
+            "leather",
+            "nonmetal:leather_token",
+        ),
+    ),
+)
+def test_dotnet_semantics_reuses_exact_preview_material_identity_category(
+    source_path: str,
+    part_name: str,
+    material_name: str,
+    expected: str,
+    reason: str,
+) -> None:
+    source = SimpleNamespace(
+        name=part_name,
+        material=material_name,
+        texture=material_name,
+        preview_sidecar_shader_family="SkinnedMeshStandard",
+        preview_native_material_overrides={},
+        preview_material_texture_inputs=(),
+    )
+
+    contract = mesh_dotnet_material_package._dotnet_material_semantic_contract(
+        source,
+        {},
+        source_asset_path=source_path,
+    )
+
+    assert contract["material_category"] == expected
+    assert contract["material_category_confidence"] >= 0.72
+    assert contract["material_category_reason"] == reason
+
+
+@pytest.mark.parametrize(
+    ("folder", "preview_role"),
+    (
+        ("9_upperbody", "upperbody"),
+        ("10_lowerbody", "lowerbody"),
+    ),
+)
+def test_standard_apparel_folder_does_not_make_plain_accessory_cloth(
+    folder: str,
+    preview_role: str,
+) -> None:
+    source = SimpleNamespace(
+        name="CD_PHM_00_ACC_0123_01",
+        material="CD_PHM_00_ACC_0123_01",
+        texture="CD_PHM_00_ACC_0123_01",
+        preview_role=preview_role,
+        preview_sidecar_shader_family="SkinnedMeshStandard_Ver2",
+        preview_native_material_overrides={},
+        preview_material_texture_inputs=(),
+    )
+
+    contract = mesh_dotnet_material_package._dotnet_material_semantic_contract(
+        source,
+        {},
+        source_asset_path=(
+            "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/"
+            f"armor_south/{folder}/cd_m0001_00_so_phm_acc_0123.pac"
+        ),
+    )
+
+    assert contract["material_category"] == "generic"
+    assert contract["material_category_confidence"] == pytest.approx(0.35)
+    assert contract["material_category_reason"] == ""
+
+
+@pytest.mark.parametrize(
+    ("part_name", "preview_role"),
+    (
+        ("CD_PGM_00_HEAD_00_0001_01", "head"),
+        ("CD_PGM_00_NUDE_00_0001_HAND", "hand"),
+        ("CD_PGM_00_NUDE_00_0001", "body"),
+    ),
+)
+def test_standard_nude_anatomical_wrapper_keeps_skin_category(
+    part_name: str,
+    preview_role: str,
+) -> None:
+    source = SimpleNamespace(
+        name=part_name,
+        material=part_name,
+        texture=part_name,
+        preview_role=preview_role,
+        preview_sidecar_shader_family="SkinnedMeshStandard",
+        preview_native_material_overrides={},
+        preview_material_texture_inputs=(),
+    )
+
+    contract = mesh_dotnet_material_package._dotnet_material_semantic_contract(
+        source,
+        {},
+        source_asset_path=(
+            "character/model/1_pc/9_pgm/nude/cd_pgm_00_nude_00_0001.pac"
+        ),
+    )
+
+    assert contract["material_category"] == "skin"
+    assert contract["material_category_confidence"] == pytest.approx(0.86)
+    assert contract["material_category_reason"] == "nonmetal:skin_token"
 
 
 def test_dense_standard_v2_conserved_pac_metal_promotes_outside_equipment_path() -> None:
@@ -1777,3 +2477,91 @@ def test_native_batch_rejects_layer_mask_mislabeled_as_base_descriptor(
     assert submesh.preview_material_texture_inputs[0].parameter_name == (
         "_colorBlendingMaskTexture"
     )
+
+
+def test_native_hair_owner_promotes_exact_primary_visible_sidecar_base(
+    tmp_path: Path,
+) -> None:
+    crane = _image(
+        tmp_path / "cd_m0003_00_crane_hair_0001.dds",
+        (224, 224, 218, 196),
+    )
+    flamingo = _image(
+        tmp_path / "cd_m0003_00_flamingos_hair_0001.dds",
+        (96, 18, 22, 190),
+    )
+    prepared_layer = PreviewMaterialTextureInput(
+        slot_kind="base",
+        parameter_name="_baseColorTexture",
+        source_texture_path="character/texture/cd_m0003_00_crane_hair_0001.dds",
+        source_dds_path=str(crane),
+        preview_texture_path=str(crane),
+        semantic_type="albedo",
+        semantic_subtype="base_color",
+        shader_family="SkinnedMeshHair",
+        layer_role="layer",
+        layer_channel="r",
+        owner_slot_index=1,
+        binding_authority="authoritative",
+        binding_disposition="layer_only",
+        source_kind="crimson_layer_base",
+    )
+    submesh = _submesh("CD_M0003_00_Crow_Fur_0001")
+    submesh.preview_pac_material_owner_slot_index = 1
+    submesh.preview_material_texture_inputs = (prepared_layer,)
+    mesh = ParsedMesh(path="archive/helmet.pac", format="pac", submeshes=[submesh])
+
+    assert apply_dotnet_native_material_batch_bindings(
+        mesh,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "material_category": "hair",
+                "shader_family": "SkinnedMeshHair",
+                "alpha_mode": "alpha_cutout",
+                "two_sided": True,
+                "dds_textures": {
+                    "base": {"slot": "base", "source_path": str(crane)},
+                    "material_inputs": [
+                        {
+                            "slot": "base",
+                            "source_path": str(crane),
+                            "parameter_name": "_baseColorTexture",
+                            "semantic_type": "albedo",
+                            "semantic_subtype": "base_color",
+                            "shader_family": "SkinnedMeshHair",
+                            "layer_role": "layer",
+                            "layer_channel": "r",
+                            "source_authority": "exact_sidecar",
+                            "visible_class": "primary_visible",
+                            "owner_slot_index": 1,
+                        },
+                        {
+                            "slot": "base",
+                            "source_path": str(flamingo),
+                            "parameter_name": "embedded_mesh_reference",
+                            "semantic_type": "albedo",
+                            "semantic_subtype": "base_color",
+                            "sidecar_kind": "embedded_mesh",
+                            "source_authority": "embedded_mesh",
+                            "owner_slot_index": 1,
+                        },
+                    ],
+                },
+            },
+        ),
+    ) == 1
+
+    promoted = submesh.preview_material_texture_inputs[0]
+    assert promoted.source_dds_path == str(crane)
+    assert promoted.binding_authority == "authoritative"
+    assert promoted.binding_disposition == "promoted"
+    assert promoted.source_kind == "crimson_hair_base"
+    assert promoted.layer_role == ""
+    assert submesh.preview_texture_dds_path == str(crane)
+    assert "base_tint_only_fallback" not in submesh.preview_native_material_overrides
+
+    channels = mesh_dotnet_material_package._dotnet_resolved_texture_channels(submesh)
+    assert channels["base"] == str(crane)
+    assert channels["albedo"] == str(crane)
+    assert channels["diffuse"] == str(crane)

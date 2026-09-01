@@ -23,22 +23,33 @@ internal sealed partial class MeshViewport
         var targetSelection = checked(
             _residentNativeSelectionRevision
             + (gesture.Tool == NativeMeshInteractionTool.Select ? 1UL : 0UL));
+        var transactionSequence = checked(_residentNativeTransactionSequence + 1);
         var payload = SerializeResidentNativeTransaction(
             gesture,
             geometry,
             selection,
+            transactionSequence,
             targetMesh,
             targetSelection);
+        var baselineGeometry = geometry.ToDictionary(
+            group => group.Key,
+            group => group.Value.ToDictionary(
+                vertex => vertex.Key,
+                vertex => _document.Submeshes[group.Key].Vertices[checked((int)vertex.Key)]));
         return ResidentInteractionTransactionLease.Create(
             payload,
             gesture.GestureId,
+            transactionSequence,
             gesture.OperatorGestureId,
             gesture.Tool,
             _residentNativeMeshRevision,
             targetMesh,
             _residentNativeSelectionRevision,
             targetSelection,
-            _residentNativeTopologyGeneration);
+            _residentNativeTopologyGeneration,
+            geometry,
+            baselineGeometry,
+            CaptureResidentMutationSelection());
     }
 
     private SortedDictionary<int, SortedDictionary<uint, (double X, double Y, double Z)>>
@@ -77,10 +88,11 @@ internal sealed partial class MeshViewport
         ResidentNativeGesture gesture,
         SortedDictionary<int, SortedDictionary<uint, (double X, double Y, double Z)>> geometry,
         IReadOnlyList<NativeMeshSelectionChange> selection,
+        ulong transactionSequence,
         ulong targetMeshRevision,
         ulong targetSelectionRevision)
     {
-        const uint headerSize = 96;
+        const uint headerSize = 104;
         var flags = (geometry.Count > 0 ? 1u : 0u) | (selection.Count > 0 ? 2u : 0u);
         var length = checked(
             headerSize
@@ -88,13 +100,14 @@ internal sealed partial class MeshViewport
             + checked((uint)selection.Count * 24u));
         using var stream = new MemoryStream(checked((int)length));
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
-        writer.Write(Encoding.ASCII.GetBytes("CDMWMIT1"));
-        writer.Write(1u);
+        writer.Write(Encoding.ASCII.GetBytes("CDMWMIT2"));
+        writer.Write(2u);
         writer.Write(headerSize);
         writer.Write((uint)gesture.Tool);
         writer.Write(flags);
         writer.Write(ResidentSessionKey(_residentNativeSessionId));
         writer.Write(gesture.GestureId);
+        writer.Write(transactionSequence);
         writer.Write(_residentNativeMeshRevision);
         writer.Write(targetMeshRevision);
         writer.Write(_residentNativeSelectionRevision);

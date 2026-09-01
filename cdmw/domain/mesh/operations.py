@@ -26,6 +26,7 @@ SAFE_MESH_EDIT_OPERATIONS = frozenset(
         "replace_normals_same_count",
         "replace_tangents_same_count",
         "replace_uv0_same_count",
+        "replace_skin_weights_same_count",
         "scale_vertices",
         "translate_vertices",
         "rotate_vertices",
@@ -52,6 +53,7 @@ _SAME_COUNT_OPERATIONS = frozenset(
         "replace_normals_same_count",
         "replace_tangents_same_count",
         "replace_uv0_same_count",
+        "replace_skin_weights_same_count",
     }
 )
 _SOURCE_MAPPED_OPERATIONS = _SAME_COUNT_OPERATIONS | frozenset(
@@ -69,6 +71,9 @@ _OPERATION_CHANGED_CHANNELS = {
     "replace_normals_same_count": "normals",
     "replace_tangents_same_count": "tangents",
     "replace_uv0_same_count": "uv0",
+    # Skinning is one atomic authoring channel.  The exact PAC writer must never
+    # accept an index-row edit without the matching weight row (or vice versa).
+    "replace_skin_weights_same_count": "skin_weights",
     "recompute_bounds": "bounds",
     "preview_submesh_visibility": "visibility",
 }
@@ -152,10 +157,12 @@ def validate_mesh_edit_operations(
     *,
     mesh: object | None = None,
     allowed_operations: Iterable[object] | None = None,
+    allowed_lod_indices: Iterable[int] | None = None,
+    require_source_mapping: bool = True,
 ) -> tuple[MeshEditOperationIssue, ...]:
     normalized = mesh_edit_operations_from_dicts(operations)
     allowed = _operation_set(allowed_operations) if allowed_operations is not None else None
-    submeshes = tuple(getattr(mesh, "submeshes", ()) or ()) if mesh is not None else ()
+    allowed_lods = _lod_index_set(allowed_lod_indices)
     issues: list[MeshEditOperationIssue] = []
     for operation_index, operation in enumerate(normalized):
         name = _operation_name(operation.operation)
@@ -190,7 +197,15 @@ def validate_mesh_edit_operations(
                 operation.submesh_index,
             )
         if mesh is not None:
-            _validate_operation_target(issues, operation, operation_index, name, submeshes)
+            _validate_operation_target(
+                issues,
+                operation,
+                operation_index,
+                name,
+                _submeshes_for_lod(mesh, operation.lod_index),
+                allowed_lods=allowed_lods,
+                require_source_mapping=require_source_mapping,
+            )
     return tuple(issues)
 
 
@@ -213,7 +228,11 @@ def validate_mesh_edit_operation_coverage(
         channel = mesh_edit_operation_changed_channel(operation.operation)
         if not channel:
             continue
-        allowed_by_target.setdefault((operation.lod_index, operation.submesh_index), set()).add(channel)
+        allowed = allowed_by_target.setdefault((operation.lod_index, operation.submesh_index), set())
+        if channel == "skin_weights":
+            allowed.update(("bone_indices", "bone_weights"))
+        else:
+            allowed.add(channel)
 
     issues: list[MeshEditOperationIssue] = []
     original_lods = _submeshes_by_lod(original_mesh)
@@ -258,8 +277,11 @@ def _validate_operation_target(
     operation_index: int,
     name: str,
     submeshes: Sequence[object],
+    *,
+    allowed_lods: frozenset[int],
+    require_source_mapping: bool,
 ) -> None:
-    if operation.lod_index != 0:
+    if operation.lod_index not in allowed_lods:
         _add(
             issues,
             "blocker",
@@ -279,7 +301,13 @@ def _validate_operation_target(
         )
         return
     if name in TOPOLOGY_MESH_EDIT_OPERATIONS:
-        _validate_topology_operation_target(issues, operation, operation_index, submeshes)
+        _validate_topology_operation_target(
+            issues,
+            operation,
+            operation_index,
+            submeshes,
+            require_source_mapping=require_source_mapping,
+        )
         return
     if name in _SOURCE_MAPPED_OPERATIONS:
         submesh = submeshes[operation.submesh_index]
@@ -293,6 +321,8 @@ def _validate_operation_target(
                 operation_index,
                 operation.submesh_index,
             )
+        if not require_source_mapping:
+            return
         source_map = tuple(getattr(submesh, "source_vertex_map", ()) or ())
         if len(source_map) != actual:
             _add(
@@ -319,6 +349,8 @@ def _validate_topology_operation_target(
     operation: MeshEditOperation,
     operation_index: int,
     submeshes: Sequence[object],
+    *,
+    require_source_mapping: bool,
 ) -> None:
     """A topology operation states the output it produced, not a same-count map."""
     submesh = submeshes[operation.submesh_index]
@@ -355,6 +387,8 @@ def _validate_topology_operation_target(
             operation_index,
             operation.submesh_index,
         )
+    if not require_source_mapping:
+        return
     # A topology name is safe only while the submesh still carries the contract
     # that makes it describable. Without one the -1 entries below would be
     # unexplained rather than authorized.
@@ -399,6 +433,20 @@ def _operation_set(values: Iterable[object] | None) -> frozenset[str]:
     return frozenset(name for name in (_operation_name(value) for value in values or ()) if name)
 
 
+def _lod_index_set(values: Iterable[int] | None) -> frozenset[int]:
+    if values is None:
+        return frozenset({0})
+    result: set[int] = set()
+    for value in values:
+        try:
+            index = int(value)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if index >= 0:
+            result.add(index)
+    return frozenset(result)
+
+
 def _operation_name(value: object) -> str:
     return str(value or "").strip().casefold()
 
@@ -408,6 +456,28 @@ def _submeshes_by_lod(mesh: object) -> tuple[tuple[object, ...], ...]:
     if lod_levels:
         return tuple(tuple(level or ()) for level in lod_levels)
     return (tuple(getattr(mesh, "submeshes", ()) or ()),)
+
+
+def _submeshes_for_lod(mesh: object, lod_index: int) -> tuple[object, ...]:
+    try:
+        active_lod_index = int(
+            getattr(
+                mesh,
+                "active_lod_index",
+                getattr(mesh, "displayed_lod_index", 0),
+            )
+            or 0
+        )
+    except (TypeError, ValueError, OverflowError):
+        active_lod_index = 0
+    if lod_index == active_lod_index:
+        active_submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+        if active_submeshes:
+            return active_submeshes
+    lods = _submeshes_by_lod(mesh)
+    if not 0 <= lod_index < len(lods):
+        return ()
+    return lods[lod_index]
 
 
 def _changed_submesh_channels(before: object | None, after: object | None) -> tuple[str, ...]:

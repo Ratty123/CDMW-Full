@@ -20,7 +20,16 @@ import json
 import os
 from types import SimpleNamespace
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+pytestmark = pytest.mark.skip(
+    reason=(
+        "The direct Vortice imported-material publication bridge is retired; Rust "
+        "receives ownership-bound material inputs in the authoring package."
+    )
+)
 
 from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state import (
     ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT,

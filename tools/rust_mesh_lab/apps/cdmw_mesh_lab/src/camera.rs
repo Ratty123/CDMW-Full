@@ -1,12 +1,14 @@
 #![forbid(unsafe_code)]
 
 use cdmw_mesh::{VertexHandle, WorkingMesh};
+use cdmw_render_wgpu::integrated_startup_view;
 use egui::Rect;
 use glam::{Mat4, Quat, Vec2, Vec3};
 use std::collections::HashSet;
 
 const FIELD_OF_VIEW_Y: f32 = 45.0_f32.to_radians();
 const MIN_DISTANCE: f32 = 1.0e-4;
+const FRAME_MARGIN: f32 = 1.12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StandardView {
@@ -39,7 +41,7 @@ impl Default for OrbitCamera {
     fn default() -> Self {
         Self {
             target: Vec3::ZERO,
-            yaw: 0.0,
+            yaw: std::f32::consts::PI,
             pitch: 0.0,
             distance: 5.0,
             scene_radius: 1.0,
@@ -121,6 +123,35 @@ impl OrbitCamera {
         );
     }
 
+    pub fn frame_all_in_viewport(&mut self, mesh: &WorkingMesh, rectangle: Rect) {
+        self.frame_positions_in_viewport(
+            mesh.vertices()
+                .map(|(_, vertex)| Vec3::from_array(vertex.position)),
+            rectangle,
+        );
+    }
+
+    /// Frame a newly opened integrated CDMW mesh from a useful authored side.
+    ///
+    /// Character meshes and assets already broadside to the canonical Front view
+    /// retain that view. Strongly Z-elongated assets (the common authored frame
+    /// for swords and similar held items) start from a side three-quarter view so
+    /// their length is visible instead of pointing toward the camera.
+    pub fn frame_integrated_startup(&mut self, mesh: &WorkingMesh) {
+        let Some((minimum, maximum)) = finite_bounds(
+            mesh.vertices()
+                .map(|(_, vertex)| Vec3::from_array(vertex.position)),
+        ) else {
+            return;
+        };
+
+        let extent = maximum - minimum;
+        let startup_view = integrated_startup_view(extent);
+        self.yaw = startup_view.yaw;
+        self.pitch = startup_view.pitch;
+        self.frame_bounds(minimum, maximum);
+    }
+
     pub fn frame_selected(&mut self, mesh: &WorkingMesh) {
         let scope = mesh.selected_vertex_scope();
         if scope.is_empty() {
@@ -135,10 +166,25 @@ impl OrbitCamera {
         );
     }
 
+    pub fn frame_selected_in_viewport(&mut self, mesh: &WorkingMesh, rectangle: Rect) {
+        let scope = mesh.selected_vertex_scope();
+        if scope.is_empty() {
+            self.frame_all_in_viewport(mesh, rectangle);
+            return;
+        }
+        self.frame_positions_in_viewport(
+            scope
+                .iter()
+                .filter_map(|handle| mesh.vertex(*handle))
+                .map(|vertex| Vec3::from_array(vertex.position)),
+            rectangle,
+        );
+    }
+
     pub fn set_standard_view(&mut self, view: StandardView) {
         (self.yaw, self.pitch) = match view {
-            StandardView::Front => (0.0, 0.0),
-            StandardView::Back => (std::f32::consts::PI, 0.0),
+            StandardView::Front => (std::f32::consts::PI, 0.0),
+            StandardView::Back => (0.0, 0.0),
             StandardView::Left => (-std::f32::consts::FRAC_PI_2, 0.0),
             StandardView::Right => (std::f32::consts::FRAC_PI_2, 0.0),
             StandardView::Top => (0.0, -std::f32::consts::FRAC_PI_2 + 1.0e-3),
@@ -247,17 +293,25 @@ impl OrbitCamera {
     }
 
     fn frame_positions(&mut self, positions: impl Iterator<Item = Vec3>) {
-        let mut minimum = Vec3::splat(f32::INFINITY);
-        let mut maximum = Vec3::splat(f32::NEG_INFINITY);
-        let mut found = false;
-        for position in positions.filter(|position| position.is_finite()) {
-            minimum = minimum.min(position);
-            maximum = maximum.max(position);
-            found = true;
-        }
-        if !found {
+        let Some((minimum, maximum)) = finite_bounds(positions) else {
             return;
-        }
+        };
+        self.frame_bounds(minimum, maximum);
+    }
+
+    fn frame_positions_in_viewport(
+        &mut self,
+        positions: impl Iterator<Item = Vec3>,
+        rectangle: Rect,
+    ) {
+        let Some((minimum, maximum)) = finite_bounds(positions) else {
+            return;
+        };
+        self.frame_bounds_in_viewport(minimum, maximum, rectangle);
+    }
+
+    fn frame_bounds(&mut self, minimum: Vec3, maximum: Vec3) {
+        debug_assert!(minimum.is_finite() && maximum.is_finite());
         self.target = (minimum + maximum) * 0.5;
         self.scene_radius = ((maximum - minimum) * 0.5).length().max(1.0e-4);
         self.distance =
@@ -265,9 +319,60 @@ impl OrbitCamera {
         self.bump_revision();
     }
 
+    fn frame_bounds_in_viewport(&mut self, minimum: Vec3, maximum: Vec3, rectangle: Rect) {
+        debug_assert!(minimum.is_finite() && maximum.is_finite());
+        if !rectangle.width().is_finite()
+            || !rectangle.height().is_finite()
+            || rectangle.width() <= 0.0
+            || rectangle.height() <= 0.0
+        {
+            self.frame_bounds(minimum, maximum);
+            return;
+        }
+
+        self.target = (minimum + maximum) * 0.5;
+        let half_extent = (maximum - minimum) * 0.5;
+        self.scene_radius = half_extent.length().max(1.0e-4);
+        let legacy_distance =
+            (self.scene_radius / (FIELD_OF_VIEW_Y * 0.5).tan() * 1.25).max(self.scene_radius * 1.5);
+
+        let aspect = (rectangle.width() / rectangle.height()).max(1.0e-4);
+        let vertical_tangent = (FIELD_OF_VIEW_Y * 0.5).tan();
+        let horizontal_tangent = vertical_tangent * aspect;
+        let projected_half_width = half_extent.dot(self.right().abs());
+        let projected_half_height = half_extent.dot(self.up().abs());
+        let projected_half_depth = half_extent.dot(self.forward().abs());
+        let horizontal_fit = projected_half_width / horizontal_tangent;
+        let vertical_fit = projected_half_height / vertical_tangent;
+
+        // Preserve established character framing when height is the limiting
+        // dimension. Broadside weapons instead use the available horizontal
+        // field of view, while remaining outside the complete orbiting bounds.
+        self.distance = if horizontal_fit > vertical_fit {
+            (projected_half_depth + horizontal_fit * FRAME_MARGIN)
+                .max(self.scene_radius * 1.05)
+                .max(MIN_DISTANCE)
+        } else {
+            legacy_distance
+        };
+        self.bump_revision();
+    }
+
     fn bump_revision(&mut self) {
         self.revision = self.revision.saturating_add(1);
     }
+}
+
+fn finite_bounds(positions: impl Iterator<Item = Vec3>) -> Option<(Vec3, Vec3)> {
+    let mut minimum = Vec3::splat(f32::INFINITY);
+    let mut maximum = Vec3::splat(f32::NEG_INFINITY);
+    let mut found = false;
+    for position in positions.filter(|position| position.is_finite()) {
+        minimum = minimum.min(position);
+        maximum = maximum.max(position);
+        found = true;
+    }
+    found.then_some((minimum, maximum))
 }
 
 fn center_of_handles(mesh: &WorkingMesh, handles: &HashSet<VertexHandle>) -> Option<Vec3> {
@@ -288,9 +393,42 @@ fn center_of_handles(mesh: &WorkingMesh, handles: &HashSet<VertexHandle>) -> Opt
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh};
 
     fn rectangle(width: f32, height: f32) -> Rect {
         Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height))
+    }
+
+    fn mesh_with_positions(positions: Vec<[f32; 3]>) -> WorkingMesh {
+        assert_eq!(positions.len(), 3);
+        let document = MeshDocument {
+            format: MeshFormat::Pam,
+            source_sha256: String::new(),
+            parser: "camera-test".to_owned(),
+            lod_count_reported: 1,
+            lods: vec![MeshLod {
+                level: 0,
+                submeshes: vec![Submesh {
+                    name: "camera-test".to_owned(),
+                    material: "camera-test".to_owned(),
+                    normals: vec![[0.0, 0.0, 1.0]; positions.len()],
+                    uvs: vec![[0.0, 0.0]; positions.len()],
+                    source_vertex_indices: vec![0, 1, 2],
+                    positions,
+                    indices: vec![0, 1, 2],
+                    source_range: SourceRange {
+                        offset: 0,
+                        length: 0,
+                    },
+                    vertex_stride: 0,
+                    layout: "camera-test".to_owned(),
+                }],
+            }],
+            warnings: Vec::new(),
+            structural_fingerprint: String::new(),
+        };
+        WorkingMesh::from_document(&document)
+            .unwrap_or_else(|error| panic!("camera fixture failed: {error}"))
     }
 
     #[test]
@@ -319,13 +457,134 @@ mod tests {
     }
 
     #[test]
+    fn front_and_back_presets_use_the_named_mesh_sides() {
+        let mut camera = OrbitCamera::default();
+        assert!(camera.eye().z < camera.target().z);
+        assert!(camera.forward().z > 0.999);
+
+        camera.set_standard_view(StandardView::Front);
+        assert!(camera.eye().z < camera.target().z);
+        assert!(camera.forward().z > 0.999);
+
+        camera.set_standard_view(StandardView::Back);
+        assert!(camera.eye().z > camera.target().z);
+        assert!(camera.forward().z < -0.999);
+    }
+
+    #[test]
+    fn integrated_startup_turns_z_elongated_assets_broadside() {
+        let mesh = mesh_with_positions(vec![
+            [-0.20, -0.04, -1.0],
+            [0.20, -0.04, 1.0],
+            [0.0, 0.04, 1.0],
+        ]);
+        let mut camera = OrbitCamera::default();
+
+        camera.frame_integrated_startup(&mesh);
+
+        assert!(camera.forward().x.abs() > 0.75);
+        assert!(camera.forward().y.abs() > 0.40);
+        assert!(camera.forward().z.abs() < 1.0e-5);
+        let viewport = rectangle(800.0, 600.0);
+        let pommel = camera
+            .project(Vec3::new(0.0, 0.0, -1.0), viewport)
+            .unwrap_or_else(|| panic!("pommel did not project"));
+        let tip = camera
+            .project(Vec3::new(0.0, 0.0, 1.0), viewport)
+            .unwrap_or_else(|| panic!("tip did not project"));
+        assert!(pommel.inside_view && tip.inside_view);
+        assert!((tip.screen.x - pommel.screen.x).abs() > viewport.width() * 0.45);
+        assert!((tip.screen.y - pommel.screen.y).abs() < 0.01);
+    }
+
+    #[test]
+    fn integrated_startup_keeps_non_depth_elongated_assets_on_front() {
+        let character = mesh_with_positions(vec![
+            [-0.5, -1.0, -0.25],
+            [0.5, 1.0, 0.25],
+            [0.0, 1.0, -0.25],
+        ]);
+        let already_broadside =
+            mesh_with_positions(vec![[-1.0, -0.1, -0.2], [1.0, 0.1, 0.2], [1.0, -0.1, -0.2]]);
+        for mesh in [&character, &already_broadside] {
+            let mut camera = OrbitCamera::default();
+            camera.set_standard_view(StandardView::Back);
+            camera.frame_integrated_startup(mesh);
+            assert!(camera.eye().z < camera.target().z);
+            assert!(camera.forward().z > 0.999);
+        }
+    }
+
+    #[test]
+    fn wide_viewport_fit_uses_horizontal_space_without_clipping_a_broadside_weapon() {
+        let positions = vec![[-0.20, -0.04, -1.0], [0.20, -0.04, 1.0], [0.0, 0.04, 1.0]];
+        let mesh = mesh_with_positions(positions.clone());
+        let viewport = rectangle(1_600.0, 600.0);
+        let mut camera = OrbitCamera::default();
+        camera.frame_integrated_startup(&mesh);
+
+        camera.frame_all_in_viewport(&mesh, viewport);
+
+        let projected = positions
+            .into_iter()
+            .map(|position| {
+                camera
+                    .project(Vec3::from_array(position), viewport)
+                    .unwrap_or_else(|| panic!("weapon point did not project"))
+            })
+            .collect::<Vec<_>>();
+        assert!(projected.iter().all(|point| point.inside_view));
+        let minimum_x = projected
+            .iter()
+            .map(|point| point.screen.x)
+            .fold(f32::INFINITY, f32::min);
+        let maximum_x = projected
+            .iter()
+            .map(|point| point.screen.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(maximum_x - minimum_x > viewport.width() * 0.75);
+    }
+
+    #[test]
+    fn wide_viewport_fit_preserves_height_limited_character_framing() {
+        let character = mesh_with_positions(vec![
+            [-0.5, -1.0, -0.25],
+            [0.5, 1.0, 0.25],
+            [0.0, 1.0, -0.25],
+        ]);
+        let mut camera = OrbitCamera::default();
+        camera.frame_all(&character);
+        let established_distance = camera.distance;
+
+        camera.frame_all_in_viewport(&character, rectangle(1_600.0, 600.0));
+
+        assert!((camera.distance - established_distance).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn manual_frame_all_preserves_the_users_orientation() {
+        let mesh = mesh_with_positions(vec![
+            [-0.20, -0.04, -1.0],
+            [0.20, -0.04, 1.0],
+            [0.0, 0.04, 1.0],
+        ]);
+        let mut camera = OrbitCamera::default();
+        camera.set_standard_view(StandardView::Left);
+        let forward = camera.forward();
+
+        camera.frame_all(&mesh);
+
+        assert!(camera.forward().dot(forward) > 0.999_999);
+    }
+
+    #[test]
     fn screen_drag_maps_to_camera_plane() {
         let camera = OrbitCamera::default();
         let viewport = rectangle(800.0, 600.0);
         let delta = camera.screen_delta_to_world(Vec2::new(20.0, 0.0), viewport);
-        assert!(delta.x > 0.0);
-        assert!(delta.y.abs() < 1.0e-6);
-        assert!(delta.z.abs() < 1.0e-6);
+        assert!(delta.dot(camera.right()) > 0.0);
+        assert!(delta.dot(camera.up()).abs() < 1.0e-6);
+        assert!(delta.dot(camera.forward()).abs() < 1.0e-6);
     }
 
     #[test]

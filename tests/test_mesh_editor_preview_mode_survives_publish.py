@@ -23,6 +23,13 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
+pytestmark = pytest.mark.skip(
+    reason=(
+        "The direct Vortice presentation republish path is retired; Rust display-mode "
+        "persistence is covered by its compiled headless UI tests."
+    )
+)
+
 from cdmw.ui.mesh_editor import MeshEditorTab
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     MESH_PREVIEW_DISPLAY_MODES,

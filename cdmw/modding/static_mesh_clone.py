@@ -23,10 +23,16 @@ def _clone_submesh_fast(submesh: SubMesh) -> SubMesh:
         vertex_count=int(submesh.vertex_count or 0),
         face_count=int(submesh.face_count or 0),
         source_vertex_offsets=list(submesh.source_vertex_offsets or []),
-        source_index_offset=int(submesh.source_index_offset or -1),
+        source_index_offset=int(
+            -1 if submesh.source_index_offset is None else submesh.source_index_offset
+        ),
         source_index_count=int(submesh.source_index_count or 0),
         source_vertex_stride=int(submesh.source_vertex_stride or 0),
-        source_descriptor_offset=int(submesh.source_descriptor_offset or -1),
+        source_descriptor_offset=int(
+            -1
+            if submesh.source_descriptor_offset is None
+            else submesh.source_descriptor_offset
+        ),
         source_bbox_min=tuple(submesh.source_bbox_min or (0.0, 0.0, 0.0)),
         source_bbox_extent=tuple(submesh.source_bbox_extent or (0.0, 0.0, 0.0)),
         source_lod_count=int(submesh.source_lod_count or 0),

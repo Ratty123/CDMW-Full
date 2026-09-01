@@ -58,7 +58,15 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
-        _residentMaterialSessionId = sessionId.Trim();
+        var normalizedSessionId = sessionId.Trim();
+        if (!string.Equals(_residentMaterialSessionId, normalizedSessionId, StringComparison.Ordinal))
+        {
+            _authoritativeRevisionInitialized = false;
+            _lastAppliedEditRevision = 0;
+            _lastObservedSessionRevision = 0;
+            _lastDurableEditRevision = 0;
+        }
+        _residentMaterialSessionId = normalizedSessionId;
         _residentProcessGeneration = 1;
         ReplayPendingResidentDisplayRequest();
     }

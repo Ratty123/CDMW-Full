@@ -121,6 +121,14 @@ class MeshEditorTabShellMixin(
         header_layout.setColumnStretch(0, 1)
         layout.addWidget(header)
 
+        self.mesh_editor_backend_label = None
+        self.mesh_editor_backend_combo = None
+        self.mesh_editor_backend_reason_label = QLabel("", page)
+        self.mesh_editor_backend_reason_label.setObjectName("MeshEditorAvailabilityReason")
+        self.mesh_editor_backend_reason_label.setWordWrap(True)
+        layout.addWidget(self.mesh_editor_backend_reason_label)
+        self._initialize_mesh_editor_backend_selector()
+
         self.empty_status_label = QLabel("Select a supported archive mesh, then open it here for mesh editing.")
         self.empty_status_label.setObjectName("MeshEditorEmptyStatus")
         self.empty_status_label.setWordWrap(True)
@@ -166,10 +174,14 @@ class MeshEditorTabShellMixin(
         page.build_mod_requested.connect(self._start_mesh_mod_build_requested)
         page.install_overlay_requested.connect(self._start_mesh_overlay_prepare_requested)
         page.restore_overlay_requested.connect(self._restore_last_mesh_overlay_requested)
+        page.reopen_edit_requested.connect(self._reopen_rust_editor_requested)
         page.close_session_requested.connect(self._close_standalone_session_requested)
         page.save_rebuild_report_requested.connect(self._save_standalone_rebuild_report_requested)
         self.standalone_preview_stack = page.preview_stack
         self.standalone_native_host_frame = page.native_host_frame
+        self.standalone_native_host_frame.retry_requested.connect(
+            self._retry_rust_editor_requested
+        )
         self.standalone_preview = page.preview
         self.standalone_native_host = page.native_host_frame
         self._wire_shared_dotnet_controller(self.standalone_native_host)
@@ -197,6 +209,9 @@ class MeshEditorTabShellMixin(
         ):
             if widget is not None and hasattr(widget, "set_theme"):
                 widget.set_theme(self.theme_key)
+        sync_rust_theme = getattr(self, "_send_rust_theme_update", None)
+        if callable(sync_rust_theme):
+            sync_rust_theme()
         self.update()
     def sync_ui_font(self, font: QFont, data_font: QFont | None = None) -> None:
         applied_font = QFont(font)
@@ -207,10 +222,13 @@ class MeshEditorTabShellMixin(
             self.target_label,
             self.session_label,
             self.empty_status_label,
+            self.mesh_editor_backend_label,
+            self.mesh_editor_backend_combo,
+            self.mesh_editor_backend_reason_label,
             self.open_archive_button,
             self.open_selected_mesh_button,
         ):
-            if widget.font().toString() != applied_font.toString():
+            if widget is not None and widget.font().toString() != applied_font.toString():
                 widget.setFont(applied_font)
         if hasattr(self.action_bar, "sync_ui_font"):
             self.action_bar.sync_ui_font(applied_font, dense_font)
@@ -226,6 +244,9 @@ class MeshEditorTabShellMixin(
                     sync(applied_font, dense_font)
                 except TypeError:
                     sync(applied_font)
+        sync_rust_theme = getattr(self, "_send_rust_theme_update", None)
+        if callable(sync_rust_theme):
+            sync_rust_theme()
     def builder_host(self) -> None:
         """Compatibility probe: replacement builders are no longer hosted here."""
         return None
@@ -276,9 +297,13 @@ class MeshEditorTabShellMixin(
             ("standalone_dotnet_import", self.standalone_dotnet_import_thread, self.standalone_dotnet_import_worker),
             ("standalone_editable_export", self.standalone_editable_export_thread, self.standalone_editable_export_worker),
             ("standalone_editable_import", self.standalone_editable_import_thread, self.standalone_editable_import_worker),
+            ("standalone_rust_prepare", self.standalone_rust_prepare_thread, self.standalone_rust_prepare_worker),
+            ("standalone_rust_protocol", self.standalone_rust_protocol_thread, self.standalone_rust_protocol_worker),
+            ("standalone_rust_dispose", self.standalone_rust_dispose_thread, self.standalone_rust_dispose_worker),
         )
     def request_shutdown(self) -> None:
         self._cancel_dotnet_material_compile()
+        self._discard_queued_archive_session_open()
         self.close_standalone_session()
         dispatcher = self.standalone_live_stroke_dispatcher
         if dispatcher is not None:
@@ -287,7 +312,9 @@ class MeshEditorTabShellMixin(
         # Compatibility-only host for retained static-replacement tests and
         # internal callers. ``builder_host()`` no longer exposes this surface,
         # so no normal Archive Browser or Mesh Editor route can mount it.
-        self.close_standalone_session()
+        self._discard_queued_archive_session_open()
+        if self.close_standalone_session() is False:
+            return
         while self.embedded_builder_host_layout.count():
             item = self.embedded_builder_host_layout.takeAt(0)
             widget = item.widget()
@@ -306,7 +333,9 @@ class MeshEditorTabShellMixin(
         # Clear references owned by the embedded builder before teardown. Its
         # QDialog may already have processed deleteLater().
         self.embedded_dotnet_editor_button = None
-        self.close_standalone_session()
+        self._discard_queued_archive_session_open()
+        if self.close_standalone_session() is False:
+            return
         self.set_native_preview_host(getattr(self, "standalone_native_host_frame", None))
         self.embedded_workspace = None
         self._embedded_control_tabs = None

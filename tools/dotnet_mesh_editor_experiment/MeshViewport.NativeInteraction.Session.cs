@@ -28,6 +28,12 @@ internal sealed partial class MeshViewport
         var targetTopology = checked((ulong)Math.Max(0, topologyGeneration));
         if (changedSession || !ReferenceEquals(_residentNativeDocument, _document))
         {
+            if (changedSession)
+            {
+                RejectAllResidentNativeTransactions("session_changed");
+                _residentNativeTransactionSequence = 0;
+                _residentNativeReplicationRejected = false;
+            }
             CloseResidentNativeSession();
         }
         if (_residentNativeSession is null)
@@ -35,9 +41,22 @@ internal sealed partial class MeshViewport
             OpenResidentNativeSession(targetMesh, targetSelection, targetTopology);
             return;
         }
-        if (_residentNativeAwaitingAuthority)
+        if (ResidentNativeReplicationPending || _residentNativeAwaitingAuthority)
         {
             return;
+        }
+        if (!ResidentNativeReplicationPending)
+        {
+            _residentNativeDurableRevision = targetMesh;
+            _residentNativeDurableSelectionRevision = targetSelection;
+            _residentNativeDurableTopologyGeneration = targetTopology;
+        }
+        if (_residentNativeReplicationRejected
+            && _residentNativeMeshRevision == targetMesh
+            && _residentNativeSelectionRevision == targetSelection
+            && _residentNativeTopologyGeneration == targetTopology)
+        {
+            _residentNativeReplicationRejected = false;
         }
         if (_residentNativeMeshRevision != targetMesh
             || _residentNativeSelectionRevision != targetSelection
@@ -69,6 +88,7 @@ internal sealed partial class MeshViewport
         _residentNativeRequired = false;
         _residentNativeSessionId = string.Empty;
         _residentNativeFailure = string.Empty;
+        _residentNativeReplicationRejected = false;
     }
 
     private void OpenResidentNativeSession(
@@ -95,10 +115,20 @@ internal sealed partial class MeshViewport
             _residentNativeSession = outcome.Session;
             _residentNativeDocument = _document;
             _residentNativeMeshRevision = meshRevision;
+            if (!ResidentNativeReplicationPending)
+            {
+                _residentNativeDurableRevision = meshRevision;
+                _residentNativeDurableSelectionRevision = selectionRevision;
+                _residentNativeDurableTopologyGeneration = topologyGeneration;
+            }
             _residentNativeSelectionRevision = selectionRevision;
             _residentNativeTopologyGeneration = topologyGeneration;
             _residentNativeCameraRevision = 0;
             _residentNativeViewportRevision = 0;
+            _residentNativeVisiblePartsRevision = 0;
+            _residentNativeModelTransformRevision = 0;
+            _residentNativeVisibleParts = [];
+            _residentNativeModelTransforms = [];
             _residentNativeCameraValid = false;
             _residentNativeFailure = string.Empty;
             SynchronizeResidentNativeSelection(expandSelectedParts: false);
@@ -170,17 +200,30 @@ internal sealed partial class MeshViewport
         var size = new Size(Math.Max(1, viewport.Width), Math.Max(1, viewport.Height));
         var camera = CurrentCamera();
         var matrix = camera.WorldViewProjection;
-        var projections = ResidentNativeProjections(camera);
+        var visibleParts = VisibleEditableSubmeshIndices();
+        var modelTransforms = ResidentNativeModelTransforms(visibleParts);
+        var projections = ResidentNativeProjections(camera, visibleParts);
+        var visiblePartsChanged = !_residentNativeCameraValid
+            || !_residentNativeVisibleParts.SequenceEqual(visibleParts);
+        var modelTransformsChanged = !_residentNativeCameraValid
+            || !ResidentNativeProjectionsEqual(
+                _residentNativeModelTransforms,
+                modelTransforms);
         var cameraChanged = !_residentNativeCameraValid
             || !_residentNativeCameraMatrix.Equals(matrix)
             || !ResidentNativeProjectionsEqual(_residentNativeProjections, projections);
         var viewportChanged = !_residentNativeCameraValid || _residentNativeViewportSize != size;
         if (!cameraChanged && !viewportChanged)
         {
+            QueueResidentNativeSnapshotPreparation();
             return;
         }
         var nextCamera = _residentNativeCameraRevision + (cameraChanged ? 1UL : 0UL);
         var nextViewport = _residentNativeViewportRevision + (viewportChanged ? 1UL : 0UL);
+        var nextVisibleParts = _residentNativeVisiblePartsRevision
+            + (visiblePartsChanged ? 1UL : 0UL);
+        var nextModelTransform = _residentNativeModelTransformRevision
+            + (modelTransformsChanged ? 1UL : 0UL);
         var flags = (cameraChanged ? NativeMeshInteractionSyncFlags.Camera : 0)
             | (viewportChanged ? NativeMeshInteractionSyncFlags.Viewport : 0);
         var result = RequireResidentNativeSession().Sync(new NativeMeshInteractionSyncRequest
@@ -204,14 +247,20 @@ internal sealed partial class MeshViewport
         RequireResidentNativeSuccess(result, "camera and viewport synchronization");
         _residentNativeCameraMatrix = matrix;
         _residentNativeProjections = projections;
+        _residentNativeVisibleParts = visibleParts;
+        _residentNativeModelTransforms = modelTransforms;
         _residentNativeViewportSize = size;
         _residentNativeCameraRevision = nextCamera;
         _residentNativeViewportRevision = nextViewport;
+        _residentNativeVisiblePartsRevision = nextVisibleParts;
+        _residentNativeModelTransformRevision = nextModelTransform;
         _residentNativeCameraValid = true;
+        QueueResidentNativeSnapshotPreparation();
     }
 
     private void CloseResidentNativeSession()
     {
+        InvalidateResidentNativeSnapshot();
         _residentNativeGesture = null;
         _residentNativeAwaitingAuthority = false;
         _residentNativePreviewPositions.Clear();

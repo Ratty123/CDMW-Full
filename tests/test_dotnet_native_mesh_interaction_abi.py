@@ -15,7 +15,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 CSHARP_ROOT = ROOT / "tools" / "dotnet_mesh_editor_experiment"
 NATIVE_DLL = ROOT / "native" / "cdmw_mesh_core" / "build" / "Release" / "cdmw-mesh-core.dll"
-EXPECTED_HEADER_SHA256 = "7F03F15B094D27DA678E0658C23338B58B87774A7671AD418ECEE90D2607E440"
+EXPECTED_HEADER_SHA256 = "603044AF6B01430939112DA0CD173B15674E43B3E3BED92D67B55BB2D1A9840A"
 
 
 MANAGED_PROOF_PROGRAM = r'''
@@ -74,6 +74,27 @@ internal static class ManagedAbiProof
         return read.PositionsXyz[2];
     }
 
+    private static NativeMeshInteractionResult Prepare(
+        NativeMeshInteractionSession session,
+        ulong meshRevision
+    )
+    {
+        NativeMeshInteractionResult result = session.PrepareSnapshot(
+            new NativeMeshInteractionPrepareSnapshotRequest(
+                meshRevision,
+                2,
+                1,
+                1,
+                1,
+                1,
+                1,
+                false
+            )
+        );
+        Require(result.IsSuccess, $"snapshot preparation failed: {result.Status} {result.Message}");
+        return result;
+    }
+
     public static void Main()
     {
         using NativeMeshInteractionAbi abi = NativeMeshInteractionAbi.LoadFromApplicationDirectory();
@@ -93,10 +114,11 @@ internal static class ManagedAbiProof
             ),
             "header SHA mismatch"
         );
-        Require(diagnostics.StructSizes.Count == 12, "struct size count mismatch");
+        Require(diagnostics.StructSizes.Count == 13, "struct size count mismatch");
         Require(diagnostics.StructSizes[NativeMeshInteractionStructId.SyncV1] == 296, "sync size mismatch");
         Require(diagnostics.StructSizes[NativeMeshInteractionStructId.ResultV1] == 376, "result size mismatch");
         Require(diagnostics.StructSizes[NativeMeshInteractionStructId.ProjectionV1] == 144, "projection size mismatch");
+        Require(diagnostics.StructSizes[NativeMeshInteractionStructId.PrepareSnapshotV1] == 80, "snapshot size mismatch");
 
         var submesh = new NativeMeshSubmeshData(
             0,
@@ -148,6 +170,7 @@ internal static class ManagedAbiProof
             ViewportHeight = 480,
         });
         Require(sync.IsSuccess && sync.SelectionChanges.Count == 1, "sync failed");
+        NativeMeshInteractionResult prepared = Prepare(session, 1);
 
         NativeMeshInteractionResult begin = session.Begin(Move(101, 1, 0.1));
         NativeMeshInteractionResult update = session.Update(Move(101, 1, 0.2));
@@ -158,7 +181,7 @@ internal static class ManagedAbiProof
             end.IsSuccess && end.OperatorState == NativeMeshInteractionOperatorState.AwaitingAuthority,
             "end failed"
         );
-        Require(Math.Abs(ReadZ(session) - 0.6) < 1e-9, "terminal geometry mismatch");
+        Require(Math.Abs(ReadZ(session) - 0.2) < 1e-9, "terminal geometry mismatch");
 
         NativeMeshInteractionResult accepted = session.ApplyAuthority(
             Authority(NativeMeshInteractionAuthorityAction.Accepted, 1, 2, 101)
@@ -171,12 +194,13 @@ internal static class ManagedAbiProof
         NativeMeshInteractionResult redo = session.ApplyAuthority(
             Authority(NativeMeshInteractionAuthorityAction.Redo, 3, 4)
         );
-        Require(redo.IsSuccess && Math.Abs(ReadZ(session) - 0.6) < 1e-9, "redo failed");
+        Require(redo.IsSuccess && Math.Abs(ReadZ(session) - 0.2) < 1e-9, "redo failed");
 
+        prepared = Prepare(session, 4);
         Require(session.Begin(Move(102, 4, 0.25)).IsSuccess, "second begin failed");
         NativeMeshInteractionResult cancelled = session.Cancel(Move(102, 4, 0.0));
         Require(cancelled.IsSuccess, "cancel failed");
-        Require(Math.Abs(ReadZ(session) - 0.6) < 1e-9, "cancel did not restore baseline");
+        Require(Math.Abs(ReadZ(session) - 0.2) < 1e-9, "cancel did not restore baseline");
         Require(session.Close().IsSuccess, "close failed");
         session.Dispose();
 
@@ -198,6 +222,7 @@ internal static class ManagedAbiProof
             StructCount = diagnostics.StructSizes.Count,
             Open = opened.Result.Status.ToString(),
             Sync = sync.Status.ToString(),
+            Prepare = prepared.Status.ToString(),
             Begin = begin.Status.ToString(),
             Update = update.Status.ToString(),
             End = end.Status.ToString(),
@@ -344,6 +369,6 @@ def test_managed_abi_executes_against_the_built_native_dll(tmp_path: Path) -> No
     assert report["LibrarySha256"] == hashlib.sha256(copied_dll.read_bytes()).hexdigest().upper()
     assert report["HeaderSha256"].upper() == EXPECTED_HEADER_SHA256
     assert report["AbiVersion"] == 1
-    assert report["StructCount"] == 12
-    for operation in ("Open", "Sync", "Begin", "Update", "End", "Cancel", "Accepted", "Undo", "Redo", "Reopen"):
+    assert report["StructCount"] == 13
+    for operation in ("Open", "Sync", "Prepare", "Begin", "Update", "End", "Cancel", "Accepted", "Undo", "Redo", "Reopen"):
         assert report[operation] == "Ok"

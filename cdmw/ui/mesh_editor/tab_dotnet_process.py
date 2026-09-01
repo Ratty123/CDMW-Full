@@ -18,6 +18,9 @@ from cdmw.ui.mesh_editor.tab_support import _mesh_edit_result_with_metric
 
 
 class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
+    _RESIDENT_INTERACTION_MAX_PENDING = 16
+    _RESIDENT_INTERACTION_MAX_BYTES = 64 * 1024 * 1024
+
     def _launch_standalone_dotnet_editor_package(self, package: _tab.MeshDotNetExperimentPackage) -> bool:
         executable = self._dotnet_editor_executable_path()
         if executable is None or not executable.is_file():
@@ -435,6 +438,92 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         thread.start(QThread.LowPriority)
         return True
+
+    def _enqueue_dotnet_resident_interaction(
+        self,
+        controller: _tab.MeshEditorController,
+        command: _tab.MeshEditCommand,
+        *,
+        request_payload: Mapping[str, object],
+    ) -> bool:
+        payload = dict(request_payload)
+        sequence = int(payload.get("transaction_sequence", 0) or 0)
+        digest = str(payload.get("sha256", "") or "").lower()
+        pending_payloads = []
+        if (
+            self.standalone_action_dotnet_command == "resident_interaction"
+            and isinstance(self.standalone_action_dotnet_request_payload, Mapping)
+        ):
+            pending_payloads.append(self.standalone_action_dotnet_request_payload)
+        pending_payloads.extend(item[2] for item in self.standalone_dotnet_resident_interaction_queue)
+        for pending in pending_payloads:
+            if int(pending.get("transaction_sequence", 0) or 0) != sequence:
+                continue
+            if str(pending.get("sha256", "") or "").lower() == digest:
+                return True
+            self._send_dotnet_resident_interaction_commit_ack(
+                payload,
+                status="rejected",
+                diagnostics=("Transaction sequence was reused with another digest.",),
+            )
+            return False
+
+        active_bytes = sum(int(item.get("length", 0) or 0) for item in pending_payloads[:1])
+        next_bytes = (
+            active_bytes
+            + self.standalone_dotnet_resident_interaction_queue_bytes
+            + int(payload.get("length", 0) or 0)
+        )
+        if (
+            len(pending_payloads) >= self._RESIDENT_INTERACTION_MAX_PENDING
+            or next_bytes > self._RESIDENT_INTERACTION_MAX_BYTES
+        ):
+            self._send_dotnet_resident_interaction_commit_ack(
+                payload,
+                status="rejected",
+                diagnostics=("Resident interaction replication queue bound was exceeded.",),
+            )
+            return False
+
+        if self._standalone_action_worker_active():
+            self.standalone_dotnet_resident_interaction_queue.append(
+                (controller, command, payload)
+            )
+            self.standalone_dotnet_resident_interaction_queue_bytes += int(
+                payload.get("length", 0) or 0
+            )
+            self._set_dotnet_status("Syncing edits…")
+            return True
+        return self._start_dotnet_action_worker(
+            controller,
+            command,
+            command_name="resident_interaction",
+            request_payload=payload,
+        )
+
+    def _start_next_dotnet_resident_interaction(self) -> bool:
+        queue = getattr(self, "standalone_dotnet_resident_interaction_queue", None)
+        if not queue:
+            return False
+        controller, command, payload = queue.pop(0)
+        self.standalone_dotnet_resident_interaction_queue_bytes = max(
+            0,
+            int(getattr(self, "standalone_dotnet_resident_interaction_queue_bytes", 0))
+            - int(payload.get("length", 0) or 0),
+        )
+        return self._start_dotnet_action_worker(
+            controller,
+            command,
+            command_name="resident_interaction",
+            request_payload=payload,
+        )
+
+    def _clear_dotnet_resident_interaction_queue(self) -> None:
+        queue = getattr(self, "standalone_dotnet_resident_interaction_queue", None)
+        if queue is not None:
+            queue.clear()
+        self.standalone_dotnet_resident_interaction_queue_bytes = 0
+
     def _dotnet_action_belongs_to_current_edit_session(self, request_id: int) -> bool:
         """Whether a returning command result still belongs to the live session.
 
@@ -529,7 +618,15 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
             return
         self.standalone_action_finished_request_id = int(request_id)
         text = str(message or "Mesh Editor action cancelled.")
-        if self.standalone_action_dotnet_command:
+        if self.standalone_action_dotnet_command == "resident_interaction":
+            self._send_dotnet_resident_interaction_commit_ack(
+                self.standalone_action_dotnet_request_payload or {},
+                status="rejected",
+                diagnostics=(text,),
+            )
+            self._clear_dotnet_resident_interaction_queue()
+            self._send_dotnet_session_state()
+        elif self.standalone_action_dotnet_command:
             self._send_dotnet_command_result(
                 self.standalone_action_dotnet_command,
                 ok=False,
@@ -548,7 +645,15 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
             return
         self.standalone_action_finished_request_id = int(request_id)
         text = str(message or "Mesh Editor action failed.")
-        if self.standalone_action_dotnet_command:
+        if self.standalone_action_dotnet_command == "resident_interaction":
+            self._send_dotnet_resident_interaction_commit_ack(
+                self.standalone_action_dotnet_request_payload or {},
+                status="rejected",
+                diagnostics=(text,),
+            )
+            self._clear_dotnet_resident_interaction_queue()
+            self._send_dotnet_session_state()
+        elif self.standalone_action_dotnet_command:
             self._send_dotnet_command_result(
                 self.standalone_action_dotnet_command,
                 ok=False,
@@ -593,6 +698,8 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
             progress.deleteLater()
             self.standalone_action_progress = None
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        if dotnet_action and self._start_next_dotnet_resident_interaction():
+            return
         if self._standalone_dotnet_editor_process_running() and not dotnet_action:
             self._send_dotnet_session_state()
         self._complete_pending_dotnet_exit()

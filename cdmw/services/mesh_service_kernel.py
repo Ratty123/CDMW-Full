@@ -230,7 +230,7 @@ def _record_session_edit_operations(
             existing.append(
                 {
                     "operation": operation_name,
-                    "lod_index": 0,
+                    "lod_index": session.lod_index,
                     "submesh_index": submesh_index,
                     "vertex_count": len(submesh.vertices or ()),
                     "source": str(command.label or action or "Mesh Editor"),

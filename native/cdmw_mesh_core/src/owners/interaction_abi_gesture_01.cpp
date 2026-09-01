@@ -8,11 +8,20 @@ uint32_t mesh_interaction_abi_gesture(
     if (status != CDMW_MESH_INTERACTION_OK) return status;
     status = mesh_interaction_abi_validate_request(request, message);
     if (status != CDMW_MESH_INTERACTION_OK) return mesh_interaction_abi_fail(result, status, message);
-    std::lock_guard<std::mutex> lock(g_mesh_interaction_abi_mutex);
-    MeshInteractionAbiSession* runtime = mesh_interaction_abi_find_session(request->session_handle);
+    std::shared_ptr<MeshInteractionAbiSession> runtime;
+    {
+        std::shared_lock<std::shared_mutex> registry_lock(g_mesh_interaction_abi_registry_mutex);
+        runtime = mesh_interaction_abi_find_session(request->session_handle);
+    }
     if (runtime == nullptr) {
         return mesh_interaction_abi_fail(
             result, CDMW_MESH_INTERACTION_SESSION_NOT_FOUND, "session handle is not open"
+        );
+    }
+    std::lock_guard<std::mutex> session_lock(runtime->mutex);
+    if (runtime->closed) {
+        return mesh_interaction_abi_fail(
+            result, CDMW_MESH_INTERACTION_SESSION_NOT_FOUND, "session handle is closed"
         );
     }
     status = mesh_interaction_abi_validate_gesture(*runtime, *request, message);
@@ -40,15 +49,24 @@ uint32_t mesh_interaction_abi_gesture(
         runtime->baseline_selection = editor->selection;
         runtime->gesture_selection_candidates = MeshEditorSelection{};
         runtime->last_selection = runtime->baseline_selection;
+        runtime->gesture_before_positions.clear();
+        runtime->gesture_weights.clear();
+        runtime->gesture_changed_vertices.clear();
+        runtime->last_dirty_vertices.clear();
+        runtime->previous_screen_x = request->current_x;
+        runtime->previous_screen_y = request->current_y;
     }
     try {
         std::map<int, MeshInteractionAbiDirtySet> dirty_sets;
         if (cancel) {
-            mesh_interaction_abi_collect_stroke_dirty(*editor, request->gesture_id, dirty_sets);
             mesh_interaction_abi_force_cancel(*runtime, *editor);
+            mesh_interaction_append_typed_dirty(*runtime, dirty_sets);
         } else {
             mesh_interaction_abi_apply_gesture_phase(*runtime, *editor, *request, phase);
-            mesh_interaction_abi_collect_stroke_dirty(*editor, request->gesture_id, dirty_sets);
+            if (phase == "end") {
+                mesh_interaction_commit_typed_history(*runtime, *editor);
+            }
+            mesh_interaction_append_typed_dirty(*runtime, dirty_sets);
         }
         ++runtime->interaction_generation;
         std::vector<CdmwMeshDirtyRangeV1> dirty;
@@ -64,12 +82,19 @@ uint32_t mesh_interaction_abi_gesture(
         if (phase == "end") runtime->operator_state = CDMW_MESH_OPERATOR_AWAITING_AUTHORITY;
         if (cancel) {
             result->gesture_id = request->gesture_id;
-            status = mesh_interaction_abi_finish_result(runtime, result, dirty, changes);
+            status = mesh_interaction_abi_finish_result(runtime.get(), result, dirty, changes);
             result->gesture_id = request->gesture_id;
             mesh_interaction_abi_reset_gesture(*runtime);
             return status;
         }
-        return mesh_interaction_abi_finish_result(runtime, result, dirty, changes);
+        return mesh_interaction_abi_finish_result(runtime.get(), result, dirty, changes);
+    } catch (const std::invalid_argument& error) {
+        mesh_interaction_abi_force_cancel(*runtime, *editor);
+        return mesh_interaction_abi_fail(
+            result,
+            CDMW_MESH_INTERACTION_INVALID_ARGUMENT,
+            error.what()
+        );
     } catch (const std::exception& error) {
         mesh_interaction_abi_force_cancel(*runtime, *editor);
         return mesh_interaction_abi_fail(result, CDMW_MESH_INTERACTION_INTERNAL_ERROR, error.what());
@@ -113,11 +138,20 @@ uint32_t interaction_abi_apply_authoritative(
     if (status != CDMW_MESH_INTERACTION_OK) return status;
     status = mesh_interaction_abi_validate_request(request, message);
     if (status != CDMW_MESH_INTERACTION_OK) return mesh_interaction_abi_fail(result, status, message);
-    std::lock_guard<std::mutex> lock(g_mesh_interaction_abi_mutex);
-    MeshInteractionAbiSession* runtime = mesh_interaction_abi_find_session(request->session_handle);
+    std::shared_ptr<MeshInteractionAbiSession> runtime;
+    {
+        std::shared_lock<std::shared_mutex> registry_lock(g_mesh_interaction_abi_registry_mutex);
+        runtime = mesh_interaction_abi_find_session(request->session_handle);
+    }
     if (runtime == nullptr) {
         return mesh_interaction_abi_fail(
             result, CDMW_MESH_INTERACTION_SESSION_NOT_FOUND, "session handle is not open"
+        );
+    }
+    std::lock_guard<std::mutex> session_lock(runtime->mutex);
+    if (runtime->closed) {
+        return mesh_interaction_abi_fail(
+            result, CDMW_MESH_INTERACTION_SESSION_NOT_FOUND, "session handle is closed"
         );
     }
     status = mesh_interaction_abi_validate_authority_revisions(*runtime, *request, message);
@@ -143,25 +177,31 @@ uint32_t interaction_abi_apply_authoritative(
         std::map<int, MeshInteractionAbiDirtySet> dirty_sets;
         if (request->action == CDMW_MESH_AUTHORITY_REJECTED) {
             if (runtime->active_tool == CDMW_MESH_TOOL_SELECT) {
-                editor->selection = runtime->baseline_selection;
-                ++editor->selection_revision;
+                mesh_interaction_abi_rollback_stroke_history(*runtime, *editor);
+                if (editor->selection.vertices != runtime->baseline_selection.vertices
+                    || editor->selection.edges != runtime->baseline_selection.edges
+                    || editor->selection.faces != runtime->baseline_selection.faces
+                    || editor->selection.source_indices != runtime->baseline_selection.source_indices) {
+                    editor->selection = runtime->baseline_selection;
+                    ++editor->selection_revision;
+                }
             } else {
                 mesh_interaction_abi_collect_stroke_dirty(
-                    *editor, runtime->active_gesture_id, dirty_sets
+                    *runtime, *editor, runtime->active_gesture_id, dirty_sets
                 );
                 mesh_interaction_abi_rollback_stroke_history(*runtime, *editor);
             }
         } else if (request->action == CDMW_MESH_AUTHORITY_UNDO) {
             if (!editor->undo_stack.empty()) {
                 mesh_interaction_abi_collect_history_dirty(
-                    *editor, editor->undo_stack.back(), dirty_sets
+                    *runtime, editor->undo_stack.back(), dirty_sets
                 );
             }
             mesh_interaction_abi_apply_history(*runtime, *editor, "undo");
         } else if (request->action == CDMW_MESH_AUTHORITY_REDO) {
             if (!editor->redo_stack.empty()) {
                 mesh_interaction_abi_collect_history_dirty(
-                    *editor, editor->redo_stack.back(), dirty_sets
+                    *runtime, editor->redo_stack.back(), dirty_sets
                 );
             }
             mesh_interaction_abi_apply_history(*runtime, *editor, "redo");
@@ -177,7 +217,7 @@ uint32_t interaction_abi_apply_authoritative(
             before_selection, editor->selection, *runtime, changes
         );
         runtime->operator_state = CDMW_MESH_OPERATOR_IDLE;
-        status = mesh_interaction_abi_finish_result(runtime, result, dirty, changes);
+        status = mesh_interaction_abi_finish_result(runtime.get(), result, dirty, changes);
         result->gesture_id = request->gesture_id;
         if (terminal) mesh_interaction_abi_reset_gesture(*runtime);
         if (request->action == CDMW_MESH_AUTHORITY_REJECTED

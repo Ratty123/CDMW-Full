@@ -335,11 +335,73 @@ internal sealed partial class ExperimentForm
                     : _unavailableActionReasons.GetValueOrDefault("toggle_visibility")
                         ?? DirectAuthoringCommandBlocker("toggle_visibility"));
         }
+        ApplyResidentReplicationControlState();
+    }
+
+    private void ApplyResidentReplicationControlState()
+    {
+        var blocked = _viewport.ResidentNativeReplicationPending
+            || _viewport.ResidentNativeReplicationBlocked
+            || (_viewport.ResidentNativeInteractionRequired
+                && _lastDurableEditRevision < _lastAppliedEditRevision);
+        if (!blocked)
+        {
+            if (_sessionFinishButton is not null)
+            {
+                _sessionFinishButton.Enabled = true;
+            }
+            return;
+        }
+        const string reason = "Syncing edits… Output, history, topology, and material changes resume when the durable revision catches up.";
+        if (_undoButton is not null)
+        {
+            _undoButton.Enabled = false;
+            SetHelpText(_undoButton, reason);
+        }
+        if (_redoButton is not null)
+        {
+            _redoButton.Enabled = false;
+            SetHelpText(_redoButton, reason);
+        }
+        if (_sessionFinishButton is not null)
+        {
+            _sessionFinishButton.Enabled = false;
+            SetHelpText(_sessionFinishButton, reason);
+        }
+        if (_exportFreeEditButton is not null)
+        {
+            _exportFreeEditButton.Enabled = false;
+            SetHelpText(_exportFreeEditButton, reason);
+        }
+        foreach (var button in _topologyMutationButtons)
+        {
+            button.Enabled = false;
+            SetHelpText(button, reason);
+        }
+        if (_toolRailPageButtons.TryGetValue(ToolRailPage.Topology, out var topology))
+        {
+            topology.Enabled = false;
+            SetHelpText(topology, reason);
+        }
+        if (_toolRailPageButtons.TryGetValue(ToolRailPage.MorphRefit, out var morph))
+        {
+            morph.Enabled = false;
+            SetHelpText(morph, reason);
+        }
     }
 
     private bool OutputPolicyBlocksCommand(string command, out string reason)
     {
         reason = string.Empty;
+        if ((_viewport.ResidentNativeReplicationPending
+                || _viewport.ResidentNativeReplicationBlocked
+                || (_viewport.ResidentNativeInteractionRequired
+                    && _lastDurableEditRevision < _lastAppliedEditRevision))
+            && command != "toggle_visibility")
+        {
+            reason = "Syncing edits… Wait for the durable revision before running this command.";
+            return true;
+        }
         if (command is "configure_free_edit" or "export_free_edit" or "toggle_visibility"
             or "clear_selection" or "select_all" or "invert" or "grow" or "shrink")
         {

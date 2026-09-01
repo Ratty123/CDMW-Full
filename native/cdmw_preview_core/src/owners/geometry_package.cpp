@@ -611,6 +611,7 @@ static std::string dds_entry_json(const TextureBinding* binding, const std::stri
         << "\"metalness_hint\":" << binding->metalness_hint << ","
         << "\"specular_hint\":" << binding->specular_hint << ","
         << "\"height_scale_hint\":" << binding->height_scale_hint << ","
+        << "\"detail_scale\":" << binding->detail_scale << ","
         << "\"emissive_intensity_hint\":" << binding->emissive_intensity_hint << ","
         << "\"tint_color\":[" << binding->tint_color[0] << "," << binding->tint_color[1] << "," << binding->tint_color[2] << "," << binding->tint_color[3] << "],"
         << "\"width\":" << binding->dds_width << ","

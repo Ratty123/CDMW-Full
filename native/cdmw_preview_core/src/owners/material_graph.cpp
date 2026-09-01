@@ -535,10 +535,30 @@ static const TechniqueParameterInfo* technique_parameter_for_name(
     return &found->second;
 }
 
+static bool parameter_is_emissive_intensity_texture(const std::string& parameter_name) {
+    const std::string key = normalized_key(parameter_name);
+    const bool emissive_family = key.find("emissive") != std::string::npos
+        || key.find("glow") != std::string::npos
+        || key.find("illum") != std::string::npos;
+    const bool scalar_mask = key.find("intensity") != std::string::npos
+        || key.find("mask") != std::string::npos;
+    return emissive_family && scalar_mask && key.find("texture") != std::string::npos;
+}
+
 static std::string srgb_mode_for_role(
     const std::string& role,
+    const std::string& parameter_name,
     const TechniqueParameterInfo* technique_parameter
 ) {
+    // `_emissiveIntensityTexture` and equivalent masks are scalar energy fields,
+    // not emissive colours.  Shipped equipment uses BC4 for this slot; asking for
+    // an sRGB view is both semantically wrong and unsupported for single-channel
+    // BC4/R8 data.  This source contract outranks a broad technique sRGB flag.
+    const std::string& declared_name = technique_parameter != nullptr
+        && !technique_parameter->name.empty() ? technique_parameter->name : parameter_name;
+    if (role == "emissive" && parameter_is_emissive_intensity_texture(declared_name)) {
+        return "linear";
+    }
     if (technique_parameter != nullptr && !technique_parameter->srgb.empty()) {
         const std::string srgb = lower_copy(technique_parameter->srgb);
         if (srgb == "true" || srgb == "1" || srgb == "yes") return "srgb";

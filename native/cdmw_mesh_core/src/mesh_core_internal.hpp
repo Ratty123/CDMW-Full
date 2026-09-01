@@ -16,15 +16,19 @@
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <set>
+#include <shared_mutex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <vector>
 
 #include "mikktspace.h"

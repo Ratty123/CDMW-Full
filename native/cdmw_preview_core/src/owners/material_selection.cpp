@@ -74,6 +74,29 @@ static bool support_binding_rejected_before_scoring(
         note_rejected_support_binding(rejected_examples, desired_role, "rejected placeholder candidate", binding, mesh);
         return true;
     }
+    if (binding_is_skin_detail_support(binding) && desired_role != "detail") {
+        // Skin detail normal/response textures tile through their authored mask.
+        // They must not also occupy a whole-surface normal or specular slot.
+        note_rejected_support_binding(
+            rejected_examples,
+            desired_role,
+            "rejected support-only skin detail candidate",
+            binding,
+            mesh);
+        return true;
+    }
+    if (desired_role == "material" && binding_is_layer_selector_mask(binding)) {
+        // The binding is still present in the complete binding set, where
+        // compile_material_layers uses it as the mask for the corresponding
+        // `_sp` layer.  Only global material-response selection rejects it.
+        note_rejected_support_binding(
+            rejected_examples,
+            desired_role,
+            "rejected layer-selector mask candidate",
+            binding,
+            mesh);
+        return true;
+    }
     const std::string layer_role = lower_copy(binding.layer_role);
     if (desired_role == "height"
         && (layer_role == "damage" || layer_role == "detail"
@@ -687,6 +710,9 @@ static std::string packed_channels_for_role(
     }
     if (role == "height") return "height";
     if (role == "normal") return "normal_xy";
+    if (role == "emissive" && parameter_is_emissive_intensity_texture(parameter_name)) {
+        return "r=emissive_intensity";
+    }
     if (role == "opacity") {
         // R, G and B are three alternative tear shapes and the game picks one per
         // character. A preview has no such choice, so it shows the first, which is
@@ -699,6 +725,10 @@ static std::string packed_channels_for_role(
 
 static std::string layer_channel_from_parameter(const std::string& parameter_name) {
     const std::string key = normalized_key(parameter_name);
+    // SkinnedMeshSkin uses an ordinary red-channel mask.  The generic
+    // `_detailMaskTexture` contract below is blue, but applying that rule to
+    // `_skinDetailMaskTexture` made the authored skin pores disappear.
+    if (key == "skindetailmasktexture") return "r";
     if (key.find("detailmasktexture") != std::string::npos) return "b";
     if (key.ends_with("r")) return "r";
     if (key.ends_with("g")) return "g";
@@ -723,6 +753,17 @@ static int layer_channel_index(const std::string& channel) {
     if (value == "b") return 2;
     if (value == "a") return 3;
     return 0;
+}
+
+static float skin_detail_scale_from_parameters(
+    const std::vector<MaterialParameterRecord>& parameters
+) {
+    const MaterialParameterRecord* scale = find_material_parameter(
+        parameters, {"_skinDetailScale"});
+    if (scale == nullptr
+        || normalized_key(scale->name) != "skindetailscale"
+        || !scale->has_numeric) return 0.0f;
+    return std::max(0.0f, scale->numeric_value);
 }
 
 static std::string layer_role_from_parameter(const std::string& parameter_name, const std::string& role) {
@@ -759,6 +800,13 @@ static float layer_weight_from_parameters(
         return std::clamp(value, 0.03f, 0.72f);
     }
     if (layer_role == "detail") {
+        const MaterialParameterRecord* skin_opacity = find_material_parameter(
+            parameters, {"_skinDetailOpacity"});
+        if (skin_opacity != nullptr
+            && normalized_key(skin_opacity->name) == "skindetailopacity"
+            && skin_opacity->has_numeric) {
+            return std::clamp(skin_opacity->numeric_value, 0.0f, 1.0f);
+        }
         const auto global = byte4_parameter_channels(parameters, {"dyeingGlobalOpacity"});
         float value = global[std::min(channel_index, 3)];
         if (value <= 0.01f) value = 0.42f;
@@ -774,11 +822,32 @@ static float layer_weight_from_parameters(
     return 0.28f;
 }
 
+static const MaterialParameterRecord* exact_visible_color_parameter(
+    const std::vector<MaterialParameterRecord>& parameters,
+    const std::string& parameter_name
+) {
+    const std::string wanted = normalized_key(parameter_name);
+    for (const MaterialParameterRecord& parameter : parameters) {
+        if (parameter.kind == "color"
+            && normalized_key(parameter.name) == wanted
+            && color_parameter_value_has_visible_alpha(parameter.value)) {
+            return &parameter;
+        }
+    }
+    return nullptr;
+}
+
 static std::array<float, 4> tint_for_layer(
     const std::vector<MaterialParameterRecord>& parameters,
     const std::string& layer_role,
     const std::string& channel
 ) {
+    if (layer_role == "color_seed") {
+        const MaterialParameterRecord* dye = exact_visible_color_parameter(
+            parameters, "dyeingColorMask" + channel);
+        if (dye == nullptr) return {0.0f, 0.0f, 0.0f, 0.0f};
+        return color_parameter_value(dye->value);
+    }
     std::vector<std::string> candidates;
     if (layer_role == "grime") {
         // _tintColor{R,G,B} is the base tint of the three layers the
@@ -818,6 +887,29 @@ static std::array<float, 4> tint_for_layer(
     return {1.0f, 1.0f, 1.0f, 1.0f};
 }
 
+static std::string color_seed_parameter_name_for_channel(
+    const std::vector<MaterialParameterRecord>& parameters,
+    const std::string& channel
+) {
+    const MaterialParameterRecord* parameter = exact_visible_color_parameter(
+        parameters, "dyeingColorMask" + channel);
+    return parameter == nullptr ? "" : parameter->name;
+}
+
+static std::string joined_parameter_names_with_color_seed_sources(
+    const std::vector<MaterialParameterRecord>& parameters
+) {
+    std::string result = joined_parameter_names(parameters);
+    for (const char channel : std::string("rgb")) {
+        const std::string source_parameter = color_seed_parameter_name_for_channel(
+            parameters, std::string(1, channel));
+        if (source_parameter.empty()) continue;
+        if (!result.empty()) result += ",";
+        result += source_parameter;
+    }
+    return result;
+}
+
 static std::string evidence_grade_for_binding(
     const TextureBinding& binding,
     const TechniqueParameterInfo* technique_parameter
@@ -838,6 +930,14 @@ static std::string role_from_parameter_shader_and_name(
 ) {
     const std::string p = lower_copy(parameter_name);
     const std::string t = lower_copy(texture_name);
+    const std::string parameter_key = normalized_key(parameter_name);
+    // These three parameters are a support-only skin-detail stack.  The mask
+    // selects the layer; it is never a global material response.  Exact roles
+    // must precede both technique metadata and filename suffix inference because
+    // real sidecars can omit these technique declarations and the mask ends `_m`.
+    if (parameter_key == "skindetailmasktexture") return "detail";
+    if (parameter_key == "skindetailnormaltexture") return "normal";
+    if (parameter_key == "skindetailmaterialtexture") return "specular";
     if (p.find("emissive") != std::string::npos || p.find("glow") != std::string::npos || p.find("illum") != std::string::npos || t.find("_emi.dds") != std::string::npos || t.find("emissive") != std::string::npos) return "emissive";
     if (p.find("flow") != std::string::npos) return "flow";
     if (shader_rule == "hair" && (p == "_flowtexture" || p.find("flowtexture") != std::string::npos || t.find("_f.dds") != std::string::npos)) return "flow";

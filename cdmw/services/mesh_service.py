@@ -217,7 +217,11 @@ from cdmw.services.mesh_service_history import (
     _history_snapshot_retained_bytes,
     _history_stack_retained_bytes,
     _history_value_retained_bytes,
+    _mesh_morph_profile_directory_state,
+    _mesh_morph_profile_state_fingerprint,
     _native_submesh_snapshot_payload_bytes,
+    _restore_mesh_morph_profile_directory_state,
+    _validate_mesh_morph_profile_history_state,
 )
 from cdmw.services.mesh_service_morph import MeshMorphServiceMixin
 from cdmw.services.mesh_service_object_transform import (
@@ -656,6 +660,8 @@ class _MeshServiceSessionLayerCore(
         *,
         session_id: str | None = None,
         mode: str = "object",
+        load_layer_project: bool = True,
+        adopt_owned_mesh: bool = False,
     ) -> MeshEditSessionView:
         if not isinstance(mesh, ParsedMesh):
             raise TypeError("mesh must be a ParsedMesh")
@@ -668,8 +674,27 @@ class _MeshServiceSessionLayerCore(
             workspace_manifest_path,
             discovered_project,
         ) = _mesh_session_source_context(mesh, original_data)
+        if not load_layer_project:
+            project_path = None
+            workspace_manifest_path = None
+            discovered_project = {}
         mesh_format, lod_index, initial_output_policy = _mesh_session_output_context(mesh)
-        working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)
+        if adopt_owned_mesh:
+            if load_layer_project:
+                raise ValueError(
+                    "an adopted owned mesh cannot load a mutable layer project"
+                )
+            # This path is only for a caller that already made an isolated,
+            # disposable clone. Retain that clone as the working document and
+            # create only the immutable base snapshot required for validation.
+            working_mesh = mesh
+            base_mesh = _clone_mesh_for_service_native_snapshot(
+                mesh,
+                "session.open_adopted_base_clone",
+                "Python adopted-session base clone fallback blocked while native mesh core is available",
+            )
+        else:
+            working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)
         loaded_layer_project: Mapping[str, object] | None = None
         if project_path is not None and project_path.is_file():
             loaded_layer_project = load_mesh_layer_project(
@@ -683,7 +708,8 @@ class _MeshServiceSessionLayerCore(
                     "session.layer_project_base_clone",
                     "Python layer-project base clone fallback blocked while native mesh core is available",
                 )
-        _copy_mesh_validation_metadata(mesh, working_mesh)
+        if working_mesh is not mesh:
+            _copy_mesh_validation_metadata(mesh, working_mesh)
         _copy_mesh_validation_metadata(mesh, base_mesh)
         refresh_mesh_totals(working_mesh)
         session = _MeshEditSession(
@@ -1230,6 +1256,11 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
             _close_native_editor_session(session)
             _clear_history_stack(session.undo_stack)
             _clear_history_stack(session.redo_stack)
+            from cdmw.services.mesh_service_morph import (
+                retry_deferred_mesh_morph_session_state_disposals,
+            )
+
+            retry_deferred_mesh_morph_session_state_disposals()
             self.dispose_export_resources(session)
 
     def session_view(self, session_id: str) -> MeshEditSessionView:
@@ -2179,6 +2210,73 @@ def _capture_history_material_state(
     return snapshot
 
 
+def _capture_history_session_state(
+    session: _MeshEditSession,
+    snapshot: _MeshHistorySnapshot,
+    template: _MeshHistorySnapshot,
+) -> _MeshHistorySnapshot:
+    """Capture the reciprocal service-owned state carried by one history marker."""
+
+    if template.restore_geometry_layer_state:
+        snapshot.geometry_layers = tuple(session.geometry_layers)
+        snapshot.active_geometry_layer_id = session.active_geometry_layer_id
+        snapshot.geometry_layer_copy_counter = session.geometry_layer_copy_counter
+        snapshot.restore_geometry_layer_state = True
+    if template.output_policy is not None:
+        snapshot.output_policy = session.output_policy
+    if template.output_destination is not None:
+        snapshot.output_destination = session.output_destination
+    if template.output_destination_ready is not None:
+        snapshot.output_destination_ready = session.output_destination_ready
+    if template.morph_profile_root is not None:
+        existed, files, _fingerprint = _mesh_morph_profile_directory_state(
+            template.morph_profile_root
+        )
+        snapshot.morph_profile_root = template.morph_profile_root
+        snapshot.morph_profile_root_existed = existed
+        snapshot.morph_profile_files = files
+        snapshot.morph_profile_expected_fingerprint = _mesh_morph_profile_state_fingerprint(
+            bool(template.morph_profile_root_existed),
+            tuple(template.morph_profile_files or ()),
+        )
+    return snapshot
+
+
+def _restore_history_session_state(
+    session: _MeshEditSession,
+    snapshot: _MeshHistorySnapshot,
+) -> None:
+    """Restore only the service-owned fields explicitly included in a marker."""
+
+    if snapshot.restore_geometry_layer_state:
+        target_layers = tuple(snapshot.geometry_layers or ())
+        target_active = str(snapshot.active_geometry_layer_id or "base")
+        target_copy_counter = int(snapshot.geometry_layer_copy_counter or 0)
+        layers_changed = (
+            session.geometry_layers != target_layers
+            or session.active_geometry_layer_id != target_active
+            or session.geometry_layer_copy_counter != target_copy_counter
+        )
+        session.geometry_layers = target_layers
+        session.active_geometry_layer_id = target_active
+        session.geometry_layer_copy_counter = target_copy_counter
+        if layers_changed:
+            session.geometry_layer_revision += 1
+    if snapshot.output_policy is not None:
+        session.output_policy = snapshot.output_policy
+    if snapshot.output_destination is not None:
+        session.output_destination = snapshot.output_destination
+    if snapshot.output_destination_ready is not None:
+        session.output_destination_ready = snapshot.output_destination_ready
+    if snapshot.morph_profile_root is not None:
+        _restore_mesh_morph_profile_directory_state(
+            snapshot.morph_profile_root,
+            existed=bool(snapshot.morph_profile_root_existed),
+            files=tuple(snapshot.morph_profile_files or ()),
+            expected_fingerprint=str(snapshot.morph_profile_expected_fingerprint or ""),
+        )
+
+
 def _restore_history_material_state(session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> None:
     resources = snapshot.committed_texture_resources
     if resources is None:
@@ -2216,6 +2314,18 @@ def _dispose_history_snapshot(snapshot: _MeshHistorySnapshot) -> None:
         if snapshot_id and snapshot_id not in disposed_sparse_ids:
             dispose_native_mesh_sparse_vertex_snapshot(snapshot_id)
             disposed_sparse_ids.add(snapshot_id)
+    if snapshot.morph_session_state is not None:
+        from cdmw.services.mesh_service_morph import (
+            defer_mesh_morph_session_state_disposal,
+            dispose_mesh_morph_session_state,
+        )
+
+        morph_state = snapshot.morph_session_state
+        snapshot.morph_session_state = None
+        try:
+            dispose_mesh_morph_session_state(morph_state)
+        except RuntimeError:
+            defer_mesh_morph_session_state_disposal(morph_state)
 
 
 def _discard_history_snapshot(stack: list[_MeshHistorySnapshot], index: int = -1) -> None:
@@ -2278,6 +2388,9 @@ def _restore_native_editor_history(
     current_geometry_layers = session.geometry_layers
     current_active_geometry_layer_id = session.active_geometry_layer_id
     current_geometry_layer_copy_counter = session.geometry_layer_copy_counter
+    current_output_policy = session.output_policy
+    current_output_destination = session.output_destination
+    current_output_destination_ready = session.output_destination_ready
     current_object_transform = session.object_transform
     dirty_at_start = session.native_editor_mesh_dirty
     before_signature = (
@@ -2335,7 +2448,9 @@ def _restore_native_editor_history(
     session.edit_operations = tuple(snapshot.edit_operations)
     if snapshot.object_transform is not None:
         session.object_transform = snapshot.object_transform
-    if snapshot.geometry_layers is not None:
+    if snapshot.restore_geometry_layer_state:
+        _restore_history_session_state(session, snapshot)
+    elif snapshot.geometry_layers is not None:
         session.geometry_layers = _restore_geometry_layer_structure(
             snapshot.geometry_layers,
             current_geometry_layers,
@@ -2388,9 +2503,21 @@ def _restore_native_editor_history(
             geometry_layer_copy_counter=(
                 current_geometry_layer_copy_counter if snapshot.geometry_layers is not None else None
             ),
+            restore_geometry_layer_state=snapshot.restore_geometry_layer_state,
+            output_policy=(current_output_policy if snapshot.output_policy is not None else None),
+            output_destination=(
+                current_output_destination if snapshot.output_destination is not None else None
+            ),
+            output_destination_ready=(
+                current_output_destination_ready
+                if snapshot.output_destination_ready is not None
+                else None
+            ),
             object_transform=current_object_transform,
         ),
     )
+    if not snapshot.restore_geometry_layer_state:
+        _restore_history_session_state(session, snapshot)
     _restore_history_material_state(session, snapshot)
     return _MeshRestoreOutcome(
         snapshot=current_snapshot,
@@ -2479,12 +2606,14 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
                 object_transform=current_object_transform,
             ),
         )
+        _capture_history_session_state(session, current_snapshot, snapshot)
         session.mode = snapshot.mode
         session.selection = snapshot.selection
         session.edit_operations = tuple(snapshot.edit_operations)
         if snapshot.object_transform is not None:
             session.object_transform = snapshot.object_transform
         session.native_editor_selection_signature = ()
+        _restore_history_session_state(session, snapshot)
         _restore_history_material_state(session, snapshot)
         return _MeshRestoreOutcome(
             snapshot=current_snapshot,
@@ -2517,12 +2646,14 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
     current_snapshot.history_action = snapshot.history_action
     current_snapshot.history_label = snapshot.history_label
     _capture_history_material_state(session, current_snapshot)
+    _capture_history_session_state(session, current_snapshot, snapshot)
     session.mode = snapshot.mode
     session.selection = snapshot.selection
     session.edit_operations = tuple(snapshot.edit_operations)
     if snapshot.object_transform is not None:
         session.object_transform = snapshot.object_transform
     session.native_editor_selection_signature = ()
+    _restore_history_session_state(session, snapshot)
     _restore_history_material_state(session, snapshot)
     after_signature = _mesh_structure_signature(session.working_mesh)
     topology_changed, affected_submesh_indices, submesh_count_delta = _restore_topology_delta(

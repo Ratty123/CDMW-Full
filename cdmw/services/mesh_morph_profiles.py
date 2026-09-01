@@ -82,17 +82,32 @@ def list_mesh_morph_profiles(
 def save_mesh_morph_profile(root: str | Path, profile: MeshMorphProfile) -> Path:
     """Atomically save a v2 definition profile without touching legacy files."""
 
-    profile_root = Path(root).expanduser() / "definitions"
-    profile_root.mkdir(parents=True, exist_ok=True)
-    destination = profile_root / f"{_safe_id(profile.profile_id)}.json"
+    relative, document = serialized_mesh_morph_profile(profile)
+    destination = Path(root).expanduser().joinpath(*Path(relative).parts)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(destination, document)
+    return destination
+
+
+def serialized_mesh_morph_profile(
+    profile: MeshMorphProfile,
+    *,
+    max_bytes: int | None = None,
+) -> tuple[str, str]:
+    """Return the exact settings-owned relative path and JSON document."""
+
     normalized = MeshMorphProfile(
         profile_id=profile.profile_id,
         name=profile.name,
         topology_fingerprint=profile.topology_fingerprint,
         definitions=profile.definitions,
     )
-    atomic_write_text(destination, json.dumps(mesh_morph_profile_payload(normalized), indent=2, sort_keys=True))
-    return destination
+    relative = (Path("definitions") / f"{_safe_id(profile.profile_id)}.json").as_posix()
+    document = _serialized_json_document(
+        mesh_morph_profile_payload(normalized),
+        max_bytes=max_bytes,
+    )
+    return relative, document
 
 
 def delete_mesh_morph_profile(root: str | Path, profile_id: object) -> bool:
@@ -131,11 +146,49 @@ def list_mesh_morph_presets(
 
 
 def save_mesh_morph_preset(root: str | Path, preset: MeshMorphValuePreset) -> Path:
-    preset_root = Path(root).expanduser() / "presets" / _safe_id(preset.profile_id)
-    preset_root.mkdir(parents=True, exist_ok=True)
-    destination = preset_root / f"{_safe_id(preset.preset_id)}.json"
-    atomic_write_text(destination, json.dumps(mesh_morph_preset_payload(preset), indent=2, sort_keys=True))
+    relative, document = serialized_mesh_morph_preset(preset)
+    destination = Path(root).expanduser().joinpath(*Path(relative).parts)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(destination, document)
     return destination
+
+
+def serialized_mesh_morph_preset(
+    preset: MeshMorphValuePreset,
+    *,
+    max_bytes: int | None = None,
+) -> tuple[str, str]:
+    """Return the exact settings-owned relative path and JSON document."""
+
+    relative = (
+        Path("presets")
+        / _safe_id(preset.profile_id)
+        / f"{_safe_id(preset.preset_id)}.json"
+    ).as_posix()
+    document = _serialized_json_document(
+        mesh_morph_preset_payload(preset),
+        max_bytes=max_bytes,
+    )
+    return relative, document
+
+
+def _serialized_json_document(
+    payload: Mapping[str, object],
+    *,
+    max_bytes: int | None,
+) -> str:
+    if max_bytes is None:
+        return json.dumps(payload, indent=2, sort_keys=True)
+    limit = max(0, int(max_bytes))
+    chunks: list[str] = []
+    encoded_bytes = 0
+    encoder = json.JSONEncoder(indent=2, sort_keys=True)
+    for chunk in encoder.iterencode(payload):
+        encoded_bytes += len(chunk.encode("utf-8"))
+        if encoded_bytes > limit:
+            raise ValueError("Mesh morph profile JSON exceeds its configured file limit")
+        chunks.append(chunk)
+    return "".join(chunks)
 
 
 def delete_mesh_morph_preset(root: str | Path, profile_id: object, preset_id: object) -> bool:

@@ -95,7 +95,9 @@ std::string encode_dds_job(const EncodeJob& job) {
     }
 
     const std::string source_color_policy = lower_copy(job.source_color_policy);
-    if (source_color_policy != "auto" && source_color_policy != "ignore_srgb_metadata") {
+    if (source_color_policy != "auto" &&
+        source_color_policy != "ignore_srgb_metadata" &&
+        source_color_policy != "assume_srgb") {
         return encode_error(job, "unsupported source_color_policy " + job.source_color_policy);
     }
     const std::string mip_alpha_policy = lower_copy(job.mip_alpha_policy);
@@ -115,6 +117,11 @@ std::string encode_dds_job(const EncodeJob& job) {
         wic_flags = static_cast<DirectX::WIC_FLAGS>(
             static_cast<unsigned int>(wic_flags) |
             static_cast<unsigned int>(DirectX::WIC_FLAGS_IGNORE_SRGB)
+        );
+    } else if (source_color_policy == "assume_srgb") {
+        wic_flags = static_cast<DirectX::WIC_FLAGS>(
+            static_cast<unsigned int>(wic_flags) |
+            static_cast<unsigned int>(DirectX::WIC_FLAGS_DEFAULT_SRGB)
         );
     }
 

@@ -78,6 +78,7 @@ static void append_package_batch_material_json(PackageWriteState& state, const P
         << "\"layer_role\":\"" << json_escape(primary == nullptr ? "" : primary->layer_role) << "\","
         << "\"mask_channel\":\"" << json_escape(primary == nullptr ? "r" : primary->layer_channel) << "\","
         << "\"weight\":" << (primary == nullptr ? 0.0f : primary->weight) << ","
+        << "\"detail_scale\":" << (primary == nullptr ? 0.0f : primary->detail_scale) << ","
         << "\"diffuse_source\":\"" << json_escape(primary == nullptr ? "" : primary->diffuse_source) << "\","
         << "\"mask_source\":\"" << json_escape(primary == nullptr ? "" : primary->mask_source) << "\","
         << "\"material_source\":\"" << json_escape(primary == nullptr ? "" : primary->material_source) << "\","

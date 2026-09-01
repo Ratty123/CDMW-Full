@@ -12,19 +12,24 @@ from PySide6.QtGui import QColor, QImage
 from cdmw.models import PreviewMaterialTextureInput
 from cdmw.rendering.material_combiner_decode import _material_parameter_index
 from cdmw.rendering.material_combiner_images import (
+    _apply_pac_layer_sampling_transform,
     _byte,
     _image_reader,
     _image_luma_range,
+    _image_rgb888_write_view,
     _image_rgba8888_view,
     _image_rgba8888_write_view,
     _local_file_url,
     _mask_alpha,
     _numpy_module,
+    _numpy_rgba_byte_rows,
+    _numpy_rgba_row_chunk,
+    _numpy_unit_bytes,
+    _numpy_write_row_chunk,
     _raise_if_material_combiner_cancelled,
     _read_generated_map,
     _support_source_image,
 )
-from cdmw.rendering.material_combiner_pixels import image_to_rgba_array, mask_alpha_array, numpy_module, rgba_array_to_image
 from cdmw.rendering.material_combiner_rules import (
     _clamp,
     _layer_channel,
@@ -32,6 +37,9 @@ from cdmw.rendering.material_combiner_rules import (
     _texture_label,
     _visible_layer_role,
 )
+
+
+_NUMPY_ROW_CHUNK = 32
 
 
 def _generate_legacy_pbr_response_map(
@@ -156,18 +164,49 @@ def _generate_normal_map(
     strength_total = 0.0
     sample_count = 0
     target = QImage(width, height, QImage.Format.Format_RGBA8888)
-    for y in range(height):
-        _raise_if_material_combiner_cancelled(cancelled)
-        for x in range(width):
-            color = source.pixelColor(x, y)
-            red = color.red()
-            green = 255 - color.green()
-            blue = color.blue()
-            target.setPixelColor(x, y, QColor(red, green, blue, 255))
-            nx = (float(red) / 255.0) * 2.0 - 1.0
-            ny = (float(green) / 255.0) * 2.0 - 1.0
-            strength_total += min(1.0, math.sqrt((nx * nx) + (ny * ny)))
-            sample_count += 1
+    source_view, source_stride = _image_rgba8888_view(source, width, height)
+    target_view, target_stride = _image_rgba8888_write_view(target, width, height)
+    numpy = _numpy_module()
+    vectorized = bool(numpy is not None and source_view is not None and target_view is not None)
+    if vectorized:
+        try:
+            for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+                _raise_if_material_combiner_cancelled(cancelled)
+                row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+                source_bytes = _numpy_rgba_byte_rows(
+                    numpy, source_view, source_stride, width, row_start, row_count
+                )
+                output = _numpy_write_row_chunk(
+                    numpy, target_view, target_stride, width, row_start, row_count, 4
+                )
+                output[:, :, 0] = source_bytes[:, :, 0]
+                output[:, :, 1] = 255 - source_bytes[:, :, 1]
+                output[:, :, 2] = source_bytes[:, :, 2]
+                output[:, :, 3] = 255
+                nx = (source_bytes[:, :, 0].astype(numpy.float64) / 255.0) * 2.0 - 1.0
+                ny = ((255 - source_bytes[:, :, 1]).astype(numpy.float64) / 255.0) * 2.0 - 1.0
+                strength_total += float(
+                    numpy.minimum(1.0, numpy.sqrt((nx * nx) + (ny * ny))).sum()
+                )
+                sample_count += row_count * width
+        except (BufferError, MemoryError, TypeError, ValueError):
+            vectorized = False
+    if not vectorized:
+        target = QImage(width, height, QImage.Format.Format_RGBA8888)
+        strength_total = 0.0
+        sample_count = 0
+        for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            for x in range(width):
+                color = source.pixelColor(x, y)
+                red = color.red()
+                green = 255 - color.green()
+                blue = color.blue()
+                target.setPixelColor(x, y, QColor(red, green, blue, 255))
+                nx = (float(red) / 255.0) * 2.0 - 1.0
+                ny = (float(green) / 255.0) * 2.0 - 1.0
+                strength_total += min(1.0, math.sqrt((nx * nx) + (ny * ny)))
+                sample_count += 1
     average_strength = strength_total / float(max(1, sample_count))
     if average_strength <= 0.012:
         return "", 0.0
@@ -274,6 +313,12 @@ def _generate_synthesized_normal_map(
             flip_vertical=flip_vertical,
             max_dimension=max_dimension,
         )
+        if _is_layer_normal_input(item):
+            prepared = _apply_pac_layer_sampling_transform(
+                prepared,
+                item,
+                cancelled=cancelled,
+            )
         if not prepared.isNull():
             prepared_normals.append(
                 (item, prepared.convertToFormat(QImage.Format.Format_RGBA8888))
@@ -346,7 +391,7 @@ def _generate_synthesized_normal_map(
                 Qt.IgnoreAspectRatio,
                 Qt.SmoothTransformation,
             )
-        flipped = _flip_normal_green(base_image)
+        flipped = _flip_normal_green(base_image, cancelled=cancelled)
         if flipped is not None:
             target = flipped
         else:
@@ -390,7 +435,14 @@ def _generate_synthesized_normal_map(
         if weight <= 0.001:
             continue
         layer_applied = False
-        composed = _compose_normal_layer(target, layer, mask, channel=channel, weight=weight)
+        composed = _compose_normal_layer(
+            target,
+            layer,
+            mask,
+            channel=channel,
+            weight=weight,
+            cancelled=cancelled,
+        )
         if composed is not None:
             target, layer_applied = composed
             if layer_applied:
@@ -438,7 +490,7 @@ def _generate_synthesized_normal_map(
             if role_label not in roles_used:
                 roles_used.append(role_label)
 
-    average_strength = _average_normal_strength(target)
+    average_strength = _average_normal_strength(target, cancelled=cancelled)
     if average_strength is None:
         strength_total = 0.0
         sample_count = 0
@@ -467,77 +519,173 @@ def _generate_synthesized_normal_map(
     )
 
 
-def _flip_normal_green(base_image: QImage) -> Optional[QImage]:
-    """The macro normal with its green channel flipped, whole-image; None without NumPy."""
+def _flip_normal_green(
+    base_image: QImage,
+    *,
+    cancelled: Callable[[], bool] | None = None,
+) -> Optional[QImage]:
+    """Flip the macro normal's green byte in bounded row tiles."""
 
-    numpy = numpy_module()
-    array = image_to_rgba_array(base_image) if numpy is not None else None
-    if array is None:
+    numpy = _numpy_module()
+    if numpy is None or base_image.isNull():
         return None
-    height, width = array.shape[:2]
-    opaque = numpy.full((height, width), 255, dtype=numpy.uint8)
-    return rgba_array_to_image(
-        array[:, :, 0], 1.0 - array[:, :, 1], array[:, :, 2], opaque,
-        target_format=QImage.Format.Format_RGBA8888,
-    )
+    source = base_image.convertToFormat(QImage.Format.Format_RGBA8888)
+    height, width = int(source.height()), int(source.width())
+    source_view, source_stride = _image_rgba8888_view(source, width, height)
+    target = QImage(width, height, QImage.Format.Format_RGBA8888)
+    target_view, target_stride = _image_rgba8888_write_view(target, width, height)
+    if source_view is None or target_view is None:
+        return None
+    try:
+        for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+            _raise_if_material_combiner_cancelled(cancelled)
+            row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+            source_bytes = _numpy_rgba_byte_rows(
+                numpy, source_view, source_stride, width, row_start, row_count
+            )
+            output = _numpy_write_row_chunk(
+                numpy, target_view, target_stride, width, row_start, row_count, 4
+            )
+            output[:, :, 0] = source_bytes[:, :, 0]
+            output[:, :, 1] = 255 - source_bytes[:, :, 1]
+            output[:, :, 2] = source_bytes[:, :, 2]
+            output[:, :, 3] = 255
+    except (BufferError, MemoryError, TypeError, ValueError):
+        return None
+    return target
 
 
-def _compose_normal_layer(target: QImage, layer: QImage, mask: QImage, *, channel: str, weight: float):
-    """Whiteout-compose one detail normal behind its mask, whole-image.
+def _compose_normal_layer(
+    target: QImage,
+    layer: QImage,
+    mask: QImage,
+    *,
+    channel: str,
+    weight: float,
+    cancelled: Callable[[], bool] | None = None,
+):
+    """Whiteout-compose one detail normal behind its mask in row tiles.
 
     `(image, applied)` where `applied` says whether any texel had a live alpha, the way
     the per-pixel loop's `layer_applied` flag does; None when NumPy cannot take it.
     """
 
-    numpy = numpy_module()
-    base = image_to_rgba_array(target) if numpy is not None else None
-    if base is None:
+    numpy = _numpy_module()
+    if numpy is None or target.isNull() or layer.isNull():
         return None
-    over = image_to_rgba_array(layer)
-    if over is None or over.shape[:2] != base.shape[:2]:
+    base_rgba = target.convertToFormat(QImage.Format.Format_RGBA8888)
+    layer_rgba = layer.convertToFormat(QImage.Format.Format_RGBA8888)
+    height, width = int(base_rgba.height()), int(base_rgba.width())
+    if (
+        width <= 0
+        or height <= 0
+        or int(layer_rgba.width()) != width
+        or int(layer_rgba.height()) != height
+    ):
         return None
-    height, width = base.shape[:2]
-    mask_alpha = mask_alpha_array(mask, channel=channel, width=width, height=height)
-    if mask_alpha is None:
+    base_view, base_stride = _image_rgba8888_view(base_rgba, width, height)
+    layer_view, layer_stride = _image_rgba8888_view(layer_rgba, width, height)
+    mask_rgba = QImage()
+    mask_view = None
+    mask_stride = 0
+    if mask is not None and not mask.isNull():
+        mask_rgba = mask.convertToFormat(QImage.Format.Format_RGBA8888)
+        if int(mask_rgba.width()) != width or int(mask_rgba.height()) != height:
+            return None
+        mask_view, mask_stride = _image_rgba8888_view(mask_rgba, width, height)
+    result = QImage(width, height, QImage.Format.Format_RGBA8888)
+    result_view, result_stride = _image_rgba8888_write_view(result, width, height)
+    if base_view is None or layer_view is None or result_view is None or (not mask_rgba.isNull() and mask_view is None):
         return None
-    alpha = numpy.clip(float(weight) * mask_alpha, 0.0, 1.0)
-    live = alpha > 0.001
-    if not bool(live.any()):
-        return target, False
-    base_x = (base[:, :, 0] * 2.0) - 1.0
-    base_y = (base[:, :, 1] * 2.0) - 1.0
-    base_z = numpy.sqrt(numpy.maximum(0.0, 1.0 - (base_x * base_x) - (base_y * base_y)))
-    layer_x = (over[:, :, 0] * 2.0) - 1.0
-    # the loop reads the green byte back out and flips it there, not the float
-    green_byte = numpy.rint(over[:, :, 1] * 255.0)
-    layer_y = (((255.0 - green_byte) / 255.0) * 2.0) - 1.0
-    layer_z = numpy.sqrt(numpy.maximum(0.0, 1.0 - (layer_x * layer_x) - (layer_y * layer_y)))
-    detail_z = (1.0 - alpha) + (layer_z * alpha)
-    out_x = base_x + (layer_x * alpha)
-    out_y = base_y + (layer_y * alpha)
-    out_z = base_z * detail_z
-    length = numpy.maximum(0.001, numpy.sqrt((out_x * out_x) + (out_y * out_y) + (out_z * out_z)))
-    red = numpy.where(live, ((out_x / length) * 0.5) + 0.5, base[:, :, 0])
-    green = numpy.where(live, ((out_y / length) * 0.5) + 0.5, base[:, :, 1])
-    blue = numpy.where(live, ((out_z / length) * 0.5) + 0.5, base[:, :, 2])
-    opaque = numpy.full((height, width), 255, dtype=numpy.uint8)
-    image = rgba_array_to_image(red, green, blue, opaque, target_format=QImage.Format.Format_RGBA8888)
-    if image is None:
+    applied = False
+    mask_index = {"r": 0, "g": 1, "b": 2, "a": 3}.get(channel, 0)
+    try:
+        for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+            _raise_if_material_combiner_cancelled(cancelled)
+            row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+            base = _numpy_rgba_row_chunk(
+                numpy, base_view, base_stride, width, row_start, row_count
+            )
+            over_bytes = _numpy_rgba_byte_rows(
+                numpy, layer_view, layer_stride, width, row_start, row_count
+            )
+            over = (
+                over_bytes.astype(numpy.float32) / numpy.float32(255.0)
+            ).astype(numpy.float64)
+            if mask_view is None:
+                mask_alpha = numpy.ones((row_count, width), dtype=numpy.float64)
+            else:
+                mask_alpha = _numpy_rgba_row_chunk(
+                    numpy, mask_view, mask_stride, width, row_start, row_count
+                )[:, :, mask_index]
+            alpha = numpy.clip(float(weight) * mask_alpha, 0.0, 1.0)
+            live = alpha > 0.001
+            applied = applied or bool(live.any())
+            base_x = (base[:, :, 0] * 2.0) - 1.0
+            base_y = (base[:, :, 1] * 2.0) - 1.0
+            base_z = numpy.sqrt(
+                numpy.maximum(0.0, 1.0 - (base_x * base_x) - (base_y * base_y))
+            )
+            layer_x = (over[:, :, 0] * 2.0) - 1.0
+            layer_y = (((255.0 - over_bytes[:, :, 1]) / 255.0) * 2.0) - 1.0
+            layer_z = numpy.sqrt(
+                numpy.maximum(0.0, 1.0 - (layer_x * layer_x) - (layer_y * layer_y))
+            )
+            detail_z = (1.0 - alpha) + (layer_z * alpha)
+            out_x = base_x + (layer_x * alpha)
+            out_y = base_y + (layer_y * alpha)
+            out_z = base_z * detail_z
+            length = numpy.maximum(
+                0.001,
+                numpy.sqrt((out_x * out_x) + (out_y * out_y) + (out_z * out_z)),
+            )
+            red = numpy.where(live, ((out_x / length) * 0.5) + 0.5, base[:, :, 0])
+            green = numpy.where(live, ((out_y / length) * 0.5) + 0.5, base[:, :, 1])
+            blue = numpy.where(live, ((out_z / length) * 0.5) + 0.5, base[:, :, 2])
+            output = _numpy_write_row_chunk(
+                numpy, result_view, result_stride, width, row_start, row_count, 4
+            )
+            output[:, :, 0] = _numpy_unit_bytes(numpy, red)
+            output[:, :, 1] = _numpy_unit_bytes(numpy, green)
+            output[:, :, 2] = _numpy_unit_bytes(numpy, blue)
+            output[:, :, 3] = 255
+    except (BufferError, MemoryError, TypeError, ValueError):
         return None
-    return image, True
+    return (result, True) if applied else (target, False)
 
 
-def _average_normal_strength(target: QImage) -> Optional[float]:
-    """The mean xy length of the composed normal, whole-image; None without NumPy."""
+def _average_normal_strength(
+    target: QImage,
+    *,
+    cancelled: Callable[[], bool] | None = None,
+) -> Optional[float]:
+    """The mean xy length of the composed normal using bounded row tiles."""
 
-    numpy = numpy_module()
-    array = image_to_rgba_array(target) if numpy is not None else None
-    if array is None:
+    numpy = _numpy_module()
+    if numpy is None or target.isNull():
         return None
-    nx = (array[:, :, 0] * 2.0) - 1.0
-    ny = (array[:, :, 1] * 2.0) - 1.0
-    lengths = numpy.minimum(1.0, numpy.sqrt((nx * nx) + (ny * ny)))
-    return float(lengths.sum() / float(max(1, lengths.size)))
+    source = target.convertToFormat(QImage.Format.Format_RGBA8888)
+    height, width = int(source.height()), int(source.width())
+    source_view, source_stride = _image_rgba8888_view(source, width, height)
+    if source_view is None:
+        return None
+    total = 0.0
+    count = 0
+    try:
+        for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+            _raise_if_material_combiner_cancelled(cancelled)
+            row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+            array = _numpy_rgba_row_chunk(
+                numpy, source_view, source_stride, width, row_start, row_count
+            )
+            nx = (array[:, :, 0] * 2.0) - 1.0
+            ny = (array[:, :, 1] * 2.0) - 1.0
+            lengths = numpy.minimum(1.0, numpy.sqrt((nx * nx) + (ny * ny)))
+            total += float(lengths.sum())
+            count += int(lengths.size)
+    except (BufferError, MemoryError, TypeError, ValueError):
+        return None
+    return total / float(max(1, count))
 
 
 def _generate_height_map(
@@ -561,15 +709,43 @@ def _generate_height_map(
     target = QImage(width, height, QImage.Format.Format_RGB888)
     range_value = max(high - low, 0.001)
     gain = min(4.0, max(1.0, 0.24 / max(contrast, 0.018)))
-    for y in range(height):
-        _raise_if_material_combiner_cancelled(cancelled)
-        for x in range(width):
-            color = source.pixelColor(x, y)
-            luma = (0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF())
-            normalized = _clamp((luma - low) / range_value)
-            adjusted = _clamp(0.5 + ((normalized - 0.5) * gain))
-            grey = _byte(adjusted)
-            target.setPixelColor(x, y, QColor(grey, grey, grey))
+    source_view, source_stride = _image_rgba8888_view(source, width, height)
+    target_view, target_stride = _image_rgb888_write_view(target, width, height)
+    numpy = _numpy_module()
+    vectorized = bool(numpy is not None and source_view is not None and target_view is not None)
+    if vectorized:
+        try:
+            for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+                _raise_if_material_combiner_cancelled(cancelled)
+                row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+                source_array = _numpy_rgba_row_chunk(
+                    numpy, source_view, source_stride, width, row_start, row_count
+                )
+                luma = (
+                    (0.2126 * source_array[:, :, 0])
+                    + (0.7152 * source_array[:, :, 1])
+                    + (0.0722 * source_array[:, :, 2])
+                )
+                normalized = numpy.clip((luma - low) / range_value, 0.0, 1.0)
+                adjusted = numpy.clip(0.5 + ((normalized - 0.5) * gain), 0.0, 1.0)
+                grey = _numpy_unit_bytes(numpy, adjusted)
+                output = _numpy_write_row_chunk(
+                    numpy, target_view, target_stride, width, row_start, row_count, 3
+                )
+                output[:, :, :] = grey[:, :, None]
+        except (BufferError, MemoryError, TypeError, ValueError):
+            vectorized = False
+    if not vectorized:
+        target = QImage(width, height, QImage.Format.Format_RGB888)
+        for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            for x in range(width):
+                color = source.pixelColor(x, y)
+                luma = (0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF())
+                normalized = _clamp((luma - low) / range_value)
+                adjusted = _clamp(0.5 + ((normalized - 0.5) * gain))
+                grey = _byte(adjusted)
+                target.setPixelColor(x, y, QColor(grey, grey, grey))
     _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_height.png"
@@ -598,34 +774,81 @@ def _derive_normal_from_height(
     height = int(source.height())
     if width <= 1 or height <= 1:
         return "", contrast
-    luma_grid: list[list[float]] = []
-    for y in range(height):
-        _raise_if_material_combiner_cancelled(cancelled)
-        row: list[float] = []
-        for x in range(width):
-            color = source.pixelColor(x, y)
-            row.append((0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF()))
-        luma_grid.append(row)
     target = QImage(width, height, QImage.Format.Format_RGBA8888)
     range_value = max(high - low, 0.001)
     scale = min(2.5, max(0.65, 0.08 / max(contrast, 0.018)))
-    for y in range(height):
-        _raise_if_material_combiner_cancelled(cancelled)
-        ym = max(0, y - 1)
-        yp = min(height - 1, y + 1)
-        for x in range(width):
-            xm = max(0, x - 1)
-            xp = min(width - 1, x + 1)
-            dx = ((luma_grid[y][xp] - luma_grid[y][xm]) / range_value) * scale
-            dy = ((luma_grid[yp][x] - luma_grid[ym][x]) / range_value) * scale
-            nx = -dx
-            ny = -dy
-            nz = 1.0
-            length = max(0.001, math.sqrt((nx * nx) + (ny * ny) + (nz * nz)))
-            red = _byte((nx / length) * 0.5 + 0.5)
-            green = _byte((ny / length) * 0.5 + 0.5)
-            blue = _byte((nz / length) * 0.5 + 0.5)
-            target.setPixelColor(x, y, QColor(red, green, blue, 255))
+    source_view, source_stride = _image_rgba8888_view(source, width, height)
+    target_view, target_stride = _image_rgba8888_write_view(target, width, height)
+    numpy = _numpy_module()
+    vectorized = bool(numpy is not None and source_view is not None and target_view is not None)
+    if vectorized:
+        try:
+            for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+                _raise_if_material_combiner_cancelled(cancelled)
+                row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+                row_end = row_start + row_count
+                read_start = max(0, row_start - 1)
+                read_end = min(height, row_end + 1)
+                source_array = _numpy_rgba_row_chunk(
+                    numpy,
+                    source_view,
+                    source_stride,
+                    width,
+                    read_start,
+                    read_end - read_start,
+                )
+                luma = (
+                    (0.2126 * source_array[:, :, 0])
+                    + (0.7152 * source_array[:, :, 1])
+                    + (0.0722 * source_array[:, :, 2])
+                )
+                center_indices = numpy.arange(row_start, row_end) - read_start
+                previous_indices = numpy.maximum(0, numpy.arange(row_start, row_end) - 1) - read_start
+                next_indices = numpy.minimum(height - 1, numpy.arange(row_start, row_end) + 1) - read_start
+                center = luma[center_indices]
+                left = numpy.concatenate((center[:, :1], center[:, :-1]), axis=1)
+                right = numpy.concatenate((center[:, 1:], center[:, -1:]), axis=1)
+                dx = ((right - left) / range_value) * scale
+                dy = ((luma[next_indices] - luma[previous_indices]) / range_value) * scale
+                nx = -dx
+                ny = -dy
+                length = numpy.maximum(0.001, numpy.sqrt((nx * nx) + (ny * ny) + 1.0))
+                output = _numpy_write_row_chunk(
+                    numpy, target_view, target_stride, width, row_start, row_count, 4
+                )
+                output[:, :, 0] = _numpy_unit_bytes(numpy, ((nx / length) * 0.5) + 0.5)
+                output[:, :, 1] = _numpy_unit_bytes(numpy, ((ny / length) * 0.5) + 0.5)
+                output[:, :, 2] = _numpy_unit_bytes(numpy, ((1.0 / length) * 0.5) + 0.5)
+                output[:, :, 3] = 255
+        except (BufferError, MemoryError, TypeError, ValueError):
+            vectorized = False
+    if not vectorized:
+        luma_grid: list[list[float]] = []
+        for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            row: list[float] = []
+            for x in range(width):
+                color = source.pixelColor(x, y)
+                row.append((0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF()))
+            luma_grid.append(row)
+        target = QImage(width, height, QImage.Format.Format_RGBA8888)
+        for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            ym = max(0, y - 1)
+            yp = min(height - 1, y + 1)
+            for x in range(width):
+                xm = max(0, x - 1)
+                xp = min(width - 1, x + 1)
+                dx = ((luma_grid[y][xp] - luma_grid[y][xm]) / range_value) * scale
+                dy = ((luma_grid[yp][x] - luma_grid[ym][x]) / range_value) * scale
+                nx = -dx
+                ny = -dy
+                nz = 1.0
+                length = max(0.001, math.sqrt((nx * nx) + (ny * ny) + (nz * nz)))
+                red = _byte((nx / length) * 0.5 + 0.5)
+                green = _byte((ny / length) * 0.5 + 0.5)
+                blue = _byte((nz / length) * 0.5 + 0.5)
+                target.setPixelColor(x, y, QColor(red, green, blue, 255))
     _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_normal_from_height.png"

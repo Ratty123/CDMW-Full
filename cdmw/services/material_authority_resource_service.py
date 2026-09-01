@@ -61,9 +61,40 @@ def _channel_preset_key(channel: str) -> str:
         "base": "base_color",
         "normal": "normal",
         "height": "height_scalar",
+        "roughness": "height_scalar",
+        "metallic": "height_scalar",
+        "metalness": "height_scalar",
+        "occlusion": "height_scalar",
         "material_mask": "mask_packed",
         "emissive": "emissive",
     }.get(str(channel or "").strip().lower(), "mask_packed")
+
+
+def _preview_dds_format(
+    canonical_format: str,
+    *,
+    width: int,
+    height: int,
+    mip_count: int,
+    max_uncompressed_bytes: int,
+) -> str:
+    """Choose a fast, lossless preview format without changing saved artifacts."""
+
+    replacements = {
+        "BC7_UNORM": "R8G8B8A8_UNORM",
+        "BC7_UNORM_SRGB": "R8G8B8A8_UNORM_SRGB",
+    }
+    replacement = replacements.get(str(canonical_format or "").strip().upper())
+    if replacement is None or int(max_uncompressed_bytes) <= 0:
+        return canonical_format
+    level_width = max(1, int(width))
+    level_height = max(1, int(height))
+    projected_bytes = 148  # DDS magic, header, and the largest possible DX10 header.
+    for _level in range(max(1, int(mip_count))):
+        projected_bytes += level_width * level_height * 4
+        level_width = max(1, level_width // 2)
+        level_height = max(1, level_height // 2)
+    return replacement if projected_bytes <= int(max_uncompressed_bytes) else canonical_format
 
 
 def _file_sha256(path: Path) -> str:
@@ -98,6 +129,9 @@ def _encode_owned_dds(
     target: Path,
     channel: str,
     stop_event: threading.Event,
+    *,
+    source_color_policy: str = "auto",
+    preview_uncompressed_max_bytes: int = 0,
 ) -> dict[str, object]:
     from cdmw.core.dds_native import inspect_dds_native_path
     from cdmw.core.texture_native import (
@@ -121,10 +155,18 @@ def _encode_owned_dds(
             width=width,
             height=height,
         )
+        output_format = _preview_dds_format(
+            preset.dds_format,
+            width=width,
+            height=height,
+            mip_count=preset.mip_count,
+            max_uncompressed_bytes=preview_uncompressed_max_bytes,
+        )
+        output_srgb = output_format.endswith("_SRGB")
         canonical_source = (
-            str(source_info.format_name or "").strip().upper() == preset.dds_format
+            str(source_info.format_name or "").strip().upper() == output_format
             and int(source_info.mip_count) == int(preset.mip_count)
-            and bool(source_info.srgb) == bool(preset.srgb)
+            and bool(source_info.srgb) == bool(output_srgb)
         )
         if canonical_source:
             _copy_cancellable(source, target, stop_event)
@@ -151,6 +193,14 @@ def _encode_owned_dds(
             width=width,
             height=height,
         )
+        output_format = _preview_dds_format(
+            preset.dds_format,
+            width=width,
+            height=height,
+            mip_count=preset.mip_count,
+            max_uncompressed_bytes=preview_uncompressed_max_bytes,
+        )
+        output_srgb = output_format.endswith("_SRGB")
         decoded_source = source
     if decoded_source is not None:
         staged = target.with_name(f".{target.stem}.encoding.dds")
@@ -158,11 +208,12 @@ def _encode_owned_dds(
             report = encode_dds_with_directxtex(
                 decoded_source,
                 staged,
-                dds_format=preset.dds_format,
+                dds_format=output_format,
                 width=width,
                 height=height,
                 mip_count=preset.mip_count,
                 overwrite=True,
+                source_color_policy=source_color_policy,
                 timeout_seconds=60.0,
                 stop_event=stop_event,
             )
@@ -178,24 +229,26 @@ def _encode_owned_dds(
     if info.width <= 0 or info.height <= 0 or info.mip_count <= 0 or info.reason:
         raise ValueError(f"Generated {channel} DDS failed readback: {info.reason or 'invalid DDS metadata'}")
     if (
-        str(info.format_name or "").strip().upper() != preset.dds_format
+        str(info.format_name or "").strip().upper() != output_format
         or int(info.mip_count) != int(preset.mip_count)
-        or bool(info.srgb) != bool(preset.srgb)
+        or bool(info.srgb) != bool(output_srgb)
     ):
         raise ValueError(
-            f"Generated {channel} DDS is not canonical: expected {preset.dds_format}/"
-            f"{preset.mip_count} mips/{preset.preset.colorspace}, got "
+            f"Generated {channel} DDS has the wrong preview contract: expected {output_format}/"
+            f"{preset.mip_count} mips/{'srgb' if output_srgb else 'linear'}, got "
             f"{info.format_name}/{info.mip_count} mips/{'srgb' if info.srgb else 'linear'}"
         )
+    preview_uncompressed = output_format != preset.dds_format
     return {
         "content_sha256": _file_sha256(target),
         "byte_count": int(target.stat().st_size),
-        "dds_format": str(info.format_name or preset.dds_format),
+        "dds_format": str(info.format_name or output_format),
         "width": int(info.width),
         "height": int(info.height),
         "mip_count": int(info.mip_count),
         "color_space": "srgb" if info.srgb else "linear",
         "preset": preset.preset.key,
+        "preview_uncompressed": preview_uncompressed,
     }
 
 

@@ -15,7 +15,9 @@ from tools.mesh_harness.constants import (
 from tools.mesh_harness.real_dotnet_material import request_full_renderer_status
 from tools.mesh_harness.win32_input import (
     _host_window_rect,
+    _restore_physical_mouse_state,
     _scoped_input_target_matches,
+    _send_physical_mouse_message,
     _send_mouse_message,
     _show_window_without_activation,
     _window_process_id,
@@ -352,7 +354,7 @@ def _activate_side_by_side_divider(
     )
     divider_down = bool(
         divider_owned
-        and _send_mouse_message(
+        and _send_physical_mouse_message(
             state.viewport_hwnd,
             _WM_LBUTTONDOWN,
             divider_client_x,
@@ -362,7 +364,7 @@ def _activate_side_by_side_divider(
     )
     divider_up = bool(
         divider_down
-        and _send_mouse_message(
+        and _send_physical_mouse_message(
             state.viewport_hwnd,
             _WM_LBUTTONUP,
             divider_client_x,
@@ -717,12 +719,16 @@ def exercise_side_by_side_wheel_zoom(
     finally:
         if divider_button_down:
             client_position = tuple(divider_activation.get("client_position", (1, 1)))
-            _send_mouse_message(
+            _send_physical_mouse_message(
                 state.viewport_hwnd,
                 _WM_LBUTTONUP,
                 int(client_position[0]),
                 int(client_position[1]),
             )
+        # The physical divider click must remain focused until the layout
+        # change has been pumped, then restore the user's cursor/focus even if
+        # the side-by-side proof aborts midway.
+        _restore_physical_mouse_state()
     gates = {
         "production_d3d11_backend": dict(getattr(state, "renderer", {}) or {}).get("backend") == "d3d11_vortice_shader",
         "simultaneous_role_panes": initial_presentation.get("simultaneous_role_panes") is True,
@@ -748,7 +754,7 @@ def exercise_side_by_side_wheel_zoom(
     }
     return {
         "schema": "cdmw_real_pac_side_by_side_wheel_zoom_v1",
-        "input_backend": "scoped_hwnd_messages_normalized_input",
+        "input_backend": "restored_physical_mouse_input",
         "renderer_backend": str(dict(getattr(state, "renderer", {}) or {}).get("backend", "") or ""),
         "process_pid": int(state.production_process_pid),
         "window_identity": {

@@ -635,6 +635,14 @@ struct NativeClothRuntimeBatch {
     int constraint_count = 0;
 };
 
+struct MaterialParameterRecord {
+    std::string kind;
+    std::string name;
+    std::string value;
+    float numeric_value = 0.0f;
+    bool has_numeric = false;
+};
+
 struct TextureBinding {
     std::string role;
     std::string source_path;
@@ -662,6 +670,7 @@ struct TextureBinding {
     std::string evidence_grade = "corpus_inferred";
     std::string blend_flags;
     std::string material_parameter_names;
+    std::vector<MaterialParameterRecord> material_parameters;
     std::string pbd_simulation_material_name;
     std::string pbd_simulation_kind;
     std::string pbd_material_name;
@@ -670,7 +679,7 @@ struct TextureBinding {
     int material_wrapper_count = 0;
     bool material_wrapper_order_authoritative = false;
     bool alpha_test_enabled = false;
-    float layer_weight = 0.0f;
+    float layer_weight = 0.0f, detail_scale = 0.0f;
     float roughness_hint = 0.0f;
     float metalness_hint = 0.0f;
     float specular_hint = 0.0f;
@@ -689,14 +698,6 @@ struct TextureBinding {
     int dds_width = 0;
     int dds_height = 0;
     std::string dds_format = "";
-};
-
-struct MaterialParameterRecord {
-    std::string kind;
-    std::string name;
-    std::string value;
-    float numeric_value = 0.0f;
-    bool has_numeric = false;
 };
 
 struct MaterialLayer {
@@ -721,7 +722,7 @@ struct MaterialLayer {
     std::string roughness_hint_source;
     std::string metallic_hint_source;
     std::string specular_hint_source;
-    float weight = 0.0f;
+    float weight = 0.0f, detail_scale = 0.0f;
     float roughness_hint = 0.0f;
     float metalness_hint = 0.0f;
     float specular_hint = 0.0f;

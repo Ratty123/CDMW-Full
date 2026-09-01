@@ -59,6 +59,8 @@ set(MESH_CORE_OWNER_SOURCES
     src/owners/service_01.cpp
     src/owners/interaction_abi_state_01.cpp
     src/owners/interaction_abi_payload_01.cpp
+    src/owners/interaction_abi_snapshot_01.cpp
+    src/owners/interaction_abi_typed_01.cpp
     src/owners/interaction_abi_operations_01.cpp
     src/owners/interaction_abi_session_01.cpp
     src/owners/interaction_abi_gesture_01.cpp

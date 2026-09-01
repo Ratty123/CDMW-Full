@@ -398,6 +398,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         builder.deleteLater()
         _APP.processEvents()
 
+    @unittest.skip("The direct Vortice scene-ack presentation bridge is retired.")
     def test_scene_ack_reapplies_current_builder_preview_mode(self) -> None:
         settings = QSettings("CDMWTests", "MeshEditorResidentPreviewModeRestore")
         settings.clear()
@@ -453,6 +454,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         tab.deleteLater()
         _APP.processEvents()
 
+    @unittest.skip("Rust Finish terminates its owned child instead of retaining Vortice.")
     def test_embedded_finish_keeps_resident_helper_active(self) -> None:
         settings = QSettings("CDMWTests", "MeshEditorResidentFinish")
         settings.clear()
@@ -535,6 +537,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         tab.deleteLater()
         _APP.processEvents()
 
+    @unittest.skip("Rust owns Finish/pending-gesture rejection in its shadow protocol.")
     def test_embedded_finish_rejects_busy_live_stroke_without_mode_change(self) -> None:
         settings = QSettings("CDMWTests", "MeshEditorResidentFinishBusyStroke")
         settings.clear()

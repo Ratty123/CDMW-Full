@@ -16,14 +16,18 @@ uint32_t interaction_abi_open(
         request->submesh_count, request->submeshes, message
     );
     if (status != CDMW_MESH_INTERACTION_OK) return mesh_interaction_abi_fail(result, status, message);
-    std::lock_guard<std::mutex> lock(g_mesh_interaction_abi_mutex);
-    if (g_mesh_interaction_abi_session_keys.find(request->session_key)
-        != g_mesh_interaction_abi_session_keys.end()) {
-        return mesh_interaction_abi_fail(
-            result, CDMW_MESH_INTERACTION_SESSION_EXISTS, "session_key is already open"
-        );
+    uint64_t handle = 0;
+    {
+        std::unique_lock<std::shared_mutex> registry_lock(g_mesh_interaction_abi_registry_mutex);
+        if (g_mesh_interaction_abi_session_keys.find(request->session_key)
+            != g_mesh_interaction_abi_session_keys.end()) {
+            return mesh_interaction_abi_fail(
+                result, CDMW_MESH_INTERACTION_SESSION_EXISTS, "session_key is already open"
+            );
+        }
+        handle = g_mesh_interaction_abi_next_handle++;
+        g_mesh_interaction_abi_session_keys[request->session_key] = handle;
     }
-    const uint64_t handle = g_mesh_interaction_abi_next_handle++;
     const std::string editor_id = "abi-" + std::to_string(request->session_key)
         + "-" + std::to_string(handle);
     try {
@@ -33,33 +37,50 @@ uint32_t interaction_abi_open(
         root.object_value["submeshes"] = mesh_interaction_abi_submesh_array(
             request->submesh_count, request->submeshes
         );
-        (void)mesh_editor_open_session_report(
-            root, editor_id, mesh_editor_native_session_id(editor_id), std::chrono::steady_clock::now()
-        );
-        MeshInteractionAbiSession runtime;
-        runtime.handle = handle;
-        runtime.session_key = request->session_key;
-        runtime.editor_session_id = editor_id;
-        runtime.mesh_revision = request->mesh_revision;
-        runtime.selection_revision = request->selection_revision;
-        runtime.topology_generation = request->topology_generation;
-        runtime.camera_revision = request->camera_revision;
-        runtime.viewport_revision = request->viewport_revision;
-        g_mesh_interaction_abi_sessions[handle] = std::move(runtime);
-        g_mesh_interaction_abi_session_keys[request->session_key] = handle;
-        MeshInteractionAbiSession& inserted = g_mesh_interaction_abi_sessions[handle];
+        {
+            std::unique_lock<std::shared_mutex> editor_registry_lock(
+                g_mesh_interaction_abi_editor_registry_mutex
+            );
+            (void)mesh_editor_open_session_report(
+                root, editor_id, mesh_editor_native_session_id(editor_id), std::chrono::steady_clock::now()
+            );
+        }
+        auto runtime = std::make_shared<MeshInteractionAbiSession>();
+        runtime->handle = handle;
+        runtime->session_key = request->session_key;
+        runtime->editor_session_id = editor_id;
+        runtime->mesh_revision = request->mesh_revision;
+        runtime->selection_revision = request->selection_revision;
+        runtime->topology_generation = request->topology_generation;
+        runtime->camera_revision = request->camera_revision;
+        runtime->viewport_revision = request->viewport_revision;
+        {
+            std::unique_lock<std::shared_mutex> registry_lock(g_mesh_interaction_abi_registry_mutex);
+            g_mesh_interaction_abi_sessions[handle] = runtime;
+        }
+        MeshInteractionAbiSession& inserted = *runtime;
         MeshEditorSession* editor = mesh_interaction_abi_find_editor(inserted);
         std::map<int, MeshInteractionAbiDirtySet> dirty_sets;
         std::vector<CdmwMeshDirtyRangeV1> dirty;
         if (editor != nullptr) {
             ++inserted.interaction_generation;
-            mesh_interaction_abi_collect_full_dirty(*editor, dirty_sets);
+            mesh_interaction_abi_collect_full_dirty(inserted, dirty_sets);
             mesh_interaction_abi_append_dirty_sets(dirty_sets, inserted, dirty);
         }
         return mesh_interaction_abi_finish_result(inserted.handle ? &inserted : nullptr, result, dirty, {});
     } catch (const std::exception& error) {
-        g_mesh_editor_sessions.erase(editor_id);
-        g_mesh_sessions.erase(mesh_editor_native_session_id(editor_id));
+        {
+            std::unique_lock<std::shared_mutex> registry_lock(g_mesh_interaction_abi_registry_mutex);
+            g_mesh_interaction_abi_sessions.erase(handle);
+            g_mesh_interaction_abi_session_keys.erase(request->session_key);
+        }
+        {
+            std::unique_lock<std::shared_mutex> editor_registry_lock(
+                g_mesh_interaction_abi_editor_registry_mutex
+            );
+            g_mesh_editor_sessions.erase(editor_id);
+            g_mesh_sessions.erase(mesh_editor_native_session_id(editor_id));
+        }
         return mesh_interaction_abi_fail(result, CDMW_MESH_INTERACTION_INTERNAL_ERROR, error.what());
     }
 }
@@ -73,28 +94,38 @@ uint32_t interaction_abi_close(
     if (status != CDMW_MESH_INTERACTION_OK) return status;
     status = mesh_interaction_abi_validate_request(request, message);
     if (status != CDMW_MESH_INTERACTION_OK) return mesh_interaction_abi_fail(result, status, message);
-    std::lock_guard<std::mutex> lock(g_mesh_interaction_abi_mutex);
-    MeshInteractionAbiSession* runtime = mesh_interaction_abi_find_session(request->session_handle);
+    std::shared_ptr<MeshInteractionAbiSession> runtime;
+    {
+        std::unique_lock<std::shared_mutex> registry_lock(g_mesh_interaction_abi_registry_mutex);
+        runtime = mesh_interaction_abi_find_session(request->session_handle);
+        if (runtime != nullptr) {
+            g_mesh_interaction_abi_sessions.erase(runtime->handle);
+            g_mesh_interaction_abi_session_keys.erase(runtime->session_key);
+        }
+    }
     if (runtime == nullptr) {
         return mesh_interaction_abi_fail(
             result, CDMW_MESH_INTERACTION_SESSION_NOT_FOUND, "session handle is not open"
         );
     }
+    std::lock_guard<std::mutex> session_lock(runtime->mutex);
+    runtime->closed = true;
     try {
         MeshEditorSession* editor = mesh_interaction_abi_find_editor(*runtime);
         if (editor != nullptr && runtime->operator_state != CDMW_MESH_OPERATOR_IDLE) {
             mesh_interaction_abi_force_cancel(*runtime, *editor);
         }
-        const uint64_t handle = runtime->handle;
-        const uint64_t key = runtime->session_key;
         const std::string editor_id = runtime->editor_session_id;
         runtime->operator_state = CDMW_MESH_OPERATOR_IDLE;
-        status = mesh_interaction_abi_finish_result(runtime, result, {}, {});
-        (void)mesh_editor_close_session_report(
-            editor_id, mesh_editor_native_session_id(editor_id), std::chrono::steady_clock::now()
-        );
-        g_mesh_interaction_abi_sessions.erase(handle);
-        g_mesh_interaction_abi_session_keys.erase(key);
+        status = mesh_interaction_abi_finish_result(runtime.get(), result, {}, {});
+        {
+            std::unique_lock<std::shared_mutex> editor_registry_lock(
+                g_mesh_interaction_abi_editor_registry_mutex
+            );
+            (void)mesh_editor_close_session_report(
+                editor_id, mesh_editor_native_session_id(editor_id), std::chrono::steady_clock::now()
+            );
+        }
         return status;
     } catch (const std::exception& error) {
         return mesh_interaction_abi_fail(result, CDMW_MESH_INTERACTION_INTERNAL_ERROR, error.what());
@@ -180,11 +211,20 @@ uint32_t interaction_abi_sync(
             "viewport dimensions must be finite and positive"
         );
     }
-    std::lock_guard<std::mutex> lock(g_mesh_interaction_abi_mutex);
-    MeshInteractionAbiSession* runtime = mesh_interaction_abi_find_session(request->session_handle);
+    std::shared_ptr<MeshInteractionAbiSession> runtime;
+    {
+        std::shared_lock<std::shared_mutex> registry_lock(g_mesh_interaction_abi_registry_mutex);
+        runtime = mesh_interaction_abi_find_session(request->session_handle);
+    }
     if (runtime == nullptr) {
         return mesh_interaction_abi_fail(
             result, CDMW_MESH_INTERACTION_SESSION_NOT_FOUND, "session handle is not open"
+        );
+    }
+    std::lock_guard<std::mutex> session_lock(runtime->mutex);
+    if (runtime->closed) {
+        return mesh_interaction_abi_fail(
+            result, CDMW_MESH_INTERACTION_SESSION_NOT_FOUND, "session handle is closed"
         );
     }
     if (runtime->operator_state != CDMW_MESH_OPERATOR_IDLE) {
@@ -228,18 +268,22 @@ uint32_t interaction_abi_sync(
             runtime->viewport_height = request->viewport_height;
             runtime->viewport_revision = request->viewport_revision;
         }
+        if ((request->flags & (CDMW_MESH_SYNC_MESH | CDMW_MESH_SYNC_TOPOLOGY
+                | CDMW_MESH_SYNC_CAMERA | CDMW_MESH_SYNC_VIEWPORT)) != 0) {
+            runtime->snapshot.ready = false;
+        }
         ++runtime->interaction_generation;
         std::map<int, MeshInteractionAbiDirtySet> dirty_sets;
         std::vector<CdmwMeshDirtyRangeV1> dirty;
         std::vector<CdmwMeshSelectionChangeV1> changes;
         if ((request->flags & CDMW_MESH_SYNC_MESH) != 0) {
-            mesh_interaction_abi_collect_full_dirty(*editor, dirty_sets);
+            mesh_interaction_abi_collect_full_dirty(*runtime, dirty_sets);
             mesh_interaction_abi_append_dirty_sets(dirty_sets, *runtime, dirty);
         }
         mesh_interaction_abi_append_selection_changes(
             before_selection, editor->selection, *runtime, changes
         );
-        return mesh_interaction_abi_finish_result(runtime, result, dirty, changes);
+        return mesh_interaction_abi_finish_result(runtime.get(), result, dirty, changes);
     } catch (const std::exception& error) {
         return mesh_interaction_abi_fail(result, CDMW_MESH_INTERACTION_INVALID_ARGUMENT, error.what());
     }

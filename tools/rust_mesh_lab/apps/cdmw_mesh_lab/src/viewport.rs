@@ -6,11 +6,10 @@ use cdmw_interaction::{
     SculptTool, SelectionDomain, SelectionOperation, SelectionQuery, SelectionQueryStats,
     SelectionShape, query_selection, query_selection_with_stats, selection_after_operation,
 };
-use cdmw_mesh::{History, MeshError, Selection, VertexHandle, WorkingMesh};
+use cdmw_mesh::{History, MeshError, Provenance, Selection, VertexHandle, WorkingMesh};
 use egui::Rect;
 use glam::{Vec2, Vec3};
-use std::collections::VecDeque;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 const MAX_LASSO_POINTS: usize = 4_096;
 const MAX_POINTER_EVENTS: usize = 4_096;
@@ -31,7 +30,35 @@ pub struct PointerEventQueue {
 }
 
 impl PointerEventQueue {
+    pub fn push_primary_path_point(&mut self, point: Vec2) {
+        if self.events.len() < MAX_POINTER_EVENTS {
+            self.events
+                .push_back(ViewportPointerEvent::PrimaryMoved(point));
+        } else {
+            // Keep the queue bounded while retaining the latest point. This only
+            // coalesces after the path has already reached the safety limit.
+            self.push(ViewportPointerEvent::PrimaryMoved(point));
+        }
+    }
+
     pub fn push(&mut self, event: ViewportPointerEvent) {
+        if let Some(previous) = self.events.back_mut() {
+            match (previous, event) {
+                (
+                    ViewportPointerEvent::PrimaryMoved(current),
+                    ViewportPointerEvent::PrimaryMoved(next),
+                ) => {
+                    *current = next;
+                    return;
+                }
+                (ViewportPointerEvent::Orbit(current), ViewportPointerEvent::Orbit(delta))
+                | (ViewportPointerEvent::Pan(current), ViewportPointerEvent::Pan(delta)) => {
+                    *current += delta;
+                    return;
+                }
+                _ => {}
+            }
+        }
         if self.events.len() < MAX_POINTER_EVENTS {
             self.events.push_back(event);
             return;
@@ -98,6 +125,343 @@ pub enum BrushFalloff {
     Smooth,
     Linear,
     Constant,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SculptSymmetry {
+    #[default]
+    Off,
+    X,
+    Y,
+    Z,
+}
+
+impl SculptSymmetry {
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Off => "Off",
+            Self::X => "X",
+            Self::Y => "Y",
+            Self::Z => "Z",
+        }
+    }
+
+    #[must_use]
+    pub const fn axis_index(self) -> Option<usize> {
+        match self {
+            Self::Off => None,
+            Self::X => Some(0),
+            Self::Y => Some(1),
+            Self::Z => Some(2),
+        }
+    }
+
+    #[must_use]
+    pub fn reflect_point(self, mut value: Vec3) -> Vec3 {
+        if let Some(axis) = self.axis_index() {
+            value[axis] = -value[axis];
+        }
+        value
+    }
+
+    #[must_use]
+    pub fn plane_vector(self, mut value: Vec3) -> Vec3 {
+        if let Some(axis) = self.axis_index() {
+            value[axis] = 0.0;
+        }
+        value
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SculptSymmetryMap {
+    pub mode: SculptSymmetry,
+    partners: HashMap<VertexHandle, VertexHandle>,
+    plane_vertices: HashSet<VertexHandle>,
+    tolerance: f32,
+    unmatched_vertices: usize,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SymmetricSculptWeights {
+    pub combined: HashMap<VertexHandle, f32>,
+    pub primary: HashMap<VertexHandle, f32>,
+    pub mirrored: HashMap<VertexHandle, f32>,
+    pub plane: HashMap<VertexHandle, f32>,
+}
+
+impl SculptSymmetryMap {
+    #[must_use]
+    pub fn build(mesh: &WorkingMesh, mode: SculptSymmetry) -> Self {
+        let Some(axis) = mode.axis_index() else {
+            return Self {
+                mode,
+                ..Self::default()
+            };
+        };
+        let tolerance = symmetry_tolerance(mesh);
+        let mut memberships = mesh
+            .vertices()
+            .map(|(handle, vertex)| {
+                let membership = match vertex.provenance {
+                    Provenance::Source { submesh, .. } => vec![submesh],
+                    Provenance::Generated { .. } => Vec::new(),
+                };
+                (handle, membership)
+            })
+            .collect::<HashMap<_, _>>();
+        for (_, face) in mesh.faces() {
+            for handle in face.vertices {
+                if mesh
+                    .vertex(handle)
+                    .is_some_and(|vertex| matches!(vertex.provenance, Provenance::Generated { .. }))
+                {
+                    memberships.entry(handle).or_default().push(face.submesh);
+                }
+            }
+        }
+        for membership in memberships.values_mut() {
+            membership.sort_unstable();
+            membership.dedup();
+        }
+
+        let mut groups = BTreeMap::<Vec<u32>, Vec<VertexHandle>>::new();
+        let mut unmatched_vertices = 0;
+        for (handle, membership) in memberships {
+            if membership.is_empty() {
+                unmatched_vertices += 1;
+            } else {
+                groups.entry(membership).or_default().push(handle);
+            }
+        }
+        let mut partners = HashMap::new();
+        let mut plane_vertices = HashSet::new();
+        for handles in groups.values_mut() {
+            handles.sort_unstable();
+            let mut negative = Vec::new();
+            let mut positive_cells = BTreeMap::<(i64, i64, i64), Vec<VertexHandle>>::new();
+            for handle in handles.iter().copied() {
+                let Some(vertex) = mesh.vertex(handle) else {
+                    unmatched_vertices += 1;
+                    continue;
+                };
+                let position = Vec3::from_array(vertex.position);
+                if position[axis].abs() <= tolerance {
+                    partners.insert(handle, handle);
+                    plane_vertices.insert(handle);
+                } else if position[axis] < 0.0 {
+                    negative.push(handle);
+                } else {
+                    positive_cells
+                        .entry(symmetry_cell(position, tolerance))
+                        .or_default()
+                        .push(handle);
+                }
+            }
+            for candidates in positive_cells.values_mut() {
+                candidates.sort_unstable();
+            }
+            let mut used_positive = HashSet::new();
+            for negative_handle in negative {
+                let Some(negative_vertex) = mesh.vertex(negative_handle) else {
+                    unmatched_vertices += 1;
+                    continue;
+                };
+                let reflected = mode.reflect_point(Vec3::from_array(negative_vertex.position));
+                let cell = symmetry_cell(reflected, tolerance);
+                let mut best: Option<(f32, VertexHandle)> = None;
+                for x_offset in -1_i64..=1 {
+                    for y_offset in -1_i64..=1 {
+                        for z_offset in -1_i64..=1 {
+                            let neighbor = (
+                                cell.0.saturating_add(x_offset),
+                                cell.1.saturating_add(y_offset),
+                                cell.2.saturating_add(z_offset),
+                            );
+                            let Some(candidates) = positive_cells.get(&neighbor) else {
+                                continue;
+                            };
+                            for candidate in candidates.iter().copied() {
+                                if used_positive.contains(&candidate) {
+                                    continue;
+                                }
+                                let Some(vertex) = mesh.vertex(candidate) else {
+                                    continue;
+                                };
+                                let distance_squared =
+                                    Vec3::from_array(vertex.position).distance_squared(reflected);
+                                if distance_squared > tolerance * tolerance {
+                                    continue;
+                                }
+                                if best.is_none_or(|(best_distance, best_handle)| {
+                                    distance_squared < best_distance
+                                        || (distance_squared == best_distance
+                                            && candidate < best_handle)
+                                }) {
+                                    best = Some((distance_squared, candidate));
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Some((_, positive_handle)) = best {
+                    used_positive.insert(positive_handle);
+                    partners.insert(negative_handle, positive_handle);
+                    partners.insert(positive_handle, negative_handle);
+                } else {
+                    unmatched_vertices += 1;
+                }
+            }
+            let positive_count = positive_cells.values().map(Vec::len).sum::<usize>();
+            unmatched_vertices += positive_count.saturating_sub(used_positive.len());
+        }
+        Self {
+            mode,
+            partners,
+            plane_vertices,
+            tolerance,
+            unmatched_vertices,
+        }
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub fn tolerance(&self) -> f32 {
+        self.tolerance
+    }
+
+    #[must_use]
+    pub fn unmatched_vertices(&self) -> usize {
+        self.unmatched_vertices
+    }
+
+    #[must_use]
+    pub fn paired_vertices(&self) -> usize {
+        self.partners
+            .len()
+            .saturating_sub(self.plane_vertices.len())
+    }
+
+    #[must_use]
+    pub fn plane_vertices(&self) -> usize {
+        self.plane_vertices.len()
+    }
+
+    #[must_use]
+    pub fn partner(&self, handle: VertexHandle) -> Option<VertexHandle> {
+        self.partners.get(&handle).copied()
+    }
+
+    #[must_use]
+    pub fn expand_weights(
+        &self,
+        mesh: &WorkingMesh,
+        source: &HashMap<VertexHandle, f32>,
+    ) -> SymmetricSculptWeights {
+        if self.mode == SculptSymmetry::Off {
+            return SymmetricSculptWeights {
+                combined: source.clone(),
+                primary: source.clone(),
+                ..SymmetricSculptWeights::default()
+            };
+        }
+        let selected = mesh.selected_vertex_scope();
+        let allows = |handle: VertexHandle| selected.is_empty() || selected.contains(&handle);
+        let axis = self.mode.axis_index().unwrap_or(0);
+        let mut source_handles = source.keys().copied().collect::<Vec<_>>();
+        source_handles.sort_unstable();
+        let mut source_sign = 0.0_f32;
+        let mut strongest_weight = -1.0_f32;
+        for handle in &source_handles {
+            if self.partner(*handle).is_none() {
+                continue;
+            }
+            let weight = source.get(handle).copied().unwrap_or(0.0);
+            if weight > strongest_weight {
+                strongest_weight = weight;
+                source_sign = mesh
+                    .vertex(*handle)
+                    .map(|vertex| Vec3::from_array(vertex.position)[axis])
+                    .filter(|coordinate| coordinate.abs() > self.tolerance)
+                    .map_or(0.0, f32::signum);
+            }
+        }
+
+        let mut result = SymmetricSculptWeights::default();
+        let mut visited = HashSet::new();
+        for handle in source_handles {
+            let Some(partner) = self.partner(handle) else {
+                // With symmetry active an unmatched vertex is deliberately untouched.
+                continue;
+            };
+            if !visited.insert(handle) {
+                continue;
+            }
+            visited.insert(partner);
+            let weight = source
+                .get(&handle)
+                .copied()
+                .unwrap_or(0.0)
+                .max(source.get(&partner).copied().unwrap_or(0.0));
+            if weight <= 0.0 {
+                continue;
+            }
+            for target in [handle, partner] {
+                if !allows(target) || result.combined.contains_key(&target) {
+                    continue;
+                }
+                result.combined.insert(target, weight);
+                if self.plane_vertices.contains(&target) {
+                    result.plane.insert(target, weight);
+                    continue;
+                }
+                let coordinate = mesh
+                    .vertex(target)
+                    .map(|vertex| Vec3::from_array(vertex.position)[axis])
+                    .unwrap_or(0.0);
+                let primary = if source_sign == 0.0 {
+                    target <= partner.min(handle)
+                } else {
+                    coordinate.signum() == source_sign
+                };
+                if primary {
+                    result.primary.insert(target, weight);
+                } else {
+                    result.mirrored.insert(target, weight);
+                }
+            }
+        }
+        result
+    }
+}
+
+fn symmetry_tolerance(mesh: &WorkingMesh) -> f32 {
+    let mut minimum = Vec3::splat(f32::INFINITY);
+    let mut maximum = Vec3::splat(f32::NEG_INFINITY);
+    let mut magnitude = 0.0_f32;
+    for (_, vertex) in mesh.vertices() {
+        let position = Vec3::from_array(vertex.position);
+        minimum = minimum.min(position);
+        maximum = maximum.max(position);
+        magnitude = magnitude.max(position.abs().max_element());
+    }
+    let span = (maximum - minimum).max_element();
+    if !span.is_finite() || !magnitude.is_finite() {
+        return 1.0e-7;
+    }
+    (span * 1.0e-6)
+        .max(magnitude * f32::EPSILON * 8.0)
+        .max(1.0e-7)
+}
+
+fn symmetry_cell(position: Vec3, tolerance: f32) -> (i64, i64, i64) {
+    let quantize = |value: f32| (value / tolerance).floor() as i64;
+    (
+        quantize(position.x),
+        quantize(position.y),
+        quantize(position.z),
+    )
 }
 
 impl BrushFalloff {
@@ -197,6 +561,7 @@ pub struct ViewportProjection {
     pub rectangle: Rect,
     pub interaction: InteractionSnapshot,
     pub vertices: HashMap<VertexHandle, ProjectedVertex>,
+    visible_submeshes: Option<Vec<u32>>,
 }
 
 impl ViewportProjection {
@@ -207,8 +572,42 @@ impl ViewportProjection {
         rectangle: Rect,
         viewport_revision: u64,
     ) -> Self {
+        Self::build_with_visibility(mesh, camera, rectangle, viewport_revision, None)
+    }
+
+    #[must_use]
+    pub fn build_for_submeshes(
+        mesh: &WorkingMesh,
+        camera: &OrbitCamera,
+        rectangle: Rect,
+        viewport_revision: u64,
+        visible_submeshes: &HashSet<u32>,
+    ) -> Self {
+        Self::build_with_visibility(
+            mesh,
+            camera,
+            rectangle,
+            viewport_revision,
+            Some(visible_submeshes),
+        )
+    }
+
+    fn build_with_visibility(
+        mesh: &WorkingMesh,
+        camera: &OrbitCamera,
+        rectangle: Rect,
+        viewport_revision: u64,
+        visible_submeshes: Option<&HashSet<u32>>,
+    ) -> Self {
+        let visible_elements =
+            visible_submeshes.map(|submeshes| mesh.element_handles_for_submeshes(submeshes));
         let vertices = mesh
             .vertices()
+            .filter(|(handle, _)| {
+                visible_elements
+                    .as_ref()
+                    .is_none_or(|elements| elements.vertices.contains(handle))
+            })
             .filter_map(|(handle, vertex)| {
                 camera
                     .project(Vec3::from_array(vertex.position), rectangle)
@@ -224,13 +623,12 @@ impl ViewportProjection {
                     })
             })
             .collect::<HashMap<_, _>>();
-        let mut elements = Vec::with_capacity(
-            mesh.vertices()
-                .count()
-                .saturating_add(mesh.edges().count())
-                .saturating_add(mesh.faces().count()),
+        let mut elements = Vec::with_capacity(vertices.len().saturating_mul(3));
+        let mut depth_triangles = Vec::with_capacity(
+            visible_elements
+                .as_ref()
+                .map_or_else(|| mesh.faces().count(), |items| items.faces.len()),
         );
-        let mut depth_triangles = Vec::with_capacity(mesh.faces().count());
         elements.extend(mesh.vertices().filter_map(|(handle, _)| {
             vertices.get(&handle).map(|projected| ProjectedElement {
                 handle: ProjectedHandle::Vertex(handle),
@@ -240,6 +638,12 @@ impl ViewportProjection {
             })
         }));
         for (handle, edge) in mesh.edges() {
+            if visible_elements
+                .as_ref()
+                .is_some_and(|elements| !elements.edges.contains(&handle))
+            {
+                continue;
+            }
             let points = edge
                 .vertices
                 .iter()
@@ -255,6 +659,12 @@ impl ViewportProjection {
             }
         }
         for (handle, face) in mesh.faces() {
+            if visible_elements
+                .as_ref()
+                .is_some_and(|elements| !elements.faces.contains(&handle))
+            {
+                continue;
+            }
             let points = face
                 .vertices
                 .iter()
@@ -285,6 +695,11 @@ impl ViewportProjection {
                 depth_triangles,
             ),
             vertices,
+            visible_submeshes: visible_submeshes.map(|submeshes| {
+                let mut ordered = submeshes.iter().copied().collect::<Vec<_>>();
+                ordered.sort_unstable();
+                ordered
+            }),
         }
     }
 
@@ -296,11 +711,46 @@ impl ViewportProjection {
         rectangle: Rect,
         viewport_revision: u64,
     ) -> bool {
+        self.matches_with_visibility(mesh, camera, rectangle, viewport_revision, None)
+    }
+
+    #[must_use]
+    pub fn matches_for_submeshes(
+        &self,
+        mesh: &WorkingMesh,
+        camera: &OrbitCamera,
+        rectangle: Rect,
+        viewport_revision: u64,
+        visible_submeshes: &HashSet<u32>,
+    ) -> bool {
+        self.matches_with_visibility(
+            mesh,
+            camera,
+            rectangle,
+            viewport_revision,
+            Some(visible_submeshes),
+        )
+    }
+
+    fn matches_with_visibility(
+        &self,
+        mesh: &WorkingMesh,
+        camera: &OrbitCamera,
+        rectangle: Rect,
+        viewport_revision: u64,
+        visible_submeshes: Option<&HashSet<u32>>,
+    ) -> bool {
+        let requested = visible_submeshes.map(|submeshes| {
+            let mut ordered = submeshes.iter().copied().collect::<Vec<_>>();
+            ordered.sort_unstable();
+            ordered
+        });
         self.interaction.geometry_revision == mesh.geometry_revision
             && self.interaction.topology_generation == mesh.topology_generation
             && self.interaction.camera_revision == camera.revision()
             && self.interaction.viewport_revision == viewport_revision
             && self.rectangle == rectangle
+            && self.visible_submeshes == requested
     }
 }
 
@@ -326,6 +776,10 @@ pub struct EditGesture {
     pub axis: GizmoAxis,
     pub handles: HashSet<VertexHandle>,
     pub sculpt_weights: HashMap<VertexHandle, f32>,
+    pub symmetry_map: SculptSymmetryMap,
+    pub symmetry_primary_weights: HashMap<VertexHandle, f32>,
+    pub symmetry_mirrored_weights: HashMap<VertexHandle, f32>,
+    pub symmetry_plane_weights: HashMap<VertexHandle, f32>,
     pub pivot: Vec3,
     pub last_pointer: Vec2,
     pub last_sample: Vec2,
@@ -520,10 +974,41 @@ pub fn brush_vertex_weights(
         .collect())
 }
 
+pub fn brush_vertex_weights_unclipped(
+    projection: &ViewportProjection,
+    point: Vec2,
+    radius: f32,
+    visible_only: bool,
+    falloff: BrushFalloff,
+) -> Result<HashMap<VertexHandle, f32>, InteractionError> {
+    if !point.is_finite() || !radius.is_finite() || radius <= 0.0 {
+        return Err(InteractionError::InvalidShape);
+    }
+    let query = SelectionQuery {
+        domain: SelectionDomain::Vertex,
+        operation: SelectionOperation::Replace,
+        visible_only,
+        shape: SelectionShape::Brush { point, radius },
+        geometry_revision: projection.interaction.geometry_revision,
+        topology_generation: projection.interaction.topology_generation,
+        camera_revision: projection.interaction.camera_revision,
+        viewport_revision: projection.interaction.viewport_revision,
+    };
+    let handles = query_selection(&projection.interaction, &query)?.vertices;
+    Ok(handles
+        .into_iter()
+        .filter_map(|handle| {
+            let projected = projection.vertices.get(&handle)?;
+            let weight = falloff.weight(projected.screen.distance(point) / radius);
+            (weight > 0.0).then_some((handle, weight))
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cdmw_formats::{MeshFormat, decode_mesh};
+    use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh, decode_mesh};
 
     fn triangle() -> WorkingMesh {
         let document = decode_mesh(
@@ -535,6 +1020,59 @@ mod tests {
             .unwrap_or_else(|error| panic!("fixture mesh failed: {error}"))
     }
 
+    fn submesh(name: &str, positions: Vec<[f32; 3]>, indices: Vec<u32>) -> Submesh {
+        let vertex_count = positions.len();
+        Submesh {
+            name: name.to_owned(),
+            material: format!("{name}-material"),
+            positions,
+            normals: vec![[0.0, 0.0, 1.0]; vertex_count],
+            uvs: vec![[0.0, 0.0]; vertex_count],
+            indices,
+            source_vertex_indices: (0..vertex_count)
+                .map(|index| i32::try_from(index).unwrap_or(i32::MAX))
+                .collect(),
+            source_range: SourceRange {
+                offset: 0,
+                length: 0,
+            },
+            vertex_stride: 0,
+            layout: "symmetry-test".to_owned(),
+        }
+    }
+
+    fn symmetry_mesh() -> WorkingMesh {
+        let document = MeshDocument {
+            format: MeshFormat::Pam,
+            source_sha256: String::new(),
+            parser: "symmetry-test".to_owned(),
+            lod_count_reported: 1,
+            lods: vec![MeshLod {
+                level: 0,
+                submeshes: vec![submesh(
+                    "symmetric",
+                    vec![
+                        [-1.0, 0.0, 0.0],
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [2.0, 2.0, 0.0],
+                    ],
+                    vec![0, 1, 2],
+                )],
+            }],
+            warnings: Vec::new(),
+            structural_fingerprint: String::new(),
+        };
+        WorkingMesh::from_document(&document)
+            .unwrap_or_else(|error| panic!("symmetry fixture failed: {error}"))
+    }
+
+    fn handle_at(mesh: &WorkingMesh, position: [f32; 3]) -> VertexHandle {
+        mesh.vertices()
+            .find_map(|(handle, vertex)| (vertex.position == position).then_some(handle))
+            .unwrap_or_else(|| panic!("missing fixture vertex at {position:?}"))
+    }
+
     #[test]
     fn brush_falloff_profiles_are_bounded_and_distinct() {
         assert_eq!(BrushFalloff::Smooth.weight(0.0), 1.0);
@@ -544,6 +1082,95 @@ mod tests {
         assert_eq!(BrushFalloff::Constant.weight(0.75), 1.0);
         assert_eq!(BrushFalloff::Linear.weight(1.25), 0.0);
         assert_eq!(BrushFalloff::Smooth.weight(f32::NAN), 0.0);
+    }
+
+    #[test]
+    fn symmetry_pairing_is_deterministic_and_leaves_unmatched_vertices_out() {
+        let mesh = symmetry_mesh();
+        let negative = handle_at(&mesh, [-1.0, 0.0, 0.0]);
+        let positive = handle_at(&mesh, [1.0, 0.0, 0.0]);
+        let plane = handle_at(&mesh, [0.0, 1.0, 0.0]);
+        let unmatched = handle_at(&mesh, [2.0, 2.0, 0.0]);
+        let first = SculptSymmetryMap::build(&mesh, SculptSymmetry::X);
+        let second = SculptSymmetryMap::build(&mesh, SculptSymmetry::X);
+        assert_eq!(first.partner(negative), Some(positive));
+        assert_eq!(first.partner(positive), Some(negative));
+        assert_eq!(first.partner(plane), Some(plane));
+        assert_eq!(first.partner(unmatched), None);
+        assert_eq!(first.unmatched_vertices(), 1);
+        assert_eq!(first.paired_vertices(), 2);
+        assert_eq!(first.plane_vertices(), 1);
+        assert_eq!(first.partner(negative), second.partner(negative));
+        assert!(first.tolerance() > 0.0 && first.tolerance() < 1.0e-3);
+
+        let expanded = first.expand_weights(&mesh, &HashMap::from([(unmatched, 1.0)]));
+        assert!(expanded.combined.is_empty());
+    }
+
+    #[test]
+    fn symmetry_expansion_clips_the_mirror_to_the_explicit_selection() -> Result<(), MeshError> {
+        let mut mesh = symmetry_mesh();
+        let negative = handle_at(&mesh, [-1.0, 0.0, 0.0]);
+        let positive = handle_at(&mesh, [1.0, 0.0, 0.0]);
+        let symmetry = SculptSymmetryMap::build(&mesh, SculptSymmetry::X);
+        mesh.set_selection(Selection {
+            vertices: HashSet::from([negative]),
+            ..Selection::default()
+        })?;
+        let expanded = symmetry.expand_weights(&mesh, &HashMap::from([(negative, 0.75)]));
+        assert_eq!(expanded.combined, HashMap::from([(negative, 0.75)]));
+        assert!(!expanded.combined.contains_key(&positive));
+
+        mesh.set_selection(Selection {
+            vertices: HashSet::from([positive]),
+            ..Selection::default()
+        })?;
+        let mirrored_after_clip =
+            symmetry.expand_weights(&mesh, &HashMap::from([(negative, 0.75)]));
+        assert_eq!(
+            mirrored_after_clip.combined,
+            HashMap::from([(positive, 0.75)])
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn symmetry_never_pairs_vertices_across_submeshes_and_off_preserves_weights() {
+        let document = MeshDocument {
+            format: MeshFormat::Pam,
+            source_sha256: String::new(),
+            parser: "symmetry-submesh-test".to_owned(),
+            lod_count_reported: 1,
+            lods: vec![MeshLod {
+                level: 0,
+                submeshes: vec![
+                    submesh(
+                        "negative",
+                        vec![[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, -1.0, 0.0]],
+                        vec![0, 1, 2],
+                    ),
+                    submesh(
+                        "positive",
+                        vec![[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, -2.0, 0.0]],
+                        vec![0, 1, 2],
+                    ),
+                ],
+            }],
+            warnings: Vec::new(),
+            structural_fingerprint: String::new(),
+        };
+        let mesh = WorkingMesh::from_document(&document).expect("submesh symmetry fixture");
+        let negative = handle_at(&mesh, [-1.0, 0.0, 0.0]);
+        let positive = handle_at(&mesh, [1.0, 0.0, 0.0]);
+        let symmetry = SculptSymmetryMap::build(&mesh, SculptSymmetry::X);
+        assert_eq!(symmetry.partner(negative), None);
+        assert_eq!(symmetry.partner(positive), None);
+
+        let weights = HashMap::from([(negative, 0.5), (positive, 0.25)]);
+        let off = SculptSymmetryMap::build(&mesh, SculptSymmetry::Off);
+        let expanded = off.expand_weights(&mesh, &weights);
+        assert_eq!(expanded.combined, weights);
+        assert_eq!(expanded.primary, weights);
     }
 
     #[test]
@@ -590,6 +1217,53 @@ mod tests {
             BrushFalloff::Constant,
         )?;
         assert_eq!(restricted, HashMap::from([(center_handle, 1.0)]));
+        Ok(())
+    }
+
+    #[test]
+    fn layer_filtered_projection_excludes_hidden_geometry_from_picking()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut document = decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
+            MeshFormat::Pam,
+        )?;
+        let mut hidden = document.lods[0].submeshes[0].clone();
+        hidden.name = "hidden".to_owned();
+        for position in &mut hidden.positions {
+            position[0] += 10.0;
+        }
+        document.lods[0].submeshes.push(hidden);
+        let mesh = WorkingMesh::from_document(&document)?;
+        let camera = OrbitCamera::default();
+        let rectangle = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
+        let visible = HashSet::from([0]);
+        let projection =
+            ViewportProjection::build_for_submeshes(&mesh, &camera, rectangle, 7, &visible);
+
+        let allowed = mesh.element_handles_for_submeshes(&visible);
+        assert_eq!(projection.vertices.len(), 3);
+        assert_eq!(
+            projection
+                .interaction
+                .elements
+                .iter()
+                .filter(|element| matches!(element.handle, ProjectedHandle::Face(_)))
+                .count(),
+            1
+        );
+        assert!(
+            projection
+                .interaction
+                .elements
+                .iter()
+                .all(|element| match element.handle {
+                    ProjectedHandle::Vertex(handle) => allowed.vertices.contains(&handle),
+                    ProjectedHandle::Edge(handle) => allowed.edges.contains(&handle),
+                    ProjectedHandle::Face(handle) => allowed.faces.contains(&handle),
+                })
+        );
+        assert!(projection.matches_for_submeshes(&mesh, &camera, rectangle, 7, &visible));
+        assert!(!projection.matches(&mesh, &camera, rectangle, 7));
         Ok(())
     }
 
@@ -800,6 +1474,49 @@ mod tests {
         assert_eq!(
             events.last(),
             Some(&ViewportPointerEvent::PrimaryReleased(release))
+        );
+    }
+
+    #[test]
+    fn pointer_queue_coalesces_motion_without_losing_navigation_distance() {
+        let mut queue = PointerEventQueue::default();
+        queue.push(ViewportPointerEvent::PrimaryPressed(Vec2::ZERO));
+        queue.push(ViewportPointerEvent::PrimaryMoved(Vec2::new(1.0, 2.0)));
+        queue.push(ViewportPointerEvent::PrimaryMoved(Vec2::new(4.0, 8.0)));
+        queue.push(ViewportPointerEvent::PrimaryReleased(Vec2::new(4.0, 8.0)));
+        queue.push(ViewportPointerEvent::Orbit(Vec2::new(1.0, -2.0)));
+        queue.push(ViewportPointerEvent::Orbit(Vec2::new(3.0, 5.0)));
+        queue.push(ViewportPointerEvent::Pan(Vec2::new(-2.0, 1.0)));
+        queue.push(ViewportPointerEvent::Pan(Vec2::new(0.5, 2.0)));
+
+        assert_eq!(
+            queue.drain().collect::<Vec<_>>(),
+            vec![
+                ViewportPointerEvent::PrimaryPressed(Vec2::ZERO),
+                ViewportPointerEvent::PrimaryMoved(Vec2::new(4.0, 8.0)),
+                ViewportPointerEvent::PrimaryReleased(Vec2::new(4.0, 8.0)),
+                ViewportPointerEvent::Orbit(Vec2::new(4.0, 3.0)),
+                ViewportPointerEvent::Pan(Vec2::new(-1.5, 3.0)),
+            ]
+        );
+    }
+
+    #[test]
+    fn pointer_queue_preserves_explicit_path_points_for_lasso_input() {
+        let mut queue = PointerEventQueue::default();
+        queue.push(ViewportPointerEvent::PrimaryPressed(Vec2::ZERO));
+        queue.push_primary_path_point(Vec2::new(1.0, 2.0));
+        queue.push_primary_path_point(Vec2::new(4.0, 8.0));
+        queue.push(ViewportPointerEvent::PrimaryReleased(Vec2::new(4.0, 8.0)));
+
+        assert_eq!(
+            queue.drain().collect::<Vec<_>>(),
+            vec![
+                ViewportPointerEvent::PrimaryPressed(Vec2::ZERO),
+                ViewportPointerEvent::PrimaryMoved(Vec2::new(1.0, 2.0)),
+                ViewportPointerEvent::PrimaryMoved(Vec2::new(4.0, 8.0)),
+                ViewportPointerEvent::PrimaryReleased(Vec2::new(4.0, 8.0)),
+            ]
         );
     }
 }

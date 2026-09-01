@@ -124,6 +124,23 @@ internal struct NativeMeshInteractionGestureV1
 }
 
 [StructLayout(LayoutKind.Sequential)]
+internal struct NativeMeshInteractionPrepareSnapshotV1
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal ulong SessionHandle;
+    internal ulong MeshRevision;
+    internal ulong SelectionRevision;
+    internal ulong TopologyGeneration;
+    internal ulong CameraRevision;
+    internal ulong ViewportRevision;
+    internal ulong VisiblePartsRevision;
+    internal ulong ModelTransformRevision;
+    internal uint XRay;
+    internal uint Reserved;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 internal struct NativeMeshInteractionAuthorityV1
 {
     internal uint StructSize;

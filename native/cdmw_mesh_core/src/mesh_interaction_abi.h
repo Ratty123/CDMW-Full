@@ -36,7 +36,8 @@ typedef enum CdmwMeshInteractionStructId {
     CDMW_MESH_STRUCT_DIRTY_RANGE_V1 = 9,
     CDMW_MESH_STRUCT_SELECTION_CHANGE_V1 = 10,
     CDMW_MESH_STRUCT_RESULT_V1 = 11,
-    CDMW_MESH_STRUCT_PROJECTION_V1 = 12
+    CDMW_MESH_STRUCT_PROJECTION_V1 = 12,
+    CDMW_MESH_STRUCT_PREPARE_SNAPSHOT_V1 = 13
 } CdmwMeshInteractionStructId;
 
 typedef enum CdmwMeshInteractionSyncFlags {
@@ -195,6 +196,21 @@ typedef struct CdmwMeshInteractionGestureV1 {
     const double* points_xy;
 } CdmwMeshInteractionGestureV1;
 
+typedef struct CdmwMeshInteractionPrepareSnapshotV1 {
+    uint32_t struct_size;
+    uint32_t struct_version;
+    uint64_t session_handle;
+    uint64_t mesh_revision;
+    uint64_t selection_revision;
+    uint64_t topology_generation;
+    uint64_t camera_revision;
+    uint64_t viewport_revision;
+    uint64_t visible_parts_revision;
+    uint64_t model_transform_revision;
+    uint32_t xray;
+    uint32_t reserved;
+} CdmwMeshInteractionPrepareSnapshotV1;
+
 typedef struct CdmwMeshInteractionAuthorityV1 {
     uint32_t struct_size;
     uint32_t struct_version;
@@ -284,6 +300,10 @@ CDMW_MESH_INTERACTION_API uint32_t cdmw_mesh_interaction_close(
 );
 CDMW_MESH_INTERACTION_API uint32_t cdmw_mesh_interaction_sync(
     const CdmwMeshInteractionSyncV1* request,
+    CdmwMeshInteractionResultV1* result
+);
+CDMW_MESH_INTERACTION_API uint32_t cdmw_mesh_interaction_prepare_snapshot_v1(
+    const CdmwMeshInteractionPrepareSnapshotV1* request,
     CdmwMeshInteractionResultV1* result
 );
 CDMW_MESH_INTERACTION_API uint32_t cdmw_mesh_interaction_begin(

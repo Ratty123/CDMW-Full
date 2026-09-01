@@ -12,7 +12,7 @@ internal sealed unsafe class NativeMeshInteractionAbi : IDisposable
     internal const string ExpectedContract = "cdmw_mesh_interaction_abi_v1";
     internal const string ExpectedBackend = "cdmw_mesh_core_0.1";
     internal const string ExpectedHeaderSha256 =
-        "7F03F15B094D27DA678E0658C23338B58B87774A7671AD418ECEE90D2607E440";
+        "603044AF6B01430939112DA0CD173B15674E43B3E3BED92D67B55BB2D1A9840A";
 
     private readonly object _lifetimeGate = new();
     private readonly nint _libraryHandle;
@@ -24,6 +24,7 @@ internal sealed unsafe class NativeMeshInteractionAbi : IDisposable
     private readonly delegate* unmanaged[Cdecl]<NativeMeshInteractionOpenV1*, NativeMeshInteractionResultV1*, uint> _open;
     private readonly delegate* unmanaged[Cdecl]<NativeMeshInteractionSessionV1*, NativeMeshInteractionResultV1*, uint> _close;
     private readonly delegate* unmanaged[Cdecl]<NativeMeshInteractionSyncV1*, NativeMeshInteractionResultV1*, uint> _sync;
+    private readonly delegate* unmanaged[Cdecl]<NativeMeshInteractionPrepareSnapshotV1*, NativeMeshInteractionResultV1*, uint> _prepareSnapshot;
     private readonly delegate* unmanaged[Cdecl]<NativeMeshInteractionGestureV1*, NativeMeshInteractionResultV1*, uint> _begin;
     private readonly delegate* unmanaged[Cdecl]<NativeMeshInteractionGestureV1*, NativeMeshInteractionResultV1*, uint> _update;
     private readonly delegate* unmanaged[Cdecl]<NativeMeshInteractionGestureV1*, NativeMeshInteractionResultV1*, uint> _end;
@@ -31,6 +32,8 @@ internal sealed unsafe class NativeMeshInteractionAbi : IDisposable
     private readonly delegate* unmanaged[Cdecl]<NativeMeshInteractionAuthorityV1*, NativeMeshInteractionResultV1*, uint> _applyAuthoritative;
     private readonly delegate* unmanaged[Cdecl]<NativeMeshInteractionVertexReadV1*, NativeMeshInteractionResultV1*, uint> _readVertices;
     private int _activeSessions;
+    private int _activeCalls;
+    private bool _disposeRequested;
     private bool _disposed;
 
     private NativeMeshInteractionAbi(nint libraryHandle, string libraryPath, string librarySha256)
@@ -44,6 +47,7 @@ internal sealed unsafe class NativeMeshInteractionAbi : IDisposable
         _open = (delegate* unmanaged[Cdecl]<NativeMeshInteractionOpenV1*, NativeMeshInteractionResultV1*, uint>)GetExport("cdmw_mesh_interaction_open");
         _close = (delegate* unmanaged[Cdecl]<NativeMeshInteractionSessionV1*, NativeMeshInteractionResultV1*, uint>)GetExport("cdmw_mesh_interaction_close");
         _sync = (delegate* unmanaged[Cdecl]<NativeMeshInteractionSyncV1*, NativeMeshInteractionResultV1*, uint>)GetExport("cdmw_mesh_interaction_sync");
+        _prepareSnapshot = (delegate* unmanaged[Cdecl]<NativeMeshInteractionPrepareSnapshotV1*, NativeMeshInteractionResultV1*, uint>)GetExport("cdmw_mesh_interaction_prepare_snapshot_v1");
         _begin = (delegate* unmanaged[Cdecl]<NativeMeshInteractionGestureV1*, NativeMeshInteractionResultV1*, uint>)GetExport("cdmw_mesh_interaction_begin");
         _update = (delegate* unmanaged[Cdecl]<NativeMeshInteractionGestureV1*, NativeMeshInteractionResultV1*, uint>)GetExport("cdmw_mesh_interaction_update");
         _end = (delegate* unmanaged[Cdecl]<NativeMeshInteractionGestureV1*, NativeMeshInteractionResultV1*, uint>)GetExport("cdmw_mesh_interaction_end");
@@ -137,8 +141,12 @@ internal sealed unsafe class NativeMeshInteractionAbi : IDisposable
             {
                 throw new InvalidOperationException("Close every native mesh interaction session before unloading its DLL.");
             }
-            NativeLibrary.Free(_libraryHandle);
-            _disposed = true;
+            if (_activeCalls != 0)
+            {
+                _disposeRequested = true;
+                return;
+            }
+            CompleteDisposeLocked();
         }
     }
 
@@ -151,6 +159,11 @@ internal sealed unsafe class NativeMeshInteractionAbi : IDisposable
         ref NativeMeshInteractionGestureV1 request,
         NativeMeshInteractionResultBuffer buffer
     ) => Invoke(ref request, buffer, _begin);
+
+    internal NativeMeshInteractionResult PrepareSnapshot(
+        ref NativeMeshInteractionPrepareSnapshotV1 request,
+        NativeMeshInteractionResultBuffer buffer
+    ) => Invoke(ref request, buffer, _prepareSnapshot);
 
     internal NativeMeshInteractionResult Update(
         ref NativeMeshInteractionGestureV1 request,
@@ -240,6 +253,7 @@ internal sealed unsafe class NativeMeshInteractionAbi : IDisposable
             [NativeMeshInteractionStructId.SelectionChangeV1] = NativeMeshInteractionMarshaller.SizeOf<NativeMeshSelectionChangeV1>(),
             [NativeMeshInteractionStructId.ResultV1] = NativeMeshInteractionMarshaller.SizeOf<NativeMeshInteractionResultV1>(),
             [NativeMeshInteractionStructId.ProjectionV1] = NativeMeshInteractionMarshaller.SizeOf<NativeMeshProjectionV1>(),
+            [NativeMeshInteractionStructId.PrepareSnapshotV1] = NativeMeshInteractionMarshaller.SizeOf<NativeMeshInteractionPrepareSnapshotV1>(),
         };
         foreach ((NativeMeshInteractionStructId id, uint managedSize) in expected)
         {
@@ -261,7 +275,22 @@ internal sealed unsafe class NativeMeshInteractionAbi : IDisposable
         lock (_lifetimeGate)
         {
             ThrowIfDisposed();
+            ++_activeCalls;
+        }
+        try
+        {
             return InvokeUnchecked(ref request, buffer, operation);
+        }
+        finally
+        {
+            lock (_lifetimeGate)
+            {
+                --_activeCalls;
+                if (_activeCalls == 0 && _activeSessions == 0 && _disposeRequested)
+                {
+                    CompleteDisposeLocked();
+                }
+            }
         }
     }
 
@@ -303,6 +332,13 @@ internal sealed unsafe class NativeMeshInteractionAbi : IDisposable
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposed || _disposeRequested, this);
+    }
+
+    private void CompleteDisposeLocked()
+    {
+        NativeLibrary.Free(_libraryHandle);
+        _disposed = true;
+        _disposeRequested = false;
     }
 }

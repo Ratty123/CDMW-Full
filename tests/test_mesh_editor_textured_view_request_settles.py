@@ -14,7 +14,16 @@ import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+pytestmark = pytest.mark.skip(
+    reason=(
+        "The direct Vortice textured-view acknowledgement bridge is retired; Rust "
+        "owns texture readiness and honest fallback state in its session package."
+    )
+)
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication

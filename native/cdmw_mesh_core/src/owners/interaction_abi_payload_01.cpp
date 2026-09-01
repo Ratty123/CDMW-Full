@@ -226,14 +226,27 @@ uint32_t mesh_interaction_abi_validate_selections(
     return CDMW_MESH_INTERACTION_OK;
 }
 
-MeshInteractionAbiSession* mesh_interaction_abi_find_session(uint64_t handle) {
+std::shared_ptr<MeshInteractionAbiSession> mesh_interaction_abi_find_session(uint64_t handle) {
     const auto found = g_mesh_interaction_abi_sessions.find(handle);
-    return found == g_mesh_interaction_abi_sessions.end() ? nullptr : &found->second;
+    return found == g_mesh_interaction_abi_sessions.end() ? nullptr : found->second;
 }
 
 MeshEditorSession* mesh_interaction_abi_find_editor(const MeshInteractionAbiSession& session) {
+    std::shared_lock<std::shared_mutex> editor_registry_lock(
+        g_mesh_interaction_abi_editor_registry_mutex
+    );
     const auto found = g_mesh_editor_sessions.find(session.editor_session_id);
     return found == g_mesh_editor_sessions.end() ? nullptr : &found->second;
+}
+
+std::map<int, MeshSessionSubmesh>* mesh_interaction_abi_find_submeshes(
+    const MeshInteractionAbiSession& session
+) {
+    std::shared_lock<std::shared_mutex> editor_registry_lock(
+        g_mesh_interaction_abi_editor_registry_mutex
+    );
+    const auto found = g_mesh_sessions.find(mesh_editor_native_session_id(session.editor_session_id));
+    return found == g_mesh_sessions.end() ? nullptr : &found->second;
 }
 
 bool mesh_interaction_abi_revisions_match(
@@ -255,85 +268,9 @@ std::string mesh_interaction_abi_tool_name(uint32_t tool) {
     return "";
 }
 
-std::string mesh_interaction_abi_selection_target(uint32_t target) {
-    if (target == CDMW_MESH_SELECTION_EDGE) return "edge";
-    if (target == CDMW_MESH_SELECTION_FACE) return "face";
-    return "vertex";
-}
-
 std::string mesh_interaction_abi_selection_operation(uint32_t operation) {
     if (operation == CDMW_MESH_SELECTION_ADD) return "add";
     if (operation == CDMW_MESH_SELECTION_SUBTRACT) return "subtract";
     if (operation == CDMW_MESH_SELECTION_TOGGLE) return "toggle";
     return "replace";
-}
-
-JsonValue mesh_interaction_abi_projection_json(const std::array<double, 16>& matrix) {
-    JsonValue projection = mesh_interaction_abi_json_array();
-    for (const double value : matrix) {
-        projection.array_value.push_back(mesh_interaction_abi_json_number(value));
-    }
-    return projection;
-}
-
-void mesh_interaction_abi_add_projection(
-    JsonValue& value,
-    const MeshInteractionAbiSession& session
-) {
-    value.object_value["viewport_width"] = mesh_interaction_abi_json_number(session.viewport_width);
-    value.object_value["viewport_height"] = mesh_interaction_abi_json_number(session.viewport_height);
-    value.object_value["world_view_projection"] = mesh_interaction_abi_projection_json(
-        session.world_view_projection
-    );
-    JsonValue source_indices = mesh_interaction_abi_json_array();
-    JsonValue overrides = mesh_interaction_abi_json_array();
-    for (const auto& item : session.submesh_world_view_projections) {
-        source_indices.array_value.push_back(mesh_interaction_abi_json_number(item.first));
-        JsonValue override = mesh_interaction_abi_json_object();
-        override.object_value["source_submesh_index"] = mesh_interaction_abi_json_number(item.first);
-        override.object_value["world_view_projection"] = mesh_interaction_abi_projection_json(
-            item.second
-        );
-        overrides.array_value.push_back(std::move(override));
-    }
-    value.object_value["source_submesh_indices"] = std::move(source_indices);
-    value.object_value["source_submesh_world_view_projections"] = std::move(overrides);
-}
-
-JsonValue mesh_interaction_abi_brush_json(
-    const MeshInteractionAbiSession& session,
-    const CdmwMeshInteractionGestureV1& request
-) {
-    JsonValue brush = mesh_interaction_abi_json_object();
-    brush.object_value["x"] = mesh_interaction_abi_json_number(request.current_x);
-    brush.object_value["y"] = mesh_interaction_abi_json_number(request.current_y);
-    brush.object_value["radius_pixels"] = mesh_interaction_abi_json_number(request.radius_pixels);
-    mesh_interaction_abi_add_projection(brush, session);
-    return brush;
-}
-
-JsonValue mesh_interaction_abi_region_json(
-    const MeshInteractionAbiSession& session,
-    const CdmwMeshInteractionGestureV1& request
-) {
-    JsonValue region = mesh_interaction_abi_json_object();
-    const char* mode = request.selection_shape == CDMW_MESH_SELECTION_LASSO ? "lasso" : "rectangle";
-    region.object_value["mode"] = mesh_interaction_abi_json_string(mode);
-    region.object_value["start_x"] = mesh_interaction_abi_json_number(request.start_x);
-    region.object_value["start_y"] = mesh_interaction_abi_json_number(request.start_y);
-    region.object_value["end_x"] = mesh_interaction_abi_json_number(request.current_x);
-    region.object_value["end_y"] = mesh_interaction_abi_json_number(request.current_y);
-    if (request.point_count > 0) {
-        JsonValue points = mesh_interaction_abi_json_array();
-        for (uint32_t index = 0; index < request.point_count; ++index) {
-            const double* point = request.points_xy + static_cast<std::size_t>(index) * 2;
-            JsonValue pair = mesh_interaction_abi_json_array();
-            pair.array_value.push_back(mesh_interaction_abi_json_number(point[0]));
-            pair.array_value.push_back(mesh_interaction_abi_json_number(point[1]));
-            points.array_value.push_back(std::move(pair));
-        }
-        region.object_value["points"] = std::move(points);
-    }
-    mesh_interaction_abi_add_projection(region, session);
-    return region;
 }

@@ -51,6 +51,82 @@ def _texture_maps(*paths: str):
 
 
 class ArchivePreviewTextureBindingSupportTests(unittest.TestCase):
+    def test_pgm_nude_skin_wrapper_wins_exact_standard_duplicate(self) -> None:
+        source_entry = _entry(
+            "character/model/1_pc/9_pgm/nude/cd_pgm_00_nude_00_0001.pac"
+        )
+        owner_name = "cd_pgm_00_nude_00_0001"
+        material_path = "character/texture/cd_phm_00_nude_00_0001_sp.dds"
+        by_normalized, by_basename = _texture_maps(material_path)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name=owner_name, texture_name=owner_name)],
+        )
+        common = {
+            "texture_path": material_path,
+            "parameter_name": "_materialTexture",
+            "submesh_name": owner_name,
+            "part_name": owner_name,
+            "material_name": owner_name,
+            "sidecar_kind": "pac_xml",
+            "parameter_declared_by": "pac_xml",
+            "binding_authority": "authoritative",
+            "binding_disposition": "layer_material_response",
+        }
+        # Deliberately put Standard first. The real PGM PAC XML contains both
+        # wrappers for this exact owner and DDS, so source order cannot decide
+        # whether the skin ``_sp`` channel contract survives.
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                shader_family="SkinnedMeshStandard",
+                owner_slot_index=6,
+                owner_wrapper_item_id="pgm-standard-body",
+                source_kind="crimson_layer_material_response",
+                **common,
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                shader_family="SkinnedMeshSkin",
+                owner_slot_index=2,
+                owner_wrapper_item_id="pgm-skin-body",
+                source_kind="crimson_skin_material_response",
+                **common,
+            ),
+        )
+
+        _attach_model_sidecar_texture_preview_paths(
+            source_entry,
+            model,
+            parsed_mesh=None,
+            sidecar_texture_bindings=bindings,
+        )
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        mesh = model.meshes[0]
+        material_inputs = tuple(
+            item
+            for item in mesh.preview_material_texture_inputs
+            if item.parameter_name == "_materialTexture"
+        )
+        self.assertEqual("SkinnedMeshSkin", mesh.preview_sidecar_shader_family)
+        self.assertEqual(1, len(material_inputs))
+        self.assertEqual("SkinnedMeshSkin", material_inputs[0].shader_family)
+        self.assertEqual(
+            "crimson_skin_material_response",
+            material_inputs[0].source_kind,
+        )
+        self.assertEqual("pgm-skin-body", material_inputs[0].owner_wrapper_item_id)
+
     def test_emissive_sidecar_binding_uses_emissive_channel_not_base(self) -> None:
         source_entry = _entry("character/model/cd_test_lantern.pac")
         emissive_path = "character/texture/cd_test_lantern_emissive.dds"

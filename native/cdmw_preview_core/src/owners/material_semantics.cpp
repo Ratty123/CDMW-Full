@@ -322,6 +322,63 @@ static std::array<float, 4> color_parameter_value(const std::string& raw_value) 
     return color;
 }
 
+static bool color_parameter_value_has_visible_alpha(const std::string& raw_value) {
+    std::string text = raw_value;
+    if (!text.empty() && text.front() == '#') text.erase(text.begin());
+    if (text.size() != 6 && text.size() != 8) return false;
+    if (!std::all_of(text.begin(), text.end(), [](unsigned char ch) {
+        return std::isxdigit(ch) != 0;
+    })) return false;
+    if (text.size() == 6) return true;
+    try {
+        return std::stoi(text.substr(6, 2), nullptr, 16) > 0;
+    } catch (...) {
+        return false;
+    }
+}
+
+static bool preview_relevant_material_parameter(const MaterialParameterRecord& parameter) {
+    const std::string key = normalized_key(parameter.name);
+    if (key.empty()) return false;
+    if (parameter.kind == "color") {
+        return key.find("color") != std::string::npos
+            || key.find("tint") != std::string::npos
+            || key.find("dyeing") != std::string::npos;
+    }
+    if (key.find("dyeing") != std::string::npos
+        || key.find("grime") != std::string::npos
+        || key.find("opacity") != std::string::npos
+        || key.find("alpha") != std::string::npos) return true;
+    if (parameter.kind == "bitflag32" || parameter.kind == "uint"
+        || parameter.kind == "int" || parameter.kind == "bool") {
+        return key.find("color") != std::string::npos;
+    }
+    return key.find("roughness") != std::string::npos
+        || key.find("metallic") != std::string::npos
+        || key.find("metalness") != std::string::npos
+        || key.find("specular") != std::string::npos
+        || key.find("brightness") != std::string::npos
+        || key.find("height") != std::string::npos
+        || key.find("displacement") != std::string::npos
+        || key.find("emissive") != std::string::npos
+        || key.find("cloth") != std::string::npos
+        || key.find("sheen") != std::string::npos;
+}
+
+static std::vector<MaterialParameterRecord> filtered_preview_material_parameters(
+    const std::vector<MaterialParameterRecord>& parameters
+) {
+    constexpr size_t kMaximumPreviewMaterialParameters = 128;
+    std::vector<MaterialParameterRecord> filtered;
+    filtered.reserve(std::min(parameters.size(), kMaximumPreviewMaterialParameters));
+    for (const MaterialParameterRecord& parameter : parameters) {
+        if (!preview_relevant_material_parameter(parameter)) continue;
+        filtered.push_back(parameter);
+        if (filtered.size() >= kMaximumPreviewMaterialParameters) break;
+    }
+    return filtered;
+}
+
 static std::vector<MaterialParameterRecord> extract_material_parameters(const std::string& scope_text) {
     std::vector<MaterialParameterRecord> records;
     const std::vector<std::pair<std::string, std::string>> parameter_tags = {

@@ -324,6 +324,20 @@ class ArchivePreviewDotNetLifecycleMixin:
         self._archive_pending_texture_result = None
         self._archive_textures_visible = bool(success and self._archive_active_package_has_textures())
         self._sync_archive_texture_action_state()
+        notify_mesh_editor = getattr(
+            self,
+            "_finish_pending_rust_mesh_editor_texture_launch",
+            None,
+        )
+        if callable(notify_mesh_editor):
+            QTimer.singleShot(
+                0,
+                lambda request_id=int(request_id), success=bool(success), message=str(message or ""): notify_mesh_editor(
+                    request_id=request_id,
+                    success=success,
+                    message=message,
+                ),
+            )
         if success:
             self._archive_texture_retry_count = 0
             return True

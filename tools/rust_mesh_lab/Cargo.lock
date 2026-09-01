@@ -422,6 +422,7 @@ dependencies = [
  "cdmw_oracle",
  "cdmw_render_wgpu",
  "cdmw_texture",
+ "cdmw_win32_embed",
  "crossbeam-channel",
  "egui",
  "egui-wgpu",
@@ -429,6 +430,10 @@ dependencies = [
  "glam",
  "pollster",
  "rfd",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
  "thiserror 2.0.20",
  "tracing",
  "tracing-subscriber",
@@ -485,6 +490,14 @@ dependencies = [
  "cdmw_evidence",
  "serde",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "cdmw_win32_embed"
+version = "0.1.0"
+dependencies = [
+ "raw-window-handle",
+ "winit",
 ]
 
 [[package]]

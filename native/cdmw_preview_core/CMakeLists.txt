@@ -17,6 +17,7 @@ set(PREVIEW_CORE_OWNER_SOURCES
     src/owners/material_semantics.cpp
     src/owners/material_graph.cpp
     src/owners/material_resolution.cpp
+    src/owners/material_layer_support.cpp
     src/owners/material_selection.cpp
     src/owners/material_archive_lookup.cpp
     src/owners/material_binding_build.cpp

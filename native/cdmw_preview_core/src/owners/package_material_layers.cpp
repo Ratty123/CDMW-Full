@@ -92,13 +92,13 @@ static float material_category_confidence(const std::string& category, const std
 
 static bool promoted_global_material_response(const TextureBinding* material) {
     if (material == nullptr) return false;
+    if (binding_is_layer_selector_mask(*material)) return false;
     const std::string packed = lower_copy(material->packed_channels);
-    const std::string parameter_key = normalized_key(material->parameter_name);
-    const std::string path = lower_copy(material->archive_path + " " + material->texture_name);
+    if (packed.find("layer:") != std::string::npos) return false;
     if (packed.find("r=occlusion") != std::string::npos && packed.find("g=roughness") != std::string::npos && packed.find("b=metalness") != std::string::npos) {
         return true;
     }
-    return parameter_key == "colorblendingmasktexture" && path.find("_ma") != std::string::npos;
+    return false;
 }
 
 static std::string material_response_disposition(const TextureBinding* material, const TextureBinding* specular, const std::string& category) {
@@ -118,23 +118,77 @@ static bool layer_channel_matches(const TextureBinding& binding, const std::stri
     return binding.layer_channel.empty() || channel.empty() || binding.layer_channel == channel;
 }
 
+static bool same_exact_material_wrapper(
+    const TextureBinding& owner,
+    const TextureBinding& candidate
+);
+
+static bool exact_layer_aux_parameter_matches(
+    const std::string& parameter,
+    const std::string& desired_role,
+    const std::string& layer_role,
+    const std::string& channel
+) {
+    if (desired_role == "mask") {
+        return parameter == "masktexture"
+            || parameter.find("detailmask") != std::string::npos
+            || parameter.find("colorblendingmask") != std::string::npos
+            || parameter.find("blendingmask") != std::string::npos;
+    }
+    if (channel.empty() || !parameter.ends_with(channel)) return false;
+    if (desired_role == "normal") {
+        return parameter.find(layer_role + "normal") != std::string::npos;
+    }
+    if (desired_role == "material") {
+        return parameter.find(layer_role + "material") != std::string::npos;
+    }
+    if (desired_role == "height") {
+        return parameter.find(layer_role + "height") != std::string::npos;
+    }
+    return false;
+}
+
 static const TextureBinding* find_layer_aux_binding(
     const std::vector<const TextureBinding*>& bindings,
+    const TextureBinding& owner,
     const std::string& desired_role,
     const std::string& layer_role,
     const std::string& channel
 ) {
     const TextureBinding* best = nullptr;
     int best_score = -1000;
+    const bool exact_owner = owner.source_authority == "exact_sidecar"
+        && owner.material_output_quality == "exact"
+        && owner.material_wrapper_order_authoritative
+        && owner.material_wrapper_index >= 0
+        && !owner.sidecar_path.empty();
     for (const TextureBinding* binding : bindings) {
         if (binding == nullptr || binding->source_path.empty()) continue;
-        int score = -1000;
         const std::string parameter = normalized_key(binding->parameter_name);
         const std::string binding_layer = lower_copy(binding->layer_role);
+        if (exact_owner) {
+            if (binding->source_authority != "exact_sidecar"
+                || binding->material_output_quality != "exact"
+                || !binding->material_wrapper_order_authoritative
+                || !same_exact_material_wrapper(owner, *binding)) {
+                continue;
+            }
+            if (desired_role != "mask"
+                && (binding_layer != layer_role
+                    || lower_copy(binding->layer_channel) != lower_copy(channel))) {
+                continue;
+            }
+            if (!exact_layer_aux_parameter_matches(
+                    parameter, desired_role, layer_role, lower_copy(channel))) {
+                continue;
+            }
+        }
+        int score = -1000;
         if (desired_role == "mask") {
             if (layer_role == "detail" && (parameter.find("detailmask") != std::string::npos || binding->role == "detail")) score = 120;
             else if ((layer_role == "grime" || layer_role == "layer") && (parameter.find("colorblendingmask") != std::string::npos || parameter.find("blendingmask") != std::string::npos)) score = 118;
             else if (layer_role == "damage" && parameter.find("mask") != std::string::npos) score = 104;
+            else if (exact_owner && parameter == "masktexture") score = 112;
             else if (binding->role == "detail") score = 42;
         } else if (desired_role == "normal") {
             if (binding->role == "normal") score = 72;
@@ -147,9 +201,10 @@ static const TextureBinding* find_layer_aux_binding(
             if (parameter.find("detailmaterial") != std::string::npos && layer_role == "detail") score += 64;
             if (parameter.find("grimematerial") != std::string::npos && layer_role == "grime") score += 64;
         } else if (desired_role == "height") {
-            if (binding->role == "height") score = 52;
-            if (parameter.find(layer_role + "height") != std::string::npos) score += 66;
-            if (parameter.find("detailheight") != std::string::npos && layer_role == "detail") score += 66;
+            // `_heightTexture` belongs to the whole material. Only an authored
+            // role-specific height parameter may displace an individual layer.
+            if (binding->role == "height"
+                && parameter.find(layer_role + "height") != std::string::npos) score = 118;
         }
         if (score <= -1000) continue;
         if (binding_layer == layer_role) score += 18;
@@ -161,6 +216,248 @@ static const TextureBinding* find_layer_aux_binding(
         }
     }
     return best_score >= 40 ? best : nullptr;
+}
+
+static bool same_exact_material_wrapper(
+    const TextureBinding& owner,
+    const TextureBinding& candidate
+) {
+    if (owner.material_wrapper_index < 0
+        || candidate.material_wrapper_index != owner.material_wrapper_index) {
+        return false;
+    }
+    const std::string owner_sidecar = lower_copy(owner.sidecar_path);
+    return !owner_sidecar.empty() && owner_sidecar == lower_copy(candidate.sidecar_path);
+}
+
+static bool binding_is_explicit_layer_channel_base(const TextureBinding* base) {
+    if (base == nullptr || base->role != "base" || base->layer_channel.empty()) return false;
+    const std::string layer_role = lower_copy(base->layer_role);
+    if (layer_role != "detail" && layer_role != "grime"
+        && layer_role != "damage" && layer_role != "layer") return false;
+    return binding_is_layer_diffuse(*base, base, true);
+}
+
+static bool binding_matches_base_layer_aux_role(
+    const TextureBinding& binding,
+    const std::string& desired_role,
+    const std::string& layer_role
+) {
+    const std::string parameter = normalized_key(binding.parameter_name);
+    if (desired_role == "normal") {
+        return binding.role == "normal"
+            && parameter.find(layer_role + "normal") != std::string::npos;
+    }
+    if (desired_role == "height") {
+        return binding.role == "height"
+            && parameter.find(layer_role + "height") != std::string::npos;
+    }
+    if (desired_role == "material") {
+        if (binding.role != "material" && binding.role != "specular") return false;
+        return parameter.find(layer_role + "material") != std::string::npos;
+    }
+    return false;
+}
+
+static const TextureBinding* find_base_layer_aux_companion(
+    const std::vector<const TextureBinding*>& bindings,
+    const TextureBinding* base,
+    const std::string& desired_role
+) {
+    if (!binding_is_explicit_layer_channel_base(base)) return nullptr;
+    const std::string layer_role = lower_copy(base->layer_role);
+    const std::string layer_channel = lower_copy(base->layer_channel);
+    if (layer_role.empty() || layer_channel.empty()) return nullptr;
+
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr || binding->source_path.empty()) continue;
+        if (!binding_matches_base_layer_aux_role(*binding, desired_role, layer_role)) continue;
+        if (!same_exact_material_wrapper(*base, *binding)) continue;
+        if (lower_copy(binding->layer_role) != layer_role
+            || lower_copy(binding->layer_channel) != layer_channel) continue;
+        return binding;
+    }
+    return nullptr;
+}
+
+static const TextureBinding* best_skin_detail_selector(
+    const std::vector<const TextureBinding*>& bindings,
+    const TextureBinding* base
+) {
+    const TextureBinding* best = nullptr;
+    int best_score = -1;
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr || binding->source_path.empty()
+            || normalized_key(binding->parameter_name) != "skindetailmasktexture") continue;
+        const std::string family = lower_copy(binding->shader_rule + " " + binding->shader_family);
+        if (binding->shader_rule != "skin" && family.find("skinnedmeshskin") == std::string::npos) continue;
+        int score = binding->material_output_quality == "exact" ? 40 : 0;
+        if (base != nullptr && same_exact_material_wrapper(*base, *binding)) score += 100;
+        if (binding->source_authority == "exact_sidecar") score += 20;
+        if (score > best_score) {
+            best = binding;
+            best_score = score;
+        }
+    }
+    return best;
+}
+
+static const TextureBinding* exact_skin_detail_companion(
+    const std::vector<const TextureBinding*>& bindings,
+    const TextureBinding& selector,
+    const char* parameter_name
+) {
+    const std::string wanted = normalized_key(parameter_name);
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr || binding->source_path.empty()) continue;
+        if (normalized_key(binding->parameter_name) != wanted) continue;
+        if (same_exact_material_wrapper(selector, *binding)) return binding;
+    }
+    return nullptr;
+}
+
+static void append_skin_detail_support_layer(
+    const std::vector<const TextureBinding*>& bindings,
+    const TextureBinding* base,
+    std::vector<MaterialLayer>& layers
+) {
+    const TextureBinding* selector = best_skin_detail_selector(bindings, base);
+    if (selector == nullptr || placeholder_layer_mask_path(selector->archive_path)
+        || placeholder_layer_mask_path(selector->texture_name)) return;
+    const TextureBinding* normal = exact_skin_detail_companion(
+        bindings, *selector, "_skinDetailNormalTexture");
+    const TextureBinding* material = exact_skin_detail_companion(
+        bindings, *selector, "_skinDetailMaterialTexture");
+    if (normal == nullptr && material == nullptr) return;
+
+    MaterialLayer layer;
+    layer.layer_role = "skin_detail";
+    layer.layer_channel = "r";
+    layer.shader_family = selector->shader_family;
+    layer.shader_rule = selector->shader_rule;
+    layer.evidence_grade = selector->evidence_grade;
+    layer.blend_order = "base_then_skin_detail_support";
+    layer.source_parameter = selector->parameter_name;
+    layer.mask_parameter = selector->parameter_name;
+    layer.mask_source = selector->source_path;
+    layer.mask_archive_path = selector->archive_path;
+    layer.weight = std::clamp(selector->layer_weight, 0.0f, 1.0f);
+    layer.detail_scale = std::max(0.0f, selector->detail_scale);
+    if (normal != nullptr) {
+        layer.normal_source = normal->source_path;
+        layer.normal_archive_path = normal->archive_path;
+    }
+    if (material != nullptr) {
+        layer.material_source = material->source_path;
+        layer.material_archive_path = material->archive_path;
+        layer.roughness_hint = material->roughness_hint;
+        layer.metalness_hint = material->metalness_hint;
+        layer.specular_hint = material->specular_hint;
+    }
+    layers.push_back(std::move(layer));
+}
+
+static bool binding_has_cloth_support_evidence(const TextureBinding& binding) {
+    const std::string evidence = lower_copy(
+        binding.shader_rule + " " + binding.shader_family + " "
+        + binding.pbd_simulation_material_name + " " + binding.pbd_simulation_kind + " "
+        + binding.pbd_material_name);
+    return evidence.find("cloth") != std::string::npos
+        || evidence.find("fabric") != std::string::npos
+        || evidence.find("textile") != std::string::npos;
+}
+
+static bool exact_layer_diffuse_companion_exists(
+    const std::vector<const TextureBinding*>& bindings,
+    const TextureBinding& owner,
+    const std::string& layer_role,
+    const std::string& layer_channel
+) {
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr || binding->source_path.empty()) continue;
+        if (binding->source_authority != "exact_sidecar"
+            || binding->material_output_quality != "exact"
+            || !binding->material_wrapper_order_authoritative
+            || binding->material_wrapper_index < 0
+            || binding->sidecar_path.empty()) continue;
+        if (!same_exact_material_wrapper(owner, *binding)) continue;
+        if (lower_copy(binding->layer_role) != layer_role
+            || lower_copy(binding->layer_channel) != layer_channel) continue;
+        const std::string parameter = normalized_key(binding->parameter_name);
+        if (binding->role == "base"
+            && parameter.find(layer_role + "diffuse") != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void append_cloth_normal_support_layers(
+    const std::vector<const TextureBinding*>& bindings,
+    const NativeSubmesh& mesh,
+    std::vector<MaterialLayer>& layers
+) {
+    for (const TextureBinding* normal : bindings) {
+        if (normal == nullptr || normal->source_path.empty()
+            || normal->role != "normal"
+            || !exact_authored_layer_binding_matches_mesh(*normal, mesh)
+            || !binding_has_cloth_support_evidence(*normal)) {
+            continue;
+        }
+        const std::string parameter = normalized_key(normal->parameter_name);
+        const std::string layer_role = lower_copy(normal->layer_role);
+        const std::string layer_channel = lower_copy(normal->layer_channel);
+        if (layer_role != "detail" || layer_channel.empty()
+            || parameter.find("detailnormal") == std::string::npos
+            || !parameter.ends_with(layer_channel)) {
+            continue;
+        }
+        if (exact_layer_diffuse_companion_exists(
+                bindings, *normal, layer_role, layer_channel)) {
+            continue;
+        }
+
+        const TextureBinding* selector = nullptr;
+        for (const TextureBinding* candidate : bindings) {
+            if (candidate == nullptr || candidate->source_path.empty()
+                || !same_exact_material_wrapper(*normal, *candidate)
+                || candidate->source_authority != "exact_sidecar"
+                || candidate->material_output_quality != "exact"
+                || !candidate->material_wrapper_order_authoritative) {
+                continue;
+            }
+            const std::string selector_parameter = normalized_key(candidate->parameter_name);
+            if (selector_parameter == "masktexture"
+                || selector_parameter == "detailmasktexture") {
+                selector = candidate;
+                if (selector_parameter == "detailmasktexture") break;
+            }
+        }
+        if (selector == nullptr
+            || placeholder_layer_mask_path(selector->archive_path)
+            || placeholder_layer_mask_path(selector->texture_name)) {
+            continue;
+        }
+
+        MaterialLayer layer;
+        layer.layer_role = "cloth_detail";
+        layer.layer_channel = layer_channel;
+        layer.shader_family = normal->shader_family;
+        layer.shader_rule = normal->shader_rule;
+        layer.evidence_grade = normal->evidence_grade;
+        layer.blend_order = "base_then_cloth_detail_support";
+        layer.source_parameter = normal->parameter_name;
+        layer.mask_parameter = selector->parameter_name;
+        layer.mask_source = selector->source_path;
+        layer.mask_archive_path = selector->archive_path;
+        layer.normal_source = normal->source_path;
+        layer.normal_archive_path = normal->archive_path;
+        layer.weight = std::clamp(
+            normal->layer_weight <= 0.001f ? 1.0f : normal->layer_weight,
+            0.0f, 1.0f);
+        layer.detail_scale = std::max(normal->detail_scale, selector->detail_scale);
+        layers.push_back(std::move(layer));
+    }
 }
 
 static MaterialLayer make_base_material_layer(
@@ -238,15 +535,47 @@ static void apply_layer_weight_and_tint_policy(
     layer.weight = std::clamp(layer.weight <= 0.001f ? 0.14f : layer.weight, 0.0f, 0.22f);
 }
 
+static bool material_parameter_name_list_contains(
+    const std::string& parameter_names,
+    const std::string& candidate
+) {
+    const std::string candidate_key = normalized_key(candidate);
+    size_t start = 0;
+    while (start <= parameter_names.size()) {
+        const size_t end = parameter_names.find(',', start);
+        const std::string token = parameter_names.substr(
+            start,
+            end == std::string::npos ? std::string::npos : end - start);
+        if (normalized_key(token) == candidate_key) return true;
+        if (end == std::string::npos) break;
+        start = end + 1;
+    }
+    return false;
+}
+
+static std::string color_seed_parameter_from_names(
+    const std::string& parameter_names,
+    const char channel
+) {
+    const std::string suffix(1, static_cast<char>(std::toupper(channel)));
+    const std::string candidate = "_dyeingColorMask" + suffix;
+    return material_parameter_name_list_contains(parameter_names, candidate)
+        ? candidate : "";
+}
+
 static std::vector<MaterialLayer> compile_color_blending_seed_layers(
     const std::vector<const TextureBinding*>& bindings,
-    const TextureBinding* base
+    const TextureBinding* base,
+    const NativeSubmesh& mesh
 ) {
     const TextureBinding* selector = nullptr;
     int selector_score = -1;
     for (const TextureBinding* binding : bindings) {
         if (binding == nullptr || binding->source_path.empty()
             || normalized_key(binding->parameter_name) != "colorblendingmasktexture") continue;
+        if (binding->source_authority == "exact_sidecar"
+            && binding->material_wrapper_order_authoritative
+            && !exact_authored_layer_binding_matches_mesh(*binding, mesh)) continue;
         int score = binding->material_output_quality == "exact" ? 20 : 0;
         if (base != nullptr && binding->sidecar_path == base->sidecar_path) score += 40;
         if (base != nullptr && binding->material_wrapper_index == base->material_wrapper_index) score += 20;
@@ -264,10 +593,20 @@ static std::vector<MaterialLayer> compile_color_blending_seed_layers(
             && palette_owner->material_wrapper_index != selector->material_wrapper_index)) {
         palette_owner = selector;
     }
-    const std::string parameter_names = lower_copy(palette_owner->material_parameter_names);
-    if (parameter_names.find("tintcolorr") == std::string::npos
-        || parameter_names.find("tintcolorg") == std::string::npos
-        || parameter_names.find("tintcolorb") == std::string::npos) return {};
+    std::array<std::string, 3> channel_sources;
+    bool has_visible_seed = false;
+    for (size_t channel = 0; channel < channel_sources.size(); ++channel) {
+        channel_sources[channel] = color_seed_parameter_from_names(
+            palette_owner->material_parameter_names,
+            "rgb"[channel]);
+        if (channel_sources[channel].empty()
+            || palette_owner->color_blending_tints[channel][3] <= 0.0f) {
+            channel_sources[channel].clear();
+            continue;
+        }
+        has_visible_seed = true;
+    }
+    if (!has_visible_seed) return {};
 
     std::vector<MaterialLayer> result;
     result.reserve(palette_owner->color_blending_tints.size());
@@ -279,7 +618,7 @@ static std::vector<MaterialLayer> compile_color_blending_seed_layers(
         layer.shader_rule = palette_owner->shader_rule;
         layer.evidence_grade = palette_owner->evidence_grade;
         layer.blend_order = "pac_rgb_selector_palette";
-        layer.source_parameter = std::string("_tintColor") + static_cast<char>(std::toupper("rgb"[channel]));
+        layer.source_parameter = channel_sources[channel];
         layer.mask_parameter = selector->parameter_name;
         layer.diffuse_source = base != nullptr && !base->source_path.empty()
             ? base->source_path : palette_owner->source_path;
@@ -288,7 +627,9 @@ static std::vector<MaterialLayer> compile_color_blending_seed_layers(
         layer.mask_source = selector->source_path;
         layer.mask_archive_path = selector->archive_path;
         layer.weight = 1.0f;
-        layer.tint = palette_owner->color_blending_tints[channel];
+        layer.tint = channel_sources[channel].empty()
+            ? std::array<float, 4>{0.0f, 0.0f, 0.0f, 0.0f}
+            : palette_owner->color_blending_tints[channel];
         result.push_back(std::move(layer));
     }
     return result;
@@ -312,16 +653,51 @@ static std::vector<MaterialLayer> compile_material_layers(
     const std::string& visible_texture_mode
 ) {
     std::vector<MaterialLayer> layers;
-    layers.push_back(make_base_material_layer(base, normal, material, height, specular, hints));
+    const bool base_is_layer_channel = binding_is_explicit_layer_channel_base(base);
+    const TextureBinding* base_normal = base_is_layer_channel
+        ? find_base_layer_aux_companion(bindings, base, "normal")
+        : normal;
+    const TextureBinding* base_material = base_is_layer_channel
+        ? find_base_layer_aux_companion(bindings, base, "material")
+        : material;
+    const TextureBinding* base_height = base_is_layer_channel
+        ? find_base_layer_aux_companion(bindings, base, "height")
+        : height;
+    // A layer-channel diffuse owns a same-wrapper response companion. The
+    // globally selected material is commonly `_colorBlendingMaskTexture`
+    // (`*_ma`) and remains a selector/mask; it must not become the layer's
+    // roughness/metalness surface. Ordinary direct base/material pairs retain
+    // the existing global material/specular path.
+    const TextureBinding* base_specular = base_is_layer_channel ? nullptr : specular;
+    layers.push_back(make_base_material_layer(
+        base, base_normal, base_material, base_height, base_specular, hints));
+    // Skin and wrinkle shaders hold their own albedo and still return early
+    // below.  Preserve their separately masked normal/material micro-detail
+    // before that guard; this layer deliberately has no diffuse texture.
+    append_skin_detail_support_layer(bindings, base, layers);
+    // Cloth can author a masked micro-normal without a matching diffuse or
+    // response texture. Preserve that support-only layer as-authored instead
+    // of inventing a colour layer from a nearby texture-family sibling.
+    append_cloth_normal_support_layers(bindings, mesh, layers);
     const std::string mode = normalize_visible_texture_mode(visible_texture_mode);
     if (shader_rule_holds_layer_albedo(bindings)) {
         return layers;
     }
-    if (mode == "mesh_base_first" && !shader_rule_supports_conservative_layer_stack(bindings)) {
+    if (mode == "mesh_base_first" && !shader_rule_supports_conservative_layer_stack(bindings, mesh)) {
         return layers;
     }
-    const std::vector<MaterialLayer> color_seed_layers = compile_color_blending_seed_layers(bindings, base);
+    const std::vector<MaterialLayer> color_seed_layers = compile_color_blending_seed_layers(bindings, base, mesh);
     layers.insert(layers.end(), color_seed_layers.begin(), color_seed_layers.end());
+    const bool exact_authored_layer_stack = std::any_of(
+        bindings.begin(), bindings.end(), [&mesh](const TextureBinding* binding) {
+            if (binding == nullptr
+                || !exact_authored_layer_binding_matches_mesh(*binding, mesh)
+                || binding->role != "base") return false;
+            const std::string parameter = normalized_key(binding->parameter_name);
+            return parameter.find("detaildiffuse") != std::string::npos
+                || parameter.find("grimediffuse") != std::string::npos
+                || parameter.find("dyediffuse") != std::string::npos;
+        });
     const bool weapon_layer_stack =
         mesh_has_crimson_weapon_surface(mesh)
         && !mesh_local_surface_has_strong_nonmetal_token(mesh)
@@ -333,6 +709,8 @@ static std::vector<MaterialLayer> compile_material_layers(
     for (const TextureBinding* binding : bindings) {
         const bool selected_base_layer = binding == base;
         if (binding == nullptr || !binding_is_layer_diffuse(*binding, base, weapon_layer_stack && selected_base_layer)) continue;
+        if (exact_authored_layer_stack
+            && !exact_authored_layer_binding_matches_mesh(*binding, mesh)) continue;
         const std::string binding_shader_rule = lower_copy(binding->shader_rule);
         const std::string binding_shader_family = lower_copy(binding->shader_family);
         const bool held_shader =
@@ -363,10 +741,10 @@ static std::vector<MaterialLayer> compile_material_layers(
         layer.diffuse_archive_path = binding->archive_path;
         layer.source_parameter = binding->parameter_name;
         layer.blend_order = "base_then_" + layer.layer_role;
-        const TextureBinding* mask = find_layer_aux_binding(bindings, "mask", layer.layer_role, layer.layer_channel);
-        const TextureBinding* layer_normal = find_layer_aux_binding(bindings, "normal", layer.layer_role, layer.layer_channel);
-        const TextureBinding* layer_material = find_layer_aux_binding(bindings, "material", layer.layer_role, layer.layer_channel);
-        const TextureBinding* layer_height = find_layer_aux_binding(bindings, "height", layer.layer_role, layer.layer_channel);
+        const TextureBinding* mask = find_layer_aux_binding(bindings, *binding, "mask", layer.layer_role, layer.layer_channel);
+        const TextureBinding* layer_normal = find_layer_aux_binding(bindings, *binding, "normal", layer.layer_role, layer.layer_channel);
+        const TextureBinding* layer_material = find_layer_aux_binding(bindings, *binding, "material", layer.layer_role, layer.layer_channel);
+        const TextureBinding* layer_height = find_layer_aux_binding(bindings, *binding, "height", layer.layer_role, layer.layer_channel);
         if (mask == nullptr) {
             continue;
         }
@@ -388,6 +766,7 @@ static std::vector<MaterialLayer> compile_material_layers(
         layer.mask_source = mask->source_path;
         layer.mask_archive_path = mask->archive_path;
         layer.mask_parameter = mask->parameter_name;
+        layer.detail_scale = std::max(0.0f, binding->detail_scale);
         const bool weapon_tinted_detail_layer =
             mesh_has_crimson_weapon_surface(mesh)
             && lower_copy(layer.layer_role).find("detail") != std::string::npos
@@ -428,9 +807,10 @@ static std::vector<MaterialLayer> compile_material_layers(
             layer.height_scale_hint = std::max(layer.height_scale_hint, layer_height->height_scale_hint);
         }
         layers.push_back(layer);
-        if ((!weapon_layer_stack && layers.size() >= 5) || (weapon_layer_stack && layers.size() >= 9)) break;
+        const size_t layer_limit = exact_authored_layer_stack ? 17u : (weapon_layer_stack ? 9u : 5u);
+        if (layers.size() >= layer_limit) break;
     }
-    if (weapon_layer_stack && layers.size() > 5) {
+    if (weapon_layer_stack && !exact_authored_layer_stack && layers.size() > 5) {
         std::vector<MaterialLayer> overlays(layers.begin() + 1, layers.end());
         std::stable_sort(overlays.begin(), overlays.end(), [base](const MaterialLayer& left, const MaterialLayer& right) {
             auto priority = [base](const MaterialLayer& layer) -> int {
@@ -476,6 +856,7 @@ static std::string material_layer_json(const MaterialLayer& layer) {
         << "\"mask_source\":\"" << json_escape(layer.mask_source) << "\","
         << "\"mask_archive_path\":\"" << json_escape(layer.mask_archive_path) << "\","
         << "\"weight\":" << layer.weight << ","
+        << "\"detail_scale\":" << layer.detail_scale << ","
         << "\"roughness_hint\":" << layer.roughness_hint << ","
         << "\"metalness_hint\":" << layer.metalness_hint << ","
         << "\"specular_hint\":" << layer.specular_hint << ","

@@ -89,6 +89,7 @@ internal enum NativeMeshInteractionStructId : uint
     SelectionChangeV1 = 10,
     ResultV1 = 11,
     ProjectionV1 = 12,
+    PrepareSnapshotV1 = 13,
 }
 
 internal sealed record NativeMeshSubmeshData(
@@ -166,6 +167,17 @@ internal sealed class NativeMeshInteractionGestureRequest
     public double DeltaZ { get; init; }
     public double[] PointsXy { get; init; } = [];
 }
+
+internal sealed record NativeMeshInteractionPrepareSnapshotRequest(
+    ulong MeshRevision,
+    ulong SelectionRevision,
+    ulong TopologyGeneration,
+    ulong CameraRevision,
+    ulong ViewportRevision,
+    ulong VisiblePartsRevision,
+    ulong ModelTransformRevision,
+    bool XRay
+);
 
 internal sealed record NativeMeshInteractionAuthorityRequest(
     ulong GestureId,

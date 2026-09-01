@@ -46,6 +46,142 @@ def _author_command() -> MeshEditCommand:
     )
 
 
+def test_morph_runtime_state_capture_is_absent_without_initializing_native_morph(tmp_path) -> None:
+    service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+    session_id = service.open_edit_session(_driver_garment_mesh(), mode="edit").session_id
+    try:
+        with patch(
+            "cdmw.services.mesh_service_morph.create_native_mesh_editor_morph_runtime_snapshot",
+            side_effect=AssertionError("unused Morph & Refit sessions must not open native runtime"),
+        ):
+            captured = service.capture_morph_session_state(session_id)
+        assert captured.present is False
+        assert captured.native_snapshot is None
+        assert captured.cache is None
+        assert captured.retained_bytes == 0
+        assert service.install_morph_session_state(session_id, captured) is None
+        assert session_id not in service._morph_sessions
+    finally:
+        service.close_edit_session(session_id)
+
+
+def test_morph_runtime_state_transfers_unsaved_profile_refit_without_recomposition(tmp_path) -> None:
+    mesh = _driver_garment_mesh()
+    service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+    source_session_id = service.open_edit_session(mesh, mode="edit").session_id
+    target_session_id = ""
+    captured = None
+    try:
+        assert service.apply_command(source_session_id, _author_command()).ok
+        assert service.set_refit_driver(source_session_id, (0, 1))[0].ok
+        assert service.bind_refit(source_session_id, (2,))[0].ok
+        assert service.configure_refit(
+            source_session_id,
+            (2,),
+            enabled=True,
+            intensity_percent=125.0,
+            mode="rigid",
+            clearance_percent=1.0,
+        )[0].ok
+        assert service.set_morph_value(
+            source_session_id,
+            "volume",
+            75.0,
+            phase="end",
+            change_id="state-transfer",
+        )[0].ok
+
+        deformed = service.working_mesh(source_session_id, clone=True)
+        source_cache = service._morph_sessions[source_session_id]
+        captured = service.capture_morph_session_state(source_session_id)
+        captured_cache = captured.cache
+        snapshot_path = Path(str(captured.native_snapshot["path"]))  # type: ignore[index]
+
+        assert captured.present is True
+        assert captured.retained_bytes > 0
+        assert snapshot_path.is_file()
+        assert captured_cache is not source_cache
+        assert captured_cache.profile is not source_cache.profile  # type: ignore[union-attr]
+        assert captured_cache.known_profiles is not source_cache.known_profiles  # type: ignore[union-attr]
+        assert captured_cache.topology_mesh is not source_cache.topology_mesh  # type: ignore[union-attr]
+        assert not (tmp_path / "mesh_slider_profiles" / "definitions" / "resident-body.json").exists()
+
+        target_session_id = service.open_edit_session(deformed, mode="edit").session_id
+        before_install = service.working_mesh(target_session_id, clone=True)
+        installed = service.install_morph_session_state(target_session_id, captured)
+        after_install = service.working_mesh(target_session_id, clone=True)
+        target_cache = service._morph_sessions[target_session_id]
+
+        assert installed is not None
+        assert installed.session_id == target_session_id
+        assert installed.profile_id == "resident-body"
+        assert installed.values == (("volume", 75.0),)
+        assert installed.refit.driver_submesh_indices == (0, 1)
+        assert installed.refit.garment_submesh_indices == (2,)
+        assert installed.refit.garment_settings[0].intensity_percent == pytest.approx(125.0)
+        assert installed.refit.garment_settings[0].mode == "rigid"
+        assert installed.refit.garment_settings[0].clearance_percent == pytest.approx(1.0)
+        assert tuple(submesh.vertices for submesh in after_install.submeshes) == tuple(
+            submesh.vertices for submesh in before_install.submeshes
+        )
+        assert target_cache is not captured_cache
+        assert target_cache.profile is not captured_cache.profile  # type: ignore[union-attr]
+        assert target_cache.known_profiles is not captured_cache.known_profiles  # type: ignore[union-attr]
+        assert target_cache.topology_mesh is not captured_cache.topology_mesh  # type: ignore[union-attr]
+
+        changed, changed_state = service.set_morph_value(
+            target_session_id,
+            "volume",
+            50.0,
+            phase="end",
+            change_id="state-transfer-target",
+        )
+        assert changed.ok
+        assert changed_state.values == (("volume", 50.0),)
+        changed_mesh = service.working_mesh(target_session_id, clone=True)
+        assert changed_mesh.submeshes[0].vertices[0][2] == pytest.approx(
+            after_install.submeshes[0].vertices[0][2] - 0.25
+        )
+    finally:
+        if target_session_id:
+            service.close_edit_session(target_session_id)
+        service.close_edit_session(source_session_id)
+        if captured is not None:
+            snapshot_path = Path(str(captured.native_snapshot["path"]))  # type: ignore[index]
+            service.dispose_morph_session_state(captured)
+            assert captured.native_snapshot is None
+            assert captured.retained_bytes == 0
+            assert not snapshot_path.exists()
+
+
+def test_morph_runtime_state_capture_disposes_native_snapshot_when_cache_clone_fails(tmp_path) -> None:
+    service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+    session_id = service.open_edit_session(_driver_garment_mesh(), mode="edit").session_id
+    try:
+        assert service.apply_command(session_id, _author_command()).ok
+        from cdmw.services import mesh_service_morph
+
+        real_dispose = mesh_service_morph.dispose_native_mesh_editor_morph_runtime_snapshot
+        with (
+            patch(
+                "cdmw.services.mesh_service_morph._clone_mesh_for_service_native_snapshot",
+                side_effect=RuntimeError("injected topology clone failure"),
+            ),
+            patch(
+                "cdmw.services.mesh_service_morph.dispose_native_mesh_editor_morph_runtime_snapshot",
+                wraps=real_dispose,
+            ) as dispose,
+            pytest.raises(RuntimeError, match="injected topology clone failure"),
+        ):
+            service.capture_morph_session_state(session_id)
+
+        assert dispose.call_count == 1
+        disposed_snapshot = dispose.call_args.args[0]
+        assert not Path(str(disposed_snapshot["path"])).exists()
+    finally:
+        service.close_edit_session(session_id)
+
+
 def test_morph_authoring_expands_selected_parts_inside_service_boundary(tmp_path) -> None:
     mesh = _driver_garment_mesh()
     service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
@@ -356,7 +492,7 @@ def test_definition_delete_recomputes_driver_identity_even_when_profile_becomes_
         service.close_edit_session(session_id)
 
 
-def test_preset_and_active_profile_delete_clear_runtime_state_without_hidden_history(tmp_path) -> None:
+def test_preset_and_active_profile_delete_are_reversible_history_transactions(tmp_path) -> None:
     mesh = _driver_garment_mesh()
     baseline = tuple(mesh.submeshes[0].vertices)
     service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
@@ -404,7 +540,21 @@ def test_preset_and_active_profile_delete_clear_runtime_state_without_hidden_his
         assert deleted_state.definitions == ()
         assert deleted_state.available_profiles == ()
         assert tuple(service.working_mesh(session_id, clone=True).submeshes[0].vertices) == baseline
-        assert service.history_usage(session_id)["undo_count"] == history_before_delete
+        assert service.history_usage(session_id)["undo_count"] == history_before_delete + 1
         assert not profile_path.exists()
+
+        assert service.undo(session_id).ok
+        restored_state = service.cached_morph_state(session_id)
+        assert restored_state is not None
+        assert restored_state.profile_id == "resident-body"
+        assert profile_path.is_file()
+        assert tuple(service.working_mesh(session_id, clone=True).submeshes[0].vertices) != baseline
+
+        assert service.redo(session_id).ok
+        redone_state = service.cached_morph_state(session_id)
+        assert redone_state is not None
+        assert redone_state.profile_id == ""
+        assert not profile_path.exists()
+        assert tuple(service.working_mesh(session_id, clone=True).submeshes[0].vertices) == baseline
     finally:
         service.close_edit_session(session_id)

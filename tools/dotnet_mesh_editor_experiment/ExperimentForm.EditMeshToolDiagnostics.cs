@@ -19,6 +19,8 @@ internal sealed partial class ExperimentForm
         _directAuthoringExactOutputRequired = _options.DirectAuthoring;
         BuildAuthoringToolPanels();
         ActivateToolRailLayout();
+        PerformLayout();
+        Application.DoEvents();
         ApplyDiagnosticOutputPolicyState(
             "exact_game_asset",
             destinationReady: false,
@@ -965,10 +967,19 @@ internal sealed partial class ExperimentForm
         Func<bool> exercise)
     {
         var started = Stopwatch.StartNew();
+        var phase = Stopwatch.StartNew();
         ShowToolRailPage(page);
+        Application.DoEvents();
+        var revealMs = phase.Elapsed.TotalMilliseconds;
+        phase.Restart();
         PerformLayout();
+        var layoutMs = phase.Elapsed.TotalMilliseconds;
+        phase.Restart();
         var exercised = exercise();
+        var exerciseMs = phase.Elapsed.TotalMilliseconds;
+        phase.Restart();
         var frame = RunEditMeshDiagnosticFrame();
+        var frameMs = phase.Elapsed.TotalMilliseconds;
         started.Stop();
         return new Dictionary<string, object?>
         {
@@ -982,6 +993,10 @@ internal sealed partial class ExperimentForm
             ["page"] = page.ToString(),
             ["exercised"] = exercised,
             ["elapsed_ms"] = started.Elapsed.TotalMilliseconds,
+            ["reveal_ms"] = revealMs,
+            ["layout_ms"] = layoutMs,
+            ["exercise_ms"] = exerciseMs,
+            ["frame_call_ms"] = frameMs,
             ["frame"] = frame,
             ["textures_enabled_after"] = _viewport.TexturesEnabled,
             ["bound_texture_resources_after"] = _viewport.HasTexturedMaterialResources,

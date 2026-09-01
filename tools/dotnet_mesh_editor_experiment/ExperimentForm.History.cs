@@ -72,6 +72,7 @@ internal sealed partial class ExperimentForm
                 || entries.GetArrayLength() == 0)
             {
                 _actionHistoryList.Items.Add("No edit actions yet");
+                ApplyResidentReplicationControlState();
                 return;
             }
 
@@ -109,5 +110,6 @@ internal sealed partial class ExperimentForm
         {
             _actionHistoryList.EndUpdate();
         }
+        ApplyResidentReplicationControlState();
     }
 }

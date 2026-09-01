@@ -12,6 +12,7 @@ internal sealed partial class ExperimentForm
         public required long RequestId { get; init; }
         public required long BaseRevision { get; init; }
         public required long ProcessGeneration { get; init; }
+        public required int HelperProcessId { get; init; }
         public string Command { get; init; } = string.Empty;
         public string Phase { get; init; } = string.Empty;
         public string StrokeId { get; init; } = string.Empty;
@@ -22,6 +23,9 @@ internal sealed partial class ExperimentForm
         public bool GeometryApplied { get; set; }
         public bool CommandAccepted { get; set; }
         public ulong GestureId { get; init; }
+        public ulong TransactionSequence { get; init; }
+        public long TargetRevision { get; init; }
+        public string TransactionDigest { get; init; } = string.Empty;
     }
 
     private readonly Dictionary<long, PendingMutationRequest> _pendingMutationRequests = new();
@@ -43,17 +47,28 @@ internal sealed partial class ExperimentForm
             RequestId = requestId,
             BaseRevision = Math.Max(0, DictionaryLong(envelope, "base_revision")),
             ProcessGeneration = Math.Max(0, DictionaryLong(envelope, "process_generation")),
+            HelperProcessId = checked((int)Math.Max(0, DictionaryLong(envelope, "helper_process_id"))),
             Command = Convert.ToString(envelope.GetValueOrDefault("command"), CultureInfo.InvariantCulture)?.Trim().ToLowerInvariant() ?? string.Empty,
             Phase = Convert.ToString(envelope.GetValueOrDefault("phase"), CultureInfo.InvariantCulture)?.Trim().ToLowerInvariant() ?? string.Empty,
             StrokeId = Convert.ToString(envelope.GetValueOrDefault("stroke_id"), CultureInfo.InvariantCulture)?.Trim() ?? string.Empty,
             StrokeSequence = DictionaryLong(envelope, "sequence", -1),
             PaintSample = Convert.ToBoolean(envelope.GetValueOrDefault("paint_sample") ?? false, CultureInfo.InvariantCulture),
             GestureId = checked((ulong)Math.Max(0, DictionaryLong(envelope, "gesture_id"))),
+            TransactionSequence = checked((ulong)Math.Max(0, DictionaryLong(envelope, "transaction_sequence"))),
+            TargetRevision = Math.Max(0, DictionaryLong(envelope, "target_revision")),
+            TransactionDigest = Convert.ToString(
+                envelope.GetValueOrDefault("sha256"),
+                CultureInfo.InvariantCulture)?.Trim().ToLowerInvariant() ?? string.Empty,
         };
         _pendingMutationRequests[requestId] = pending;
         if (normalizedEvent == "resident_interaction_transaction")
         {
             _viewport.RegisterResidentInteractionRequest(requestId, pending.GestureId);
+            _lastAppliedEditRevision = Math.Max(
+                _lastAppliedEditRevision,
+                pending.TargetRevision);
+            _viewport.SetAuthoritativeEditRevision(_lastAppliedEditRevision);
+            ApplyResidentReplicationControlState();
         }
         if (IsProvisionalSelectionRequest(normalizedEvent))
         {

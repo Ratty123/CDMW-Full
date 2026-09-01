@@ -140,7 +140,26 @@ static bool shader_rule_holds_layer_albedo(const std::vector<const TextureBindin
     return false;
 }
 
-static bool shader_rule_supports_conservative_layer_stack(const std::vector<const TextureBinding*>& bindings) {
+static bool exact_authored_layer_binding_matches_mesh(
+    const TextureBinding& binding,
+    const NativeSubmesh& mesh
+) {
+    if (binding.source_authority != "exact_sidecar"
+        || binding.material_output_quality != "exact"
+        || !binding.material_wrapper_order_authoritative
+        || binding.material_wrapper_index < 0
+        || binding.sidecar_path.empty()
+        || !material_binding_matches_mesh_source(binding, mesh)) {
+        return false;
+    }
+    return mesh.source_local_submesh_index < 0
+        || binding.material_wrapper_index == mesh.source_local_submesh_index;
+}
+
+static bool shader_rule_supports_conservative_layer_stack(
+    const std::vector<const TextureBinding*>& bindings,
+    const NativeSubmesh& mesh
+) {
     for (const TextureBinding* binding : bindings) {
         if (binding == nullptr) continue;
         const std::string rule = lower_copy(binding->shader_rule + " " + binding->shader_family);
@@ -161,6 +180,20 @@ static bool shader_rule_supports_conservative_layer_stack(const std::vector<cons
                 || binding->layer_role == "layer"
                 || binding->role == "detail"
             )
+        ) {
+            return true;
+        }
+        const std::string parameter = normalized_key(binding->parameter_name);
+        const std::string layer_role = lower_copy(binding->layer_role);
+        if (
+            rule.find("emissive") != std::string::npos
+            && exact_authored_layer_binding_matches_mesh(*binding, mesh)
+            && binding->role == "base"
+            && (layer_role == "detail" || layer_role == "grime"
+                || layer_role == "damage" || layer_role == "layer")
+            && (parameter.find("detaildiffuse") != std::string::npos
+                || parameter.find("grimediffuse") != std::string::npos
+                || parameter.find("dyediffuse") != std::string::npos)
         ) {
             return true;
         }
@@ -334,9 +367,8 @@ static bool texture_family_key_is_specific_material_response(const std::string& 
 
 static bool binding_has_authoritative_model_family_material_response(const TextureBinding* binding, const NativeSubmesh& mesh) {
     if (binding == nullptr) return false;
+    if (binding_is_layer_selector_mask(*binding)) return false;
     const std::string role = lower_copy(binding->role);
-    const std::string parameter_key = normalized_key(binding->parameter_name);
-    const std::string path_text = lower_copy(binding->archive_path + " " + binding->texture_name);
     const std::string packed = lower_copy(binding->packed_channels);
     const bool sidecar_authoritative =
         binding->source_authority == "exact_sidecar"
@@ -351,10 +383,6 @@ static bool binding_has_authoritative_model_family_material_response(const Textu
         || role == "roughness"
         || role == "metalness"
         || binding_has_explicit_metalness_slot(binding)
-        || (
-            parameter_key == "colorblendingmasktexture"
-            && path_text.find("_ma") != std::string::npos
-        )
         || (
             packed.find("r=occlusion") != std::string::npos
             && packed.find("g=roughness") != std::string::npos
@@ -381,6 +409,7 @@ static bool binding_has_authoritative_model_family_material_response(const Textu
 
 static bool binding_has_authoritative_equipment_material_response(const TextureBinding* binding, const NativeSubmesh& mesh) {
     if (binding == nullptr) return false;
+    if (binding_is_layer_selector_mask(*binding)) return false;
     if (!material_binding_matches_mesh_source(*binding, mesh)) return false;
     const std::string role = lower_copy(binding->role);
     const std::string parameter_key = normalized_key(binding->parameter_name);
@@ -398,7 +427,6 @@ static bool binding_has_authoritative_equipment_material_response(const TextureB
         || role == "roughness"
         || role == "metalness"
         || binding_has_explicit_metalness_slot(binding)
-        || path_text.find("_ma.dds") != std::string::npos
         || path_text.find("_sp.dds") != std::string::npos;
     if (!material_response) return false;
     const std::string texture_family_key = normalized_texture_family_key(
@@ -453,6 +481,7 @@ static constexpr float kDecodedMetalAbsentCoverage = 0.06f;
 
 static bool binding_declares_readable_surface_response(const TextureBinding* binding) {
     if (binding == nullptr || binding->source_path.empty()) return false;
+    if (binding_is_layer_selector_mask(*binding)) return false;
     if (binding->packed_channels.find("b=metalness") == std::string::npos) return false;
     // A shipped placeholder describes no asset. cd_temp_* stands in for unfinished
     // work and would otherwise be read as a real measurement.
@@ -466,7 +495,8 @@ static DecodedSurfaceEvidence decoded_surface_evidence(
     const TextureBinding* surface
 ) {
     // The submesh's own selected surface map answers for the whole submesh.
-    if (binding_declares_readable_surface_response(surface)) {
+    if (binding_declares_readable_surface_response(surface)
+        && lower_copy(surface->packed_channels).find("layer:") == std::string::npos) {
         const DdsChannelStatistics stats = inspect_dds_channel_statistics(surface->source_path);
         if (stats.valid) {
             DecodedSurfaceEvidence result;
@@ -483,10 +513,21 @@ static DecodedSurfaceEvidence decoded_surface_evidence(
     // matters: an unweighted maximum let one metallic grime layer from the shared
     // tiling library declare a whole garment metal.
     DdsChannelStatistics mask;
-    if (surface != nullptr
-        && !surface->source_path.empty()
-        && surface->packed_channels.rfind("layer:color_blending_mask", 0) == 0) {
-        mask = inspect_dds_channel_statistics(surface->source_path);
+    const TextureBinding* selector_mask = surface != nullptr
+            && binding_is_layer_selector_mask(*surface)
+        ? surface
+        : nullptr;
+    if (selector_mask == nullptr) {
+        const auto found = std::find_if(bindings.begin(), bindings.end(), [](const TextureBinding* binding) {
+            return binding != nullptr
+                && !binding->source_path.empty()
+                && binding_is_layer_selector_mask(*binding)
+                && lower_copy(binding->packed_channels).find("layer:color_blending_mask") != std::string::npos;
+        });
+        if (found != bindings.end()) selector_mask = *found;
+    }
+    if (selector_mask != nullptr) {
+        mask = inspect_dds_channel_statistics(selector_mask->source_path);
     }
     DecodedSurfaceEvidence result;
     int readable = 0;

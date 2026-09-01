@@ -23,6 +23,7 @@ internal sealed partial class ExperimentForm
     private readonly Dictionary<string, ToolListRow> _toolListRowsByKey =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<ToolRailPage, int> _columnWidthByPage = new();
+    private readonly Dictionary<ToolRailPage, Size> _toolListPageContentSizes = new();
     private int? _collapsedColumnWidth;
     private int? _sharedOpenColumnWidth;
     private int? _inspectorWidth;
@@ -33,6 +34,7 @@ internal sealed partial class ExperimentForm
     private int? _appliedToolListExpansionBaseCell;
     private int _toolListExpansionGeneration;
     private bool _toolRailPagesPrimed;
+    private bool _toolListPageLayoutPrimeQueued;
 
     /// <summary>
     /// The single column: a scrolling list of rows with one body host that moves
@@ -64,6 +66,7 @@ internal sealed partial class ExperimentForm
             BackColor = ThemePanelBackground,
         };
         _toolListTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _toolListTable.SizeChanged += (_, _) => QueueToolListPageLayoutsForCurrentWidth();
         for (var cell = 0; cell < EditMeshToolListContract.TableRowCount; cell++)
         {
             _toolListTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -138,14 +141,17 @@ internal sealed partial class ExperimentForm
             return;
         }
         _toolListBodyHost.PerformLayout();
-        foreach (var page in _toolRailPages.Values)
+        foreach (var pair in _toolRailPages)
         {
+            var page = pair.Value;
             page.Visible = true;
             var pageWidth = Math.Max(
                 ScaleToolPanelWidth(260),
                 _toolListTable.ClientSize.Width);
-            page.Size = new Size(pageWidth, ToolListPageContentHeight(page, pageWidth));
+            var pageHeight = MeasureToolListPageContentHeight(page, pageWidth);
+            page.Size = new Size(pageWidth, pageHeight);
             page.PerformLayout();
+            _toolListPageContentSizes[pair.Key] = new Size(pageWidth, pageHeight);
             var size = page.ClientSize;
             if (size.Width > 0 && size.Height > 0)
             {
@@ -153,10 +159,63 @@ internal sealed partial class ExperimentForm
                 page.DrawToBitmap(bitmap, page.ClientRectangle);
             }
             _ = ToolRailNative.ShowWindow(page.Handle, ToolRailNative.SwHide);
-            page.Enabled = false;
+            _ = ToolRailNative.EnableWindow(page.Handle, false);
             page.TabStop = false;
         }
         _toolRailPagesPrimed = true;
+    }
+
+    private void PrimeToolListPageLayoutsForCurrentWidth()
+    {
+        if (_toolListBodyHost is null || _toolListTable is null)
+        {
+            return;
+        }
+        var bodyWidth = Math.Max(1, _toolListTable.ClientSize.Width);
+        foreach (var pair in _toolRailPages)
+        {
+            var page = pair.Value;
+            var bodyHeight = MeasureToolListPageContentHeight(page, bodyWidth);
+            page.Bounds = new Rectangle(Point.Empty, new Size(bodyWidth, bodyHeight));
+            page.PerformLayout();
+            _toolListPageContentSizes[pair.Key] = new Size(bodyWidth, bodyHeight);
+        }
+    }
+
+    private void QueueToolListPageLayoutsForCurrentWidth()
+    {
+        if (_toolListPageLayoutPrimeQueued
+            || !IsToolRailActive
+            || !IsHandleCreated
+            || IsDisposed
+            || Disposing
+            || _toolListTable is null)
+        {
+            return;
+        }
+        var width = Math.Max(1, _toolListTable.ClientSize.Width);
+        if (_toolRailPages.Keys.All(page =>
+                _toolListPageContentSizes.TryGetValue(page, out var cached)
+                && cached.Width == width))
+        {
+            return;
+        }
+        _toolListPageLayoutPrimeQueued = true;
+        try
+        {
+            BeginInvoke((Action)(() =>
+            {
+                _toolListPageLayoutPrimeQueued = false;
+                if (IsToolRailActive && !IsDisposed && !Disposing)
+                {
+                    PrimeToolListPageLayoutsForCurrentWidth();
+                }
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+            _toolListPageLayoutPrimeQueued = false;
+        }
     }
 
     /// <summary>
@@ -322,7 +381,7 @@ internal sealed partial class ExperimentForm
         var bodyWidth = Math.Max(1, _toolListTable.ClientSize.Width);
         var bodyHeight = expandedPage is null
             ? 0
-            : ToolListPageContentHeight(expandedPage, bodyWidth);
+            : ToolListPageContentHeight(page!.Value, expandedPage, bodyWidth);
         _toolListBodyHost.Size = new Size(bodyWidth, bodyHeight);
 
         // The two tools that share a page reach this without ShowToolRailPage:
@@ -370,8 +429,11 @@ internal sealed partial class ExperimentForm
                 bodyHeight);
             if (expandedPage is not null)
             {
-                expandedPage.Bounds = _toolListBodyHost.ClientRectangle;
-                expandedPage.PerformLayout();
+                var pageBounds = _toolListBodyHost.ClientRectangle;
+                if (expandedPage.Bounds != pageBounds)
+                {
+                    expandedPage.Bounds = pageBounds;
+                }
             }
         }
         else
@@ -383,12 +445,49 @@ internal sealed partial class ExperimentForm
         _toolListExpansionGeneration++;
     }
 
-    private static int ToolListPageContentHeight(Panel page, int width)
+    private int ToolListPageContentHeight(ToolRailPage pageKey, Panel page, int width)
+    {
+        if (_toolListPageContentSizes.TryGetValue(pageKey, out var cached)
+            && cached.Width == width
+            && pageKey != ToolRailPage.MorphRefit)
+        {
+            return cached.Height;
+        }
+        // Morph content changes after startup as profiles, sliders and refit
+        // guidance arrive. Its primed height is therefore only a warm-up value,
+        // not a safe final measurement for the live page.
+        var height = MeasureToolListPageContentHeight(page, width);
+        _toolListPageContentSizes[pageKey] = new Size(width, height);
+        return height;
+    }
+
+    private static int MeasureToolListPageContentHeight(Panel page, int width)
     {
         page.Width = Math.Max(1, width);
+        var measuredHeight = 1;
+        // Auto-sized nested tables can wrap one pass after their parent width
+        // changes. Settle the page before caching its height so a late label or
+        // card expansion cannot be clipped by the movable body host.
+        for (var pass = 0; pass < 4; pass++)
+        {
+            page.PerformLayout();
+            var nextHeight = Math.Max(
+                1,
+                page.Controls
+                    .Cast<Control>()
+                    .Select(control => control.Bottom + control.Margin.Bottom)
+                    .DefaultIfEmpty(1)
+                    .Max());
+            if (nextHeight == measuredHeight && page.Height == nextHeight)
+            {
+                break;
+            }
+            measuredHeight = nextHeight;
+            page.Height = measuredHeight;
+        }
         page.PerformLayout();
         return Math.Max(
-            1,
+            measuredHeight,
             page.Controls
                 .Cast<Control>()
                 .Select(control => control.Bottom + control.Margin.Bottom)
@@ -411,7 +510,19 @@ internal sealed partial class ExperimentForm
     {
         if (page is { } value)
         {
-            ApplyToolListExpansion(value);
+            var expandedRow = ToolListRowForPage(value);
+            var expandedBaseCell = EditMeshToolListContract.BaseCell(
+                EditMeshToolListContract.IndexOfRow(expandedRow));
+            if (_toolRailPagePresentationApplied
+                && !_toolRailPagePresentationQueued
+                && _toolListExpansionApplied
+                && _appliedToolListExpansionBaseCell == expandedBaseCell)
+            {
+                return;
+            }
+            _selectedToolRailPage = value;
+            _toolRailPagePresentationApplied = false;
+            QueueToolRailPagePresentation();
         }
     }
 

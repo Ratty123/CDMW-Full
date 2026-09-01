@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from types import SimpleNamespace
-import threading
 
-from PIL import Image
 import pytest
+from PIL import Image
 
+from cdmw.core.dds_native import inspect_dds_native_path
 from cdmw.core.texture_native import find_directxtex_texture_binary
 from cdmw.domain.textures.material_authority_state import (
     MATERIAL_AUTHORITY_AUTOMATIC_KEYS,
@@ -24,11 +25,116 @@ from cdmw.modding.material_profiles import (
 )
 from cdmw.modding.material_replacer import ReplacementTextureSet, ReplacementTextureSlot
 from cdmw.services.material_authority_resource_service import (
+    _channel_preset_key,
+    _encode_owned_dds,
     generate_material_authority_resource_bindings,
 )
 
 
 _ALL_CHANNELS = ("base", "normal", "height", "material_mask", "emissive")
+
+
+def test_scalar_surface_channels_use_uncompressed_linear_scalar_preset() -> None:
+    for channel in ("roughness", "metallic", "metalness", "occlusion"):
+        assert _channel_preset_key(channel) == "height_scalar"
+    assert _channel_preset_key("specular") == "mask_packed"
+
+
+def test_scalar_surface_encoder_writes_full_mip_linear_r8(tmp_path: Path) -> None:
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("cd-texture-dx is not built")
+    source = tmp_path / "roughness.png"
+    target = tmp_path / "roughness.dds"
+    Image.new("RGB", (8, 8), (73, 73, 73)).save(source)
+
+    _encode_owned_dds(
+        source,
+        target,
+        "roughness",
+        threading.Event(),
+        source_color_policy="ignore_srgb_metadata",
+    )
+
+    info = inspect_dds_native_path(target)
+    assert info.reason == ""
+    assert info.format_name == "R8_UNORM"
+    assert info.srgb is False
+    assert info.mip_count == 4
+
+
+@pytest.mark.parametrize(
+    ("channel", "expected_format", "expected_srgb", "expected_fast_preview"),
+    (
+        ("base", "R8G8B8A8_UNORM_SRGB", True, True),
+        ("material_mask", "R8G8B8A8_UNORM", False, True),
+        ("normal", "BC5_UNORM", False, False),
+        ("roughness", "R8_UNORM", False, False),
+    ),
+)
+def test_rust_preview_skips_only_expensive_bc7_compression(
+    tmp_path: Path,
+    channel: str,
+    expected_format: str,
+    expected_srgb: bool,
+    expected_fast_preview: bool,
+) -> None:
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("cd-texture-dx is not built")
+    source = tmp_path / f"{channel}.png"
+    target = tmp_path / f"{channel}.dds"
+    source_image = Image.new("RGBA", (8, 8), (73, 41, 19, 157))
+    source_image.save(source)
+
+    artifact = _encode_owned_dds(
+        source,
+        target,
+        channel,
+        threading.Event(),
+        source_color_policy=(
+            "assume_srgb" if channel == "base" else "ignore_srgb_metadata"
+        ),
+        preview_uncompressed_max_bytes=1024 * 1024,
+    )
+
+    info = inspect_dds_native_path(target)
+    assert info.reason == ""
+    assert info.format_name == expected_format
+    assert info.srgb is expected_srgb
+    assert info.mip_count == 4
+    assert artifact["preview_uncompressed"] is expected_fast_preview
+    if expected_fast_preview:
+        payload = target.read_bytes()
+        base_level = info.mip_levels[0]
+        assert (
+            payload[
+                base_level.offset : base_level.offset + base_level.byte_count
+            ]
+            == source_image.tobytes()
+        )
+
+
+def test_rust_preview_keeps_bc7_when_uncompressed_budget_is_exhausted(
+    tmp_path: Path,
+) -> None:
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("cd-texture-dx is not built")
+    source = tmp_path / "base.png"
+    target = tmp_path / "base.dds"
+    Image.new("RGBA", (8, 8), (73, 41, 19, 255)).save(source)
+
+    artifact = _encode_owned_dds(
+        source,
+        target,
+        "base",
+        threading.Event(),
+        source_color_policy="assume_srgb",
+        preview_uncompressed_max_bytes=1,
+    )
+
+    info = inspect_dds_native_path(target)
+    assert info.reason == ""
+    assert info.format_name == "BC7_UNORM_SRGB"
+    assert artifact["preview_uncompressed"] is False
 
 
 def _manual(values: dict[str, object]) -> object:

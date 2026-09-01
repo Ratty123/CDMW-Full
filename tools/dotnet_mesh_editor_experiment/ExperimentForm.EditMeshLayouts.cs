@@ -14,6 +14,7 @@ internal sealed partial class ExperimentForm
     private ToolRailPage? _selectedToolRailPage;
     private bool _toolRailPageSelected;
     private bool _toolRailPagePresentationApplied;
+    private bool _toolRailPagePresentationQueued;
     private int _toolRailPagePresentationGeneration;
     private bool _applyingToolRailSplitterLayout;
     // The dock widths on screen, so a pass that would move nothing is skipped.
@@ -558,6 +559,7 @@ internal sealed partial class ExperimentForm
         {
             ResumeAllEditMeshLayouts();
         }
+        PrimeToolListPageLayoutsForCurrentWidth();
     }
 
     /// <summary>
@@ -843,13 +845,56 @@ internal sealed partial class ExperimentForm
     /// </summary>
     private void ShowToolRailPage(ToolRailPage? page)
     {
-        if (_toolRailPagePresentationApplied && page == _selectedToolRailPage)
+        if (_toolRailPagePresentationApplied
+            && !_toolRailPagePresentationQueued
+            && page == _selectedToolRailPage)
         {
             return;
         }
         _toolRailPagePresentationApplied = false;
         _selectedToolRailPage = page;
         _toolRailPageSelected = true;
+        QueueToolRailPagePresentation();
+    }
+
+    private void QueueToolRailPagePresentation()
+    {
+        if (!IsToolRailActive || _toolRailPagePresentationQueued)
+        {
+            return;
+        }
+        // A headless layout proof constructs the real form without starting a
+        // WinForms message loop. BeginInvoke would leave the selected page
+        // pending forever in that mode, so the proof would inspect the previous
+        // page rather than the request it just made. The production helper has
+        // a message loop and keeps the deferred, repaint-batched path that
+        // prevents a tool click from doing layout work in its input handler.
+        if (!IsHandleCreated || !System.Windows.Forms.Application.MessageLoop)
+        {
+            _toolRailPagePresentationQueued = false;
+            ApplyToolRailPagePresentation(_selectedToolRailPage);
+            return;
+        }
+        _toolRailPagePresentationQueued = true;
+        try
+        {
+            BeginInvoke((Action)(() =>
+            {
+                _toolRailPagePresentationQueued = false;
+                if (IsToolRailActive && !IsDisposed && !Disposing)
+                {
+                    ApplyToolRailPagePresentation(_selectedToolRailPage);
+                }
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+            _toolRailPagePresentationQueued = false;
+        }
+    }
+
+    private void ApplyToolRailPagePresentation(ToolRailPage? page)
+    {
         // Opening a row is three separate paints without this: every page's
         // visibility flips, then the list table re-lays out around the moved
         // body cell, then the column may scroll. Batch the tool dock only; the

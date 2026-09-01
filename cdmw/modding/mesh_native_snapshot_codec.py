@@ -119,10 +119,18 @@ def _submesh_snapshot_metadata(submesh: object) -> dict[str, object]:
         "name": str(getattr(submesh, "name", "") or ""),
         "material": str(getattr(submesh, "material", "") or ""),
         "texture": str(getattr(submesh, "texture", "") or ""),
-        "source_index_offset": int(getattr(submesh, "source_index_offset", -1) or -1),
+        "source_index_offset": int(
+            -1
+            if getattr(submesh, "source_index_offset", None) is None
+            else getattr(submesh, "source_index_offset")
+        ),
         "source_index_count": int(getattr(submesh, "source_index_count", 0) or 0),
         "source_vertex_stride": int(getattr(submesh, "source_vertex_stride", 0) or 0),
-        "source_descriptor_offset": int(getattr(submesh, "source_descriptor_offset", -1) or -1),
+        "source_descriptor_offset": int(
+            -1
+            if getattr(submesh, "source_descriptor_offset", None) is None
+            else getattr(submesh, "source_descriptor_offset")
+        ),
         "source_bbox_min": _vec3(getattr(submesh, "source_bbox_min", (0.0, 0.0, 0.0)), fallback=0.0),
         "source_bbox_extent": _vec3(getattr(submesh, "source_bbox_extent", (0.0, 0.0, 0.0)), fallback=0.0),
         "source_lod_count": int(getattr(submesh, "source_lod_count", 0) or 0),
@@ -341,10 +349,18 @@ def _submesh_from_native_snapshot_item(item: Mapping[str, object]) -> SubMesh | 
         vertex_count=len(vertices),
         face_count=len(faces),
         source_vertex_offsets=list(source_vertex_offsets),
-        source_index_offset=int(metadata.get("source_index_offset") or -1),
+        source_index_offset=int(
+            -1
+            if metadata.get("source_index_offset") is None
+            else metadata.get("source_index_offset")
+        ),
         source_index_count=int(metadata.get("source_index_count") or 0),
         source_vertex_stride=int(metadata.get("source_vertex_stride") or 0),
-        source_descriptor_offset=int(metadata.get("source_descriptor_offset") or -1),
+        source_descriptor_offset=int(
+            -1
+            if metadata.get("source_descriptor_offset") is None
+            else metadata.get("source_descriptor_offset")
+        ),
         source_bbox_min=_vec3(metadata.get("source_bbox_min"), fallback=0.0),
         source_bbox_extent=_vec3(metadata.get("source_bbox_extent"), fallback=0.0),
         source_lod_count=int(metadata.get("source_lod_count") or 0),

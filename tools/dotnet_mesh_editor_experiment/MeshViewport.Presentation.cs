@@ -571,6 +571,7 @@ internal sealed partial class MeshViewport
 
     private void NotifyViewStateChanged()
     {
+        ScheduleResidentNativeSnapshotPreparation();
         if (_suppressViewStateChanged)
         {
             return;
