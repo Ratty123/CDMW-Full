@@ -80,8 +80,12 @@ def _should_collect_cdmw_submodule(name):
     # compatibility archaeology, but production routes never import them and
     # the frozen application must not carry them.
     retired_prefixes = (
+        "cdmw.rendering.native_preview_package",
+        "cdmw.rendering.native_preview_package_writer",
         "cdmw.services.mesh_dotnet_experiment",
+        "cdmw.services.mesh_dotnet_preview_package",
         "cdmw.services.mesh_dotnet_runtime_status",
+        "cdmw.services.native_dotnet_preview_adapter",
     )
     return not any(
         name == prefix or name.startswith(prefix + ".")
@@ -500,9 +504,13 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
+        "cdmw.rendering.native_preview_package",
+        "cdmw.rendering.native_preview_package_writer",
         "cdmw.services.mesh_dotnet_experiment",
         "cdmw.services.mesh_dotnet_experiment_output",
+        "cdmw.services.mesh_dotnet_preview_package",
         "cdmw.services.mesh_dotnet_runtime_status",
+        "cdmw.services.native_dotnet_preview_adapter",
         "PIL.AvifImagePlugin",
         "PIL._avif",
         *unused_qt_modules,

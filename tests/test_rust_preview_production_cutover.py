@@ -161,6 +161,13 @@ def test_release_paths_reject_and_never_stage_vortice_payloads() -> None:
     )
     assert "Retired Vortice preview payload was collected" in spec
     assert "Vortice*.dll" not in spec  # matcher is lower-case and generic
+    for retired_module in (
+        "cdmw.rendering.native_preview_package",
+        "cdmw.rendering.native_preview_package_writer",
+        "cdmw.services.mesh_dotnet_preview_package",
+        "cdmw.services.native_dotnet_preview_adapter",
+    ):
+        assert retired_module in spec
     for source in (build, workflow):
         assert "dotnet_mesh_editor_experiment" not in source
         assert "cdmw-mesh-dotnet-editor" not in source
