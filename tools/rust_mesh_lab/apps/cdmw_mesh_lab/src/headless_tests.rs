@@ -1933,7 +1933,7 @@ fn offscreen_d3d12_captures_the_exact_cdmw_material_package_without_a_window() -
         .ok_or("CDMW_RUST_REAL_CAPTURE_BMP is required")?;
     let report_path = std::env::var_os("CDMW_RUST_REAL_CAPTURE_REPORT_JSON").map(PathBuf::from);
 
-    capture_cdmw_session(&manifest, &output, report_path.as_deref())?;
+    capture_cdmw_session(&manifest, &output, report_path.as_deref(), false)?;
 
     let paths = cdmw_capture_paths(&output, report_path.as_deref())?;
     let report: Value = serde_json::from_slice(&fs::read(paths.report)?)?;

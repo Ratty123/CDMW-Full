@@ -105,7 +105,7 @@ def packaged_rust_mesh_editor_resolution_snapshot() -> dict[str, object]:
     PyInstaller removes a one-file extraction root when the process exits, so
     the external startup verifier cannot inspect these files afterward.  This
     snapshot records the paths and independently observed hashes before close.
-    It deliberately remains separate from the Vortice runtime evidence.
+    The same verified binary supplies Mesh Editor and Archive Preview modes.
     """
 
     from cdmw.services.mesh_rust_contract import (

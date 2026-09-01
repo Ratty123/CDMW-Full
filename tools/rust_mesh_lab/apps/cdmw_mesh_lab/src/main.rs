@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod camera;
+mod cdmw_preview;
 mod cdmw_session;
 mod cdmw_ui;
 mod control_contract;
@@ -70,16 +71,33 @@ fn main() -> Result<()> {
         control_contract::write_control_contract(&path)?;
         return Ok(());
     }
-    if let Some(manifest_path) = options.capture_cdmw_session {
+    if let Some(manifest_path) = options
+        .capture_cdmw_session
+        .as_ref()
+        .or(options.capture_cdmw_preview_session.as_ref())
+    {
         let output_path = options
             .capture_output
             .as_deref()
-            .context("--capture-cdmw-session requires --capture-output <bmp>")?;
+            .context("CDMW capture requires --capture-output <bmp>")?;
         capture_cdmw_session(
-            &manifest_path,
+            manifest_path,
             output_path,
             options.capture_report_json.as_deref(),
+            options.capture_cdmw_preview_session.is_some(),
         )?;
+        return Ok(());
+    }
+    if let Some(manifest_path) = options.cdmw_preview_session {
+        let parent_hwnd = options
+            .embedded_parent_hwnd
+            .context("--cdmw-preview-session requires --embedded-parent-hwnd <decimal>")?;
+        let event_loop = EventLoop::new().context("failed to create the Windows event loop")?;
+        event_loop.set_control_flow(ControlFlow::Poll);
+        let mut application = cdmw_preview::PreviewApplication::open(&manifest_path, parent_hwnd)?;
+        event_loop
+            .run_app(&mut application)
+            .context("Rust Archive Preview event loop failed")?;
         return Ok(());
     }
     let event_loop = EventLoop::new().context("failed to create the Windows event loop")?;
@@ -106,7 +124,9 @@ struct StartupOptions {
     mesh_path: Option<PathBuf>,
     archive_root: Option<PathBuf>,
     cdmw_session: Option<PathBuf>,
+    cdmw_preview_session: Option<PathBuf>,
     capture_cdmw_session: Option<PathBuf>,
+    capture_cdmw_preview_session: Option<PathBuf>,
     capture_output: Option<PathBuf>,
     capture_report_json: Option<PathBuf>,
     control_contract_json: Option<PathBuf>,
@@ -131,9 +151,19 @@ fn parse_startup_options_from(
             "--cdmw-session" => {
                 options.cdmw_session = Some(required_path(&mut arguments, "--cdmw-session")?);
             }
+            "--cdmw-preview-session" => {
+                options.cdmw_preview_session =
+                    Some(required_path(&mut arguments, "--cdmw-preview-session")?);
+            }
             "--capture-cdmw-session" => {
                 options.capture_cdmw_session =
                     Some(required_path(&mut arguments, "--capture-cdmw-session")?);
+            }
+            "--capture-cdmw-preview-session" => {
+                options.capture_cdmw_preview_session = Some(required_path(
+                    &mut arguments,
+                    "--capture-cdmw-preview-session",
+                )?);
             }
             "--capture-output" => {
                 options.capture_output = Some(required_path(&mut arguments, "--capture-output")?);
@@ -164,25 +194,46 @@ fn parse_startup_options_from(
     if options.cdmw_session.is_some()
         && (options.mesh_path.is_some()
             || options.archive_root.is_some()
-            || options.capture_cdmw_session.is_some())
+            || options.capture_cdmw_session.is_some()
+            || options.capture_cdmw_preview_session.is_some()
+            || options.cdmw_preview_session.is_some())
     {
         bail!("--cdmw-session cannot be combined with standalone or capture options");
     }
-    if options.capture_cdmw_session.is_some()
+    let capture_requested =
+        options.capture_cdmw_session.is_some() || options.capture_cdmw_preview_session.is_some();
+    if options.capture_cdmw_session.is_some() && options.capture_cdmw_preview_session.is_some() {
+        bail!("only one CDMW capture package type may be supplied");
+    }
+    if capture_requested
+        && (options.mesh_path.is_some()
+            || options.archive_root.is_some()
+            || options.control_contract_json.is_some()
+            || options.cdmw_preview_session.is_some())
+    {
+        bail!("--capture-cdmw-session cannot be combined with windowed or contract options");
+    }
+    if capture_requested != options.capture_output.is_some() {
+        bail!("a CDMW capture package and --capture-output must be supplied together");
+    }
+    if options.capture_report_json.is_some() && !capture_requested {
+        bail!("--capture-report-json requires a CDMW capture package");
+    }
+    if options.cdmw_preview_session.is_some()
         && (options.mesh_path.is_some()
             || options.archive_root.is_some()
             || options.control_contract_json.is_some())
     {
-        bail!("--capture-cdmw-session cannot be combined with windowed or contract options");
+        bail!("--cdmw-preview-session cannot be combined with standalone or contract options");
     }
-    if options.capture_cdmw_session.is_some() != options.capture_output.is_some() {
-        bail!("--capture-cdmw-session and --capture-output must be supplied together");
+    if options.embedded_parent_hwnd.is_some()
+        && options.cdmw_session.is_none()
+        && options.cdmw_preview_session.is_none()
+    {
+        bail!("--embedded-parent-hwnd requires --cdmw-session or --cdmw-preview-session");
     }
-    if options.capture_report_json.is_some() && options.capture_cdmw_session.is_none() {
-        bail!("--capture-report-json requires --capture-cdmw-session");
-    }
-    if options.embedded_parent_hwnd.is_some() && options.cdmw_session.is_none() {
-        bail!("--embedded-parent-hwnd requires --cdmw-session");
+    if options.cdmw_preview_session.is_some() && options.embedded_parent_hwnd.is_none() {
+        bail!("--cdmw-preview-session requires --embedded-parent-hwnd");
     }
     Ok(options)
 }
@@ -489,9 +540,15 @@ fn capture_cdmw_session(
     manifest_path: &Path,
     output_path: &Path,
     report_path: Option<&Path>,
+    preview_package: bool,
 ) -> Result<()> {
     let requested_paths = cdmw_capture_paths(output_path, report_path)?;
-    let mut package = LoadedCdmwSessionPackage::load(manifest_path).with_context(|| {
+    let loaded = if preview_package {
+        LoadedCdmwSessionPackage::load_preview(manifest_path)
+    } else {
+        LoadedCdmwSessionPackage::load(manifest_path)
+    };
+    let mut package = loaded.with_context(|| {
         format!(
             "failed to load CDMW Rust capture package {}",
             manifest_path.display()
@@ -572,7 +629,11 @@ fn capture_cdmw_session(
         })
         .collect::<Vec<_>>();
     let payload = json!({
-        "schema": "cdmw_rust_mesh_material_capture_v1",
+        "schema": if preview_package {
+            "cdmw_rust_preview_material_capture_v1"
+        } else {
+            "cdmw_rust_mesh_material_capture_v1"
+        },
         "renderer": "wgpu_d3d12_rust",
         "session_id": session_id,
         "process_generation": process_generation,
@@ -5641,6 +5702,49 @@ mod tests {
                 .map(str::to_owned),
         );
         assert!(standalone.is_err());
+    }
+
+    #[test]
+    fn preview_capture_cli_is_exclusive_and_requires_an_output() {
+        let options = parse_startup_options_from(
+            [
+                "--capture-cdmw-preview-session",
+                "manifest.json",
+                "--capture-output",
+                "preview.bmp",
+                "--capture-report-json",
+                "preview.json",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap_or_else(|error| panic!("preview capture options failed: {error}"));
+        assert_eq!(
+            options.capture_cdmw_preview_session,
+            Some(PathBuf::from("manifest.json"))
+        );
+        assert_eq!(options.capture_output, Some(PathBuf::from("preview.bmp")));
+
+        let missing_output = parse_startup_options_from(
+            ["--capture-cdmw-preview-session", "manifest.json"]
+                .into_iter()
+                .map(str::to_owned),
+        );
+        assert!(missing_output.is_err());
+
+        let conflicting = parse_startup_options_from(
+            [
+                "--capture-cdmw-session",
+                "editor.json",
+                "--capture-cdmw-preview-session",
+                "preview.json",
+                "--capture-output",
+                "capture.bmp",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        );
+        assert!(conflicting.is_err());
     }
 
     #[test]

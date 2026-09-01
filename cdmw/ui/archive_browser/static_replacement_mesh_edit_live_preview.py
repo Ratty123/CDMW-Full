@@ -170,21 +170,21 @@ def _mesh_edit_replace_live_triangles_or_queue_rebuild(_state, _callbacks, sourc
     if _callbacks._alignment_d3d11_mesh_edit_commands_active():
         _callbacks._mesh_editor_queue_native_preview_rebuild_from_working_mesh(
             "mesh_edit_topology",
-            ".NET/Vortice mesh edit triangle update failed; rebuilding the resident preview from the working mesh.",
+            "Rust Preview mesh edit triangle update failed; rebuilding the resident preview from the working mesh.",
             source_indices=tuple(requested_source_indices or ()),
             replace_all=bool(replace_all),
         )
         return
     if _state._alignment_d3d11_preview_active():
         _callbacks._mesh_edit_mark_native_preview_stale(
-            ".NET/Vortice mesh edit commands are unavailable; preview is stale. Retry .NET/Vortice Preview to resync.",
+            "Rust Preview mesh edit commands are unavailable; preview is stale. Retry Rust Preview to resync.",
             source_indices=tuple(requested_source_indices or ()),
             replace_all=bool(replace_all),
         )
         return
     if _state._mesh_edit_tab_active():
         _callbacks._mesh_edit_mark_native_preview_stale(
-            "Active Mesh Editor triangle refresh requires .NET/Vortice refresh; Python preview rebuild fallback is disabled.",
+            "Active Mesh Editor triangle refresh requires Rust Preview refresh; Python preview rebuild fallback is disabled.",
             source_indices=tuple(requested_source_indices or ()),
             replace_all=bool(replace_all),
         )
@@ -264,18 +264,18 @@ def _mesh_edit_update_live_preview(_state, _callbacks,
         return
     if _state._alignment_d3d11_preview_active():
         _callbacks._mesh_edit_mark_native_preview_stale(
-            ".NET/Vortice mesh edit commands are unavailable; preview is stale. Retry .NET/Vortice Preview to resync.",
+            "Rust Preview mesh edit commands are unavailable; preview is stale. Retry Rust Preview to resync.",
             reason="native mesh edit commands unavailable",
         )
         return
     if _state._mesh_edit_tab_active():
         _state.self.set_status_message(
-            "Active Mesh Editor live preview requires .NET/Vortice; Python preview rebuild fallback is disabled.",
+            "Active Mesh Editor live preview requires Rust Preview; Python preview rebuild fallback is disabled.",
             error=True,
         )
         _callbacks._record_mesh_edit_event(
             "mesh_edit_live_preview_rebuild_blocked",
-            reason=".NET/Vortice unavailable",
+            reason="Rust Preview unavailable",
         )
         return
     _callbacks._mesh_edit_refresh_replacement_preview_model()

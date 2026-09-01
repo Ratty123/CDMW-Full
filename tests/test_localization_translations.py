@@ -387,7 +387,7 @@ def test_documentation_and_readme_cover_current_mesh_and_texture_workflows() -> 
     assert "Intercambio de armadura de apariencia" not in main_window_source
     assert "Appearance-Ruestungs-Swap" not in main_window_source
 
-    assert "OBJ/DAE/glTF/GLB import preview" in readme_source
+    assert "OBJ/DAE/glTF/GLB import" in readme_source
     assert "bundled `cd-texture-dx.exe` native" in readme_source
     assert "DDS preview, staging, and rebuild use the bundled `cd-texture-dx.exe`" in readme_source
 

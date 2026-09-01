@@ -75,10 +75,24 @@ def _should_collect_numpy_submodule(name):
     return True
 
 
+def _should_collect_cdmw_submodule(name):
+    # Historical Vortice executable/package adapters remain in source for
+    # compatibility archaeology, but production routes never import them and
+    # the frozen application must not carry them.
+    retired_prefixes = (
+        "cdmw.services.mesh_dotnet_experiment",
+        "cdmw.services.mesh_dotnet_runtime_status",
+    )
+    return not any(
+        name == prefix or name.startswith(prefix + ".")
+        for prefix in retired_prefixes
+    )
+
+
 datas = []
 binaries = []
 hiddenimports = []
-hiddenimports += collect_submodules("cdmw")
+hiddenimports += collect_submodules("cdmw", filter=_should_collect_cdmw_submodule)
 # The Placement Studio tool tab lives under tools/, which is a package but is not covered by
 # the cdmw sweep. Without this the tab imports fine from source and fails only in a frozen
 # build — the worst possible place to find out.
@@ -114,13 +128,6 @@ unused_qt_runtime_payloads = {
     "PySide6\\Qt6VirtualKeyboard.dll",
     "PySide6\\plugins\\imageformats\\qpdf.dll",
     "PySide6\\plugins\\platforminputcontexts\\qtvirtualkeyboardplugin.dll",
-}
-
-# The .NET mesh editor loads this shader compiler from its own directory, where
-# _add_native_binary_tree already places it. PyInstaller's dependency scan hoists
-# a second identical copy to the bundle root that nothing ever loads.
-duplicate_runtime_payloads = {
-    "D3DCompiler_47_cor3.dll",
 }
 
 # The app never installs a QTranslator, so the bundled Qt message catalogues can
@@ -232,12 +239,15 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
         "edit_backend": "cdmw_rust_mesh_0.1",
         "protocol": "cdmw_rust_mesh_editor_protocol_v1",
         "authoring_package": "cdmw_rust_mesh_authoring_package_v1",
+        "preview_protocol": "cdmw_rust_preview_protocol_v1",
+        "preview_package": "cdmw_rust_preview_package_v1",
+        "preview_backend": "cdmw_rust_preview_0.1",
         "build_profile": NATIVE_CONFIGURATION.lower(),
         "locked_dependencies": True,
         "executable": expected_files["executable"].name,
         "control_contract": expected_files["control_contract"].name,
         "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
-        "capabilities": ["embedded_child_window_v1"],
+        "capabilities": ["embedded_child_window_v1", "rust_preview_runtime_v1"],
     }
     mismatches = [
         f"{field}={manifest.get(field)!r}"
@@ -249,6 +259,31 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
             "Rust Mesh Editor manifest fields do not match the packaged payload: "
             + ", ".join(mismatches)
         )
+    required_preview_capabilities = {
+        "preview_profile_read_only_v1",
+        "preview_session_v1",
+        "resident_package_load_v1",
+        "resident_preview_package_replace_v2",
+        "absolute_camera_state_v1",
+        "view_state_changed_v1",
+        "viewport_display_modes_v1",
+        "read_only_part_pick_v1",
+        "overlay_state_update_v1",
+        "skeleton_overlay_v1",
+        "pbd_cloth_overlay_v1",
+        "deterministic_offscreen_capture_v1",
+        "comparison_scene_v1",
+        "alignment_preview_v1",
+        "static_replacement_mesh_input_v1",
+        "effect_particle_preview_v1",
+        "ui_theme_state_v1",
+        "ui_localization_v1",
+    }
+    actual_preview_capabilities = {
+        str(value) for value in manifest.get("preview_capabilities", ())
+    }
+    if not required_preview_capabilities.issubset(actual_preview_capabilities):
+        raise SystemExit("Rust Archive Preview manifest capabilities are incomplete.")
 
     for field in ("source_tree_sha256", "cargo_lock_sha256"):
         digest = str(manifest.get(field, "")).lower()
@@ -281,6 +316,18 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
         raise SystemExit(
             "Rust Mesh Editor packaged control contract is invalid."
         )
+    preview_contract = rust_contract.get("preview_contract", {})
+    preview_commands = preview_contract.get("commands", ())
+    if (
+        preview_contract.get("ok") is not True
+        or preview_contract.get("schema") != "cdmw_rust_preview_control_contract_v1"
+        or preview_contract.get("protocol") != "cdmw_rust_preview_protocol_v1"
+        or preview_contract.get("package") != "cdmw_rust_preview_package_v1"
+        or preview_contract.get("viewport_only") is not True
+        or not preview_commands
+        or any(command.get("compiled_dispatch") is not True for command in preview_commands)
+    ):
+        raise SystemExit("Rust Archive Preview packaged control contract is invalid.")
     seen_keys = set()
     for row_index, rust_row in enumerate(rust_rows):
         row_key = str(rust_row.get("key", ""))
@@ -315,15 +362,6 @@ _add_native_binary(
 )
 _add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.exe", "native", required_release=True)
 _add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.dll", "native", required_release=True)
-_add_native_binary_tree(
-    f"native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}",
-    "native",
-    required_release=(ROOT / "tools" / "dotnet_mesh_editor_experiment" / "Cdmw.MeshEditorExperiment.csproj").exists(),
-    suffixes={".exe", ".dll", ".json"},
-    # The ABI is collected from its CMake output above, which makes it an
-    # explicit release requirement rather than an incidental helper-tree DLL.
-    excluded_names={"cdmw-mesh-core.dll"},
-)
 rust_mesh_editor_stage = f"native/rust_mesh_editor/build/{NATIVE_CONFIGURATION}"
 _validate_rust_mesh_editor_payload(
     ROOT / rust_mesh_editor_stage,
@@ -355,11 +393,6 @@ _add_native_binary_tree(
     "archive_backend",
     required_release=True,
     suffixes={".exe", ".dll", ".json"},
-)
-_add_data_if_exists(
-    datas,
-    f"native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}/D3D11MaterialShaders.hlsl",
-    "native",
 )
 _add_native_binary("native/cd_hkx/target/release/cd-hkx.exe", "native")
 
@@ -467,6 +500,9 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
+        "cdmw.services.mesh_dotnet_experiment",
+        "cdmw.services.mesh_dotnet_experiment_output",
+        "cdmw.services.mesh_dotnet_runtime_status",
         "PIL.AvifImagePlugin",
         "PIL._avif",
         *unused_qt_modules,
@@ -486,8 +522,23 @@ a = Analysis(
 )
 a.binaries = _exclude_collected_payloads(a.binaries, unused_qt_runtime_payloads)
 a.datas = _exclude_collected_payloads(a.datas, unused_qt_runtime_payloads)
-a.binaries = _exclude_collected_payloads(a.binaries, duplicate_runtime_payloads)
-a.datas = _exclude_collected_payloads(a.datas, duplicate_runtime_payloads)
+
+forbidden_preview_payloads = {
+    "cdmw-mesh-dotnet-editor.exe",
+    "cdmw-mesh-dotnet-editor.dll",
+    "d3d11materialshaders.hlsl",
+}
+for entry in (*a.binaries, *a.datas):
+    destination = str(entry[0]).replace("/", "\\").lower()
+    leaf = destination.rsplit("\\", 1)[-1]
+    if (
+        leaf in forbidden_preview_payloads
+        or (leaf.startswith("vortice.") and leaf.endswith(".dll"))
+    ):
+        raise SystemExit(
+            "Retired Vortice preview payload was collected into the production package: "
+            + destination
+        )
 a.binaries = _exclude_collected_prefixes(a.binaries, unused_payload_prefixes)
 a.datas = _exclude_collected_prefixes(a.datas, unused_payload_prefixes)
 pyz = PYZ(a.pure)

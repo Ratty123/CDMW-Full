@@ -1,4 +1,4 @@
-"""Compatibility-named cache helpers for static replacement .NET/Vortice packages."""
+"""Compatibility-named cache helpers for static replacement Rust Preview packages."""
 
 from __future__ import annotations
 

@@ -20,7 +20,6 @@ from cdmw.services.effect_placement_preview import (
     EFFECT_BODY_MATERIAL,
     EFFECT_REACH_MATERIAL,
     REACH_TINT,
-    _tint_anchor_material,
     anchor_axis_triad,
     anchor_mesh,
     build_effect_placement_package,
@@ -33,6 +32,24 @@ def _blade() -> ParsedMesh:
     faces = [(0, 1, 2), (0, 2, 3)]
     submesh = SubMesh(name="blade", material="steel", vertices=vertices, uvs=[(0.0, 0.0)] * 4, normals=[(0.0, 1.0, 0.0)] * 4, faces=faces, vertex_count=4, face_count=2)
     return ParsedMesh(path="blade.pac", format="pac", submeshes=[submesh], bbox_min=(-0.02, 0.0, -0.9), bbox_max=(0.02, 0.0, 0.2), total_vertices=4, total_faces=2, has_uvs=True)
+
+
+def _rust_package_state(preview: object) -> tuple[dict[str, object], dict[str, object]]:
+    manifest = json.loads(
+        (Path(preview.package_dir) / "manifest.json").read_text(encoding="utf-8")
+    )
+    return manifest, manifest["state"]["preview_scene"]
+
+
+def _rust_materials(manifest: dict[str, object], scene: dict[str, object]) -> dict[str, dict[str, object]]:
+    names = {
+        int(row["scene_submesh_index"]): str(row["material"])
+        for row in scene["part_identities"]
+    }
+    return {
+        names[int(row["material_index"])]: row
+        for row in manifest["material_presentations"]
+    }
 
 
 class AnchorAndScaleTests(unittest.TestCase):
@@ -81,25 +98,21 @@ class AnchorAndScaleTests(unittest.TestCase):
 
     def test_the_anchor_material_becomes_opaque_orange(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "net_materials.json"
-            path.write_text(json.dumps({"submeshes": [
-                {"submesh_index": 0, "material": EFFECT_ANCHOR_MATERIAL, "alpha_mode": "blend", "opacity_factor": 0.2, "parameters": {"roughness": 0.5}},
-                {"submesh_index": 1, "material": "steel", "alpha_mode": "opaque", "opacity_factor": 1.0, "parameters": {}},
-            ]}), encoding="utf-8")
-            _tint_anchor_material(path)
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            anchor, steel = payload["submeshes"]
-            self.assertEqual(anchor["alpha_mode"], "opaque")
-            self.assertEqual(anchor["opacity_factor"], 1.0)
-            self.assertTrue(anchor["double_sided"])
-            self.assertEqual(anchor["parameters"]["base_tint_color"], [1.0, 0.45, 0.1])
-            self.assertEqual(
-                steel,
-                {"submesh_index": 1, "material": "steel", "alpha_mode": "opaque", "opacity_factor": 1.0, "parameters": {}},
-                "the item's canonical material row is byte-semantic authority",
+            preview = build_effect_placement_package(
+                _blade(),
+                (-0.5, -0.5, -0.5),
+                (0.5, 0.5, 0.5),
+                output_root=Path(folder),
+                include_body=False,
             )
-            # a missing file is left alone
-            _tint_anchor_material(Path(folder) / "missing.json")
+            manifest, scene = _rust_package_state(preview)
+            materials = _rust_materials(manifest, scene)
+            anchor = materials[EFFECT_ANCHOR_MATERIAL]
+            steel = materials["steel"]
+            self.assertEqual(anchor["alpha_mode"], "opaque")
+            self.assertEqual(anchor["base_tint_strength"], 1.0)
+            self.assertEqual(anchor["texture_tint"], [1.0, 0.45, 0.1])
+            self.assertIsNone(steel["texture_tint"], "the item's own material stays authoritative")
 
 
 class PackageTests(unittest.TestCase):
@@ -117,11 +130,10 @@ class PackageTests(unittest.TestCase):
                 item, (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5),
                 output_root=Path(folder), include_body=False,
             )
-            materials = json.loads((preview.package_dir / "net_materials.json").read_text(encoding="utf-8"))
-        steel = next(row for row in materials["submeshes"] if row["material"] == "steel")
-        self.assertEqual(steel["parameters"]["emissive_color"], [0.1, 0.8, 0.2])
-        self.assertTrue(steel["parameters"]["emissive_color_authoritative"])
-        self.assertEqual(steel["parameters"]["emissive_intensity"], 9.0)
+            manifest, scene = _rust_package_state(preview)
+        steel = _rust_materials(manifest, scene)["steel"]
+        self.assertEqual(steel["emissive_color"], [0.1, 0.8, 0.2])
+        self.assertEqual(steel["emissive_intensity"], 9.0)
 
     def test_the_item_is_drawn_as_itself_rather_than_as_the_overlay_wire(self) -> None:
         """Overlay comparison exists so a replacement can be read against the original, so
@@ -135,13 +147,12 @@ class PackageTests(unittest.TestCase):
             self.skipTest("dotnet package tests skipped by request")
         with tempfile.TemporaryDirectory() as folder:
             preview = build_effect_placement_package(_blade(), (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5), output_root=Path(folder))
-            scene = json.loads((preview.package_dir / "dotnet_scene.json").read_text(encoding="utf-8-sig"))
+            manifest, scene = _rust_package_state(preview)
             self.assertEqual(scene["comparison_mode"], "overlay")
             self.assertEqual(scene["reference_draw"], "solid")
-            materials = json.loads((preview.package_dir / "net_materials.json").read_text(encoding="utf-8"))
             tints = {
-                str(item.get("material")): tuple(item.get("parameters", {}).get("base_tint_color", ()))
-                for item in materials["submeshes"]
+                name: tuple(row.get("texture_tint") or ())
+                for name, row in _rust_materials(manifest, scene).items()
             }
             self.assertEqual(tints.get(EFFECT_ANCHOR_MATERIAL), ANCHOR_TINT)
             self.assertEqual(tints.get(EFFECT_REACH_MATERIAL), REACH_TINT)
@@ -164,7 +175,7 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(preview.box_submesh_index, 0)
             self.assertEqual(preview.item_submesh_count, 1)
             self.assertEqual((preview.box_min, preview.box_max), ((-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)), "the reach travels as numbers")
-            scene = json.loads((preview.package_dir / "dotnet_scene.json").read_text(encoding="utf-8-sig"))
+            manifest, scene = _rust_package_state(preview)
             self.assertEqual(scene["comparison_mode"], "overlay")
             self.assertEqual(scene["interaction_mode"], "placement")
             self.assertEqual(scene["roles"]["replacement"], [0, 1, 2, 3, 4], "the anchor, the reach cage and the axis triad move together")
@@ -172,8 +183,7 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(scene["roles"]["original_reference"], [5, 6], "the item and the character follow the anchor's five")
             self.assertEqual(preview.body_submesh_index, 6)
             self.assertTrue(scene["gizmo"]["visible"])
-            materials = json.loads((preview.package_dir / "net_materials.json").read_text(encoding="utf-8"))
-            anchor = next(item for item in materials["submeshes"] if item["material"] == EFFECT_ANCHOR_MATERIAL)
+            anchor = _rust_materials(manifest, scene)[EFFECT_ANCHOR_MATERIAL]
             self.assertEqual(anchor["alpha_mode"], "opaque")
             # the scene frames the item, not the anchor: the anchor is tiny inside the item's bounds
             bounds = scene["bounds"]
@@ -186,7 +196,7 @@ class PackageTests(unittest.TestCase):
             preview = build_effect_placement_package(
                 _blade(), (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5), output_root=Path(folder), include_body=False,
             )
-            scene = json.loads((preview.package_dir / "dotnet_scene.json").read_text(encoding="utf-8-sig"))
+            _manifest, scene = _rust_package_state(preview)
             self.assertEqual(scene["roles"]["original_reference"], [5])
             self.assertEqual(preview.body_submesh_index, -1)
 
@@ -205,7 +215,7 @@ class PackageTests(unittest.TestCase):
             preview = build_effect_placement_package(
                 _blade(), (-11.0, -10.0, -11.0), (11.0, 17.0, 11.0), output_root=Path(folder),
             )
-            scene = json.loads((preview.package_dir / "dotnet_scene.json").read_text(encoding="utf-8-sig"))
+            _manifest, scene = _rust_package_state(preview)
             bounds = scene["bounds"]
             extent = max(bounds["max"][axis] - bounds["min"][axis] for axis in range(3))
             self.assertLess(extent, 3.0, "the frame holds the character and the item, not the reach")
@@ -307,69 +317,46 @@ class TextureNamingTests(unittest.TestCase):
 
 
 class ViewerParticleLayerContractTests(unittest.TestCase):
-    """The resident .NET viewer's particle layer, as source: it reads what the package writes."""
+    """The resident Rust preview consumes the effect schema the package writes."""
 
-    ROOT = Path(__file__).resolve().parents[1] / "tools" / "dotnet_mesh_editor_experiment"
+    ROOT = (
+        Path(__file__).resolve().parents[1]
+        / "tools"
+        / "rust_mesh_lab"
+        / "apps"
+        / "cdmw_mesh_lab"
+        / "src"
+    )
 
     def test_the_viewer_reads_the_description_and_announces_the_capability(self) -> None:
-        reader = (self.ROOT / "EffectParticlePreview.cs").read_text(encoding="utf-8")
-        renderer = (self.ROOT / "D3D11MaterialViewport.EffectParticles.cs").read_text(encoding="utf-8")
-        shaders = (self.ROOT / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
-        provenance = (self.ROOT / "HelperBuildProvenance.cs").read_text(encoding="utf-8")
-        package_protocol = (self.ROOT / "ExperimentForm.PackageProtocol.cs").read_text(encoding="utf-8")
-        from cdmw.services.effect_placement_preview import EFFECT_PREVIEW_FILE
-
-        self.assertIn(f'FileName = "{EFFECT_PREVIEW_FILE}"', reader)
+        runtime = (self.ROOT / "cdmw_preview.rs").read_text(encoding="utf-8")
         for key in ("bursts_per_second", "life", "spawn", "spread", "points", "force", "damping", "speed_limit", "scale", "rotation",
                     "scale_over_life", "alpha_over_life", "color_over_life", "emissive_color", "beam_width", "beam_length", "beam_axis",
-                    "mass", "simulation_speed", "sequence", "velocity_stretch", "texture_files"):
-            self.assertIn(f'"{key}"', reader, key)
-        self.assertIn("class EffectEmitterSimulation", reader)
-        self.assertIn("AppendBeamVertices", reader)
-        self.assertIn("LoadEffectParticlePreview", renderer)
-        self.assertIn("DrawEffectParticles", renderer)
-        self.assertIn("PSSetShaderResource(11u, texture!);", renderer)
-        self.assertIn("PSSetShaderResource(11u, null!);", renderer)
-        self.assertIn("VSParticle", shaders)
-        self.assertIn("PSParticle", shaders)
-        self.assertIn('"effect_particle_preview_v1"', provenance)
-        self.assertIn("LoadEffectParticlePreview(prepared.PackagePath)", package_protocol)
-        self.assertIn('["effect_preview"]', package_protocol)
+                    "mass", "simulation_speed", "sequence", "velocity_stretch", "texture", "blend"):
+            self.assertIn(f'"{key}"', runtime, key)
+        self.assertIn("fn effect_emitter_lines", runtime)
+        self.assertIn('"effect_particle_preview_v1"', runtime)
+        self.assertIn("MAX_PARTICLES_PER_EMITTER", runtime)
+        self.assertIn("MAX_LINE_VERTICES_PER_EMITTER", runtime)
 
-    def test_a_particle_quad_knows_where_its_own_edge_is(self) -> None:
-        """A sprite's UV is its flipbook cell's, not the quad's, so the shader had no way
-        to know where the quad ended and faded nothing: an opaque smoke sheet drew as a
-        grey diamond with a knife edge, over the item it was being placed on. The corner
-        coordinate is that missing fact, and it has to travel the whole way."""
-
-        reader = (self.ROOT / "EffectParticlePreview.cs").read_text(encoding="utf-8")
-        renderer = (self.ROOT / "D3D11MaterialViewport.EffectParticles.cs").read_text(encoding="utf-8")
-        shaders = (self.ROOT / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
-
-        self.assertIn("Vector2 TexCoord, Vector2 Corner)", reader, "the CPU vertex carries it")
-        self.assertIn("Vector2 TexCoord, Vector2 Corner)", renderer, "and so does the GPU one")
-        self.assertIn('new InputElementDescription("TEXCOORD", 1, Format.R32G32_Float, 36, 0)', renderer)
-        self.assertIn("float2 Corner : TEXCOORD1;", shaders)
-        self.assertIn("output.Corner = input.Corner;", shaders)
-        # the border fade, and the sprite's own alpha taken at its word
-        self.assertIn("smoothstep(0.74f, 1.0f, max(fromCentre.x, fromCentre.y))", shaders)
-        self.assertIn("step(0.999f, sample.a)", shaders)
-        self.assertNotIn("max(sample.a, dot(sample.rgb", shaders, "luminance no longer overrides a real alpha channel")
+    def test_effect_output_is_deterministic_and_resource_bounded_in_rust(self) -> None:
+        runtime = (self.ROOT / "cdmw_preview.rs").read_text(encoding="utf-8")
+        self.assertIn(
+            "effect_simulation_consumes_the_complete_emitter_shape_with_bounded_output",
+            runtime,
+        )
+        self.assertIn("assert_eq!(first, repeated)", runtime)
+        self.assertIn("first.len() <= 256 * 20", runtime)
 
     def test_the_simulation_can_be_held_where_it_is(self) -> None:
         """Pausing is not hiding: the particles stay drawn and stop moving, which is the
         only way to read where one of them actually is."""
 
-        renderer = (self.ROOT / "D3D11MaterialViewport.EffectParticles.cs").read_text(encoding="utf-8")
-        presentation = (self.ROOT / "MeshViewport.Presentation.cs").read_text(encoding="utf-8")
-
-        self.assertIn("public void SetEffectParticlesPaused(bool paused)", renderer)
-        self.assertIn("simulation.Step(_effectParticlesPaused ? 0.0f : deltaSeconds);", renderer)
-        # resuming picks up from now rather than stepping the whole pause at once
-        self.assertIn("_effectParticleLastTimestamp = Stopwatch.GetTimestamp();", renderer)
-        self.assertIn('JsonBool(display, "effect_particles_paused"', presentation)
-        self.assertIn("SetEffectParticlesPaused(particlesPaused)", presentation)
-        self.assertIn('["effect_particles_paused"] = _presentationEffectParticlesPaused,', presentation)
+        runtime = (self.ROOT / "cdmw_preview.rs").read_text(encoding="utf-8")
+        self.assertIn('display.get("effect_particles_paused")', runtime)
+        self.assertIn("self.effect_clock.sample(paused)", runtime)
+        self.assertIn("if !paused", runtime)
+        self.assertNotIn("if paused {\n            0.75", runtime)
 
     def test_a_viewport_backdrop_is_an_override_not_a_quality_field(self) -> None:
         """The host sets a colour override from the reader's remembered preference before
@@ -377,34 +364,15 @@ class ViewerParticleLayerContractTests(unittest.TestCase):
         that override wins. A backdrop sent in the quality payload changed nothing at all;
         it has to arrive as an override too."""
 
-        presentation = (self.ROOT / "MeshViewport.Presentation.cs").read_text(encoding="utf-8")
-        settings = (self.ROOT / "MeshViewport.PresentationSettings.cs").read_text(encoding="utf-8")
-        gate = (self.ROOT / "EditMeshLayoutSmoke.cs").read_text(encoding="utf-8")
-
-        self.assertIn('JsonString(display, "viewport_background_color"', presentation)
-        self.assertIn("SetViewportBackgroundOverride(backdropColor)", presentation)
-        self.assertIn("internal void SetViewportBackgroundOverride(", settings)
-        self.assertIn("_backgroundColorOverride ?? _residentPresentationSettings.BackgroundColor", settings)
-        # and the headless gate proves it at the clear colour rather than at a field
-        self.assertIn("RequireViewportBackdropOverrideContract", gate)
-        self.assertIn("The backdrop did not reach the clear colour", gate)
+        runtime = (self.ROOT / "cdmw_preview.rs").read_text(encoding="utf-8")
+        self.assertIn('"viewport_background_color"', runtime)
+        self.assertIn("renderer.set_clear_colour(background)", runtime)
 
         from cdmw.ui.preview.dotnet_host import DotNetPreviewHostFrame
 
         source = inspect.getsource(DotNetPreviewHostFrame.set_viewport_backdrop)
         self.assertIn('display["viewport_background_color"]', source)
         self.assertNotIn("d3d11_background_color", source, "the quality field is the one that did nothing")
-
-    def test_the_particles_sample_with_a_clamp_of_their_own(self) -> None:
-        """The mesh pass's sampler wraps, which lets one flipbook cell bleed into the next
-        at the seam; particles clamp instead, and filter linearly so a sprite blown up over
-        a sword is not a grid of texels."""
-
-        renderer = (self.ROOT / "D3D11MaterialViewport.EffectParticles.cs").read_text(encoding="utf-8")
-        self.assertIn("_effectParticleSamplerState", renderer)
-        self.assertIn("Filter.MinMagMipLinear, TextureAddressMode.Clamp", renderer)
-        self.assertIn("_effectParticleSamplerState?.Dispose();", renderer)
-
 
 class HostPlacementMatrixTests(unittest.TestCase):
     """The host's placement numbers reach the helper as the editable role's model matrix."""

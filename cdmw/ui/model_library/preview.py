@@ -13,6 +13,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QImage
 
 from cdmw.domain.library.models import is_importable_model_path
+from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER
 from cdmw.ui.model_library.icon_output import ModelLibraryIconOutputMixin
 from cdmw.workers.model_library_workers import (
     prepare_model_library_preview_icon,
@@ -55,7 +56,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         )
 
     def _inline_preview_renderer_backend(self) -> str:
-        return "d3d11_vortice_shader"
+        return RUST_MESH_RENDERER
 
     def _inline_d3d11_process_running(self) -> bool:
         controller = getattr(getattr(self, "inline_d3d11_preview_host", None), "controller", None)
@@ -65,9 +66,9 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         existing = getattr(self, "inline_d3d11_preview_host", None)
         if existing is not None:
             return existing
-        from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
+        from cdmw.ui.preview import DotNetPreviewProfile, RustPreviewHostFrame
 
-        host = DotNetPreviewHostFrame(profile=DotNetPreviewProfile.PREVIEW)
+        host = RustPreviewHostFrame(profile=DotNetPreviewProfile.PREVIEW)
         host.setMinimumHeight(280)
         host.controller.state_changed.connect(self._handle_inline_dotnet_state)
         host.controller.capture_completed.connect(self._handle_inline_dotnet_capture_completed)
@@ -111,7 +112,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             package_dir,
             reset_view=previous_package is None,
         ):
-            self._set_inline_preview_status(".NET/Vortice Preview rejected the prepared package.", error=True)
+            self._set_inline_preview_status("Rust Preview rejected the prepared package.", error=True)
             self._cleanup_inline_d3d11_packages(include_active=True)
             return False
         self.inline_d3d11_preview_host.set_render_tuning(render_settings)
@@ -132,19 +133,19 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             # Keep the prepared-model summary the load already published; the
             # host reports ready afterwards and would otherwise erase it.
             summary = str(getattr(self, "_inline_preview_summary_status", "") or "")
-            self._set_inline_preview_status(summary or ".NET/Vortice Model Library preview ready.")
+            self._set_inline_preview_status(summary or "Rust Model Library preview ready.")
             self._record_model_library_preview_event("model_library_dotnet_ready")
             if int(self._pending_icon_generation_request_id) == int(self._inline_preview_request_id):
                 self._pending_icon_generation_request_id = 0
                 QTimer.singleShot(180, self._capture_inline_preview_icon)
         elif str(state) == "error":
-            self._set_inline_preview_status(str(message or ".NET/Vortice Preview failed."), error=True)
+            self._set_inline_preview_status(str(message or "Rust Preview failed."), error=True)
             self._record_model_library_preview_event(
                 "model_library_dotnet_error",
                 message=str(message or ""),
             )
         elif str(state) not in {"empty", "inactive", "closed"}:
-            self._set_inline_preview_status(str(message or ".NET/Vortice Preview"))
+            self._set_inline_preview_status(str(message or "Rust Preview"))
 
     def _stop_inline_d3d11_process(
         self,
@@ -201,7 +202,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         self._sync_inline_preview_orientation_controls()
         if int(self._inline_preview_loaded_texture_count) <= 0:
             return
-        if str(self._inline_preview_loaded_renderer_backend or "").strip().lower() == "d3d11_vortice_shader":
+        if str(self._inline_preview_loaded_renderer_backend or "").strip().lower() == RUST_MESH_RENDERER:
             self._reload_inline_preview_for_orientation()
             return
         self._set_inline_preview_status("Flip V preview override applied." if checked else "Texture orientation preview reset.")
@@ -284,32 +285,32 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             if int(result.get("request_id", -1)) != int(self._inline_preview_request_id):
                 return
             active_renderer = str(result.get("renderer_backend", "") or "").strip().lower()
-            renderer_note = " | renderer: .NET/Vortice Preview"
-            loaded_renderer_backend = active_renderer or "d3d11_vortice_shader"
-            dotnet_preview_started = False
-            if active_renderer == "d3d11_vortice_shader" and str(result.get("dotnet_preview_package_path", "") or "").strip():
-                package_dir = Path(str(result.get("dotnet_preview_package_path", "") or ""))
+            renderer_note = " | renderer: Rust Preview"
+            loaded_renderer_backend = active_renderer or RUST_MESH_RENDERER
+            rust_preview_started = False
+            if active_renderer == RUST_MESH_RENDERER and str(result.get("rust_preview_package_path", "") or "").strip():
+                package_dir = Path(str(result.get("rust_preview_package_path", "") or ""))
                 self._record_model_library_preview_event(
                     "model_library_preview_prepared",
                     request_id=request_id,
                     import_path=str(result.get("import_path", "") or source_path),
                     renderer_backend=active_renderer,
-                    dotnet_preview_package_path=str(package_dir),
+                    rust_preview_package_path=str(package_dir),
                     vertices=int(result.get("vertices", 0) or 0),
                     faces=int(result.get("faces", 0) or 0),
                     textures=int(result.get("textures", 0) or 0),
-                    dotnet_package_ms=float(result.get("dotnet_package_ms", 0.0) or 0.0),
+                    rust_package_ms=float(result.get("rust_package_ms", 0.0) or 0.0),
                     high_quality_textures=bool(result.get("high_quality_textures", high_quality_textures)),
                 )
                 if self._start_inline_d3d11_process(package_dir, render_settings=preview_render_settings):
-                    dotnet_preview_started = True
-                    loaded_renderer_backend = "d3d11_vortice_shader"
-                    renderer_note = f" | renderer: .NET/Vortice package ({float(result.get('dotnet_package_ms', 0.0) or 0.0):.1f} ms)"
+                    rust_preview_started = True
+                    loaded_renderer_backend = RUST_MESH_RENDERER
+                    renderer_note = f" | renderer: Rust Preview package ({float(result.get('rust_package_ms', 0.0) or 0.0):.1f} ms)"
                 else:
-                    self._set_inline_preview_status(".NET/Vortice Preview failed to load.", error=True)
+                    self._set_inline_preview_status("Rust Preview failed to load.", error=True)
                     return
             else:
-                self._set_inline_preview_status("Canonical .NET/Vortice preview package was not built; no legacy fallback is available.", error=True)
+                self._set_inline_preview_status("Canonical Rust Preview preview package was not built; no legacy fallback is available.", error=True)
                 return
             resolved_import_path = Path(str(result.get("import_path", "") or source_path))
             self._invalidate_prepared_row_source(payload)
@@ -351,7 +352,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             self._sync_inline_preview_orientation_controls()
             self._update_selection_state()
             if int(self._pending_icon_generation_request_id) == int(request_id):
-                if not dotnet_preview_started:
+                if not rust_preview_started:
                     self._pending_icon_generation_request_id = 0
                     QTimer.singleShot(180, self._capture_inline_preview_icon)
 
@@ -440,7 +441,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         preview_host = getattr(self, "inline_d3d11_preview_host", None)
         dotnet_capture = preview_host is not None and self.inline_preview_stack.currentWidget() is preview_host
         if not dotnet_capture:
-            self._set_inline_preview_status("The .NET/Vortice preview is not render-ready yet.", error=True)
+            self._set_inline_preview_status("The Rust Preview preview is not render-ready yet.", error=True)
             return
         capture_path = (
             Path(tempfile.gettempdir())
@@ -454,9 +455,9 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         )
         if preview_host is None or not preview_host.capture_replacement_icon(capture_path):
             self._pending_dotnet_icon_capture = None
-            self._set_inline_preview_status("Icon capture failed: .NET/Vortice Preview rejected the capture request.", error=True)
+            self._set_inline_preview_status("Icon capture failed: Rust Preview rejected the capture request.", error=True)
             return
-        self._set_inline_preview_status("Capturing deterministic .NET/Vortice preview icon...")
+        self._set_inline_preview_status("Capturing deterministic Rust Preview preview icon...")
 
     def _handle_inline_dotnet_capture_completed(self, result: object) -> None:
         pending = self._pending_dotnet_icon_capture
@@ -473,7 +474,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         if image.isNull() or image.width() <= 0 or image.height() <= 0:
             message = str(result.get("message", "") or "") if isinstance(result, dict) else ""
             self._set_inline_preview_status(
-                f"Icon capture failed: {message or '.NET/Vortice preview framebuffer is empty.'}",
+                f"Icon capture failed: {message or 'Rust Preview preview framebuffer is empty.'}",
                 error=True,
             )
             return

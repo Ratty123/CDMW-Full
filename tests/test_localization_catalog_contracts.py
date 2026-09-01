@@ -1352,16 +1352,9 @@ def test_generated_manifest_contains_reviewed_source_keys() -> None:
     assert {
         "Workers",
         "Preview Caches",
-        "Reset Colour",
-        "Finish Edit Mesh",
-        "Save Edited Package",
         "Front",
         "Back",
         "Top",
-        "Bottom",
-        "Orbit",
-        "Morph & Refit",
-        "COMMANDS",  # replaced the "SCENE"/"SELECTION" dock headers, now gone.
         "DDS",
         "X",
         "Archive Mod Sources",
@@ -1369,8 +1362,11 @@ def test_generated_manifest_contains_reviewed_source_keys() -> None:
         "Find matches: {value_0} / {value_1}",
         "Choose Material Color",
         "Sidecar: Ready",
-        "Renderer ready, waiting for first frame | Backend: {value_0}",
-        "FPS {value_0} | Interval {value_1} ms | P95 {value_2} ms",
+        "Rust Preview",
+        "Reload Rust Preview",
+        "Rust Preview disk cache",
+        "Rust Preview package cache",
+        "FPS: -- | Frame: -- ms",
         "No asset family",
         "Replacement source:",
         "Anthropic (Claude)",
@@ -1451,10 +1447,9 @@ def test_generated_manifest_records_expected_origins() -> None:
         for origin in entries["Choose Material Color"]["origins"]
     )
     assert any(
-        origin["sink"] == "csharp:csharp-return:RendererMetricsText"
-        for origin in entries[
-            "FPS {value_0} | Interval {value_1} ms | P95 {value_2} ms"
-        ]["origins"]
+        origin["path"] == "cdmw/ui/mesh_editor/workspace_shell_builder.py"
+        and origin["sink"] == "QLabel"
+        for origin in entries["FPS: -- | Frame: -- ms"]["origins"]
     )
     assert any(
         origin["sink"] == "EmptyStateTreeWidget"

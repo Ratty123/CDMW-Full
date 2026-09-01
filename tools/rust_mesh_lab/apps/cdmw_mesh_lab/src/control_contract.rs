@@ -209,13 +209,16 @@ pub fn write_control_contract(path: &Path) -> Result<()> {
         .filter(|surface| !surfaces.contains(**surface))
         .copied()
         .collect::<Vec<_>>();
+    let preview_contract = crate::cdmw_preview::control_contract();
+    let preview_ok = preview_contract.get("ok").and_then(Value::as_bool) == Some(true);
     let ok = keys.len() == rows.len()
         && runtime_control_ids.len() == rows.len()
         && missing_surfaces.is_empty()
         && invalid_disabled_rows.is_empty()
         && missing_runtime_routes.is_empty()
         && unverified_runtime_routes.is_empty()
-        && invalid_product_anchor_rows.is_empty();
+        && invalid_product_anchor_rows.is_empty()
+        && preview_ok;
     let report = json!({
         "schema": RUST_SCHEMA,
         "renderer": "wgpu_d3d12_rust",
@@ -233,6 +236,7 @@ pub fn write_control_contract(path: &Path) -> Result<()> {
         "unverified_runtime_routes": unverified_runtime_routes,
         "invalid_product_anchor_rows": invalid_product_anchor_rows,
         "runtime_route_registry": "compiled_rust_integrated_ui_v2",
+        "preview_contract": preview_contract,
         "rows": rows,
         "product_contract": {
             "fields": PRODUCT_ROW_FIELDS,

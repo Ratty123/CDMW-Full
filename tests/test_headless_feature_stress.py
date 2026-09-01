@@ -124,7 +124,7 @@ class HeadlessFeatureStressTests(unittest.TestCase):
         skipped = {task.name: task.skip_reason for task in tasks if task.skip_reason}
         self.assertIn("external-model-audit", skipped)
         self.assertIn("mesh-real-archive-rigging-smoke", skipped)
-        self.assertNotIn("mesh-real-archive-mesh-editor-dotnet-edit-smoke", skipped)
+        self.assertNotIn("mesh-real-archive-rust-preview-smoke", skipped)
         self.assertIn("Model root not found", skipped["external-model-audit"])
         self.assertIn("Game root not found", skipped["mesh-real-archive-rigging-smoke"])
 
@@ -148,9 +148,9 @@ class HeadlessFeatureStressTests(unittest.TestCase):
         self.assertNotIn("full-suite-smoke", mesh_argv)
         self.assertIn("codex-mesh-unit", names)
         self.assertNotIn("codex-mesh", names)
-        self.assertNotIn("mesh-real-archive-mesh-editor-dotnet-edit-smoke", names)
+        self.assertNotIn("mesh-real-archive-rust-preview-smoke", names)
 
-    def test_corpus_profile_adds_dotnet_visual_only_when_explicitly_requested(self) -> None:
+    def test_corpus_profile_adds_rust_real_preview_only_when_explicitly_requested(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output_root = stress.prepare_output_root(Path(temp_dir) / "out")
             model_root = Path(temp_dir) / "models"
@@ -168,7 +168,7 @@ class HeadlessFeatureStressTests(unittest.TestCase):
             )
 
         self.assertIn(
-            "mesh-real-archive-mesh-editor-dotnet-edit-smoke",
+            "mesh-real-archive-rust-preview-smoke",
             [task.name for task in tasks],
         )
 
@@ -278,12 +278,13 @@ class HeadlessFeatureStressTests(unittest.TestCase):
         self.assertFalse(result["build_ran"])
         self.assertEqual([], result["missing_after"])
 
-    def test_native_helper_preflight_targets_production_dotnet_renderer_and_mesh_core(self) -> None:
+    def test_native_helper_preflight_targets_production_rust_renderer_and_mesh_core(self) -> None:
         helpers = {path.as_posix() for path in stress.native_helper_paths()}
 
-        self.assertTrue(any(path.endswith("cdmw-mesh-dotnet-editor.exe") for path in helpers))
+        self.assertTrue(any(path.endswith("rust_mesh_editor/build/Release/cdmw_mesh_lab.exe") for path in helpers))
         self.assertTrue(any(path.endswith("cdmw-mesh-core.exe") for path in helpers))
-        self.assertIn("Cdmw.MeshEditorExperiment.csproj", Path("build_native_windows.ps1").read_text(encoding="utf-8-sig"))
+        build_source = Path("build_native_windows.ps1").read_text(encoding="utf-8-sig")
+        self.assertNotIn("Cdmw.MeshEditorExperiment.csproj", build_source)
 
 
 if __name__ == "__main__":

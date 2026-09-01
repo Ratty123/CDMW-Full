@@ -1,4 +1,4 @@
-"""Reusable Qt host frame for the resident .NET/Vortice preview helper."""
+"""Reusable Qt host frame for the resident Rust Archive Preview helper."""
 
 from __future__ import annotations
 
@@ -28,11 +28,9 @@ from cdmw.domain.camera_bindings import (
     normalize_camera_drag,
     resolve_camera_bindings,
 )
-from cdmw.services.mesh_dotnet_experiment import (
-    MeshDotNetExperimentPackage,
-    resolve_mesh_dotnet_experiment_editor,
-)
-from cdmw.ui.preview.dotnet_session import DotNetPreviewSessionController
+from cdmw.services.mesh_rust_contract import resolve_rust_mesh_editor
+from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
+from cdmw.ui.preview.dotnet_session import RustPreviewSessionController
 from cdmw.ui.preview.dotnet_host_prewarm import DotNetPreviewPrewarmTask as _DotNetPreviewPrewarmTask
 from cdmw.ui.preview.dotnet_host_lifecycle import DotNetPreviewHostLifecycleMixin
 from cdmw.ui.preview.dotnet_host_render_tuning import render_tuning_payloads
@@ -45,8 +43,8 @@ from cdmw.ui.preview.dotnet_host_placement import (
 from cdmw.ui.preview.dotnet_host_values import _indices, _triple
 from cdmw.ui.preview.profile import DotNetPreviewProfile
 
-class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostProtocolMixin, DotNetPreviewHostThemeMixin, QFrame):
-    """Native-window host plus compatibility-facing .NET presentation API."""
+class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostProtocolMixin, DotNetPreviewHostThemeMixin, QFrame):
+    """Native-window host plus compatibility-facing preview presentation API."""
 
     view_state_changed = Signal(float, bool)
     view_state_payload_changed = Signal(object)
@@ -79,7 +77,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
         profile: DotNetPreviewProfile | str = DotNetPreviewProfile.PREVIEW,
         terminate_on_close: bool = False,
         configured_executable: Path | str | None = None,
-        controller: DotNetPreviewSessionController | None = None,
+        controller: RustPreviewSessionController | None = None,
         ui_localizer: object | None = None,
         direct_authoring: bool = False,
         theme_key: str = "",
@@ -145,7 +143,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
         status_layout = QVBoxLayout(self._status_panel)
         status_layout.setContentsMargins(18, 18, 18, 18)
         status_layout.addStretch(1)
-        self._status_label = QLabel("Select a model to open .NET/Vortice Preview.", self._status_panel)
+        self._status_label = QLabel("Select a model to open Rust Preview.", self._status_panel)
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._status_label.setWordWrap(True)
         status_layout.addWidget(self._status_label)
@@ -172,7 +170,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
         # The helper's own window, once it reports it. Held so a resize can move
         # it in the same frame as this widget; see _sync_embedded_child_geometry.
         self._embedded_child_hwnd = 0
-        self.controller = controller or DotNetPreviewSessionController(
+        self.controller = controller or RustPreviewSessionController(
             host_hwnd=self._host_hwnd,
             profile=self._profile,
             configured_executable=configured_executable,
@@ -244,10 +242,11 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
         reembed = getattr(controller, "reembed", None)
         if callable(reembed):
             reembed(hwnd)
+        self._sync_embedded_child_geometry(force_frame_refresh=True)
 
     def load_package(
         self,
-        package_dir: MeshDotNetExperimentPackage | Path | str,
+        package_dir: RustPreviewPackage | Path | str,
         status_file: Path | str | None = None,
         *,
         reset_view: bool = False,
@@ -256,7 +255,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
     ) -> bool:
         package_path = (
             package_dir.package_dir
-            if isinstance(package_dir, MeshDotNetExperimentPackage)
+            if isinstance(package_dir, RustPreviewPackage)
             else Path(package_dir)
         )
         self._load_scene_state(package_path)
@@ -272,7 +271,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
 
     def prewarm(
         self,
-        package_dir: MeshDotNetExperimentPackage | Path | str,
+        package_dir: RustPreviewPackage | Path | str,
         status_file: Path | str | None = None,
     ) -> bool:
         return self.controller.prewarm(package_dir, status_file)
@@ -284,7 +283,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
             return False
         try:
             configured = getattr(self.controller, "_configured_executable", None)
-            resolution = resolve_mesh_dotnet_experiment_editor(configured)
+            resolution = resolve_rust_mesh_editor(configured)
             executable = Path(resolution.resolved_path) if resolution.resolved_path else None
         except (OSError, RuntimeError, TypeError, ValueError):
             executable = None
@@ -302,7 +301,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
         error = str(result.get("error", "") or "")
         package = result.get("package")
         queued = bool(
-            isinstance(package, MeshDotNetExperimentPackage)
+            isinstance(package, RustPreviewPackage)
             and self.controller.prewarm(package)
         )
         self.debug_details_changed.emit(
@@ -983,4 +982,8 @@ class DotNetPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostP
         self.view_state_changed.emit(self._zoom_factor, self._fit_to_view)
         self.view_state_payload_changed.emit(self.view_state_snapshot())
 
-__all__ = ["DotNetPreviewHostFrame"]
+# Compatibility name retained for consumers that key styling or tests from the
+# former class. Production constructors import the Rust name.
+DotNetPreviewHostFrame = RustPreviewHostFrame
+
+__all__ = ["DotNetPreviewHostFrame", "RustPreviewHostFrame"]

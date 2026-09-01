@@ -209,7 +209,7 @@ class MeshEditorCharacterContextMixin:
         if executable is None or not Path(executable).is_file():
             self._handle_mesh_character_context_repackage_failed()
             self.status_message_requested.emit(
-                "Character Context is selected, but the resident .NET/Vortice helper is unavailable.",
+                "Character Context is selected, but the resident Rust Preview helper is unavailable.",
                 True,
             )
             return

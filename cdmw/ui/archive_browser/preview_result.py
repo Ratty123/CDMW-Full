@@ -17,7 +17,9 @@ from cdmw.ui.archive_browser.preview_state import (
 )
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.models import ArchivePreviewResult
-from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
+from cdmw.services.mesh_rust_preview_cache import (
+    validate_rust_preview_cache_package as validate_dotnet_preview_package,
+)
 from cdmw.workers.archive_preview_workers import _merge_timing_maps
 
 
@@ -137,7 +139,7 @@ class ArchivePreviewResultMixin:
             package_dir = Path(dotnet_package_path)
             valid_package, missing_paths = validate_dotnet_preview_package(package_dir)
             if not valid_package:
-                message = ".NET/Vortice package validation failed: " + "; ".join(missing_paths[:6])
+                message = "Rust Preview package validation failed: " + "; ".join(missing_paths[:6])
                 self._record_runtime_event(
                     "dotnet_preview_package_invalid",
                     request_id=request_id,
@@ -149,7 +151,7 @@ class ArchivePreviewResultMixin:
                     include_current_model_debug=False,
                 )
                 self.set_status_message(message, error=True)
-                self.archive_d3d11_preview_status_label.setText(".NET/Vortice package validation failed.")
+                self.archive_d3d11_preview_status_label.setText("Rust Preview package validation failed.")
                 if texture_request:
                     finish_texture_request = getattr(self, "_finish_archive_texture_request", None)
                     if callable(finish_texture_request):
@@ -179,7 +181,7 @@ class ArchivePreviewResultMixin:
                 reset_view=not same_model and not texture_request,
                 initial_view_state=initial_view_state,
             ):
-                message = ".NET/Vortice Preview rejected the prepared package."
+                message = "Rust Preview rejected the prepared package."
                 self.set_status_message(message, error=True)
                 if texture_request:
                     finish_texture_request = getattr(self, "_finish_archive_texture_request", None)
@@ -224,11 +226,11 @@ class ArchivePreviewResultMixin:
                 sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
                 if callable(sync_texture_action):
                     sync_texture_action()
-            self.archive_d3d11_preview_status_label.setText(".NET/Vortice Preview")
+            self.archive_d3d11_preview_status_label.setText("Rust Preview")
             if not texture_request:
-                self.set_status_message("Opening resident .NET/Vortice Preview.")
+                self.set_status_message("Opening resident Rust Preview.")
             self._set_archive_isolated_renderer_debug(
-                ".NET/Vortice Preview: resident canonical package requested."
+                "Rust Preview: resident canonical package requested."
             )
             return max(0.0, float(time.perf_counter() - model_apply_started_at))
 
@@ -238,7 +240,7 @@ class ArchivePreviewResultMixin:
             if str(getattr(result, "quality_tier", "") or "").strip().lower() == "fast":
                 return 0.0
             message = (
-                "The model decoder completed, but no canonical .NET/Vortice package was published. "
+                "The model decoder completed, but no canonical Rust Preview package was published. "
                 "The legacy renderer is not used as a fallback."
             )
             self._set_archive_preview_base_detail_text(

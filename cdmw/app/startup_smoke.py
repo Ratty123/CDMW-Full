@@ -45,8 +45,8 @@ def write_gui_startup_smoke_result(
         payload["bundled_helpers"] = [
             {str(key): str(value) for key, value in dict(helper).items()} for helper in bundled_helpers
         ]
-        # Keep the dedicated Rust Mesh Editor package identity independent from
-        # retained Vortice Archive Preview evidence. This must be captured before a one-file process
+        # Keep the shared Rust Mesh Editor/Archive Preview package identity
+        # explicit. This must be captured before a one-file process
         # exits because PyInstaller then removes its extraction root.
         try:
             from cdmw.services.bundled_helper_availability import (

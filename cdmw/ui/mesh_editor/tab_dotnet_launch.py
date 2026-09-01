@@ -5,6 +5,7 @@ from typing import Mapping, Sequence
 
 from PySide6.QtCore import QThread
 
+from cdmw.services.mesh_rust_contract import resolve_rust_mesh_editor
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
@@ -54,10 +55,15 @@ class MeshEditorDotNetLaunchMixin:
             return [MeshEditorDotNetLaunchMixin._json_safe_runtime_value(item) for item in tuple(value)]
         return str(value)
     def _dotnet_editor_executable_resolution(self, *, log: bool = True) -> object:
-        raw = str(self.settings.value("mesh_editor/dotnet_experiment_executable", "") or "").strip()
-        resolution = _tab.resolve_mesh_dotnet_experiment_editor(raw)
+        raw = str(self.settings.value("mesh_editor/rust_mesh_editor_executable", "") or "").strip()
+        resolution = resolve_rust_mesh_editor(raw)
         if log:
-            self._record_mesh_dotnet_event("mesh_dotnet_executable_resolved", **resolution.as_event_payload())
+            self._record_mesh_dotnet_event(
+                "mesh_rust_executable_resolved",
+                resolved_path=str(getattr(resolution, "resolved_path", "") or ""),
+                source=str(getattr(resolution, "source", "") or ""),
+                is_file=bool(getattr(resolution, "is_file", False)),
+            )
         return resolution
     def _dotnet_editor_executable_path(self, *, log: bool = True) -> Path | None:
         resolution = self._dotnet_editor_executable_resolution(log=log)
@@ -103,15 +109,15 @@ class MeshEditorDotNetLaunchMixin:
     def _start_standalone_dotnet_editor_requested(self) -> None:
         controller = self.standalone_controller
         if controller is None:
-            self.status_message_requested.emit("Mesh .NET editor experiment unavailable: no active session.", True)
+            self.status_message_requested.emit("Mesh Editor unavailable: no active session.", True)
             return
-        self._start_dotnet_editor_requested(controller, embedded=False)
+        self._start_rust_editor_requested(controller)
     def _start_embedded_dotnet_editor_requested(self) -> None:
         controller = self._embedded_builder_controller()
         if controller is None:
-            self.status_message_requested.emit("Mesh .NET editor experiment unavailable: no embedded edit session.", True)
+            self.status_message_requested.emit("Mesh Editor unavailable: no embedded edit session.", True)
             return
-        self._start_dotnet_editor_requested(controller, embedded=True)
+        self._start_rust_editor_requested(controller)
 
     def _resident_helper_holds_cached_scene(self) -> bool:
         """True when the running helper is actually serving this tab's cached scene.
@@ -158,6 +164,9 @@ class MeshEditorDotNetLaunchMixin:
         return True
 
     def _start_dotnet_editor_requested(self, controller: _tab.MeshEditorController, *, embedded: bool) -> None:
+        del embedded
+        self._start_rust_editor_requested(controller)
+        return
         existing_controller = self.standalone_dotnet_target_controller
         self.standalone_dotnet_target_embedded = bool(embedded)
         self.standalone_dotnet_embedded_exit_finalized = False
@@ -167,7 +176,7 @@ class MeshEditorDotNetLaunchMixin:
         if self._standalone_dotnet_package_worker_active():
             # The in-flight worker owns this request. Releasing its resident
             # scene here would clear its package leases and queued updates.
-            self._set_dotnet_status("Mesh .NET editor package is already preparing.")
+            self._set_dotnet_status("Rust Mesh Editor package is already preparing.")
             return
         resident_scene_released = False
         if embedded and self._standalone_dotnet_editor_process_running():
@@ -235,9 +244,9 @@ class MeshEditorDotNetLaunchMixin:
                     self._send_dotnet_session_state()
                     self.standalone_dotnet_ready_timer.start(10_000)
                     self._set_dotnet_status(
-                        "Restoring cached Mesh .NET editor session..."
+                        "Restoring cached Rust Mesh Editor session..."
                         if same_materials
-                        else "Synchronizing changed materials with the resident Mesh .NET editor..."
+                        else "Synchronizing changed materials with the resident Rust Mesh Editor..."
                     )
                     return
                 self._stop_standalone_dotnet_editor_process(embedded_state="failed")
@@ -257,8 +266,8 @@ class MeshEditorDotNetLaunchMixin:
             if embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
             message = (
-                "Mesh .NET editor experiment is not configured. Set "
-                "mesh_editor/dotnet_experiment_executable, CDMW_MESH_DOTNET_EXPERIMENT_EXE, or build the bundled helper."
+                "Rust Mesh Editor is not configured. Set "
+                "mesh_editor/rust_mesh_editor_executable, CDMW_RUST_MESH_EDITOR_EXE, or build the bundled helper."
             )
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_process_start_failed",
@@ -276,7 +285,7 @@ class MeshEditorDotNetLaunchMixin:
             # runs builder state callbacks, and one of those re-entering here can
             # start a worker between the two. Without this the outer call would
             # start a second build and orphan the first.
-            self._set_dotnet_status("Mesh .NET editor package is already preparing.")
+            self._set_dotnet_status("Rust Mesh Editor package is already preparing.")
             return
         if self._standalone_dotnet_editor_process_running() and not resident_scene_released:
             shared_controller = self._active_shared_dotnet_controller()
@@ -296,7 +305,7 @@ class MeshEditorDotNetLaunchMixin:
                 )
             )
             if serves_user_scene:
-                self._set_dotnet_status("Mesh .NET editor experiment is already running.")
+                self._set_dotnet_status("Rust Mesh Editor is already running.")
                 return
             # Close clears the resident package and session claim synchronously,
             # but deliberately keeps the helper warm. An idle or prewarmed helper
@@ -619,7 +628,7 @@ class MeshEditorDotNetLaunchMixin:
                 False,
                 "Mesh Editor preview preparation failed.",
             )
-            self._set_dotnet_status("Mesh .NET editor package worker returned an invalid package.", error=True)
+            self._set_dotnet_status("Rust Mesh Editor package worker returned an invalid package.", error=True)
             return
         self.standalone_dotnet_lifecycle_counts["package_build_count"] += 1
         if self.standalone_dotnet_lifecycle_counts["initial_package_build_count"] == 0:
@@ -642,7 +651,7 @@ class MeshEditorDotNetLaunchMixin:
                 detail=f"Background package preparation completed in {float(elapsed_ms) / 1000.0:.1f}s.",
             )
             self.status_message_requested.emit(
-                f"Mesh .NET editor experiment package ready ({float(elapsed_ms):.1f} ms).",
+                f"Rust Mesh Editor package ready ({float(elapsed_ms):.1f} ms).",
                 False,
             )
         else:
@@ -659,7 +668,7 @@ class MeshEditorDotNetLaunchMixin:
         context_failed = getattr(self, "_handle_mesh_character_context_repackage_failed", None)
         if callable(context_failed):
             context_failed()
-        text = f"Mesh .NET editor experiment package failed: {message}"
+        text = f"Rust Mesh Editor package failed: {message}"
         self._record_mesh_dotnet_event(
             "mesh_dotnet_package_error",
             request_id=request_id,
@@ -715,10 +724,10 @@ class MeshEditorDotNetLaunchMixin:
             return self._complete_embedded_dotnet_exit("dotnet_output_ignored")
         controller = self.standalone_dotnet_target_controller or self.standalone_controller
         if controller is None:
-            self.status_message_requested.emit("Mesh .NET editor output import unavailable: no active session.", True)
+            self.status_message_requested.emit("Rust Mesh Editor output import unavailable: no active session.", True)
             return False
         if self._standalone_dotnet_import_worker_active():
-            self.status_message_requested.emit("Mesh .NET editor output import is already running.", False)
+            self.status_message_requested.emit("Rust Mesh Editor output import is already running.", False)
             return False
         self.standalone_dotnet_import_request_id += 1
         request_id = self.standalone_dotnet_import_request_id
@@ -740,7 +749,7 @@ class MeshEditorDotNetLaunchMixin:
         thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_dotnet_import_worker(target_thread, target_worker))
         self.standalone_dotnet_import_thread = thread
         self.standalone_dotnet_import_worker = worker
-        self._set_dotnet_status("Importing Mesh .NET editor output...")
+        self._set_dotnet_status("Importing Rust Mesh Editor output...")
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         thread.start(QThread.LowPriority)
         return True
@@ -754,14 +763,14 @@ class MeshEditorDotNetLaunchMixin:
         if int(request_id) != int(self.standalone_dotnet_import_request_id):
             return
         if not isinstance(view, _tab.MeshEditSessionView):
-            self._set_dotnet_status("Mesh .NET editor output import returned an invalid session view.", error=True)
+            self._set_dotnet_status("Rust Mesh Editor output import returned an invalid session view.", error=True)
             return
         controller = self.standalone_dotnet_target_controller or self.standalone_controller
         if controller is None:
             return
         if self.standalone_dotnet_target_embedded:
             if not self._complete_embedded_dotnet_exit("dotnet_output_import"):
-                text = "Mesh .NET editor output imported, but textured preview rebuild sync failed."
+                text = "Rust Mesh Editor output imported, but textured preview rebuild sync failed."
                 self._set_dotnet_status(text, error=True)
                 return
             self._refresh_embedded_workspace_from_builder()
@@ -789,7 +798,7 @@ class MeshEditorDotNetLaunchMixin:
                 self._record_mesh_dotnet_event("mesh_dotnet_evaluation_write_failed", error=str(exc))
                 evaluation_path = None
         text = (
-            f"Mesh .NET editor output imported and validated ({float(elapsed_ms):.1f} ms): "
+            f"Rust Mesh Editor output imported and validated ({float(elapsed_ms):.1f} ms): "
             f"{'safe to rebuild' if ok else 'rebuild blocked'}"
             f" ({blocker_count} blockers, {warning_count} warnings)."
         )
@@ -799,7 +808,7 @@ class MeshEditorDotNetLaunchMixin:
     def _handle_standalone_dotnet_output_import_error(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.standalone_dotnet_import_request_id):
             return
-        text = f"Mesh .NET editor output import failed: {message}"
+        text = f"Rust Mesh Editor output import failed: {message}"
         self._set_dotnet_status(text, error=True)
         if self.standalone_dotnet_target_embedded:
             self._complete_embedded_dotnet_exit("dotnet_output_import_error")
@@ -825,7 +834,7 @@ class MeshEditorDotNetLaunchMixin:
         try:
             return bool(finalize(str(reason or "dotnet_import")))
         except Exception as exc:
-            self.status_message_requested.emit(f"Mesh .NET editor embedded preview finalize failed: {exc}", True)
+            self.status_message_requested.emit(f"Rust Mesh Editor embedded preview finalize failed: {exc}", True)
             return False
     def _complete_embedded_dotnet_exit(self, reason: str, *, final_state: str = "closed") -> bool:
         if not self.standalone_dotnet_target_embedded:

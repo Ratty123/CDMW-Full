@@ -1,7 +1,7 @@
 """New Item Studio: the item as it will be, in the resident viewport, inline.
 
 `ItemPreviewFrame` shows the item (the imported model, else the template's own) in the
-resident .NET viewport the Model Library uses, textured the way that library and the
+    resident Rust viewport the Model Library uses, textured the way that library and the
 Builder show it: orbit, zoom, and a capture of the frame at 512 x 512 with the grid and
 gizmo hidden (the icon route). It takes a `ModelPreviewData` (the archive or import
 preview decode, textures resolved), a bare `ParsedMesh`, a `PlacementScene` (the template
@@ -104,8 +104,8 @@ def build_item_preview_package(
         and token[0] == "template"
     )
     if cacheable_template and normalized_cache_mode in {"balanced", "aggressive"}:
-        from cdmw.services.mesh_dotnet_preview_package import (
-            lookup_dotnet_preview_package_from_model_identity,
+        from cdmw.services.mesh_rust_preview_cache import (
+            lookup_rust_preview_package_from_model_identity as lookup_dotnet_preview_package_from_model_identity,
         )
 
         cached_package = lookup_dotnet_preview_package_from_model_identity(
@@ -120,7 +120,7 @@ def build_item_preview_package(
     if item is None:
         raise ValueError("there is nothing to show")
     if isinstance(item, PlacementScene):
-        from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
+        from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
 
         model = (
             _prepare_preview_model(
@@ -153,19 +153,20 @@ def build_item_preview_package(
             _as_parsed_mesh(reference) if reference is not None else None,
             _as_parsed_mesh(character) if character is not None else None,
         )
-        package = build_mesh_dotnet_experiment_package(
-            _as_parsed_mesh(model), output_root=output_root,
+        package = build_rust_preview_package(
+            _as_parsed_mesh(model),
+            output_root=output_root,
             reference_mesh=reference_mesh,
-            comparison_mode="overlay", interaction_mode="placement", cancelled=stop_event.is_set,
+            comparison_mode="overlay",
+            interaction_profile="static_replacement",
+            cancelled=stop_event.is_set,
             scene_transform=item.placement.build_transform(origin=item.model_origin),
             include_material_resources=bool(include_material_resources),
         )
-        if item.character is not None:
-            from cdmw.services.effect_placement_preview import _tint_anchor_material
-
-            _tint_anchor_material(Path(package.package_dir) / "net_materials.json")
     elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
-        from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package_from_model
+        from cdmw.services.mesh_rust_preview_cache import (
+            build_or_lookup_rust_preview_package_from_model as build_or_lookup_dotnet_preview_package_from_model,
+        )
         from cdmw.services.preview_rendering_service import dotnet_preview_package_cache_budget
 
         prepared_item = _prepare_preview_model(
@@ -186,10 +187,14 @@ def build_item_preview_package(
             metadata={"surface": "new_item_studio", "source_token": repr(token)},
         )
     else:
-        from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
+        from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
 
-        package = build_mesh_dotnet_experiment_package(
-            item, output_root=output_root, reference_mesh=None, comparison_mode="side_by_side", interaction_mode="placement",
+        package = build_rust_preview_package(
+            item,
+            output_root=output_root,
+            reference_mesh=None,
+            comparison_mode="side_by_side",
+            interaction_profile="static_replacement",
             cancelled=stop_event.is_set,
             include_material_resources=bool(include_material_resources),
         )
@@ -198,19 +203,19 @@ def build_item_preview_package(
 
 def package_cleanup_root(package_dir: Path, output_root: Path) -> Path:
     """The directory to remove for a package under `output_root`: the model route writes
-    `<root>/cdmw_dotnet_preview_*/package`, the mesh route `<root>/<package>`."""
+    `<root>/cdmw_rust_preview_*/package`, the mesh route `<root>/<package>`."""
 
     parent = package_dir.parent
-    if parent != output_root and parent.parent == output_root and parent.name.startswith("cdmw_dotnet_preview_"):
+    if parent != output_root and parent.parent == output_root and parent.name.startswith("cdmw_rust_preview_"):
         return parent
     return package_dir
 
 
 def default_host_factory(parent: QWidget):
-    from cdmw.ui.preview.dotnet_host import DotNetPreviewHostFrame
+    from cdmw.ui.preview.rust_host import RustPreviewHostFrame
     from cdmw.ui.preview.profile import DotNetPreviewProfile
 
-    return DotNetPreviewHostFrame(parent, profile=DotNetPreviewProfile.PREVIEW, terminate_on_close=True)
+    return RustPreviewHostFrame(parent, profile=DotNetPreviewProfile.PREVIEW, terminate_on_close=True)
 
 
 class ItemPreviewFrame(QWidget):
@@ -601,8 +606,8 @@ class ItemPreviewFrame(QWidget):
                 and token[0] == "template"
                 and cache_mode in {"balanced", "aggressive"}
             ):
-                from cdmw.services.mesh_dotnet_preview_package import (
-                    lookup_dotnet_preview_package_from_model_identity,
+                from cdmw.services.mesh_rust_preview_cache import (
+                    lookup_rust_preview_package_from_model_identity as lookup_dotnet_preview_package_from_model_identity,
                 )
 
                 cached_package = lookup_dotnet_preview_package_from_model_identity(

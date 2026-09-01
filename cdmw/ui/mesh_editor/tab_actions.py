@@ -280,7 +280,7 @@ class MeshEditorActionsMixin:
                     self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
                 return True
         if _native_update_has_payload(update) or self._standalone_native_preview_update_active():
-            message = ".NET/Vortice preview update failed; preview is stale. Retry the preview to resync."
+            message = "Rust preview update failed; preview is stale. Retry the preview to resync."
             self.standalone_status_label.setText(message)
             self.status_message_requested.emit(message, True)
             return False
@@ -321,31 +321,31 @@ class MeshEditorActionsMixin:
                 and self.standalone_preview_stack.currentWidget() is self.standalone_native_host_frame
                 and setter("original_only")
             ):
-                self.standalone_status_label.setText(".NET/Vortice compare view: source.")
+                self.standalone_status_label.setText("Rust Preview compare view: source.")
                 return
             if self._standalone_native_preview_update_active():
                 if self.standalone_dotnet_package_thread is None and self.start_standalone_native_preview_async(reset_view=False):
-                    self.standalone_status_label.setText("Preparing .NET/Vortice source compare preview...")
+                    self.standalone_status_label.setText("Preparing Rust Preview source compare preview...")
                 else:
-                    self.standalone_status_label.setText(".NET/Vortice source compare preview pending.")
+                    self.standalone_status_label.setText("Rust Preview source compare preview pending.")
                 return
             self._refresh_standalone_preview()
             return
         if normalized == "ghost" and self._standalone_native_preview_update_active() and not self.standalone_native_package_has_reference:
             if self.standalone_dotnet_package_thread is None and self.start_standalone_native_preview_async(reset_view=False):
-                self.standalone_status_label.setText("Preparing .NET/Vortice ghost compare preview...")
+                self.standalone_status_label.setText("Preparing Rust Preview ghost compare preview...")
             else:
-                self.standalone_status_label.setText(".NET/Vortice ghost compare preview pending.")
+                self.standalone_status_label.setText("Rust Preview ghost compare preview pending.")
             return
         host = self.standalone_native_host
         setter = getattr(host, "set_display_mode", None)
         if callable(setter) and self.standalone_preview_stack.currentWidget() is self.standalone_native_host_frame:
             display_mode = "overlay" if normalized == "ghost" else "replacement_only"
             if setter(display_mode):
-                self.standalone_status_label.setText(f".NET/Vortice compare view: {normalized}.")
+                self.standalone_status_label.setText(f"Rust Preview compare view: {normalized}.")
                 return
             if self._standalone_native_preview_update_active():
-                message = ".NET/Vortice compare view update failed; preview is stale. Retry the preview to resync."
+                message = "Rust Preview compare view update failed; preview is stale. Retry the preview to resync."
                 self.standalone_status_label.setText(message)
                 self.status_message_requested.emit(message, True)
                 return

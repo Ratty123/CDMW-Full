@@ -177,7 +177,7 @@ function Invoke-FullQA {
         Invoke-QAStep "Python dependency check" $pythonExe @("-m", "pip", "check") $scriptDir 300
         Invoke-QAStep "cd_hkx cargo fmt" "cargo" @("fmt", "--check") (Join-Path $scriptDir "native\cd_hkx") 300
         Invoke-QAStep "cd_hkx cargo test" "cargo" @("test") (Join-Path $scriptDir "native\cd_hkx") $StepTimeoutSeconds
-        Invoke-QAStep "Production Mesh Editor helper build and hidden GPU smoke" $powerShellExe @(
+        Invoke-QAStep "Production Rust preview and Mesh Editor build with offscreen GPU smoke" $powerShellExe @(
             "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $packageBuilder,
             "-BuildProfile", "release", "-NativeHelpersOnly"
         ) $scriptDir $BuildTimeoutSeconds
@@ -186,11 +186,6 @@ function Invoke-FullQA {
             "--distpath", $qaDist, "--workpath", $qaWork, "CrimsonDesertModWorkbench.spec"
         ) $scriptDir $BuildTimeoutSeconds
         $qaPackageDir = Join-Path $qaDist "CrimsonDesertModWorkbench"
-        $packagedDotNetHelper = Join-Path $qaPackageDir "_internal\native\cdmw-mesh-dotnet-editor.exe"
-        Invoke-QAStep "Packaged .NET Mesh Editor hidden GPU smoke" $powerShellExe @(
-            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $packageBuilder,
-            "-DotNetGpuSmokeExecutable", $packagedDotNetHelper
-        ) $scriptDir $StepTimeoutSeconds
 
         $smokeEnvironment = @{
             "QT_QPA_PLATFORM" = "offscreen"

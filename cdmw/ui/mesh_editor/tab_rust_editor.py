@@ -74,7 +74,8 @@ def _rust_stderr_backtrace_note(line: str) -> bool:
 class MeshEditorRustEditorMixin:
     def _initialize_rust_editor_runtime_state(self) -> None:
         # The legacy preference is deliberately ignored. Rust is the sole
-        # production Mesh Editor; Vortice remains scoped to preview consumers.
+        # production Mesh Editor and Archive Preview renderer. Compatibility
+        # setting names are retained only as inert persisted inputs.
         self.mesh_editor_backend = MESH_EDITOR_BACKEND_RUST
         self.standalone_rust_prepare_thread: QThread | None = None
         self.standalone_rust_prepare_worker: object | None = None

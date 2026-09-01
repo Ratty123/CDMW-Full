@@ -460,7 +460,7 @@ class ArchiveAppearanceCompositeMixin:
             prepared_preview_model = None
             if isinstance(getattr(result, "preview_model", None), ModelPreviewData):
                 try:
-                    log("Preparing composite appearance preview for .NET/Vortice...")
+                    log("Preparing composite appearance preview for Rust Preview...")
                     prepared_model, prepared_preview_model = prepare_model_preview(
                         result.preview_model,
                         render_settings=preview_settings,
@@ -471,7 +471,7 @@ class ArchiveAppearanceCompositeMixin:
                     result = dataclasses.replace(
                         result,
                         warnings=tuple(result.warnings or ())
-                        + (f".NET/Vortice composite preparation failed: {exc}",),
+                        + (f"Rust Preview composite preparation failed: {exc}",),
                     )
             return result, prepared_preview_model
 

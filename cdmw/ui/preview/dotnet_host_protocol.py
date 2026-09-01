@@ -14,9 +14,22 @@ from cdmw.ui.preview.dotnet_host_values import _indices, _triple
 class DotNetPreviewHostProtocolMixin:
     def _remember_embedded_child_window(self, payload: Mapping[str, object]) -> None:
         try:
-            hwnd = int(payload.get("form_hwnd", 0) or 0)
+            hwnd = int(payload.get("child_hwnd", payload.get("form_hwnd", 0)) or 0)
         except (TypeError, ValueError):
             return
+        if hwnd > 0 and sys.platform == "win32":
+            try:
+                import ctypes
+                from ctypes import wintypes
+
+                owner_pid = wintypes.DWORD()
+                ctypes.windll.user32.GetWindowThreadProcessId(
+                    wintypes.HWND(hwnd), ctypes.byref(owner_pid)
+                )
+                if int(owner_pid.value) != int(self.controller.process_id or 0):
+                    return
+            except (OSError, AttributeError, TypeError, ValueError):
+                return
         if hwnd > 0:
             self._embedded_child_hwnd = hwnd
             self._sync_embedded_child_geometry()
@@ -53,6 +66,20 @@ class DotNetPreviewHostProtocolMixin:
             if not user32.IsWindow(wintypes.HWND(hwnd)):
                 self._embedded_child_hwnd = 0
                 return
+            owner_pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(
+                wintypes.HWND(hwnd), ctypes.byref(owner_pid)
+            )
+            if int(owner_pid.value) != int(self.controller.process_id or 0):
+                self._embedded_child_hwnd = 0
+                return
+            if int(user32.GetParent(wintypes.HWND(hwnd)) or 0) != parent:
+                ctypes.set_last_error(0)
+                previous_parent = user32.SetParent(
+                    wintypes.HWND(hwnd), wintypes.HWND(parent)
+                )
+                if not previous_parent and ctypes.get_last_error():
+                    return
             rect = wintypes.RECT()
             if not user32.GetClientRect(wintypes.HWND(parent), ctypes.byref(rect)):
                 return
@@ -123,14 +150,16 @@ class DotNetPreviewHostProtocolMixin:
         )
 
     def _load_scene_state(self, package_dir: Path) -> None:
-        scene_path = Path(package_dir) / "dotnet_scene.json"
+        scene_path = Path(package_dir) / "manifest.json"
         try:
             payload = json.loads(scene_path.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             self._scene_state = {}
             self._scene_generation = 0
             return
-        self._scene_state = dict(payload) if isinstance(payload, Mapping) else {}
+        state = payload.get("state") if isinstance(payload, Mapping) else None
+        scene = state.get("preview_scene") if isinstance(state, Mapping) else None
+        self._scene_state = dict(scene) if isinstance(scene, Mapping) else {}
         self._scene_generation = int(self._scene_state.get("scene_generation", 0) or 0)
 
     def _handle_controller_state(self, state: str, message: str) -> None:
@@ -218,7 +247,13 @@ class DotNetPreviewHostProtocolMixin:
             "tool_changed",
         }:
             return
-        if event in {"embedded_window_revealed", "reembed_ack"}:
+        if event in {
+            "protocol_ready",
+            "ready",
+            "embedded_window_revealed",
+            "reembed_ack",
+            "reembedded",
+        }:
             self._remember_embedded_child_window(payload)
         if event == "placement_transform_request":
             self._handle_placement_transform_request(payload)
@@ -288,6 +323,18 @@ class DotNetPreviewHostProtocolMixin:
             return
         sources = _indices(payload.get("source_indices", ()))  # type: ignore[arg-type]
         selected = sources[0] if sources else -1
+        phase = str(payload.get("phase", "select") or "select").strip().lower()
+        if phase == "hover":
+            self.source_part_hovered.emit(selected)
+            return
+        if phase == "context":
+            try:
+                x = int(payload.get("x", 0) or 0)
+                y = int(payload.get("y", 0) or 0)
+            except (TypeError, ValueError, OverflowError):
+                x = y = 0
+            self.source_part_context_requested.emit(selected, x, y)
+            return
         self.source_part_selected.emit(selected)
 
     def _handle_capture_completed(self, payload: object) -> None:

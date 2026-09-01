@@ -139,7 +139,11 @@ def native_preview_package_cache_packages_root(cache_root: Path) -> Path:
 
 
 def native_preview_package_derived_cache_root(cache_root: Path) -> Path:
-    """Root of the Vortice-ready tier built from decoded source packages."""
+    """Root of the legacy derived tier built from decoded source packages.
+
+    Production Rust previews use their own schema/namespace; this accessor is
+    retained only for compatibility and for ignoring existing cache data.
+    """
 
     return Path(cache_root) / NATIVE_PREVIEW_PACKAGE_DERIVED_CACHE_DIRNAME
 
@@ -718,7 +722,7 @@ def clear_native_preview_package_cache(cache_root: Path) -> None:
     _set_cached_total_bytes(cache_root, 0)
 
 
-# Canonical .NET/Vortice names.  The implementation remains in this module so
+# Canonical Rust Preview names.  The implementation remains in this module so
 # older extensions can keep importing the historical symbols, but production
 # renderer code imports the canonical facade in ``dotnet_preview_package_cache``.
 DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA = NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA

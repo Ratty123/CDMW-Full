@@ -2,7 +2,12 @@ from __future__ import annotations
 from pathlib import Path
 from tools.mesh_harness.sparse_update_soak import run_sparse_update_soak
 from tools.mesh_harness.scenario_registry import scenario_metadata
-from tools.mesh_harness.constants import _DEFAULT_GAME_ROOT, _DOTNET_NATIVE_PARITY_SCENARIO, _REAL_MESH_EDITOR_VISUAL_SCENARIO
+from tools.mesh_harness.constants import (
+    _DEFAULT_GAME_ROOT,
+    _DOTNET_NATIVE_PARITY_SCENARIO,
+    _REAL_MESH_EDITOR_DOTNET_SCENARIO,
+    _REAL_MESH_EDITOR_PRODUCTION_SCENARIO,
+)
 from tools.mesh_harness.asset_authoring import run_asset_authoring_discovery, run_asset_authoring_mesh_health, run_asset_authoring_openimageio_report, run_asset_authoring_tangent_report, run_asset_authoring_uv_report
 from tools.mesh_harness.evidence import _mesh_editor_evidence_report, _write_json_atomic
 from tools.mesh_harness.edit_mesh_diagnostics import run_headless_edit_mesh_diagnostics
@@ -108,7 +113,37 @@ def run_scenario(
             'ok': bool(load_result.get('ok')),
             'real_archive_mesh_editor_load': load_result,
         }
-    elif scenario == _REAL_MESH_EDITOR_VISUAL_SCENARIO:
+    elif scenario == _REAL_MESH_EDITOR_PRODUCTION_SCENARIO:
+        from tools.mesh_harness.real_rust_preview import run_real_archive_rust_preview_smoke
+
+        rust_proof = run_real_archive_rust_preview_smoke(
+            Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+            output_dir,
+            timeout_seconds=metadata.timeout_seconds,
+        )
+        renderer_ok = (
+            str(rust_proof.get("renderer_backend", "") or "")
+            == metadata.expected_renderer_backend
+        )
+        preview_backend_ok = (
+            str(rust_proof.get("preview_backend", "") or "")
+            == "cdmw_rust_preview_0.1"
+        )
+        rust_proof.update(
+            {
+                "expected_renderer_backend": metadata.expected_renderer_backend,
+                "renderer_backend_ok": renderer_ok,
+                "preview_backend_ok": preview_backend_ok,
+                "backend_gate_ok": renderer_ok and preview_backend_ok,
+                "ok": bool(rust_proof.get("ok") and renderer_ok and preview_backend_ok),
+            }
+        )
+        result = {
+            "scenario": scenario,
+            "ok": bool(rust_proof.get("ok")),
+            "real_archive_rust_preview": rust_proof,
+        }
+    elif scenario == _REAL_MESH_EDITOR_DOTNET_SCENARIO:
         from tools.mesh_harness.real_dotnet import (
             run_real_archive_mesh_editor_dotnet_edit_smoke,
             run_real_archive_mesh_editor_dotnet_zoom_smoke,

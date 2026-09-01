@@ -18,7 +18,7 @@ ComboOption: TypeAlias = tuple[str, object]
 ToolButtonOption: TypeAlias = tuple[str, str, str]
 
 PREVIEW_RENDERER_OPTIONS: tuple[ComboOption, ...] = (
-    (".NET/Vortice Preview", "d3d11"),
+    ("Rust Preview", "d3d11"),
 )
 
 PREVIEW_MODE_OPTIONS: tuple[ComboOption, ...] = (

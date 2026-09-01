@@ -100,47 +100,18 @@ def _verify_mesh_builder_startup_smoke_target(window: object, app: QApplication)
     verify_mesh_builder_startup_smoke_target(window, app)
 
 
-def _verify_mesh_archive_textures_startup_smoke_target(
-    window: object,
-    app: QApplication,
-) -> dict[str, object]:
-    from tools.mesh_harness.packaged_mesh_texture_smoke import (
-        verify_packaged_mesh_texture_smoke_target,
-    )
-
-    return verify_packaged_mesh_texture_smoke_target(window, app)
-
-
 def finish_gui_startup_smoke_if_requested(window: object, app: QApplication) -> bool:
     if not gui_startup_smoke_requested():
         return False
     target = os.environ.get("CDMW_GUI_STARTUP_SMOKE_TARGET", "").strip().lower()
-    if target == "mesh_archive_textures":
-        # A hidden Win32 top-level window never receives the first D3D11 paint,
-        # which made the packaged texture gate test a permanently suppressed
-        # swap chain rather than the executable users run. Keep the real window
-        # lifecycle and dimensions without activating over the reader's app.
-        window.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
-        window.setWindowFlag(Qt.WindowType.WindowDoesNotAcceptFocus, True)
-        window.move(-32_000, -32_000)
     window._release_startup_splash()
     app.processEvents()
-    if target == "mesh_archive_textures":
-        # Explicitly establish the shown state after the splash releases.
-        # The off-screen window remains a genuine shown HWND, so WinForms and
-        # D3D11 receive the same show, embed, resize and paint messages as the
-        # packaged GUI before the harness places it on its assigned monitor.
-        window.showNormal()
-        window.move(-32_000, -32_000)
-        app.processEvents()
     evidence: dict[str, object] | None = None
     try:
         if target == "mesh_editor":
             _verify_mesh_editor_startup_smoke_target(window, app)
         elif target == "mesh_builder":
             _verify_mesh_builder_startup_smoke_target(window, app)
-        elif target == "mesh_archive_textures":
-            evidence = _verify_mesh_archive_textures_startup_smoke_target(window, app)
         elif target:
             raise RuntimeError(f"Unknown GUI startup smoke target: {target}")
     except Exception as exc:

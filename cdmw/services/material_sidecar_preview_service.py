@@ -31,8 +31,8 @@ from cdmw.models import (
     ModelPreviewRenderSettings,
 )
 from cdmw.rendering.dotnet_preview_package_cache import create_dotnet_preview_package_staging_dir
-from cdmw.services.mesh_dotnet_preview_package import (
-    build_or_lookup_dotnet_preview_package_from_model,
+from cdmw.services.mesh_rust_preview_cache import (
+    build_or_lookup_rust_preview_package_from_model as build_or_lookup_dotnet_preview_package_from_model,
 )
 
 

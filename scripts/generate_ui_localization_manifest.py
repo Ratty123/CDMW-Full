@@ -19,6 +19,21 @@ ROOT = Path(__file__).resolve().parents[1]
 RESOURCE_ROOT = ROOT / "cdmw" / "resources" / "localization"
 MANIFEST_PATH = RESOURCE_ROOT / "source_manifest.json"
 ENGLISH_CATALOG_PATH = RESOURCE_ROOT / "en.json"
+BUILTIN_TRANSLATION_CODES = (
+    "de",
+    "es-419",
+    "es-ES",
+    "fr",
+    "it",
+    "ja",
+    "ko",
+    "pl",
+    "pt-BR",
+    "ru",
+    "tr",
+    "zh-Hans",
+    "zh-Hant",
+)
 EXCLUSIONS_PATH = ROOT / "scripts" / "ui_localization_exclusions.json"
 DOTNET_LOCALIZATION_PATH = (
     ROOT
@@ -1802,8 +1817,6 @@ def _load_exclusions() -> tuple[dict[str, str], ...]:
 
 def build_manifest() -> dict[str, object]:
     origins = _scan_python()
-    for source, rows in _scan_csharp().items():
-        origins[source].extend(rows)
     exclusions = _load_exclusions()
     for exclusion in exclusions:
         source = exclusion["source"]
@@ -1910,6 +1923,30 @@ def _serialized(payload: object) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=False) + "\n"
 
 
+def _synchronized_builtin_catalogs(
+    english: dict[str, object],
+) -> dict[Path, str]:
+    """Retain reviewed translations while pruning retired production keys."""
+    english_entries = english.get("translations")
+    if not isinstance(english_entries, dict):
+        raise ValueError("English catalog has no translations object.")
+    synchronized: dict[Path, str] = {}
+    for code in BUILTIN_TRANSLATION_CODES:
+        path = RESOURCE_ROOT / f"{code}.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError(f"{path.relative_to(ROOT)} is not a JSON object.")
+        translations = payload.get("translations")
+        if not isinstance(translations, dict):
+            raise ValueError(f"{path.relative_to(ROOT)} has no translations object.")
+        payload["translations"] = {
+            key: translations.get(key, fallback)
+            for key, fallback in english_entries.items()
+        }
+        synchronized[path] = _serialized(payload)
+    return synchronized
+
+
 def _manifest_freshness_view(payload: object) -> object:
     """Return the manifest contract with informational source lines removed."""
     if not isinstance(payload, dict):
@@ -1972,8 +2009,8 @@ def main() -> int:
     expected = {
         MANIFEST_PATH: _serialized(manifest),
         ENGLISH_CATALOG_PATH: _serialized(english),
-        DOTNET_LOCALIZATION_PATH: _expected_dotnet_source(manifest),
     }
+    expected.update(_synchronized_builtin_catalogs(english))
     if args.write:
         RESOURCE_ROOT.mkdir(parents=True, exist_ok=True)
         for path, text in expected.items():

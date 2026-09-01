@@ -16,10 +16,14 @@ use thiserror::Error;
 
 pub const PROTOCOL: &str = "cdmw_rust_mesh_editor_protocol_v1";
 pub const PACKAGE_SCHEMA: &str = "cdmw_rust_mesh_authoring_package_v1";
+pub const PREVIEW_PROTOCOL: &str = "cdmw_rust_preview_protocol_v1";
+pub const PREVIEW_PACKAGE_SCHEMA: &str = "cdmw_rust_preview_package_v1";
+pub const PREVIEW_BACKEND: &str = "cdmw_rust_preview_0.1";
 pub const CANDIDATE_SCHEMA: &str = "cdmw_rust_mesh_candidate_v1";
 pub const RENDERER: &str = "wgpu_d3d12_rust";
 pub const EDIT_BACKEND: &str = "cdmw_rust_mesh_0.1";
 const MAX_PAYLOAD_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_MANIFEST_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_CONTROL_LINE_BYTES: usize = 256 * 1024;
 const CONTROL_QUEUE_BOUND: usize = 256;
 const OUTBOUND_QUEUE_BOUND: usize = 64;
@@ -63,7 +67,7 @@ pub struct SessionTextureReference {
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CdmwTextureResource {
     pub label: String,
     pub role: TextureRole,
@@ -125,6 +129,8 @@ pub struct SessionManifest {
     pub theme: Value,
     #[serde(default)]
     pub state: Value,
+    #[serde(default)]
+    pub interaction_profile: String,
 }
 
 #[derive(Debug, Clone)]
@@ -197,6 +203,24 @@ pub struct LoadedCdmwSessionPackage {
 
 impl LoadedCdmwSessionPackage {
     pub fn load(manifest_path: &Path) -> Result<Self, SessionError> {
+        Self::load_for(manifest_path, PACKAGE_SCHEMA, PROTOCOL, EDIT_BACKEND)
+    }
+
+    pub fn load_preview(manifest_path: &Path) -> Result<Self, SessionError> {
+        Self::load_for(
+            manifest_path,
+            PREVIEW_PACKAGE_SCHEMA,
+            PREVIEW_PROTOCOL,
+            PREVIEW_BACKEND,
+        )
+    }
+
+    fn load_for(
+        manifest_path: &Path,
+        expected_schema: &str,
+        expected_protocol: &str,
+        expected_backend: &str,
+    ) -> Result<Self, SessionError> {
         let manifest_path = fs::canonicalize(manifest_path)?;
         if manifest_path.file_name().and_then(|name| name.to_str()) != Some("manifest.json") {
             return Err(SessionError::InvalidManifest(
@@ -207,9 +231,14 @@ impl LoadedCdmwSessionPackage {
             .parent()
             .ok_or_else(|| SessionError::InvalidManifest("manifest has no parent".to_owned()))?
             .to_path_buf();
-        let manifest_bytes = read_limited(&manifest_path, MAX_CONTROL_LINE_BYTES as u64 * 8)?;
+        let manifest_bytes = read_limited(&manifest_path, MAX_MANIFEST_BYTES)?;
         let manifest: SessionManifest = serde_json::from_slice(&manifest_bytes)?;
-        validate_manifest(&manifest)?;
+        validate_manifest_for(
+            &manifest,
+            expected_schema,
+            expected_protocol,
+            expected_backend,
+        )?;
         let document_bytes = read_json_reference(&root, &manifest.document)?;
         // Channels are integrity-checked authoring provenance. The renderer
         // consumes geometry from document.json, so validate the JSON stream
@@ -628,6 +657,7 @@ impl CdmwBridge {
                 output_policy: Value::Null,
                 theme: Value::Null,
                 state: Value::Null,
+                interaction_profile: String::new(),
             },
             incoming,
             outbound,
@@ -724,11 +754,16 @@ impl CdmwBridge {
     }
 }
 
-fn validate_manifest(manifest: &SessionManifest) -> Result<(), SessionError> {
-    if manifest.schema != PACKAGE_SCHEMA
-        || manifest.protocol != PROTOCOL
+fn validate_manifest_for(
+    manifest: &SessionManifest,
+    expected_schema: &str,
+    expected_protocol: &str,
+    expected_backend: &str,
+) -> Result<(), SessionError> {
+    if manifest.schema != expected_schema
+        || manifest.protocol != expected_protocol
         || manifest.renderer != RENDERER
-        || manifest.edit_backend != EDIT_BACKEND
+        || manifest.edit_backend != expected_backend
     {
         return Err(SessionError::InvalidManifest(
             "schema, protocol, renderer, or edit backend does not match".to_owned(),
@@ -1761,6 +1796,31 @@ mod tests {
             package.take_material_presentations(),
             vec![material_presentation()]
         );
+    }
+
+    #[test]
+    fn preview_manifest_accepts_realistic_overlay_payload_above_the_protocol_line_limit() {
+        let root = tempdir().expect("root");
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).expect("read manifest"))
+                .expect("parse manifest");
+        manifest["state"]["preview_overlays"] =
+            Value::String("x".repeat(MAX_CONTROL_LINE_BYTES * 9));
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec(&manifest).expect("manifest bytes"),
+        )
+        .expect("expanded manifest");
+        assert!(
+            manifest_path.metadata().expect("manifest metadata").len()
+                > MAX_CONTROL_LINE_BYTES as u64 * 8
+        );
+
+        let package = LoadedCdmwSessionPackage::load(&manifest_path)
+            .expect("large preview manifest remains bounded and loadable");
+
+        assert_eq!(package.manifest().session_id, "capture-session");
     }
 
     #[test]

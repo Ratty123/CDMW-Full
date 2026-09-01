@@ -199,7 +199,7 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertEqual(first["audit_category"], second["audit_category"])
             self.assertEqual(first["audit_warnings"], tuple(second["audit_warnings"]))
 
-    def test_backend_prepares_fast_d3d11_package_from_gltf_zip_with_texture(self) -> None:
+    def test_backend_prepares_fast_rust_package_from_gltf_zip_with_texture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             asset_dir = root / "asset"
@@ -218,11 +218,11 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             )
 
             package_dir = Path(str(result["dotnet_preview_package_path"]))
-            materials = json.loads((package_dir / "net_materials.json").read_text(encoding="utf-8"))
+            manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(result["vertices"], 3)
             self.assertGreaterEqual(int(result["textures"]), 1)
             self.assertFalse(result["high_quality_textures"])
-            self.assertGreaterEqual(len(materials["resources"]), 1)
+            self.assertGreaterEqual(len(manifest["textures"]), 1)
 
     def test_backend_rejects_legacy_qt_renderer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -264,13 +264,14 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertEqual(result["faces"], result["source_faces"])
             self.assertIsNone(result["quality_reduction"])
 
-    def test_dotnet_package_contains_scene_and_material_authority_payloads(self) -> None:
+    def test_rust_package_contains_scene_and_material_authority_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp), triangle_count=1200)
             result = prepare_model_library_inline_preview(scene_path, model_name="Dense")
             package_dir = Path(str(result["dotnet_preview_package_path"]))
-            self.assertTrue((package_dir / "dotnet_scene.json").is_file())
-            self.assertTrue((package_dir / "net_materials.json").is_file())
+            self.assertTrue((package_dir / "manifest.json").is_file())
+            self.assertTrue((package_dir / "document.json").is_file())
+            self.assertTrue((package_dir / "channels.json").is_file())
             self.assertTrue(validate_dotnet_preview_package(package_dir)[0])
 
     def test_backend_preview_honors_pre_cancelled_stop_event(self) -> None:

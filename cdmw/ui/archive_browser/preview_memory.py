@@ -61,7 +61,7 @@ def _dotnet_preview_process_metrics(owner: object) -> Dict[str, object]:
 
 
 class ArchivePreviewMemoryAuditMixin:
-    """Memory diagnostics for archive preview, native-core, and .NET/Vortice workers."""
+    """Memory diagnostics for archive preview, native-core, and Rust Preview workers."""
 
     @staticmethod
     def _memory_mib(value: object) -> float:

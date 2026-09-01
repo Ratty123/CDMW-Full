@@ -157,238 +157,66 @@ $TestsByArea = @{
         "tests/test_static_texture_replacement.py"
     )
     "mesh-contract" = @(
-        "tests/test_dotnet_resident_mutation_batch_contract.py",
-        "tests/test_dotnet_stroke_sample_buffer_contract.py",
-        "tests/test_dotnet_selection_geometry_contract.py",
-        "tests/test_dotnet_provisional_brush_parity.py",
-        "tests/test_dotnet_mesh_edit_operator_contract.py",
-        "tests/test_dotnet_mesh_editor_control_contract.py"
+        "tests/test_mesh_rust_archive_texture_launch.py",
+        "tests/test_mesh_rust_embedding.py",
+        "tests/test_rust_mesh_editor_control_contract.py",
+        "tests/test_dotnet_preview_shared_host.py",
+        "tests/test_rust_preview_production_cutover.py"
     )
     "mesh-native" = @(
         "tests/test_native_mesh_interaction_abi.py",
-        "tests/test_dotnet_native_mesh_interaction_abi.py",
-        "tests/test_mesh_resident_interaction_transaction.py",
-        "tests/test_mesh_resident_interaction_protocol.py"
-    )
-    "mesh-unit" = @(
-        "tests/test_mesh_dotnet_experiment.py",
-        "tests/test_mesh_dotnet_experiment_source_contract.py",
-        "tests/test_native_dotnet_preview_adapter_layers.py",
-        "tests/test_mesh_dotnet_experiment_output.py",
-        "tests/test_material_category_contract.py",
-        "tests/test_mesh_dotnet_material_state.py",
-        "tests/test_mesh_dotnet_material_visual_parity.py",
-        "tests/test_mesh_dotnet_material_package.py",
-        "tests/test_material_combiner_decode_retry.py",
-        "tests/test_material_combiner_vectorized.py",
-        "tests/test_mesh_dotnet_material_dds_synthesis.py",
-        "tests/test_mesh_dotnet_material_parameters.py",
-        "tests/test_mesh_dotnet_resident_material_ui.py",
-        "tests/test_mesh_visual_audit_harness.py",
-        "tests/test_mesh_visual_audit_integrity.py",
-        "tests/test_mesh_visual_audit_package.py",
-        "tests/test_dotnet_protocol_trail_writes.py",
-        "tests/test_mesh_editor_no_undefined_globals.py",
-        "tests/test_edit_mesh_tool_rail_reaches_python.py",
         "tests/test_mesh_native_operation_coverage.py",
         "tests/test_mesh_native_session_recovery.py",
-        "tests/test_mesh_topology_provenance.py",
-        "tests/test_native_mesh_topology_provenance.py",
-        "tests/test_mesh_pac_topology_serializer.py",
-        "tests/test_mesh_topology_rebuild_integration.py",
-        "tests/test_mesh_topology_checks_panel.py",
-        "tests/test_stroke_orphan_refusal.py",
-        "tests/test_mesh_edit_combo_mirror.py",
-        "tests/test_mesh_edit_selection_mirror.py",
-        "tests/test_mesh_edit_paint_select_sample.py",
-        "tests/test_mesh_edit_stroke_single_authority.py",
-        "tests/test_mesh_delta_temp_cleanup_budget.py",
-        "tests/test_prewarm_placeholder_not_revealed.py",
-        "tests/test_mesh_edit_display_mode_slot.py",
-        "tests/test_transform_button_captions_not_squeezed.py",
-        "tests/test_dotnet_helper_manifest_contract.py",
-        "tests/test_native_mesh_interaction_abi.py",
-        "tests/test_dotnet_native_mesh_interaction_abi.py",
-        "tests/test_mesh_resident_interaction_transaction.py",
-        "tests/test_mesh_resident_interaction_protocol.py",
-        "tests/test_dotnet_resident_mutation_batch_contract.py",
-        "tests/test_dotnet_stroke_sample_buffer_contract.py",
-        "tests/test_dotnet_selection_geometry_contract.py",
-        "tests/test_dotnet_provisional_brush_parity.py",
-        "tests/test_dotnet_mesh_edit_operator_contract.py",
-        "tests/test_dotnet_mesh_editor_control_contract.py",
-        "tests/test_dotnet_ui_localization_protocol_source.py",
-        "tests/test_dotnet_preview_shared_host.py",
-        "tests/test_dotnet_preview_theme.py",
-        "tests/test_dotnet_ready_watchdog_progress.py",
-        "tests/test_dotnet_mesh_editor_layout_contract.py",
-        "tests/test_dotnet_mesh_editor_tool_protocol_source.py",
-        "tests/test_mesh_morph_slider_ui_source_guards.py",
-        "tests/test_mesh_morph_refit_protocol.py",
-        "tests/test_mesh_morph_service.py",
-        "tests/test_dotnet_preview_performance_contract.py",
-        "tests/test_dotnet_gpu_geometry_resources.py",
-        "tests/test_dotnet_texture_region_protocol.py",
-        "tests/test_dotnet_material_parameter_protocol.py",
-        "tests/test_native_preview_material_authority_protocol.py",
-        "tests/test_native_preview_core.py",
-        "tests/test_native_preview_character_appearance.py",
-        "tests/test_character_context.py",
-        "tests/test_dotnet_icon_capture_protocol.py",
-        # The viewport's icon capture is the view on screen at any yaw, pitch and
-        # pan: the helper's GPU-free proof over the real capture camera, which
-        # agreed with the screen only at yaw 0 from 2026-07-17 to 2026-08-22.
-        "tests/test_dotnet_capture_camera_parity.py",
-        "tests/test_mesh_edit_native_coverage.py",
         "tests/test_native_mesh_editor_session.py",
-        "tests/test_native_mesh_subdivide_repeat.py",
-        "tests/test_mesh_service_editing.py",
+        "tests/test_mesh_service_editing.py"
+    )
+    "mesh-unit" = @(
         "tests/test_mesh_rust_authoring.py",
         "tests/test_mesh_rust_authoring_exact_output.py",
-        "tests/test_mesh_rust_morph_safety.py",
-        "tests/test_mesh_history_atomic_restore.py",
+        "tests/test_mesh_rust_archive_texture_launch.py",
+        "tests/test_mesh_rust_embedding.py",
         "tests/test_mesh_rust_editor_selection.py",
+        "tests/test_mesh_rust_morph_safety.py",
         "tests/test_rust_mesh_editor_control_contract.py",
+        "tests/test_dotnet_preview_shared_host.py",
+        "tests/test_rust_preview_production_cutover.py",
+        "tests/test_mesh_service_editing.py",
+        "tests/test_mesh_native_operation_coverage.py",
+        "tests/test_mesh_native_session_recovery.py",
+        "tests/test_native_mesh_editor_session.py",
+        "tests/test_mesh_operation_spec.py",
+        "tests/test_mesh_topology_provenance.py",
+        "tests/test_native_mesh_topology_provenance.py",
+        "tests/test_mesh_topology_rebuild_integration.py",
+        "tests/test_mesh_selection_tools.py",
+        "tests/test_mesh_geometry_layers.py",
+        "tests/test_mesh_morph_service.py",
+        "tests/test_static_skin_weight_export.py",
+        "tests/test_mesh_output_policy.py",
         "tests/test_mesh_editor_controller.py",
         "tests/test_mesh_editor_actions.py",
         "tests/test_mesh_editor_action_bar.py",
         "tests/test_mesh_editor_direct_mode.py",
-        # Replace from Archive planning/export, paged picker lifecycle, and the
-        # adjacent APP XML regression that escaped through local mesh discovery.
-        "tests/test_replace_from_archive_service.py",
-        "tests/test_replace_from_archive_dialog.py",
-        "tests/test_scene_importer_gltf.py",
-        "tests/test_mesh_editor_warm_reopen.py",
-        "tests/test_mesh_editor_builder_interaction_defaults.py",
-        "tests/test_mesh_builder_runtime_wiring.py",
-        "tests/test_mesh_builder_construction_lifecycle.py",
-        "tests/test_mesh_builder_construction_invariants.py",
-        "tests/test_mesh_builder_preview_control_honesty.py",
-        "tests/test_static_replacement_post_open_state.py",
-        "tests/test_static_replacement_prompt_preflight_async.py",
-        "tests/test_static_replacement_mesh_edit_dotnet_toggle.py",
-        "tests/test_mesh_resident_editor_regressions.py",
-        "tests/test_static_replacement_dotnet_presentation.py",
-        "tests/test_mesh_editor_presentation_republish.py",
-        "tests/test_mesh_editor_preview_mode_survives_publish.py",
-        "tests/test_mesh_editor_textured_view_request_settles.py",
-        # Material publication ordering, the boundary an imported model's own
-        # materials are published from, and the Edit Mesh session states. The
-        # first two are the Solid (Textured) reproducers; the third is what
-        # refuses a finish over a working state whose renderer died.
-        "tests/test_mesh_material_publication_coordinator.py",
-        "tests/test_mesh_editor_imported_material_publication.py",
-        "tests/test_mesh_editor_runtime_diagnostics.py",
-        "tests/test_mesh_edit_session_state.py",
-        # Element kind and drag gesture, which shared one field and one name
-        # until an edge tool started resetting the reader's Lasso to Brush.
-        "tests/test_mesh_edit_selection_vocabulary.py",
-        # Why each action is off the rail, and that the two reasons stay apart:
-        # eleven blocked by the writer, three superseded by the Select tool.
-        "tests/test_mesh_editor_hidden_action_contract.py",
-        # What an import resolved per material slot, and the build log that now
-        # reads that manifest rather than retelling the same rows.
-        "tests/test_imported_material_manifest.py",
-        # The import's account of a slot against the package's, which agreed
-        # only by reading the same pipeline until this compared them.
-        "tests/test_material_manifest_agreement.py",
-        # Every link of the import setup chain accepts every workflow preset.
-        # Two shipped crashes were a keyword one link took and the next refused.
-        "tests/test_mesh_import_setup_flag_chain.py",
-        # The gizmo drag reaching the host with the transform it was sent. The
-        # payload nests it, the host read the top level, and every drag reported
-        # no movement at all.
-        "tests/test_placement_gizmo_transform_signals.py",
-        # An imported material's emissive surviving the Material Authority
-        # update that used to clear it: the preview mesh dropped the factor
-        # parameters, so the bridge decided the part had no glow.
-        "tests/test_imported_emissive_survives_material_authority.py",
-        # Part Setup's combo selecting and highlighting a part the lazily
-        # populated source tree has not reached yet.
-        "tests/test_part_setup_combo_selects_and_highlights.py",
-        # The presentation snapshot every refresh republishes carrying the
-        # selection: its factory bound each shared highlight set with
-        # `or set()`, got a private empty copy, and cleared the highlight
-        # a pick had just sent.
-        "tests/test_presentation_snapshot_reads_live_selection.py",
-        # Where the Builder's Setup controls live after the owner's restructure:
-        # options under Options, Material Authority flat inside Advanced, and
-        # Parts & Routing folded into Part Setup with its tab hidden.
-        "tests/test_builder_setup_tab_layout.py",
-        # Replace Materials and Textures Only, whose whole guarantee is that the
-        # commit boundary emits no mesh entry at all.
-        "tests/test_materials_and_textures_replacement.py",
         "tests/test_mesh_editor_edit_session_boundary.py",
-        "tests/test_mesh_editor_error_codes.py",
-        "tests/test_mesh_operation_spec.py",
-        # The operation the Builder's controls classify to, the flags derived
-        # from it, and the build that refuses options which stopped describing
-        # it. The first proves the derivation still produces what the six
-        # expressions it replaced produced; the second is the fail-closed path.
-        "tests/test_mesh_builder_operation.py",
-        "tests/test_static_mesh_build_operation_guard.py",
-        "tests/test_full_replacement_texture_payload.py",
-        "tests/test_mesh_authoring_capability.py",
-        "tests/test_mesh_output_policy.py",
         "tests/test_mesh_editor_ui_state.py",
         "tests/test_mesh_editor_ui_state_bridge.py",
-        "tests/test_fbx_support_contract.py",
-        "tests/test_mesh_editor_mixin_composition.py",
-        "tests/test_mesh_editor_camera_is_not_reset.py",
-        "tests/test_dotnet_solid_textured_view_survives_publish.py",
-        "tests/test_dotnet_edit_mesh_entry_layout.py",
-        "tests/test_select_drag_shape_survives_tool_state.py",
-        "tests/test_mesh_editor_scene_mode_reads.py",
-        "tests/test_mesh_editor_host_window_reparent.py",
-        "tests/test_mesh_preview_stale_package_reveal.py",
-        "tests/test_qt_rhi_plugin_contract.py",
-        "tests/test_dotnet_preview_package_cache_reuse.py",
+        "tests/test_pbd_cloth_preview.py",
+        "tests/test_archive_preview_texture_binding.py",
+        "tests/test_archive_preview_request_coalescing.py",
+        "tests/test_model_library_preview.py",
+        "tests/test_new_item_item_preview.py",
+        "tests/test_effect_placement_preview.py",
+        "tests/test_effect_placement_dialog.py",
+        "tests/test_material_sidecar_editor.py",
+        "tests/test_static_replacement_mesh_edit_state.py",
         "tests/test_static_replacement_selection_commits.py",
-        "tests/test_mesh_harness_performance_contract.py",
-        "tests/test_mesh_harness_scenario_registry.py",
-        "tests/test_mesh_harness_real_dotnet_evidence.py",
-        "tests/test_mesh_dotnet_live_stroke_dispatch.py",
-        "tests/test_mesh_dotnet_stroke_protocol_flow.py",
-        "tests/test_mesh_live_stroke_dispatcher.py",
-        "tests/test_dotnet_update_queue.py",
-        "tests/test_mesh_selection_targets.py",
-        "tests/test_mesh_dense_subdivide.py",
-        "tests/test_mesh_geometry_layers.py",
-        "tests/test_modify_original_mesh_layer_drafts.py",
-        "tests/test_modify_original_draft_chain_async.py",
-        "tests/test_mesh_editor_camera_only_on_open.py",
-        "tests/test_preview_overlay_color_settings.py",
-        "tests/test_xray_overlay_color_follows_preference.py",
-        "tests/test_dotnet_preview_settings_contract.py",
-        # Also unregistered until 2026-08-08; its embedded-dialog, part-pick and
-        # flip-V needles had drifted from the source they guard.
-        "tests/test_alignment_dialog_source_guards.py",
-        "tests/test_static_replacement_dialog_helpers.py",
-        "tests/test_static_replacement_d3d11_deleted_process.py",
-        "tests/test_mesh_editor_nonblocking_close.py",
-        "tests/test_dotnet_overlay_color_controls.py",
-        "tests/test_mesh_deformer.py",
-        "tests/test_mesh_body_regions.py",
-        "tests/test_mesh_body_region_falloff.py",
-        "tests/test_mesh_body_region_sliders.py",
-        "tests/test_mesh_body_region_slider_native.py",
-        "tests/test_mesh_region_decompose.py",
-        "tests/test_mesh_body_region_atlas.py",
-        "tests/test_native_morph_field_generation.py",
-        "tests/test_pac_skin_layout_regression.py",
-        "tests/test_static_skin_weight_export.py",
-        "tests/test_mesh_selection_tools.py",
-        "tests/test_archive_structured_asset_preview.py",
-        "tests/test_rigging_binary_parsers.py",
-        "tests/test_appearance_composite.py",
-        "tests/test_mesh_exporter_fbx.py",
-        "tests/test_mesh_parser_path_argument_guard.py"
+        "tests/test_attachment_async_io.py"
     )
 }
 
 Set-Location -LiteralPath $RepoRoot
 
-$RealMeshScenario = "real-archive-mesh-editor-dotnet-edit-smoke"
+$RealMeshScenario = "real-archive-rust-preview-smoke"
 $PytestTempArgs = @()
 if ($PytestBaseTemp) {
     $PytestTempArgs = @("-p", "no:cacheprovider", "--basetemp=$PytestBaseTemp")
@@ -414,8 +242,8 @@ if ($Area -eq "mesh") {
         exit 1
     }
     $ProofRunId = [Guid]::NewGuid().ToString("N")
-    $OutputDir = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-real-archive-mesh-editor-dotnet-$ProofRunId"
-    Write-Host "Running real in-game PAC .NET Mesh Editor proof from $PamtPath"
+    $OutputDir = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-real-archive-rust-preview-$ProofRunId"
+    Write-Host "Running no-window real PAC Rust Archive Preview proof from $PamtPath"
     & $Python tools\mesh_editor_dev_harness.py --scenario $RealMeshScenario --game-root $ResolvedGameRoot --output $OutputDir
     exit $LASTEXITCODE
 }
@@ -463,10 +291,7 @@ if ($MissingTests.Count -gt 0) {
 }
 
 Write-Host "Running $Area checks with $Python"
-$DotNetProject = $null
-$DotNetHelper = $null
 $NeedsMeshCore = $Area -in @("mesh-native", "mesh-unit")
-$NeedsDotNetHelper = $Area -in @("mesh-contract", "mesh-native", "mesh-unit")
 if ($NeedsMeshCore) {
     $MeshCoreSource = Join-Path $RepoRoot "native\cdmw_mesh_core"
     $MeshCoreBuild = Join-Path $MeshCoreSource "build"
@@ -478,22 +303,6 @@ if ($NeedsMeshCore) {
     & cmake --build $MeshCoreBuild --config Release --target cdmw-mesh-core-abi
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
-    }
-}
-if ($NeedsDotNetHelper) {
-    $DotNetProject = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
-    $DotNetHelper = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.exe"
-    Write-Host "Building the resident .NET Mesh Editor for fast executable protocol checks"
-    & dotnet build $DotNetProject -c Release --nologo --verbosity:minimal
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
-    if ($NeedsMeshCore) {
-        $MeshCoreAbi = Join-Path $MeshCoreBuild "Release\cdmw-mesh-core.dll"
-        if (-not (Test-Path -LiteralPath $MeshCoreAbi -PathType Leaf)) {
-            throw "The resident native Mesh Editor ABI build did not produce '$MeshCoreAbi'."
-        }
-        Copy-Item -LiteralPath $MeshCoreAbi -Destination (Split-Path -Parent $DotNetHelper) -Force
     }
 }
 # The wall-clock responsiveness tests are excluded by default, because a shared
@@ -526,40 +335,11 @@ if ($Area -eq "mesh-unit") {
     }
 }
 
-if ($Area -eq "mesh-unit") {
-    & (Join-Path $PSScriptRoot "test_dotnet_status_concurrency.ps1")
-
-    $LocalizationRunId = [Guid]::NewGuid().ToString("N")
-    $LocalizationReport = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-ui-localization-$LocalizationRunId.json"
-    $LocalizationProcess = Start-Process `
-        -FilePath $DotNetHelper `
-        -ArgumentList @("--headless-ui-localization-contract", "--localization-report", $LocalizationReport) `
-        -Wait `
-        -PassThru `
-        -WindowStyle Hidden
-    if ($LocalizationProcess.ExitCode -ne 0) {
-        Write-Error ".NET interface-localization contract smoke failed with exit code $($LocalizationProcess.ExitCode)."
-        exit $LocalizationProcess.ExitCode
+if ($Area -in @("mesh-contract", "mesh-unit")) {
+    & (Join-Path $PSScriptRoot "test_rust_mesh_lab.ps1")
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
     }
-    if (-not (Test-Path -LiteralPath $LocalizationReport)) {
-        Write-Error ".NET interface-localization contract smoke did not create '$LocalizationReport'."
-        exit 1
-    }
-    $LocalizationPayload = Get-Content -LiteralPath $LocalizationReport -Raw | ConvertFrom-Json
-    if (-not $LocalizationPayload.ok `
-        -or $LocalizationPayload.boundary_count -lt 28 `
-        -or $LocalizationPayload.localization_key_count -lt 1 `
-        -or $LocalizationPayload.localization_key_manifest_hash.Length -ne 64 `
-        -or -not $LocalizationPayload.presentation_format_ok `
-        -or -not $LocalizationPayload.invariant_metrics_source_ok `
-        -or -not $LocalizationPayload.cjk_font_fallbacks_ok `
-        -or $LocalizationPayload.renderer_started `
-        -or $LocalizationPayload.visible_window_started) {
-        Write-Error ".NET interface-localization contract smoke returned an invalid report at '$LocalizationReport'."
-        exit 1
-    }
-    Remove-Item -LiteralPath $LocalizationReport
-    Write-Host ".NET interface-localization contract smoke passed."
 }
 
 exit 0

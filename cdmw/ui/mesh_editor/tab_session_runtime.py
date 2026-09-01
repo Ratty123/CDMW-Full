@@ -800,7 +800,7 @@ class MeshEditorSessionMixin:
         try:
             payload_text = Path(status_file).read_text(encoding="utf-8")
         except OSError as exc:
-            self.standalone_status_label.setText(f".NET/Vortice status read failed: {exc}")
+            self.standalone_status_label.setText(f"Rust Preview status read failed: {exc}")
             return
         if signature == self.standalone_native_status_signature and payload_text == self.standalone_native_status_payload_text:
             return
@@ -809,7 +809,7 @@ class MeshEditorSessionMixin:
         try:
             payload = json.loads(payload_text)
         except ValueError as exc:
-            self.standalone_status_label.setText(f".NET/Vortice status parse failed: {exc}")
+            self.standalone_status_label.setText(f"Rust Preview status parse failed: {exc}")
             return
         if not isinstance(payload, dict):
             return
@@ -828,16 +828,16 @@ class MeshEditorSessionMixin:
             vertex_count = int(payload.get("vertex_count", 0) or 0)
             self._request_standalone_native_part_picking(False)
             self.standalone_status_label.setText(
-                f".NET/Vortice preview loaded: {batch_count:,} batches, {vertex_count:,} vertices."
+                f"Rust preview loaded: {batch_count:,} batches, {vertex_count:,} vertices."
             )
-            self.status_message_requested.emit(".NET/Vortice preview loaded.", False)
+            self.status_message_requested.emit("Rust preview loaded.", False)
         elif event == "loading":
-            message = str(payload.get("message", "") or "Loading .NET/Vortice preview...")
+            message = str(payload.get("message", "") or "Loading Rust preview...")
             updater = getattr(self.standalone_workspace, "set_native_part_picking_status", None)
             if callable(updater):
-                updater("Part pick: loading .NET/Vortice host", available=False)
+                updater("Part pick: loading Rust Preview host", available=False)
             self.standalone_status_label.setText(message)
-            self.status_message_requested.emit(f".NET/Vortice preview: {message}", False)
+            self.status_message_requested.emit(f"Rust preview: {message}", False)
         elif event == "error":
             release_package = getattr(
                 self.standalone_native_host or getattr(self, "standalone_native_host_frame", None),
@@ -850,13 +850,13 @@ class MeshEditorSessionMixin:
             self._request_standalone_native_part_picking(False)
             updater = getattr(self.standalone_workspace, "set_native_part_picking_status", None)
             if callable(updater):
-                updater("Part pick: unavailable, .NET/Vortice renderer error", available=False)
-            self.standalone_status_label.setText(f".NET/Vortice preview error: {message}")
-            self.status_message_requested.emit(f".NET/Vortice preview error: {message}", True)
+                updater("Part pick: unavailable, Rust Preview renderer error", available=False)
+            self.standalone_status_label.setText(f"Rust preview error: {message}")
+            self.status_message_requested.emit(f"Rust preview error: {message}", True)
         elif event == "closed":
             self._request_standalone_native_part_picking(False)
-            self.standalone_status_label.setText(".NET/Vortice preview closed.")
-            self.status_message_requested.emit(".NET/Vortice preview closed.", False)
+            self.standalone_status_label.setText("Rust preview closed.")
+            self.status_message_requested.emit("Rust preview closed.", False)
     def _set_standalone_native_performance_status(self, payload: Mapping[str, object] | None) -> None:
         updater = getattr(self.standalone_workspace, "set_native_performance_status", None)
         if callable(updater):
@@ -1414,7 +1414,7 @@ class MeshEditorSessionMixin:
         if self.has_active_standalone_session():
             last_event = str(self.standalone_native_last_status_payload.get("event", "") or "").strip().lower()
             if last_event not in {"error", "closed"}:
-                message = ".NET/Vortice preview stopped unexpectedly; retrying while this editor remains visible."
+                message = "Rust preview stopped unexpectedly; retrying while this editor remains visible."
                 self.standalone_status_label.setText(message)
                 self.status_message_requested.emit(message, True)
                 return
@@ -1422,9 +1422,9 @@ class MeshEditorSessionMixin:
     def _handle_standalone_native_preview_error(self, process: _tab.QProcess) -> None:
         if self.standalone_native_process is not process:
             return
-        self.standalone_status_label.setText(".NET/Vortice preview process error; retry scheduled.")
+        self.standalone_status_label.setText("Rust preview process error; retry scheduled.")
         self._set_standalone_native_performance_status(None)
         self._request_standalone_native_part_picking(False)
         updater = getattr(self.standalone_workspace, "set_native_part_picking_status", None)
         if callable(updater):
-            updater("Part pick: unavailable, .NET/Vortice process error", available=False)
+            updater("Part pick: unavailable, Rust Preview process error", available=False)

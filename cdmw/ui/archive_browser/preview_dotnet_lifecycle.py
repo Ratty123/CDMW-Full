@@ -1,4 +1,4 @@
-"""Compatibility-facing lifecycle hooks for the resident .NET/Vortice archive preview."""
+"""Compatibility-facing lifecycle hooks for the resident Rust Preview archive preview."""
 
 from __future__ import annotations
 
@@ -236,7 +236,7 @@ class ArchivePreviewDotNetLifecycleMixin:
             self.current_archive_preview_result = pending_result
             self._refresh_archive_preview_details_text()
             self.set_status_message(
-                "Textures loaded in the resident .NET/Vortice preview."
+                "Textures loaded in the resident Rust Preview preview."
                 if show_textures
                 else "Textures prepared; geometry remains untextured."
             )
@@ -418,7 +418,7 @@ class ArchivePreviewDotNetLifecycleMixin:
             error=True,
         )
         self._set_archive_isolated_renderer_debug(
-            f".NET/Vortice Preview: presentation update rejected: {reason}"
+            f"Rust Preview: presentation update rejected: {reason}"
         )
 
     def _start_archive_native_preview_prefetch(self) -> None:

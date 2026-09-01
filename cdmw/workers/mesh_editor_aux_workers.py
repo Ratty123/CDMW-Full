@@ -16,12 +16,6 @@ from PySide6.QtCore import QObject, Signal, Slot
 from cdmw.models import ArchiveEntry, ArchiveEntryIdentity
 from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
 from cdmw.modding.skeleton_parser import parse_pab
-from cdmw.services.mesh_dotnet_experiment import (
-    MeshDotNetExperimentPackage,
-    build_mesh_dotnet_experiment_package,
-    import_mesh_dotnet_experiment_output,
-    write_mesh_dotnet_experiment_evaluation,
-)
 from cdmw.services.mesh_service import MeshService
 from cdmw.services.modify_original_workspace_service import (
     ModifyOriginalDraft,
@@ -740,6 +734,7 @@ class MeshDotNetExperimentPackageWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
+            from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
             if self.stop_event.is_set():
                 return
             started = time.perf_counter()
@@ -769,11 +764,12 @@ class MeshDotNetExperimentPackageWorker(QObject):
                 copy_dotnet_preview_material_bindings(mesh, reference_mesh)
             if self.stop_event.is_set():
                 return
-            package = build_mesh_dotnet_experiment_package(
+            package = build_rust_preview_package(
                 mesh,
                 output_root=self.output_root,
                 reference_mesh=reference_mesh,
                 comparison_mode=self.comparison_mode,
+                interaction_profile="static_replacement",
                 interaction_mode=self.interaction_mode,
                 scene_transform=self.scene_transform,
                 scene_generation=self.scene_generation,
@@ -896,10 +892,16 @@ class MeshDotNetExperimentOutputImportWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
+            from importlib import import_module
+
+            legacy = import_module("cdmw.services.mesh_dotnet_experiment")
             if self.stop_event.is_set():
                 return
             started = time.perf_counter()
-            mesh = import_mesh_dotnet_experiment_output(self.package, self.status_payload)
+            mesh = legacy.import_mesh_dotnet_experiment_output(
+                self.package,
+                self.status_payload,
+            )
             if mesh is None:
                 raise RuntimeError("Mesh .NET editor did not produce an edited OBJ package.")
             if self.stop_event.is_set():
@@ -924,7 +926,7 @@ class MeshDotNetExperimentOutputImportWorker(QObject):
             if self._commit_started or not self.stop_event.is_set():
                 message = f"{type(exc).__name__}: {exc}"
                 try:
-                    evaluation_path = write_mesh_dotnet_experiment_evaluation(
+                    evaluation_path = legacy.write_mesh_dotnet_experiment_evaluation(
                         self.package,
                         self.status_payload,
                         validation_report=SimpleNamespace(ok=False, blockers=(message,), warnings=()),

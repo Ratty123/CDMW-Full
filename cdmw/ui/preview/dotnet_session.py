@@ -1,11 +1,10 @@
-"""Resident, retrying QProcess controller for the shared .NET/Vortice preview."""
+"""Resident, retrying QProcess controller for the shared Rust preview."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import shutil
-import sys
 import tempfile
 import uuid
 from collections import OrderedDict
@@ -20,14 +19,16 @@ from cdmw.services.atomic_file_service import atomic_copy_file
 from cdmw.services.preview_rendering_service import (
     acquire_dotnet_preview_package_cache_lease_for_path,
 )
-from cdmw.services.mesh_dotnet_experiment import (
-    MeshDotNetExperimentPackage,
-    mesh_dotnet_experiment_command,
-    mesh_dotnet_experiment_package_from_path,
-    mesh_dotnet_helper_provenance_blockers,
-    mesh_dotnet_helper_static_provenance_blockers,
-    mesh_dotnet_renderer_blockers,
-    resolve_mesh_dotnet_experiment_editor,
+from cdmw.services.mesh_rust_contract import (
+    RUST_MESH_RENDERER,
+    RUST_PREVIEW_BACKEND,
+    RUST_PREVIEW_PROTOCOL,
+    resolve_rust_mesh_editor,
+    validate_rust_mesh_editor_package,
+)
+from cdmw.services.mesh_rust_preview_package import (
+    RustPreviewPackage,
+    rust_preview_package_from_path,
 )
 from cdmw.ui.mesh_editor.process_io import (
     DOTNET_PROTOCOL_BUFFER_LIMIT,
@@ -52,7 +53,7 @@ _PACKAGE_TIMEOUT_MS = 15_000
 _MATERIAL_SYNC_TIMEOUT_MS = 120_000
 
 _BASE_PROTOCOL_CAPABILITIES = (
-    "helper_build_provenance_v1",
+    "rust_preview_runtime_v1",
     "resident_package_load_v1",
     "resident_preview_package_replace_v2",
     "deterministic_offscreen_capture_v1",
@@ -61,7 +62,6 @@ _BASE_PROTOCOL_CAPABILITIES = (
     "overlay_state_update_v1",
     "skeleton_overlay_v1",
     "pbd_cloth_overlay_v1",
-    "ui_localization_v1",
 )
 _PREVIEW_PROTOCOL_CAPABILITIES = (
     "preview_profile_read_only_v1",
@@ -79,7 +79,7 @@ _AUTHORING_PROTOCOL_CAPABILITIES = (
 )
 
 
-class DotNetPreviewSessionController(
+class RustPreviewSessionController(
     DotNetPreviewSessionLocalizationMixin,
     DotNetPreviewSessionReadyWatchdogMixin,
     QObject,
@@ -104,7 +104,7 @@ class DotNetPreviewSessionController(
         profile: DotNetPreviewProfile | str = DotNetPreviewProfile.PREVIEW,
         configured_executable: Path | str | None = None,
         terminate_on_close: bool = False,
-        authoring_rehydrator: Callable[["DotNetPreviewSessionController"], bool] | None = None,
+        authoring_rehydrator: Callable[["RustPreviewSessionController"], bool] | None = None,
         process_factory: Callable[[QObject], object] | None = None,
         direct_authoring: bool = False,
         parent: QObject | None = None,
@@ -129,10 +129,10 @@ class DotNetPreviewSessionController(
         self._launch_output_dir = ""
         self._runtime_output_dir: Path | None = None
         self._launch_is_prewarm = False
-        self._prewarm_package: MeshDotNetExperimentPackage | None = None
-        self._desired_package: MeshDotNetExperimentPackage | None = None
+        self._prewarm_package: RustPreviewPackage | None = None
+        self._desired_package: RustPreviewPackage | None = None
         self._desired_package_identity: tuple[str, str, str] | None = None
-        self._applied_package: MeshDotNetExperimentPackage | None = None
+        self._applied_package: RustPreviewPackage | None = None
         self._applied_package_identity: tuple[str, str, str] | None = None
         self._invalid_retry_package_path = ""
         self._invalid_retry_status_path = ""
@@ -287,7 +287,10 @@ class DotNetPreviewSessionController(
 
         normalized = scene_session_id.strip()
         if not normalized:
-            scene_path = Path(getattr(resolved, "package_dir", "")) / "dotnet_scene.json"
+            scene_path = Path(
+                getattr(resolved, "manifest_path", "")
+                or (Path(getattr(resolved, "package_dir", "")) / "manifest.json")
+            )
             try:
                 payload = json.loads(scene_path.read_text(encoding="utf-8-sig"))
             except (OSError, TypeError, ValueError):
@@ -452,7 +455,7 @@ class DotNetPreviewSessionController(
 
     def set_authoring_rehydrator(
         self,
-        callback: Callable[["DotNetPreviewSessionController"], bool] | None,
+        callback: Callable[["RustPreviewSessionController"], bool] | None,
     ) -> None:
         self._authoring_rehydrator = callback
 
@@ -542,7 +545,7 @@ class DotNetPreviewSessionController(
 
     def load_package(
         self,
-        package: MeshDotNetExperimentPackage | Path | str,
+        package: RustPreviewPackage | Path | str,
         status_path: Path | str | None = None,
         *,
         reset_view: bool = False,
@@ -553,15 +556,15 @@ class DotNetPreviewSessionController(
         try:
             resolved_package = (
                 package
-                if isinstance(package, MeshDotNetExperimentPackage)
-                else mesh_dotnet_experiment_package_from_path(package, status_path=status_path)
+                if isinstance(package, RustPreviewPackage)
+                else rust_preview_package_from_path(package)
             )
             resolved = self._with_preview_runtime_output(resolved_package)
         except (OSError, TypeError, ValueError) as exc:
             self._invalid_retry_package_path = str(package)
             self._invalid_retry_status_path = str(status_path or "")
             self._invalid_retry_reset_view = bool(reset_view)
-            detail = f".NET/Vortice preview package is invalid: {exc}"
+            detail = f"Rust preview package is invalid: {exc}"
             self.package_failed.emit(str(package), self._package_generation, detail)
             self._set_state("package_error", detail)
             return False
@@ -570,12 +573,14 @@ class DotNetPreviewSessionController(
         self._invalid_retry_reset_view = False
         identity = self._package_identity(resolved)
         scene_session_id = str(
-            getattr(getattr(resolved, "scene_frame", None), "scene_session_id", "") or ""
+            getattr(resolved, "scene_session_id", "")
+            or getattr(getattr(resolved, "scene_frame", None), "scene_session_id", "")
+            or ""
         ).strip()
         if self.profile is DotNetPreviewProfile.AUTHORING:
             if scene_session_id and not self.set_authoritative_session_id(scene_session_id):
                 detail = (
-                    ".NET/Vortice authoring package belongs to a different active edit session. "
+                    "Rust authoring package belongs to a different active edit session. "
                     "Close the current editor before opening another mesh."
                 )
                 self.package_failed.emit(str(resolved.package_dir), self._package_generation, detail)
@@ -627,7 +632,7 @@ class DotNetPreviewSessionController(
             and self._package_key(previous_desired) != self._package_key(self._applied_package_path)
         ):
             self._release_package_lease(previous_desired)
-        self._set_state("preparing", ".NET/Vortice Preview is preparing the selected model…")
+        self._set_state("preparing", "Rust Preview is preparing the selected model…")
         if self._visible:
             if (
                 self._launch_is_prewarm
@@ -644,8 +649,8 @@ class DotNetPreviewSessionController(
 
     def _with_preview_runtime_output(
         self,
-        package: MeshDotNetExperimentPackage,
-    ) -> MeshDotNetExperimentPackage:
+        package: RustPreviewPackage,
+    ) -> RustPreviewPackage:
         if self.profile is not DotNetPreviewProfile.PREVIEW:
             return package
         output_dir = self._runtime_output_dir
@@ -655,9 +660,9 @@ class DotNetPreviewSessionController(
         output_dir.mkdir(parents=True, exist_ok=True)
         return replace(
             package,
-            status_path=output_dir / "dotnet_status.json",
+            status_path=output_dir / "rust_preview_status.json",
             output_dir=output_dir,
-            edit_operations_path=output_dir / "edit_operations.json",
+            edit_operations_path=output_dir / "rust_preview_read_only.json",
             runtime_output_external=True,
         )
 
@@ -671,7 +676,7 @@ class DotNetPreviewSessionController(
 
     def prewarm(
         self,
-        package: MeshDotNetExperimentPackage | Path | str,
+        package: RustPreviewPackage | Path | str,
         status_path: Path | str | None = None,
     ) -> bool:
         """Start the resident helper without consuming a user package generation."""
@@ -681,8 +686,8 @@ class DotNetPreviewSessionController(
         try:
             resolved_package = (
                 package
-                if isinstance(package, MeshDotNetExperimentPackage)
-                else mesh_dotnet_experiment_package_from_path(package, status_path=status_path)
+                if isinstance(package, RustPreviewPackage)
+                else rust_preview_package_from_path(package)
             )
             resolved = self._with_preview_runtime_output(resolved_package)
         except (OSError, TypeError, ValueError):
@@ -725,7 +730,7 @@ class DotNetPreviewSessionController(
         self._pending_package_generation = 0
         self._deactivate_for_replacement()
         self._release_package_leases()
-        self._set_state("empty", "Select a model to open .NET/Vortice Preview.")
+        self._set_state("empty", "Select a model to open Rust Preview.")
         return True
 
     def reembed(self, parent_hwnd: int) -> bool:
@@ -760,7 +765,7 @@ class DotNetPreviewSessionController(
             self._activation_retry_count = 0
             self._send_json({"event": "deactivate_request"})
             self._active = False
-            self._set_state("inactive", ".NET/Vortice Preview paused while hidden.")
+            self._set_state("inactive", "Rust Preview paused while hidden.")
             return
         if (
             self._launch_is_prewarm
@@ -777,9 +782,9 @@ class DotNetPreviewSessionController(
             if not self._request_resident_package_load():
                 self._await_resident_gates_for_package_load()
         if self._desired_package is None:
-            self._set_state("empty", "Select a model to open .NET/Vortice Preview.")
+            self._set_state("empty", "Select a model to open Rust Preview.")
             return
-        self._set_state("resuming", ".NET/Vortice Preview is resuming…")
+        self._set_state("resuming", "Rust Preview is resuming…")
         if self._process is None or not qprocess_is_running(self._process):
             self.retry_now()
             return
@@ -994,7 +999,7 @@ class DotNetPreviewSessionController(
         self._launch_is_prewarm = False
         if process is None:
             self._cleanup_preview_runtime_outputs()
-        self._set_state("closed", ".NET/Vortice Preview closed.")
+        self._set_state("closed", "Rust Preview closed.")
 
     def _launch_if_needed(self) -> None:
         package = self._desired_package or self._prewarm_package
@@ -1007,32 +1012,25 @@ class DotNetPreviewSessionController(
         if parent_hwnd <= 0:
             self._schedule_retry("Preview host window is not ready.", static_failure=False)
             return
-        resolution = resolve_mesh_dotnet_experiment_editor(self._configured_executable)
+        resolution = resolve_rust_mesh_editor(self._configured_executable)
         executable = Path(resolution.resolved_path).expanduser() if resolution.resolved_path else Path()
-        require_manifest = bool(getattr(sys, "frozen", False) or (executable.parent / "cdmw-mesh-dotnet-editor.manifest.json").is_file())
-        required_capabilities = self._required_protocol_capabilities()
-        blockers = mesh_dotnet_helper_static_provenance_blockers(
-            executable,
-            require_manifest=require_manifest,
-            required_capabilities=required_capabilities,
-        )
-        if blockers:
+        blocker = validate_rust_mesh_editor_package(resolution)
+        if blocker:
             self._schedule_retry(
-                ".NET/Vortice helper was not executed: " + "; ".join(blockers),
+                "Rust Preview helper was not executed: " + blocker,
                 static_failure=True,
             )
             return
         try:
-            program, arguments = mesh_dotnet_experiment_command(
-                executable,
-                package,
-                embedded_parent_hwnd=parent_hwnd,
-                profile=self.profile.value,
-                prewarm_launch=prewarm_launch,
-                direct_authoring=self._direct_authoring,
-            )
+            program = str(executable)
+            arguments = [
+                "--cdmw-preview-session",
+                str(package.manifest_path),
+                "--embedded-parent-hwnd",
+                str(parent_hwnd),
+            ]
         except (OSError, TypeError, ValueError) as exc:
-            self._schedule_retry(f"Could not configure .NET/Vortice Preview: {exc}", static_failure=False)
+            self._schedule_retry(f"Could not configure Rust Preview: {exc}", static_failure=False)
             return
 
         process = self._process_factory(self)
@@ -1083,15 +1081,15 @@ class DotNetPreviewSessionController(
             if self._process is process:
                 self._process = None
             stop_qprocess_async(process)
-            self._schedule_retry(f".NET/Vortice Preview launch failed: {exc}", static_failure=False)
+            self._schedule_retry(f"Rust Preview launch failed: {exc}", static_failure=False)
             return
         self._arm_ready_watchdog()
-        self._set_state("launching", ".NET/Vortice Preview is starting…")
+        self._set_state("launching", "Rust Preview is starting…")
 
     def _process_started(self, process: object, generation: int) -> None:
         if not self._is_current_process(process, generation):
             return
-        self._set_state("connecting", ".NET/Vortice Preview is connecting…")
+        self._set_state("connecting", "Rust Preview is connecting…")
 
     def _process_finished(self, process: object, generation: int, exit_code: int, exit_status: object) -> None:
         if not self._is_current_process(process, generation):
@@ -1127,7 +1125,7 @@ class DotNetPreviewSessionController(
             details = self._stderr_tail.strip() or self._stdout_tail.strip()
             suffix = f" ({details[-400:]})" if details else ""
             self._schedule_retry(
-                f".NET/Vortice Preview exited with code {exit_code}{suffix}",
+                f"Rust Preview exited with code {exit_code}{suffix}",
                 static_failure=False,
             )
 
@@ -1139,7 +1137,7 @@ class DotNetPreviewSessionController(
         except (AttributeError, RuntimeError):
             detail = str(error)
         if not qprocess_is_running(process):
-            self._fail_current_process(f".NET/Vortice Preview process error: {detail}", static_failure=False)
+            self._fail_current_process(f"Rust Preview process error: {detail}", static_failure=False)
 
     def _read_stdout(self, process: object, generation: int) -> None:
         if not self._is_current_process(process, generation):
@@ -1153,12 +1151,12 @@ class DotNetPreviewSessionController(
         self._stdout_tail = append_bounded_text(self._stdout_tail, chunk.decode("utf-8", errors="replace"))
         self._stdout_buffer += chunk
         if len(self._stdout_buffer) > DOTNET_PROTOCOL_BUFFER_LIMIT:
-            self._fail_current_process(".NET/Vortice protocol buffer exceeded its safety limit.", static_failure=False)
+            self._fail_current_process("Rust Preview protocol buffer exceeded its safety limit.", static_failure=False)
             return
         while b"\n" in self._stdout_buffer:
             raw_line, self._stdout_buffer = self._stdout_buffer.split(b"\n", 1)
             if len(raw_line) > DOTNET_PROTOCOL_LINE_LIMIT:
-                self._fail_current_process(".NET/Vortice protocol line exceeded its safety limit.", static_failure=False)
+                self._fail_current_process("Rust Preview protocol line exceeded its safety limit.", static_failure=False)
                 return
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line:
@@ -1277,7 +1275,7 @@ class DotNetPreviewSessionController(
             self._activation_retry_count = 0
             self._active = True
             self._retry_attempt = 0
-            self._set_state("ready", ".NET/Vortice Preview")
+            self._set_state("ready", "Rust Preview")
         elif event == "deactivated":
             self._active = False
             if self._visible and self._applied_package_path:
@@ -1292,135 +1290,60 @@ class DotNetPreviewSessionController(
             return
 
     def _handle_protocol_ready(self, payload: Mapping[str, object]) -> None:
-        if str(payload.get("profile", "") or "").strip().lower() != self.profile.value:
-            self._fail_current_process(".NET/Vortice helper started with the wrong profile.", static_failure=True)
+        if str(payload.get("profile", "") or "").strip().lower() != "preview":
+            self._fail_current_process("Rust helper started with the wrong runtime profile.", static_failure=True)
             return
-        manifest_path = self._executable.parent / "cdmw-mesh-dotnet-editor.manifest.json"
-        blockers = mesh_dotnet_helper_provenance_blockers(
-            self._executable,
-            payload,
-            require_manifest=bool(getattr(sys, "frozen", False) or manifest_path.is_file()),
-            required_capabilities=self._required_protocol_capabilities(),
-        )
-        if blockers:
+        if (
+            str(payload.get("protocol", "") or "") != RUST_PREVIEW_PROTOCOL
+            or str(payload.get("renderer", "") or "") != RUST_MESH_RENDERER
+            or str(payload.get("edit_backend", "") or "") != RUST_PREVIEW_BACKEND
+        ):
             self._fail_current_process(
-                ".NET/Vortice helper provenance blocked: " + "; ".join(blockers),
+                "Rust Preview protocol, renderer, or backend did not match the packaged contract.",
                 static_failure=True,
             )
             return
         raw_capabilities = payload.get("capabilities", ())
         if isinstance(raw_capabilities, Sequence) and not isinstance(raw_capabilities, (str, bytes)):
             self._capabilities = {str(value) for value in raw_capabilities}
-        if "ui_localization_v1" in self._capabilities:
-            raw_keys = payload.get("localization_keys", ())
-            if (
-                not isinstance(raw_keys, Sequence)
-                or isinstance(raw_keys, (str, bytes))
-                or not raw_keys
-                or len(raw_keys) > 10_000
-                or any(not isinstance(value, str) or not value for value in raw_keys)
-            ):
-                self._fail_current_process(
-                    ".NET/Vortice helper localization key manifest is invalid.",
-                    static_failure=True,
-                )
-                return
-            localization_keys = tuple(str(value) for value in raw_keys)
-            if localization_keys != tuple(sorted(set(localization_keys))):
-                self._fail_current_process(
-                    ".NET/Vortice helper localization keys are not unique and sorted.",
-                    static_failure=True,
-                )
-                return
-            advertised_hash = str(
-                payload.get("localization_key_manifest_hash", "") or ""
+        missing = set(self._required_protocol_capabilities()) - self._capabilities
+        if missing:
+            self._fail_current_process(
+                "Rust Preview is missing required capabilities: " + ", ".join(sorted(missing)),
+                static_failure=True,
             )
-            expected_hash = self._localization_manifest_hash(localization_keys)
-            if advertised_hash != expected_hash:
-                self._fail_current_process(
-                    ".NET/Vortice helper localization manifest hash did not match its keys.",
-                    static_failure=True,
-                )
-                return
-            from cdmw.ui.localization_catalogs_v2 import SOURCE_STRING_CATALOGUE
-
-            unknown_keys = set(localization_keys) - set(SOURCE_STRING_CATALOGUE)
-            if unknown_keys:
-                self._fail_current_process(
-                    ".NET/Vortice helper localization manifest is newer than the host catalog.",
-                    static_failure=True,
-                )
-                return
-            self._localization_keys = localization_keys
-            self._localization_key_manifest_hash = advertised_hash
-            self._localization_initial_established = False
-        else:
-            self._localization_keys = ()
-            self._localization_key_manifest_hash = ""
-            self._localization_initial_established = True
-        self._protocol_ready = True
-        if self._localization_keys and not self._send_ui_localization_state():
-            if self._process is not None:
-                self._fail_current_process(
-                    "Could not establish .NET/Vortice interface localization.",
-                    static_failure=False,
-                )
             return
+        self._localization_keys = ()
+        self._localization_key_manifest_hash = ""
+        self._localization_initial_established = True
+        self._protocol_ready = True
         self._announce_renderer_ready()
-        if self.profile is DotNetPreviewProfile.PREVIEW:
-            sent = self._send_json(
-                {
-                    "event": "preview_session_state",
-                    "session_id": self._session_id,
-                    "process_generation": self._process_generation,
-                    "protocol_version": 2,
-                }
-            )
-            if not sent:
-                self._fail_current_process("Could not establish the preview session.", static_failure=False)
-        else:
-            # A prewarm launch has no edit session to name yet, so it handshakes
-            # with a placeholder the first real Edit Mesh is allowed to replace.
-            # Gated on the capability rather than required: an older helper still
-            # runs, it just cannot be prewarmed ahead of the session.
-            provisional = bool(
-                self._launch_is_prewarm
-                and self._desired_package is None
-                and "authoring_provisional_session_v1" in self._capabilities
-            )
-            sent = self._send_json(
-                {
-                    "event": "session_state",
-                    "session_id": self._session_id,
-                    "process_generation": self._process_generation,
-                    "protocol_version": 2,
-                    "provisional_session": provisional,
-                    "revision": 0,
-                    "edit_revision": 0,
-                    "history": {"undo": [], "redo": []},
-                    "selection": {},
-                }
-            )
-            self._session_established = bool(sent)
-            self._session_provisional = bool(sent and provisional)
-            if not sent:
-                self._fail_current_process("Could not establish the authoring session.", static_failure=False)
-                return
-            self._maybe_finish_launch()
+        sent = self._send_json(
+            {
+                "event": "preview_session_state",
+                "session_id": self._session_id,
+                "process_generation": self._process_generation,
+                "protocol_version": 2,
+            }
+        )
+        if not sent:
+            self._fail_current_process("Could not establish the Rust preview session.", static_failure=False)
 
     def _handle_renderer_ready(self, payload: Mapping[str, object]) -> bool:
         if self._renderer_ready:
             return False
-        if str(payload.get("profile", "") or "").strip().lower() != self.profile.value:
-            self._fail_current_process(".NET/Vortice renderer reported the wrong profile.", static_failure=True)
+        if str(payload.get("profile", "") or "").strip().lower() != "preview":
+            self._fail_current_process("Rust renderer reported the wrong profile.", static_failure=True)
             return False
-        blockers = mesh_dotnet_renderer_blockers(
-            payload,
-            embedded=True,
-        )
-        if blockers:
+        if (
+            str(payload.get("protocol", "") or "") != RUST_PREVIEW_PROTOCOL
+            or str(payload.get("renderer", "") or "") != RUST_MESH_RENDERER
+            or str(payload.get("edit_backend", "") or "") != RUST_PREVIEW_BACKEND
+            or int(payload.get("child_hwnd", payload.get("form_hwnd", 0)) or 0) <= 0
+            or int(payload.get("embedded_parent_hwnd", 0) or 0) != self._safe_host_hwnd()
+        ):
             self._fail_current_process(
-                ".NET/Vortice renderer was rejected: " + "; ".join(blockers),
+                "Rust Preview renderer identity or embedded window did not match.",
                 static_failure=False,
             )
             return False
@@ -1448,7 +1371,7 @@ class DotNetPreviewSessionController(
                     self._await_resident_gates_for_package_load()
             else:
                 self._ready_timer.stop()
-                self._set_state("prewarmed", ".NET/Vortice Preview is ready for a model.")
+                self._set_state("prewarmed", "Rust Preview is ready for a model.")
             return
         if not (
             self._protocol_ready
@@ -1464,7 +1387,7 @@ class DotNetPreviewSessionController(
             else:
                 self._send_json({"event": "deactivate_request"})
                 self._active = False
-                self._set_state("prewarmed", ".NET/Vortice Preview is ready for a model.")
+                self._set_state("prewarmed", "Rust Preview is ready for a model.")
             return
         if (
             self._launch_package_generation != self._package_generation
@@ -1511,7 +1434,7 @@ class DotNetPreviewSessionController(
         if sent:
             self._pending_package_generation = generation
             self._package_timer.start(_PACKAGE_TIMEOUT_MS)
-            self._set_state("preparing", ".NET/Vortice Preview is loading the selected model…")
+            self._set_state("preparing", "Rust Preview is loading the selected model…")
         return sent
 
     def _handle_package_applied(self, payload: Mapping[str, object]) -> None:
@@ -1614,7 +1537,7 @@ class DotNetPreviewSessionController(
         self._activation_waiting_for_material_sync = False
         self._activation_material_sync_generation = 0
         self._activation_timer.start(_READY_TIMEOUT_MS)
-        self._set_state("resuming", ".NET/Vortice Preview is resuming…")
+        self._set_state("resuming", "Rust Preview is resuming…")
         return True
 
     def _remember_resident_material_signature(self, payload: Mapping[str, object]) -> None:
@@ -1697,7 +1620,7 @@ class DotNetPreviewSessionController(
         """
 
         self._arm_ready_watchdog()
-        self._set_state("preparing", ".NET/Vortice Preview is preparing the selected model…")
+        self._set_state("preparing", "Rust Preview is preparing the selected model…")
 
     def _deactivate_for_replacement(self) -> None:
         if self._process is not None and qprocess_is_running(self._process):
@@ -1712,7 +1635,7 @@ class DotNetPreviewSessionController(
         if request_id == self._prewarm_capture_request_id:
             self._clear_prewarm_capture()
             if str(payload.get("status", "") or "").strip().lower() == "captured":
-                self._set_state("prewarmed", ".NET/Vortice Preview is GPU-warmed and ready for a model.")
+                self._set_state("prewarmed", "Rust Preview is GPU-warmed and ready for a model.")
             self.capture_completed.emit(dict(payload))
             return
         paths = self._pending_captures.pop(request_id, None)
@@ -1815,7 +1738,7 @@ class DotNetPreviewSessionController(
                 "timer_active": False,
             }
         )
-        self._fail_current_process(".NET/Vortice Preview did not become ready in time.", static_failure=False)
+        self._fail_current_process("Rust Preview did not become ready in time.", static_failure=False)
 
     def _handle_activation_timeout(self) -> None:
         if self._pending_activation is None or not self._visible:
@@ -1830,7 +1753,7 @@ class DotNetPreviewSessionController(
             self._activation_material_sync_generation = 0
             self._pending_activation = None
             self._fail_current_process(
-                ".NET/Vortice material synchronization did not finish in time.",
+                "Rust Preview material synchronization did not finish in time.",
                 static_failure=False,
             )
             return
@@ -1840,7 +1763,7 @@ class DotNetPreviewSessionController(
                 return
         self._pending_activation = None
         self._fail_current_process(
-            ".NET/Vortice Preview did not reactivate in time.",
+            "Rust Preview did not reactivate in time.",
             static_failure=False,
         )
 
@@ -1854,7 +1777,7 @@ class DotNetPreviewSessionController(
         self.package_failed.emit(self.desired_package_path, self._package_generation, detail)
         self._set_state(
             "package_error",
-            f".NET/Vortice package load failed: {detail} The current model was kept; retry when ready.",
+            f"Rust Preview package load failed: {detail} The current model was kept; retry when ready.",
         )
 
     def _fail_current_process(self, reason: str, *, static_failure: bool) -> None:
@@ -1884,7 +1807,7 @@ class DotNetPreviewSessionController(
         self._schedule_retry(reason, static_failure=static_failure)
 
     def _schedule_retry(self, reason: str, *, static_failure: bool) -> None:
-        self._retry_reason = str(reason or ".NET/Vortice Preview is unavailable.")
+        self._retry_reason = str(reason or "Rust Preview is unavailable.")
         if self._desired_package is None and self._prewarm_package is not None:
             prewarm_path = str(self._prewarm_package.package_dir)
             self._prewarm_package = None
@@ -1907,17 +1830,7 @@ class DotNetPreviewSessionController(
         self._set_state("retrying", f"{self._retry_reason} Retrying automatically.")
 
     def _required_protocol_capabilities(self) -> tuple[str, ...]:
-        profile_capabilities = (
-            _PREVIEW_PROTOCOL_CAPABILITIES
-            if self.profile is DotNetPreviewProfile.PREVIEW
-            else _AUTHORING_PROTOCOL_CAPABILITIES
-        )
-        direct = (
-            ("direct_authoring_host_v1",)
-            if self.profile is DotNetPreviewProfile.AUTHORING and self._direct_authoring
-            else ()
-        )
-        return (*_BASE_PROTOCOL_CAPABILITIES, *profile_capabilities, *direct)
+        return (*_BASE_PROTOCOL_CAPABILITIES, *_PREVIEW_PROTOCOL_CAPABILITIES)
 
     def _send_json(self, payload: Mapping[str, object]) -> bool:
         process = self._process
@@ -1984,10 +1897,10 @@ class DotNetPreviewSessionController(
     @classmethod
     def _package_identity(
         cls,
-        package: MeshDotNetExperimentPackage,
+        package: RustPreviewPackage,
     ) -> tuple[str, str, str]:
         scene_signature = ""
-        scene_path = getattr(package, "scene_manifest_path", None)
+        scene_path = getattr(package, "manifest_path", None)
         if scene_path:
             try:
                 scene_signature = hashlib.sha256(Path(scene_path).read_bytes()).hexdigest()
@@ -2035,4 +1948,8 @@ class DotNetPreviewSessionController(
         self.state_changed.emit(str(state), str(message))
 
 
-__all__ = ["DotNetPreviewSessionController"]
+# Compatibility name retained for plugins and older tests. Production imports
+# use the Rust name and both names resolve to the same lifecycle owner.
+DotNetPreviewSessionController = RustPreviewSessionController
+
+__all__ = ["DotNetPreviewSessionController", "RustPreviewSessionController"]

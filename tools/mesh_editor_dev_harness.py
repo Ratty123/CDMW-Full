@@ -127,6 +127,7 @@ _EXPORTS = {
     "run_real_archive_animation_binding_smoke": "tools.mesh_harness.real_animation",
     "run_real_archive_app_workflow_smoke": "tools.mesh_harness.real_app",
     "run_real_archive_mesh_editor_dotnet_edit_smoke": "tools.mesh_harness.real_dotnet",
+    "run_real_archive_rust_preview_smoke": "tools.mesh_harness.real_rust_preview",
     "run_real_archive_rigging_smoke": "tools.mesh_harness.real_rigging",
     "run_real_archive_sequence_binding_smoke": "tools.mesh_harness.real_sequence",
     "run_scenario": "tools.mesh_harness.scenario_runner",
@@ -141,6 +142,7 @@ _EXPORTS.update(dict.fromkeys((
     "_REAL_ARCHIVE_ANIMATION_SAMPLE_LIMIT", "_REAL_ARCHIVE_RIGGING_SAMPLES", "_REAL_ARCHIVE_SEQUENCE_EXTENSIONS",
     "_REAL_ARCHIVE_SEQUENCE_PTM_DESCRIPTOR", "_REAL_ARCHIVE_SEQUENCE_PTM_PAA", "_REAL_ARCHIVE_SEQUENCE_PTM_PAB",
     "_REAL_ARCHIVE_SEQUENCE_PTM_PAPR", "_REAL_ARCHIVE_SEQUENCE_SAMPLE", "_REAL_MESH_EDITOR_DOTNET_SCENARIO",
+    "_REAL_MESH_EDITOR_PRODUCTION_SCENARIO", "_REAL_MESH_EDITOR_RUST_PREVIEW_SCENARIO",
     "_REAL_MESH_EDITOR_VISUAL_SCENARIO",
     "_SYNTHETIC_MESH_FORMATS", "_WM_LBUTTONDOWN", "_WM_LBUTTONUP", "_WM_MOUSEMOVE",
 ), "tools.mesh_harness.constants"))

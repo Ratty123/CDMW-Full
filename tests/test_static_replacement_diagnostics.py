@@ -199,7 +199,7 @@ def test_mesh_editor_diagnostics_uses_late_prompt_context_values() -> None:
     text = diagnostics_state["text_widget"].toPlainText()
 
     assert "<error:" not in text
-    assert "dotnet_vortice_active: True" in text
+    assert "rust_preview_active: True" in text
     assert "preview_timing_label: ready in 1 ms" in text
     assert "source_face_limit: 456" in text
     assert "selected_source: 3" in text

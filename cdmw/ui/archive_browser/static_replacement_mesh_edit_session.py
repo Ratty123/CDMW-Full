@@ -249,7 +249,7 @@ def _mesh_editor_sync_static_replacement_session_to_working_mesh(_state, _callba
             message=str(exc),
         )
         _state.self.set_status_message(
-            ".NET/Vortice Mesh Editor sync failed; reload the preview before continuing.",
+            "Rust Preview Mesh Editor sync failed; reload the preview before continuing.",
             error=True,
         )
         return False
@@ -284,7 +284,7 @@ def _mesh_edit_refresh_replacement_preview_model(_state, _callbacks,
         and not _state._alignment_d3d11_preview_active()
     ):
         _state.self.set_status_message(
-            "Active Mesh Editor preview refresh requires .NET/Vortice; Python preview rebuild fallback is disabled.",
+            "Active Mesh Editor preview refresh requires Rust Preview; Python preview rebuild fallback is disabled.",
             error=True,
         )
         return False

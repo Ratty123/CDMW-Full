@@ -1,4 +1,4 @@
-"""Compatibility-named .NET/Vortice preview package workers."""
+"""Compatibility-named Rust Preview preview package workers."""
 
 from __future__ import annotations
 
@@ -24,8 +24,8 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
-from cdmw.services.mesh_dotnet_preview_package import (
-    build_or_lookup_dotnet_preview_package_from_model,
+from cdmw.services.mesh_rust_preview_cache import (
+    build_or_lookup_rust_preview_package_from_model,
 )
 
 
@@ -443,14 +443,14 @@ class AlignmentD3D11PackageWorker(QObject):
                 self.request_id,
                 max(0, int(current)),
                 max(1, int(total)),
-                str(message or "Preparing .NET/Vortice preview package..."),
+                str(message or "Preparing Rust Preview preview package..."),
             )
 
         def _emit_package_progress(current: int, total: int, message: str) -> None:
             total = max(1, int(total))
             current = max(0, min(total, int(current)))
             percent = 40 + int(round((float(current) / float(total)) * 40.0))
-            _emit_progress(percent, 100, message or "Writing .NET/Vortice preview package...")
+            _emit_progress(percent, 100, message or "Writing Rust Preview preview package...")
 
         try:
             if self.stop_event.is_set():
@@ -483,8 +483,8 @@ class AlignmentD3D11PackageWorker(QObject):
                 return
             _emit_progress(40, 100, "Preparing preview - model buffers ready.")
             package_started = time.perf_counter()
-            _emit_package_progress(1, 2, "Writing canonical .NET/Vortice preview package...")
-            dotnet_package = build_or_lookup_dotnet_preview_package_from_model(
+            _emit_package_progress(1, 2, "Writing canonical Rust Preview preview package...")
+            rust_package = build_or_lookup_rust_preview_package_from_model(
                 prepared_model,
                 cache_root=Path(tempfile.gettempdir()) / "cdmw_preview_packages",
                 archive_identity=(
@@ -498,9 +498,15 @@ class AlignmentD3D11PackageWorker(QObject):
                     "display_mode": self.display_mode,
                     "package_quality": self.package_quality,
                 },
+                interaction_profile=(
+                    "static_replacement"
+                    if self.editor_workspace
+                    in {"mesh_replacement_alignment", "modify_original_alignment"}
+                    else "read_only"
+                ),
             )
-            package_dir = dotnet_package.package_dir
-            _emit_package_progress(2, 2, ".NET/Vortice preview package ready.")
+            package_dir = rust_package.package_dir
+            _emit_package_progress(2, 2, "Rust Preview preview package ready.")
             package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
             if not self.stop_event.is_set():
                 _emit_progress(80, 100, "Preparing preview - package ready.")

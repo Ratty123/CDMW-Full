@@ -490,7 +490,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.archive_preview_cache_limit_mode_combo.setMinimumContentsLength(24)
         self.archive_preview_cache_limit_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.archive_preview_cache_limit_mode_combo.setToolTip(
-            "How many recently previewed entries the Archive Browser remembers, so revisiting one skips the rebuild. Model previews now live in the resident renderer, so each remembered entry is a small reference to its disk package rather than the preview payload itself. Requires the .NET/Vortice disk cache below; with that set to Off, nothing can be remembered."
+            "How many recently previewed entries the Archive Browser remembers, so revisiting one skips the rebuild. Model previews now live in the resident renderer, so each remembered entry is a small reference to its disk package rather than the preview payload itself. Requires the Rust Preview disk cache below; with that set to Off, nothing can be remembered."
         )
         self.archive_preview_cache_limit_spin = QSpinBox()
         self.archive_preview_cache_limit_spin.setRange(12, 256)
@@ -525,12 +525,12 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.archive_native_preview_cache_mode_combo.setMinimumWidth(360)
         self.archive_native_preview_cache_mode_combo.setMaximumWidth(460)
         self.archive_native_preview_cache_mode_combo.setToolTip(
-            "Durable .NET/Vortice .pac preview package cache on disk. Balanced keeps up to 512 MB of packages and 192 MB of decoded textures. Aggressive raises those to 2 GB and 512 MB, so previews you return to stay warm for longer. Off rebuilds every preview and clears what earlier modes wrote."
+            "Durable Rust Preview .pac preview package cache on disk. Balanced keeps up to 512 MB of packages and 192 MB of decoded textures. Aggressive raises those to 2 GB and 512 MB, so previews you return to stay warm for longer. Off rebuilds every preview and clears what earlier modes wrote."
         )
         preview_cache_row = _add_performance_row(
             preview_cache_layout,
             preview_cache_row,
-            ".NET/Vortice disk cache",
+            "Rust Preview disk cache",
             self.archive_native_preview_cache_mode_combo,
             "Impact: Balanced reuses exact previews. Aggressive keeps more of them on disk. Off makes every preview a rebuild.",
             max_control_width=460,
@@ -585,15 +585,15 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.d3d11_view_mode_combo = QComboBox()
         for mode in D3D11_PREVIEW_VIEW_MODES:
             self.d3d11_view_mode_combo.addItem(D3D11_PREVIEW_VIEW_MODE_LABELS.get(mode, mode), mode)
-        preview_layout.addRow(".NET/Vortice view", self.d3d11_view_mode_combo)
+        preview_layout.addRow("Rust Preview view", self.d3d11_view_mode_combo)
         self.d3d11_normal_y_mode_combo = QComboBox()
         for mode in D3D11_NORMAL_Y_MODES:
             self.d3d11_normal_y_mode_combo.addItem(D3D11_NORMAL_Y_MODE_LABELS.get(mode, mode), mode)
-        preview_layout.addRow(".NET/Vortice normal Y", self.d3d11_normal_y_mode_combo)
+        preview_layout.addRow("Rust Preview normal Y", self.d3d11_normal_y_mode_combo)
         self.d3d11_texture_address_mode_combo = QComboBox()
         for mode in D3D11_TEXTURE_ADDRESS_MODES:
             self.d3d11_texture_address_mode_combo.addItem(D3D11_TEXTURE_ADDRESS_MODE_LABELS.get(mode, mode), mode)
-        preview_layout.addRow(".NET/Vortice texture address", self.d3d11_texture_address_mode_combo)
+        preview_layout.addRow("Rust Preview texture address", self.d3d11_texture_address_mode_combo)
         self.alpha_handling_combo = QComboBox()
         for mode in MODEL_PREVIEW_ALPHA_HANDLING_MODES:
             self.alpha_handling_combo.addItem(MODEL_PREVIEW_ALPHA_HANDLING_LABELS.get(mode, mode), mode)
@@ -617,7 +617,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.disable_lighting_checkbox = QCheckBox("Disable lighting")
         self.disable_depth_test_checkbox = QCheckBox("Disable depth test")
         self.show_texture_debug_strip_checkbox = QCheckBox("Show texture debug strip")
-        self.d3d11_cull_back_faces_checkbox = QCheckBox(".NET/Vortice cull back faces")
+        self.d3d11_cull_back_faces_checkbox = QCheckBox("Rust Preview cull back faces")
         for checkbox in (
             self.disable_tint_checkbox,
             self.disable_brightness_checkbox,
@@ -744,7 +744,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             step=0.05,
             decimals=2,
         )
-        shading_layout.addRow(".NET/Vortice mip LOD bias", self.d3d11_mip_lod_bias_spin)
+        shading_layout.addRow("Rust Preview mip LOD bias", self.d3d11_mip_lod_bias_spin)
         self.d3d11_light_azimuth_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_azimuth_degrees"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_azimuth_degrees"][1],
@@ -752,7 +752,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             decimals=0,
             suffix=" deg",
         )
-        shading_layout.addRow(".NET/Vortice light azimuth", self.d3d11_light_azimuth_spin)
+        shading_layout.addRow("Rust Preview light azimuth", self.d3d11_light_azimuth_spin)
         self.d3d11_light_elevation_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_elevation_degrees"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_elevation_degrees"][1],
@@ -760,7 +760,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             decimals=0,
             suffix=" deg",
         )
-        shading_layout.addRow(".NET/Vortice light elevation", self.d3d11_light_elevation_spin)
+        shading_layout.addRow("Rust Preview light elevation", self.d3d11_light_elevation_spin)
         self.normal_strength_cap_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["normal_strength_cap"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["normal_strength_cap"][1],
@@ -851,56 +851,56 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             step=0.05,
             decimals=2,
         )
-        shading_layout.addRow(".NET/Vortice AO strength", self.d3d11_ao_strength_spin)
+        shading_layout.addRow("Rust Preview AO strength", self.d3d11_ao_strength_spin)
         self.d3d11_roughness_bias_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_roughness_bias"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_roughness_bias"][1],
             step=0.02,
             decimals=2,
         )
-        shading_layout.addRow(".NET/Vortice roughness bias", self.d3d11_roughness_bias_spin)
+        shading_layout.addRow("Rust Preview roughness bias", self.d3d11_roughness_bias_spin)
         self.d3d11_metalness_scale_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_metalness_scale"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_metalness_scale"][1],
             step=0.05,
             decimals=2,
         )
-        shading_layout.addRow(".NET/Vortice metalness scale", self.d3d11_metalness_scale_spin)
+        shading_layout.addRow("Rust Preview metalness scale", self.d3d11_metalness_scale_spin)
         self.d3d11_environment_strength_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_environment_strength"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_environment_strength"][1],
             step=0.05,
             decimals=2,
         )
-        shading_layout.addRow(".NET/Vortice environment strength", self.d3d11_environment_strength_spin)
+        shading_layout.addRow("Rust Preview environment strength", self.d3d11_environment_strength_spin)
         self.d3d11_emissive_gain_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_emissive_gain"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_emissive_gain"][1],
             step=0.05,
             decimals=2,
         )
-        shading_layout.addRow(".NET/Vortice emissive gain", self.d3d11_emissive_gain_spin)
+        shading_layout.addRow("Rust Preview emissive gain", self.d3d11_emissive_gain_spin)
         self.d3d11_tone_exposure_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_exposure"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_exposure"][1],
             step=0.02,
             decimals=2,
         )
-        shading_layout.addRow(".NET/Vortice tone exposure", self.d3d11_tone_exposure_spin)
+        shading_layout.addRow("Rust Preview tone exposure", self.d3d11_tone_exposure_spin)
         self.d3d11_tone_contrast_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_contrast"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_contrast"][1],
             step=0.02,
             decimals=2,
         )
-        shading_layout.addRow(".NET/Vortice tone contrast", self.d3d11_tone_contrast_spin)
+        shading_layout.addRow("Rust Preview tone contrast", self.d3d11_tone_contrast_spin)
         self.d3d11_tone_gamma_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_gamma"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_gamma"][1],
             step=0.02,
             decimals=2,
         )
-        shading_layout.addRow(".NET/Vortice tone gamma", self.d3d11_tone_gamma_spin)
+        shading_layout.addRow("Rust Preview tone gamma", self.d3d11_tone_gamma_spin)
         reset_row = QHBoxLayout()
         reset_row.setContentsMargins(0, 0, 0, 0)
         reset_row.setSpacing(8)

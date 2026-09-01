@@ -209,9 +209,9 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.setHorizontalSpacing(12)
         general_form.setVerticalSpacing(10)
         self.archive_renderer_backend_combo = QComboBox()
-        self.archive_renderer_backend_combo.addItem(".NET/Vortice Preview", self.ARCHIVE_RENDERER_D3D11)
+        self.archive_renderer_backend_combo.addItem("Rust Preview", self.ARCHIVE_RENDERER_D3D11)
         self.archive_renderer_backend_combo.setToolTip(
-            ".NET/Vortice is the only Archive Browser model-preview path."
+            "Rust Preview is the only Archive Browser model-preview path."
         )
         self.archive_renderer_backend_combo.setVisible(False)
         self.use_textures_checkbox = QCheckBox("Load textures automatically after geometry")
@@ -238,7 +238,7 @@ class ModelPreviewSettingsDialog(QDialog):
         )
         self.d3d11_cull_back_faces_checkbox = QCheckBox("Cull back faces")
         self.d3d11_cull_back_faces_checkbox.setToolTip(
-            "Draw only front-facing triangles in the .NET/Vortice preview to inspect flipped winding or two-sided materials."
+            "Draw only front-facing triangles in the Rust Preview preview to inspect flipped winding or two-sided materials."
         )
         self.visible_texture_mode_combo = QComboBox()
         for mode in MODEL_PREVIEW_VISIBLE_TEXTURE_MODES:
@@ -269,9 +269,9 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.addRow("", self.disable_height_map_checkbox)
         general_form.addRow("", self.flip_texture_v_checkbox)
         general_form.addRow("", self.d3d11_cull_back_faces_checkbox)
-        general_form.addRow(".NET/Vortice view", self.d3d11_view_mode_combo)
-        general_form.addRow(".NET/Vortice normal Y", self.d3d11_normal_y_mode_combo)
-        general_form.addRow(".NET/Vortice texture address", self.d3d11_texture_address_mode_combo)
+        general_form.addRow("Rust Preview view", self.d3d11_view_mode_combo)
+        general_form.addRow("Rust Preview normal Y", self.d3d11_normal_y_mode_combo)
+        general_form.addRow("Rust Preview texture address", self.d3d11_texture_address_mode_combo)
         self.enable_tool_pbd_cloth_preview_checkbox = QCheckBox("Enable tool-side PBD physics preview")
         self.enable_tool_pbd_cloth_preview_checkbox.setToolTip(
             "Runs a free local CPU PBD approximation for detected soft-physics mesh batches such as cloth, leather, hair, and ropes. "
@@ -313,7 +313,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.general_hint_label.setWordWrap(True)
         general_layout.addWidget(self.general_hint_label)
         self.d3d11_hint_label = QLabel(
-            ".NET/Vortice Preview supports texture on/off, culling, view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and exact DDS diagnostics."
+            "Rust Preview supports texture on/off, culling, view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and exact DDS diagnostics."
         )
         self.d3d11_hint_label.setObjectName("HintLabel")
         self.d3d11_hint_label.setWordWrap(True)
@@ -469,7 +469,7 @@ class ModelPreviewSettingsDialog(QDialog):
         )
         quality_layout.addLayout(quality_form)
         self.quality_hint_label = QLabel(
-            ".NET/Vortice applies these to its shader and sampler directly. Texture resolution normally comes from exact DDS resources; generated fallback maps still use the existing preview cache pipeline."
+            "Rust Preview applies these to its shader and sampler directly. Texture resolution normally comes from exact DDS resources; generated fallback maps still use the existing preview cache pipeline."
         )
         self.quality_hint_label.setObjectName("HintLabel")
         self.quality_hint_label.setWordWrap(True)
@@ -701,23 +701,23 @@ class ModelPreviewSettingsDialog(QDialog):
         self.preview_cache_limit_spin.setRange(12, 256)
         self.preview_cache_limit_spin.setSingleStep(4)
         self.preview_cache_limit_spin.setToolTip(
-            "How many recently previewed entries the Archive Browser remembers, so revisiting one skips the rebuild. Each remembered entry is a small reference to its durable package, so this needs the .NET/Vortice package cache below; with that set to Off, nothing can be remembered."
+            "How many recently previewed entries the Archive Browser remembers, so revisiting one skips the rebuild. Each remembered entry is a small reference to its durable package, so this needs the Rust Preview package cache below; with that set to Off, nothing can be remembered."
         )
         self.native_preview_cache_mode_combo = QComboBox()
         self.native_preview_cache_mode_combo.addItem("Off", "off")
         self.native_preview_cache_mode_combo.addItem("Balanced", "balanced")
         self.native_preview_cache_mode_combo.addItem("Aggressive", "aggressive")
         self.native_preview_cache_mode_combo.setToolTip(
-            "Durable .NET/Vortice package cache. Balanced keeps up to 512 MB of packages and 192 MB of decoded textures; Aggressive raises those to 2 GB and 512 MB. Off rebuilds every preview and clears what earlier modes wrote."
+            "Durable Rust Preview package cache. Balanced keeps up to 512 MB of packages and 192 MB of decoded textures; Aggressive raises those to 2 GB and 512 MB. Off rebuilds every preview and clears what earlier modes wrote."
         )
         self.quick_then_full_checkbox = QCheckBox("Show metadata placeholder while 3D preview builds")
         self.quick_then_full_checkbox.setToolTip(
             "Shows archive metadata and likely same-stem sidecars immediately, then replaces it with the full 3D preview when ready. This changes feedback, not final preview quality."
         )
         self.clear_preview_cache_button = QPushButton("Clear Preview Cache")
-        self.clear_preview_cache_button.setToolTip("Clears in-memory Archive Browser preview results, durable .NET/Vortice preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.")
+        self.clear_preview_cache_button.setToolTip("Clears in-memory Archive Browser preview results, durable Rust Preview preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.")
         preview_cache_layout.addRow("Remembered previews", self.preview_cache_limit_spin)
-        preview_cache_layout.addRow(".NET/Vortice package cache", self.native_preview_cache_mode_combo)
+        preview_cache_layout.addRow("Rust Preview package cache", self.native_preview_cache_mode_combo)
         preview_cache_layout.addRow("", self.quick_then_full_checkbox)
         preview_cache_layout.addRow("", self.clear_preview_cache_button)
         preview_cache_hint = QLabel(

@@ -33,6 +33,8 @@ pub struct OrbitCamera {
     yaw: f32,
     pitch: f32,
     distance: f32,
+    fit_target: Vec3,
+    fit_distance: f32,
     scene_radius: f32,
     revision: u64,
 }
@@ -44,6 +46,8 @@ impl Default for OrbitCamera {
             yaw: std::f32::consts::PI,
             pitch: 0.0,
             distance: 5.0,
+            fit_target: Vec3::ZERO,
+            fit_distance: 5.0,
             scene_radius: 1.0,
             revision: 1,
         }
@@ -138,10 +142,14 @@ impl OrbitCamera {
     /// for swords and similar held items) start from a side three-quarter view so
     /// their length is visible instead of pointing toward the camera.
     pub fn frame_integrated_startup(&mut self, mesh: &WorkingMesh) {
-        let Some((minimum, maximum)) = finite_bounds(
+        self.frame_integrated_positions(
             mesh.vertices()
                 .map(|(_, vertex)| Vec3::from_array(vertex.position)),
-        ) else {
+        );
+    }
+
+    pub fn frame_integrated_positions(&mut self, positions: impl Iterator<Item = Vec3>) {
+        let Some((minimum, maximum)) = finite_bounds(positions) else {
             return;
         };
 
@@ -150,6 +158,14 @@ impl OrbitCamera {
         self.yaw = startup_view.yaw;
         self.pitch = startup_view.pitch;
         self.frame_bounds(minimum, maximum);
+    }
+
+    pub fn frame_positions_in_current_view(
+        &mut self,
+        positions: impl Iterator<Item = Vec3>,
+        rectangle: Rect,
+    ) {
+        self.frame_positions_in_viewport(positions, rectangle);
     }
 
     pub fn frame_selected(&mut self, mesh: &WorkingMesh) {
@@ -222,6 +238,49 @@ impl OrbitCamera {
         let maximum = (self.scene_radius * 10_000.0).max(10.0);
         self.distance = (self.distance * (-wheel_delta * 0.002).exp()).clamp(minimum, maximum);
         self.bump_revision();
+    }
+
+    pub fn set_orbit_state(
+        &mut self,
+        yaw: f32,
+        pitch: f32,
+        target: Option<Vec3>,
+        relative_zoom: Option<f32>,
+    ) {
+        if yaw.is_finite() {
+            self.yaw = yaw.rem_euclid(std::f32::consts::TAU);
+        }
+        if pitch.is_finite() {
+            self.pitch = pitch.clamp(
+                -std::f32::consts::FRAC_PI_2 + 0.01,
+                std::f32::consts::FRAC_PI_2 - 0.01,
+            );
+        }
+        if let Some(target) = target.filter(|value| value.is_finite()) {
+            self.target = target;
+        }
+        if let Some(relative_zoom) = relative_zoom.filter(|value| value.is_finite()) {
+            let minimum = (self.scene_radius * 0.01).max(MIN_DISTANCE);
+            let maximum = (self.scene_radius * 10_000.0).max(10.0);
+            self.distance =
+                (self.fit_distance / relative_zoom.clamp(0.1, 64.0)).clamp(minimum, maximum);
+        }
+        self.bump_revision();
+    }
+
+    #[must_use]
+    pub fn orbit_state(&self) -> (f32, f32, Vec3, f32) {
+        (self.yaw, self.pitch, self.target, self.distance)
+    }
+
+    #[must_use]
+    pub fn fit_target(&self) -> Vec3 {
+        self.fit_target
+    }
+
+    #[must_use]
+    pub fn relative_zoom(&self) -> f32 {
+        (self.fit_distance / self.distance.max(MIN_DISTANCE)).clamp(0.1, 64.0)
     }
 
     #[must_use]
@@ -313,9 +372,11 @@ impl OrbitCamera {
     fn frame_bounds(&mut self, minimum: Vec3, maximum: Vec3) {
         debug_assert!(minimum.is_finite() && maximum.is_finite());
         self.target = (minimum + maximum) * 0.5;
+        self.fit_target = self.target;
         self.scene_radius = ((maximum - minimum) * 0.5).length().max(1.0e-4);
         self.distance =
             (self.scene_radius / (FIELD_OF_VIEW_Y * 0.5).tan() * 1.25).max(self.scene_radius * 1.5);
+        self.fit_distance = self.distance;
         self.bump_revision();
     }
 
@@ -331,6 +392,7 @@ impl OrbitCamera {
         }
 
         self.target = (minimum + maximum) * 0.5;
+        self.fit_target = self.target;
         let half_extent = (maximum - minimum) * 0.5;
         self.scene_radius = half_extent.length().max(1.0e-4);
         let legacy_distance =
@@ -355,6 +417,7 @@ impl OrbitCamera {
         } else {
             legacy_distance
         };
+        self.fit_distance = self.distance;
         self.bump_revision();
     }
 

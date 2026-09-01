@@ -191,7 +191,7 @@ from cdmw.services.preview_rendering_service import (
     prepare_model_preview,
     run_native_preview_core_preview_job,
 )
-from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
+from cdmw.ui.preview import DotNetPreviewProfile, RustPreviewHostFrame
 
 
 def install_static_replacement_prompt_base_dependencies(namespace: dict[str, object]) -> None:

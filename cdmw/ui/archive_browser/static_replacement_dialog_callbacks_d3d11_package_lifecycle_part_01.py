@@ -302,7 +302,7 @@ def _d3d11_package_lifecycle_step_014(_state):
     def _active_mesh_edit_d3d11_static_preview_queue_blocked(kind: str, event: str) -> bool:
         if not _state._mesh_edit_raw_preview_active_value():
             return False
-        message = f'Active Mesh Editor static preview {kind} is disabled; .NET/Vortice preview payloads are required.'
+        message = f'Active Mesh Editor static preview {kind} is disabled; Rust Preview preview payloads are required.'
         if callable(_state._record_runtime_event):
             _state._record_runtime_event(event, path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason=message)
         set_status_message = getattr(_state.self, 'set_status_message', None)

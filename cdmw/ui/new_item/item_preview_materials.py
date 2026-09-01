@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import shutil
 import threading
 import time
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
@@ -30,7 +29,7 @@ class PlacementScene:
 
 def as_parsed_mesh(item: Any) -> ParsedMesh:
     if getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
-        from cdmw.services.mesh_dotnet_preview_package import parsed_mesh_from_model_preview
+        from cdmw.services.mesh_rust_preview_cache import parsed_mesh_from_model_preview
 
         return parsed_mesh_from_model_preview(item)
     return item
@@ -90,14 +89,7 @@ def upgrade_item_preview_package_materials(
 ) -> Path:
     """Attach canonical materials to a copied geometry package without re-exporting it."""
 
-    from cdmw.services.mesh_dotnet_experiment import (
-        _build_dotnet_scene_mesh,
-        _scene_material_slot_indices,
-        _write_initial_dotnet_launch_manifest,
-        mesh_dotnet_experiment_package_from_path,
-    )
-    from cdmw.services.mesh_dotnet_material_package import _write_dotnet_material_manifest
-    from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_input_signature
+    from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
 
     root = Path(output_root).resolve(strict=False)
     base = Path(geometry_package).resolve(strict=False)
@@ -131,55 +123,14 @@ def upgrade_item_preview_package_materials(
     )
     reference = placement_reference_mesh(reference, character)
     target = root / f"package_{time.time_ns()}_materials"
-    try:
-        shutil.copytree(base, target, ignore=shutil.ignore_patterns("output"))
-        output = target / "output"
-        output.mkdir()
-        if stop_event.is_set():
-            raise RunCancelled("Item preview material upgrade cancelled.")
-        scene_mesh = _build_dotnet_scene_mesh(model, reference)
-        sidecar_path = target / "scene.obj.meta.json"
-        import json
-
-        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
-        if not isinstance(sidecar, dict):
-            raise ValueError("The progressive scene sidecar is not a JSON object.")
-        material_signature = mesh_dotnet_material_input_signature(scene_mesh)
-        materials_path = target / "net_materials.json"
-        _write_dotnet_material_manifest(
-            materials_path,
-            mesh=scene_mesh,
-            sidecar_payload=sidecar,
-            material_signature=material_signature,
-            editable_submesh_count=len(tuple(getattr(model, "submeshes", ()) or ())),
-            include_resources=True,
-            cancelled=stop_event.is_set,
-        )
-        if item.character is not None:
-            from cdmw.services.effect_placement_preview import _tint_anchor_material
-
-            _tint_anchor_material(materials_path)
-        if stop_event.is_set():
-            raise RunCancelled("Item preview material upgrade cancelled.")
-        package = mesh_dotnet_experiment_package_from_path(target)
-        package = replace(
-            package,
-            material_signature=material_signature,
-            editable_submesh_count=len(tuple(getattr(model, "submeshes", ()) or ())),
-            reference_submesh_count=(
-                len(tuple(getattr(reference, "submeshes", ()) or ()))
-                if reference is not None
-                else 0
-            ),
-            scene_material_slot_indices=_scene_material_slot_indices(sidecar),
-        )
-        _write_initial_dotnet_launch_manifest(
-            package,
-            materials_path,
-            target / "scene.obj",
-            target / "dotnet_scene.json",
-        )
-        return target
-    except BaseException:
-        shutil.rmtree(target, ignore_errors=True)
-        raise
+    package = build_rust_preview_package(
+        model,
+        output_package_dir=target,
+        reference_mesh=reference,
+        comparison_mode="overlay",
+        interaction_profile="static_replacement",
+        scene_transform=item.placement.build_transform(origin=item.model_origin),
+        cancelled=stop_event.is_set,
+        include_material_resources=True,
+    )
+    return Path(package.package_dir)

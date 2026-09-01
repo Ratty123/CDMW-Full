@@ -157,7 +157,7 @@ def _transform_drag_step_004(_state):
     def _active_mesh_edit_transform_preview_queue_blocked(kind: str, event: str) -> bool:
         if not (callable(_state._mesh_edit_raw_preview_active) and _state._mesh_edit_raw_preview_active()):
             return False
-        message = f'Active Mesh Editor static preview {kind} is disabled; .NET/Vortice preview payloads are required.'
+        message = f'Active Mesh Editor static preview {kind} is disabled; Rust Preview preview payloads are required.'
         if callable(_state._record_runtime_event):
             _state._record_runtime_event(event, path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason=message)
         set_status_message = getattr(_state.self, 'set_status_message', None)
@@ -594,7 +594,7 @@ def _transform_drag_step_034(_state):
         _state._flush_alignment_d3d11_drag_ui()
         prepare_state = _state._alignment_preview_drag_prepare_state_helper(
             _state._alignment_part_source_indices_for_commit(),
-            undo_label='.NET/Vortice part drag',
+            undo_label='Rust Preview part drag',
         )
         part_source_indices = tuple(prepare_state['part_source_indices'])
         if bool(prepare_state['push_undo']):
@@ -694,7 +694,7 @@ def _transform_drag_step_043(_state):
         delta = _state._alignment_d3d11_translation_to_transform_units(dx, dy, dz)
         part_source_indices = _state._alignment_d3d11_drag_part_source_indices_helper(_state.alignment_d3d11_drag_transaction)
         if part_source_indices:
-            if _state._active_mesh_edit_part_adjustment_mutation_blocked('.NET/Vortice transform'):
+            if _state._active_mesh_edit_part_adjustment_mutation_blocked('Rust Preview transform'):
                 return
             update_state = _state._alignment_d3d11_drag_transform_update_state_helper(part_source_indices=part_source_indices, delta_xyz=delta, value_index=0, part_transform_values={int(source_index): _state._alignment_d3d11_base_part_transform(source_index) for source_index in part_source_indices})
             for source_index, new_offset in dict(update_state['part_values']).items():

@@ -310,8 +310,12 @@ class ShellAppStartupTests(unittest.TestCase):
             {"ok": True, "pid": os.getpid(), "stage": "post_construction", "target": "default"},
             {key: payload[key] for key in ("ok", "pid", "stage", "target")},
         )
-        self.assertEqual(set(payload) - {"ok", "pid", "stage", "target"}, {"bundled_helpers"})
+        self.assertEqual(
+            set(payload) - {"ok", "pid", "stage", "target"},
+            {"bundled_helpers", "rust_mesh_editor"},
+        )
         self.assertIsInstance(payload["bundled_helpers"], list)
+        self.assertIsInstance(payload["rust_mesh_editor"], dict)
         for helper in payload["bundled_helpers"]:
             self.assertIn("key", helper)
 
@@ -366,44 +370,7 @@ class ShellAppStartupTests(unittest.TestCase):
         verify_builder.assert_called_once_with(window, app)
         self.assertTrue(window.finalized)
 
-    def test_finish_gui_startup_smoke_can_record_packaged_mesh_texture_evidence(self) -> None:
-        window = _WindowStub()
-        app = _AppStub()
-        evidence = {
-            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v3",
-            "read_only": True,
-            "archive_sources_unchanged": True,
-        }
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            result_path = Path(temp_dir) / "startup-result.json"
-            with (
-                patch.dict(
-                    os.environ,
-                    {
-                        "CDMW_GUI_STARTUP_SMOKE": "1",
-                        "CDMW_GUI_STARTUP_SMOKE_RESULT": str(result_path),
-                        "CDMW_GUI_STARTUP_SMOKE_TARGET": "mesh_archive_textures",
-                    },
-                ),
-                patch(
-                    "cdmw.ui.shell.app_startup._verify_mesh_archive_textures_startup_smoke_target",
-                    return_value=evidence,
-                ) as verify_textures,
-            ):
-                self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
-            payload = json.loads(result_path.read_text(encoding="utf-8"))
-
-        verify_textures.assert_called_once_with(window, app)
-        self.assertEqual("mesh_archive_textures", payload["target"])
-        self.assertEqual(evidence, payload["evidence"])
-        self.assertEqual([(-32_000, -32_000), (-32_000, -32_000)], window.move_calls)
-        self.assertEqual(1, window.show_normal_count)
-        self.assertTrue(window.attributes[Qt.WidgetAttribute.WA_ShowWithoutActivating])
-        self.assertTrue(window.window_flags[Qt.WindowType.WindowDoesNotAcceptFocus])
-        self.assertTrue(window.finalized)
-
-    def test_finish_gui_startup_smoke_records_target_failure_without_raising(self) -> None:
+    def test_finish_gui_startup_smoke_rejects_removed_mesh_texture_target(self) -> None:
         window = _WindowStub()
         app = _AppStub()
 
@@ -417,12 +384,6 @@ class ShellAppStartupTests(unittest.TestCase):
                         "CDMW_GUI_STARTUP_SMOKE_RESULT": str(result_path),
                         "CDMW_GUI_STARTUP_SMOKE_TARGET": "mesh_archive_textures",
                     },
-                ),
-                patch(
-                    "cdmw.ui.shell.app_startup._verify_mesh_archive_textures_startup_smoke_target",
-                    side_effect=RuntimeError(
-                        "texture draw failed; diagnostics: C:/Temp/failure-diagnostics.json"
-                    ),
                 ),
             ):
                 self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
@@ -432,7 +393,7 @@ class ShellAppStartupTests(unittest.TestCase):
         self.assertEqual("target_verification", payload["stage"])
         self.assertEqual("mesh_archive_textures", payload["target"])
         self.assertEqual(
-            "RuntimeError: texture draw failed; diagnostics: C:/Temp/failure-diagnostics.json",
+            "RuntimeError: Unknown GUI startup smoke target: mesh_archive_textures",
             payload["detail"],
         )
         self.assertTrue(window.finalized)
@@ -530,7 +491,7 @@ class ShellAppStartupTests(unittest.TestCase):
         self.assertTrue(window.finalized)
         mesh_editor_tab.deleteLater()
 
-    def test_finish_gui_startup_smoke_can_run_mesh_editor_dotnet_pipeline(self) -> None:
+    def test_finish_gui_startup_smoke_ignores_removed_dotnet_pipeline_flag(self) -> None:
         QApplication.instance() or QApplication([])
         window = _WindowStub()
         app = _AppStub()
@@ -635,24 +596,23 @@ class ShellAppStartupTests(unittest.TestCase):
             ):
                 self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
 
-        self.assertIn("build_package", [call[0] for call in calls])
-        self.assertIn("run", [call[0] for call in calls])
-        self.assertIn("import_output", [call[0] for call in calls])
-        self.assertIn("write_evaluation", [call[0] for call in calls])
-        self.assertIn("replace_working_mesh", [call[0] for call in mesh_editor_tab.mesh_smoke_service.calls])
-        self.assertIn("validate_export", [call[0] for call in mesh_editor_tab.mesh_smoke_service.calls])
+        self.assertEqual([], calls)
+        self.assertNotIn(
+            "replace_working_mesh",
+            [call[0] for call in mesh_editor_tab.mesh_smoke_service.calls],
+        )
         self.assertTrue(window.finalized)
         mesh_editor_tab.deleteLater()
 
-    def test_mesh_editor_dotnet_startup_smoke_requires_same_count_position_operation(self) -> None:
+    def test_mesh_editor_startup_smoke_has_no_dotnet_helper_route(self) -> None:
         root = Path(__file__).resolve().parents[1]
         source = (root / "cdmw" / "ui" / "mesh_editor" / "startup_smoke.py").read_text(
             encoding="utf-8"
         )
 
-        self.assertIn("_cdmw_edit_operations", source)
-        self.assertIn("replace_positions_same_count", source)
-        self.assertIn("same-count position operation", source)
+        self.assertIn("CDMW_GUI_STARTUP_SMOKE_MESH_RUST", source)
+        self.assertNotIn("CDMW_GUI_STARTUP_SMOKE_MESH_DOTNET", source)
+        self.assertNotIn("mesh_dotnet_experiment", source)
 
     def test_run_shell_event_loop_reports_nonzero_exit(self) -> None:
         reports: list[tuple[tuple[object, ...], dict[str, object]]] = []

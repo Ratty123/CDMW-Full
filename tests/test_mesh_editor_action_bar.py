@@ -756,7 +756,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_embedded_builder_dotnet_button_routes_to_experiment(self) -> None:
+    def test_mesh_editor_embedded_builder_compat_button_routes_to_rust(self) -> None:
         app = QApplication.instance() or QApplication([])
         settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetButton")
         settings.clear()
@@ -771,10 +771,14 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(button.isEnabled())
         self.assertTrue(button.isHidden())
 
-        with patch.object(tab, "_dotnet_editor_executable_path", return_value=None):
+        with patch.object(
+            tab,
+            "_validate_rust_executable_resolution",
+            return_value=("", "", "cdmw_mesh_lab.exe was not found"),
+        ):
             button.click()
 
-        self.assertIn("not configured", messages[-1][0])
+        self.assertIn("was not found", messages[-1][0])
         self.assertTrue(messages[-1][1])
         self.assertIsNone(tab.standalone_dotnet_package_thread)
         app.processEvents()
@@ -3323,13 +3327,13 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 package_dir = temp_path / "package"
                 package = SimpleNamespace(package_dir=package_dir, status_path=package_dir / "status.json")
                 with patch(
-                    "cdmw.ui.mesh_editor.tab_native_preview.build_mesh_dotnet_experiment_package",
+                    "cdmw.ui.mesh_editor.tab_native_preview.build_rust_preview_package",
                     return_value=package,
                 ) as writer:
                     self.assertEqual(package_dir, tab.write_standalone_native_preview_package())
                 preview_mesh = writer.call_args.args[0]
                 self.assertEqual(str(source_path), preview_mesh.submeshes[0].texture)
-                self.assertEqual("edit", writer.call_args.kwargs["interaction_mode"])
+                self.assertEqual("static_replacement", writer.call_args.kwargs["interaction_profile"])
             finally:
                 tab.deleteLater()
         app.processEvents()
@@ -4001,7 +4005,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             host.calls,
         )
         self.assertEqual(Path("C:/tmp/mesh-editor-package"), tab.standalone_native_package_dir)
-        self.assertIn(".NET/Vortice preview loading:", tab.standalone_status_label.text())
+        self.assertIn("Rust preview loading:", tab.standalone_status_label.text())
         app.processEvents()
         tab.deleteLater()
 
@@ -4054,7 +4058,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_dotnet_experiment_button_requires_configured_executable(self) -> None:
+    def test_mesh_editor_tab_compat_button_requires_rust_executable(self) -> None:
         app = QApplication.instance() or QApplication([])
         settings = QSettings("CDMWTests", "MeshEditorDotNetExperimentButton")
         settings.clear()
@@ -4069,10 +4073,14 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-dotnet-button", mode="edit")
         self.assertTrue(button.isEnabled())
 
-        with patch.object(tab, "_dotnet_editor_executable_path", return_value=None):
+        with patch.object(
+            tab,
+            "_validate_rust_executable_resolution",
+            return_value=("", "", "cdmw_mesh_lab.exe was not found"),
+        ):
             button.click()
 
-        self.assertIn("not configured", messages[-1][0])
+        self.assertIn("was not found", messages[-1][0])
         self.assertTrue(messages[-1][1])
         self.assertIsNone(tab.standalone_dotnet_package_thread)
         app.processEvents()
@@ -4174,7 +4182,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual(0, workspace.log_list.count())
         workspace.set_native_performance_status({"metrics": {"frame_time_ms": 33.4, "cpu_update_ms": 2.5, "gpu_upload_ms": 7.0, "draw_call_count": 9}})
         self.assertEqual(1, workspace.log_list.count())
-        self.assertIn("Slow .NET/Vortice preview frame: 33.40 ms", workspace.log_list.item(0).text())
+        self.assertIn("Slow Rust preview frame: 33.40 ms", workspace.log_list.item(0).text())
         workspace.set_native_performance_status({"metrics": {"frame_time_ms": 33.4, "cpu_update_ms": 2.5, "gpu_upload_ms": 7.0, "draw_call_count": 9}})
         self.assertEqual(1, workspace.log_list.count())
         app.processEvents()
@@ -5001,7 +5009,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             tab._poll_standalone_native_preview_status()
 
             self.assertEqual("Uploading geometry", tab.standalone_status_label.text())
-            self.assertEqual((".NET/Vortice preview: Uploading geometry", False), messages[-1])
+            self.assertEqual(("Rust preview: Uploading geometry", False), messages[-1])
 
             status_file.write_text(
                 json.dumps(
@@ -5017,8 +5025,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
             )
             tab._poll_standalone_native_preview_status()
 
-            self.assertEqual(".NET/Vortice preview loaded: 2 batches, 3,000 vertices.", tab.standalone_status_label.text())
-            self.assertEqual((".NET/Vortice preview loaded.", False), messages[-1])
+            self.assertEqual("Rust preview loaded: 2 batches, 3,000 vertices.", tab.standalone_status_label.text())
+            self.assertEqual(("Rust preview loaded.", False), messages[-1])
             self.assertEqual("loaded", tab.standalone_native_last_status_payload["event"])
             perf = tab.standalone_workspace.findChild(QLabel, "MeshEditorNativePerformanceStatus")
             panel = tab.standalone_workspace.findChild(QTreeWidget, "MeshEditorPerformancePanel")
@@ -5036,8 +5044,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
             status_file.write_text(json.dumps({"event": "error", "message": "device lost"}), encoding="utf-8")
             tab._poll_standalone_native_preview_status()
 
-            self.assertEqual(".NET/Vortice preview error: device lost", tab.standalone_status_label.text())
-            self.assertEqual((".NET/Vortice preview error: device lost", True), messages[-1])
+            self.assertEqual("Rust preview error: device lost", tab.standalone_status_label.text())
+            self.assertEqual(("Rust preview error: device lost", True), messages[-1])
             self.assertEqual("FPS: -- | Frame: -- ms", perf.text())
         app.processEvents()
         tab.deleteLater()

@@ -5,7 +5,6 @@ param(
     [string]$BuildProfile = "release",
     [switch]$SkipNativeBuild,
     [switch]$NativeHelpersOnly,
-    [string]$DotNetGpuSmokeExecutable = "",
     [switch]$DescribeOnly
 )
 
@@ -738,305 +737,6 @@ function Test-FullyQualifiedPath {
     }
 }
 
-function Get-DotNetMeshEditorHelperContract {
-    # The helper reports its own protocol contract at runtime, so anything the
-    # manifest hardcodes drifts the moment the C# side gains a capability. Read
-    # the contract straight out of the sources the helper is built from.
-    $provenanceSource = Join-Path $scriptDir "tools\dotnet_mesh_editor_experiment\HelperBuildProvenance.cs"
-    if (-not (Test-Path -LiteralPath $provenanceSource -PathType Leaf)) {
-        throw ".NET Mesh Editor provenance source is missing: $provenanceSource"
-    }
-    $provenanceText = Get-Content -LiteralPath $provenanceSource -Raw
-
-    $capabilityBlock = [regex]::Match(
-        $provenanceText,
-        'RequiredProtocolCapabilities\s*=\s*\{(?<body>.*?)\};',
-        [Text.RegularExpressions.RegexOptions]::Singleline)
-    if (-not $capabilityBlock.Success) {
-        throw "Could not read RequiredProtocolCapabilities from $provenanceSource."
-    }
-    $capabilityBody = [regex]::Replace($capabilityBlock.Groups['body'].Value, '//[^\r\n]*', '')
-    $capabilities = @(
-        [regex]::Matches($capabilityBody, '"(?<name>[^"]+)"') |
-            ForEach-Object { $_.Groups['name'].Value }
-    )
-    if ($capabilities.Count -eq 0) {
-        throw "RequiredProtocolCapabilities in $provenanceSource is empty."
-    }
-
-    $protocolMatch = [regex]::Match($provenanceText, '\["protocol_version"\]\s*=\s*(?<value>\d+)')
-    if (-not $protocolMatch.Success) {
-        throw "Could not read protocol_version from $provenanceSource."
-    }
-
-    $projectPath = Join-Path $scriptDir "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
-    if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) {
-        throw ".NET Mesh Editor project is missing: $projectPath"
-    }
-    $versionMatch = [regex]::Match(
-        (Get-Content -LiteralPath $projectPath -Raw),
-        '<Version>\s*(?<value>\d+\.\d+\.\d+)[^<]*</Version>')
-    if (-not $versionMatch.Success) {
-        throw "Could not read a three-part <Version> from $projectPath."
-    }
-
-    return [ordered]@{
-        Capabilities = $capabilities
-        ProtocolVersion = [int]$protocolMatch.Groups['value'].Value
-        SemanticVersion = $versionMatch.Groups['value'].Value
-    }
-}
-
-function Invoke-DotNetMeshEditorGpuSmoke {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$ExecutablePath,
-        [Parameter(Mandatory = $true)]
-        [string]$Context
-    )
-
-    if (-not (Test-Path -LiteralPath $ExecutablePath -PathType Leaf)) {
-        throw ".NET Mesh Editor $Context helper is missing: $ExecutablePath"
-    }
-    $smokeReport = Join-Path ([System.IO.Path]::GetTempPath()) ("cdmw-dotnet-gpu-smoke-{0}.json" -f [Guid]::NewGuid().ToString("N"))
-    try {
-        $smokeProcess = Start-Process -FilePath $ExecutablePath -ArgumentList @(
-            "--headless-gpu-sparse-soak", "--gpu-soak-smoke", "--gpu-soak-vertices", "100000",
-            "--gpu-soak-updates", "100", "--gpu-soak-warmup", "16", "--gpu-soak-no-cadence",
-            "--gpu-soak-report", $smokeReport
-        ) -Wait -PassThru -WindowStyle Hidden
-        if ($smokeProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $smokeReport)) {
-            throw ".NET Mesh Editor $Context hidden GPU smoke failed with exit code $($smokeProcess.ExitCode)."
-        }
-        $smoke = Get-Content -LiteralPath $smokeReport -Raw | ConvertFrom-Json
-        if ($smoke.ok -ne $true -or $smoke.backend_proof.backend -ne "d3d11_vortice_shader" -or $smoke.gates.native_windows_remained_hidden -ne $true) {
-            throw ".NET Mesh Editor $Context hidden GPU smoke did not prove the production Vortice backend."
-        }
-    } finally {
-        Remove-Item -LiteralPath $smokeReport -Force -ErrorAction SilentlyContinue
-    }
-}
-
-function Invoke-DotNetMeshEditorProvenanceCheck {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$ExecutablePath,
-        [Parameter(Mandatory = $true)]
-        [string]$Context
-    )
-
-    $manifestPath = Join-Path (Split-Path -Parent $ExecutablePath) "cdmw-mesh-dotnet-editor.manifest.json"
-    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
-        throw ".NET Mesh Editor $Context manifest is missing: $manifestPath"
-    }
-    $reportPath = Join-Path ([System.IO.Path]::GetTempPath()) ("cdmw-dotnet-provenance-{0}.json" -f [Guid]::NewGuid().ToString("N"))
-    try {
-        $provenanceProcess = Start-Process -FilePath $ExecutablePath -ArgumentList @(
-            "--helper-provenance-report", $reportPath
-        ) -Wait -PassThru -WindowStyle Hidden
-        if ($provenanceProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
-            throw ".NET Mesh Editor $Context provenance report failed with exit code $($provenanceProcess.ExitCode)."
-        }
-        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-        $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
-        $manifestCapabilities = @($manifest.capabilities | ForEach-Object { [string]$_ } | Sort-Object)
-        $reportCapabilities = @($report.capabilities | ForEach-Object { [string]$_ } | Sort-Object)
-        $mismatches = New-Object System.Collections.Generic.List[string]
-        if ($report.manifest_mode -ne "release_manifest") {
-            $mismatches.Add("manifest_mode: helper reported '$($report.manifest_mode)', expected 'release_manifest'")
-        }
-        $fieldPairs = @(
-            @{ Field = "manifest_id"; Reported = $report.manifest_id; Expected = $manifest.manifest_id },
-            @{ Field = "semantic_version"; Reported = $report.semantic_version; Expected = $manifest.semantic_version },
-            @{ Field = "protocol_version"; Reported = $report.protocol_version; Expected = $manifest.protocol_version },
-            @{ Field = "process_sha256"; Reported = $report.process_sha256; Expected = $manifest.executable_sha256 },
-            @{ Field = "shader_sha256"; Reported = $report.shader_sha256; Expected = $manifest.shader_sha256 },
-            @{ Field = "renderer_backend"; Reported = $report.renderer_backend; Expected = $manifest.renderer_backend },
-            @{ Field = "edit_backend"; Reported = $report.edit_backend; Expected = $manifest.edit_backend }
-        )
-        foreach ($pair in $fieldPairs) {
-            if ($pair.Reported -ne $pair.Expected) {
-                $mismatches.Add("$($pair.Field): helper reported '$($pair.Reported)', manifest has '$($pair.Expected)'")
-            }
-        }
-        $manifestNativeAbi = $manifest.native_abi
-        $reportedNativeAbi = $report.native_abi
-        if ($null -eq $manifestNativeAbi) {
-            $mismatches.Add("native_abi: the manifest does not record the required native mesh interaction ABI")
-        }
-        if ($null -eq $reportedNativeAbi) {
-            $mismatches.Add("native_abi: helper provenance does not report the required native mesh interaction ABI")
-        }
-        if ($null -ne $manifestNativeAbi -and $null -ne $reportedNativeAbi) {
-            $manifestLibraryPath = [string]$manifestNativeAbi.library_path
-            $reportedLibraryPath = [string]$reportedNativeAbi.library_path
-            $helperDirectory = [IO.Path]::GetFullPath((Split-Path -Parent $ExecutablePath))
-            if (-not (Test-FullyQualifiedPath -LiteralPath $manifestLibraryPath)) {
-                $mismatches.Add("native_abi.library_path: manifest path is not absolute: '$manifestLibraryPath'")
-            }
-            if (-not (Test-FullyQualifiedPath -LiteralPath $reportedLibraryPath)) {
-                $mismatches.Add("native_abi.library_path: helper reported a non-absolute path: '$reportedLibraryPath'")
-            } else {
-                $reportedLibraryPath = [IO.Path]::GetFullPath($reportedLibraryPath)
-                if ((Split-Path -Parent $reportedLibraryPath) -ne $helperDirectory) {
-                    $mismatches.Add("native_abi.library_path: helper loaded '$reportedLibraryPath' instead of a DLL beside '$ExecutablePath'")
-                }
-                if (-not (Test-Path -LiteralPath $reportedLibraryPath -PathType Leaf)) {
-                    $mismatches.Add("native_abi.library_path: helper reported a missing DLL: '$reportedLibraryPath'")
-                } elseif ((Get-Sha256Hex -LiteralPath $reportedLibraryPath) -ne [string]$reportedNativeAbi.library_sha256) {
-                    $mismatches.Add("native_abi.library_sha256: helper report does not match '$reportedLibraryPath'")
-                }
-            }
-            if ([IO.Path]::GetFileName($manifestLibraryPath) -ne [IO.Path]::GetFileName($reportedLibraryPath)) {
-                $mismatches.Add("native_abi.library_path: helper reported '$reportedLibraryPath', manifest names '$manifestLibraryPath'")
-            }
-            $nativeAbiFieldPairs = @(
-                @{ Field = "library_sha256"; Reported = $reportedNativeAbi.library_sha256; Expected = $manifestNativeAbi.library_sha256 },
-                @{ Field = "abi_version"; Reported = $reportedNativeAbi.abi_version; Expected = $manifestNativeAbi.abi_version },
-                @{ Field = "contract"; Reported = $reportedNativeAbi.contract; Expected = $manifestNativeAbi.contract },
-                @{ Field = "backend"; Reported = $reportedNativeAbi.backend; Expected = $manifestNativeAbi.backend },
-                @{ Field = "header_sha256"; Reported = $reportedNativeAbi.header_sha256; Expected = $manifestNativeAbi.header_sha256 }
-            )
-            foreach ($pair in $nativeAbiFieldPairs) {
-                if ([string]$pair.Reported -ne [string]$pair.Expected) {
-                    $mismatches.Add("native_abi.$($pair.Field): helper reported '$($pair.Reported)', manifest has '$($pair.Expected)'")
-                }
-            }
-        }
-        if ($manifestCapabilities.Count -eq 0) {
-            $mismatches.Add("capabilities: the manifest lists none")
-        }
-        $onlyInHelper = @($reportCapabilities | Where-Object { $manifestCapabilities -notcontains $_ })
-        $onlyInManifest = @($manifestCapabilities | Where-Object { $reportCapabilities -notcontains $_ })
-        if ($onlyInHelper.Count -gt 0) {
-            $mismatches.Add("capabilities missing from the manifest: $($onlyInHelper -join ', ')")
-        }
-        if ($onlyInManifest.Count -gt 0) {
-            $mismatches.Add("capabilities the helper does not report: $($onlyInManifest -join ', ')")
-        }
-        if ($mismatches.Count -gt 0) {
-            throw (
-                ".NET Mesh Editor $Context provenance does not match its packaged manifest:" +
-                [Environment]::NewLine +
-                (($mismatches | ForEach-Object { "  - $_" }) -join [Environment]::NewLine)
-            )
-        }
-    } finally {
-        Remove-Item -LiteralPath $reportPath -Force -ErrorAction SilentlyContinue
-    }
-}
-
-function Invoke-DotNetMeshEditorBuild {
-    param(
-        [Parameter(Mandatory = $true)]
-        [ValidateSet("Release", "Debug")]
-        [string]$Configuration,
-        [switch]$Required
-    )
-
-    $projectPath = Join-Path $scriptDir "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
-    if (-not (Test-Path -LiteralPath $projectPath)) {
-        if ($Required) {
-            throw "Required .NET Mesh Editor experiment project is missing: $projectPath"
-        }
-        return
-    }
-
-    $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
-    if ($null -eq $dotnet) {
-        if ($Required) {
-            throw ".NET SDK is required to publish the Mesh Editor experiment helper."
-        }
-        Write-Warning ".NET SDK not found; skipping Mesh Editor experiment helper publish."
-        return
-    }
-
-    $outputDir = Join-Path $scriptDir "native\cdmw_mesh_dotnet_editor\build\$Configuration"
-    Remove-PathWithRetries -LiteralPath $outputDir -Recurse
-    New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
-    Write-Host "Publishing .NET Mesh Editor experiment helper ($Configuration)..."
-    & $dotnet.Source publish $projectPath -c $Configuration -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o $outputDir
-    if ($LASTEXITCODE -ne 0) {
-        if ($Required) {
-            throw ".NET Mesh Editor experiment helper publish failed with exit code $LASTEXITCODE."
-        }
-        Write-Warning ".NET Mesh Editor experiment helper publish failed with exit code $LASTEXITCODE."
-        return
-    }
-
-    $exePath = Join-Path $outputDir "cdmw-mesh-dotnet-editor.exe"
-    if (-not (Test-Path -LiteralPath $exePath)) {
-        if ($Required) {
-            throw ".NET Mesh Editor experiment helper publish did not create $exePath."
-        }
-        Write-Warning ".NET Mesh Editor experiment helper publish did not create $exePath."
-        return
-    }
-    $shaderPath = Join-Path $outputDir "D3D11MaterialShaders.hlsl"
-    if (-not (Test-Path -LiteralPath $shaderPath -PathType Leaf)) {
-        throw ".NET Mesh Editor publish did not include the authoritative shader: $shaderPath"
-    }
-    $nativeAbiSourcePath = Join-Path $scriptDir "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.dll"
-    if (-not (Test-Path -LiteralPath $nativeAbiSourcePath -PathType Leaf)) {
-        throw ".NET Mesh Editor publish requires the native mesh interaction ABI DLL: $nativeAbiSourcePath"
-    }
-    $nativeAbiOutputPath = Join-Path $outputDir "cdmw-mesh-core.dll"
-    Copy-Item -LiteralPath $nativeAbiSourcePath -Destination $nativeAbiOutputPath -Force
-    if (-not (Test-Path -LiteralPath $nativeAbiOutputPath -PathType Leaf)) {
-        throw ".NET Mesh Editor publish did not stage the native mesh interaction ABI DLL: $nativeAbiOutputPath"
-    }
-    $exeHash = Get-Sha256Hex -LiteralPath $exePath
-    $shaderHash = Get-Sha256Hex -LiteralPath $shaderPath
-    $nativeAbiContract = Get-NativeMeshInteractionAbiContract
-    $nativeAbi = [ordered]@{
-        library_path = [IO.Path]::GetFullPath($nativeAbiOutputPath)
-        library_sha256 = Get-Sha256Hex -LiteralPath $nativeAbiOutputPath
-        abi_version = $nativeAbiContract.AbiVersion
-        contract = $nativeAbiContract.Contract
-        backend = $nativeAbiContract.Backend
-        header_sha256 = $nativeAbiContract.HeaderSha256
-    }
-    $helperContract = Get-DotNetMeshEditorHelperContract
-    $semanticVersion = $helperContract.SemanticVersion
-    $protocolCapabilities = $helperContract.Capabilities
-    $sourceRevision = (& git -C $scriptDir rev-parse HEAD 2>$null | Select-Object -First 1)
-    if (-not $sourceRevision) {
-        $sourceRevision = "unavailable"
-    }
-    $manifestSeed = "$exeHash|$shaderHash|$($nativeAbi.library_sha256)|$($nativeAbi.abi_version)|$($nativeAbi.contract)|$($nativeAbi.backend)|$($nativeAbi.header_sha256)|$sourceRevision|$semanticVersion|$($protocolCapabilities -join ',')"
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        $manifestId = -join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($manifestSeed)) | ForEach-Object { $_.ToString("x2") })
-    } finally {
-        $sha.Dispose()
-    }
-    $manifestPath = Join-Path $outputDir "cdmw-mesh-dotnet-editor.manifest.json"
-    $manifest = [ordered]@{
-        format = "cdmw_mesh_dotnet_helper_manifest_v1"
-        manifest_id = $manifestId
-        source_revision = [string]$sourceRevision
-        semantic_version = $semanticVersion
-        protocol_version = $helperContract.ProtocolVersion
-        executable = "cdmw-mesh-dotnet-editor.exe"
-        executable_sha256 = $exeHash
-        shader = "D3D11MaterialShaders.hlsl"
-        shader_sha256 = $shaderHash
-        renderer_backend = "d3d11_vortice_shader"
-        edit_backend = $nativeAbi.backend
-        native_abi = $nativeAbi
-        capabilities = $protocolCapabilities
-    }
-    [IO.File]::WriteAllText(
-        $manifestPath,
-        ($manifest | ConvertTo-Json -Depth 4),
-        [Text.UTF8Encoding]::new($false)
-    )
-    if ($Required) {
-        Invoke-DotNetMeshEditorProvenanceCheck -ExecutablePath $exePath -Context "published"
-        Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $exePath -Context "published"
-    }
-}
-
 function Get-RustMeshEditorSourceFingerprint {
     $rustRoot = Join-Path $scriptDir "tools\rust_mesh_lab"
     $rustRootPrefix = [IO.Path]::GetFullPath($rustRoot)
@@ -1201,12 +901,35 @@ function Invoke-RustMeshEditorBuild {
         edit_backend = "cdmw_rust_mesh_0.1"
         protocol = "cdmw_rust_mesh_editor_protocol_v1"
         authoring_package = "cdmw_rust_mesh_authoring_package_v1"
+        preview_protocol = "cdmw_rust_preview_protocol_v1"
+        preview_package = "cdmw_rust_preview_package_v1"
+        preview_backend = "cdmw_rust_preview_0.1"
         build_profile = $Configuration.ToLowerInvariant()
         locked_dependencies = $true
         executable = "cdmw_mesh_lab.exe"
         control_contract = "cdmw_mesh_lab.control-contract.json"
         control_contract_schema = "cdmw_rust_mesh_editor_control_contract_v2"
-        capabilities = @("embedded_child_window_v1")
+        capabilities = @("embedded_child_window_v1", "rust_preview_runtime_v1")
+        preview_capabilities = @(
+            "preview_profile_read_only_v1",
+            "preview_session_v1",
+            "resident_package_load_v1",
+            "resident_preview_package_replace_v2",
+            "absolute_camera_state_v1",
+            "view_state_changed_v1",
+            "viewport_display_modes_v1",
+            "read_only_part_pick_v1",
+            "overlay_state_update_v1",
+            "skeleton_overlay_v1",
+            "pbd_cloth_overlay_v1",
+            "deterministic_offscreen_capture_v1",
+            "comparison_scene_v1",
+            "alignment_preview_v1",
+            "static_replacement_mesh_input_v1",
+            "effect_particle_preview_v1",
+            "ui_theme_state_v1",
+            "ui_localization_v1"
+        )
         source_revision = [string]$sourceRevision
         source_tree_sha256 = Get-RustMeshEditorSourceFingerprint
         cargo_lock_sha256 = Get-Sha256Hex -LiteralPath (Join-Path $rustRoot "Cargo.lock")
@@ -1233,7 +956,7 @@ function Invoke-NativeHelperPreparation {
         [ValidateSet("Release", "Debug")]
         [string]$Configuration,
         [switch]$Clean,
-        [switch]$RequireDotNet
+        [switch]$RequireReleaseHelpers
     )
 
     Write-Host "Building native helpers ($Configuration)..."
@@ -1245,12 +968,11 @@ function Invoke-NativeHelperPreparation {
     if ($LASTEXITCODE -ne 0) {
         throw "Native helper build failed with exit code $LASTEXITCODE."
     }
-    Invoke-DotNetMeshEditorBuild -Configuration $Configuration -Required:$RequireDotNet
-    Invoke-RustMeshEditorBuild -Configuration $Configuration -Required:$RequireDotNet
+    Invoke-RustMeshEditorBuild -Configuration $Configuration -Required:$RequireReleaseHelpers
     Invoke-FullArchiveBackendBuild `
         -Configuration $Configuration `
         -Clean:$Clean `
-        -Required:$RequireDotNet
+        -Required:$RequireReleaseHelpers
 }
 
 function Assert-CleanPythonSitePackages {
@@ -1296,15 +1018,8 @@ function Write-BuildSummary {
     Write-Host "  Work cache: $pyInstallerWorkDir"
     Write-Host "  Temporary output: $pyInstallerDistDir"
     Write-Host "  Final output: $OutputPath"
-    Write-Host "  Native helpers: Rust Mesh Editor, Vortice Archive Preview, and standalone archive worker/DLL"
+    Write-Host "  Native helpers: Rust Mesh Editor/Archive Preview and standalone archive worker/DLL"
     Write-Host ""
-}
-
-if ($DotNetGpuSmokeExecutable) {
-    Invoke-DotNetMeshEditorGpuSmoke `
-        -ExecutablePath $DotNetGpuSmokeExecutable `
-        -Context "packaged QA"
-    return
 }
 
 if ($NativeHelpersOnly) {
@@ -1313,13 +1028,13 @@ if ($NativeHelpersOnly) {
     }
     $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
     if ($DescribeOnly) {
-        Write-Host "Native helper-only gate: rebuild $nativeConfig helpers, publish the pinned Rust Mesh Editor and Vortice Archive Preview plus full archive worker/DLL, then run their contract/provenance checks and existing synthetic gates."
+        Write-Host "Native helper-only gate: rebuild $nativeConfig helpers, publish the pinned Rust Mesh Editor/Archive Preview plus full archive worker/DLL, then run their contract/provenance checks and existing synthetic gates."
         return
     }
     Invoke-NativeHelperPreparation `
         -Configuration $nativeConfig `
         -Clean:($BuildProfile -ne "fast") `
-        -RequireDotNet:($BuildProfile -eq "release")
+        -RequireReleaseHelpers:($BuildProfile -eq "release")
     return
 }
 
@@ -1380,13 +1095,6 @@ if ($LASTEXITCODE -ne 0) {
     throw "Interface localization catalog validation failed. Packaging requires exact parity for all built-in languages."
 }
 
-# The published helper is compared against this contract, but only after every
-# native and .NET target has been built. Derive it now so a contract the build
-# cannot read fails in seconds rather than at the end of the compile.
-Write-BuildProgress -Percent 4 -Stage "Reading .NET helper protocol contract"
-$helperContractPreflight = Get-DotNetMeshEditorHelperContract
-Write-Host "Vortice Archive Preview helper contract: $($helperContractPreflight.Capabilities.Count) capabilities, protocol $($helperContractPreflight.ProtocolVersion), version $($helperContractPreflight.SemanticVersion)."
-
 if ($BuildProfile -eq "release") {
     Write-BuildProgress -Percent 4 -Stage "Verifying release dependency pins"
     & $pythonExe $releaseDependencyVerifier --constraints $releaseConstraintsPath
@@ -1422,31 +1130,11 @@ if (-not $SkipNativeBuild) {
     Invoke-NativeHelperPreparation `
         -Configuration $nativeConfig `
         -Clean:($BuildProfile -ne "fast") `
-        -RequireDotNet:($BuildProfile -eq "release")
+        -RequireReleaseHelpers:($BuildProfile -eq "release")
     Write-BuildProgress -Percent 20 -Stage "Native helpers ready"
 } else {
     Write-Warning "Skipping native helper build. Release packaging still requires existing native binaries."
     Write-BuildProgress -Percent 16 -Stage "Native helper build skipped"
-}
-
-# PyInstaller packages the retained Vortice Archive Preview renderer from the
-# staging tree, not from the .NET
-# build output, so a skipped or failed publish leaves the previous helper in
-# place and the build ships it without complaint.  That is silent: the app then
-# runs an old shader while the source tree looks correct.  Compare the staged
-# shader against the authoritative one and refuse to package a stale renderer.
-$stagedShader = Join-Path $scriptDir "native\cdmw_mesh_dotnet_editor\build\$(if ($BuildProfile -eq 'debug') { 'Debug' } else { 'Release' })\D3D11MaterialShaders.hlsl"
-$sourceShader = Join-Path $scriptDir "tools\dotnet_mesh_editor_experiment\D3D11MaterialShaders.hlsl"
-if (Test-Path -LiteralPath $sourceShader -PathType Leaf) {
-    if (-not (Test-Path -LiteralPath $stagedShader -PathType Leaf)) {
-        throw "The packaged Vortice Archive Preview renderer is missing its shader: $stagedShader`nRun a build without -SkipNativeBuild, or publish the helper:`n  dotnet publish tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o native\cdmw_mesh_dotnet_editor\build\Release"
-    }
-    $stagedHash = Get-Sha256Hex -LiteralPath $stagedShader
-    $sourceHash = Get-Sha256Hex -LiteralPath $sourceShader
-    if ($stagedHash -ne $sourceHash) {
-        throw "The staged Vortice Archive Preview shader is stale, so this build would ship an old preview renderer.`n  staged: $stagedShader`n  source: $sourceShader`nRepublish the helper:`n  dotnet publish tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o native\cdmw_mesh_dotnet_editor\build\Release"
-    }
-    Write-Host "Staged Vortice Archive Preview shader matches the source tree."
 }
 
 $pyInstallerArgs = @(
@@ -1519,14 +1207,6 @@ if ($BuildProfile -eq "release") {
     } else {
         $packagedOnedir = Join-Path $pyInstallerDistDir $appName
         Test-OnedirTextureBackend -OnedirPath $packagedOnedir
-    }
-    if ($Mode -eq "onedir") {
-        Write-BuildProgress -Percent 95 -Stage "Verifying packaged .NET Mesh Editor GPU backend"
-        $packagedDotNetHelper = Join-Path $pyInstallerDistDir "$appName\_internal\native\cdmw-mesh-dotnet-editor.exe"
-        Invoke-DotNetMeshEditorProvenanceCheck -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"
-        Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"
-    } else {
-        Write-Host "Direct packaged .NET helper smoke is deferred for onefile because PyInstaller extracts helpers at app runtime."
     }
     Write-BuildProgress -Percent 95 -Stage "Verifying packaged full archive backend"
     if ($Mode -eq "onefile") {

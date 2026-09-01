@@ -102,10 +102,22 @@ _ROWS = (
         real_game=True,
         timeout_seconds=360.0,
         process_ownership="harness",
-        scenario_role="production_visual_proof",
+        scenario_role="legacy_vortice_reference",
         expected_backend="dotnet+d3d11",
         expected_renderer_backend="d3d11_vortice_shader",
         expected_edit_backend="cdmw_mesh_core_0.1",
+        compatibility_only=True,
+    ),
+    _scenario(
+        "real-archive-rust-preview-smoke",
+        headless=True,
+        visual=False,
+        real_game=True,
+        timeout_seconds=360.0,
+        process_ownership="harness",
+        scenario_role="production_rendering_proof",
+        expected_backend="rust+wgpu+d3d12+cdmw_rust_preview_0.1",
+        expected_renderer_backend="wgpu_d3d12_rust",
     ),
     _scenario(
         "mesh-dotnet-native-parity-report",
@@ -115,9 +127,8 @@ _ROWS = (
     ),
 )
 
-_PRODUCTION_VISUAL_SCENARIO = "real-archive-mesh-editor-dotnet-edit-smoke"
-_PRODUCTION_RENDERER_BACKEND = "d3d11_vortice_shader"
-_PRODUCTION_EDIT_BACKEND = "cdmw_mesh_core_0.1"
+_PRODUCTION_RENDERING_SCENARIO = "real-archive-rust-preview-smoke"
+_PRODUCTION_RENDERER_BACKEND = "wgpu_d3d12_rust"
 
 
 def _validate_scenario(row: ScenarioMetadata) -> None:
@@ -125,34 +136,38 @@ def _validate_scenario(row: ScenarioMetadata) -> None:
         raise ValueError("Mesh Editor harness scenario name is required.")
     if row.headless and row.visual:
         raise ValueError(f"Visual Mesh Editor harness scenario cannot be headless: {row.name}")
-    legacy_role = row.scenario_role in {"synthetic_legacy_protocol", "native_renderer_compatibility"}
+    legacy_role = row.scenario_role in {
+        "synthetic_legacy_protocol",
+        "native_renderer_compatibility",
+        "legacy_vortice_reference",
+    }
     legacy_backend = "legacy" in row.expected_backend.casefold()
     if (legacy_role or legacy_backend) and not row.compatibility_only:
         raise ValueError(f"Legacy/checker Mesh Editor harness must be compatibility-only: {row.name}")
     if row.compatibility_only and (row.headless or not row.visual or row.normal_qa):
         raise ValueError(f"Compatibility-only Mesh Editor harness must be opt-in visual: {row.name}")
     production_visual = row.visual and not row.compatibility_only
-    if production_visual and row.scenario_role != "production_visual_proof":
+    if production_visual:
         raise ValueError(
-            "Every non-compatibility Mesh Editor visual harness must use the canonical "
-            f"production .NET/Vortice proof role: {row.name}"
+            "Visible Mesh Editor automation is compatibility-only; production appearance "
+            f"proof uses the no-window Rust capture gate: {row.name}"
         )
-    if row.scenario_role == "production_visual_proof":
-        if row.name != _PRODUCTION_VISUAL_SCENARIO:
-            raise ValueError(f"Unexpected production Mesh Editor visual proof: {row.name}")
+    if row.scenario_role == "production_rendering_proof":
+        if row.name != _PRODUCTION_RENDERING_SCENARIO:
+            raise ValueError(f"Unexpected production Mesh Editor rendering proof: {row.name}")
         if not (
-            row.visual
+            row.headless
+            and not row.visual
             and row.real_game
-            and not row.headless
             and not row.compatibility_only
             and row.process_ownership == "harness"
-            and row.expected_backend == "dotnet+d3d11"
+            and row.expected_backend == "rust+wgpu+d3d12+cdmw_rust_preview_0.1"
             and row.expected_renderer_backend == _PRODUCTION_RENDERER_BACKEND
-            and row.expected_edit_backend == _PRODUCTION_EDIT_BACKEND
+            and not row.expected_edit_backend
         ):
             raise ValueError(
-                "Production Mesh Editor visual proof must use the real-game .NET/Vortice renderer "
-                f"and native edit core: {row.name}"
+                "Production rendering proof must use real-game packages and the no-window "
+                f"Rust/wgpu/D3D12 preview runtime: {row.name}"
             )
 
 
@@ -162,9 +177,9 @@ def validate_scenario_registry(rows: tuple[ScenarioMetadata, ...] | list[Scenari
         raise ValueError("Duplicate Mesh Editor harness scenario name.")
     for row in rows:
         _validate_scenario(row)
-    production = [row for row in rows if row.scenario_role == "production_visual_proof"]
+    production = [row for row in rows if row.scenario_role == "production_rendering_proof"]
     if len(production) != 1:
-        raise ValueError("Mesh Editor harness registry must contain exactly one production visual proof.")
+        raise ValueError("Mesh Editor harness registry must contain exactly one production rendering proof.")
 
 
 validate_scenario_registry(list(_ROWS))

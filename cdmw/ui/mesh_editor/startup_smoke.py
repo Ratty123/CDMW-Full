@@ -96,84 +96,45 @@ def _verify_mesh_editor_asset_rebuild_startup_smoke(
             raise RuntimeError("Mesh Editor startup smoke failed: patched asset rebuild report was not validation-passed.")
 
 
-def _verify_mesh_editor_asset_dotnet_startup_smoke(mesh_editor_tab: object) -> None:
+def _verify_mesh_editor_asset_rust_startup_smoke(mesh_editor_tab: object) -> None:
     controller = getattr(mesh_editor_tab, "standalone_controller", None)
     service = getattr(controller, "mesh_service", None)
     session_id = str(getattr(controller, "active_session_id", "") or "")
     if service is None or not session_id:
-        raise RuntimeError("Mesh Editor startup smoke failed: .NET smoke has no active service session.")
+        raise RuntimeError("Mesh Editor startup smoke failed: Rust smoke has no active service session.")
 
-    from cdmw.services.mesh_dotnet_experiment import (
-        build_mesh_dotnet_experiment_package,
-        find_mesh_dotnet_experiment_editor,
-        import_mesh_dotnet_experiment_output,
-        mesh_dotnet_experiment_command,
-        write_mesh_dotnet_experiment_evaluation,
+    from cdmw.services.mesh_rust_contract import (
+        resolve_rust_mesh_editor,
+        validate_rust_mesh_editor_package,
     )
 
-    executable = find_mesh_dotnet_experiment_editor()
-    if executable is None or not executable.is_file():
-        raise RuntimeError("Mesh Editor startup smoke failed: .NET experiment executable is missing.")
-
-    with tempfile.TemporaryDirectory(prefix="cdmw-mesh-editor-dotnet-startup-smoke-") as temp_dir:
-        mesh = service.working_mesh(session_id, clone=True)
-        package = build_mesh_dotnet_experiment_package(mesh, output_root=Path(temp_dir))
-        program, arguments = mesh_dotnet_experiment_command(executable, package)
+    resolution = resolve_rust_mesh_editor()
+    reason = validate_rust_mesh_editor_package(resolution)
+    if reason:
+        raise RuntimeError(f"Mesh Editor startup smoke failed: {reason}.")
+    with tempfile.TemporaryDirectory(prefix="cdmw-rust-mesh-editor-startup-smoke-") as temp_dir:
+        contract_path = Path(temp_dir) / "control-contract.json"
         result = subprocess.run(
-            [program, *arguments, "--headless-smoke"],
-            cwd=package.package_dir,
+            [
+                resolution.resolved_path,
+                "--control-contract-json",
+                str(contract_path),
+            ],
             timeout=120,
             check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
-        if result.returncode != 0:
-            raise RuntimeError(f"Mesh Editor startup smoke failed: .NET experiment exited {result.returncode}.")
-        if not package.status_path.is_file():
-            raise RuntimeError("Mesh Editor startup smoke failed: .NET experiment did not write status JSON.")
-        payload = json.loads(package.status_path.read_text(encoding="utf-8-sig"))
-        if not isinstance(payload, dict):
-            raise RuntimeError("Mesh Editor startup smoke failed: .NET experiment status JSON is not an object.")
-        metrics = payload.get("metrics")
-        if not isinstance(metrics, dict):
-            raise RuntimeError("Mesh Editor startup smoke failed: .NET experiment did not report metrics.")
-        for metric_name in ("average_fps", "frame_time_ms"):
-            try:
-                metric_value = float(metrics.get(metric_name) or 0)
-            except (TypeError, ValueError, OverflowError):
-                metric_value = 0.0
-            if metric_value <= 0.0:
-                raise RuntimeError(
-                    f"Mesh Editor startup smoke failed: .NET experiment metric {metric_name} was not positive."
-                )
-        if "responsiveness_ms" not in metrics:
-            raise RuntimeError("Mesh Editor startup smoke failed: .NET experiment did not report responsiveness_ms.")
-        edited_mesh = import_mesh_dotnet_experiment_output(package, payload)
-        if edited_mesh is None:
-            raise RuntimeError("Mesh Editor startup smoke failed: .NET experiment did not produce an edited mesh.")
-        operations = tuple(getattr(edited_mesh, "_cdmw_edit_operations", ()) or ())
-        if not any(
-            callable(getattr(operation, "get", None))
-            and operation.get("operation") == "replace_positions_same_count"
-            for operation in operations
-        ):
+        if result.returncode != 0 or not contract_path.is_file():
             raise RuntimeError(
-                "Mesh Editor startup smoke failed: .NET experiment did not produce a same-count position operation."
+                f"Mesh Editor startup smoke failed: Rust helper exited {result.returncode}."
             )
-        updated = service.replace_working_mesh(session_id, edited_mesh)
-        validation = service.validate_export(str(getattr(updated, "session_id", "") or session_id))
-        evaluation_path = write_mesh_dotnet_experiment_evaluation(
-            package,
-            payload,
-            validation_report=validation,
-        )
-        if not evaluation_path.is_file():
-            raise RuntimeError("Mesh Editor startup smoke failed: .NET experiment did not write evaluation.")
-        if not bool(getattr(validation, "ok", False)):
-            blockers = tuple(getattr(validation, "blockers", ()) or ())
-            codes = ", ".join(str(getattr(issue, "code", issue)) for issue in blockers[:6])
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        preview = contract.get("preview_contract", {}) if isinstance(contract, dict) else {}
+        if preview.get("ok") is not True or preview.get("viewport_only") is not True:
             raise RuntimeError(
-                "Mesh Editor startup smoke failed: .NET experiment output validation blocked rebuild"
-                + (f": {codes}" if codes else ".")
+                "Mesh Editor startup smoke failed: Rust Archive Preview contract is unavailable."
             )
+    return
 
 
 def verify_mesh_editor_startup_smoke_target(window: object, app: QApplication) -> None:
@@ -238,8 +199,8 @@ def verify_mesh_editor_startup_smoke_target(window: object, app: QApplication) -
         raise RuntimeError("Mesh Editor startup smoke failed: loaded file no-op roundtrip did not pass.")
     if os.environ.get("CDMW_GUI_STARTUP_SMOKE_MESH_ASSET_REBUILD") == "1":
         _verify_mesh_editor_asset_rebuild_startup_smoke(mesh_editor_tab, asset_path)
-    if os.environ.get("CDMW_GUI_STARTUP_SMOKE_MESH_DOTNET") == "1":
-        _verify_mesh_editor_asset_dotnet_startup_smoke(mesh_editor_tab)
+    if os.environ.get("CDMW_GUI_STARTUP_SMOKE_MESH_RUST") == "1":
+        _verify_mesh_editor_asset_rust_startup_smoke(mesh_editor_tab)
 
 
 __all__ = ["verify_mesh_editor_startup_smoke_target"]

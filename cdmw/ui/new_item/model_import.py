@@ -528,7 +528,7 @@ class ModelImportSource:
         """The textured preview mesh with the bake applied (what the viewport shows)."""
 
         if self._baked_preview_mesh is None:
-            from cdmw.services.mesh_dotnet_preview_package import parsed_mesh_from_model_preview
+            from cdmw.services.mesh_rust_preview_cache import parsed_mesh_from_model_preview
 
             self._baked_preview_mesh = bake_mesh(parsed_mesh_from_model_preview(self.preview_model), self.bake)
         return self._baked_preview_mesh

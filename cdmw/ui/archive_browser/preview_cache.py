@@ -30,10 +30,12 @@ from cdmw.services.preview_rendering_service import (
     DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA,
     clear_dotnet_preview_package_cache_tiers,
     dotnet_preview_package_cache_budget,
-    dotnet_preview_package_derived_cache_root,
     is_durable_dotnet_preview_package_path,
 )
-from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
+from cdmw.services.mesh_rust_preview_cache import (
+    rust_preview_package_cache_root,
+    validate_rust_preview_cache_package as validate_dotnet_preview_package,
+)
 from cdmw.services.mesh_workflow_service import clear_pac_xml_profile_index_cache
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 
@@ -466,7 +468,7 @@ class ArchivePreviewCacheMixin:
         dotnet_package_path = str(getattr(result, "dotnet_preview_package_path", "") or "").strip()
         if dotnet_package_path:
             if not is_durable_dotnet_preview_package_path(
-                dotnet_preview_package_derived_cache_root(self._native_preview_package_cache_root()),
+                rust_preview_package_cache_root(self._native_preview_package_cache_root()),
                 dotnet_package_path,
             ):
                 return False

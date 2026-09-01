@@ -1,4 +1,4 @@
-"""Authoritative resident .NET/Vortice preview view modes."""
+"""Authoritative resident Rust Preview preview view modes."""
 
 from __future__ import annotations
 

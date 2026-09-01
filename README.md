@@ -5,13 +5,13 @@
 ![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
-![renderer](https://img.shields.io/badge/renderers-D3D12%20%2B%20D3D11-brightgreen?style=flat-square)
+![renderer](https://img.shields.io/badge/renderer-Rust%20wgpu%20%2F%20D3D12-brightgreen?style=flat-square)
 ![archives](https://img.shields.io/badge/archives-explicit%20mutation-orange?style=flat-square)
 [![license](https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square)](LICENSE)
 
 A Windows desktop workbench for modding **Crimson Desert**: browse and extract
-game archives, create equipment items, edit meshes in the embedded native
-Rust/D3D12 workspace, preview other assets through the retained D3D11 renderer,
+game archives, create equipment items, edit meshes and preview assets through
+the embedded native Rust/D3D12 workspace,
 place and customize visual effects, rebuild and author DDS
 textures, assemble replacement packages, and read formats that had to be
 reverse engineered from the shipped build.
@@ -102,7 +102,7 @@ services, workers, previews, or saved tool state.
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
 | **Model Library** | Scan and preview local or importable models, then send a selected model directly into Create New Item. |
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
-| **Mesh Editor** | Edit archive or local meshes in the single embedded Rust `wgpu`/D3D12 workspace. It exposes capability-gated Select, Move, Rotate, Scale, Grab, Smooth, Inflate, Pinch, topology, cleanup, normals/tangents, UV, rig/weights, history, layers, Morph & Refit, OBJ/FBX export, OBJ/DAE/glTF/GLB import, and Exact/Free Edit controls for the active LOD. Tool scope and disabled reasons are shown in place: topology-changing maintenance remains Free Edit-only, tangent generation cannot silently split Exact geometry, rectangular UV snapping accepts width and height, Refit distinguishes selected from all garments, and Morph sliders support add/edit/delete plus optional scope replacement. Wide layouts use single-row session and navigation/status chrome plus compact grouped tool rows; narrow layouts expand without hiding controls. Live geometry previews use a lightweight tangent update and restore the exact basis at gesture completion, while bounded Cleanup/Normal/UV commands avoid a duplicate native preflight execution; topology-growing actions retain full result preflight. Texture, mip, filtering, AA, material, history, and final-geometry quality remain unchanged. Work stays in an isolated shadow session; only a validated **Finish Edit Mesh** atomically publishes one reversible result. A missing, incompatible, crashed, or unembeddable Rust helper is explained with Retry and never falls back to Vortice. Vortice remains an Archive Browser and specialist-preview dependency only. |
+| **Mesh Editor** | Edit archive or local meshes in the single embedded Rust `wgpu`/D3D12 workspace. It exposes capability-gated Select, Move, Rotate, Scale, Grab, Smooth, Inflate, Pinch, topology, cleanup, normals/tangents, UV, rig/weights, history, layers, Morph & Refit, OBJ/FBX export, OBJ/DAE/glTF/GLB import, and Exact/Free Edit controls for the active LOD. Tool scope and disabled reasons are shown in place: topology-changing maintenance remains Free Edit-only, tangent generation cannot silently split Exact geometry, rectangular UV snapping accepts width and height, Refit distinguishes selected from all garments, and Morph sliders support add/edit/delete plus optional scope replacement. Wide layouts use single-row session and navigation/status chrome plus compact grouped tool rows; narrow layouts expand without hiding controls. Live geometry previews use a lightweight tangent update and restore the exact basis at gesture completion, while bounded Cleanup/Normal/UV commands avoid a duplicate native preflight execution; topology-growing actions retain full result preflight. Texture, mip, filtering, AA, material, history, and final-geometry quality remain unchanged. Work stays in an isolated shadow session; only a validated **Finish Edit Mesh** atomically publishes one reversible result. A missing, incompatible, crashed, or unembeddable Rust helper is explained with Retry and never falls back to another renderer. |
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
 | **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` native DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
 | **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
@@ -119,7 +119,7 @@ services, workers, previews, or saved tool state.
 Create New Item creates a new equipment row from a shipped template; it never
 silently overwrites the template. Search covers the internal name, localized
 English name, numeric item key, and equipment type. Template and imported-model
-previews use the same resident D3D11 host and native Preview Core cache as the
+previews use the same resident Rust D3D12 host and native Preview Core cache as the
 Archive Browser, with geometry allowed to arrive before the complete textured
 package. Model placement, icon capture, the enhancement ladder, base prices,
 Abyss Gear perks, shop and item-group membership, and the final file plan stay
@@ -286,12 +286,11 @@ flowchart LR
         ACC["cdmw_archive_accelerator<br/>C++<br/>archive primitives"]
         TEX["cd_texture_dx<br/>C++<br/>DirectXTex"]
         HKX["cd_hkx<br/>Rust<br/>Havok containers"]
-        RUSTEDIT["cdmw_mesh_lab<br/>Rust / wgpu D3D12<br/>embedded Mesh Editor"]
+        RUSTEDIT["cdmw_mesh_lab<br/>Rust / wgpu D3D12<br/>Mesh Editor + Archive Preview"]
     end
 
-    subgraph dotnet[".NET 10 helpers"]
+    subgraph dotnet[".NET 10 archive helper"]
         direction TB
-        ARCHPREVIEW["Archive Preview host<br/>D3D11 / Vortice<br/>presentation + input"]
         ARCH["FullArchive.Worker<br/>archive backend"]
     end
 
@@ -302,7 +301,7 @@ flowchart LR
     WRK --> TEX
     WRK --> HKX
     FEAT -->|embedded HWND + JSONL| RUSTEDIT
-    PREV -->|preview packages| ARCHPREVIEW
+    PREV -->|Rust preview packages| RUSTEDIT
 ```
 
 ### Layering rules
@@ -341,13 +340,13 @@ sequenceDiagram
     participant UI as Archive Browser
     participant SESS as Preview session controller
     participant PREV as cdmw_preview_core
-    participant NET as .NET D3D11 host
+    participant RUST as Rust wgpu child
 
     UI->>SESS: select entry
     SESS->>PREV: prepare package (latest wins)
     PREV-->>SESS: schema-8 package
-    SESS->>NET: replace resident package
-    NET-->>SESS: Ready (once per process)
+    SESS->>RUST: replace resident package
+    RUST-->>SESS: Ready (once per process)
     SESS-->>UI: scene visible
 ```
 
@@ -356,11 +355,12 @@ entries never blanks the viewport. Package and material failures are retryable
 and never recycle a healthy process; only process, device, provenance, or
 protocol failure enters recovery.
 
-The `preview` profile exposes read-only presentation, picking, overlays, and
-capture through .NET/Vortice for Archive Browser and specialist previews. Mesh
-Editor authoring is separate: the required Rust `wgpu`/D3D12 child is embedded
-inside CDMW, edits a disposable shadow `MeshService`, and publishes only through
-validated Finish. A Rust failure never switches to Vortice. See
+The `read_only` and `static_replacement` profiles expose presentation, picking,
+overlays, capture, placement, and replacement interaction through the same
+viewport-only Rust `wgpu`/D3D12 child used by every Archive Preview consumer.
+Mesh Editor authoring uses the helper's complete UI, edits a disposable shadow
+`MeshService`, and publishes only through validated Finish. A Rust failure never
+switches to another renderer. See
 [Rust Edit Mesh Integration](docs/features/rust-edit-mesh-integration.md).
 
 ### Build system
@@ -436,12 +436,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mod
 
 Release builds install the complete CPython 3.11/3.14 Windows x64 wheel graph
 from the hash-checked `requirements-build.txt` lock, cross-check every version
-against `constraints-release.txt`, publish the retained Vortice Archive Preview
-helper as a self-contained `win-x64` single file, build the required Rust Mesh
-Editor from its pinned Cargo lock, and run an offscreen startup smoke. The Rust
-executable and its verified provenance are packaged at
-`native/rust_mesh_editor/cdmw_mesh_lab.exe`; Vortice is packaged separately for
-its preview consumers.
+against `constraints-release.txt`, build the shared Rust Mesh Editor and Archive
+Preview runtime from its pinned Cargo lock, and run offscreen startup and D3D12
+capture checks. The single Rust executable and its verified provenance are
+packaged at `native/rust_mesh_editor/cdmw_mesh_lab.exe`; the separate .NET
+full-archive worker remains packaged for catalogue/content work only.
 Output is published only after the atomic result marker reports
 `post_construction`:
 
@@ -498,9 +497,9 @@ cdmw/                    application code
   domain/                pure rules: archive safety, texture policy, manifests
   workers/               worker protocols, result types, cancellation
   core/ modding/ rendering/   archive, DDS, import/export, packaging logic
-native/                  C++ helpers, the Rust cd_hkx backend, staged Rust editor
+native/                  C++ helpers, Rust backends, staged Rust renderer/editor
 tools/                   .NET 10 helpers, Rust Mesh Lab, audit and research source
-tools/dotnet_*           D3D11 host, archive worker, build UI -- all source
+tools/dotnet_*           archive worker and build UI source; old renderer is historical
 schemas/                 versioned capability and package schemas
 tests/                   behaviour, protocol contract, and source-guard tests
 ```

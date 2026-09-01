@@ -12,11 +12,16 @@ import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QProcess, Signal
 from PySide6.QtWidgets import QApplication, QWidget
 
-from cdmw.services.mesh_dotnet_experiment import (
-    MeshDotNetExecutableResolution,
-    MeshDotNetExperimentPackage,
-    mesh_dotnet_experiment_command,
+from cdmw.services.mesh_rust_contract import (
+    RUST_MESH_RENDERER,
+    RUST_MESH_REQUIRED_CAPABILITIES,
+    RUST_PREVIEW_BACKEND,
+    RUST_PREVIEW_PACKAGE,
+    RUST_PREVIEW_PROTOCOL,
+    RUST_PREVIEW_REQUIRED_CAPABILITIES,
+    RustMeshExecutableResolution,
 )
+from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
 from cdmw.ui.localization import UiLocalizer
 from cdmw.ui.preview.dotnet_host import DotNetPreviewHostFrame
 from cdmw.ui.preview.dotnet_session import DotNetPreviewSessionController
@@ -129,58 +134,59 @@ def test_clear_preview_is_safe_after_controller_qobject_is_deleted() -> None:
     assert controller.clear_preview() is False
 
 
-def _package(root: Path, name: str) -> MeshDotNetExperimentPackage:
+def _package(root: Path, name: str) -> RustPreviewPackage:
     package_dir = root / name
     output_dir = package_dir / "output"
     output_dir.mkdir(parents=True)
-    paths = {
-        "mesh_path": package_dir / "mesh.obj",
-        "obj_sidecar_path": package_dir / "mesh.obj.meta.json",
-        "cdmeta_path": package_dir / "mesh.cdmeta.json",
-        "original_asset_hash_path": package_dir / "original_asset_hash.txt",
-        "scene_mesh_path": package_dir / "scene.obj",
-        "scene_manifest_path": package_dir / "dotnet_scene.json",
-    }
-    for key, path in paths.items():
-        if key == "scene_manifest_path":
-            path.write_text(
-                json.dumps(
-                    {
-                        "source_identity": name,
-                        "scene_generation": 1,
-                        "editable_submesh_count": 1,
-                        "reference_submesh_count": 0,
-                    }
-                ),
-                encoding="utf-8",
-            )
-        else:
-            path.write_text("", encoding="utf-8")
-    (package_dir / "net_materials.json").write_text(
-        json.dumps({"material_signature": f"signature-{name}"}),
+    manifest_path = package_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": RUST_PREVIEW_PACKAGE,
+                "protocol": RUST_PREVIEW_PROTOCOL,
+                "renderer": RUST_MESH_RENDERER,
+                "edit_backend": RUST_PREVIEW_BACKEND,
+                "session_id": f"session-{name}",
+                "source_identity": name,
+                "scene_generation": 1,
+                "material_signature": f"signature-{name}",
+                "interaction_profile": "read_only",
+            }
+        ),
         encoding="utf-8",
     )
-    return MeshDotNetExperimentPackage(
+    return RustPreviewPackage(
         package_dir=package_dir,
-        mesh_path=paths["mesh_path"],
-        obj_sidecar_path=paths["obj_sidecar_path"],
-        cdmeta_path=paths["cdmeta_path"],
-        original_asset_hash_path=paths["original_asset_hash_path"],
-        status_path=output_dir / "status.json",
+        manifest_path=manifest_path,
+        status_path=output_dir / "rust_preview_status.json",
         output_dir=output_dir,
-        edit_operations_path=output_dir / "edit_operations.json",
-        launch_manifest_path=package_dir / "dotnet_launch.json",
+        edit_operations_path=output_dir / "rust_preview_read_only.json",
         material_signature=f"signature-{name}",
-        scene_mesh_path=paths["scene_mesh_path"],
-        scene_manifest_path=paths["scene_manifest_path"],
+        scene_session_id=f"session-{name}",
     )
 
 
-def _resolution(executable: Path) -> MeshDotNetExecutableResolution:
-    return MeshDotNetExecutableResolution("", "", "", "", str(executable), True, True, "test")
+def _resolution(executable: Path) -> RustMeshExecutableResolution:
+    return RustMeshExecutableResolution(
+        resolved_path=str(executable),
+        source="test",
+        exists=True,
+        is_file=True,
+    )
 
 
-def _start_controller(tmp_path: Path) -> tuple[DotNetPreviewSessionController, _FakeProcess, MeshDotNetExperimentPackage]:
+def _with_session(package: RustPreviewPackage, session_id: str) -> RustPreviewPackage:
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    manifest["session_id"] = session_id
+    package.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return replace(
+        package,
+        scene_session_id=session_id,
+        scene_frame=SimpleNamespace(scene_session_id=session_id),
+    )
+
+
+def _start_controller(tmp_path: Path) -> tuple[DotNetPreviewSessionController, _FakeProcess, RustPreviewPackage]:
     executable = tmp_path / "helper.exe"
     executable.write_bytes(b"test")
     processes: list[_FakeProcess] = []
@@ -199,8 +205,8 @@ def _start_controller(tmp_path: Path) -> tuple[DotNetPreviewSessionController, _
     ))
     package = _package(tmp_path, "package-a")
     with (
-        patch("cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor", return_value=_resolution(executable)),
-        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers", return_value=()),
+        patch("cdmw.ui.preview.dotnet_session.resolve_rust_mesh_editor", return_value=_resolution(executable)),
+        patch("cdmw.ui.preview.dotnet_session.validate_rust_mesh_editor_package", return_value=""),
     ):
         assert controller.load_package(package)
     return controller, processes[-1], package
@@ -273,99 +279,57 @@ def test_preview_session_cleans_runtime_output_after_active_process_finishes(
 
 def _make_ready(controller: DotNetPreviewSessionController) -> None:
     generation = controller.process_generation
-    with (
-        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers", return_value=()),
-        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_renderer_blockers", return_value=()),
-    ):
-        controller._handle_protocol_event(  # noqa: SLF001 - focused protocol ownership test
-            {"event": "protocol_ready", "profile": "preview", "capabilities": []},
-            generation,
-        )
-        controller._handle_protocol_event(  # noqa: SLF001
-            {"event": "ready", "profile": "preview", "renderer": {"backend": "d3d11_vortice_shader"}},
-            generation,
-        )
-        controller._handle_protocol_event(  # noqa: SLF001
-            {
-                "event": "preview_session_state_ack",
-                "status": "applied",
-                "process_generation": generation,
-            },
-            generation,
-        )
-
-
-def _helper_localization_contract() -> tuple[tuple[str, ...], str]:
-    manifest_path = (
-        Path(__file__).resolve().parents[1]
-        / "cdmw"
-        / "resources"
-        / "localization"
-        / "source_manifest.json"
+    requested_capabilities = set(controller.capabilities)
+    requested_capabilities.update(
+        getattr(controller, "_test_handshake_capabilities", ())
     )
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    keys = tuple(
-        sorted(
-            {
-                str(entry["key"])
-                for entry in payload["entries"]
-                if any(
-                    str(origin.get("path", "")).startswith(
-                        "tools/dotnet_mesh_editor_experiment/"
-                    )
-                    for origin in entry.get("origins", ())
+    identity = {
+        "profile": "preview",
+        "protocol": RUST_PREVIEW_PROTOCOL,
+        "renderer": RUST_MESH_RENDERER,
+        "edit_backend": RUST_PREVIEW_BACKEND,
+    }
+    controller._handle_protocol_event(  # noqa: SLF001 - focused protocol ownership test
+        {
+            "event": "protocol_ready",
+            **identity,
+            "capabilities": list(
+                dict.fromkeys(
+                    (*RUST_MESH_REQUIRED_CAPABILITIES, *RUST_PREVIEW_REQUIRED_CAPABILITIES)
                 )
-            }
-        )
-    )
-    digest = hashlib.sha256("\n".join(keys).encode("utf-8")).hexdigest()
-    return keys, digest
-
-
-def _localization_protocol_ready(
-    *,
-    profile: str = "preview",
-) -> dict[str, object]:
-    keys, digest = _helper_localization_contract()
-    return {
-        "event": "protocol_ready",
-        "profile": profile,
-        "capabilities": ["ui_localization_v1"],
-        "localization_keys": list(keys),
-        "localization_key_manifest_hash": digest,
-    }
-
-
-def _localization_ack(
-    request: dict[str, object],
-    *,
-    status: str = "applied",
-) -> dict[str, object]:
-    return {
-        "event": "ui_localization_state_ack",
-        "status": status,
-        **{
-            key: request[key]
-            for key in (
-                "language_code",
-                "plural_rule",
-                "catalog_hash",
-                "key_manifest_hash",
-                "session_id",
-                "process_generation",
-                "request_id",
-                "localization_revision",
-            )
+            ) + sorted(requested_capabilities),
         },
-    }
+        generation,
+    )
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "ready",
+            **identity,
+            "child_hwnd": 7,
+            "embedded_parent_hwnd": 1,
+        },
+        generation,
+    )
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "preview_session_state_ack",
+            "status": "applied",
+            "process_generation": generation,
+        },
+        generation,
+    )
 
 
-def test_helper_command_selects_explicit_profiles(tmp_path: Path) -> None:
-    package = _package(tmp_path, "command")
-    _program, preview = mesh_dotnet_experiment_command(tmp_path / "helper.exe", package, profile="preview")
-    _program, authoring = mesh_dotnet_experiment_command(tmp_path / "helper.exe", package, profile="authoring")
-    assert preview[-2:] == ["--profile", "preview"]
-    assert authoring[-2:] == ["--profile", "authoring"]
+def test_helper_command_selects_viewport_only_rust_preview_mode(tmp_path: Path) -> None:
+    controller, process, package = _start_controller(tmp_path)
+
+    assert process.arguments == [
+        "--cdmw-preview-session",
+        str(package.manifest_path),
+        "--embedded-parent-hwnd",
+        "1",
+    ]
+    controller.shutdown()
 
 
 def test_renderer_ready_keeps_process_for_nonfatal_material_audit_gaps(tmp_path: Path) -> None:
@@ -378,16 +342,12 @@ def test_renderer_ready_keeps_process_for_nonfatal_material_audit_gaps(tmp_path:
         {
             "event": "ready",
             "profile": "preview",
-            "renderer": {
-                "backend": "d3d11_vortice_shader",
-                "gpu_backed": True,
-                "renderer_blocked": False,
-                "dds_resources": 24,
-                "native_dds_parity": False,
-                "dds_native_dxgi_upload": True,
-                "dds_upload_mode": "native_dds_mip_chain_with_bitmap_generated_mips",
-                "material_contract_gap": ["profile-specific material graphs without capture evidence"],
-            },
+            "protocol": RUST_PREVIEW_PROTOCOL,
+            "renderer": RUST_MESH_RENDERER,
+            "edit_backend": RUST_PREVIEW_BACKEND,
+            "child_hwnd": 7,
+            "embedded_parent_hwnd": 1,
+            "material_contract_gap": ["profile-specific material graphs without capture evidence"],
         }
     )
 
@@ -457,174 +417,20 @@ def test_ready_watchdog_still_restarts_a_process_with_missing_gates(tmp_path: Pa
     ]
 
 
-def test_localization_ack_gates_initial_ready_and_live_switch_is_resident(
+def test_viewport_only_preview_has_no_helper_owned_localization_catalog(
     tmp_path: Path,
 ) -> None:
     controller, process, package = _start_controller(tmp_path)
-    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="ja")
-    controller.set_ui_localizer(localizer)
-    ready_payloads: list[object] = []
-    applied_locales: list[tuple[str, int]] = []
-    controller.renderer_ready.connect(ready_payloads.append)
-    controller.localization_applied.connect(
-        lambda code, revision: applied_locales.append((code, revision))
+    controller.set_ui_localizer(
+        UiLocalizer(language_dir=tmp_path / "languages", language_code="ja")
     )
-    generation = controller.process_generation
 
-    with (
-        patch(
-            "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers",
-            return_value=(),
-        ),
-        patch(
-            "cdmw.ui.preview.dotnet_session.mesh_dotnet_renderer_blockers",
-            return_value=(),
-        ),
-    ):
-        controller._handle_protocol_event(  # noqa: SLF001
-            _localization_protocol_ready(),
-            generation,
-        )
-        initial_request = next(
-            payload
-            for payload in process.writes
-            if payload.get("event") == "ui_localization_state"
-        )
-        assert initial_request["language_code"] == "ja"
-        assert initial_request["plural_rule"] == "other"
-        assert set(initial_request["translations"]) == set(
-            _helper_localization_contract()[0]
-        )
-        assert any(
-            any(ord(character) > 127 for character in str(value))
-            for value in initial_request["translations"].values()
-        )
-        encoded = (
-            json.dumps(initial_request, ensure_ascii=False, separators=(",", ":"))
-            + "\n"
-        ).encode("utf-8")
-        assert len(encoded) < 256 * 1024
+    _make_ready(controller)
 
-        controller._handle_protocol_event(  # noqa: SLF001
-            {
-                "event": "ready",
-                "profile": "preview",
-                "renderer": {"backend": "d3d11_vortice_shader"},
-            },
-            generation,
-        )
-        controller._handle_protocol_event(  # noqa: SLF001
-            {
-                "event": "preview_session_state_ack",
-                "status": "applied",
-                "process_generation": generation,
-            },
-            generation,
-        )
-        assert ready_payloads == []
-        assert controller.applied_package_path == ""
-
-        stale_ack = _localization_ack(initial_request)
-        stale_ack["catalog_hash"] = "stale"
-        controller._handle_protocol_event(stale_ack, generation)  # noqa: SLF001
-        assert ready_payloads == []
-
-        controller._handle_protocol_event(  # noqa: SLF001
-            _localization_ack(initial_request),
-            generation,
-        )
-
-    assert len(ready_payloads) == 1
     assert controller.applied_package_path == str(package.package_dir)
-    assert applied_locales == [("ja", localizer.revision)]
-    original_process_id = controller.process_id
-    original_package_generation = controller.package_generation
-
-    localizer.load_language("de")
-    german_request = process.writes[-1]
-    assert german_request["event"] == "ui_localization_state"
-    localizer.load_language("fr")
-    french_request = process.writes[-1]
-    assert french_request["event"] == "ui_localization_state"
-    assert french_request["language_code"] == "fr"
-
-    controller._handle_protocol_event(  # noqa: SLF001
-        _localization_ack(german_request),
-        generation,
+    assert not any(
+        payload.get("event") == "ui_localization_state" for payload in process.writes
     )
-    assert applied_locales == [("ja", initial_request["localization_revision"])]
-    controller._handle_protocol_event(  # noqa: SLF001
-        _localization_ack(french_request),
-        generation,
-    )
-    assert applied_locales[-1] == ("fr", french_request["localization_revision"])
-    assert controller.process_id == original_process_id
-    assert controller.package_generation == original_package_generation
-    assert controller.applied_package_path == str(package.package_dir)
-    controller.shutdown()
-
-
-def test_localization_manifest_mismatch_is_rejected_and_latest_locale_replays(
-    tmp_path: Path,
-) -> None:
-    controller, process, _package = _start_controller(tmp_path)
-    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="de")
-    controller.set_ui_localizer(localizer)
-    generation = controller.process_generation
-    ready_payload = _localization_protocol_ready()
-
-    with patch(
-        "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers",
-        return_value=(),
-    ):
-        mismatched = dict(ready_payload)
-        mismatched["localization_key_manifest_hash"] = "bad"
-        controller._handle_protocol_event(mismatched, generation)  # noqa: SLF001
-    assert controller.process is None
-    assert process.state() == QProcess.ProcessState.NotRunning
-
-    replay_root = tmp_path / "replay"
-    replay_root.mkdir()
-    controller, process, _package = _start_controller(replay_root)
-    localizer = UiLocalizer(
-        language_dir=tmp_path / "replay-languages",
-        language_code="zh-Hant",
-    )
-    controller.set_ui_localizer(localizer)
-    generation = controller.process_generation
-    with patch(
-        "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers",
-        return_value=(),
-    ):
-        controller._handle_protocol_event(  # noqa: SLF001
-            _localization_protocol_ready(),
-            generation,
-        )
-        first_request = next(
-            payload
-            for payload in reversed(process.writes)
-            if payload.get("event") == "ui_localization_state"
-        )
-        assert first_request["language_code"] == "zh-Hant"
-
-        localizer.load_language("ko")
-        controller._reset_localization_handshake()  # noqa: SLF001
-        controller._protocol_ready = False  # noqa: SLF001
-        controller._process_generation += 1  # noqa: SLF001
-        reconnected_generation = controller.process_generation
-        controller._handle_protocol_event(  # noqa: SLF001
-            _localization_protocol_ready(),
-            reconnected_generation,
-        )
-
-    replay_request = next(
-        payload
-        for payload in reversed(process.writes)
-        if payload.get("event") == "ui_localization_state"
-    )
-    assert replay_request["language_code"] == "ko"
-    assert replay_request["process_generation"] == reconnected_generation
-    assert replay_request["localization_revision"] == localizer.revision
     controller.shutdown()
 
 
@@ -808,8 +614,8 @@ def test_prewarm_uses_no_package_generation_and_real_request_supersedes_it(tmp_p
     released: list[bool] = []
     lease = SimpleNamespace(release=lambda: released.append(True))
     with (
-        patch("cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor", return_value=_resolution(executable)),
-        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers", return_value=()),
+        patch("cdmw.ui.preview.dotnet_session.resolve_rust_mesh_editor", return_value=_resolution(executable)),
+        patch("cdmw.ui.preview.dotnet_session.validate_rust_mesh_editor_package", return_value=""),
         patch(
             "cdmw.ui.preview.dotnet_session.acquire_dotnet_preview_package_cache_lease_for_path",
             return_value=lease,
@@ -821,37 +627,15 @@ def test_prewarm_uses_no_package_generation_and_real_request_supersedes_it(tmp_p
     assert controller.package_generation == 0
     assert controller.applied_package_path == ""
     generation = controller.process_generation
-    with patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers", return_value=()):
-        controller._handle_protocol_event(  # noqa: SLF001
-            {"event": "protocol_ready", "profile": "preview", "capabilities": []},
-            generation,
-        )
-    controller._handle_protocol_event(  # noqa: SLF001
-        {
-            "event": "preview_session_state_ack",
-            "status": "applied",
-            "process_generation": generation,
-        },
-        generation,
-    )
+    _make_ready(controller)
     assert controller.package_generation == 0
     assert controller.applied_package_path == ""
     assert not controller._ready_timer.isActive()  # noqa: SLF001
-    prewarm_capture = next(
-        payload for payload in reversed(process.writes) if payload.get("event") == "capture_request"
-    )
-    assert prewarm_capture["width"] == 64
-    assert prewarm_capture["height"] == 64
     assert controller._prewarm_package is not None  # noqa: SLF001
     assert controller._prewarm_package.runtime_output_external is True  # noqa: SLF001
-    assert str(prewarm_capture["output_path"]).startswith(
-        str(controller._prewarm_package.output_dir)  # noqa: SLF001
-    )
-    assert not str(prewarm_capture["output_path"]).startswith(str(warmup.output_dir))
-    controller._handle_protocol_event(  # noqa: SLF001
-        {**prewarm_capture, "event": "capture_result", "status": "captured"},
-        generation,
-    )
+    assert not any(
+        payload.get("event") == "capture_request" for payload in process.writes
+    ), "the Rust child reports renderer readiness directly; prewarm needs no synthetic capture"
     assert controller._prewarm_capture_request_id == 0  # noqa: SLF001
     assert controller.process is process
     assert controller._prewarm_package.package_dir == warmup.package_dir  # noqa: SLF001
@@ -874,11 +658,18 @@ def test_prewarm_uses_no_package_generation_and_real_request_supersedes_it(tmp_p
     )
     assert process.writes[-1]["event"] == "activate_request"
     assert process.writes[-1]["material_signature"] == real_package.material_signature
-    with patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_renderer_blockers", return_value=()):
-        controller._handle_protocol_event(  # noqa: SLF001
-            {"event": "ready", "profile": "preview", "renderer": {"backend": "d3d11_vortice_shader"}},
-            generation,
-        )
+    controller._handle_protocol_event(  # noqa: SLF001 - duplicate Rust ready is ignored
+        {
+            "event": "ready",
+            "profile": "preview",
+            "protocol": RUST_PREVIEW_PROTOCOL,
+            "renderer": RUST_MESH_RENDERER,
+            "edit_backend": RUST_PREVIEW_BACKEND,
+            "child_hwnd": 7,
+            "embedded_parent_hwnd": 1,
+        },
+        generation,
+    )
     assert request["generation"] == 1
     assert request["package_path"] == str(real_package.package_dir)
     assert sum(payload.get("event") == "package_load_request" for payload in process.writes) == 1
@@ -909,34 +700,26 @@ def test_authoring_prewarm_binds_the_real_edit_session_before_package_switch(
     warmup = _package(tmp_path, "authoring-prewarm")
     with (
         patch(
-            "cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor",
+            "cdmw.ui.preview.dotnet_session.resolve_rust_mesh_editor",
             return_value=_resolution(executable),
         ),
         patch(
-            "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers",
-            return_value=(),
+            "cdmw.ui.preview.dotnet_session.validate_rust_mesh_editor_package",
+            return_value="",
         ),
     ):
         assert controller.prewarm(warmup)
 
     process = processes[-1]
-    with patch(
-        "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers",
-        return_value=(),
-    ):
-        controller._handle_protocol_event(  # noqa: SLF001
-            {"event": "protocol_ready", "profile": "authoring", "capabilities": []},
-            controller.process_generation,
-        )
+    _make_ready(controller)
     session_message = next(
-        payload for payload in process.writes if payload.get("event") == "session_state"
+        payload
+        for payload in process.writes
+        if payload.get("event") == "preview_session_state"
     )
     assert session_message["session_id"] == "edit-session-a"
 
-    real_package = replace(
-        _package(tmp_path, "authoring-real"),
-        scene_frame=SimpleNamespace(scene_session_id="edit-session-a"),
-    )
+    real_package = _with_session(_package(tmp_path, "authoring-real"), "edit-session-a")
     assert controller.load_package(real_package)
     request = next(
         payload
@@ -946,9 +729,8 @@ def test_authoring_prewarm_binds_the_real_edit_session_before_package_switch(
     assert request["generation"] == 1
     assert controller.process is process
 
-    wrong_session = replace(
-        _package(tmp_path, "authoring-wrong-session"),
-        scene_frame=SimpleNamespace(scene_session_id="edit-session-b"),
+    wrong_session = _with_session(
+        _package(tmp_path, "authoring-wrong-session"), "edit-session-b"
     )
     generation = controller.package_generation
     assert not controller.set_authoritative_session_id("edit-session-b")
@@ -979,7 +761,7 @@ def _authoring_controller(
         terminate_on_close=True,
         process_factory=process_factory,
     ))
-    controller._capabilities.update(capabilities)  # noqa: SLF001 - handshake is faked below
+    controller._test_handshake_capabilities = capabilities  # type: ignore[attr-defined]
     return controller, processes, executable
 
 
@@ -991,36 +773,21 @@ def _start_authoring_session(
     *,
     session_id: str,
     package_name: str,
-) -> MeshDotNetExperimentPackage:
+) -> RustPreviewPackage:
     assert controller.set_authoritative_session_id(session_id)
-    package = replace(
-        _package(tmp_path, package_name),
-        scene_frame=SimpleNamespace(scene_session_id=session_id),
-    )
-    capabilities = set(controller.capabilities)
+    package = _with_session(_package(tmp_path, package_name), session_id)
     with (
         patch(
-            "cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor",
+            "cdmw.ui.preview.dotnet_session.resolve_rust_mesh_editor",
             return_value=_resolution(executable),
         ),
         patch(
-            "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers",
-            return_value=(),
+            "cdmw.ui.preview.dotnet_session.validate_rust_mesh_editor_package",
+            return_value="",
         ),
     ):
         assert controller.load_package(package)
-    with patch(
-        "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers",
-        return_value=(),
-    ):
-        controller._handle_protocol_event(  # noqa: SLF001
-            {
-                "event": "protocol_ready",
-                "profile": "authoring",
-                "capabilities": sorted(capabilities),
-            },
-            controller.process_generation,
-        )
+    _make_ready(controller)
     return package
 
 
@@ -1067,18 +834,15 @@ def test_released_authoring_session_hands_the_warm_helper_to_the_next_one(
     assert handoff[1]["provisional_session"] is False
     assert controller.process is process, "the handoff keeps the warm process"
 
-    second = replace(
-        _package(tmp_path, "released-b"),
-        scene_frame=SimpleNamespace(scene_session_id="edit-session-b"),
-    )
+    second = _with_session(_package(tmp_path, "released-b"), "edit-session-b")
     with (
         patch(
-            "cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor",
+            "cdmw.ui.preview.dotnet_session.resolve_rust_mesh_editor",
             return_value=_resolution(executable),
         ),
         patch(
-            "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers",
-            return_value=(),
+            "cdmw.ui.preview.dotnet_session.validate_rust_mesh_editor_package",
+            return_value="",
         ),
     ):
         assert controller.load_package(second)
@@ -1553,10 +1317,9 @@ def test_same_path_with_changed_scene_signature_creates_one_new_generation(tmp_p
     controller, process, package = _start_controller(tmp_path)
     _make_ready(controller)
     generation = controller.package_generation
-    package.scene_manifest_path.write_text(
-        json.dumps({"source_identity": "package-a", "scene_generation": 2}),
-        encoding="utf-8",
-    )
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    manifest["scene_generation"] = 2
+    package.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     assert controller.load_package(package)
 
@@ -1576,10 +1339,14 @@ def test_duplicate_ready_is_filtered_before_shared_consumers(tmp_path: Path) -> 
     ready_payload = {
         "event": "ready",
         "profile": "preview",
-        "renderer": {"backend": "d3d11_vortice_shader"},
+        "protocol": RUST_PREVIEW_PROTOCOL,
+        "renderer": RUST_MESH_RENDERER,
+        "edit_backend": RUST_PREVIEW_BACKEND,
+        "child_hwnd": 7,
+        "embedded_parent_hwnd": 1,
     }
 
-    with patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_renderer_blockers", return_value=()):
+    with patch("cdmw.ui.preview.dotnet_session.validate_rust_mesh_editor_package", return_value=""):
         controller._handle_protocol_event(ready_payload, controller.process_generation)  # noqa: SLF001
 
     assert len(ready_events) == 1

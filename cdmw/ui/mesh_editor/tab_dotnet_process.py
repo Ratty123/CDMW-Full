@@ -24,7 +24,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
     def _launch_standalone_dotnet_editor_package(self, package: _tab.MeshDotNetExperimentPackage) -> bool:
         executable = self._dotnet_editor_executable_path()
         if executable is None or not executable.is_file():
-            message = "Mesh .NET/Vortice helper executable is missing."
+            message = "Mesh Rust Preview helper executable is missing."
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_process_start_failed",
                 embedded=bool(self.standalone_dotnet_target_embedded),
@@ -45,7 +45,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         )
         controller = getattr(host, "controller", None)
         if controller is None:
-            self._set_dotnet_status("Mesh Editor .NET/Vortice host is unavailable.", error=True)
+            self._set_dotnet_status("Mesh Editor Rust Preview host is unavailable.", error=True)
             return False
         self._wire_shared_dotnet_controller(host)
         target = self._dotnet_target_controller()
@@ -99,7 +99,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         except (AttributeError, RuntimeError):
             pass
         if not host.load_package(package, reset_view=self.standalone_dotnet_editor_process is None):
-            self._set_dotnet_status("Mesh Editor .NET/Vortice host rejected the authoring package.", error=True)
+            self._set_dotnet_status("Mesh Editor Rust Preview host rejected the authoring package.", error=True)
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
             return False
@@ -117,7 +117,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         )
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("launching", active=False)
-        self._set_dotnet_status("Loading Mesh Editor in the resident .NET/Vortice viewport...")
+        self._set_dotnet_status("Loading Mesh Editor in the resident Rust Preview viewport...")
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         return True
     def _confirm_dotnet_process_started(self, process: _tab.QProcess) -> bool:
@@ -249,12 +249,12 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
                 or embedded_state_before_finish == "suspended"
             )
             if not intentional_exit:
-                detail = message or "Embedded .NET helper exited unexpectedly."
+                detail = message or "Embedded Rust helper exited unexpectedly."
                 self._set_embedded_dotnet_state("failed", active=False)
                 self._set_embedded_dotnet_preview_loading(False, detail)
                 self._notify_embedded_dotnet_launch_failed("mesh_edit_dotnet_failed", diagnostics=detail)
                 self._set_dotnet_status(
-                    "Mesh .NET editor exited; resident edits remain saved but preview is unavailable. " + detail,
+                    "Rust Mesh Editor exited; resident edits remain saved but preview is unavailable. " + detail,
                     error=True,
                 )
                 return
@@ -263,15 +263,15 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
                 self._set_embedded_dotnet_state("closed", active=False)
             if event in {"error", "blocked_renderer_unavailable"}:
                 text = (
-                    "Mesh .NET editor closed with an error; resident native edits were preserved. "
+                    "Rust Mesh Editor closed with an error; resident native edits were preserved. "
                     f"{message or 'External editor reported an error.'}"
                 )
                 self._set_dotnet_status(text, error=True)
             elif completed:
-                self._set_dotnet_status("Mesh .NET editor closed; resident edits saved and textured preview restored.")
+                self._set_dotnet_status("Rust Mesh Editor closed; resident edits saved and textured preview restored.")
             return
         if event in {"error", "blocked_renderer_unavailable"}:
-            text = f"Mesh .NET editor experiment error: {message or 'external editor reported an error.'}"
+            text = f"Rust Mesh Editor error: {message or 'external editor reported an error.'}"
             if evaluation_path is not None:
                 text += f" Evaluation: {evaluation_path}"
             self._set_dotnet_status(text, error=True)
@@ -285,10 +285,10 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
             return
         output_obj = _tab.mesh_dotnet_experiment_output_obj_path(package, payload)
         if output_obj is not None and self._start_standalone_dotnet_output_import(package, payload):
-            self.status_message_requested.emit(f"Mesh .NET editor experiment closed; importing {output_obj}.", False)
+            self.status_message_requested.emit(f"Rust Mesh Editor closed; importing {output_obj}.", False)
             return
         output_hint = str(payload.get("edited_package", "") or package.output_dir)
-        text = f"Mesh .NET editor experiment closed. Output package: {output_hint}"
+        text = f"Rust Mesh Editor closed. Output package: {output_hint}"
         if evaluation_path is not None:
             text += f" Evaluation: {evaluation_path}"
         self._set_dotnet_status(text)
@@ -306,7 +306,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
                 _tab.write_mesh_dotnet_launch_diagnostics(package, payload)
             except Exception as diag_exc:
                 self._record_mesh_dotnet_event("mesh_dotnet_launch_diagnostics_write_failed", error=str(diag_exc))
-        text = f"Mesh .NET editor experiment process error: {detail}"
+        text = f"Rust Mesh Editor process error: {detail}"
         if self.standalone_dotnet_target_embedded:
             if closing:
                 try:

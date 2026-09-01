@@ -138,7 +138,7 @@ class NewItemPreviewControllerMixin:
         model = getattr(self.model_result, "preview_model", None)
         if model is None or not getattr(model, "meshes", None):
             return None
-        from cdmw.services.mesh_dotnet_preview_package import parsed_mesh_from_model_preview
+        from cdmw.services.mesh_rust_preview_cache import parsed_mesh_from_model_preview
 
         try:
             mesh = parsed_mesh_from_model_preview(model)
@@ -430,8 +430,8 @@ class NewItemPreviewControllerMixin:
                 import time
 
                 from cdmw.models import clamp_model_preview_render_settings
-                from cdmw.services.mesh_dotnet_preview_package import (
-                    build_or_lookup_dotnet_preview_package,
+                from cdmw.services.mesh_rust_preview_cache import (
+                    build_or_lookup_rust_preview_package as build_or_lookup_dotnet_preview_package,
                 )
                 from cdmw.services.preview_rendering_service import (
                     dotnet_preview_package_cache_budget,

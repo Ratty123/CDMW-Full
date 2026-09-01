@@ -1,4 +1,4 @@
-"""Profiles supported by the shared .NET/Vortice preview helper."""
+"""Profiles supported by the shared Rust Preview preview helper."""
 
 from __future__ import annotations
 

@@ -39,17 +39,21 @@ class MeshHarnessRealArchiveTests(unittest.TestCase):
         self.assertIs(facade._REAL_MESH_EDITOR_DOTNET_SCENARIO, constants._REAL_MESH_EDITOR_DOTNET_SCENARIO)
 
     def test_scenario_registry_declares_visual_real_game_process_ownership(self) -> None:
-        metadata = scenario_metadata("real-archive-mesh-editor-dotnet-edit-smoke")
+        metadata = scenario_metadata("real-archive-rust-preview-smoke")
 
         self.assertIn(metadata.name, scenario_names())
-        self.assertFalse(metadata.headless)
-        self.assertTrue(metadata.visual)
+        self.assertTrue(metadata.headless)
+        self.assertFalse(metadata.visual)
         self.assertTrue(metadata.real_game)
         self.assertEqual("harness", metadata.process_ownership)
-        self.assertEqual("production_visual_proof", metadata.scenario_role)
-        self.assertEqual("dotnet+d3d11", metadata.expected_backend)
-        self.assertEqual("d3d11_vortice_shader", metadata.expected_renderer_backend)
-        self.assertEqual("cdmw_mesh_core_0.1", metadata.expected_edit_backend)
+        self.assertEqual("production_rendering_proof", metadata.scenario_role)
+        self.assertEqual("rust+wgpu+d3d12+cdmw_rust_preview_0.1", metadata.expected_backend)
+        self.assertEqual("wgpu_d3d12_rust", metadata.expected_renderer_backend)
+        self.assertEqual("", metadata.expected_edit_backend)
+
+        legacy = scenario_metadata("real-archive-mesh-editor-dotnet-edit-smoke")
+        self.assertTrue(legacy.compatibility_only)
+        self.assertEqual("legacy_vortice_reference", legacy.scenario_role)
 
         parity = scenario_metadata("mesh-dotnet-native-parity-report")
         self.assertTrue(parity.headless)

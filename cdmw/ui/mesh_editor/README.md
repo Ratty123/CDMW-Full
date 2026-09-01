@@ -15,9 +15,9 @@ features. Dedicated texture tools and Create New Item own those jobs.
 
 `tab.py` is the stable public Qt class. Bounded `tab_*.py` owners hold shell,
 Rust process/protocol, package, report, session, state, interaction, and action
-behavior. The retained `.NET` mixins are compatibility owners for Archive
-Browser and specialist preview consumers; normal Mesh Editor construction does
-not instantiate their host, resolve their executable, or launch them.
+behavior. Retained `.NET`/`d3d11` module names are compatibility imports and
+persisted-setting adapters only; every production preview and editor process is
+Rust.
 
 `workspace.py` is the stable standalone Blender-style workspace class. Bounded
 `workspace_*.py` owners hold state synchronization, skeleton presentation,
@@ -299,18 +299,18 @@ not invalidate geometry reports, while an acknowledged geometry revision does;
 expected native-snapshot gaps remain unavailable instead of hydrating stale
 Python geometry, and unexpected exceptions remain visible and enter the runtime
 diagnostic trail.
-## Retained Vortice preview compatibility
+## Rust preview compatibility aliases
 
-The following D3D11/.NET behavior is retained for Archive Browser, placement,
-static replacement, reference, material, and specialist preview dialogs. It is
-not a production Mesh Editor route, fallback, material-preparation step, or Rust
-build contract.
+The following identifiers retain older D3D11/.NET names because Qt object names,
+tests, settings, or imports consume them. Archive Browser, placement, static
+replacement, reference, material, and specialist preview dialogs all construct
+the Rust host; none of these aliases resolves or launches Vortice.
 
 Native D3D11 viewport part-pick and part-context events are compatibility no-ops.
 They cannot change a PARTS selection or open its menu. The historical
 `select_parts` action key is retained for settings/dynamic callers but presents
 as Select and arms vertex selection, never source-part picking.
-Production .NET stores separate `reference` (Original) and `editable`
+Production Rust stores separate `reference` (Original) and `editable`
 presentation contexts over one document/resource owner. Direct authoring starts
 in `mesh_edit`/`replacement_only`, pins navigation to the editable camera, and
 does not expose placement mode or an Edit Mesh toggle. The helper's Mesh View
@@ -348,8 +348,8 @@ Textured readiness is tracked independently for the `editable/imported` and
 role required by the active scene acknowledges it; an Imported acknowledgement
 cannot complete Original, and failures identify the affected pane while the
 last valid presentation remains resident.
-Preview Settings opened anywhere while .NET/Vortice owns the embedded Mesh
-Editor session use an explicit .NET preview target. In that context the dialog
+Preview Settings opened anywhere while Rust owns the embedded Mesh Editor
+session use an explicit Rust preview target. In that context the dialog
 shows Camera Input and Gizmo tabs. Camera Input contains orbit sensitivity, pan
 sensitivity, the four orbit/pan inversion switches, and the rebindable orbit and
 pan modifiers -- the held keys that move the camera while an edit tool owns the
@@ -600,9 +600,9 @@ settling the camera schedules preparation before the next pointer handler.
 Geometry, topology, vertex positions, camera/model matrices, viewport size,
 X-Ray, and visible/editable-part changes invalidate its stamp; gesture end and
 tool-page navigation do not. A cold gesture waits in a visible preparation
-state instead of building the cache in the WinForms input handler. Production
+state instead of building the cache in the Rust input handler. Production
 diagnostics identify `cdmw_mesh_core_0.1`, report snapshot generations and
-pointer-handler timings, and fail if resident authoring falls back to the C#
+pointer-handler timings, and fail if resident authoring falls back to a legacy
 projection implementation.
 
 Copy/Paste is an internal Mesh Editor clipboard (`Ctrl+C`/`Ctrl+V`), not the OS

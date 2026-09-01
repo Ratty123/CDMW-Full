@@ -29,7 +29,7 @@ packaged behavior.
 Native-helper release builds are required when helper/native release output or
 capability provenance changes. `build.bat onefile release` is reserved for
 packaging changes or explicit release work. Packaged
-`mesh_archive_textures`, visible GPU interaction, licensed real-PAC, and
+visible GPU interaction, licensed real-PAC, and
 ten-minute process/device/memory soak evidence are separate authorized gates;
 synthetic ABI or source-helper success must never be reported as those proofs.
 No automated gate may move the physical cursor, click through global input, or

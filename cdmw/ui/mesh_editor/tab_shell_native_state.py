@@ -121,7 +121,7 @@ class MeshEditorTabShellNativeStateMixin(MeshEditorTabShellRuntimeMixin):
                 updater("Part pick: ready", available=True)
             return True
         if callable(updater):
-            updater("Part pick: unavailable, waiting for .NET/Vortice host", available=False)
+            updater("Part pick: unavailable, waiting for Rust Preview host", available=False)
         if retries > 0:
             QTimer.singleShot(250, lambda remaining=int(retries) - 1: self._retry_standalone_native_part_picking(remaining))
         return False

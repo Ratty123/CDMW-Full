@@ -266,7 +266,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
                 widget.setProperty("previewSettingKey", field)
                 if supported:
                     tooltip = (
-                        f".NET/Vortice: {_DOTNET_SETTING_EFFECTS[field]}. "
+                        f"Rust Preview: {_DOTNET_SETTING_EFFECTS[field]}. "
                         "Changes are sent live to the resident preview."
                     )
                     widget.setProperty("dotnetEffectTooltip", tooltip)
@@ -289,23 +289,23 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         dialog.disable_brightness_checkbox.setText("Ignore texture brightness")
         dialog.disable_uv_scale_checkbox.setText("Ignore preview UV scale")
         dialog.intro_label.setText(
-            "Camera input and placement-Gizmo settings for the embedded .NET/Vortice Mesh Editor preview. Changes are sent live and saved with Preview Settings."
+            "Camera input and placement-Gizmo settings for the embedded Rust Preview Mesh Editor preview. Changes are sent live and saved with Preview Settings."
             if mesh_editor_dotnet
-            else "Camera input settings for the resident .NET/Vortice Archive Browser preview. Changes are sent live and saved with Preview Settings."
+            else "Camera input settings for the resident Rust Preview Archive Browser preview. Changes are sent live and saved with Preview Settings."
         )
         dialog.general_hint_label.setText(
             "Renderer appearance is controlled directly from the Mesh Editor viewport."
         )
         dialog.d3d11_hint_label.setText(
-            "Archive Browser renderer settings are hidden while .NET/Vortice owns the Mesh Editor preview."
+            "Archive Browser renderer settings are hidden while Rust Preview owns the Mesh Editor preview."
         )
         dialog.quality_hint_label.setText(
             "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces."
         )
         dialog.controls_usage_hint_label.setText(
-            ".NET/Vortice camera controls: left-drag orbits; middle-drag, right-drag, or Shift+left-drag pans; the mouse wheel zooms; Fit resets framing. Each role pane keeps its own camera."
+            "Rust Preview camera controls: left-drag orbits; middle-drag, right-drag, or Shift+left-drag pans; the mouse wheel zooms; Fit resets framing. Each role pane keeps its own camera."
             if mesh_editor_dotnet
-            else ".NET/Vortice camera controls: left-drag orbits; middle-drag, right-drag, or Shift+left-drag pans; the mouse wheel zooms; Fit resets framing."
+            else "Rust Preview camera controls: left-drag orbits; middle-drag, right-drag, or Shift+left-drag pans; the mouse wheel zooms; Fit resets framing."
         )
         dialog.inversion_hint_label.setText(
             "Orbit and pan inversion are consumed directly by resident .NET pointer handling and never edit mesh placement or export data."
@@ -328,10 +328,10 @@ def sync_renderer_specific_controls(dialog: object) -> None:
             "Use textures applies resolved preview DDS files when available. Support-map preview shading can sample resolved normal, material, or height maps for an approximate asset-dependent preview."
         )
         dialog.d3d11_hint_label.setText(
-            ".NET/Vortice Preview supports texture on/off, culling, view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and exact DDS diagnostics."
+            "Rust Preview supports texture on/off, culling, view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and exact DDS diagnostics."
         )
         dialog.quality_hint_label.setText(
-            ".NET/Vortice applies these to its shader and sampler directly. Texture resolution normally comes from exact DDS resources; generated fallback maps still use the existing preview cache pipeline."
+            "Rust Preview applies these to its shader and sampler directly. Texture resolution normally comes from exact DDS resources; generated fallback maps still use the existing preview cache pipeline."
         )
         dialog.controls_usage_hint_label.setText(
             "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view."
@@ -344,12 +344,12 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         )
         dialog.reset_button.setText("Reset to Defaults")
     for widget, archive_label, embedded_label in (
-        (dialog.d3d11_view_mode_combo, ".NET/Vortice view", ".NET/Vortice view"),
-        (dialog.d3d11_normal_y_mode_combo, ".NET/Vortice normal Y", ".NET/Vortice normal Y"),
+        (dialog.d3d11_view_mode_combo, "Rust Preview view", "Rust Preview view"),
+        (dialog.d3d11_normal_y_mode_combo, "Rust Preview normal Y", "Rust Preview normal Y"),
         (
             dialog.d3d11_texture_address_mode_combo,
-            ".NET/Vortice texture address",
-            ".NET/Vortice texture address",
+            "Rust Preview texture address",
+            "Rust Preview texture address",
         ),
     ):
         label = dialog._form_field_label(widget)
@@ -357,7 +357,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
             label.setText(embedded_label if dotnet else archive_label)
     if not dotnet:
         dialog.high_quality_checkbox.setToolTip(
-            ".NET/Vortice packages and shades resolved normal/material/height support maps only when this is enabled."
+            "Rust Preview packages and shades resolved normal/material/height support maps only when this is enabled."
         )
     dialog._sync_probe_controls_enabled()
 

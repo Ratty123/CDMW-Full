@@ -66,7 +66,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS = context.get('MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS')
     MESH_PREVIEW_DEFAULT_DISPLAY_MODE = context.get('MESH_PREVIEW_DEFAULT_DISPLAY_MODE')
     MESH_PREVIEW_DISPLAY_MODE_OPTIONS = context.get('MESH_PREVIEW_DISPLAY_MODE_OPTIONS')
-    DotNetPreviewHostFrame = context.get('DotNetPreviewHostFrame')
+    RustPreviewHostFrame = context.get('RustPreviewHostFrame')
     DotNetPreviewProfile = context.get('DotNetPreviewProfile')
     NativePreviewPanel = context.get('NativePreviewPanel')
     OrderedDict = context.get('OrderedDict')
@@ -263,9 +263,9 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         QLabel(alignment_preview_control_text["mesh_view_label"])
     )
     preview_controls_row.addWidget(preview_mesh_view_combo)
-    mesh_dotnet_experiment_button = QPushButton(".NET", preview_panel)
+    mesh_dotnet_experiment_button = QPushButton("Rust", preview_panel)
     mesh_dotnet_experiment_button.setObjectName("MeshAlignmentDotNetExperimentButton")
-    mesh_dotnet_experiment_button.setToolTip("Diagnostics-only .NET editor launch; Edit Mesh opens .NET automatically when available.")
+    mesh_dotnet_experiment_button.setToolTip("Diagnostics-only Rust preview launch; Edit Mesh opens Rust automatically when available.")
     mesh_dotnet_experiment_button.setMinimumWidth(0)
     mesh_dotnet_experiment_button.setMaximumWidth(64)
     mesh_dotnet_experiment_button.setEnabled(False)
@@ -490,7 +490,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     replacement_only_preview.set_alignment_guides_visible(True)
     replacement_only_preview.set_alignment_editing_enabled(True)
     # These panels remain as non-visible state/compatibility adapters for old
-    # callbacks.  The authoring Vortice host below is the sole visual surface.
+    # callbacks. The embedded Rust host below is the sole visual surface.
     preview_splitter.setVisible(False)
     overlay_dialog_preview.setVisible(False)
     replacement_only_preview.setVisible(False)
@@ -503,7 +503,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_preview_layout = QVBoxLayout(alignment_d3d11_preview_page)
     alignment_d3d11_preview_layout.setContentsMargins(0, 0, 0, 0)
     alignment_d3d11_preview_layout.setSpacing(3)
-    alignment_d3d11_preview_host = DotNetPreviewHostFrame(
+    alignment_d3d11_preview_host = RustPreviewHostFrame(
         alignment_d3d11_preview_page,
         profile=DotNetPreviewProfile.AUTHORING,
         terminate_on_close=True,
@@ -689,14 +689,14 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     _nudge_alignment_camera = alignment_d3d11_loading_callbacks._nudge_alignment_camera
     def _handle_alignment_dotnet_state(state: str, message: str) -> None:
         alignment_d3d11_state["process"] = alignment_d3d11_preview_host.controller.process
-        alignment_d3d11_preview_status_label.setText(str(message or ".NET/Vortice Preview"))
+        alignment_d3d11_preview_status_label.setText(str(message or "Rust Preview"))
         if str(state) == "ready":
             alignment_d3d11_state["preview_loaded"] = True
             alignment_d3d11_state["resources_loaded"] = True
-            _set_alignment_d3d11_progress(100, ".NET/Vortice Preview ready.", active=False)
+            _set_alignment_d3d11_progress(100, "Rust Preview ready.", active=False)
         elif str(state) == "error":
             alignment_d3d11_state["preview_loaded"] = False
-            _set_alignment_d3d11_loading(False, str(message or ".NET/Vortice Preview failed."))
+            _set_alignment_d3d11_loading(False, str(message or "Rust Preview failed."))
     alignment_d3d11_preview_host.controller.state_changed.connect(_handle_alignment_dotnet_state)
     camera_front_button.clicked.connect(lambda _checked=False: _set_alignment_camera(0.0, 0.0))
     camera_left_button.clicked.connect(lambda _checked=False: _set_alignment_camera(-90.0, 0.0))

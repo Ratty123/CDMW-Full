@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.ui.archive_browser.actions import archive_context_menu_icons
 from cdmw.ui.archive_browser.preview_state import archive_model_preview_refresh_tooltip
-from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
+from cdmw.ui.preview import DotNetPreviewProfile, RustPreviewHostFrame
 from cdmw.ui.widgets import (
     ArchiveDetailsEditor,
     CodePreviewEditor,
@@ -147,7 +147,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview_reset_overrides_button.setVisible(False)
         self.archive_model_preview_settings_button = QPushButton("Preview Settings")
         self.archive_model_preview_settings_button.setToolTip(
-            "Open .NET/Vortice camera input settings for orbit, pan, and inversion."
+            "Open Rust Preview camera input settings for orbit, pan, and inversion."
         )
         self.archive_model_preview_settings_button.setMinimumWidth(142)
         self.archive_model_preview_settings_button.setMaximumWidth(180)
@@ -579,7 +579,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview.view_state_changed.connect(self._handle_archive_model_view_state_changed)
         self.archive_model_preview.debug_details_changed.connect(self._refresh_archive_preview_details_text)
         self.archive_model_preview.setVisible(False)
-        self.archive_d3d11_preview_host = DotNetPreviewHostFrame(
+        self.archive_d3d11_preview_host = RustPreviewHostFrame(
             profile=DotNetPreviewProfile.PREVIEW,
             terminate_on_close=False,
         )
@@ -599,7 +599,7 @@ class ArchivePreviewLayoutMixin:
             self._handle_archive_renderer_protocol_event
         )
         QTimer.singleShot(750, self._prewarm_archive_dotnet_preview)
-        self.archive_d3d11_preview_status_label = QLabel(".NET/Vortice Preview")
+        self.archive_d3d11_preview_status_label = QLabel("Rust Preview")
         self.archive_d3d11_preview_status_label.setObjectName("HintLabel")
         self.archive_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)
         self.archive_d3d11_preview_status_label.setVisible(False)

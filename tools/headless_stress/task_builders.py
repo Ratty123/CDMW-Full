@@ -19,10 +19,10 @@ SOAK_MINUTES_MINIMUM = 120.0
 NATIVE_HELPER_RELATIVE_PATHS = (
     Path("native/cd_texture_dx/build/Release/cd-texture-dx.exe"),
     Path("native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe"),
-    Path("tools/dotnet_mesh_editor_experiment/bin/Release/net10.0-windows/cdmw-mesh-dotnet-editor.exe"),
+    Path("native/rust_mesh_editor/build/Release/cdmw_mesh_lab.exe"),
 )
 DEFAULT_CACHE_RUNS = 1
-REAL_MESH_EDITOR_VISUAL_SCENARIO = "real-archive-mesh-editor-dotnet-edit-smoke"
+REAL_MESH_EDITOR_VISUAL_SCENARIO = "real-archive-rust-preview-smoke"
 
 
 @dataclass(slots=True)

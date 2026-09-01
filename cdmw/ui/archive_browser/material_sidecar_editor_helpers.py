@@ -389,7 +389,7 @@ def material_sidecar_native_loaded_status(
         else f"texture failures: {texture_failure_value:,}"
     )
     return (
-        f".NET/Vortice material preview loaded: {batch_count_value:,} batch(es), "
+        f"Rust Preview material preview loaded: {batch_count_value:,} batch(es), "
         f"{vertex_count_value:,} vertices, first frame {first_frame_value:.1f} ms, {texture_text}."
     )
 
@@ -401,36 +401,36 @@ def material_sidecar_preview_payload_status(summary: object, message: object) ->
 
 
 def material_sidecar_native_error_status(message: object = "") -> str:
-    return str(message or ".NET/Vortice material preview failed.").strip()
+    return str(message or "Rust Preview material preview failed.").strip()
 
 
 def material_sidecar_package_validation_failed_status(missing_paths: object) -> str:
     paths = tuple(str(path) for path in (missing_paths or ()) if str(path))
-    return ".NET/Vortice material preview package validation failed: " + "; ".join(paths[:6])
+    return "Rust Preview material preview package validation failed: " + "; ".join(paths[:6])
 
 
 def material_sidecar_reloading_native_preview_status(summary: object) -> str:
-    return material_sidecar_preview_payload_status(summary, "Reloading .NET/Vortice material preview...")
+    return material_sidecar_preview_payload_status(summary, "Reloading Rust Preview material preview...")
 
 
 def material_sidecar_native_preview_start_failed_status(error: object) -> str:
-    return f".NET/Vortice material preview could not start: {error}"
+    return f"Rust Preview material preview could not start: {error}"
 
 
 def material_sidecar_native_preview_stderr_status(chunk: object) -> str:
-    return f".NET/Vortice material preview stderr: {str(chunk or '')[-600:]}"
+    return f"Rust Preview material preview stderr: {str(chunk or '')[-600:]}"
 
 
 def material_sidecar_native_preview_process_error_status(error_text: object) -> str:
-    return f".NET/Vortice material preview process error: {error_text}"
+    return f"Rust Preview material preview process error: {error_text}"
 
 
 def material_sidecar_native_preview_exited_status(exit_code: object) -> str:
-    return f".NET/Vortice material preview exited with code {int(exit_code)}."
+    return f"Rust Preview material preview exited with code {int(exit_code)}."
 
 
 def material_sidecar_starting_native_preview_status(summary: object) -> str:
-    return material_sidecar_preview_payload_status(summary, "Starting .NET/Vortice material preview...")
+    return material_sidecar_preview_payload_status(summary, "Starting Rust Preview material preview...")
 
 
 def material_sidecar_preview_lookup_pending_status() -> str:
@@ -472,7 +472,7 @@ def material_sidecar_preview_task_status(basename: object) -> str:
 def material_sidecar_reused_package_summary() -> str:
     return (
         "Approximate sidecar preview\n"
-        "reused active Archive Browser .NET/Vortice package; no material values changed."
+        "reused active Archive Browser Rust Preview package; no material values changed."
     )
 
 

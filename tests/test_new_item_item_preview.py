@@ -20,7 +20,7 @@ class ItemPreviewPackageTests(unittest.TestCase):
         from cdmw.models import ModelPreviewData, ModelPreviewMesh
         from cdmw.modding.mesh_deformer import _EXTRA_SUBMESH_ATTRS
         from cdmw.services.mesh_dotnet_material_bindings import _DOTNET_PREVIEW_MATERIAL_ATTRS
-        from cdmw.services.mesh_dotnet_preview_package import parsed_mesh_from_model_preview
+        from cdmw.services.mesh_rust_preview_cache import parsed_mesh_from_model_preview
 
         self.assertEqual(set(_DOTNET_PREVIEW_MATERIAL_ATTRS) - set(_EXTRA_SUBMESH_ATTRS), set())
 
@@ -81,7 +81,7 @@ class ItemPreviewPackageTests(unittest.TestCase):
             "cdmw.services.preview_rendering_service.prepare_model_preview",
             return_value=(prepared, None),
         ) as prepare, patch(
-            "cdmw.services.mesh_dotnet_preview_package.build_or_lookup_dotnet_preview_package_from_model",
+            "cdmw.services.mesh_rust_preview_cache.build_or_lookup_rust_preview_package_from_model",
             fake_from_model,
         ):
             result = item_preview.build_item_preview_package(
@@ -110,7 +110,7 @@ class ItemPreviewPackageTests(unittest.TestCase):
 
         def fake_from_model(model, **kwargs):
             seen["model"] = (model, kwargs)
-            return SimpleNamespace(package_dir=root / "cdmw_dotnet_preview_x" / "package")
+            return SimpleNamespace(package_dir=root / "cdmw_rust_preview_x" / "package")
 
         def fake_from_mesh(mesh, **kwargs):
             seen["mesh"] = (mesh, kwargs)
@@ -129,9 +129,9 @@ class ItemPreviewPackageTests(unittest.TestCase):
                 faces=[(0, 1, 2)],
             )],
         )
-        with patch("cdmw.services.mesh_dotnet_preview_package.build_or_lookup_dotnet_preview_package_from_model", fake_from_model),              patch("cdmw.services.mesh_dotnet_experiment.build_mesh_dotnet_experiment_package", fake_from_mesh):
+        with patch("cdmw.services.mesh_rust_preview_cache.build_or_lookup_rust_preview_package_from_model", fake_from_model), patch("cdmw.services.mesh_rust_preview_package.build_rust_preview_package", fake_from_mesh):
             out = item_preview.build_item_preview_package(lambda _stop: model, token=("t", 1), output_root=root, stop_event=threading.Event())
-            self.assertEqual(out, root / "cdmw_dotnet_preview_x" / "package")
+            self.assertEqual(out, root / "cdmw_rust_preview_x" / "package")
             self.assertIs(seen["model"][0], model)
             self.assertEqual(seen["model"][1]["cache_mode"], "off", "a transient build, the frame removes it")
             self.assertEqual(seen["model"][1]["cache_root"], root)
@@ -167,13 +167,13 @@ class ItemPreviewPackageTests(unittest.TestCase):
             self.assertEqual(transform.source_anchor, (0.0, 1.7, 0.0))
             self.assertEqual(transform.target_anchor, (0.0, 1.7, 0.0))
         # cleanup removes the transient parent for the model route, the package itself otherwise
-        self.assertEqual(item_preview.package_cleanup_root(root / "cdmw_dotnet_preview_x" / "package", root), root / "cdmw_dotnet_preview_x")
+        self.assertEqual(item_preview.package_cleanup_root(root / "cdmw_rust_preview_x" / "package", root), root / "cdmw_rust_preview_x")
         self.assertEqual(item_preview.package_cleanup_root(root / "mesh_pkg", root), root / "mesh_pkg")
         self.assertEqual(item_preview.package_cleanup_root(root / "other" / "package", root), root / "other" / "package")
 
     def test_a_cached_template_package_is_built_once(self) -> None:
         from cdmw.models import ModelPreviewData, ModelPreviewMesh
-        from cdmw.services import mesh_dotnet_preview_package as package_service
+        from cdmw.services import mesh_rust_preview_cache as package_service
         from cdmw.ui.new_item.item_preview import build_item_preview_package
 
         model = ModelPreviewData(
@@ -198,10 +198,10 @@ class ItemPreviewPackageTests(unittest.TestCase):
                 source_calls += 1
                 return model
 
-            original = package_service.build_mesh_dotnet_experiment_package
+            original = package_service.build_rust_preview_package
             with patch.object(
                 package_service,
-                "build_mesh_dotnet_experiment_package",
+                "build_rust_preview_package",
                 wraps=original,
             ) as build:
                 first = build_item_preview_package(
@@ -889,7 +889,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
             materials=lambda _stop: built.append("materials"),
         )
         with patch(
-            "cdmw.services.mesh_dotnet_preview_package.lookup_dotnet_preview_package_from_model_identity",
+            "cdmw.services.mesh_rust_preview_cache.lookup_rust_preview_package_from_model_identity",
             return_value=SimpleNamespace(package_dir=cached),
         ):
             frame.show(source, token=("template", 17))
@@ -903,7 +903,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertEqual(frame._loaded_stage, "materials")
         frame.request_shutdown()
 
-    def test_material_upgrade_reuses_the_geometry_package_files(self) -> None:
+    def test_material_upgrade_preserves_geometry_and_adds_rust_textures(self) -> None:
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
         from cdmw.ui.new_item.item_preview import (
             PlacementScene,
@@ -924,6 +924,11 @@ class ItemPreviewFrameTests(unittest.TestCase):
                 faces=[(0, 1, 2)],
             )],
         )
+        from PIL import Image
+
+        texture = output / "item.png"
+        Image.new("RGBA", (4, 4), (32, 96, 192, 255)).save(texture)
+        mesh.submeshes[0].preview_texture_path = str(texture)
         scene = PlacementScene(template=None, model=mesh, placement=ModelPlacement())
         geometry = build_item_preview_package(
             scene,
@@ -932,24 +937,20 @@ class ItemPreviewFrameTests(unittest.TestCase):
             stop_event=threading.Event(),
             include_material_resources=False,
         )
-        geometry_bytes = (geometry / "scene.obj").read_bytes()
+        geometry_bytes = (geometry / "document.json").read_bytes()
 
-        with patch(
-            "cdmw.services.mesh_dotnet_experiment._export_dotnet_obj_paths",
-            side_effect=AssertionError("the material stage must not export geometry"),
-        ):
-            materials = upgrade_item_preview_package_materials(
-                geometry,
-                scene,
-                output_root=output,
-                stop_event=threading.Event(),
-            )
-
-        self.assertEqual((materials / "scene.obj").read_bytes(), geometry_bytes)
-        self.assertNotEqual(
-            json.loads((materials / "net_materials.json").read_text(encoding="utf-8"))["material_signature"],
-            "geometry_only",
+        materials = upgrade_item_preview_package_materials(
+            geometry,
+            scene,
+            output_root=output,
+            stop_event=threading.Event(),
         )
+
+        self.assertEqual((materials / "document.json").read_bytes(), geometry_bytes)
+        geometry_manifest = json.loads((geometry / "manifest.json").read_text(encoding="utf-8"))
+        material_manifest = json.loads((materials / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(geometry_manifest["textures"], [])
+        self.assertGreaterEqual(len(material_manifest["textures"]), 1)
 
 
 if __name__ == "__main__":

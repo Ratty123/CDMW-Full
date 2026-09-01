@@ -730,7 +730,7 @@ class EffectPlacementDialog(QDialog):
 
 
 def _default_host_factory(parent: QWidget):
-    from cdmw.ui.preview.dotnet_host import DotNetPreviewHostFrame
+    from cdmw.ui.preview.rust_host import RustPreviewHostFrame
     from cdmw.ui.preview.profile import DotNetPreviewProfile
 
-    return DotNetPreviewHostFrame(parent, profile=DotNetPreviewProfile.PREVIEW, terminate_on_close=True)
+    return RustPreviewHostFrame(parent, profile=DotNetPreviewProfile.PREVIEW, terminate_on_close=True)

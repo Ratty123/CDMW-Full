@@ -32,9 +32,9 @@ This file is a practical notice list for repository and release packaging. For a
 
 ## Native Libraries
 
-### CDMW Rust Edit Mesh runtime dependencies
+### CDMW Rust Mesh Editor and Archive Preview runtime dependencies
 
-- Purpose: the embedded wgpu/D3D12 production Mesh Editor and standalone Rust Mesh Lab
+- Purpose: the embedded wgpu/D3D12 production Mesh Editor, every Archive Preview viewport, and standalone Rust Mesh Lab
 - Principal upstreams: [wgpu](https://github.com/gfx-rs/wgpu),
   [egui](https://github.com/emilk/egui), and
   [winit](https://github.com/rust-windowing/winit)

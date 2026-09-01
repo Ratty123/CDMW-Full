@@ -36,13 +36,14 @@ from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_s
 from cdmw.rendering.dotnet_preview_package_cache import dotnet_preview_package_cache_budget
 from cdmw.rendering.material_channels import resolve_preview_batch_material_channels
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
-from cdmw.services.mesh_dotnet_preview_package import (
-    build_or_lookup_dotnet_preview_package_from_model,
-    lookup_dotnet_preview_package_hit_from_model_identity,
+from cdmw.services.mesh_rust_preview_cache import (
+    build_or_lookup_rust_preview_package_from_model,
+    lookup_rust_preview_package_hit_from_model_identity,
 )
+from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER
 
-_DOTNET_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH = 50_000
-_DOTNET_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH = 80_000
+_RUST_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH = 50_000
+_RUST_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH = 80_000
 _SUBPROCESS_TIMEOUT_SECONDS = 300
 _PREVIEW_PACKAGE_CACHE_MODE = "balanced"
 _MODEL_LIBRARY_CACHE_IDENTITY_SCHEMA = 2
@@ -50,6 +51,12 @@ _MODEL_LIBRARY_CACHE_SUMMARY_SCHEMA = 1
 _GLB_HEADER = struct.Struct("<4sII")
 _GLB_CHUNK_HEADER = struct.Struct("<II")
 _GLB_JSON_CHUNK = 0x4E4F534A
+
+# Kept as a compatibility seam for plugins/tests which intercepted the former
+# package writer by name.  It resolves to Rust and cannot launch Vortice.
+build_or_lookup_dotnet_preview_package_from_model = (
+    build_or_lookup_rust_preview_package_from_model
+)
 
 
 def _model_library_preview_package_cache_identity(
@@ -94,8 +101,8 @@ def _model_library_preview_package_cache_identity(
         "texture_flip_vertical": bool(texture_flip_vertical),
         "render_settings": settings_payload,
         "cache_profile": _PREVIEW_PACKAGE_CACHE_MODE,
-        "face_limit": _DOTNET_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH,
-        "vertex_limit": _DOTNET_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH,
+        "face_limit": _RUST_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH,
+        "vertex_limit": _RUST_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH,
     }
     encoded = json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return "model-library-v2:" + hashlib.sha256(encoded).hexdigest()
@@ -363,7 +370,9 @@ def _model_library_cached_preview_result(
         "renderer_backend": renderer_backend,
         "preview_model": None,
         "prepared_preview": None,
+        "rust_preview_package_path": str(package_path),
         "dotnet_preview_package_path": str(package_path),
+        "rust_package_ms": max(0.0, float(lookup_ms)),
         "dotnet_package_ms": max(0.0, float(lookup_ms)),
         "cache_hit": True,
         "high_quality_textures": bool(high_quality_textures),
@@ -385,14 +394,14 @@ def prepare_model_library_inline_preview(
     payload: Optional[Mapping[str, object]] = None,
     extract_root: Optional[Path] = None,
     render_settings: object = None,
-    renderer_backend: str = "d3d11_vortice_shader",
+    renderer_backend: str = RUST_MESH_RENDERER,
     model_name: str = "",
     request_id: int = 0,
     high_quality_textures: bool = False,
     progress: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> dict[str, object]:
-    """Prepare one canonical .NET/Vortice package for the Model Library preview.
+    """Prepare one canonical Rust Preview package for the Model Library preview.
 
     Model Library previews always use fast preview textures, so
     ``high_quality_textures`` is reported back for telemetry and status text
@@ -403,8 +412,8 @@ def prepare_model_library_inline_preview(
     source = Path(source_path)
     metadata = dict(payload or {})
     name = str(model_name or metadata.get("name", "") or source.stem or "model")
-    backend = str(renderer_backend or "d3d11_vortice_shader").strip().lower()
-    if backend != "d3d11_vortice_shader":
+    backend = str(renderer_backend or RUST_MESH_RENDERER).strip().lower()
+    if backend != RUST_MESH_RENDERER:
         raise ValueError(f"Unsupported model preview renderer: {backend}")
     raise_if_cancelled(stop_event)
     progress(f"Resolving model preview source: {source}")
@@ -437,7 +446,7 @@ def prepare_model_library_inline_preview(
     )
     if cache_identity is not None:
         lookup_started = time.perf_counter()
-        cached_hit = lookup_dotnet_preview_package_hit_from_model_identity(
+        cached_hit = lookup_rust_preview_package_hit_from_model_identity(
             cache_root=cache_root,
             archive_identity=cache_identity,
             cancelled=(stop_event.is_set if stop_event is not None else None),
@@ -457,7 +466,7 @@ def prepare_model_library_inline_preview(
                 lookup_ms=lookup_ms,
             )
             if cached_result is not None:
-                progress("Loaded a validated durable .NET/Vortice preview package.")
+                progress("Loaded a validated durable Rust Preview package.")
                 return cached_result
     raise_if_cancelled(stop_event)
     progress(f"Reading model file: {resolved_import_path}")
@@ -474,8 +483,8 @@ def prepare_model_library_inline_preview(
     original_faces = int(scene_result.mesh.total_faces)
     submeshes = tuple(getattr(scene_result.mesh, "submeshes", ()) or ())
     quality_reduction = None
-    max_faces = _DOTNET_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
-    max_vertices = _DOTNET_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
+    max_faces = _RUST_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
+    max_vertices = _RUST_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
     if any(
         len(getattr(submesh, "faces", ()) or ()) > max_faces
         or len(getattr(submesh, "vertices", ()) or ()) > max_vertices
@@ -510,7 +519,7 @@ def prepare_model_library_inline_preview(
     )
     raise_if_cancelled(stop_event)
     package_started = time.perf_counter()
-    progress("Writing canonical .NET/Vortice preview package...")
+    progress("Writing canonical Rust Preview package...")
     material_channel_summary = model_library_preview_material_channel_summary(prepared_preview)
     audit = getattr(scene_result, "external_audit", None)
     quality_reduction_payload = (
@@ -565,7 +574,9 @@ def prepare_model_library_inline_preview(
         "renderer_backend": backend,
         "preview_model": prepared_model,
         "prepared_preview": prepared_preview,
+        "rust_preview_package_path": package_dir,
         "dotnet_preview_package_path": package_dir,
+        "rust_package_ms": package_ms,
         "dotnet_package_ms": package_ms,
         "source_vertices": original_vertices,
         "source_faces": original_faces,
@@ -595,7 +606,7 @@ def prepare_model_library_inline_preview_in_subprocess(
     payload: Optional[Mapping[str, object]] = None,
     extract_root: Optional[Path] = None,
     render_settings: object = None,
-    renderer_backend: str = "d3d11_vortice_shader",
+    renderer_backend: str = RUST_MESH_RENDERER,
     model_name: str = "",
     request_id: int = 0,
     high_quality_textures: bool = False,
@@ -615,7 +626,7 @@ def prepare_model_library_inline_preview_in_subprocess(
                     "payload": dict(payload or {}),
                     "extract_root": str(extract_root) if extract_root is not None else "",
                     "render_settings": _model_preview_render_settings_payload(render_settings),
-                    "renderer_backend": str(renderer_backend or "d3d11_vortice_shader"),
+                    "renderer_backend": str(renderer_backend or RUST_MESH_RENDERER),
                     "model_name": str(model_name or ""),
                     "request_id": int(request_id),
                     "high_quality_textures": bool(high_quality_textures),
@@ -652,7 +663,7 @@ def run_model_library_preview_worker(input_path: Path, output_path: Path) -> int
         payload=request.get("payload") if isinstance(request.get("payload"), dict) else None,
         extract_root=Path(str(request.get("extract_root", ""))) if str(request.get("extract_root", "") or "").strip() else None,
         render_settings=_model_preview_render_settings_from_payload(request.get("render_settings")),
-        renderer_backend=str(request.get("renderer_backend", "d3d11_vortice_shader") or "d3d11_vortice_shader"),
+        renderer_backend=str(request.get("renderer_backend", RUST_MESH_RENDERER) or RUST_MESH_RENDERER),
         model_name=str(request.get("model_name", "") or ""),
         request_id=int(request.get("request_id", 0) or 0),
         high_quality_textures=bool(request.get("high_quality_textures", False)),

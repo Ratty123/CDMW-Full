@@ -14,7 +14,7 @@ def alignment_d3d11_resources_waiting_detail(
     active_package: object,
 ) -> str:
     return (
-        ".NET/Vortice uploaded package resources but the preview panel is not renderable yet.\n"
+        "Rust Preview uploaded package resources but the preview panel is not renderable yet.\n"
         f"elapsed={max(0.0, float(elapsed_s or 0.0)):.1f}s\n"
         f"last_progress={int(last_percent or 0)}%\n"
         f"last_stage={str(last_stage or 'unknown')}\n"
@@ -53,7 +53,7 @@ def alignment_d3d11_stale_loading_detail(
     active_package: object,
 ) -> str:
     return (
-        ".NET/Vortice stayed alive but did not report a fresh rendered frame.\n"
+        "Rust Preview stayed alive but did not report a fresh rendered frame.\n"
         f"elapsed={max(0.0, float(elapsed_s or 0.0)):.1f}s\n"
         f"last_progress={int(last_percent or 0)}%\n"
         f"last_stage={str(last_stage or 'unknown')}\n"
@@ -73,14 +73,14 @@ def alignment_d3d11_restart_performance_details(
     return (
         f"{str(stale_details or '')}\n"
         f"restart={int(restart_count or 0) + 1}/{int(max_restarts or 0)}\n"
-        "The stale .NET/Vortice load was cancelled and the latest preview request was queued immediately."
+        "The stale Rust Preview load was cancelled and the latest preview request was queued immediately."
     )
 
 
 def alignment_d3d11_failed_performance_details(stale_details: str) -> str:
     return (
         f"{str(stale_details or '')}\n"
-        "The .NET/Vortice renderer stayed alive, but no package-loaded acknowledgement arrived before the watchdog."
+        "The Rust Preview renderer stayed alive, but no package-loaded acknowledgement arrived before the watchdog."
     )
 
 

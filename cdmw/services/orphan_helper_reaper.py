@@ -3,7 +3,7 @@
 The job object in :mod:`cdmw.services.process_job_service` prevents new strays,
 but it cannot clean up what an older build already leaked, and it does not cover
 a helper launched outside the job by a harness whose driver then died. Those
-survivors are not harmless: a stranded renderer holds a D3D11 device, and a
+survivors are not harmless: a stranded renderer holds a GPU device, and a
 stranded archive worker keeps a mapped cache file that this session then cannot
 replace.
 
@@ -29,7 +29,6 @@ from pathlib import Path
 
 OWNED_HELPER_BINARY_NAMES = frozenset(
     {
-        "cdmw-mesh-dotnet-editor.exe",
         "cdmw_mesh_lab.exe",
         "cdmw-full-archive-worker.exe",
         "cdmw-mesh-core.exe",

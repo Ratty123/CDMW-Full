@@ -181,7 +181,7 @@ class NativePreviewCoreAttempt:
 
     def diagnostic_line(self) -> str:
         if self.status == "missing":
-            return "Native Preview Core: unavailable; .NET/Vortice package preparation is disabled for this entry."
+            return "Native Preview Core: unavailable; Rust Preview package preparation is disabled for this entry."
         reason = self.fallback_reason or str(self.diagnostics.get("message") or "").strip()
         timing = f"{self.elapsed_ms:.1f} ms" if self.elapsed_ms > 0.0 else "n/a"
         if self.succeeded:

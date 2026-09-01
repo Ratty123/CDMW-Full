@@ -36,13 +36,14 @@ def test_full_qa_uses_canonical_bounded_temp_owned_gates() -> None:
     assert "CDMW_GUI_STARTUP_SMOKE_RESULT" in source
     assert '"post_construction"' in source
     assert '"-BuildProfile", "release", "-NativeHelpersOnly"' in source
-    assert '"_internal\\native\\cdmw-mesh-dotnet-editor.exe"' in source
-    assert '"-DotNetGpuSmokeExecutable", $packagedDotNetHelper' in source
+    assert "Production Rust preview and Mesh Editor build with offscreen GPU smoke" in source
     assert ') $scriptDir $BuildTimeoutSeconds' in source
     assert "function Invoke-NativeHelperPreparation" in package_source
-    assert "Invoke-DotNetMeshEditorBuild -Configuration $Configuration -Required:$RequireDotNet" in package_source
-    assert 'backend -ne "d3d11_vortice_shader"' in package_source
-    assert '$smoke.gates.native_windows_remained_hidden -ne $true' in package_source
+    assert "Invoke-RustMeshEditorBuild -Configuration $Configuration -Required:$RequireReleaseHelpers" in package_source
+    assert 'preview_protocol = "cdmw_rust_preview_protocol_v1"' in package_source
+    assert '"deterministic_offscreen_capture_v1"' in package_source
+    assert "Invoke-DotNetMeshEditorBuild" not in package_source
+    assert "d3d11_vortice_shader" not in package_source
     assert "[string]$PytestBaseTemp" in codex_source
     assert '"--basetemp=$PytestBaseTemp"' in codex_source
     assert "[int]$Shard" not in codex_source
@@ -84,7 +85,9 @@ def test_native_helper_only_describe_keeps_packaging_out_of_the_gate() -> None:
 
     assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     assert "rebuild Release helpers" in result.stdout
-    assert "hidden d3d11_vortice_shader smoke" in result.stdout
+    assert "Rust Mesh Editor/Archive Preview" in result.stdout
+    assert "contract/provenance checks" in result.stdout
+    assert "Vortice" not in result.stdout
     assert "Starting PyInstaller" not in result.stdout
 
 

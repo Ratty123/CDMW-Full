@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
+from PySide6.QtCore import QProcess
+
+from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
@@ -15,12 +17,12 @@ class MeshEditorNativePreviewMixin:
         display_mode = "original_only" if self.standalone_compare_mode == "source" else ("overlay" if self.standalone_compare_mode == "ghost" else "replacement_only")
         mesh = self._standalone_preview_mesh_snapshot()
         reference_mesh = self._standalone_reference_mesh_snapshot()
-        package = build_mesh_dotnet_experiment_package(
+        package = build_rust_preview_package(
             mesh,
             output_root=output_root,
             reference_mesh=reference_mesh,
             comparison_mode=display_mode,
-            interaction_mode="edit",
+            interaction_profile="static_replacement",
             scene_session_id=controller.session_view().session_id,
         )
         package_dir = package.package_dir
@@ -55,7 +57,7 @@ class MeshEditorNativePreviewMixin:
                 self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
             self._request_standalone_native_part_picking(False)
             self._sync_standalone_native_mesh_edit_state(force=True)
-            self.standalone_status_label.setText(f".NET/Vortice preview loading: {package_path}")
+            self.standalone_status_label.setText(f"Rust preview loading: {package_path}")
         return ok
     def _launch_standalone_native_preview_package(self, package_dir: Path, *, reset_view: bool = True) -> bool:
         return self.load_standalone_native_preview_package(package_dir, reset_view=reset_view)
@@ -65,17 +67,11 @@ class MeshEditorNativePreviewMixin:
         del output_root, reset_view
         if self.standalone_controller is None:
             return False
-        if self._standalone_dotnet_editor_process_running():
-            session_ok = self._send_dotnet_session_state()
-            scene_ok = self._send_dotnet_scene_state()
-            return bool(session_ok and scene_ok)
-        if self._standalone_dotnet_package_worker_active():
+        process = getattr(self, "standalone_rust_process", None)
+        if process is not None and process.state() != QProcess.ProcessState.NotRunning:
             return True
-        self._start_standalone_dotnet_editor_requested()
-        return bool(
-            self._standalone_dotnet_editor_process_running()
-            or self._standalone_dotnet_package_worker_active()
-        )
+        self._start_rust_editor_requested(self.standalone_controller)
+        return True
     def _standalone_editable_package_task_active(self) -> bool:
         return (
             self.standalone_editable_export_thread is not None

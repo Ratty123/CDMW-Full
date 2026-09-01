@@ -1,4 +1,4 @@
-"""The readiness watchdog of the resident .NET/Vortice session.
+"""The readiness watchdog of the resident Rust Preview session.
 
 A fixed deadline from launch to ``ready`` killed healthy helpers on a loaded
 machine, and the host then relaunched them into the same deadline, forever.

@@ -1,4 +1,4 @@
-"""Application-theme bridge for the embedded .NET/Vortice host."""
+"""Application-theme bridge for the embedded Rust Preview host."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ _PALETTE_KEYS = (
 
 
 class DotNetPreviewHostThemeMixin:
-    """Keep Qt host chrome and the resident WinForms editor on one palette."""
+    """Keep Qt host chrome and the resident Rust viewport on one palette."""
 
     def set_theme(self, theme_key: str) -> None:
         resolved = str(theme_key or "").strip()

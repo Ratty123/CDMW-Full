@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from tools.mesh_harness.constants import _DEFAULT_GAME_ROOT, _REAL_MESH_EDITOR_VISUAL_SCENARIO
+from tools.mesh_harness.constants import _DEFAULT_GAME_ROOT, _REAL_MESH_EDITOR_PRODUCTION_SCENARIO
 from tools.mesh_harness.parity import (
     DEFAULT_PARITY_DIFFERENCE_SCALE,
     DEFAULT_PARITY_FAIL_PERCENT,
@@ -19,7 +19,7 @@ from tools.mesh_harness.scenario_registry import scenario_names
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run Mesh Editor service/native preview harness without starting the app.")
-    parser.add_argument("--scenario", default=_REAL_MESH_EDITOR_VISUAL_SCENARIO, choices=scenario_names())
+    parser.add_argument("--scenario", default=_REAL_MESH_EDITOR_PRODUCTION_SCENARIO, choices=scenario_names())
     parser.add_argument(
         "--game-root",
         type=Path,

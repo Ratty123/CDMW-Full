@@ -41,6 +41,10 @@ from cdmw.services.mesh_rust_contract import (
     RUST_MESH_PROVENANCE_FILE,
     RUST_MESH_PROVENANCE_SCHEMA,
     RUST_MESH_REQUIRED_CAPABILITIES,
+    RUST_PREVIEW_BACKEND,
+    RUST_PREVIEW_PACKAGE,
+    RUST_PREVIEW_PROTOCOL,
+    RUST_PREVIEW_REQUIRED_CAPABILITIES,
     RustMeshExecutableResolution,
     rust_mesh_editor_file_signature,
     validate_rust_mesh_editor_package,
@@ -2366,14 +2370,17 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "resolve_mesh_dotnet_experiment_editor",
                 side_effect=AssertionError("Vortice resolver must not be called"),
+                create=True,
             ), patch.object(
                 rust_authoring_module,
                 "run_process_with_cancellation",
                 side_effect=AssertionError("Vortice process must not be launched"),
+                create=True,
             ), patch.object(
                 rust_authoring_module,
                 "_vortice_material_layer_overrides",
                 side_effect=AssertionError("Vortice compositor must not be called"),
+                create=True,
             ), patch.object(
                 rust_authoring_module,
                 "_mesh_synthesized_texture_overrides",
@@ -2454,6 +2461,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "_vortice_material_layer_overrides",
                 side_effect=AssertionError("Vortice compositor must not be called"),
+                create=True,
             ), patch.object(
                 rust_authoring_module,
                 "_mesh_synthesized_texture_overrides",
@@ -2493,10 +2501,12 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "resolve_mesh_dotnet_experiment_editor",
                 side_effect=AssertionError("Vortice resolver must not be called"),
+                create=True,
             ) as resolver, patch.object(
                 rust_authoring_module,
                 "run_process_with_cancellation",
                 side_effect=AssertionError("Vortice process must not be launched"),
+                create=True,
             ) as process_runner:
                 _authoritative, session = self._create(
                     session_root,
@@ -2641,6 +2651,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "_vortice_material_layer_overrides",
                 side_effect=AssertionError("Vortice compositor must not be called"),
+                create=True,
             ), patch.object(
                 rust_authoring_module,
                 "_mesh_synthesized_texture_overrides",
@@ -2695,6 +2706,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "_vortice_material_layer_overrides",
                 return_value={},
+                create=True,
             ), patch.object(
                 rust_authoring_module,
                 "_mesh_synthesized_texture_overrides",
@@ -2759,6 +2771,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "_vortice_material_layer_overrides",
                 return_value={},
+                create=True,
             ), patch.object(
                 rust_authoring_module,
                 "_mesh_synthesized_texture_overrides",
@@ -2850,6 +2863,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "_vortice_material_layer_overrides",
                 return_value={},
+                create=True,
             ), patch.object(
                 rust_authoring_module,
                 "_mesh_synthesized_texture_overrides",
@@ -2902,6 +2916,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "_vortice_material_layer_overrides",
                 return_value={},
+                create=True,
             ), patch.object(
                 rust_authoring_module,
                 "_mesh_synthesized_texture_overrides",
@@ -2985,6 +3000,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "_vortice_material_layer_overrides",
                 return_value={},
+                create=True,
             ), patch.object(
                 rust_authoring_module,
                 "_mesh_synthesized_texture_overrides",
@@ -5237,6 +5253,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "_vortice_material_layer_overrides",
                 return_value={},
+                create=True,
             ):
                 _authoritative, session = self._create(
                     temporary_root / "session",
@@ -5295,6 +5312,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rust_authoring_module,
                 "_vortice_material_layer_overrides",
                 return_value={},
+                create=True,
             ):
                 _authoritative, session = self._create(
                     temporary_root / "session",
@@ -7176,9 +7194,13 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 "edit_backend": RUST_MESH_EDIT_BACKEND,
                 "protocol": RUST_MESH_EDITOR_PROTOCOL,
                 "authoring_package": RUST_MESH_AUTHORING_PACKAGE,
+                "preview_protocol": RUST_PREVIEW_PROTOCOL,
+                "preview_package": RUST_PREVIEW_PACKAGE,
+                "preview_backend": RUST_PREVIEW_BACKEND,
                 "control_contract": RUST_MESH_CONTROL_CONTRACT_FILE,
                 "control_contract_schema": RUST_MESH_CONTROL_CONTRACT_SCHEMA,
                 "capabilities": list(RUST_MESH_REQUIRED_CAPABILITIES),
+                "preview_capabilities": list(RUST_PREVIEW_REQUIRED_CAPABILITIES),
                 "locked_dependencies": True,
                 "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
             }

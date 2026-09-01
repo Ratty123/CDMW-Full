@@ -37,9 +37,7 @@ from cdmw.domain.mesh.authoring_capability import (
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.core.archive import ensure_archive_preview_source
 from cdmw.core.common import (
-    ProcessTimeoutExpired,
     read_file_bytes_cancellable,
-    run_process_with_cancellation,
 )
 from cdmw.modding.mesh_glb_interchange import import_glb_with_sidecar
 from cdmw.modding.mesh_obj_importer import import_obj
@@ -59,9 +57,6 @@ from cdmw.services.mesh_dotnet_material_bindings import (
     _DOTNET_PREVIEW_MATERIAL_ATTRS,
     copy_dotnet_preview_material_bindings,
     count_dotnet_own_material_bindings,
-)
-from cdmw.services.mesh_dotnet_experiment import (
-    resolve_mesh_dotnet_experiment_editor,
 )
 from cdmw.services.mesh_dotnet_material_state import (
     mesh_dotnet_material_state_payload,
@@ -120,13 +115,6 @@ _RUST_PREVIEW_MATERIAL_VALUE_DEPTH = 8
 _RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES = 16 * 1024 * 1024
 _RUST_PREVIEW_PACKAGE_BATCH_LIMIT = 4_096
 _RUST_PREVIEW_PACKAGE_TEXTURE_LIMIT = 65_536
-_RUST_LAYER_EXPORT_SCHEMA = "cdmw_net_material_layer_export_v1"
-_RUST_LAYER_SURFACE_TRANSFORM_CONTRACT = (
-    "cdmw_vortice_material_surface_transform_v1"
-)
-_RUST_LAYER_EXPORT_TIMEOUT_SECONDS = 90.0
-_RUST_LAYER_EXPORT_STATUS_MAX_BYTES = 4 * 1024 * 1024
-_RUST_LAYER_EXPORT_IMAGE_MAX_BYTES = 64 * 1024 * 1024
 _RUST_FAST_PREVIEW_TEXTURE_BUDGET_BYTES = 128 * 1024 * 1024
 _RUST_MATERIAL_PRESENTATION_LIMIT = 2_048
 _RUST_MATERIAL_SYNTHESIS_DIAGNOSTIC_LIMIT = 64
@@ -2055,7 +2043,11 @@ def _submesh_indices(submesh: object) -> list[int]:
     return [int(index) for face in tuple(getattr(submesh, "faces", ()) or ()) for index in face]
 
 
-def _mesh_document_payload(mesh: ParsedMesh) -> dict[str, object]:
+def _mesh_document_payload(
+    mesh: ParsedMesh,
+    *,
+    allow_preview_formats: bool = False,
+) -> dict[str, object]:
     lod_payloads: list[dict[str, object]] = []
     fingerprint = hashlib.sha256()
     for lod_index, submeshes in enumerate(_mesh_lods(mesh)):
@@ -2083,8 +2075,13 @@ def _mesh_document_payload(mesh: ParsedMesh) -> dict[str, object]:
                 }
             )
         lod_payloads.append({"level": lod_index, "submeshes": encoded_submeshes})
+    mesh_format = (
+        str(mesh.format or "preview").strip().lower() or "preview"
+        if allow_preview_formats
+        else _mesh_format(mesh)
+    )
     return {
-        "format": _mesh_format(mesh),
+        "format": mesh_format,
         "source_sha256": _source_hash(mesh),
         "parser": RUST_MESH_AUTHORING_PACKAGE,
         "lod_count_reported": len(lod_payloads),
@@ -2209,8 +2206,9 @@ def _rust_material_package_presentation_overrides(
 ) -> dict[tuple[int, int], dict[str, object]]:
     """Retain the exact per-owner presentation already proven by CDMW.
 
-    ``net_materials.json`` is the live Archive Browser/Vortice material
-    contract.  The editable mesh copy can lose its decoded PAC category, so
+    ``net_materials.json`` is the compatibility material manifest emitted by
+    the shared Archive Preview Core contract. The editable mesh copy can lose
+    its decoded PAC category, so
     read only the bounded presentation fields from the leased package and
     require an exact part index/name match before forwarding them to Rust.
     Texture paths and arbitrary parameters are deliberately excluded here.
@@ -4139,399 +4137,6 @@ def _validate_rust_material_synthesis_tree(
     _session_root_identity(root, expected_root_identity)
 
 
-def _rust_material_layer_export_path(
-    export_root: Path,
-    entry: Mapping[str, object],
-    *,
-    role: str,
-    stop_event: threading.Event | None,
-) -> Path:
-    relative_text = str(entry.get("relative_path", "") or "").strip()
-    if (
-        not relative_text
-        or "\\" in relative_text
-        or ":" in relative_text
-    ):
-        raise RustMeshProtocolError(
-            f"Rust Mesh {role} layer export has an invalid relative path"
-        )
-    relative = PurePosixPath(relative_text)
-    if relative.is_absolute() or any(
-        part in {"", ".", ".."} for part in relative.parts
-    ):
-        raise RustMeshProtocolError(
-            f"Rust Mesh {role} layer export escaped its owned directory"
-        )
-    candidate = export_root.joinpath(*relative.parts)
-    try:
-        _require_owned_path(candidate, export_root)
-        if not candidate.is_file():
-            raise OSError("not a regular file")
-        declared_length = int(entry.get("byte_length", -1))
-        actual_length = int(candidate.stat().st_size)
-    except (OSError, TypeError, ValueError, OverflowError) as exc:
-        raise RustMeshProtocolError(
-            f"Rust Mesh {role} layer export is missing or malformed"
-        ) from exc
-    if (
-        declared_length <= 0
-        or declared_length > _RUST_LAYER_EXPORT_IMAGE_MAX_BYTES
-        or actual_length != declared_length
-    ):
-        raise RustMeshProtocolError(
-            f"Rust Mesh {role} layer export length did not match its manifest"
-        )
-    try:
-        data = read_file_bytes_cancellable(
-            candidate,
-            stop_event=stop_event,
-            max_bytes=_RUST_LAYER_EXPORT_IMAGE_MAX_BYTES,
-        )
-    except RunCancelled as exc:
-        raise RustMeshCancellationError(
-            "Rust Mesh texture preparation was cancelled"
-        ) from exc
-    except (OSError, ValueError) as exc:
-        raise RustMeshProtocolError(
-            f"Rust Mesh could not read the {role} layer export"
-        ) from exc
-    declared_hash = str(entry.get("sha256", "") or "").strip()
-    if (
-        len(declared_hash) != 64
-        or not re.fullmatch(r"[0-9a-fA-F]{64}", declared_hash)
-        or _sha256_bytes(data).casefold() != declared_hash.casefold()
-    ):
-        raise RustMeshProtocolError(
-            f"Rust Mesh {role} layer export hash did not match its manifest"
-        )
-    return candidate
-
-
-def _vortice_material_layer_overrides(
-    mesh: ParsedMesh,
-    material_package_path: object,
-    synthesis_root: Path,
-    *,
-    dotnet_executable_configured: object,
-    expected_root_identity: tuple[int, int],
-    stop_event: threading.Event | None,
-    synthesis_state: _RustMaterialSynthesisState,
-) -> dict[tuple[int, int, str], Path]:
-    """Export the exact composites painted by the live Vortice viewport."""
-
-    package_root, package_reason = _rust_material_package_root(
-        material_package_path
-    )
-    if package_root is None:
-        if package_reason:
-            _record_rust_material_synthesis_diagnostic(
-                synthesis_state,
-                "layer_export_package_unavailable",
-                lod_index=0,
-                detail=package_reason,
-            )
-        return {}
-    materials_path = package_root / "net_materials.json"
-    try:
-        materials_bytes_before = read_file_bytes_cancellable(
-            materials_path,
-            stop_event=stop_event,
-            max_bytes=_RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES,
-        )
-    except RunCancelled as exc:
-        raise RustMeshCancellationError(
-            "Rust Mesh texture preparation was cancelled"
-        ) from exc
-    except (OSError, ValueError):
-        _record_rust_material_synthesis_diagnostic(
-            synthesis_state,
-            "layer_export_manifest_unavailable",
-            lod_index=0,
-            detail="The leased preview package has no bounded net_materials.json.",
-        )
-        return {}
-
-    resolution = resolve_mesh_dotnet_experiment_editor(
-        str(dotnet_executable_configured or "").strip()
-    )
-    helper_text = str(getattr(resolution, "resolved_path", "") or "").strip()
-    if not bool(getattr(resolution, "is_file", False)) or not helper_text:
-        _record_rust_material_synthesis_diagnostic(
-            synthesis_state,
-            "layer_export_helper_unavailable",
-            lod_index=0,
-            detail="The Vortice material compositor executable is unavailable.",
-        )
-        return {}
-
-    synthesis_state.attempted = True
-    export_root = synthesis_root / "vortice-layer-export"
-    status_path = export_root / "material-layer-export.json"
-    command = (
-        helper_text,
-        "--export-material-layer-composites",
-        str(package_root),
-        "--output",
-        str(export_root),
-        "--status",
-        str(status_path),
-    )
-    try:
-        return_code, stdout, stderr = run_process_with_cancellation(
-            command,
-            stop_event=stop_event,
-            timeout_seconds=_RUST_LAYER_EXPORT_TIMEOUT_SECONDS,
-        )
-    except RunCancelled as exc:
-        raise RustMeshCancellationError(
-            "Rust Mesh texture preparation was cancelled"
-        ) from exc
-    except ProcessTimeoutExpired as exc:
-        _record_rust_material_synthesis_diagnostic(
-            synthesis_state,
-            "layer_export_timed_out",
-            lod_index=0,
-            detail=str(exc),
-        )
-        return {}
-    except (OSError, RuntimeError) as exc:
-        _record_rust_material_synthesis_diagnostic(
-            synthesis_state,
-            "layer_export_failed",
-            lod_index=0,
-            detail=f"{type(exc).__name__}: {exc}",
-        )
-        return {}
-    if return_code != 0:
-        detail = " ".join((stderr or stdout or "").split())
-        _record_rust_material_synthesis_diagnostic(
-            synthesis_state,
-            "layer_export_failed",
-            lod_index=0,
-            detail=detail or f"Vortice material compositor exited with {return_code}.",
-        )
-        return {}
-
-    _session_root_identity(synthesis_root, expected_root_identity)
-    try:
-        _require_owned_path(export_root, synthesis_root)
-        _require_owned_path(status_path, synthesis_root)
-        status_bytes = read_file_bytes_cancellable(
-            status_path,
-            stop_event=stop_event,
-            max_bytes=_RUST_LAYER_EXPORT_STATUS_MAX_BYTES,
-        )
-        payload = json.loads(status_bytes)
-    except RunCancelled as exc:
-        raise RustMeshCancellationError(
-            "Rust Mesh texture preparation was cancelled"
-        ) from exc
-    except (OSError, UnicodeError, ValueError, TypeError) as exc:
-        raise RustMeshProtocolError(
-            "Rust Mesh received an invalid Vortice material-layer manifest"
-        ) from exc
-    if not isinstance(payload, Mapping) or str(
-        payload.get("schema", "") or ""
-    ) != _RUST_LAYER_EXPORT_SCHEMA:
-        raise RustMeshProtocolError(
-            "Rust Mesh received an incompatible Vortice material-layer manifest"
-        )
-    if (
-        str(payload.get("surface_transform_contract", "") or "")
-        != _RUST_LAYER_SURFACE_TRANSFORM_CONTRACT
-        or payload.get("surface_transform_version") != 1
-    ):
-        raise RustMeshProtocolError(
-            "Vortice material-layer export did not declare its baked surface-transform contract"
-        )
-
-    source_hash = str(payload.get("source_materials_sha256", "") or "").strip()
-    before_hash = _sha256_bytes(materials_bytes_before)
-    try:
-        materials_bytes_after = read_file_bytes_cancellable(
-            materials_path,
-            stop_event=stop_event,
-            max_bytes=_RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES,
-        )
-    except RunCancelled as exc:
-        raise RustMeshCancellationError(
-            "Rust Mesh texture preparation was cancelled"
-        ) from exc
-    except (OSError, ValueError) as exc:
-        raise RustMeshProtocolError(
-            "The leased Vortice material package changed during export"
-        ) from exc
-    if (
-        len(source_hash) != 64
-        or source_hash.casefold() != before_hash.casefold()
-        or _sha256_bytes(materials_bytes_after) != before_hash
-    ):
-        raise RustMeshProtocolError(
-            "The leased Vortice material package changed during export"
-        )
-
-    preserved = payload.get("direct_channels_preserved", ())
-    if (
-        not isinstance(preserved, Sequence)
-        or isinstance(preserved, (str, bytes, bytearray))
-        or {str(value or "").strip().casefold() for value in preserved}
-        != {"normal", "height"}
-    ):
-        raise RustMeshProtocolError(
-            "Vortice material-layer export did not preserve direct normal and height maps"
-        )
-    rows = payload.get("rows", ())
-    lods = _mesh_lods(mesh)
-    try:
-        lod_index = max(
-            0,
-            min(
-                len(lods) - 1,
-                int(
-                    getattr(
-                        mesh,
-                        "active_lod_index",
-                        getattr(mesh, "displayed_lod_index", 0),
-                    )
-                    or 0
-                ),
-            ),
-        )
-    except (TypeError, ValueError, OverflowError):
-        lod_index = 0
-    submeshes = lods[lod_index]
-    if (
-        not isinstance(rows, Sequence)
-        or isinstance(rows, (str, bytes, bytearray))
-        or len(rows) != len(submeshes)
-    ):
-        raise RustMeshProtocolError(
-            "Vortice material-layer export did not match the active mesh parts"
-        )
-
-    overrides: dict[tuple[int, int, str], Path] = {}
-    seen_indices: set[int] = set()
-    encoded_dir = synthesis_root / "encoded-vortice-layers"
-    encoded_dir.mkdir(exist_ok=False)
-    cancellation_event = stop_event or threading.Event()
-    for row in rows:
-        if not isinstance(row, Mapping):
-            raise RustMeshProtocolError(
-                "Vortice material-layer export contains a malformed mesh-part row"
-            )
-        try:
-            submesh_index = int(row.get("submesh_index", -1))
-        except (TypeError, ValueError, OverflowError) as exc:
-            raise RustMeshProtocolError(
-                "Vortice material-layer export contains an invalid mesh-part index"
-            ) from exc
-        if (
-            submesh_index < 0
-            or submesh_index >= len(submeshes)
-            or submesh_index in seen_indices
-        ):
-            raise RustMeshProtocolError(
-                "Vortice material-layer export contains a repeated or out-of-range mesh part"
-            )
-        seen_indices.add(submesh_index)
-        expected_material = str(
-            getattr(submeshes[submesh_index], "material", "") or ""
-        ).strip()
-        actual_material = str(row.get("material_name", "") or "").strip()
-        if expected_material.casefold() != actual_material.casefold():
-            raise RustMeshProtocolError(
-                "Vortice material-layer export owner did not match the editable mesh part"
-            )
-        normal_y_policy = str(
-            row.get("normal_y_policy", "") or ""
-        ).strip().casefold()
-        if normal_y_policy not in {"preserve", "invert_green_for_directx"}:
-            raise RustMeshProtocolError(
-                "Vortice material-layer export has an incompatible normal-map Y policy"
-            )
-        synthesis_state.presentation_overrides.setdefault(
-            (lod_index, submesh_index), {}
-        )["normal_y_policy"] = normal_y_policy
-
-        for field_name, texture_role, encode_channel in (
-            ("base", "base_color", "base"),
-            ("surface", "material", "material_mask"),
-        ):
-            entry = row.get(field_name)
-            if entry is None:
-                continue
-            if not isinstance(entry, Mapping):
-                raise RustMeshProtocolError(
-                    f"Vortice {field_name} layer export entry is malformed"
-                )
-            semantic = str(entry.get("semantic", "") or "").strip().casefold()
-            color_space = str(entry.get("color_space", "") or "").strip().casefold()
-            if field_name == "base":
-                if semantic not in {"base", "base_color", "albedo", "diffuse"} or color_space != "srgb":
-                    raise RustMeshProtocolError(
-                        "Vortice base layer export has an incompatible color contract"
-                    )
-            else:
-                packed = entry.get("packed_channels", {})
-                if (
-                    semantic != "packed_surface"
-                    or color_space != "linear"
-                    or not isinstance(packed, Mapping)
-                    or str(packed.get("g", "") or "").casefold() != "roughness"
-                    or str(packed.get("b", "") or "").casefold() != "metalness"
-                    or entry.get("transforms_baked") is not True
-                    or str(entry.get("surface_transform_contract", "") or "")
-                    != _RUST_LAYER_SURFACE_TRANSFORM_CONTRACT
-                    or entry.get("surface_transform_version") != 1
-                    or str(entry.get("surface_transform_scope", "") or "")
-                    != "material_parameters_pre_presentation"
-                ):
-                    raise RustMeshProtocolError(
-                        "Vortice surface layer export has an incompatible packed-channel contract"
-                    )
-            source = _rust_material_layer_export_path(
-                export_root,
-                entry,
-                role=field_name,
-                stop_event=stop_event,
-            )
-            encoded = encoded_dir / (
-                f"lod-{lod_index:04d}-material-{submesh_index:04d}-{encode_channel}.dds"
-            )
-            try:
-                _encode_rust_preview_dds(
-                    source,
-                    encoded,
-                    encode_channel,
-                    cancellation_event,
-                    synthesis_state,
-                    **(
-                        {"source_color_policy": "assume_srgb"}
-                        if field_name == "base"
-                        else {"source_color_policy": "ignore_srgb_metadata"}
-                    ),
-                )
-            except RunCancelled as exc:
-                raise RustMeshCancellationError(
-                    "Rust Mesh texture preparation was cancelled"
-                ) from exc
-            except Exception as exc:
-                raise RustMeshProtocolError(
-                    f"Rust Mesh could not encode the exact Vortice {field_name} layer composite"
-                ) from exc
-            overrides[(lod_index, submesh_index, texture_role)] = encoded
-            synthesis_state.generated_binding_count += 1
-    if seen_indices != set(range(len(submeshes))):
-        raise RustMeshProtocolError(
-            "Vortice material-layer export omitted an editable mesh part"
-        )
-    _validate_rust_material_synthesis_tree(
-        synthesis_root,
-        expected_root_identity,
-    )
-    return overrides
-
-
 def _rust_exact_direct_fallback_overrides(
     row: Mapping[str, object],
     source_submesh: object,
@@ -4907,7 +4512,7 @@ def _mesh_synthesized_texture_overrides(
                     role in _RUST_PACKED_SURFACE_COMPONENT_ROLES
                     and (lod_index, submesh_index, "material") in protected_keys
                 ):
-                    # The Vortice compositor already supplied exact packed G/B
+                    # The shared material combiner already supplied exact packed G/B
                     # roughness/metalness for this owner.  Separate maps would
                     # override those baked channels in the Rust shader.
                     continue
@@ -5095,7 +4700,7 @@ def _mesh_texture_payloads(
     stop_event: threading.Event | None = None,
     synthesis_state: _RustMaterialSynthesisState | None = None,
     material_package_path: object = "",
-    dotnet_executable_configured: object = "",
+    preview_texture_overrides: Mapping[tuple[int, int, str], Path] | None = None,
 ) -> list[dict[str, object]]:
     lods = _mesh_lods(mesh)
     material_synthesis = synthesis_state or _RustMaterialSynthesisState()
@@ -5126,7 +4731,9 @@ def _mesh_texture_payloads(
         else nullcontext(None)
     )
     with synthesis_context as synthesis_temporary:
-        synthesized: dict[tuple[int, int, str], Path] = {}
+        synthesized: dict[tuple[int, int, str], Path] = dict(
+            preview_texture_overrides or {}
+        )
         if synthesis_temporary is not None:
             synthesis_root = Path(synthesis_temporary).resolve()
             synthesis_identity = _session_root_identity(synthesis_root)
@@ -5134,8 +4741,7 @@ def _mesh_texture_payloads(
                 # Rust preparation is self-contained. The complete PAC/PAC_XML
                 # graph and shared CDMW material combiner retain dye colours,
                 # layer ordering, masks, and material response without launching
-                # the Vortice helper as a hidden compositor process.
-                synthesized = {}
+                # a hidden renderer process.
                 canonical = _mesh_synthesized_texture_overrides(
                     mesh,
                     synthesis_root,
@@ -5209,7 +4815,7 @@ def _mesh_texture_payloads(
                         role in {"roughness", "metalness"}
                         and (lod_index, submesh_index, "material") in synthesized
                     ):
-                        # The exact Vortice packed surface already owns G/B for
+                        # The exact packed surface already owns G/B for
                         # this part.  Publishing raw scalar guesses as separate
                         # roles would overwrite those authoritative channels in
                         # the Rust shader.
@@ -5607,7 +5213,7 @@ def _mesh_material_presentations(
     *,
     generated_overrides: Mapping[tuple[int, int], Mapping[str, object]] | None = None,
 ) -> list[dict[str, object]]:
-    """Translate the live Archive/Vortice material contract for Rust.
+    """Translate the live Archive Preview material contract for Rust.
 
     Rows are deliberately local to one LOD/material range.  Asking the shared
     translator for a non-replacement role makes its indices local and avoids
@@ -6736,7 +6342,6 @@ class RustMeshAuthoringSession:
     texture_resource_count: int = 0
     texture_unavailable_reason: str = ""
     material_package_path: str = ""
-    dotnet_executable_configured: str = ""
     authoritative_morph_root: Path | None = None
     morph_profile_base_fingerprint: str = ""
     acknowledged_morph_profile_fingerprint: str = ""
@@ -6933,19 +6538,6 @@ class RustMeshAuthoringSession:
                 material_package_path=str(
                     getattr(preview_context, "material_package_path", "") or ""
                 ).strip(),
-                dotnet_executable_configured=(
-                    str(
-                        authoritative_service.settings.value(
-                            "mesh_editor/dotnet_experiment_executable",
-                            "",
-                        )
-                        or ""
-                    ).strip()
-                    if callable(
-                        getattr(authoritative_service.settings, "value", None)
-                    )
-                    else ""
-                ),
                 authoritative_morph_root=authoritative_morph_root,
                 morph_profile_base_fingerprint=morph_profile_base_fingerprint,
                 acknowledged_morph_profile_fingerprint=morph_profile_base_fingerprint,
@@ -7464,7 +7056,6 @@ class RustMeshAuthoringSession:
             stop_event=stop_event,
             synthesis_state=material_synthesis,
             material_package_path=self.material_package_path,
-            dotnet_executable_configured=self.dotnet_executable_configured,
         )
         material_presentations = _mesh_material_presentations(
             mesh,

@@ -34,12 +34,12 @@ from cdmw.services.preview_rendering_service import (
     NativePreviewCoreAttempt,
     run_native_preview_core_preview_job,
 )
-from cdmw.services.mesh_dotnet_preview_package import (
-    build_or_lookup_dotnet_preview_package,
-    build_or_lookup_dotnet_preview_package_from_model,
+from cdmw.services.mesh_rust_preview_cache import (
+    build_or_lookup_rust_preview_package as build_or_lookup_dotnet_preview_package,
+    build_or_lookup_rust_preview_package_from_model as build_or_lookup_dotnet_preview_package_from_model,
 )
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
-from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
+from cdmw.ui.preview import DotNetPreviewProfile, RustPreviewHostFrame
 from cdmw.ui.shell.theme_controller import build_monospace_font, read_log_text_style, read_text_color_scheme
 from cdmw.ui.widgets import (
     ArchiveDetailsEditor,
@@ -163,7 +163,7 @@ class ArchiveReferencePreviewMixin:
         preview_info_edit.set_color_scheme(preview_color_scheme)
         preview_model = NativePreviewPanel("No model preview available.", theme_key=self.current_theme_key)
         self._configure_model_preview_widget(preview_model, apply_toggle_defaults=True)
-        preview_d3d11_host = DotNetPreviewHostFrame(
+        preview_d3d11_host = RustPreviewHostFrame(
             dialog,
             profile=DotNetPreviewProfile.PREVIEW,
             terminate_on_close=True,
@@ -172,7 +172,7 @@ class ArchiveReferencePreviewMixin:
         preview_media = MediaPreviewWidget("No media preview available.", theme_key=self.current_theme_key)
         preview_stack.addWidget(preview_scroll)
         # Retained off-stack as a data/settings compatibility adapter.  Model
-        # pixels are rendered only by the resident .NET/Vortice host.
+        # pixels are rendered only by the resident Rust Preview host.
         preview_model.setVisible(False)
         preview_stack.addWidget(preview_d3d11_host)
         preview_stack.addWidget(preview_media)
@@ -320,7 +320,7 @@ class ArchiveReferencePreviewMixin:
             package_dir = Path(package_text)
             if not preview_d3d11_host.load_package(package_dir, reset_view=True):
                 _append_reference_d3d11_status(
-                    ".NET/Vortice reference preview rejected the canonical package."
+                    "Rust Preview reference preview rejected the canonical package."
                 )
                 preview_stack.setCurrentWidget(preview_info_edit)
                 _update_reference_preview_text_tools_visibility()
@@ -631,8 +631,8 @@ class ArchiveReferencePreviewMixin:
                     diagnostics["dotnet_preview_package_path"] = str(dotnet_package.package_dir)
                     notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
                     native_detail_lines = [
-                        "Preview Core decoded the referenced model for .NET/Vortice Preview.",
-                        ".NET/Vortice package source: canonical Preview Core decode",
+                        "Preview Core decoded the referenced model for Rust Preview.",
+                        "Rust Preview package source: canonical Preview Core decode",
                         native_line,
                     ]
                     if notes:
@@ -641,7 +641,7 @@ class ArchiveReferencePreviewMixin:
                     return ArchivePreviewResult(
                         status="ok",
                         title=resolved_entry.basename,
-                        metadata_summary=f"{build_archive_entry_metadata_summary(resolved_entry)} | .NET/Vortice preview package",
+                        metadata_summary=f"{build_archive_entry_metadata_summary(resolved_entry)} | Rust Preview preview package",
                         detail_text=detail_text,
                         preview_model=None,
                         asset_family_graph=build_archive_asset_family_graph(resolved_entry, ()),
@@ -656,7 +656,7 @@ class ArchiveReferencePreviewMixin:
                     detail_text="\n".join(
                         part
                         for part in (
-                            "Preview Core did not generate a canonical .NET/Vortice package.",
+                            "Preview Core did not generate a canonical Rust Preview package.",
                             "The legacy renderer is not used as a fallback.",
                             native_line,
                             f"Native failure reason: {native_attempt.fallback_reason}",

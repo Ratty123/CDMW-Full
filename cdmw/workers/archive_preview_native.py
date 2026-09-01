@@ -39,7 +39,9 @@ from cdmw.rendering.dotnet_preview_package_cache import (
     release_dotnet_preview_package_staging_dir,
     store_dotnet_preview_package_cache,
 )
-from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package
+from cdmw.services.mesh_rust_preview_cache import (
+    build_or_lookup_rust_preview_package,
+)
 
 
 NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS = {".pac", ".pam", ".pamlod"}
@@ -685,14 +687,14 @@ class ArchivePreviewNativeMixin:
             return self._native_preview_core_failure_result(
                 NativePreviewCoreAttempt(
                     status="error",
-                    fallback_reason=".NET/Vortice preview cache root unavailable",
+                    fallback_reason="Rust Preview preview cache root unavailable",
                     diagnostics=dict(native_attempt.diagnostics),
                     elapsed_ms=native_attempt.elapsed_ms,
                 ),
                 timings,
             )
         try:
-            dotnet_package = build_or_lookup_dotnet_preview_package(
+            rust_package = build_or_lookup_rust_preview_package(
                 native_attempt.package_path,
                 cache_root=Path(cache_root),
                 archive_identity=(
@@ -713,11 +715,11 @@ class ArchivePreviewNativeMixin:
             raise
         except Exception as exc:
             diagnostics = dict(native_attempt.diagnostics)
-            diagnostics["dotnet_preview_package_error"] = str(exc)
+            diagnostics["rust_preview_package_error"] = str(exc)
             return self._native_preview_core_failure_result(
                 NativePreviewCoreAttempt(
                     status="error",
-                    fallback_reason=f"canonical .NET preview package generation failed: {exc}",
+                    fallback_reason=f"canonical Rust preview package generation failed: {exc}",
                     diagnostics=diagnostics,
                     elapsed_ms=native_attempt.elapsed_ms,
                 ),
@@ -727,7 +729,7 @@ class ArchivePreviewNativeMixin:
             self._native_preview_core_manifest_metadata(native_attempt.package_path)
         )
         diagnostics = dict(native_attempt.diagnostics)
-        diagnostics["dotnet_preview_package_path"] = str(dotnet_package.package_dir)
+        diagnostics["rust_preview_package_path"] = str(rust_package.package_dir)
         notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
         appearance_notes = tuple(
             str(note) for note in tuple(diagnostics.get("character_appearance_notes", ()) or ()) if str(note).strip()
@@ -748,8 +750,8 @@ class ArchivePreviewNativeMixin:
             if str(note).strip()
         )
         diagnostic_lines = [
-            "Preview Core decoded the archive model for the canonical .NET/Vortice preview package.",
-            ".NET/Vortice package source: canonical Preview Core decode",
+            "Preview Core decoded the archive model for the canonical Rust Preview preview package.",
+            "Rust Preview package source: canonical Preview Core decode",
             native_attempt.diagnostic_line(),
             (
                 "Native Material Quality: "
@@ -789,7 +791,7 @@ class ArchivePreviewNativeMixin:
             preview_model=None,
             model_texture_references=model_texture_references,
             asset_family_graph=asset_family_graph,
-            dotnet_preview_package_path=str(dotnet_package.package_dir),
+            dotnet_preview_package_path=str(rust_package.package_dir),
             native_preview_diagnostics=diagnostics,
             preferred_view="model",
             sidecar_generation=self.sidecar_generation,
@@ -804,13 +806,13 @@ class ArchivePreviewNativeMixin:
         metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
         reason = str(
             getattr(native_attempt, "fallback_reason", "")
-            or "native Preview Core did not produce a .NET/Vortice package"
+            or "native Preview Core did not produce a Rust Preview package"
         )
         detail_text = "\n".join(
             part
             for part in (
-                "Preview Core did not produce a canonical .NET/Vortice preview package.",
-                "The legacy renderer is not used as a fallback; the .NET/Vortice preview will retry.",
+                "Preview Core did not produce a canonical Rust Preview preview package.",
+                "The legacy renderer is not used as a fallback; the Rust Preview preview will retry.",
                 native_attempt.diagnostic_line(),
                 f"Native failure reason: {reason}",
             )

@@ -1,4 +1,4 @@
-"""Part visibility controls for .NET/Vortice archive previews."""
+"""Part visibility controls for Rust Preview archive previews."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Dict, List, Mapping, Optional
 
 
 class ArchivePreviewD3D11PartsMixin:
-    """Menu helpers for toggling source submeshes in the .NET/Vortice preview host."""
+    """Menu helpers for toggling source submeshes in the Rust Preview preview host."""
 
     @staticmethod
     def _archive_d3d11_prefab_component_path_key(path_value: object) -> str:
@@ -214,7 +214,7 @@ class ArchivePreviewD3D11PartsMixin:
                     if prefab_component and not source_indices
                     else model_path
                 )
-                or ".NET/Vortice preview component"
+                or "Rust Preview preview component"
             )
             action.setStatusTip(model_path or "")
             action.setData(list(source_indices))

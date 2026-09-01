@@ -41,14 +41,14 @@ from cdmw.rendering.model_preview_prepare import prepare_model_preview
 from cdmw.rendering.static_model_thumbnail import render_static_model_thumbnail_image
 from cdmw.workers.archive_preview_native import ArchivePreviewNativeMixin, NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
 from cdmw.rendering.dotnet_preview_package_cache import (
-    dotnet_preview_package_derived_cache_root,
     lookup_dotnet_preview_package_cache,
 )
-from cdmw.services.mesh_dotnet_preview_package import (
-    build_or_lookup_dotnet_preview_package_from_model,
-    dotnet_preview_package_cache_key,
-    lookup_dotnet_preview_package_from_model_identity,
-    validate_dotnet_preview_package,
+from cdmw.services.mesh_rust_preview_cache import (
+    build_or_lookup_rust_preview_package_from_model,
+    lookup_rust_preview_package_from_model_identity,
+    rust_preview_package_cache_key,
+    rust_preview_package_cache_root,
+    validate_rust_preview_cache_package,
 )
 
 
@@ -304,7 +304,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             return None
         dotnet_package_path = str(getattr(cached, "dotnet_preview_package_path", "") or "").strip()
         if dotnet_package_path:
-            valid_package, _missing = validate_dotnet_preview_package(Path(dotnet_package_path))
+            valid_package, _missing = validate_rust_preview_cache_package(Path(dotnet_package_path))
             if not valid_package:
                 return None
         result = self._attach_cached_preview_payload_images(cached)
@@ -340,15 +340,15 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             return None
         if not isinstance(source_manifest, Mapping):
             return None
-        dotnet_cache_key = dotnet_preview_package_cache_key(
+        rust_cache_key = rust_preview_package_cache_key(
             cache_key,
             sidecar_generation=self.sidecar_generation,
             source_manifest=source_manifest,
         )
         dotnet_hit = lookup_dotnet_preview_package_cache(
-            dotnet_preview_package_derived_cache_root(cache_root),
-            dotnet_cache_key,
-            validate_package=validate_dotnet_preview_package,
+            rust_preview_package_cache_root(cache_root),
+            rust_cache_key,
+            validate_package=validate_rust_preview_cache_package,
         )
         if dotnet_hit is None:
             return None
@@ -362,8 +362,8 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             str(note) for note in tuple(diagnostics.get("character_appearance_notes", ()) or ()) if str(note).strip()
         )
         detail_lines = [
-            "Loaded a validated durable .NET/Vortice preview package.",
-            ".NET/Vortice package source: canonical derived cache",
+            "Loaded a validated durable Rust Preview preview package.",
+            "Rust Preview package source: canonical derived cache",
             f"Package: {dotnet_hit.package_dir}",
             "Warm selection reused resident-ready package artifacts without rebuilding the archive decode.",
         ]
@@ -382,7 +382,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         )
         return _ArchivePreviewWorkerPayload(
             result=result,
-            source="dotnet_package_cache",
+            source="rust_preview_package_cache",
             cache_key=self.full_preview_cache_key,
             cacheable=True,
         )
@@ -395,7 +395,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         cache_mode = str(self.native_preview_package_cache_mode or "off").strip().lower()
         if cache_root is None or cache_mode == "off" or not cache_key:
             return None
-        package = lookup_dotnet_preview_package_from_model_identity(
+        package = lookup_rust_preview_package_from_model_identity(
             cache_root=Path(cache_root),
             archive_identity=cache_key,
             sidecar_generation=self.sidecar_generation,
@@ -409,7 +409,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             metadata_summary=f"{build_archive_entry_metadata_summary(self.entry)} | cached preview package",
             detail_text="\n".join(
                 (
-                    "Loaded a validated durable .NET/Vortice preview package.",
+                    "Loaded a validated durable Rust Preview preview package.",
                     f"Package: {package.package_dir}",
                     "Warm selection reused resident-ready package artifacts without rebuilding the archive decode.",
                 )
@@ -614,12 +614,12 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                         preview_model=None,
                         prepared_preview_model=None,
                         preferred_view="details",
-                        warning_badge=".NET/Vortice package unavailable",
+                        warning_badge="Rust Preview package unavailable",
                         warning_text="The canonical preview cache root is unavailable.",
                     )
                 else:
                     try:
-                        dotnet_package = build_or_lookup_dotnet_preview_package_from_model(
+                        rust_package = build_or_lookup_rust_preview_package_from_model(
                             prepared_model,
                             cache_root=Path(cache_root),
                             archive_identity=(
@@ -639,7 +639,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                         )
                         payload = dataclasses.replace(
                             payload,
-                            dotnet_preview_package_path=str(dotnet_package.package_dir),
+                            dotnet_preview_package_path=str(rust_package.package_dir),
                             preferred_view="model",
                         )
                     except RunCancelled:
@@ -651,11 +651,11 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                             preview_model=None,
                             prepared_preview_model=None,
                             preferred_view="details",
-                            warning_badge=".NET/Vortice package failed",
+                            warning_badge="Rust Preview package failed",
                             warning_text=str(exc),
                             detail_text=(
                                 f"{str(getattr(payload, 'detail_text', '') or '').rstrip()}\n\n"
-                                f"Canonical .NET/Vortice package generation failed: {exc}"
+                                f"Canonical Rust Preview package generation failed: {exc}"
                             ).strip(),
                         )
         timings["prepared_model_s"] = max(0.0, float(time.perf_counter() - prepared_model_started_at))

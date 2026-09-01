@@ -104,44 +104,38 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
 
     assert '[string]$Mode = "onefile"' in source
     assert '[string]$BuildProfile = "release"' in source
-    assert "--self-contained true" in source
-    assert "--self-contained false" not in source
-    assert "-p:PublishSingleFile=true" in source
-    assert "-p:PublishTrimmed=false" in source
+    assert "--self-contained true" in archive_backend_source
+    assert "--self-contained false" not in archive_backend_source
+    assert "-p:PublishSingleFile=false" in archive_backend_source
+    assert "-p:PublishTrimmed=false" in archive_backend_source
     assert "scripts\\verify_release_dependencies.py" in source
     assert "scripts\\generate_window_feature_provider_members.py" in source
     assert "scripts\\generate_ui_localization_manifest.py" in source
     assert "scripts\\validate_ui_localization_catalogs.py" in source
     assert "constraints-release.txt" in source
     assert "scripts\\verify_packaged_startup.ps1" in source
-    assert 'Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $exePath -Context "published"' in source
-    assert 'Invoke-DotNetMeshEditorProvenanceCheck -ExecutablePath $exePath -Context "published"' in source
+    assert 'function Invoke-RustMeshEditorBuild' in source
+    assert '$cargoArguments = @("build", "--locked", "-p", "cdmw_mesh_lab")' in source
+    assert 'Assert-RustMeshEditorControlContract -RustContract $contract' in source
     assert "function Test-OnedirTextureBackend" in source
     assert "function Test-OnefileTextureBackend" in source
     assert 'Invoke-TextureBackendSelfTest -ExecutablePath $helperPath -Context "packaged onedir"' in source
     assert "CArchiveReader" in source
     assert '[str(helper_path), "self-test"]' in source
-    assert 'cdmw-mesh-dotnet-editor.manifest.json' in source
-    assert 'executable_sha256 = $exeHash' in source
-    assert 'shader_sha256 = $shaderHash' in source
-    assert 'native_abi = $nativeAbi' in source
-    assert 'library_path = [IO.Path]::GetFullPath($nativeAbiOutputPath)' in source
-    assert 'function Get-NativeMeshInteractionAbiContract' in source
-    assert 'helper provenance does not report the required native mesh interaction ABI' in source
-    # The manifest capabilities are read out of HelperBuildProvenance.cs, not
-    # restated here. This guard used to require the literals and carried its own
-    # stale copy of them, so it passed while the build script was missing the
-    # capability that failed the release build.
-    # tests/test_dotnet_helper_manifest_contract.py covers the derivation itself.
-    assert "function Get-DotNetMeshEditorHelperContract" in source
-    assert "$helperContract = Get-DotNetMeshEditorHelperContract" in source
-    assert "capabilities = $protocolCapabilities" in source
-    assert 'Stage "Reading .NET helper protocol contract"' in source
-    assert 'Start-Process -FilePath $ExecutablePath' in source
-    packaged_smoke = 'Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"'
-    assert packaged_smoke in source
-    assert 'Invoke-DotNetMeshEditorProvenanceCheck -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"' in source
-    assert '$Mode -eq "onedir"' in source
+    assert 'cdmw_mesh_lab.manifest.json' in source
+    assert 'cdmw_mesh_lab.control-contract.json' in source
+    assert 'executable_sha256 = Get-Sha256Hex -LiteralPath $stagedExecutable' in source
+    assert 'control_contract_sha256 = Get-Sha256Hex -LiteralPath $controlContractPath' in source
+    assert 'preview_protocol = "cdmw_rust_preview_protocol_v1"' in source
+    assert 'preview_package = "cdmw_rust_preview_package_v1"' in source
+    assert 'preview_backend = "cdmw_rust_preview_0.1"' in source
+    assert 'capabilities = @("embedded_child_window_v1", "rust_preview_runtime_v1")' in source
+    assert '"resident_preview_package_replace_v2"' in source
+    assert '"static_replacement_mesh_input_v1"' in source
+    assert 'Start-Process -FilePath $stagedExecutable' in source
+    assert "dotnet_mesh_editor_experiment" not in source
+    assert "cdmw-mesh-dotnet-editor" not in source
+    assert "D3D11MaterialShaders.hlsl" not in source
     describe_only_return = 'if ($DescribeOnly) {\n    return\n}'
     metadata_refresh = 'Stage "Refreshing generated feature metadata"'
     metadata_check = 'Stage "Verifying generated feature metadata"'
@@ -155,13 +149,16 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert "& $pythonExe $localizationManifestGenerator --check" in source
     assert "& $pythonExe $localizationCatalogValidator" in source
     texture_backend_stage = 'Stage "Verifying packaged native texture backend"'
-    assert source.index(texture_backend_stage) < source.index(packaged_smoke)
     assert source.index(texture_backend_stage) < source.index('Stage "Verifying packaged startup"')
-    assert source.index(packaged_smoke) < source.index('Stage "Verifying packaged startup"')
     assert source.index("Verifying packaged startup") < source.index("Publishing build output")
     assert source.index("generate_window_feature_provider_members.py") < source.index("Starting PyInstaller")
     assert 'NATIVE_CONFIGURATION = "Debug" if PROFILE == "debug" else "Release"' in spec_source
-    assert 'native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}/D3D11MaterialShaders.hlsl' in spec_source
+    assert 'rust_mesh_editor_stage = f"native/rust_mesh_editor/build/{NATIVE_CONFIGURATION}"' in spec_source
+    assert 'f"{rust_mesh_editor_stage}/cdmw_mesh_lab.exe"' in spec_source
+    assert '"cdmw_mesh_lab.manifest.json"' in spec_source
+    assert '"cdmw_mesh_lab.control-contract.json"' in spec_source
+    assert '"cdmw-mesh-dotnet-editor.exe"' in spec_source
+    assert 'leaf.startswith("vortice.") and leaf.endswith(".dll")' in spec_source
     assert 'native/cdmw_full_archive_backend/build/{NATIVE_CONFIGURATION}' in spec_source
     assert '"archive_backend"' in spec_source
     assert '"cdmw/resources/localization"' in spec_source
@@ -258,7 +255,10 @@ def test_release_spec_collects_all_app_submodules_for_lazy_facades() -> None:
     assert {provider.module_name for provider in providers} <= collected
     source = SPEC.read_text(encoding="utf-8")
     assert "from PyInstaller.utils.hooks import collect_all, collect_submodules" in source
-    assert 'hiddenimports += collect_submodules("cdmw")' in source
+    assert 'hiddenimports += collect_submodules("cdmw", filter=_should_collect_cdmw_submodule)' in source
+    assert '"cdmw.services.mesh_dotnet_experiment"' in source
+    assert '"cdmw.services.mesh_dotnet_runtime_status"' in source
+    assert "Retired Vortice preview payload was collected" in source
 
 
 def test_windows_workflow_gates_packaging_on_both_headless_python_releases() -> None:
@@ -297,18 +297,12 @@ def test_windows_workflow_keeps_ordinary_main_pushes_fast() -> None:
     """A normal push must not spend an hour rerunning release-grade QA."""
 
     source = WORKFLOW.read_text(encoding="utf-8")
-    helper_start = source.index("- name: Build the Mesh Editor helper for canonical QA")
     fast_start = source.index("- name: Run fast main-push validation")
     canonical_start = source.index("- name: Run canonical nonvisual QA")
     package_start = source.index("  package:", canonical_start)
-    helper_step = source[helper_start:fast_start]
     fast_step = source[fast_start:canonical_start]
     canonical_step = source[canonical_start:package_start]
 
-    assert (
-        "if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')"
-        in helper_step
-    )
     assert "if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')" in fast_step
     assert "codex_check.ps1 -Area smoke" in fast_step
     assert "codex_check.ps1 -Area mesh-contract" in fast_step
@@ -324,6 +318,9 @@ def test_windows_workflow_keeps_ordinary_main_pushes_fast() -> None:
     assert "$nativeAccessViolation" not in canonical_step
     assert "for ($attempt = 1; $attempt -le 3; $attempt++)" not in canonical_step
     assert "retrying the same full one-process suite" not in canonical_step
+    assert "dotnet_mesh_editor_experiment" not in source
+    assert "cdmw-mesh-dotnet-editor" not in source
+    assert "D3D11MaterialShaders.hlsl" not in source
 
 
 def test_codex_check_keeps_smoke_build_free_and_splits_mesh_contracts() -> None:
@@ -338,13 +335,17 @@ def test_codex_check_keeps_smoke_build_free_and_splits_mesh_contracts() -> None:
     smoke = source[smoke_start:smoke_end]
     contract = source[contract_start:contract_end]
     native = source[native_start:native_end]
-    assert "test_dotnet_resident_mutation_batch_contract.py" not in smoke
-    assert "test_dotnet_resident_mutation_batch_contract.py" in contract
-    assert "test_dotnet_mesh_editor_control_contract.py" in contract
+    assert "test_rust_preview_production_cutover.py" not in smoke
+    assert "test_mesh_rust_archive_texture_launch.py" in contract
+    assert "test_mesh_rust_embedding.py" in contract
+    assert "test_rust_mesh_editor_control_contract.py" in contract
+    assert "test_rust_preview_production_cutover.py" in contract
     assert "test_native_mesh_interaction_abi.py" in native
-    assert "test_dotnet_native_mesh_interaction_abi.py" in native
-    assert '$NeedsDotNetHelper = $Area -in @("mesh-contract", "mesh-native", "mesh-unit")' in source
-    assert '$NeedsMeshCore = $Area -in @("mesh-native", "mesh-unit")' in source
+    assert "test_mesh_native_operation_coverage.py" in native
+    assert "test_dotnet_resident_mutation_batch_contract.py" not in source
+    assert "test_dotnet_mesh_editor_control_contract.py" not in source
+    assert "test_dotnet_native_mesh_interaction_abi.py" not in source
+    assert "$NeedsDotNetHelper" not in source
     assert '$Area -in @("smoke", "mesh-unit")' not in source
 
 
@@ -400,12 +401,19 @@ def test_packaged_startup_result_readback_requires_post_construction(tmp_path: P
             "edit_backend": "cdmw_rust_mesh_0.1",
             "protocol": "cdmw_rust_mesh_editor_protocol_v1",
             "authoring_package": "cdmw_rust_mesh_authoring_package_v1",
+            "preview_protocol": "cdmw_rust_preview_protocol_v1",
+            "preview_package": "cdmw_rust_preview_package_v1",
+            "preview_backend": "cdmw_rust_preview_0.1",
             "build_profile": "release",
             "locked_dependencies": True,
             "executable": "cdmw_mesh_lab.exe",
             "control_contract": "cdmw_mesh_lab.control-contract.json",
             "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
-            "capabilities": ["embedded_child_window_v1"],
+            "capabilities": ["embedded_child_window_v1", "rust_preview_runtime_v1"],
+            "preview_capabilities": [
+                "resident_preview_package_replace_v2",
+                "static_replacement_mesh_input_v1",
+            ],
             "source_revision": "c" * 40,
             "source_tree_sha256": "d" * 64,
             "cargo_lock_sha256": "e" * 64,

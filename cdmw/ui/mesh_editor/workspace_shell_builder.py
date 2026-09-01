@@ -305,7 +305,7 @@ class WorkspaceShellBuilderMixin:
             "MeshEditorRigSkeletonButton",
             "Skeleton",
             "select_edge",
-            "Open Skeleton panel and refresh the .NET/Vortice skeleton overlay metadata.",
+            "Open Skeleton panel and refresh the Rust Preview skeleton overlay metadata.",
         )
         self.rig_skeleton_button.clicked.connect(self._request_skeleton_native_preview)
         layout.addWidget(self.rig_skeleton_button, row, 0)

@@ -140,7 +140,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "embedded_builder", lambda: bool(embedded_alignment_builder))
         _mesh_editor_diagnostics_append_safe_value_helper(
             lines,
-            "dotnet_host",
+            "rust_preview_host",
             lambda: str(getattr(getattr(alignment_d3d11_preview_host, 'controller', None), '_executable', '') or 'resolving'),
         )
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "preview_mode", lambda: str(_widget_value("preview_mode_combo", "currentData") or ""))
@@ -149,17 +149,17 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
             lines,
             "active_preview_backend",
             lambda: (
-                "dotnet_vortice"
+                "rust_preview"
                 if bool(getattr(dialog, "_mesh_editor_embedded_dotnet_active", False))
-                else "d3d11_vortice_shader"
+                else "rust_preview"
                 if bool(_callback_value("_alignment_d3d11_preview_active"))
                 else "none"
             ),
         )
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "render_diagnostic_mode", lambda: str(_widget_value("preview_render_mode_combo", "currentData") or ""))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "visible_texture_mode", lambda: str(_widget_value("preview_visible_mode_combo", "currentData") or ""))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "dotnet_vortice_active", lambda: bool(_callback_value("_alignment_d3d11_preview_active")))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "dotnet_vortice_status_label", lambda: _widget_value("alignment_d3d11_preview_status_label", "text"))
+        _mesh_editor_diagnostics_append_safe_value_helper(lines, "rust_preview_active", lambda: bool(_callback_value("_alignment_d3d11_preview_active")))
+        _mesh_editor_diagnostics_append_safe_value_helper(lines, "rust_preview_status_label", lambda: _widget_value("alignment_d3d11_preview_status_label", "text"))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "preview_timing_label", lambda: _widget_value("preview_performance_label", "text"))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_tab_active", _mesh_edit_tab_active)
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_enabled", _mesh_edit_enabled_checked)
@@ -171,7 +171,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "selected_source", _selected_source_index)
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "highlighted_sources", _highlighted_source_indices)
         lines.append("")
-        lines.append("Embedded .NET/Vortice state")
+        lines.append("Embedded Rust Preview state")
         current_dotnet_state = _embedded_dotnet_runtime_state()
         lines.append(json.dumps(current_dotnet_state, indent=2, sort_keys=True, default=str)[:16000])
         lines.append("")
@@ -201,7 +201,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         )
         lines.append(json.dumps(resolver_diagnostics, indent=2, sort_keys=True, default=str)[:24000])
         lines.append("")
-        lines.append(".NET/Vortice package state")
+        lines.append("Rust Preview package state")
         for key in (
             "request_id",
             "preview_loaded",
@@ -297,7 +297,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         lines.append("Active package manifest")
         lines.extend(_mesh_editor_diagnostics_manifest_lines(current_d3d11_state.get("active_package")))
         lines.append("")
-        lines.append("Latest .NET/Vortice protocol event")
+        lines.append("Latest Rust Preview protocol event")
         controller = getattr(alignment_d3d11_preview_host, "controller", None)
         latest_event = getattr(controller, "last_event", {}) if controller is not None else {}
         lines.append(json.dumps(dict(latest_event or {}), indent=2, sort_keys=True, default=str)[:12000])

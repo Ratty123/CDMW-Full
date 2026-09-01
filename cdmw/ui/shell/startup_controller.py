@@ -160,12 +160,6 @@ class StartupPromptMixin:
         if not self.isVisible():
             self.show()
             self._record_startup_prompt_event("main_window_shown")
-        if (
-            os.environ.get("CDMW_GUI_STARTUP_SMOKE") == "1"
-            and os.environ.get("CDMW_GUI_STARTUP_SMOKE_TARGET", "").strip().lower()
-            == "mesh_archive_textures"
-        ):
-            return
         try:
             self.raise_()
             self.activateWindow()

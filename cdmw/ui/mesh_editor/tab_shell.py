@@ -446,7 +446,7 @@ class MeshEditorTabShellMixin(
             "active": active,
             "renderer_backend": str(
                 renderer_status.get("backend")
-                or ("d3d11_vortice_shader" if active else "")
+                or ("wgpu_d3d12_rust" if active else "")
             ),
             "process": {
                 "attached": process is not None,
@@ -845,11 +845,11 @@ class MeshEditorTabShellMixin(
         if str(state) == "ready":
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("ready", active=True)
-            self._set_dotnet_status("Mesh Editor .NET/Vortice viewport ready.")
+            self._set_dotnet_status("Mesh Editor Rust Preview viewport ready.")
         elif str(state) == "error":
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
-            self._set_dotnet_status(str(message or ".NET/Vortice viewport failed."), error=True)
+            self._set_dotnet_status(str(message or "Rust Preview viewport failed."), error=True)
         elif str(state) == "package_error":
             has_resident_scene = bool(getattr(controller, "applied_package_path", ""))
             if self.standalone_dotnet_target_embedded:
@@ -860,9 +860,9 @@ class MeshEditorTabShellMixin(
             self._finish_pending_textured_view(
                 success=False,
                 reason="package_error",
-                status_text=str(message or ".NET/Vortice package update failed."),
+                status_text=str(message or "Rust Preview package update failed."),
             )
-            self._set_dotnet_status(str(message or ".NET/Vortice package update failed."), error=True)
+            self._set_dotnet_status(str(message or "Rust Preview package update failed."), error=True)
 
     def _rehydrate_shared_dotnet_controller(self, controller: object) -> bool:
         if controller is not self._active_shared_dotnet_controller():

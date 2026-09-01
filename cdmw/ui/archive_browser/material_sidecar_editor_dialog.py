@@ -66,8 +66,10 @@ from cdmw.ui.archive_browser.workflow_dependencies import (
     ArchiveWorkflowDependenciesUnavailable,
     archive_workflow_dependency_context,
 )
-from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
-from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
+from cdmw.services.mesh_rust_preview_cache import (
+    validate_rust_preview_cache_package as validate_dotnet_preview_package,
+)
+from cdmw.ui.preview import DotNetPreviewProfile, RustPreviewHostFrame
 
 
 def _material_editor_dependencies(owner: object, entry: ArchiveEntry):
@@ -163,7 +165,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
         preview_status_label.setObjectName("HintLabel")
         preview_status_label.setWordWrap(True)
         preview_layout.addWidget(preview_status_label)
-        material_preview_host = DotNetPreviewHostFrame(
+        material_preview_host = RustPreviewHostFrame(
             dialog,
             profile=DotNetPreviewProfile.PREVIEW,
             terminate_on_close=True,
@@ -453,7 +455,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             )
 
         material_preview_host.controller.state_changed.connect(
-            lambda _state, message: preview_status_label.setText(str(message or ".NET/Vortice Preview"))
+            lambda _state, message: preview_status_label.setText(str(message or "Rust Preview"))
         )
 
         def _launch_material_preview_package(
@@ -478,12 +480,12 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 material_preview_packages.append(package_dir)
             if not material_preview_host.load_package(package_dir, reset_view=bool(reset_view)):
                 preview_status_label.setText(
-                    ".NET/Vortice material preview rejected the canonical package."
+                    "Rust Preview material preview rejected the canonical package."
                 )
                 return False
             material_preview_host.set_render_tuning(_material_value_preview_render_settings())
             preview_status_label.setText(
-                f"{str(summary or '').strip()} | resident .NET/Vortice package requested".strip(" |")
+                f"{str(summary or '').strip()} | resident Rust Preview package requested".strip(" |")
             )
             return True
 

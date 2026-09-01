@@ -11,6 +11,9 @@ from pathlib import Path
 
 RUST_MESH_EDITOR_PROTOCOL = "cdmw_rust_mesh_editor_protocol_v1"
 RUST_MESH_AUTHORING_PACKAGE = "cdmw_rust_mesh_authoring_package_v1"
+RUST_PREVIEW_PROTOCOL = "cdmw_rust_preview_protocol_v1"
+RUST_PREVIEW_PACKAGE = "cdmw_rust_preview_package_v1"
+RUST_PREVIEW_BACKEND = "cdmw_rust_preview_0.1"
 RUST_MESH_CANDIDATE = "cdmw_rust_mesh_candidate_v1"
 RUST_MESH_RENDERER = "wgpu_d3d12_rust"
 RUST_MESH_EDIT_BACKEND = "cdmw_rust_mesh_0.1"
@@ -20,7 +23,30 @@ RUST_MESH_PROVENANCE_SCHEMA = "cdmw_rust_mesh_editor_build_provenance_v1"
 RUST_MESH_PROVENANCE_FILE = "cdmw_mesh_lab.manifest.json"
 RUST_MESH_CONTROL_CONTRACT_FILE = "cdmw_mesh_lab.control-contract.json"
 RUST_MESH_CONTROL_CONTRACT_SCHEMA = "cdmw_rust_mesh_editor_control_contract_v2"
-RUST_MESH_REQUIRED_CAPABILITIES = ("embedded_child_window_v1",)
+RUST_MESH_REQUIRED_CAPABILITIES = (
+    "embedded_child_window_v1",
+    "rust_preview_runtime_v1",
+)
+RUST_PREVIEW_REQUIRED_CAPABILITIES = (
+    "preview_profile_read_only_v1",
+    "preview_session_v1",
+    "resident_package_load_v1",
+    "resident_preview_package_replace_v2",
+    "absolute_camera_state_v1",
+    "view_state_changed_v1",
+    "viewport_display_modes_v1",
+    "read_only_part_pick_v1",
+    "overlay_state_update_v1",
+    "skeleton_overlay_v1",
+    "pbd_cloth_overlay_v1",
+    "deterministic_offscreen_capture_v1",
+    "comparison_scene_v1",
+    "alignment_preview_v1",
+    "static_replacement_mesh_input_v1",
+    "effect_particle_preview_v1",
+    "ui_theme_state_v1",
+    "ui_localization_v1",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,6 +243,9 @@ def validate_rust_mesh_editor_package(
         "edit_backend": RUST_MESH_EDIT_BACKEND,
         "protocol": RUST_MESH_EDITOR_PROTOCOL,
         "authoring_package": RUST_MESH_AUTHORING_PACKAGE,
+        "preview_protocol": RUST_PREVIEW_PROTOCOL,
+        "preview_package": RUST_PREVIEW_PACKAGE,
+        "preview_backend": RUST_PREVIEW_BACKEND,
         "control_contract": RUST_MESH_CONTROL_CONTRACT_FILE,
         "control_contract_schema": RUST_MESH_CONTROL_CONTRACT_SCHEMA,
     }
@@ -230,6 +259,11 @@ def validate_rust_mesh_editor_package(
         {str(value or "") for value in capabilities}
     ):
         return "Rust helper does not support embedded child windows"
+    preview_capabilities = payload.get("preview_capabilities", ())
+    if not isinstance(preview_capabilities, list) or not set(
+        RUST_PREVIEW_REQUIRED_CAPABILITIES
+    ).issubset({str(value or "") for value in preview_capabilities}):
+        return "Rust helper does not support the complete Archive Preview contract"
     expected_hash = str(payload.get("executable_sha256", "") or "").strip().lower()
     if len(expected_hash) != 64:
         return "Rust provenance executable hash is invalid"
@@ -280,6 +314,10 @@ __all__ = [
     "RUST_MESH_PROVENANCE_SCHEMA",
     "RUST_MESH_RENDERER",
     "RUST_MESH_REQUIRED_CAPABILITIES",
+    "RUST_PREVIEW_BACKEND",
+    "RUST_PREVIEW_PACKAGE",
+    "RUST_PREVIEW_PROTOCOL",
+    "RUST_PREVIEW_REQUIRED_CAPABILITIES",
     "RustMeshExecutableResolution",
     "resolve_rust_mesh_editor",
     "rust_mesh_editor_candidate_paths",

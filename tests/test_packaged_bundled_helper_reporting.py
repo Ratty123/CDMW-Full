@@ -27,6 +27,7 @@ from cdmw.services.bundled_helper_availability import (
     bundled_helper_resolution_snapshot,
     packaged_rust_mesh_editor_resolution_snapshot,
 )
+from cdmw.services.mesh_rust_contract import RUST_PREVIEW_REQUIRED_CAPABILITIES
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -46,24 +47,6 @@ def _run_gate(payload: dict[str, object]) -> subprocess.CompletedProcess[str]:
         f". '{VERIFY_SCRIPT}' -ExecutablePath 'unused-when-dot-sourced'; "
         "$payload = $env:CDMW_TEST_PAYLOAD | ConvertFrom-Json; "
         "Assert-PackagedBundledHelpers -Payload $payload"
-    )
-    return subprocess.run(
-        [powershell, "-NoProfile", "-NonInteractive", "-Command", script],
-        capture_output=True,
-        text=True,
-        timeout=120,
-        env={"CDMW_TEST_PAYLOAD": json.dumps(payload), "SystemRoot": r"C:\Windows", "PATH": ""},
-    )
-
-
-def _run_texture_gate(payload: dict[str, object]) -> subprocess.CompletedProcess[str]:
-    powershell = shutil.which("powershell") or shutil.which("pwsh")
-    if powershell is None:
-        raise unittest.SkipTest("PowerShell is not available")
-    script = (
-        f". '{VERIFY_SCRIPT}' -ExecutablePath 'unused-when-dot-sourced'; "
-        "$payload = $env:CDMW_TEST_PAYLOAD | ConvertFrom-Json; "
-        "Assert-PackagedMeshTextureEvidence -Payload $payload"
     )
     return subprocess.run(
         [powershell, "-NoProfile", "-NonInteractive", "-Command", script],
@@ -119,12 +102,16 @@ def _packaged_rust_editor_fixture(
             "edit_backend": "cdmw_rust_mesh_0.1",
             "protocol": "cdmw_rust_mesh_editor_protocol_v1",
             "authoring_package": "cdmw_rust_mesh_authoring_package_v1",
+            "preview_protocol": "cdmw_rust_preview_protocol_v1",
+            "preview_package": "cdmw_rust_preview_package_v1",
+            "preview_backend": "cdmw_rust_preview_0.1",
             "build_profile": "release",
             "locked_dependencies": True,
             "executable": "cdmw_mesh_lab.exe",
             "control_contract": "cdmw_mesh_lab.control-contract.json",
             "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
-            "capabilities": ["embedded_child_window_v1"],
+            "capabilities": ["embedded_child_window_v1", "rust_preview_runtime_v1"],
+            "preview_capabilities": list(RUST_PREVIEW_REQUIRED_CAPABILITIES),
             "source_revision": "c" * 40,
             "source_tree_sha256": "d" * 64,
             "cargo_lock_sha256": "e" * 64,
@@ -210,7 +197,7 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
 
         self.assertEqual(helpers, payload["bundled_helpers"])
 
-    def test_smoke_result_carries_independent_packaged_rust_editor_proof(self) -> None:
+    def test_smoke_result_carries_packaged_rust_runtime_and_preview_proof(self) -> None:
         rust_proof = _packaged_rust_editor_fixture()
         helpers = [{"key": "openimageio", "status": "available", "source": "bundled_lookup", "path": "x"}]
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -228,18 +215,19 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
                     stage="post_construction",
                     target="",
                     bundled_helpers=helpers,
-                    evidence={"helper": {"provenance": {"renderer_backend": "d3d11_vortice_shader"}}},
+                    evidence={
+                        "preview": {
+                            "protocol": "cdmw_rust_preview_protocol_v1",
+                            "renderer": "cdmw_rust_preview_0.1",
+                        }
+                    },
                 )
             payload = json.loads(result_path.read_text(encoding="utf-8"))
 
         self.assertEqual(rust_proof, payload["rust_mesh_editor"])
         self.assertEqual(
-            "d3d11_vortice_shader",
-            payload["evidence"]["helper"]["provenance"]["renderer_backend"],
-        )
-        self.assertNotEqual(
-            payload["rust_mesh_editor"]["provenance"]["renderer"],
-            payload["evidence"]["helper"]["provenance"]["renderer_backend"],
+            "cdmw_rust_preview_protocol_v1",
+            payload["evidence"]["preview"]["protocol"],
         )
 
     def test_smoke_result_omits_the_section_when_it_was_not_collected(self) -> None:
@@ -251,9 +239,9 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
 
         self.assertNotIn("bundled_helpers", payload)
 
-    def test_smoke_result_carries_packaged_texture_evidence(self) -> None:
+    def test_smoke_result_carries_generic_rust_preview_evidence(self) -> None:
         evidence = {
-            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v3",
+            "schema": "cdmw_rust_preview_capture_v1",
             "read_only": True,
         }
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -262,7 +250,7 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
                 write_gui_startup_smoke_result(
                     ok=True,
                     stage="post_construction",
-                    target="mesh_archive_textures",
+                    target="",
                     evidence=evidence,
                 )
             payload = json.loads(result_path.read_text(encoding="utf-8"))
@@ -411,166 +399,6 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
         unlocked = _run_rust_editor_gate({"rust_mesh_editor": unlocked_proof})
         self.assertNotEqual(0, unlocked.returncode)
         self.assertIn("locked Release wgpu/D3D12 Rust editor contract", unlocked.stderr)
-
-    def test_packaged_texture_gate_requires_current_real_controls_and_selection(self) -> None:
-        evidence = {
-            "schema": "cdmw_packaged_mesh_editor_controls_smoke_v3",
-            "read_only": True,
-            "archive_sources_unchanged": True,
-            "production_route": "MainWindow._launch_archive_mesh_editor_for_entry",
-            "actual_csharp_controls": True,
-            "global_mouse_input_used": False,
-            "physical_mouse_input": {
-                "gesture_count": 0,
-                "restore_failure_count": 0,
-                "active": False,
-            },
-            "model_path": "character/model/body.pac",
-            "helper": {
-                "path": "C:/app/Cdmw.MeshEditorExperiment.exe",
-                "sha256": "c" * 64,
-                "process_id": 777,
-                "capabilities": ["resident_interaction_abi_v1"],
-                "provenance": {
-                    "protocol_version": 3,
-                    "manifest_mode": "release_manifest",
-                    "manifest_id": "d" * 64,
-                    "source_revision": "e" * 40,
-                    "process_sha256": "c" * 64,
-                    "shader_sha256": "f" * 64,
-                    "renderer_backend": "d3d11_vortice_shader",
-                    "edit_backend": "cdmw_mesh_core_0.1",
-                    "native_abi": {
-                        "library_path": "C:/app/cdmw-mesh-core.dll",
-                        "library_sha256": "a" * 64,
-                        "abi_version": 1,
-                        "contract": "cdmw_mesh_interaction_abi_v1",
-                        "backend": "cdmw_mesh_core_0.1",
-                        "header_sha256": "b" * 64,
-                    },
-                },
-            },
-            "application": {
-                "frozen": True,
-                "executable_sha256": "def456",
-                "helper_inside_bundle_root": True,
-            },
-            "viewport_availability": {
-                "before_session": {"standalone_workspace_current": True, "host_visible": True},
-                "before_controls": {"owned": True, "visible": True, "nonzero": True},
-                "after_textured": {"visible": True, "nonzero": True},
-                "after_select": {"visible": True, "nonzero": True},
-                "after_grab_history": {"visible": True, "nonzero": True},
-                "after_close": {"standalone_workspace_current": True, "host_visible": True},
-            },
-            "control_continuity": {
-                "ok": True,
-                "actual_controls": True,
-                "case_count": 8,
-                "settlement_p95_ms": 12.0,
-                "cases": [{"stable": True} for _ in range(8)],
-            },
-            "solid_textured": {
-                "actual_controls": True,
-                "selected_mode": "textured",
-                "renderer_resources": {
-                    "display_mode": "textured",
-                    "textures_enabled": True,
-                    "live_texture_srvs": 3,
-                    "textured_draw_calls": 2,
-                    "draw_counter_source": "renderer.live_metrics.geometry_resources",
-                },
-            },
-            "select": {
-                "ok": True,
-                "actual_control": True,
-                "input_backend": "helper_ui_thread_resident_probe",
-                "global_mouse_input_used": False,
-                "overlay": {
-                    "counter_source": "renderer.live_metrics.geometry_resources",
-                    "committed_primitives_before": 0,
-                    "committed_primitives_after": 6,
-                },
-                "capture": {"ok": True},
-            },
-            "grab_undo_redo": {
-                "ok": True,
-                "actual_controls": True,
-                "gates": {
-                    "first_grab_changed_geometry": True,
-                    "first_grab_one_history_entry": True,
-                    "first_undo_restored_exact_baseline": True,
-                    "first_undo_restored_history_cursor": True,
-                    "grab_rearmed_after_undo": True,
-                    "second_grab_one_history_entry": True,
-                    "second_undo_restored_exact_baseline": True,
-                    "redo_restored_exact_second_commit": True,
-                    "redo_restored_history_cursor": True,
-                },
-            },
-            "grab_redo_capture": {"ok": True},
-            "resident_interactions": {
-                mode: _resident_interaction_fixture(tool, mode, tool_id)
-                for mode, tool, tool_id in (
-                    ("select", "Select", 1),
-                    ("move", "Move", 2),
-                    ("grab", "Grab", 3),
-                    ("smooth", "Smooth", 4),
-                    ("inflate", "Inflate", 5),
-                    ("pinch", "Pinch", 6),
-                )
-            },
-            "desktop_input": {
-                "ok": True,
-                "method": "helper_ui_thread_no_global_input",
-                "gesture_count": 0,
-                "restore_failure_count": 0,
-                "active": False,
-            },
-            "capture": {"ok": True},
-            "material_update": {"resource_count": 3, "resource_file_count": 3},
-            "material_failures": [],
-        }
-
-        accepted = _run_texture_gate({"evidence": evidence})
-        self.assertEqual(0, accepted.returncode, accepted.stderr)
-
-        evidence["helper"]["provenance"]["native_abi"]["library_sha256"] = ""
-        missing_native_hash = _run_texture_gate({"evidence": evidence})
-        self.assertNotEqual(0, missing_native_hash.returncode)
-        self.assertIn("native interaction ABI", missing_native_hash.stderr)
-        evidence["helper"]["provenance"]["native_abi"]["library_sha256"] = "a" * 64
-
-        evidence["select"]["overlay"]["committed_primitives_after"] = 0
-        no_highlight = _run_texture_gate({"evidence": evidence})
-        self.assertNotEqual(0, no_highlight.returncode)
-        self.assertIn("newly drawn committed selection highlight", no_highlight.stderr)
-        evidence["select"]["overlay"]["committed_primitives_after"] = 6
-
-        evidence["application"]["helper_inside_bundle_root"] = False
-        development_helper = _run_texture_gate({"evidence": evidence})
-        self.assertNotEqual(0, development_helper.returncode)
-        self.assertIn("helper outside that app's unpacked bundle", development_helper.stderr)
-        evidence["application"]["helper_inside_bundle_root"] = True
-
-        evidence["solid_textured"]["selected_mode"] = "untextured_faces"
-        rejected = _run_texture_gate({"evidence": evidence})
-        self.assertNotEqual(0, rejected.returncode)
-        self.assertIn("did not retain Solid (Textured)", rejected.stderr)
-
-        evidence["solid_textured"]["selected_mode"] = "textured"
-        evidence["grab_undo_redo"]["gates"]["grab_rearmed_after_undo"] = False
-        stuck_grab = _run_texture_gate({"evidence": evidence})
-        self.assertNotEqual(0, stuck_grab.returncode)
-        self.assertIn("Grab, Undo, Grab", stuck_grab.stderr)
-
-        evidence["grab_undo_redo"]["gates"]["grab_rearmed_after_undo"] = True
-        evidence["resident_interactions"]["pinch"]["gesture"][
-            "commit_v2_acknowledgement"
-        ]["target_revision"] = 99
-        mismatched_commit = _run_texture_gate({"evidence": evidence})
-        self.assertNotEqual(0, mismatched_commit.returncode)
-        self.assertIn("commit-v2 correlation field 'target_revision'", mismatched_commit.stderr)
 
     def test_packaged_resident_probe_requires_exact_commit_v2_correlation(self) -> None:
         from tools.mesh_harness.packaged_mesh_texture_smoke import (

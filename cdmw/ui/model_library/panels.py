@@ -600,7 +600,7 @@ def build_preview_panel(tab: object) -> QWidget:
     preview_layout = QVBoxLayout(preview_group)
     preview_layout.setContentsMargins(8, 8, 8, 8)
     preview_layout.setSpacing(6)
-    # The inline preview is drawn by the resident .NET/Vortice host, so these are
+    # The inline preview is drawn by the resident Rust Preview host, so these are
     # preparation settings only: no preview widget owns them.
     inline_render_settings = ModelPreviewRenderSettings()
     inline_render_settings.visible_texture_mode = "sidecar_visible_first"
@@ -642,7 +642,7 @@ def build_preview_panel(tab: object) -> QWidget:
     orientation_controls_layout.addStretch(1)
     preview_layout.addLayout(orientation_controls_layout)
     tab.inline_preview_status_label = QLabel(
-        "Local preview resolves glTF/GLB/OBJ/DAE textures into the shared .NET/Vortice renderer."
+        "Local preview resolves glTF/GLB/OBJ/DAE textures into the shared Rust Preview renderer."
     )
     tab.inline_preview_status_label.setObjectName("HintLabel")
     tab.inline_preview_status_label.setWordWrap(False)

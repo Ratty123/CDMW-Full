@@ -54,7 +54,6 @@ pyinstaller_package(
         "//native/cdmw_preview_core:cdmw-preview-core": "native/cdmw_preview_core/build/Release",
         "//native/cdmw_archive_accelerator:cdmw-archive-accelerator": "native/cdmw_archive_accelerator/build/Release",
         "//native/cdmw_mesh_core:cdmw-mesh-core": "native/cdmw_mesh_core/build/Release",
-        "//tools/dotnet_mesh_editor_experiment:mesh_editor_publish": "native/cdmw_mesh_dotnet_editor/build/Release",
         "//tools/dotnet_archive_backend:worker_publish": "native/cdmw_full_archive_backend/build/Release",
         # The worker loads this from its own directory, so it ships beside it.
         "//native/cdmw_full_archive_core:cdmw-full-archive-core.dll": "native/cdmw_full_archive_backend/build/Release",

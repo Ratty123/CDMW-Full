@@ -156,7 +156,7 @@ the same bindings are restored after every accepted shadow revision, remapped
 only when the owning Part remains uniquely identifiable. CDMW also transports
 the canonical per-material presentation category, confidence, normal-Y policy,
 and bounded roughness, metalness, specular, emissive, height, alpha, and hair
-factors already resolved for the Archive Browser/Vortice material model.
+factors already resolved by the shared Archive Preview material graph.
 Missing, ambiguous,
 or unavailable inputs leave **Solid (Textured)** disabled with the exact reason
 and use an honest neutral opaque surface rather than a normal-colour

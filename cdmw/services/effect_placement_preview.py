@@ -1,8 +1,8 @@
-"""Place an effect on an item in the .NET viewport: a small anchor mesh the gizmo moves.
+"""Place an effect on an item in the resident Rust viewport.
 The game draws a grafted effect at the item's origin, transformed by the
 ``_offsetTransform`` the studio writes (a uniform scale and an offset). This module
 packages a small anchor (an octahedron a few centimetres across, at the effect's
-origin) as the editable mesh for the resident .NET viewport, with the item's own
+origin) as the editable mesh for the resident Rust viewport, with the item's own
 mesh as the reference: the viewport's placement gizmo moves and scales the anchor,
 the particle layer draws the effect's approximate reading around it (see
 :mod:`cdmw.services.effect_preview_model`), and every drag comes back as a delta
@@ -488,7 +488,7 @@ class EffectPlacementPreview:
     #: how many submeshes the body is: one for the stand-in figure, several for the
     #: game's own character, which is worn armour in pieces
     body_submesh_count: int = 1
-    #: `effect_preview.json` in the package when the caller gave an effect preview, else None
+    #: the Rust package manifest carrying the effect preview, else None
     preview_file: Optional[Path] = None
     #: archive texture paths the package could not carry (no reader, or the reader had none)
     missing_textures: Tuple[str, ...] = ()
@@ -505,7 +505,8 @@ class EffectPlacementPreview:
         return tuple(range(self.body_submesh_index, self.body_submesh_index + max(1, self.body_submesh_count)))
 
 
-#: The simulation description the viewer's particle layer reads (schema 1), next to the mesh files.
+#: Compatibility filename retained for standalone exports; Rust packages carry
+#: the same schema directly in the preview scene.
 EFFECT_PREVIEW_FILE = "effect_preview.json"
 EFFECT_TEXTURE_DIR = "effect_textures"
 
@@ -595,8 +596,8 @@ def build_effect_placement_package(
 ) -> EffectPlacementPreview:
     """Package the item's mesh (reference, drawn as its wire) and the effect's anchor
     (the editable mesh the gizmo moves) for the resident .NET viewport; with
-    `effect_preview`, the simulation description and its textures go in beside them
-    (see :func:`write_effect_preview`). `box_min`/`box_max` is the effect's reach,
+    ``effect_preview``, the simulation description is embedded in the Rust scene
+    package. ``box_min``/``box_max`` is the effect's reach,
     carried as numbers.
 
     `character_mesh` is the body drawn for scale and pose: the game's own character from
@@ -606,7 +607,10 @@ def build_effect_placement_package(
     game holds it; the item and anchor are baked into it and the dialog carries its offsets
     across the same rotation. Wearables already share the upright bind frame."""
 
-    from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
+    import json
+
+    from cdmw.services.effect_preview_model import effect_preview_json
+    from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
 
     from dataclasses import replace as _dc_replace
 
@@ -642,27 +646,73 @@ def build_effect_placement_package(
         )
         body_index = len(anchor.submeshes) + len(item_mesh.submeshes)
         body_count = len(body.submeshes)
-    package = build_mesh_dotnet_experiment_package(
+
+    # Synthetic placement helpers carry explicit neutral/debug colours.  Item
+    # submeshes retain their PAC/PAC_XML material graph unchanged.
+    for submesh in tuple(anchor.submeshes):
+        material = str(getattr(submesh, "material", "") or "")
+        if material == EFFECT_ANCHOR_MATERIAL:
+            tint, roughness = ANCHOR_TINT, 0.6
+        elif material == EFFECT_REACH_MATERIAL:
+            tint, roughness = REACH_TINT, 0.6
+        elif material in EFFECT_AXIS_MATERIALS:
+            tint, roughness = EFFECT_AXIS_TINTS[EFFECT_AXIS_MATERIALS.index(material)], 0.6
+        else:
+            continue
+        submesh.preview_color = tuple(tint)
+        submesh.preview_double_sided = True
+        submesh.preview_native_material_overrides = {
+            "base_tint_strength": 1.0,
+            "texture_tint": tuple(tint),
+            "roughness": roughness,
+            "metalness": 0.0,
+            "double_sided": True,
+        }
+    for submesh in tuple(reference.submeshes)[len(item_mesh.submeshes):]:
+        submesh.preview_color = BODY_TINT
+        submesh.preview_double_sided = True
+        submesh.preview_native_material_overrides = {
+            "base_tint_strength": 1.0,
+            "texture_tint": BODY_TINT,
+            "roughness": 0.9,
+            "metalness": 0.0,
+            "double_sided": True,
+        }
+
+    effect_payload = None
+    missing: Tuple[str, ...] = ()
+    if effect_preview is not None:
+        effect_payload = json.loads(effect_preview_json(effect_preview))
+        # Particle geometry and colours do not depend on a sprite texture, but
+        # keep the existing status contract honest about unavailable archive
+        # resources.  Resolved DDS names remain in the payload for future
+        # textured billboards and diagnostic provenance.
+        missing = tuple(
+            path
+            for path in effect_preview.textures
+            if texture_reader is None or not texture_reader(path)
+        )
+
+    frame_low, frame_high = framing_bounds_for(
+        item_mesh,
+        include_body=include_body,
+        body_mesh=character_mesh if include_body else None,
+    )
+    package = build_rust_preview_package(
         anchor,
         reference_mesh=reference,
         comparison_mode="overlay",
         # the item is what the effect is placed on, not a before-and-after against the
         # anchor, so it is drawn as itself rather than as the overlay's wire ghost
         reference_draw="solid",
-        interaction_mode="placement",
         output_root=output_root,
         cancelled=cancelled,
-        include_material_resources=bool(include_item_textures),
+        interaction_profile="static_replacement",
+        interaction_mode="placement",
+        framing_bounds=(frame_low, frame_high),
+        effects_overlay=effect_payload,
     )
-    _tint_anchor_material(Path(package.package_dir) / "net_materials.json")
-    frame_low, frame_high = framing_bounds_for(
-        item_mesh, include_body=include_body, body_mesh=character_mesh if include_body else None
-    )
-    _frame_scene_on_the_item(Path(package.package_dir) / "dotnet_scene.json", frame_low, frame_high)
-    preview_file: Optional[Path] = None
-    missing: Tuple[str, ...] = ()
-    if effect_preview is not None:
-        preview_file, missing = write_effect_preview(Path(package.package_dir), effect_preview, texture_reader=texture_reader)
+    preview_file: Optional[Path] = package.manifest_path if effect_payload is not None else None
     return EffectPlacementPreview(
         body_submesh_index=body_index,
         body_submesh_count=body_count,
