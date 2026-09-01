@@ -1438,6 +1438,8 @@ pub struct GpuMeshBuffers {
     mesh_identity: u64,
     topology_signature: u64,
     deformation_signature: u64,
+    tangents: Vec<[f32; 4]>,
+    tangents_exact: bool,
     pub draw_revision: u64,
     pub topology_generation: u64,
 }
@@ -1549,6 +1551,14 @@ enum MeshUploadAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GeometryUpdateMode {
+    // Preserve a stable orthogonal basis during pointer-rate preview frames. The final frame
+    // always recomputes the exact position/UV-derived basis before the gesture is published.
+    Interactive,
+    Final,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct MeshUploadKey {
     mesh_identity: u64,
     draw_revision: u64,
@@ -1569,6 +1579,21 @@ fn classify_mesh_upload(current: MeshUploadKey, next: MeshUploadKey) -> MeshUplo
         MeshUploadAction::Reuse
     } else {
         MeshUploadAction::UpdateGeometry
+    }
+}
+
+fn resolve_mesh_upload_action(
+    action: MeshUploadAction,
+    update_mode: GeometryUpdateMode,
+    tangents_exact: bool,
+) -> MeshUploadAction {
+    if action == MeshUploadAction::Reuse
+        && update_mode == GeometryUpdateMode::Final
+        && !tangents_exact
+    {
+        MeshUploadAction::UpdateGeometry
+    } else {
+        action
     }
 }
 
@@ -1668,11 +1693,18 @@ fn deformation_colours(
         .collect())
 }
 
-fn gpu_vertices(
+fn gpu_vertices_with_tangents(
     snapshot: &DrawSnapshot,
     deformation_reference: Option<&[[f32; 3]]>,
+    tangents: &[[f32; 4]],
 ) -> Result<Vec<GpuVertex>, RenderError> {
-    let tangents = vertex_tangents(snapshot)?;
+    if tangents.len() != snapshot.positions.len() {
+        return Err(RenderError::InvalidSnapshot(format!(
+            "{} positions have {} tangents",
+            snapshot.positions.len(),
+            tangents.len()
+        )));
+    }
     let deformation = deformation_colours(snapshot, deformation_reference)?;
     Ok(snapshot
         .positions
@@ -1685,7 +1717,7 @@ fn gpu_vertices(
                 .copied()
                 .unwrap_or([0.0, 1.0, 0.0]);
             let uv = snapshot.uvs.get(index).copied().unwrap_or([0.0, 0.0]);
-            let tangent = tangents.get(index).copied().unwrap_or([1.0, 0.0, 0.0, 1.0]);
+            let tangent = tangents[index];
             GpuVertex {
                 position: *position,
                 normal,
@@ -1707,7 +1739,9 @@ impl GpuMeshBuffers {
         snapshot: &DrawSnapshot,
         deformation_reference: Option<&[[f32; 3]]>,
     ) -> Result<Self, RenderError> {
-        let vertices = gpu_vertices(snapshot, deformation_reference)?;
+        let tangents = vertex_tangents(snapshot)?;
+        let vertices =
+            gpu_vertices_with_tangents(snapshot, deformation_reference, tangents.as_slice())?;
         let vertex = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("CDMW Rust Mesh Lab vertices"),
             contents: bytemuck::cast_slice(&vertices),
@@ -1756,6 +1790,8 @@ impl GpuMeshBuffers {
             mesh_identity: snapshot.mesh_identity,
             topology_signature: topology_signature(snapshot),
             deformation_signature: deformation_signature(deformation_reference)?,
+            tangents,
+            tangents_exact: true,
             draw_revision: snapshot.draw_revision,
             topology_generation: snapshot.topology_generation,
         })
@@ -1794,8 +1830,16 @@ impl GpuMeshBuffers {
         snapshot: &DrawSnapshot,
         deformation_reference: Option<&[[f32; 3]]>,
         deformation_signature: u64,
+        update_mode: GeometryUpdateMode,
     ) -> Result<(), RenderError> {
-        let vertices = gpu_vertices(snapshot, deformation_reference)?;
+        let tangents = match update_mode {
+            GeometryUpdateMode::Interactive => {
+                reproject_vertex_tangents(&snapshot.normals, &self.tangents)?
+            }
+            GeometryUpdateMode::Final => vertex_tangents(snapshot)?,
+        };
+        let vertices =
+            gpu_vertices_with_tangents(snapshot, deformation_reference, tangents.as_slice())?;
         let normal_line_vertices = normal_line_vertices(snapshot);
         let bounds_line_vertices = bounds_line_vertices(&snapshot.positions);
         if u32::try_from(vertices.len()).ok() != Some(self.vertex_count)
@@ -1819,6 +1863,8 @@ impl GpuMeshBuffers {
         );
         self.draw_revision = snapshot.draw_revision;
         self.deformation_signature = deformation_signature;
+        self.tangents = tangents;
+        self.tangents_exact = update_mode == GeometryUpdateMode::Final;
         Ok(())
     }
 }
@@ -1863,7 +1909,13 @@ fn preferred_present_mode(modes: &[wgpu::PresentMode]) -> Option<wgpu::PresentMo
     modes
         .iter()
         .copied()
-        .find(|mode| *mode == wgpu::PresentMode::Fifo)
+        .find(|mode| *mode == wgpu::PresentMode::Mailbox)
+        .or_else(|| {
+            modes
+                .iter()
+                .copied()
+                .find(|mode| *mode == wgpu::PresentMode::Fifo)
+        })
         .or_else(|| modes.first().copied())
 }
 
@@ -2164,13 +2216,43 @@ impl WindowRenderer {
         snapshot: &DrawSnapshot,
         deformation_reference: Option<&[[f32; 3]]>,
     ) -> Result<(), RenderError> {
+        self.set_snapshot_with_deformation_mode(
+            snapshot,
+            deformation_reference,
+            GeometryUpdateMode::Final,
+        )
+    }
+
+    pub fn set_snapshot_with_deformation_interactive(
+        &mut self,
+        snapshot: &DrawSnapshot,
+        deformation_reference: Option<&[[f32; 3]]>,
+    ) -> Result<(), RenderError> {
+        self.set_snapshot_with_deformation_mode(
+            snapshot,
+            deformation_reference,
+            GeometryUpdateMode::Interactive,
+        )
+    }
+
+    fn set_snapshot_with_deformation_mode(
+        &mut self,
+        snapshot: &DrawSnapshot,
+        deformation_reference: Option<&[[f32; 3]]>,
+        update_mode: GeometryUpdateMode,
+    ) -> Result<(), RenderError> {
         let deformation_signature = deformation_signature(deformation_reference)?;
-        let action = self
+        let mut action = self
             .mesh
             .as_ref()
             .map_or(MeshUploadAction::Replace, |mesh| {
                 mesh.upload_action(snapshot, deformation_signature)
             });
+        action = resolve_mesh_upload_action(
+            action,
+            update_mode,
+            self.mesh.as_ref().is_none_or(|mesh| mesh.tangents_exact),
+        );
         match action {
             MeshUploadAction::Reuse => {
                 self.upload_stats.unchanged_reuses =
@@ -2185,6 +2267,7 @@ impl WindowRenderer {
                         snapshot,
                         deformation_reference,
                         deformation_signature,
+                        update_mode,
                     )?;
                 self.upload_stats.in_place_geometry_updates = self
                     .upload_stats
@@ -3478,7 +3561,7 @@ async fn run_headless_render_smoke_internal(
             "headless mesh cache did not choose an in-place same-topology refresh".to_owned(),
         ));
     }
-    mesh.refresh_geometry(&queue, &refreshed_mesh, None, 0)?;
+    mesh.refresh_geometry(&queue, &refreshed_mesh, None, 0, GeometryUpdateMode::Final)?;
     if !mesh.matches_snapshot(&refreshed_mesh) {
         return Err(RenderError::Device(
             "headless in-place geometry refresh did not advance the cached revision".to_owned(),
@@ -5793,6 +5876,43 @@ fn resolve_material_factors<'a>(
     Ok(active)
 }
 
+fn reproject_vertex_tangents(
+    normals: &[[f32; 3]],
+    tangents: &[[f32; 4]],
+) -> Result<Vec<[f32; 4]>, RenderError> {
+    if normals.len() != tangents.len() {
+        return Err(RenderError::InvalidSnapshot(format!(
+            "{} normals have {} cached tangents",
+            normals.len(),
+            tangents.len()
+        )));
+    }
+    normals
+        .iter()
+        .zip(tangents)
+        .map(|(normal, tangent)| {
+            let normal = Vec3::from_array(*normal).try_normalize().unwrap_or(Vec3::Y);
+            let tangent_vector = Vec3::from_array([tangent[0], tangent[1], tangent[2]]);
+            let projected = tangent_vector - normal * normal.dot(tangent_vector);
+            let fallback_axis = if normal.x.abs() < 0.9 {
+                Vec3::X
+            } else {
+                Vec3::Y
+            };
+            let fallback = (fallback_axis - normal * normal.dot(fallback_axis))
+                .try_normalize()
+                .unwrap_or(Vec3::Z);
+            let projected = projected.try_normalize().unwrap_or(fallback);
+            let handedness = if tangent[3].is_finite() && tangent[3] < 0.0 {
+                -1.0
+            } else {
+                1.0
+            };
+            Ok([projected.x, projected.y, projected.z, handedness])
+        })
+        .collect()
+}
+
 fn vertex_tangents(snapshot: &DrawSnapshot) -> Result<Vec<[f32; 4]>, RenderError> {
     if snapshot.positions.len() != snapshot.normals.len()
         || snapshot.positions.len() != snapshot.uvs.len()
@@ -7177,7 +7297,7 @@ mod tests {
     }
 
     #[test]
-    fn renderer_quality_prefers_supported_msaa_anisotropy_and_fifo() {
+    fn renderer_quality_prefers_supported_msaa_anisotropy_and_low_latency_vsync() {
         let color = wgpu::TextureFormatFeatureFlags::MULTISAMPLE_X4
             | wgpu::TextureFormatFeatureFlags::MULTISAMPLE_RESOLVE;
         let depth = wgpu::TextureFormatFeatureFlags::MULTISAMPLE_X4;
@@ -7201,6 +7321,14 @@ mod tests {
         assert!(SHADER.contains("const MATERIAL_MIP_LOD_BIAS: f32 = -2.0;"));
         assert!(SHADER.contains("textureSampleBias(base_texture"));
         assert!(!SHADER.contains("textureSample("));
+        assert_eq!(
+            preferred_present_mode(&[
+                wgpu::PresentMode::Immediate,
+                wgpu::PresentMode::Fifo,
+                wgpu::PresentMode::Mailbox,
+            ]),
+            Some(wgpu::PresentMode::Mailbox)
+        );
         assert_eq!(
             preferred_present_mode(&[wgpu::PresentMode::Immediate, wgpu::PresentMode::Fifo]),
             Some(wgpu::PresentMode::Fifo)
@@ -7347,6 +7475,20 @@ mod tests {
                 MeshUploadAction::Replace
             );
         }
+        assert_eq!(
+            resolve_mesh_upload_action(
+                MeshUploadAction::Reuse,
+                GeometryUpdateMode::Interactive,
+                false,
+            ),
+            MeshUploadAction::Reuse,
+            "an unchanged interactive sample must not force duplicate work"
+        );
+        assert_eq!(
+            resolve_mesh_upload_action(MeshUploadAction::Reuse, GeometryUpdateMode::Final, false,),
+            MeshUploadAction::UpdateGeometry,
+            "gesture completion must restore an exact tangent basis"
+        );
     }
 
     #[test]
@@ -7978,6 +8120,17 @@ mod tests {
         };
         let tangents = vertex_tangents(&snapshot).expect("tangent basis");
         assert_eq!(tangents, vec![[1.0, 0.0, 0.0, 1.0]; 3]);
+    }
+
+    #[test]
+    fn interactive_tangent_refresh_reprojects_cached_basis_without_triangle_rebuild() {
+        let tangents = reproject_vertex_tangents(
+            &[[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            &[[1.0, 0.2, 0.0, 1.0], [1.0, 0.0, 0.4, -1.0]],
+        )
+        .expect("interactive tangent projection");
+        assert_eq!(tangents, vec![[1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, -1.0]]);
+        assert!(reproject_vertex_tangents(&[[0.0, 1.0, 0.0]], &[]).is_err());
     }
 
     #[test]

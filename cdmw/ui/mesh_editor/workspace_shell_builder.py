@@ -377,7 +377,7 @@ class WorkspaceShellBuilderMixin:
         frame.setObjectName("MeshEditorCentralPreview")
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(2)
         self.preview_stack = QStackedWidget(frame)
         self.preview_stack.setObjectName("MeshEditorStandalonePreviewStack")
         self.native_host_frame = RustMeshEditorHostFrame(
@@ -459,7 +459,7 @@ class WorkspaceShellBuilderMixin:
         self.close_session_button.setObjectName("MeshEditorCloseSessionButton")
         self.close_session_button.setText("Close")
         self.close_session_button.setAccessibleName("Close")
-        self.close_session_button.setMinimumHeight(28)
+        self.close_session_button.setAutoRaise(True)
         self.close_session_button.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.close_session_button.clicked.connect(self.close_session_requested.emit)
         self._ui_font_widgets.append(self.close_session_button)

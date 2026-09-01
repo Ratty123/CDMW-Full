@@ -3873,8 +3873,11 @@ impl LabApplication {
             )
         });
         if let (Some(renderer), Some(snapshot)) = (&mut self.renderer, snapshot)
-            && let Err(error) =
+            && let Err(error) = if self.edit_gesture.is_some() {
+                renderer.set_snapshot_with_deformation_interactive(&snapshot, deformation_reference)
+            } else {
                 renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
+            }
         {
             self.status = format!("GPU update failed: {error}");
         }
@@ -4020,6 +4023,7 @@ impl LabApplication {
         }
 
         let geometry_before = self.mesh.as_ref().map(|mesh| mesh.geometry_revision);
+        let edit_gesture_before = self.edit_gesture.is_some();
         let pointer_events = self.pointer_events.drain().collect::<Vec<_>>();
         for event in pointer_events {
             match event {
@@ -4052,7 +4056,8 @@ impl LabApplication {
             }
         }
         let geometry_after = self.mesh.as_ref().map(|mesh| mesh.geometry_revision);
-        if geometry_before != geometry_after {
+        let edit_gesture_finished = edit_gesture_before && self.edit_gesture.is_none();
+        if geometry_before != geometry_after || edit_gesture_finished {
             self.publish_mesh_snapshot();
         }
 

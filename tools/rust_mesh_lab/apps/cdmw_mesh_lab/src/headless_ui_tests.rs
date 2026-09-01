@@ -453,6 +453,101 @@ fn integrated_cdmw_layout_keeps_product_surfaces_reachable_across_sizes() -> Tes
 }
 
 #[test]
+fn integrated_wide_layout_compacts_chrome_and_groups_tool_rows() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 900.0));
+
+    let header_y = ui
+        .label_rect("Mesh Editor")
+        .ok_or("Mesh Editor")?
+        .center()
+        .y;
+    for label in [
+        "Clear Selection",
+        "Select All",
+        "History",
+        "Finish Edit Mesh",
+    ] {
+        let y = ui.label_rect(label).ok_or(label)?.center().y;
+        assert!(
+            (y - header_y).abs() < 6.0,
+            "{label} is not in the compact header"
+        );
+    }
+
+    let footer_y = ui.label_rect("Navigation").ok_or("Navigation")?.center().y;
+    for label in ["Views", "Ready"] {
+        let y = ui.label_rect(label).ok_or(label)?.center().y;
+        assert!(
+            (y - footer_y).abs() < 6.0,
+            "{label} is not in the compact footer"
+        );
+    }
+
+    for labels in [
+        ["Move", "Rotate", "Scale"],
+        ["Grab", "Smooth", ""],
+        ["Inflate", "Pinch", ""],
+    ] {
+        let first_y = ui.label_rect(labels[0]).ok_or(labels[0])?.center().y;
+        for label in labels.into_iter().filter(|label| !label.is_empty()) {
+            let y = ui.label_rect(label).ok_or(label)?.center().y;
+            assert!(
+                (y - first_y).abs() < 2.0,
+                "{label} is not grouped with its tool row"
+            );
+        }
+    }
+
+    assert!(
+        ui.label_rect("Morph & Refit").is_some(),
+        "the complete collapsed tool index should be visible without scrolling at 900 points"
+    );
+    let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+    assert!(
+        viewport.height() > 800.0,
+        "wide chrome leaves too little viewport height: {viewport:?}"
+    );
+
+    ui.application.apply_cdmw_theme_payload(&json!({
+        "variant": "dark",
+        "density": "comfortable",
+        "font_point_size": 18.0,
+        "data_font_point_size": 16.0,
+        "palette": {}
+    }));
+    ui.frame(Vec::new());
+    ui.frame(Vec::new());
+    let themed_header_y = ui
+        .label_rect("Mesh Editor")
+        .ok_or("themed Mesh Editor")?
+        .center()
+        .y;
+    let themed_finish_y = ui
+        .label_rect("Finish Edit Mesh")
+        .ok_or("Finish Edit Mesh was clipped by the large comfortable theme")?
+        .center()
+        .y;
+    assert!((themed_finish_y - themed_header_y).abs() < 8.0);
+    let themed_controls_y = ui
+        .label_rect("Clear Selection")
+        .ok_or("Clear Selection was clipped by the large comfortable theme")?
+        .center()
+        .y;
+    let themed_history_y = ui
+        .label_rect("History")
+        .ok_or("History was clipped by the large comfortable theme")?
+        .center()
+        .y;
+    assert!((themed_history_y - themed_controls_y).abs() < 8.0);
+    assert!(
+        themed_controls_y > themed_header_y + 8.0,
+        "large themed controls should use the readable two-row fallback"
+    );
+    Ok(())
+}
+
+#[test]
 fn integrated_selection_display_camera_history_and_output_controls_change_real_state_or_route()
 -> TestResult {
     let mut ui =

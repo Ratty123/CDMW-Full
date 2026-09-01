@@ -13,6 +13,19 @@ const CDMW_VIEW_MODES: [(ViewMode, &str); 7] = [
     (ViewMode::XRay, "X-Ray"),
 ];
 
+const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
+
+fn cdmw_chrome_row_height(context: &egui::Context) -> f32 {
+    let style = context.style_of(context.theme());
+    style.spacing.interact_size.y + style.spacing.item_spacing.y * 2.0 + 2.0
+}
+
+fn cdmw_chrome_fits_one_row(context: &egui::Context, available_width: f32) -> bool {
+    let style = context.style_of(context.theme());
+    let control_scale = (style.spacing.interact_size.y / 24.0).max(1.0);
+    available_width >= CDMW_WIDE_CHROME_MIN_WIDTH * control_scale
+}
+
 fn cdmw_view_mode_label(mode: ViewMode) -> &'static str {
     if mode == ViewMode::UvChecker {
         return "UV Checker";
@@ -215,8 +228,7 @@ impl LabApplication {
     pub(super) fn draw_cdmw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
         let mut actions = Vec::new();
         self.draw_cdmw_session_bar(root_ui, &mut actions);
-        self.draw_cdmw_status_bar(root_ui);
-        self.draw_cdmw_camera_strip(root_ui, &mut actions);
+        self.draw_cdmw_bottom_bar(root_ui, &mut actions);
         self.draw_cdmw_left_rail(root_ui, &mut actions);
         self.draw_cdmw_right_panels(root_ui, &mut actions);
         self.draw_cdmw_viewport(root_ui);
@@ -231,103 +243,146 @@ impl LabApplication {
         let policy_reason = state_str(&self.cdmw_state, "output_policy_reason").unwrap_or("");
         let cursor = state_u64(&self.cdmw_state, "history_cursor");
         let selected = self.selected_counts();
+        let wide = cdmw_chrome_fits_one_row(&self.egui_context, root_ui.available_width());
+        let row_height = cdmw_chrome_row_height(&self.egui_context);
         egui::Panel::top("cdmw_session_bar")
-            .exact_size(68.0)
+            .exact_size(if wide { row_height } else { row_height * 2.0 })
             .show(root_ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Mesh Editor").heading().strong());
                     if busy {
                         ui.add(Spinner::new());
                     }
+                    if wide {
+                        ui.separator();
+                        self.draw_cdmw_selection_history_controls(
+                            ui, actions, busy, authoring, selected, cursor, undo_count, redo_count,
+                        );
+                    }
                     let available = ui.available_width().max(0.0);
                     ui.allocate_ui_with_layout(
                         egui::vec2(available, ui.spacing().interact_size.y),
                         egui::Layout::right_to_left(egui::Align::Center),
                         |ui| {
-                            if ui
-                                .add_enabled(
-                                    !busy && authoring && self.cdmw_host_connected,
-                                    Button::new("Finish Edit Mesh"),
-                                )
-                                .on_disabled_hover_text(if busy {
-                                    "Finish waits until the pending shadow transaction completes"
-                                } else if !authoring {
-                                    policy_reason
-                                } else {
-                                    "Waiting for the CDMW authoring host"
-                                })
-                                .clicked()
-                            {
-                                actions.push(UiAction::FinishCdmw);
-                            }
+                            self.draw_cdmw_finish_control(
+                                ui,
+                                actions,
+                                busy,
+                                authoring,
+                                policy_reason,
+                            );
                         },
                     );
                 });
-                ui.separator();
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("Selection").strong());
-                    if ui
-                        .add_enabled(!busy, Button::new("Clear Selection"))
-                        .on_disabled_hover_text("Wait for the current shadow operation")
-                        .clicked()
-                    {
-                        actions.push(UiAction::ClearSelection);
-                    }
-                    let select_all = match self.selection_domain {
-                        SelectionDomain::Vertex => UiAction::SelectAllVertices,
-                        SelectionDomain::Edge => UiAction::SelectAllEdges,
-                        SelectionDomain::Face => UiAction::SelectAllFaces,
-                    };
-                    if ui
-                        .add_enabled(!busy, Button::new("Select All"))
-                        .on_disabled_hover_text("Wait for the current shadow operation")
-                        .clicked()
-                    {
-                        actions.push(select_all);
-                    }
-                    if ui
-                        .add_enabled(!busy && selected.total() > 0, Button::new("Invert"))
-                        .on_disabled_hover_text(if busy {
-                            "Wait for the current shadow operation"
-                        } else {
-                            "Select an element first"
-                        })
-                        .clicked()
-                    {
-                        actions.push(UiAction::InvertSelection(self.selection_domain));
-                    }
-                    ui.separator();
-                    ui.label(RichText::new("History").strong());
-                    if ui
-                        .add_enabled(!busy && authoring && undo_count > 0, Button::new("Undo"))
-                        .on_disabled_hover_text(if busy {
-                            "Wait for the current shadow operation"
-                        } else {
-                            "No Mesh Editor action to undo"
-                        })
-                        .clicked()
-                    {
-                        actions.push(UiAction::Undo);
-                    }
-                    if ui
-                        .add_enabled(!busy && authoring && redo_count > 0, Button::new("Redo"))
-                        .on_disabled_hover_text(if busy {
-                            "Wait for the current shadow operation"
-                        } else {
-                            "No Mesh Editor action to redo"
-                        })
-                        .clicked()
-                    {
-                        actions.push(UiAction::Redo);
-                    }
-                    ui.label(format!(
-                        "Step {cursor} · {undo_count} undo · {redo_count} redo"
-                    ));
-                });
+                if !wide {
+                    ui.horizontal_wrapped(|ui| {
+                        self.draw_cdmw_selection_history_controls(
+                            ui, actions, busy, authoring, selected, cursor, undo_count, redo_count,
+                        );
+                    });
+                }
             });
     }
 
-    fn draw_cdmw_status_bar(&mut self, root_ui: &mut egui::Ui) {
+    #[allow(clippy::too_many_arguments)]
+    fn draw_cdmw_selection_history_controls(
+        &self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        busy: bool,
+        authoring: bool,
+        selected: SelectedCounts,
+        cursor: u64,
+        undo_count: u64,
+        redo_count: u64,
+    ) {
+        ui.label(RichText::new("Selection").strong());
+        if ui
+            .add_enabled(!busy, Button::new("Clear Selection"))
+            .on_disabled_hover_text("Wait for the current shadow operation")
+            .clicked()
+        {
+            actions.push(UiAction::ClearSelection);
+        }
+        let select_all = match self.selection_domain {
+            SelectionDomain::Vertex => UiAction::SelectAllVertices,
+            SelectionDomain::Edge => UiAction::SelectAllEdges,
+            SelectionDomain::Face => UiAction::SelectAllFaces,
+        };
+        if ui
+            .add_enabled(!busy, Button::new("Select All"))
+            .on_disabled_hover_text("Wait for the current shadow operation")
+            .clicked()
+        {
+            actions.push(select_all);
+        }
+        if ui
+            .add_enabled(!busy && selected.total() > 0, Button::new("Invert"))
+            .on_disabled_hover_text(if busy {
+                "Wait for the current shadow operation"
+            } else {
+                "Select an element first"
+            })
+            .clicked()
+        {
+            actions.push(UiAction::InvertSelection(self.selection_domain));
+        }
+        ui.separator();
+        ui.label(RichText::new("History").strong());
+        if ui
+            .add_enabled(!busy && authoring && undo_count > 0, Button::new("Undo"))
+            .on_disabled_hover_text(if busy {
+                "Wait for the current shadow operation"
+            } else {
+                "No Mesh Editor action to undo"
+            })
+            .clicked()
+        {
+            actions.push(UiAction::Undo);
+        }
+        if ui
+            .add_enabled(!busy && authoring && redo_count > 0, Button::new("Redo"))
+            .on_disabled_hover_text(if busy {
+                "Wait for the current shadow operation"
+            } else {
+                "No Mesh Editor action to redo"
+            })
+            .clicked()
+        {
+            actions.push(UiAction::Redo);
+        }
+        ui.label(format!(
+            "Step {cursor} · {undo_count} undo · {redo_count} redo"
+        ));
+    }
+
+    fn draw_cdmw_finish_control(
+        &self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        busy: bool,
+        authoring: bool,
+        policy_reason: &str,
+    ) {
+        if ui
+            .add_enabled(
+                !busy && authoring && self.cdmw_host_connected,
+                Button::new("Finish Edit Mesh"),
+            )
+            .on_disabled_hover_text(if busy {
+                "Finish waits until the pending shadow transaction completes"
+            } else if !authoring {
+                policy_reason
+            } else {
+                "Waiting for the CDMW authoring host"
+            })
+            .clicked()
+        {
+            actions.push(UiAction::FinishCdmw);
+        }
+    }
+
+    fn draw_cdmw_status_contents(&self, ui: &mut egui::Ui) {
         let selected = self.selected_counts();
         let status_label = if self.selection_gesture.is_some() {
             "Live"
@@ -336,43 +391,45 @@ impl LabApplication {
         } else {
             "Ready"
         };
-        egui::Panel::bottom("cdmw_status_bar")
-            .exact_size(30.0)
-            .show(root_ui, |ui| {
-                ui.horizontal(|ui| {
-                    let colour = match status_label {
-                        "Selected" => Color32::from_rgb(96, 210, 135),
-                        "Live" => Color32::from_rgb(245, 190, 75),
-                        _ => Color32::from_gray(170),
-                    };
-                    ui.colored_label(colour, RichText::new(status_label).strong());
-                    ui.separator();
-                    ui.label(format!(
-                        "{} vertices · {} edges · {} faces",
-                        selected.vertices, selected.edges, selected.faces
-                    ));
-                    ui.separator();
-                    if self.status.to_ascii_lowercase().contains("failed")
-                        || self.status.to_ascii_lowercase().contains("rejected")
-                        || self.status.to_ascii_lowercase().contains("error")
-                    {
-                        ui.colored_label(Color32::from_rgb(245, 105, 105), &self.status);
-                    } else {
-                        ui.label(&self.status);
-                    }
-                });
-            });
+        let colour = match status_label {
+            "Selected" => Color32::from_rgb(96, 210, 135),
+            "Live" => Color32::from_rgb(245, 190, 75),
+            _ => Color32::from_gray(170),
+        };
+        ui.colored_label(colour, RichText::new(status_label).strong());
+        ui.separator();
+        ui.label(format!(
+            "{} vertices · {} edges · {} faces",
+            selected.vertices, selected.edges, selected.faces
+        ));
+        ui.separator();
+        if self.status.to_ascii_lowercase().contains("failed")
+            || self.status.to_ascii_lowercase().contains("rejected")
+            || self.status.to_ascii_lowercase().contains("error")
+        {
+            ui.colored_label(Color32::from_rgb(245, 105, 105), &self.status);
+        } else {
+            ui.label(&self.status);
+        }
     }
 
-    fn draw_cdmw_camera_strip(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        egui::Panel::bottom("cdmw_camera_strip")
-            .exact_size(64.0)
+    fn draw_cdmw_bottom_bar(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let wide = cdmw_chrome_fits_one_row(&self.egui_context, root_ui.available_width());
+        let row_height = cdmw_chrome_row_height(&self.egui_context);
+        egui::Panel::bottom("cdmw_bottom_bar")
+            .exact_size(if wide {
+                row_height
+            } else {
+                row_height * 2.0
+            })
             .show(root_ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
+                ui.horizontal(|ui| {
                     ui.label(RichText::new("Navigation").strong());
                     if ui
                         .add(Button::new("Orbit").selected(self.cdmw_orbit_mode))
-                        .on_hover_text("Neutral navigation mode; edit gestures are inactive")
+                        .on_hover_text(
+                            "Neutral navigation mode; edit gestures are inactive. RMB orbits, MMB pans, and the wheel zooms.",
+                        )
                         .clicked()
                     {
                         actions.push(UiAction::OrbitMode);
@@ -384,9 +441,6 @@ impl LabApplication {
                         actions.push(UiAction::FrameSelected);
                     }
                     ui.separator();
-                    ui.small("RMB orbit · MMB pan · wheel zoom");
-                });
-                ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new("Views").strong());
                     for (label, view) in [
                         ("Front", StandardView::Front),
@@ -407,7 +461,14 @@ impl LabApplication {
                     if ui.small_button("Yaw +15°").clicked() {
                         actions.push(UiAction::OrbitYaw(15.0));
                     }
+                    if wide {
+                        ui.separator();
+                        self.draw_cdmw_status_contents(ui);
+                    }
                 });
+                if !wide {
+                    ui.horizontal(|ui| self.draw_cdmw_status_contents(ui));
+                }
             });
     }
 
@@ -434,6 +495,7 @@ impl LabApplication {
                         actions,
                         "Selection",
                         &[(CdmwRailPage::Select, "Select", Some(ViewportTool::Select))],
+                        1,
                         busy,
                         authoring,
                         &policy_reason,
@@ -447,6 +509,7 @@ impl LabApplication {
                             (CdmwRailPage::Rotate, "Rotate", Some(ViewportTool::Rotate)),
                             (CdmwRailPage::Scale, "Scale", Some(ViewportTool::Scale)),
                         ],
+                        3,
                         busy,
                         authoring,
                         &policy_reason,
@@ -465,6 +528,7 @@ impl LabApplication {
                             ),
                             (CdmwRailPage::Pinch, "Pinch", Some(ViewportTool::Pinch)),
                         ],
+                        2,
                         busy,
                         authoring,
                         &policy_reason,
@@ -479,6 +543,7 @@ impl LabApplication {
                             (CdmwRailPage::Normals, "Normals & Tangents", None),
                             (CdmwRailPage::Uv, "UV", None),
                         ],
+                        2,
                         busy,
                         authoring,
                         &policy_reason,
@@ -491,6 +556,7 @@ impl LabApplication {
                             (CdmwRailPage::RigWeights, "Rig & Weights", None),
                             (CdmwRailPage::MorphRefit, "Morph & Refit", None),
                         ],
+                        2,
                         busy,
                         authoring,
                         &policy_reason,
@@ -506,50 +572,67 @@ impl LabApplication {
         actions: &mut Vec<UiAction>,
         heading: &str,
         tools: &[(CdmwRailPage, &str, Option<ViewportTool>)],
+        columns: usize,
         busy: bool,
         authoring: bool,
         policy_reason: &str,
     ) {
         ui.add_space(3.0);
         ui.label(RichText::new(heading).small().strong());
-        for &(page, label, tool) in tools {
-            let active = self.cdmw_rail_page == Some(page);
-            let requires_authoring = page != CdmwRailPage::Select;
-            let enabled = !busy && (!requires_authoring || authoring);
-            if ui
-                .add_enabled(
-                    enabled,
-                    Button::new(label)
-                        .selected(active)
-                        .min_size(egui::vec2(ui.available_width(), 28.0)),
-                )
-                .on_disabled_hover_text(if busy {
-                    "Wait for the current shadow operation"
-                } else {
-                    policy_reason
-                })
-                .clicked()
-            {
-                self.cdmw_rail_page = Some(page);
-                if let Some(tool) = tool {
-                    if self.viewport_tool != tool {
-                        self.cancel_active_gesture("Tool change cancelled the previous gesture");
+        let columns = columns.max(1);
+        for row in tools.chunks(columns) {
+            let gap = ui.spacing().item_spacing.x;
+            let button_width =
+                (ui.available_width() - gap * (columns.saturating_sub(1) as f32)) / columns as f32;
+            ui.horizontal(|ui| {
+                for &(page, label, tool) in row {
+                    let active = self.cdmw_rail_page == Some(page);
+                    let requires_authoring = page != CdmwRailPage::Select;
+                    let enabled = !busy && (!requires_authoring || authoring);
+                    if ui
+                        .add_enabled(
+                            enabled,
+                            Button::new(label).selected(active).min_size(egui::vec2(
+                                button_width.max(1.0),
+                                ui.spacing().interact_size.y,
+                            )),
+                        )
+                        .on_disabled_hover_text(if busy {
+                            "Wait for the current shadow operation"
+                        } else {
+                            policy_reason
+                        })
+                        .clicked()
+                    {
+                        self.cdmw_rail_page = Some(page);
+                        if let Some(tool) = tool {
+                            if self.viewport_tool != tool {
+                                self.cancel_active_gesture(
+                                    "Tool change cancelled the previous gesture",
+                                );
+                            }
+                            self.viewport_tool = tool;
+                            self.cdmw_orbit_mode = false;
+                        }
                     }
-                    self.viewport_tool = tool;
-                    self.cdmw_orbit_mode = false;
                 }
-            }
-            if active {
+            });
+            if let Some(active_page) = row
+                .iter()
+                .map(|(page, _, _)| *page)
+                .find(|page| self.cdmw_rail_page == Some(*page))
+            {
+                let enabled = !busy && (active_page == CdmwRailPage::Select || authoring);
                 egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.add_enabled_ui(enabled, |ui| match page {
+                    ui.add_enabled_ui(enabled, |ui| match active_page {
                         CdmwRailPage::Select => self.draw_cdmw_selection_page(ui, actions),
                         CdmwRailPage::Move | CdmwRailPage::Rotate | CdmwRailPage::Scale => {
-                            self.draw_cdmw_transform_page(ui, actions, page)
+                            self.draw_cdmw_transform_page(ui, actions, active_page)
                         }
                         CdmwRailPage::Grab
                         | CdmwRailPage::Smooth
                         | CdmwRailPage::Inflate
-                        | CdmwRailPage::Pinch => self.draw_cdmw_brush_page(ui, page),
+                        | CdmwRailPage::Pinch => self.draw_cdmw_brush_page(ui, active_page),
                         CdmwRailPage::Topology => self.draw_cdmw_topology_page(ui, actions),
                         CdmwRailPage::Cleanup => self.draw_cdmw_cleanup_page(ui, actions),
                         CdmwRailPage::Normals => self.draw_cdmw_normals_page(ui, actions),

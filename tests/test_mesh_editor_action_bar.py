@@ -1698,6 +1698,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
         legacy_dotnet = workspace.findChild(QPushButton, "MeshEditorDotNetExperimentButton")
         assert legacy_dotnet is not None
         self.assertTrue(legacy_dotnet.isHidden())
+        close_session = workspace.findChild(QToolButton, "MeshEditorCloseSessionButton")
+        assert close_session is not None
+        self.assertEqual(0, close_session.minimumHeight())
+        self.assertTrue(close_session.autoRaise())
 
         button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_select_parts")
         brush_button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_brush_grab")
