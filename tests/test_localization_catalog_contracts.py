@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 import subprocess
@@ -66,6 +67,8 @@ from scripts.generate_ui_localization_manifest import (
     _content_is_current,
     _html_segments,
     _manifest_freshness_view,
+    _python_local_assignments,
+    _python_return_source_nodes,
     build_manifest,
 )
 from scripts.validate_ui_localization_catalogs import (
@@ -1303,6 +1306,49 @@ def _packaged_source_manifest() -> dict[str, object]:
             encoding="utf-8"
         )
     )
+
+
+def test_manifest_source_resolution_bounds_loop_carried_self_references() -> None:
+    tree = ast.parse(
+        "def render():\n"
+        "    preset = 'Ready'\n"
+        + "    preset = preset\n" * 8
+        + "    setText(preset)\n"
+    )
+    definition = tree.body[0]
+    assignments = _python_local_assignments(definition)
+    sink = next(
+        node
+        for node in ast.walk(definition)
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "setText"
+    )
+
+    sources = list(_python_return_source_nodes(sink.args[0], assignments))
+
+    assert len(sources) == 1
+    assert [node.value for node in sources if isinstance(node, ast.Constant)] == ["Ready"]
+
+    names = tuple(f"slot_{index}" for index in range(10))
+    dense_assignments = {
+        name: tuple(
+            ast.Name(id=other, ctx=ast.Load())
+            for other in names
+            if other != name
+        )
+        for name in names
+    }
+    dense_assignments[names[0]] = (
+        ast.Constant(value="Ready"),
+        *dense_assignments[names[0]],
+    )
+    dense_sources = list(
+        _python_return_source_nodes(
+            ast.Name(id=names[0], ctx=ast.Load()),
+            dense_assignments,
+        )
+    )
+
+    assert [node.value for node in dense_sources if isinstance(node, ast.Constant)] == ["Ready"]
 
 
 def test_generated_manifest_is_current() -> None:

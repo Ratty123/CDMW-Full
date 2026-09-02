@@ -1030,75 +1030,91 @@ def _python_return_source_nodes(
     assignments: dict[str, tuple[ast.AST, ...]],
     *,
     seen: frozenset[int] = frozenset(),
+    visited: set[int] | None = None,
 ) -> Iterable[ast.AST]:
-    if id(node) in seen:
+    if visited is None:
+        visited = set()
+    if id(node) in seen or id(node) in visited:
         return
+    visited.add(id(node))
+    reference_name = _python_reference_name(node)
     next_seen = seen | {id(node)}
-    for expanded in _python_expand_local_value(node, assignments):
-        if expanded is not node:
-            yield from _python_return_source_nodes(
-                expanded,
-                assignments,
-                seen=next_seen,
-            )
-            continue
-        if isinstance(expanded, (ast.List, ast.Set, ast.Tuple)):
-            for element in expanded.elts:
+    if reference_name:
+        assigned_values = assignments.get(reference_name, ())
+        if assigned_values:
+            for assigned_value in assigned_values:
                 yield from _python_return_source_nodes(
-                    element,
+                    assigned_value,
                     assignments,
                     seen=next_seen,
+                    visited=visited,
                 )
-        elif isinstance(expanded, (ast.GeneratorExp, ast.ListComp, ast.SetComp)):
+            return
+    if isinstance(node, (ast.List, ast.Set, ast.Tuple)):
+        for element in node.elts:
             yield from _python_return_source_nodes(
-                expanded.elt,
+                element,
                 assignments,
                 seen=next_seen,
+                visited=visited,
             )
-        elif isinstance(expanded, ast.Dict):
-            for value in expanded.values:
-                yield from _python_return_source_nodes(
-                    value,
-                    assignments,
-                    seen=next_seen,
-                )
-        elif isinstance(expanded, ast.DictComp):
+    elif isinstance(node, (ast.GeneratorExp, ast.ListComp, ast.SetComp)):
+        yield from _python_return_source_nodes(
+            node.elt,
+            assignments,
+            seen=next_seen,
+            visited=visited,
+        )
+    elif isinstance(node, ast.Dict):
+        for value in node.values:
             yield from _python_return_source_nodes(
-                expanded.value,
+                value,
                 assignments,
                 seen=next_seen,
+                visited=visited,
             )
-        elif isinstance(expanded, ast.IfExp):
+    elif isinstance(node, ast.DictComp):
+        yield from _python_return_source_nodes(
+            node.value,
+            assignments,
+            seen=next_seen,
+            visited=visited,
+        )
+    elif isinstance(node, ast.IfExp):
+        yield from _python_return_source_nodes(
+            node.body,
+            assignments,
+            seen=next_seen,
+            visited=visited,
+        )
+        yield from _python_return_source_nodes(
+            node.orelse,
+            assignments,
+            seen=next_seen,
+            visited=visited,
+        )
+    elif isinstance(node, ast.BoolOp):
+        for value in node.values:
             yield from _python_return_source_nodes(
-                expanded.body,
+                value,
                 assignments,
                 seen=next_seen,
+                visited=visited,
             )
-            yield from _python_return_source_nodes(
-                expanded.orelse,
-                assignments,
-                seen=next_seen,
-            )
-        elif isinstance(expanded, ast.BoolOp):
-            for value in expanded.values:
-                yield from _python_return_source_nodes(
-                    value,
-                    assignments,
-                    seen=next_seen,
-                )
-        elif (
-            isinstance(expanded, ast.Call)
-            and isinstance(expanded.func, ast.Attribute)
-            and expanded.func.attr == "join"
-            and expanded.args
-        ):
-            yield from _python_return_source_nodes(
-                expanded.args[0],
-                assignments,
-                seen=next_seen,
-            )
-        else:
-            yield expanded
+    elif (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "join"
+        and node.args
+    ):
+        yield from _python_return_source_nodes(
+            node.args[0],
+            assignments,
+            seen=next_seen,
+            visited=visited,
+        )
+    else:
+        yield node
 
 
 def _infer_python_ui_wrappers(
