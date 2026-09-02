@@ -21,6 +21,39 @@ from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 class ArchivePreviewLoadingMixin:
     """Archive preview loading status updates and stalled-preview recovery."""
 
+    def _set_archive_texture_upgrade_status(self, state: str, *, detail: str = "") -> None:
+        """Keep progressive texture quality visible beside the preview itself."""
+
+        normalized = str(state or "").strip().lower()
+        self.archive_preview_texture_upgrade_pending = normalized == "loading"
+        if normalized != "loading":
+            self.archive_preview_texture_upgrade_package_path = ""
+        if normalized == "loading":
+            self._set_archive_preview_health_message(
+                "Fast textures are visible; loading full textures…",
+                visible=True,
+                working=True,
+            )
+        elif normalized == "ready":
+            self._set_archive_preview_health_message(
+                "Full textures loaded.",
+                visible=True,
+            )
+        elif normalized == "failed":
+            self._set_archive_preview_health_message(
+                f"Fast textures remain visible; full textures failed to load: {detail}",
+                visible=True,
+                attention=True,
+            )
+        elif normalized == "timed_out":
+            self._set_archive_preview_health_message(
+                "Fast textures remain visible; full textures timed out and were stopped.",
+                visible=True,
+                attention=True,
+            )
+        else:
+            self._set_archive_preview_health_message("", visible=False)
+
     def _quick_archive_model_preview_result(self, entry: Optional[ArchiveEntry]) -> Optional[ArchivePreviewResult]:
         if entry is None or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
             return None
@@ -104,10 +137,16 @@ class ArchivePreviewLoadingMixin:
         )
         self.archive_preview_surface_identity_shown = identity
         self.archive_preview_loading_reuses_surface = reuses_surface
+        self._set_archive_texture_upgrade_status("")
         self.archive_preview_title_label.setText(entry.basename if entry is not None else "Select an archive file")
         role_label = self._archive_entry_role_label(entry)
         self.archive_preview_role_badge.setText(role_label)
         self.archive_preview_role_badge.setVisible(bool(entry))
+        self._set_archive_preview_health_message(
+            f"Loading {role_label.lower()} preview...",
+            visible=bool(entry),
+            working=bool(entry),
+        )
         if reuses_surface:
             self._start_archive_preview_loading_indicator(entry)
             return
@@ -119,10 +158,6 @@ class ArchivePreviewLoadingMixin:
             and getattr(controller, "applied_package_path", "")
         )
         self.archive_preview_meta_label.setText("Loading preview...")
-        self._set_archive_preview_health_message(
-            f"Loading {role_label.lower()} preview...",
-            visible=bool(entry),
-        )
         self._clear_archive_texture_reference_views()
         self.archive_preview_warning_badge.clear()
         self.archive_preview_warning_badge.setVisible(False)
@@ -245,7 +280,7 @@ class ArchivePreviewLoadingMixin:
         self.archive_preview_loading_reuses_surface = False
         if has_fast_result:
             message = "Fast preview remains visible; full preview timed out and was stopped."
-            self._set_archive_preview_health_message(message, visible=True)
+            self._set_archive_texture_upgrade_status("timed_out")
             self.set_status_message(message, error=True)
             return
         self._clear_archive_preview("Preview timed out while loading. Select the file again or use Fast Detail.")

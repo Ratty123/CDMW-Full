@@ -198,6 +198,15 @@ class ArchivePreviewDotNetLifecycleMixin:
             self.archive_isolated_renderer_active_package = Path(package_path)
             self.archive_isolated_renderer_package_source = "dotnet-canonical"
             self._populate_archive_d3d11_part_visibility_menu(Path(package_path))
+            expected_upgrade = str(
+                getattr(self, "archive_preview_texture_upgrade_package_path", "") or ""
+            )
+            if (
+                bool(getattr(self, "archive_preview_texture_upgrade_pending", False))
+                and expected_upgrade
+                and self._archive_package_key(package_path) == self._archive_package_key(expected_upgrade)
+            ):
+                self._set_archive_texture_upgrade_status("ready")
             return
         if int(generation or 0) != int(getattr(self, "_archive_texture_package_generation", 0) or 0):
             return
@@ -243,7 +252,18 @@ class ArchivePreviewDotNetLifecycleMixin:
         generation: int,
         message: str,
     ) -> None:
-        del package_path
+        expected_upgrade = str(
+            getattr(self, "archive_preview_texture_upgrade_package_path", "") or ""
+        )
+        if (
+            bool(getattr(self, "archive_preview_texture_upgrade_pending", False))
+            and expected_upgrade
+            and self._archive_package_key(package_path) == self._archive_package_key(expected_upgrade)
+        ):
+            failure = str(message or "Resident package update failed.")
+            self._set_archive_texture_upgrade_status("failed", detail=failure)
+            self.set_status_message(f"Full preview failed after fast preview: {failure}", error=True)
+            return
         if int(generation or 0) != int(getattr(self, "_archive_texture_package_generation", 0) or 0):
             return
         self._finish_archive_texture_request(

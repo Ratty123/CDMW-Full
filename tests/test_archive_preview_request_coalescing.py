@@ -181,6 +181,7 @@ class _LoadingHost(ArchivePreviewLoadingMixin):
         self.archive_d3d11_preview_host = None
         self.texture_reference_views_cleared = 0
         self.status_messages: list[str] = []
+        self.health_messages: list[tuple[str, bool, bool, bool]] = []
 
     def _archive_entry_role_label(self, entry: Optional[ArchiveEntry]) -> str:
         return "Model"
@@ -188,8 +189,15 @@ class _LoadingHost(ArchivePreviewLoadingMixin):
     def _archive_model_renderer_backend(self) -> str:
         return "software"
 
-    def _set_archive_preview_health_message(self, message: str, visible: bool = False) -> None:
-        pass
+    def _set_archive_preview_health_message(
+        self,
+        message: str,
+        *,
+        visible: bool = False,
+        attention: bool = False,
+        working: bool = False,
+    ) -> None:
+        self.health_messages.append((str(message), bool(visible), bool(attention), bool(working)))
 
     def _clear_archive_texture_reference_views(self) -> None:
         self.texture_reference_views_cleared += 1
@@ -339,6 +347,37 @@ class ArchivePreviewRequestCoalescingTests(unittest.TestCase):
 
 
 class ArchivePreviewLoadingSurfaceTests(unittest.TestCase):
+    def test_progressive_texture_status_stays_visible_until_a_terminal_result(self) -> None:
+        host = _LoadingHost()
+
+        host._set_archive_texture_upgrade_status("loading")
+        self.assertTrue(host.archive_preview_texture_upgrade_pending)
+        self.assertEqual(
+            host.health_messages[-1],
+            ("Fast textures are visible; loading full textures…", True, False, True),
+        )
+
+        host.archive_preview_texture_upgrade_package_path = "full-package"
+        host._set_archive_texture_upgrade_status("ready")
+        self.assertFalse(host.archive_preview_texture_upgrade_pending)
+        self.assertEqual(host.archive_preview_texture_upgrade_package_path, "")
+        self.assertEqual(
+            host.health_messages[-1],
+            ("Full textures loaded.", True, False, False),
+        )
+
+        host._set_archive_texture_upgrade_status("loading")
+        host._set_archive_texture_upgrade_status("failed", detail="decode failed")
+        self.assertEqual(
+            host.health_messages[-1],
+            (
+                "Fast textures remain visible; full textures failed to load: decode failed",
+                True,
+                True,
+                False,
+            ),
+        )
+
     def test_the_same_entry_keeps_the_surface_it_already_has(self) -> None:
         host = _LoadingHost()
         entry = _entry("character/model/sword.pac")

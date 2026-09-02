@@ -75,12 +75,14 @@ class ArchivePreviewTextToolsMixin:
         *,
         visible: Optional[bool] = None,
         attention: bool = False,
+        working: bool = False,
     ) -> None:
         try:
             label = self.archive_preview_health_label
             label.setText(message)
             label.setVisible(bool(message) if visible is None else bool(visible))
             label.setProperty("attention", bool(attention))
+            label.setProperty("working", bool(working))
             label.style().unpolish(label)
             label.style().polish(label)
         except RuntimeError:

@@ -805,6 +805,10 @@ class ArchivePreviewWorkerMixin:
         )
         is_fast_result = quality_tier == "fast"
         is_interim_result = is_fast_result or quality_tier == "quick" or source == "quick_preview"
+        full_after_fast = bool(
+            not is_interim_result
+            and str(getattr(self.current_archive_preview_result, "quality_tier", "") or "").strip().lower() == "fast"
+        )
         if payload_cache_key:
             cache_key = payload_cache_key
         elif is_fast_result and full_cache_key:
@@ -848,6 +852,10 @@ class ArchivePreviewWorkerMixin:
                 source=source,
             )
             return
+        if full_after_fast:
+            self.archive_preview_texture_upgrade_package_path = str(
+                getattr(payload, "dotnet_preview_package_path", "") or ""
+            )
         try:
             if isinstance(payload, ArchivePreviewResult):
                 result = payload
@@ -873,6 +881,7 @@ class ArchivePreviewWorkerMixin:
                 if source == "quick_preview":
                     self.set_status_message("Quick preview loaded; building full 3D preview...")
                 elif is_fast_result:
+                    self._set_archive_texture_upgrade_status("loading")
                     self.set_status_message("Fast preview loaded; refining full-quality preview...")
                 else:
                     self._stop_archive_preview_loading_indicator(success=True)
@@ -929,7 +938,10 @@ class ArchivePreviewWorkerMixin:
         current_quality = str(getattr(self.current_archive_preview_result, "quality_tier", "") or "").strip().lower()
         if current_quality in {"fast", "quick"}:
             label = "fast" if current_quality == "fast" else "quick"
-            self.set_status_message(f"Full preview failed after {label} preview: {message}", error=True)
+            failure_message = f"Full preview failed after {label} preview: {message}"
+            if current_quality == "fast":
+                self._set_archive_texture_upgrade_status("failed", detail=str(message))
+            self.set_status_message(failure_message, error=True)
             return
         preserve_resident = getattr(self, "_preserve_archive_resident_scene_error", None)
         if callable(preserve_resident) and preserve_resident(message):

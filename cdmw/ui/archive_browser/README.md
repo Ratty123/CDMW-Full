@@ -24,6 +24,8 @@ as Preview Core finishes, then promote the same resident scene to the full
 PAC/PAC_XML material package without resetting its camera. Rust manifest texture
 resources are the active completion authority, so a successful package cannot
 trigger a redundant forced texture request through the retired material format.
+The preview health row stays highlighted while the fast package is being refined
+and remains explicit when the full texture pass completes, fails, or times out.
 
 Browsing, preview, scan, extraction, and package preparation are read-only.
 Actions that can write route through service-owned confirmation and

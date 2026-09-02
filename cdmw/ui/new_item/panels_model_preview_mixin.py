@@ -202,6 +202,7 @@ class ModelPanelPreviewMixin:
             "Building the preview...",
             "Loading the viewport...",
             "Loading model textures…",
+            "Fast textures are visible; loading full textures…",
         }
         self.preview_status.setText("" if self._preview_busy else message)
         if not self._controller.busy:

@@ -524,6 +524,7 @@ class ItemPreviewFrame(QWidget):
         #: Full-material stage queued behind a geometry-first preview package.
         self._upgrade_request: Optional[tuple[Hashable, Any, bool, Path]] = None
         self._loaded_stage = ""
+        self._full_texture_upgrade_from_fast = False
         self._reset_view_on_ready = True
         self._retire_after_ready: list[Path] = []
         #: the build in flight was stopped for a newer request; its error is not the user's
@@ -603,6 +604,7 @@ class ItemPreviewFrame(QWidget):
             self._pending = None
             self._pending_is_placement = False
             self._upgrade_request = None
+            self._full_texture_upgrade_from_fast = False
             self._placement = None
             self.is_ready = False
             self._drop_deferred_package()
@@ -619,6 +621,7 @@ class ItemPreviewFrame(QWidget):
         self._pending = (token, source)
         self._pending_is_placement = bool(is_placement)
         self._upgrade_request = None
+        self._full_texture_upgrade_from_fast = False
         self._drop_deferred_package()
         self.is_ready = False
         # the scene on screen is the package before this request: take the gizmo off it at
@@ -870,12 +873,22 @@ class ItemPreviewFrame(QWidget):
         ):
             self._upgrade_request = None
             self._building = (building[0], building[1], "materials")
-            self.status_changed.emit("Loading model textures…")
+            self.status_changed.emit(
+                "Fast textures are visible; loading full textures…"
+                if step == (2, 3)
+                else "Loading model textures…"
+            )
 
     def _package_failed(self, message: object) -> None:
         if self._closed or self._superseded:
             return
-        self.status_changed.emit(f"The preview could not be built: {message}")
+        if self._loaded_stage == "fast_materials" and self._building is not None and self._building[2] == "materials":
+            self._full_texture_upgrade_from_fast = False
+            self.status_changed.emit(
+                f"Fast textures remain visible; full textures failed to load: {message}"
+            )
+        else:
+            self.status_changed.emit(f"The preview could not be built: {message}")
 
     def _worker_finished(self) -> None:
         """Return the worker QObject to this frame's thread before its loop exits."""
@@ -971,6 +984,7 @@ class ItemPreviewFrame(QWidget):
                 self.status_changed.emit("")
                 return
         previous = self._package_dir
+        previous_stage = self._loaded_stage
         reset_view = previous is None or stage == "geometry" or self._loaded_token != token
         if self.host.load_package(result, reset_view=reset_view):
             self._package_dir = result
@@ -980,12 +994,25 @@ class ItemPreviewFrame(QWidget):
             self._loaded_token = token
             self._loaded_is_placement = bool(is_placement)
             self._loaded_stage = stage
+            self._full_texture_upgrade_from_fast = stage == "materials" and previous_stage == "fast_materials"
             self._reset_view_on_ready = reset_view
             self.host.set_display_mode("replacement_only")
-            self.status_changed.emit("Loading the viewport...")
+            self.status_changed.emit(
+                "Fast textures are visible; loading full textures…"
+                if stage == "fast_materials" or self._full_texture_upgrade_from_fast
+                else "Loading model textures…"
+                if stage == "materials"
+                else "Loading the viewport..."
+            )
         else:
             self._remove_package(result)
-            self.status_changed.emit("The resident viewport rejected the preview package.")
+            if stage == "materials" and previous_stage == "fast_materials":
+                self.status_changed.emit(
+                    "Fast textures remain visible; full textures failed to load: "
+                    "the resident viewport rejected the preview package."
+                )
+            else:
+                self.status_changed.emit("The resident viewport rejected the preview package.")
 
     def _host_state(self, state: str, message: str) -> None:
         if self._closed or self.host is None:
@@ -1012,10 +1039,21 @@ class ItemPreviewFrame(QWidget):
                 and self._building[2] == "materials"
                 and self._loaded_stage != "materials"
             )
-            self.status_changed.emit("Loading model textures…" if building_materials else "")
+            if self._loaded_stage == "materials":
+                preview_status = "Full textures loaded."
+            elif building_materials and self._loaded_stage == "fast_materials":
+                preview_status = "Fast textures are visible; loading full textures…"
+            else:
+                preview_status = "Loading model textures…" if building_materials else ""
+            self._full_texture_upgrade_from_fast = False
+            self.status_changed.emit(preview_status)
             self.ready.emit()
         elif str(state) == "error":
-            self.status_changed.emit(str(message or "The viewport reported an error."))
+            failure = str(message or "The viewport reported an error.")
+            if self._full_texture_upgrade_from_fast:
+                failure = f"Fast textures remain visible; full textures failed to load: {failure}"
+            self._full_texture_upgrade_from_fast = False
+            self.status_changed.emit(failure)
 
     # ------------------------------------------------------------------ capture
 

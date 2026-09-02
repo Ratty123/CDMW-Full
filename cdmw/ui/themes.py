@@ -781,6 +781,14 @@ def _app_status_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> st
         color: {theme["text_muted"]};
         background: transparent;
     }}
+    QLabel#ArchivePreviewHealthLabel[working="true"] {{
+        color: {theme["text_strong"]};
+        background: {theme["accent_soft"]};
+        border: 1px solid {theme["border"]};
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-weight: 600;
+    }}
     QLabel#ArchivePreviewHealthLabel[attention="true"] {{
         color: {theme["warning_text"]};
         background: {theme["warning_bg"]};

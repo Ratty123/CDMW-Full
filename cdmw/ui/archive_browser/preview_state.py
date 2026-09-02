@@ -174,6 +174,8 @@ class ArchivePreviewStateMixin:
         if self.archive_preview_worker is not None:
             self.archive_preview_worker.stop()
         self._stop_archive_preview_loading_indicator(success=None)
+        self.archive_preview_texture_upgrade_pending = False
+        self.archive_preview_texture_upgrade_package_path = ""
         self.current_archive_preview_result = None
         self.archive_preview_requested_loose = False
         self.archive_preview_showing_loose = False
@@ -216,6 +218,8 @@ class ArchivePreviewStateMixin:
             self.archive_preview_worker.stop()
         self._deactivate_archive_model_renderers_for_non_model_preview()
         self._stop_archive_preview_loading_indicator(success=None)
+        self.archive_preview_texture_upgrade_pending = False
+        self.archive_preview_texture_upgrade_package_path = ""
         self.current_archive_preview_result = None
         self.archive_preview_requested_loose = False
         self.archive_preview_showing_loose = False

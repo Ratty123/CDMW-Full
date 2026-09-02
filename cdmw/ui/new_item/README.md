@@ -162,7 +162,9 @@ synthesis is deduplicated across identical submesh inputs.
 Apply runs through the controller's cancellable progress lane; its spinner, current phase,
 percentage when available and Cancel action remain live while conflicting placement edits
 are disabled. Preview-loading text stays in that pinned operation bar while errors and
-ready/capture messages remain below the viewport. Imported-material, Glow and
+ready/capture messages remain below the viewport. The fast-texture state explicitly says
+that full quality is still loading, and the final state confirms whether that texture pass
+completed or failed. Imported-material, Glow and
 template-specific controls live with the model; alternate sheathed/holstered visuals
 and inherited cloth/physics are hidden when the selected family cannot use them. The
 viewport shows the model over the template with the grid and gizmo (`PlacementScene`).

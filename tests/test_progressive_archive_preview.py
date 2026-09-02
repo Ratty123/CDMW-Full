@@ -23,6 +23,9 @@ from cdmw.models import (
 )
 from cdmw.rendering.native_preview_core import NativePreviewCoreAttempt
 from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
+from cdmw.ui.archive_browser.preview_dotnet_lifecycle import (
+    ArchivePreviewDotNetLifecycleMixin,
+)
 from cdmw.ui.archive_browser.preview_loading import ArchivePreviewLoadingMixin
 from cdmw.ui.archive_browser.workers import _archive_preview_debounce_ms
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
@@ -67,6 +70,60 @@ def _preview_model(face_count: int, *, fmt: str = "pac", lod_index: int = -1, lo
 
 
 class ProgressiveArchivePreviewTests(unittest.TestCase):
+    def test_full_texture_status_waits_for_resident_package_acknowledgement(self) -> None:
+        class Host(ArchivePreviewDotNetLifecycleMixin, ArchivePreviewLoadingMixin):
+            def __init__(self) -> None:
+                self._archive_texture_request_loading = False
+                self.archive_preview_texture_upgrade_pending = True
+                self.archive_preview_texture_upgrade_package_path = str(Path("full") / "package")
+                self.health: list[tuple[str, bool, bool, bool]] = []
+                self.statuses: list[tuple[str, bool]] = []
+
+            def _populate_archive_d3d11_part_visibility_menu(self, _package: Path) -> None:
+                pass
+
+            def _set_archive_preview_health_message(
+                self,
+                message: str,
+                *,
+                visible: bool = False,
+                attention: bool = False,
+                working: bool = False,
+            ) -> None:
+                self.health.append((str(message), bool(visible), bool(attention), bool(working)))
+
+            def set_status_message(self, message: str, *, error: bool = False) -> None:
+                self.statuses.append((str(message), bool(error)))
+
+        ready = Host()
+        ready._handle_archive_resident_package_applied(str(Path("full") / "package"), 4)
+        self.assertFalse(ready.archive_preview_texture_upgrade_pending)
+        self.assertEqual(
+            ready.health[-1],
+            ("Full textures loaded.", True, False, False),
+        )
+
+        failed = Host()
+        failed._handle_archive_resident_package_failed(
+            str(Path("full") / "package"),
+            4,
+            "renderer rejected package",
+        )
+        self.assertFalse(failed.archive_preview_texture_upgrade_pending)
+        self.assertEqual(
+            failed.health[-1],
+            (
+                "Fast textures remain visible; full textures failed to load: renderer rejected package",
+                True,
+                True,
+                False,
+            ),
+        )
+        self.assertEqual(
+            failed.statuses[-1],
+            ("Full preview failed after fast preview: renderer rejected package", True),
+        )
+
     def test_archive_preview_support_slots_include_sparse_emissive_maps(self) -> None:
         settings = SimpleNamespace(
             disable_all_support_maps=False,
@@ -967,12 +1024,17 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
 
     def test_fast_result_does_not_finalize_request_source_guard(self) -> None:
         source = Path("cdmw/ui/archive_browser/workers.py").read_text(encoding="utf-8")
+        resident = Path("cdmw/ui/archive_browser/preview_dotnet_lifecycle.py").read_text(encoding="utf-8")
         handler = source[source.index("def _handle_archive_preview_ready"):source.index("def _handle_archive_preview_error")]
 
         self.assertIn("is_fast_result = quality_tier == \"fast\"", handler)
         self.assertIn("is_interim_result = is_fast_result or quality_tier == \"quick\" or source == \"quick_preview\"", handler)
         self.assertIn("if not is_interim_result:", handler)
         self.assertIn("Fast preview loaded; refining full-quality preview", handler)
+        self.assertIn('self._set_archive_texture_upgrade_status("loading")', handler)
+        self.assertIn("archive_preview_texture_upgrade_package_path", handler)
+        self.assertIn('self._set_archive_texture_upgrade_status("ready")', resident)
+        self.assertIn('self._set_archive_texture_upgrade_status("failed", detail=failure)', resident)
 
     def test_archive_preview_worker_owns_cache_and_quick_payloads_source_guard(self) -> None:
         source = Path("cdmw/ui/archive_browser/workers.py").read_text(encoding="utf-8")

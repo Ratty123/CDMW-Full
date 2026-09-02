@@ -871,6 +871,8 @@ class ItemPreviewFrameTests(unittest.TestCase):
         output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_direct_template_"))
         frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
         frame._ensure_host()
+        statuses = []
+        frame.status_changed.connect(statuses.append)
 
         def build_package(_source, *, include_material_resources, output_root, **kwargs):
             if not include_material_resources:
@@ -905,9 +907,13 @@ class ItemPreviewFrameTests(unittest.TestCase):
         )
         self.assertEqual([call[2]["reset_view"] for call in loads], [True, False, False])
         self.assertEqual(frame._loaded_stage, "materials")
+        self.assertEqual(statuses[-1], "Fast textures are visible; loading full textures…")
+        frame.host.controller.state_changed.emit("ready", "")
+        self.app.processEvents()
+        self.assertEqual(statuses[-1], "Full textures loaded.")
         frame.shutdown()
 
-    def test_full_material_ready_clears_the_texture_loading_status(self) -> None:
+    def test_full_material_ready_confirms_the_texture_loading_finished(self) -> None:
         from cdmw.ui.new_item.item_preview import ItemPreviewFrame
 
         output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_status_"))
@@ -928,7 +934,33 @@ class ItemPreviewFrameTests(unittest.TestCase):
 
         frame._host_state("ready", "")
 
-        self.assertEqual(statuses[-1], "")
+        self.assertEqual(statuses[-1], "Full textures loaded.")
+        frame.shutdown()
+
+    def test_fast_material_ready_keeps_the_full_quality_upgrade_visible(self) -> None:
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_fast_status_"))
+        package = output / "direct"
+        package.mkdir()
+        frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
+        frame._ensure_host()
+        frame._package_dir = package
+        frame._pending = ("model", object())
+        frame._loaded_token = "model"
+        frame._loaded_stage = "fast_materials"
+        frame._building = ("model", False, "materials")
+        statuses = []
+        frame.status_changed.connect(statuses.append)
+
+        frame._host_state("ready", "")
+        self.assertEqual(statuses[-1], "Fast textures are visible; loading full textures…")
+
+        frame._package_failed("material synthesis failed")
+        self.assertEqual(
+            statuses[-1],
+            "Fast textures remain visible; full textures failed to load: material synthesis failed",
+        )
         frame.shutdown()
 
     def test_progressive_template_accepts_a_native_package_without_python_recompile(self) -> None:
