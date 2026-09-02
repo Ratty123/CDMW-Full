@@ -4991,6 +4991,136 @@ def _rust_material_optional_color(
     return values
 
 
+_RUST_SURFACE_PROFILE_FINISHES = frozenset(
+    {"unspecified", "polished", "satin", "matte", "rough"}
+)
+_RUST_SURFACE_PROFILE_STRUCTURES = frozenset(
+    {
+        "unspecified",
+        "smooth",
+        "woven",
+        "fibrous",
+        "grained",
+        "porous",
+        "crystalline",
+        "shell",
+    }
+)
+_RUST_SURFACE_PROFILE_COATINGS = frozenset(
+    {"none", "painted", "lacquered", "clearcoat"}
+)
+_RUST_SURFACE_PROFILE_FACTORS = (
+    "roughness",
+    "metalness",
+    "specular",
+    "height_scale",
+    "anisotropy",
+)
+_RUST_SURFACE_PROFILE_AUTHORED_FACTORS = (
+    "roughness",
+    "metalness",
+    "specular",
+    "height_scale",
+)
+
+
+def _rust_surface_profile(
+    raw_profile: object,
+    *,
+    material_category: str,
+    category_confidence: float,
+) -> dict[str, object] | None:
+    """Validate the native source-derived profile at the Python/Rust boundary."""
+
+    if not isinstance(raw_profile, Mapping) or not raw_profile:
+        return None
+    family = str(raw_profile.get("family", "") or "").strip().casefold()
+    try:
+        family_code = int(raw_profile.get("family_code", -1))
+        confidence = float(raw_profile.get("confidence", category_confidence))
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise RustMeshProtocolError(
+            "Preview Core returned an invalid material surface profile"
+        ) from exc
+    if (
+        family != material_category
+        or not is_known_material_category(family)
+        or family_code != material_category_code(family)
+    ):
+        raise RustMeshProtocolError(
+            "Preview Core surface-profile family does not match its material category"
+        )
+    if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+        raise RustMeshProtocolError(
+            "Preview Core surface-profile confidence is outside 0..=1"
+        )
+
+    finish = str(raw_profile.get("finish", "") or "").strip().casefold()
+    structure = str(raw_profile.get("structure", "") or "").strip().casefold()
+    coating = str(raw_profile.get("coating", "") or "").strip().casefold()
+    if finish not in _RUST_SURFACE_PROFILE_FINISHES:
+        raise RustMeshProtocolError("Preview Core surface-profile finish is invalid")
+    if structure not in _RUST_SURFACE_PROFILE_STRUCTURES:
+        raise RustMeshProtocolError("Preview Core surface-profile structure is invalid")
+    if coating not in _RUST_SURFACE_PROFILE_COATINGS:
+        raise RustMeshProtocolError("Preview Core surface-profile coating is invalid")
+
+    evidence = str(raw_profile.get("evidence", "") or "").strip()
+    if (
+        not evidence
+        or len(evidence) > 1024
+        or any(character.isprintable() is False for character in evidence)
+    ):
+        raise RustMeshProtocolError("Preview Core surface-profile evidence is invalid")
+
+    raw_fallbacks = raw_profile.get("fallbacks", {})
+    raw_authored = raw_profile.get("authored", {})
+    raw_fallback_applied = raw_profile.get("fallback_applied", {})
+    if not all(
+        isinstance(value, Mapping)
+        for value in (raw_fallbacks, raw_authored, raw_fallback_applied)
+    ):
+        raise RustMeshProtocolError("Preview Core surface-profile factors are invalid")
+    fallbacks: dict[str, float] = {}
+    for name in _RUST_SURFACE_PROFILE_FACTORS:
+        try:
+            value = float(raw_fallbacks[name])
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:
+            raise RustMeshProtocolError(
+                f"Preview Core surface-profile fallback {name!r} is invalid"
+            ) from exc
+        if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+            raise RustMeshProtocolError(
+                f"Preview Core surface-profile fallback {name!r} is outside 0..=1"
+            )
+        fallbacks[name] = value
+    authored = {
+        name: bool(raw_authored.get(name, False))
+        for name in _RUST_SURFACE_PROFILE_AUTHORED_FACTORS
+    }
+    fallback_applied = {
+        name: bool(raw_fallback_applied.get(name, False))
+        for name in _RUST_SURFACE_PROFILE_FACTORS
+    }
+    for name in _RUST_SURFACE_PROFILE_AUTHORED_FACTORS:
+        if authored[name] and fallback_applied[name]:
+            raise RustMeshProtocolError(
+                f"Preview Core applied surface-profile fallback {name!r} over authored data"
+            )
+    return {
+        "family": family,
+        "family_code": family_code,
+        "finish": finish,
+        "structure": structure,
+        "coating": coating,
+        "confidence": confidence,
+        "evidence": evidence,
+        "fallbacks": fallbacks,
+        "authored": authored,
+        "fallback_applied": fallback_applied,
+    }
+
+
 def _rust_normalized_parameter_name(value: object) -> str:
     return "".join(
         character
@@ -5413,6 +5543,16 @@ def _mesh_material_presentations(
             authored_height_scale = _rust_exact_authored_height_scale(
                 submeshes[material_index]
             )
+            surface_profile = _rust_surface_profile(
+                source.get("surface_profile"),
+                material_category=category,
+                category_confidence=category_confidence,
+            )
+            profile_anisotropy = bool(
+                surface_profile
+                and surface_profile["fallback_applied"]["anisotropy"]
+                and surface_profile["fallbacks"]["anisotropy"] > 0.0
+            )
             rows.append(
                 {
                     "lod_index": lod_index,
@@ -5421,6 +5561,7 @@ def _mesh_material_presentations(
                     "material_category": category,
                     "category_code": material_category_code(category),
                     "category_confidence": category_confidence,
+                    "surface_profile": surface_profile,
                     "shader_family": shader_family,
                     "normal_y_policy": normal_y_policy,
                     "normal_y_inverted": normal_y_policy
@@ -5477,7 +5618,9 @@ def _mesh_material_presentations(
                     ),
                     "texture_tint": texture_tint,
                     "base_tint_strength": base_tint_strength,
-                    "hair_anisotropy": shader_family.casefold() == "hair",
+                    "hair_anisotropy": (
+                        shader_family.casefold() == "hair" or profile_anisotropy
+                    ),
                     "skin_detail_scale": skin_detail_scale,
                     "skin_detail_opacity": skin_detail_opacity,
                 }

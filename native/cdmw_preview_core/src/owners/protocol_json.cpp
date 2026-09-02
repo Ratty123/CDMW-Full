@@ -1,6 +1,6 @@
 constexpr int kNativePackageSchemaVersion = 8;
-constexpr int kNativeMaterialGraphVersion = 3;
-constexpr int kNativeMaterialSemanticsVersion = 9;
+constexpr int kNativeMaterialGraphVersion = 4;
+constexpr int kNativeMaterialSemanticsVersion = 10;
 constexpr int kNativeDdsExtractionVersion = 2;
 
 std::string json_escape(const std::string& value) {
@@ -641,6 +641,16 @@ struct MaterialParameterRecord {
     std::string value;
     float numeric_value = 0.0f;
     bool has_numeric = false;
+    // Integer PAC fields are source identifiers/bit patterns, not floats. Keep
+    // their canonical decimal representation so Byte4/BitFlag32/UInt values
+    // survive JSON transport without f32 rounding (notably 0xFFFFFFFF).
+    std::string integer_value;
+    bool has_integer = false;
+    std::string tag_name;
+    std::string string_item_id;
+    std::string item_id;
+    int index = -1;
+    std::string texture_path;
 };
 
 struct TextureBinding {
@@ -654,6 +664,7 @@ struct TextureBinding {
     std::string shader_family;
     std::string shader_rule;
     std::string material_name;
+    std::string owner_wrapper_item_id;
     std::string sidecar_path;
     std::string sidecar_kind;
     std::string linked_mesh_path;
@@ -684,6 +695,10 @@ struct TextureBinding {
     float metalness_hint = 0.0f;
     float specular_hint = 0.0f;
     float height_scale_hint = 0.0f;
+    bool roughness_hint_present = false;
+    bool metalness_hint_present = false;
+    bool specular_hint_present = false;
+    bool height_scale_hint_present = false;
     float emissive_intensity_hint = 0.0f;
     // Neutral unless the material authors an emissive colour. An `_emi` map
     // already carries the colour it emits, so a non-neutral default would tint

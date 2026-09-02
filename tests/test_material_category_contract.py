@@ -1,4 +1,4 @@
-"""The material category vocabulary must agree across Python, C#, and HLSL.
+"""The material category vocabulary must agree across Python, C#, HLSL, and Rust.
 
 The same decision is represented three times: Python emits a category string,
 ``NetMaterialSet.Resident.cs`` maps it to a float code, and the pixel shader
@@ -29,6 +29,7 @@ from cdmw.rendering.material_category_contract import (
 ROOT = Path(__file__).resolve().parents[1]
 RESIDENT_CS = ROOT / "tools/dotnet_mesh_editor_experiment/NetMaterialSet.Resident.cs"
 SHADER_HLSL = ROOT / "tools/dotnet_mesh_editor_experiment/D3D11MaterialShaders.hlsl"
+RUST_SESSION = ROOT / "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs"
 PYTHON_PRODUCER = ROOT / "cdmw/rendering/native_preview_material_contract.py"
 PRODUCER_FUNCTION = "_resolved_batch_material_category"
 
@@ -71,6 +72,15 @@ def _hlsl_category_ranges() -> dict[str, tuple[float, float]]:
     }
 
 
+def _rust_category_codes() -> dict[str, int]:
+    source = RUST_SESSION.read_text(encoding="utf-8")
+    start = source.index("fn material_category_code")
+    body = source[start : source.index("\n}", start)]
+    pairs = re.findall(r'"([a-z]+)"\s*=>\s*Some\(([0-9]+)\)', body)
+    assert pairs, "could not parse any category mapping out of the Rust source"
+    return {name: int(code) for name, code in pairs}
+
+
 def _python_producer_categories() -> set[str]:
     """Every string literal the authoritative classifier can return."""
     tree = ast.parse(PYTHON_PRODUCER.read_text(encoding="utf-8"))
@@ -101,6 +111,10 @@ def test_csharp_mapping_matches_the_contract_exactly() -> None:
         f"only in C#: {sorted(set(csharp) - set(expected))}, "
         f"only in contract: {sorted(set(expected) - set(csharp))}"
     )
+
+
+def test_rust_mapping_matches_the_contract_exactly() -> None:
+    assert _rust_category_codes() == dict(MATERIAL_CATEGORY_CODES)
 
 
 def test_csharp_falls_back_to_the_unclassified_code() -> None:

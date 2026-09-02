@@ -21,6 +21,48 @@ static void run_color_blending_palette_contract_self_test() {
             && lower_copy(variant_one_refs.front().path).find("variant_one.dds") != std::string::npos,
         "shared PAC material-property selection ignored the item prefab index");
 
+    const std::string shared_logical_edge_sidecar =
+        "<Root><ModelProperty Index=\"0\"><SkinnedMeshMaterialWrapper ItemID=\"712\" _subMeshName=\"grip\">"
+        "<MaterialParameterTexture _name=\"_detailMaskTexture\" Value=\"shared_mask.dds\"/>"
+        "<MaterialParameterTexture _name=\"_grimeDiffuseTextureR\" Value=\"shared_mask.dds\"/>"
+        "<MaterialParameterTexture _name=\"_detailDiffuseMaskB\" Value=\"shared_mask.dds\"/>"
+        "<MaterialParameterByte4 _name=\"_dyeingTransformProperty0\" _value=\"4294967295\"/>"
+        "</SkinnedMeshMaterialWrapper></ModelProperty></Root>";
+    const std::vector<SidecarTextureRef> shared_logical_refs =
+        extract_sidecar_texture_refs(shared_logical_edge_sidecar, 0);
+    require_material_contract(
+        shared_logical_refs.size() == 3
+            && std::all_of(shared_logical_refs.begin(), shared_logical_refs.end(), [](const SidecarTextureRef& ref) {
+                return ref.owner_wrapper_item_id == "712" && ref.path == "shared_mask.dds";
+            }),
+        "same-DDS logical PAC parameters collapsed or lost wrapper identity");
+    require_material_contract(
+        layer_channel_from_parameter("_detailMaskTexture").empty()
+            && layer_channel_from_parameter("_colorBlendingMaskTexture").empty()
+            && layer_channel_from_parameter("_grimeDiffuseTextureR") == "r"
+            && layer_channel_from_parameter("_detailDiffuseMaskB") == "b",
+        "selector masks or labelled layer parameters lost exact channel semantics");
+    require_material_contract(
+        !shared_logical_refs.front().material_parameters.empty()
+            && std::any_of(
+                shared_logical_refs.front().material_parameters.begin(),
+                shared_logical_refs.front().material_parameters.end(),
+                [](const MaterialParameterRecord& parameter) {
+                    return parameter.name == "_dyeingTransformProperty0"
+                        && parameter.has_integer
+                        && parameter.integer_value == "4294967295"
+                        && !parameter.has_numeric;
+                })
+            && std::any_of(
+                shared_logical_refs.front().material_parameters.begin(),
+                shared_logical_refs.front().material_parameters.end(),
+                [](const MaterialParameterRecord& parameter) {
+                    return parameter.kind == "texture"
+                        && parameter.name == "_detailMaskTexture"
+                        && parameter.texture_path == "shared_mask.dds";
+                }),
+        "Byte4 PAC value travelled through lossy floating-point transport");
+
     TextureBinding dyed_base;
     dyed_base.role = "base";
     dyed_base.source_path = "vest_base.dds";
@@ -66,6 +108,14 @@ static void run_color_blending_palette_contract_self_test() {
         parameter.kind = "color";
         parameter.name = name;
         parameter.value = value;
+        return parameter;
+    };
+    auto authored_integer = [](const char* kind, const char* name, const char* value) {
+        MaterialParameterRecord parameter;
+        parameter.kind = kind;
+        parameter.name = name;
+        parameter.value = value;
+        parameter.integer_value = integer_parameter_value(value, &parameter.has_integer);
         return parameter;
     };
     const std::vector<MaterialParameterRecord> cloth_0350_parameters{
@@ -133,29 +183,30 @@ static void run_color_blending_palette_contract_self_test() {
 
     const std::vector<MaterialParameterRecord> transport_parameters{
         authored_color("_dyeingColorMaskG", "#ee5f5fff"),
-        {"byte4", "_dyeingTransformProperty0", "4294967295", 4294967295.0f, true},
-        {"byte4", "_dyeingTransformProperty1", "16777215", 16777215.0f, true},
-        {"byte4", "_dyeingTransformProperty3", "65535", 65535.0f, true},
-        {"byte4", "_dyeingPropertyBlend", "16843009", 16843009.0f, true},
-        {"byte4", "_dyeingGlobalOpacity", "16777215", 16777215.0f, true},
-        {"bitflag32", "_colorBlendingFlag", "4095", 4095.0f, true},
-        {"bitflag32", "_grimeBlendingFlag", "7", 7.0f, true},
+        authored_integer("byte4", "_dyeingTransformProperty0", "4294967295"),
+        authored_integer("byte4", "_dyeingTransformProperty1", "16777215"),
+        authored_integer("byte4", "_dyeingTransformProperty3", "65535"),
+        authored_integer("byte4", "_dyeingPropertyBlend", "16843009"),
+        authored_integer("byte4", "_dyeingGlobalOpacity", "16777215"),
+        authored_integer("bitflag32", "_colorBlendingFlag", "4095"),
+        authored_integer("bitflag32", "_grimeBlendingFlag", "7"),
         {"float", "_unrelatedPhysicsValue", "2", 2.0f, true},
     };
     const std::vector<MaterialParameterRecord> filtered =
         filtered_preview_material_parameters(transport_parameters);
     require_material_contract(
-        filtered.size() == transport_parameters.size() - 1
-            && std::none_of(filtered.begin(), filtered.end(), [](const MaterialParameterRecord& parameter) {
+        filtered.size() == transport_parameters.size()
+            && std::any_of(filtered.begin(), filtered.end(), [](const MaterialParameterRecord& parameter) {
                 return parameter.name == "_unrelatedPhysicsValue";
             }),
-        "filtered PAC material parameter transport lost shader fields or kept unrelated data");
+        "PAC material parameter transport did not conserve every declared field");
     std::ostringstream parameter_json;
     append_material_parameter_records_json(parameter_json, filtered);
     require_material_contract(
         parameter_json.str().find("\"parameter_kind\":\"color\"") != std::string::npos
             && parameter_json.str().find("\"parameter_name\":\"_dyeingTransformProperty3\"")
                 != std::string::npos
+            && parameter_json.str().find("\"integer_value\":4294967295") != std::string::npos
             && parameter_json.str().find("\"color_value\":[0.933") != std::string::npos,
         "PAC material parameter JSON no longer matches the Python consumer shape");
 

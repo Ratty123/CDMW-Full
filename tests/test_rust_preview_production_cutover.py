@@ -124,8 +124,8 @@ def _write_schema8_preview_core_fixture(
         json.dumps(
             {
                 "schema_version": 8,
-                "material_semantics_version": 1,
-                "material_graph_version": 1,
+                "material_semantics_version": 10,
+                "material_graph_version": 4,
                 "source_path": "character/helmet.pac",
                 "format": "pac",
                 "normalization_center": list(center),
@@ -275,6 +275,10 @@ def test_schema8_preview_core_geometry_bypasses_python_and_large_json_roundtrip(
     assert warm.package_dir == package.package_dir
     direct = manifest["preview_core_geometry"]
     assert direct["schema_version"] == 8
+    assert direct["material_graph_version"] == 4
+    assert direct["material_semantics_version"] == 10
+    assert manifest["material_contract"]["graph_version"] == 4
+    assert manifest["material_contract"]["semantics_version"] == 10
     assert direct["normalization_center"] == [10.0, 20.0, 30.0]
     assert direct["normalization_scale"] == 2.0
     assert len(direct["batches"]) == 1

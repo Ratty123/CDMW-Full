@@ -574,18 +574,28 @@ static void add_sidecar_texture_ref(
     std::string parameter,
     const std::string& material_name,
     const std::string& shader_family,
+    const std::string& owner_wrapper_item_id,
     int material_wrapper_index,
     const std::vector<MaterialParameterRecord>& material_parameters = {}
 ) {
     std::replace(path.begin(), path.end(), '\\', '/');
     if (lower_copy(path).find(".dds") == std::string::npos) return;
     if (parameter.empty()) parameter = basename_from_path(path);
-    // A single DDS can appear under multiple same-slot layer parameters and again
-    // through synthetic sibling expansion. Extracting it once per material keeps
-    // native packages smaller without losing the slot ownership evidence.
-    const std::string key = lower_copy(path + "|" + material_name + "|" + shader_family);
+    // Logical graph edges are distinct even when their bytes are not. A single
+    // DDS can intentionally drive grime and detail parameters in one wrapper;
+    // collapsing by path loses authored layer semantics before Rust sees them.
+    const std::string key = lower_copy(
+        owner_wrapper_item_id + "|" + parameter + "|" + path);
     if (seen.insert(key).second) {
-        refs.push_back(SidecarTextureRef{path, parameter, material_name, shader_family, material_wrapper_index, material_parameters});
+        refs.push_back(SidecarTextureRef{
+            path,
+            parameter,
+            material_name,
+            shader_family,
+            owner_wrapper_item_id,
+            material_wrapper_index,
+            material_parameters,
+        });
     }
 }
 
@@ -616,15 +626,27 @@ static void add_support_base_sibling_ref(
     std::vector<SidecarTextureRef>& refs,
     std::set<std::string>& seen,
     const std::string& path,
+    const std::string& parameter,
     const std::string& material_name,
     const std::string& shader_family,
+    const std::string& owner_wrapper_item_id,
     int material_wrapper_index,
     const std::vector<MaterialParameterRecord>& material_parameters
 ) {
+    const std::string parameter_key = normalized_key(parameter);
+    if (parameter_key.find("detail") != std::string::npos
+        || parameter_key.find("grime") != std::string::npos
+        || parameter_key.find("dye") != std::string::npos) {
+        // Layer-family support maps are completed below with their authored
+        // detail/grime parameter. Promoting their diffuse sibling to a generic
+        // base edge makes that layer eligible to overpaint the whole material.
+        return;
+    }
     if (!texture_path_has_visual_support_suffix(path)) return;
     const std::string diffuse_path = texture_path_without_known_suffix(path);
     if (diffuse_path.empty() || lower_copy(diffuse_path) == lower_copy(path)) return;
-    add_sidecar_texture_ref(refs, seen, diffuse_path, "_baseColorTexture", material_name, shader_family, material_wrapper_index, material_parameters);
+    add_sidecar_texture_ref(refs, seen, diffuse_path, "_baseColorTexture", material_name,
+        shader_family, owner_wrapper_item_id, material_wrapper_index, material_parameters);
 }
 
 static void add_layer_family_sibling_refs(
@@ -634,6 +656,7 @@ static void add_layer_family_sibling_refs(
     const std::string& parameter,
     const std::string& material_name,
     const std::string& shader_family,
+    const std::string& owner_wrapper_item_id,
     int material_wrapper_index,
     const std::vector<MaterialParameterRecord>& material_parameters
 ) {
@@ -657,16 +680,21 @@ static void add_layer_family_sibling_refs(
     const std::string material_parameter = key.find("grime") != std::string::npos ? ("_grimeMaterialTexture" + suffix) : ("_detailMaterialMask" + suffix);
     const std::string height_parameter = "_detailHeightMask" + suffix;
     const std::string stem = diffuse_path.substr(0, diffuse_path.size() - 4);
-    add_sidecar_texture_ref(refs, seen, diffuse_path, diffuse_parameter, material_name, shader_family, material_wrapper_index, material_parameters);
-    add_sidecar_texture_ref(refs, seen, stem + "_n.dds", normal_parameter, material_name, shader_family, material_wrapper_index, material_parameters);
-    add_sidecar_texture_ref(refs, seen, stem + "_sp.dds", material_parameter, material_name, shader_family, material_wrapper_index, material_parameters);
-    add_sidecar_texture_ref(refs, seen, stem + "_disp.dds", height_parameter, material_name, shader_family, material_wrapper_index, material_parameters);
+    add_sidecar_texture_ref(refs, seen, diffuse_path, diffuse_parameter, material_name,
+        shader_family, owner_wrapper_item_id, material_wrapper_index, material_parameters);
+    add_sidecar_texture_ref(refs, seen, stem + "_n.dds", normal_parameter, material_name,
+        shader_family, owner_wrapper_item_id, material_wrapper_index, material_parameters);
+    add_sidecar_texture_ref(refs, seen, stem + "_sp.dds", material_parameter, material_name,
+        shader_family, owner_wrapper_item_id, material_wrapper_index, material_parameters);
+    add_sidecar_texture_ref(refs, seen, stem + "_disp.dds", height_parameter, material_name,
+        shader_family, owner_wrapper_item_id, material_wrapper_index, material_parameters);
 }
 
 static void extract_texture_refs_from_scope(
     const std::string& scope_text,
     const std::string& material_name,
     const std::string& shader_family,
+    const std::string& owner_wrapper_item_id,
     int material_wrapper_index,
     std::vector<SidecarTextureRef>& refs,
     std::set<std::string>& seen
@@ -683,9 +711,12 @@ static void extract_texture_refs_from_scope(
                 if (!path.empty()) break;
             }
         }
-        add_sidecar_texture_ref(refs, seen, path, parameter, material_name, shader_family, material_wrapper_index, material_parameters);
-        add_support_base_sibling_ref(refs, seen, path, material_name, shader_family, material_wrapper_index, material_parameters);
-        add_layer_family_sibling_refs(refs, seen, path, parameter, material_name, shader_family, material_wrapper_index, material_parameters);
+        add_sidecar_texture_ref(refs, seen, path, parameter, material_name, shader_family,
+            owner_wrapper_item_id, material_wrapper_index, material_parameters);
+        add_support_base_sibling_ref(refs, seen, path, parameter, material_name, shader_family,
+            owner_wrapper_item_id, material_wrapper_index, material_parameters);
+        add_layer_family_sibling_refs(refs, seen, path, parameter, material_name, shader_family,
+            owner_wrapper_item_id, material_wrapper_index, material_parameters);
     }
 }
 
@@ -762,7 +793,15 @@ static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(
         std::string material_name = xml_attr_value(block, {"_subMeshName", "PrimitiveName", "Name"});
         std::replace(material_name.begin(), material_name.end(), '\\', '/');
         const std::string shader_family = extract_shader_family_hint(block);
-        extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_index++, refs, seen);
+        const auto wrapper_attrs = xml_attribute_map(block);
+        const std::string item_id = xml_attr_value_from_map(
+            wrapper_attrs, {"ItemID", "StringItemID"});
+        const std::string wrapper_identity = !item_id.empty()
+            ? item_id
+            : "model-property:" + std::to_string(model_property_index)
+                + ":wrapper:" + std::to_string(wrapper_index);
+        extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_identity,
+            wrapper_index++, refs, seen);
     }
 
     if (refs.empty()) {
@@ -772,17 +811,28 @@ static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(
             std::replace(material_name.begin(), material_name.end(), '\\', '/');
             std::string shader_family = extract_shader_family_hint(block);
             if (shader_family.empty()) shader_family = xml_attr_value(block, {"MaterialName", "_materialName"});
-            extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_index++, refs, seen);
+            const auto wrapper_attrs = xml_attribute_map(block);
+            const std::string item_id = xml_attr_value_from_map(
+                wrapper_attrs, {"ItemID", "StringItemID"});
+            const std::string wrapper_identity = !item_id.empty()
+                ? item_id
+                : "model-property:" + std::to_string(model_property_index)
+                    + ":material:" + std::to_string(wrapper_index);
+            extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_identity,
+                wrapper_index++, refs, seen);
         }
     }
 
     if (refs.empty()) {
-        extract_texture_refs_from_scope(scope, "", "", -1, refs, seen);
+        extract_texture_refs_from_scope(scope, "", "",
+            "model-property:" + std::to_string(model_property_index) + ":scope",
+            -1, refs, seen);
     }
 
     if (!refs.empty()) return refs;
     for (const std::string& token : extract_dds_tokens(scope)) {
-        add_sidecar_texture_ref(refs, seen, token, basename_from_path(token), "", "", -1);
+        add_sidecar_texture_ref(refs, seen, token, basename_from_path(token), "", "",
+            "model-property:" + std::to_string(model_property_index) + ":token", -1);
     }
     return refs;
 }

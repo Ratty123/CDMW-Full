@@ -44,6 +44,9 @@ _CODES: dict[str, int] = {
     "stone": 9,
     "eye": 10,
     "tooth": 11,
+    "bone": 12,
+    "organic": 13,
+    "foliage": 14,
 }
 
 #: Category name -> wire code, in code order.

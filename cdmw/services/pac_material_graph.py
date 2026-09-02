@@ -363,6 +363,7 @@ def _parameter_row(
         "texture_path": texture_path,
         "color_value": list(tuple(_value(parameter, "color_value", ()) or ())),
         "numeric_value": _value(parameter, "numeric_value", None),
+        "integer_value": _value(parameter, "integer_value", None),
         "disposition": disposition,
         "binding_count": len(matching),
     }
@@ -425,11 +426,11 @@ def build_pac_material_graph_v1(
         item_owner = _safe_int(_value(item, "owner_slot_index", -1))
         wrapper_id = str(_value(item, "owner_wrapper_item_id") or "").strip()
         for parameter in tuple(_value(item, "material_parameters", ()) or ()):
-            key = _parameter_key(parameter)
+            key = (item_owner, wrapper_id, *_parameter_key(parameter))
             parameters_by_key.setdefault(key, parameter)
             parameter_owners.setdefault(key, (item_owner, wrapper_id))
     for parameter in tuple(getattr(source, "preview_material_parameters", ()) or ()):
-        key = _parameter_key(parameter)
+        key = (source_owner_slot_index, "", *_parameter_key(parameter))
         parameters_by_key.setdefault(key, parameter)
         parameter_owners.setdefault(key, (source_owner_slot_index, ""))
 
@@ -512,6 +513,7 @@ def build_pac_material_graph_v1(
                 "texture_path": str(binding.get("source_reference", "") or ""),
                 "color_value": [],
                 "numeric_value": None,
+                "integer_value": None,
                 "disposition": str(binding.get("parameter_disposition", "") or ""),
                 "binding_count": 1,
             }

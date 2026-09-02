@@ -257,6 +257,7 @@ struct SidecarTextureRef {
     std::string parameter_name;
     std::string material_name;
     std::string shader_family;
+    std::string owner_wrapper_item_id;
     int material_wrapper_index = -1;
     std::vector<MaterialParameterRecord> material_parameters;
 };
@@ -322,6 +323,26 @@ static std::array<float, 4> color_parameter_value(const std::string& raw_value) 
     return color;
 }
 
+static std::string integer_parameter_value(const std::string& raw_value, bool* ok = nullptr) {
+    if (ok) *ok = false;
+    if (raw_value.empty()) return "";
+    try {
+        size_t consumed = 0;
+        if (raw_value.front() == '-') {
+            const long long value = std::stoll(raw_value, &consumed, 0);
+            if (consumed != raw_value.size()) return "";
+            if (ok) *ok = true;
+            return std::to_string(value);
+        }
+        const unsigned long long value = std::stoull(raw_value, &consumed, 0);
+        if (consumed != raw_value.size()) return "";
+        if (ok) *ok = true;
+        return std::to_string(value);
+    } catch (...) {
+        return "";
+    }
+}
+
 static bool color_parameter_value_has_visible_alpha(const std::string& raw_value) {
     std::string text = raw_value;
     if (!text.empty() && text.front() == '#') text.erase(text.begin());
@@ -368,20 +389,16 @@ static bool preview_relevant_material_parameter(const MaterialParameterRecord& p
 static std::vector<MaterialParameterRecord> filtered_preview_material_parameters(
     const std::vector<MaterialParameterRecord>& parameters
 ) {
-    constexpr size_t kMaximumPreviewMaterialParameters = 128;
-    std::vector<MaterialParameterRecord> filtered;
-    filtered.reserve(std::min(parameters.size(), kMaximumPreviewMaterialParameters));
-    for (const MaterialParameterRecord& parameter : parameters) {
-        if (!preview_relevant_material_parameter(parameter)) continue;
-        filtered.push_back(parameter);
-        if (filtered.size() >= kMaximumPreviewMaterialParameters) break;
-    }
-    return filtered;
+    // Graph v4 is conservation-first: diagnostics and future renderer versions
+    // need every declared parameter, including values that do not affect the
+    // current shader. Never silently filter or cap the source vector here.
+    return parameters;
 }
 
 static std::vector<MaterialParameterRecord> extract_material_parameters(const std::string& scope_text) {
     std::vector<MaterialParameterRecord> records;
     const std::vector<std::pair<std::string, std::string>> parameter_tags = {
+        {"MaterialParameterTexture", "texture"},
         {"MaterialParameterFloat", "float"},
         {"MaterialParameterColor", "color"},
         {"MaterialParameterByte4", "byte4"},
@@ -399,9 +416,36 @@ static std::vector<MaterialParameterRecord> extract_material_parameters(const st
             record.name = xml_attr_value_from_map(attrs, {"_name", "StringItemID", "Name"});
             record.value = xml_attr_value_from_map(attrs, {"_value", "Value", "DefaultValue"});
             if (record.name.empty()) continue;
-            bool has_numeric = false;
-            record.numeric_value = numeric_parameter_value(record.value, &has_numeric);
-            record.has_numeric = has_numeric;
+            if (kind == "texture") {
+                record.texture_path = xml_attr_value_from_map(attrs, {"Value", "_path"});
+                if (record.texture_path.empty()) {
+                    for (const std::string& resource_tag : collect_xml_tag_blocks(
+                             tag, "ResourceReferencePath_ITexture")) {
+                        record.texture_path = xml_attr_value_from_map(
+                            xml_attribute_map(resource_tag), {"_path", "Value"});
+                        if (!record.texture_path.empty()) break;
+                    }
+                }
+            }
+            record.tag_name = tag_name;
+            record.string_item_id = xml_attr_value_from_map(attrs, {"StringItemID"});
+            record.item_id = xml_attr_value_from_map(attrs, {"ItemID"});
+            const std::string index_text = xml_attr_value_from_map(attrs, {"Index", "_index"});
+            if (!index_text.empty()) {
+                try {
+                    size_t consumed = 0;
+                    const long index = std::stol(index_text, &consumed, 10);
+                    if (consumed == index_text.size()) record.index = static_cast<int>(index);
+                } catch (...) {
+                }
+            }
+            const bool integer_kind = kind == "byte4" || kind == "bitflag32"
+                || kind == "uint" || kind == "int" || kind == "bool";
+            if (integer_kind) {
+                record.integer_value = integer_parameter_value(record.value, &record.has_integer);
+            } else {
+                record.numeric_value = numeric_parameter_value(record.value, &record.has_numeric);
+            }
             records.push_back(record);
         }
     }
@@ -435,6 +479,7 @@ static bool material_parameters_enable_flag(
     if (value.empty()) return true;
     if (value == "true" || value == "yes" || value == "on") return true;
     if (value == "false" || value == "no" || value == "off") return false;
+    if (parameter->has_integer) return parameter->integer_value != "0";
     if (parameter->has_numeric) return std::abs(parameter->numeric_value) > 0.0001f;
     return value != "0";
 }
@@ -460,6 +505,15 @@ static float scalar_parameter_hint(
         return std::max({channels[0], channels[1], channels[2], channels[3], fallback});
     }
     return parameter->has_numeric ? parameter->numeric_value : fallback;
+}
+
+static bool material_parameter_has_scalar(
+    const std::vector<MaterialParameterRecord>& parameters,
+    std::initializer_list<const char*> names
+) {
+    const MaterialParameterRecord* parameter = find_material_parameter(parameters, names);
+    return parameter != nullptr && (
+        parameter->has_numeric || parameter->has_integer || parameter->kind == "byte4");
 }
 
 static std::string joined_parameter_names(const std::vector<MaterialParameterRecord>& parameters, size_t limit = 16) {

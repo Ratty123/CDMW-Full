@@ -242,6 +242,63 @@ def test_native_detail_dyes_do_not_become_an_rgb_selector_base_palette(
     assert source == ""
 
 
+def test_native_exact_sidecar_inputs_restore_canonical_selector_authority(
+    tmp_path: Path,
+) -> None:
+    selector = tmp_path / "handle_ma.dds"
+    selector.write_bytes(b"DDS selector")
+    model = _mesh()
+    target = model.submeshes[0]
+
+    assert mesh_dotnet_material_state.apply_dotnet_native_material_batch_binding(
+        target,
+        {
+            "dds_textures": {
+                "material_inputs": [
+                    {
+                        "slot": "material",
+                        "parameter_name": "_colorBlendingMaskTexture",
+                        "source_path": str(selector),
+                        "archive_path": "character/texture/handle_ma.dds",
+                        "semantic_type": "packed_material",
+                        "semantic_subtype": "material_mask",
+                        "layer_role": "material_response",
+                        "layer_channel": "b",
+                        "sidecar_kind": ".pac_xml",
+                        "source_authority": "exact_sidecar",
+                        "relation_confidence": "authoritative",
+                        "owner_slot_index": 2,
+                        "owner_wrapper_item_id": "338",
+                        "material_parameters": [
+                            {
+                                "parameter_kind": "byte4",
+                                "parameter_name": "_dyeingTransformProperty0",
+                                "value": "4294967295",
+                                "integer_value": 4294967295,
+                            }
+                        ],
+                    }
+                ]
+            }
+        },
+    )
+
+    (material_input,) = target.preview_material_texture_inputs
+    assert material_input.slot_kind == "material"
+    assert material_input.semantic_type == "material"
+    assert material_input.semantic_subtype == "material_mask"
+    assert material_input.layer_role == "mask"
+    assert material_input.layer_channel == ""
+    assert material_input.sidecar_kind == "pac_xml"
+    assert material_input.parameter_declared_by == "pac_xml"
+    assert material_input.confidence == "sidecar-exact"
+    assert material_input.binding_authority == "authoritative"
+    assert material_input.binding_disposition == "layer_only"
+    assert material_input.source_kind == "crimson_color_blending_mask"
+    assert material_input.owner_wrapper_item_id == "338"
+    assert material_input.material_parameters[0].integer_value == 4294967295
+
+
 def test_native_material_hints_remain_distinct_from_texture_transforms(tmp_path: Path) -> None:
     roughness = tmp_path / "reference_roughness.dds"
     roughness.write_bytes(b"roughness")

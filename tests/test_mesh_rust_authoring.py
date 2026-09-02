@@ -337,6 +337,35 @@ class RustMeshAuthoringTests(unittest.TestCase):
                     "emissive_intensity": 2.5,
                     "height_scale": 0.08,
                     "alpha_cutoff": 0.17,
+                    "surface_profile": {
+                        "family": "metal",
+                        "family_code": 1,
+                        "finish": "polished",
+                        "structure": "smooth",
+                        "coating": "none",
+                        "confidence": 0.92,
+                        "evidence": "shader=standard_v2;surface_profile=source_parameter_or_shader_token",
+                        "fallbacks": {
+                            "roughness": 0.18,
+                            "metalness": 0.92,
+                            "specular": 0.82,
+                            "height_scale": 0.0,
+                            "anisotropy": 0.0,
+                        },
+                        "authored": {
+                            "roughness": True,
+                            "metalness": True,
+                            "specular": True,
+                            "height_scale": True,
+                        },
+                        "fallback_applied": {
+                            "roughness": False,
+                            "metalness": False,
+                            "specular": False,
+                            "height_scale": False,
+                            "anisotropy": False,
+                        },
+                    },
                 },
             )
             authoritative, session = self._create(
@@ -381,12 +410,56 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 self.assertAlmostEqual(2.5, row["emissive_intensity"])
                 self.assertAlmostEqual(0.08, row["height_scale"])
                 self.assertFalse(row["hair_anisotropy"])
+                self.assertEqual("polished", row["surface_profile"]["finish"])
+                self.assertEqual("smooth", row["surface_profile"]["structure"])
+                self.assertEqual("none", row["surface_profile"]["coating"])
             finally:
                 session.cancel()
                 authoritative.close_edit_session(
                     "authoritative-rust-test",
                     force_without_saving=True,
                 )
+
+    def test_surface_profile_rejects_fallback_over_authored_data(self) -> None:
+        profile = {
+            "family": "metal",
+            "family_code": 1,
+            "finish": "satin",
+            "structure": "smooth",
+            "coating": "painted",
+            "confidence": 0.8,
+            "evidence": "shader=standard_v2;surface_profile=family_fallback",
+            "fallbacks": {
+                "roughness": 0.3,
+                "metalness": 0.8,
+                "specular": 0.7,
+                "height_scale": 0.0,
+                "anisotropy": 0.0,
+            },
+            "authored": {
+                "roughness": True,
+                "metalness": False,
+                "specular": False,
+                "height_scale": False,
+            },
+            "fallback_applied": {
+                "roughness": True,
+                "metalness": True,
+                "specular": True,
+                "height_scale": True,
+                "anisotropy": False,
+            },
+        }
+
+        with self.assertRaisesRegex(
+            rust_authoring_module.RustMeshProtocolError,
+            "over authored data",
+        ):
+            rust_authoring_module._rust_surface_profile(
+                profile,
+                material_category="metal",
+                category_confidence=0.8,
+            )
 
     def test_exact_owner_height_scale_outranks_flattened_native_amount(self) -> None:
         exact_scale = PreviewMaterialParameterInput(

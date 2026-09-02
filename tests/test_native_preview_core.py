@@ -124,7 +124,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertTrue(job["capabilities"]["direct_dds"])
         self.assertTrue(job["capabilities"]["d3d11_package"])
         self.assertTrue(job["capabilities"]["material_graph"])
-        self.assertEqual(3, job["capabilities"]["material_graph_version"])
+        self.assertEqual(4, job["capabilities"]["material_graph_version"])
         self.assertFalse(job["capabilities"]["python_fallback_allowed"])
         self.assertTrue(job["capabilities"]["native_material_runtime"])
 
@@ -901,20 +901,20 @@ class NativePreviewCoreTests(unittest.TestCase):
             source.index("static int layer_channel_index", source.index("static std::string layer_channel_from_parameter"))
         ]
 
-        self.assertLess(channel_block.index('key.ends_with("g")'), channel_block.index('key.find("grime")'))
+        self.assertIn('key.ends_with("g")', channel_block)
+        self.assertNotIn('key.find("grime")', channel_block)
         self.assertIn('key.ends_with("b")', channel_block)
         self.assertIn('key.ends_with("a")', channel_block)
-        self.assertIn('key.find("detailmasktexture") != std::string::npos) return "b";', channel_block)
+        self.assertIn('key == "detailmasktexture" || key == "colorblendingmasktexture"', channel_block)
+        self.assertIn('return "";', channel_block)
         self.assertIn(
             'layer.layer_channel = base != nullptr && !base->layer_channel.empty() ? base->layer_channel : "r";',
             source,
         )
         # The layer parameter says which channel of the mask selects it, so it
-        # outranks anything read off the mask binding. `_detailMaskTexture`
-        # resolves to a fixed "b", and letting that overwrite the layer put
-        # `_detailDiffuseMaskR`, `G` and `B` all on blue, collapsing a fully
-        # layered helmet to one flat tone. The mask's own channel stays the
-        # fallback for layers that name none.
+        # outranks anything read off the selector binding. Generic detail and
+        # colour-blending selectors do not declare one fixed channel; their
+        # labelled R/G/B layer parameters own that identity.
         self.assertIn("if (!mask->layer_channel.empty()", source)
         self.assertIn(
             "&& !layer_parameter_names_channel(binding->parameter_name)) {",
@@ -973,7 +973,7 @@ class NativePreviewCoreTests(unittest.TestCase):
     def test_native_preview_core_treats_eye_cover_as_alpha_eye_surface(self) -> None:
         source = preview_core_source()
 
-        self.assertIn("kNativeMaterialSemanticsVersion = 9", source)
+        self.assertIn("kNativeMaterialSemanticsVersion = 10", source)
         self.assertIn("evidence_contains_eye_surface_token", source)
         self.assertIn("evidence_contains_eye_cutout_surface_token", source)
         self.assertIn('lower.find("eyecover")', source)
@@ -1732,7 +1732,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("binding.material_wrapper_order_authoritative && identity_score < 120", source)
         self.assertIn("submesh_specific_match && text_score >= 120", source)
         self.assertIn("conflicting_specific_part && !texture_family_matches_mesh_material", source)
-        self.assertIn("extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_index++", source)
+        self.assertIn("extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_identity", source)
 
     def test_native_material_identity_allows_variant_token_bridge_before_rejecting(self) -> None:
         source = preview_core_source()

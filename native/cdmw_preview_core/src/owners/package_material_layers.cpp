@@ -73,6 +73,9 @@ static std::string material_category_reason_for_bindings(
     if (category == "stone") return "nonmetal:stone_token";
     if (category == "eye") return "glossy_nonmetal:eye_surface_token";
     if (category == "tooth") return "nonmetal:tooth_token";
+    if (category == "bone") return "nonmetal:bone_token";
+    if (category == "organic") return "nonmetal:organic_token";
+    if (category == "foliage") return "nonmetal:foliage_token";
     if (category == "skin") return "nonmetal:skin_token";
     if (category == "hair") return "nonmetal:hair_token";
     return "generic:no_strong_material_token";

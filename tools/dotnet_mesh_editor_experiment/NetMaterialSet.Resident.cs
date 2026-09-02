@@ -230,6 +230,9 @@ internal sealed partial class NetMaterialSet
         if (category.Equals("stone", StringComparison.OrdinalIgnoreCase)) return 9.0f;
         if (category.Equals("eye", StringComparison.OrdinalIgnoreCase)) return 10.0f;
         if (category.Equals("tooth", StringComparison.OrdinalIgnoreCase)) return 11.0f;
+        if (category.Equals("bone", StringComparison.OrdinalIgnoreCase)) return 12.0f;
+        if (category.Equals("organic", StringComparison.OrdinalIgnoreCase)) return 13.0f;
+        if (category.Equals("foliage", StringComparison.OrdinalIgnoreCase)) return 14.0f;
         return 0.0f;
     }
 

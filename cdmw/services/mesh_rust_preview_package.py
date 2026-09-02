@@ -60,6 +60,8 @@ from cdmw.services.mesh_rust_contract import (
 _PREVIEW_CORE_VERTEX = struct.Struct("<23f")
 _PREVIEW_CORE_IDENTITY = struct.Struct("<2i")
 _PREVIEW_CORE_SCHEMA_MINIMUM = 8
+_PREVIEW_CORE_MATERIAL_GRAPH_VERSION = 4
+_PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION = 10
 _PREVIEW_CORE_BATCH_LIMIT = 4_096
 _PREVIEW_CORE_VERTEX_LIMIT = 2_000_000
 _PREVIEW_CORE_COPY_CHUNK_BYTES = 4 * 1024 * 1024
@@ -529,12 +531,25 @@ def build_rust_preview_package_from_preview_core(
             raise ValueError("Preview Core manifest is not an object.")
         manifest = copy.deepcopy(dict(loaded))
     source_schema = _preview_core_int(manifest.get("schema_version"), 0)
+    material_graph_version = _preview_core_int(
+        manifest.get("material_graph_version"), 0
+    )
+    material_semantics_version = _preview_core_int(
+        manifest.get("material_semantics_version"), 0
+    )
     center = _preview_core_vec3(manifest.get("normalization_center"))
     scale = _preview_core_float(manifest.get("normalization_scale"), 0.0)
     source_format = str(manifest.get("format", "") or "").strip().lower()
     raw_batches = manifest.get("batches")
     if source_schema < _PREVIEW_CORE_SCHEMA_MINIMUM:
         raise ValueError("Direct Rust preview requires Preview Core schema 8 or newer.")
+    if (
+        material_graph_version != _PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+        or material_semantics_version != _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
+    ):
+        raise ValueError(
+            "Direct Rust preview requires Preview Core material graph v4 and semantics v10."
+        )
     if center is None or abs(scale) <= 1.0e-12:
         raise ValueError("Preview Core normalization is invalid.")
     if source_format not in {"pac", "pam", "pamlod"}:
@@ -767,11 +782,20 @@ def build_rust_preview_package_from_preview_core(
         "channels": channels,
         "preview_core_geometry": {
             "schema_version": source_schema,
+            "material_graph_version": material_graph_version,
+            "material_semantics_version": material_semantics_version,
             "format": source_format,
             "source_sha256": source_sha256,
             "normalization_center": list(center),
             "normalization_scale": scale,
             "batches": direct_batches,
+        },
+        "material_contract": {
+            "graph_version": material_graph_version,
+            "semantics_version": material_semantics_version,
+            "conservation": copy.deepcopy(
+                dict(manifest.get("material_conservation", {}) or {})
+            ),
         },
         "textures": textures,
         "material_presentations": presentations,

@@ -104,6 +104,7 @@ _DOTNET_NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
         "specular",
         "specular_hint_present",
         "metalness_hint_present",
+        "surface_profile",
     }
 )
 
@@ -564,7 +565,7 @@ def _native_exact_sidecar_decode(
     *,
     archive_path: str,
     primary_base_path: str,
-) -> dict[str, str]:
+) -> dict[str, object]:
     """Decode only a strongly owned PAC XML texture declaration."""
 
     sidecar_kind = str(value.get("sidecar_kind", "") or "").strip().casefold()
@@ -583,11 +584,13 @@ def _native_exact_sidecar_decode(
         shader_family=payload.get("shader_family", ""),
         parameter_name=payload.get("parameter_name", ""),
         source_path=archive_path,
-        slot_name=payload.get("slot_kind", ""),
-        semantic_subtype=payload.get("semantic_subtype", ""),
-        packed_channels=payload.get("packed_channels", ()),
-        layer_channel=payload.get("layer_channel", ""),
-        blend_flags=payload.get("blend_flags", ()),
+        # Re-derive the semantic labels from the PAC declaration. Native
+        # transport labels are useful diagnostics but are not source authority.
+        slot_name="",
+        semantic_subtype="",
+        packed_channels=(),
+        layer_channel="",
+        blend_flags=(),
         sidecar_kind="pac_xml",
         parameter_declared_by=payload.get("parameter_declared_by", ""),
     )
@@ -614,11 +617,29 @@ def _native_exact_sidecar_decode(
             disposition = "layer_only"
             source_kind = "crimson_layer_base"
 
-    return {
+    layer_role = ""
+    if source_kind == "crimson_color_blending_mask":
+        layer_role = "mask"
+    elif source_kind in {"crimson_detail_mask", "crimson_skin_detail_mask"}:
+        layer_role = "detail_mask"
+
+    semantic_subtype = str(decoded.get("semantic_subtype", "") or "").strip()
+    result: dict[str, object] = {
         "binding_authority": str(decoded.get("authority", "") or "").strip(),
         "binding_disposition": disposition,
         "source_kind": source_kind,
+        "slot_kind": str(decoded.get("slot", "") or "").strip(),
+        "semantic_type": str(decoded.get("slot", "") or "").strip(),
+        "layer_channel": str(decoded.get("layer_channel", "") or "").strip(),
+        "sidecar_kind": "pac_xml",
+        "parameter_declared_by": "pac_xml",
+        "confidence": "sidecar-exact",
     }
+    if semantic_subtype:
+        result["semantic_subtype"] = semantic_subtype
+    if layer_role:
+        result["layer_role"] = layer_role
+    return result
 
 
 def _native_material_texture_input(
@@ -671,12 +692,10 @@ def _native_material_texture_input(
         archive_path=archive_path,
         primary_base_path=primary_base_path,
     )
-    for field_name, decoded_value in decoded.items():
-        if (
-            decoded_value
-            and not str(payload.get(field_name, "") or "").strip()
-        ):
-            payload[field_name] = decoded_value
+    # Exact PAC XML authority outranks transport-time inferred labels. This also
+    # normalizes the native ".pac_xml" extension to the canonical "pac_xml"
+    # token used by the material combiner's source-ownership checks.
+    payload.update(decoded)
     raw_parameters = value.get("material_parameters", ())
     if isinstance(raw_parameters, Sequence) and not isinstance(
         raw_parameters, (str, bytes, bytearray)

@@ -127,8 +127,19 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
         batch.material_category, batch.bindings, mesh, batch.base, batch.material_layers, selected_surface);
     batch.material_category_confidence = material_category_confidence(
         batch.material_category, batch.bindings, batch.base);
+    batch.surface_profile = surface_profile_for_bindings(
+        batch.material_category,
+        batch.material_category_reason,
+        batch.material_category_confidence,
+        batch.bindings,
+        mesh,
+        batch.base,
+        batch.material_layers,
+        batch.material_hints);
     batch.effective_material_hints = clamp_material_hints_for_category(
         batch.material_hints, batch.material_category);
+    batch.effective_material_hints = resolve_surface_profile_fallbacks(
+        batch.effective_material_hints, batch.surface_profile);
     batch.base_tint_only_fallback = batch.base_wrong_family_layer
         && mesh_local_surface_has_strong_nonmetal_token(mesh)
         && batch.material_category != "metal"
@@ -173,12 +184,15 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
         || batch.material_response.find("metallic") != std::string::npos
         || batch.material_response.find("promoted") != std::string::npos;
     batch.metalness_hint = batch.material_category == "metal"
+        && !batch.effective_material_hints.metalness_authored
         ? std::max(batch.effective_material_hints.metalness, strong_metal_response ? 0.68f : 0.56f)
         : batch.effective_material_hints.metalness;
     batch.specular_hint = batch.material_category == "metal"
+        && !batch.effective_material_hints.specular_authored
         ? std::max(batch.effective_material_hints.specular, strong_metal_response ? 0.68f : 0.56f)
         : batch.effective_material_hints.specular;
     batch.roughness_hint = batch.material_category == "metal"
+        && !batch.effective_material_hints.roughness_authored
         ? std::min(batch.effective_material_hints.roughness, strong_metal_response ? 0.24f : 0.32f)
         : batch.effective_material_hints.roughness;
     batch.base_tint_strength = batch.base_tint_only_fallback

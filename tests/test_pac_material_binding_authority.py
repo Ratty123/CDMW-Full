@@ -639,6 +639,56 @@ def test_pac_material_graph_reports_conservation_and_parameter_dispositions() ->
     assert len(graph["graph_hash"]) == 64
 
 
+def test_pac_material_graph_keeps_same_parameter_and_dds_for_distinct_wrappers() -> None:
+    shared_parameter = PreviewMaterialParameterInput(
+        parameter_kind="bitflag32",
+        parameter_name="_colorBlendingFlag",
+        value="4294967295",
+        integer_value=4294967295,
+    )
+    inputs = tuple(
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="_grimeDiffuseTextureR",
+            source_texture_path="character/texture/shared_grime.dds",
+            source_dds_path="C:/cache/shared_grime.dds",
+            semantic_type="base",
+            layer_role="grime",
+            layer_channel="r",
+            owner_slot_index=0,
+            owner_wrapper_item_id=wrapper_id,
+            binding_authority="authoritative",
+            binding_disposition="layer_only",
+            source_kind="crimson_material_sidecar",
+            material_parameters=(shared_parameter,),
+        )
+        for wrapper_id in ("2001", "2002")
+    )
+    source = SimpleNamespace(
+        material_slot_index=0,
+        preview_sidecar_shader_family="SkinnedMeshStandard_Ver2",
+        preview_material_texture_inputs=inputs,
+        preview_material_parameters=(),
+    )
+
+    graph = build_pac_material_graph_v1(source, {})
+
+    assert len(graph["bindings"]) == 2
+    assert {row["owner_wrapper_item_id"] for row in graph["bindings"]} == {
+        "2001",
+        "2002",
+    }
+    flags = [
+        row
+        for row in graph["parameters"]
+        if row["parameter_name"] == "_colorBlendingFlag"
+    ]
+    assert len(flags) == 2
+    assert {row["owner_wrapper_item_id"] for row in flags} == {"2001", "2002"}
+    assert {row["integer_value"] for row in flags} == {4294967295}
+    assert graph["binding_conservation"]["conserved"] is True
+
+
 def test_pac_material_graph_makes_layer_as_base_a_hard_conservation_failure() -> None:
     layer = SimpleNamespace(
         semantic_type="base",

@@ -38,6 +38,8 @@ const MAX_PREVIEW_CORE_BATCHES: usize = 4_096;
 const MAX_PREVIEW_CORE_VERTICES: usize = 2_000_000;
 const PREVIEW_CORE_VERTEX_BYTES: usize = 23 * std::mem::size_of::<f32>();
 const PREVIEW_CORE_IDENTITY_BYTES: usize = 2 * std::mem::size_of::<i32>();
+const PREVIEW_CORE_MATERIAL_GRAPH_VERSION: u64 = 4;
+const PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION: u64 = 10;
 
 #[derive(Debug, Error)]
 pub enum SessionError {
@@ -80,6 +82,46 @@ pub struct CdmwTextureResource {
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct SessionSurfaceProfileFallbacks {
+    pub roughness: f32,
+    pub metalness: f32,
+    pub specular: f32,
+    pub height_scale: f32,
+    pub anisotropy: f32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct SessionSurfaceProfileAuthored {
+    pub roughness: bool,
+    pub metalness: bool,
+    pub specular: bool,
+    pub height_scale: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct SessionSurfaceProfileFallbackApplied {
+    pub roughness: bool,
+    pub metalness: bool,
+    pub specular: bool,
+    pub height_scale: bool,
+    pub anisotropy: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct SessionSurfaceProfile {
+    pub family: String,
+    pub family_code: u32,
+    pub finish: String,
+    pub structure: String,
+    pub coating: String,
+    pub confidence: f32,
+    pub evidence: String,
+    pub fallbacks: SessionSurfaceProfileFallbacks,
+    pub authored: SessionSurfaceProfileAuthored,
+    pub fallback_applied: SessionSurfaceProfileFallbackApplied,
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct SessionMaterialPresentation {
     pub lod_index: u32,
@@ -88,6 +130,8 @@ pub struct SessionMaterialPresentation {
     pub material_category: String,
     pub category_code: u32,
     pub category_confidence: f32,
+    #[serde(default)]
+    pub surface_profile: Option<SessionSurfaceProfile>,
     pub shader_family: String,
     pub normal_y_policy: String,
     pub normal_y_inverted: bool,
@@ -120,6 +164,8 @@ pub struct PreviewCoreGeometryBatch {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PreviewCoreGeometry {
     pub schema_version: u64,
+    pub material_graph_version: u64,
+    pub material_semantics_version: u64,
     pub format: String,
     #[serde(default)]
     pub source_sha256: String,
@@ -142,6 +188,8 @@ pub struct SessionManifest {
     pub channels: FileReference,
     #[serde(default)]
     pub preview_core_geometry: Option<PreviewCoreGeometry>,
+    #[serde(default)]
+    pub material_contract: Value,
     #[serde(default)]
     pub textures: Vec<SessionTextureReference>,
     #[serde(default)]
@@ -687,6 +735,7 @@ impl CdmwBridge {
                 document: empty_reference.clone(),
                 channels: empty_reference,
                 preview_core_geometry: None,
+                material_contract: Value::Null,
                 textures: Vec::new(),
                 material_presentations: Vec::new(),
                 texture_status: Value::Null,
@@ -811,10 +860,29 @@ fn validate_manifest_for(
             "session id and process generation are required".to_owned(),
         ));
     }
-    if manifest.preview_core_geometry.is_some() && expected_schema != PREVIEW_PACKAGE_SCHEMA {
-        return Err(SessionError::InvalidManifest(
-            "Preview Core geometry is allowed only in read-only preview packages".to_owned(),
-        ));
+    if let Some(geometry) = &manifest.preview_core_geometry {
+        if expected_schema != PREVIEW_PACKAGE_SCHEMA {
+            return Err(SessionError::InvalidManifest(
+                "Preview Core geometry is allowed only in read-only preview packages".to_owned(),
+            ));
+        }
+        if geometry.material_graph_version != PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+            || geometry.material_semantics_version != PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
+            || manifest
+                .material_contract
+                .get("graph_version")
+                .and_then(Value::as_u64)
+                != Some(PREVIEW_CORE_MATERIAL_GRAPH_VERSION)
+            || manifest
+                .material_contract
+                .get("semantics_version")
+                .and_then(Value::as_u64)
+                != Some(PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION)
+        {
+            return Err(SessionError::InvalidManifest(
+                "Preview Core material contract must be graph v4 and semantics v10".to_owned(),
+            ));
+        }
     }
     Ok(())
 }
@@ -859,6 +927,9 @@ fn material_category_code(category: &str) -> Option<u32> {
         "stone" => Some(9),
         "eye" => Some(10),
         "tooth" => Some(11),
+        "bone" => Some(12),
+        "organic" => Some(13),
+        "foliage" => Some(14),
         _ => None,
     }
 }
@@ -873,6 +944,110 @@ fn validate_optional_factor(
         return Err(SessionError::InvalidManifest(format!(
             "material {label} is outside {minimum}..={maximum}"
         )));
+    }
+    Ok(())
+}
+
+fn validate_surface_profile(
+    profile: &SessionSurfaceProfile,
+    row: &SessionMaterialPresentation,
+) -> Result<(), SessionError> {
+    if profile.family != row.material_category || profile.family_code != row.category_code {
+        return Err(SessionError::InvalidManifest(
+            "surface-profile family does not match its material category".to_owned(),
+        ));
+    }
+    if !profile.confidence.is_finite()
+        || !(0.0..=1.0).contains(&profile.confidence)
+        || (profile.confidence - row.category_confidence).abs() > f32::EPSILON
+    {
+        return Err(SessionError::InvalidManifest(
+            "surface-profile confidence does not match its category".to_owned(),
+        ));
+    }
+    if !matches!(
+        profile.finish.as_str(),
+        "unspecified" | "polished" | "satin" | "matte" | "rough"
+    ) {
+        return Err(SessionError::InvalidManifest(
+            "surface-profile finish is invalid".to_owned(),
+        ));
+    }
+    if !matches!(
+        profile.structure.as_str(),
+        "unspecified"
+            | "smooth"
+            | "woven"
+            | "fibrous"
+            | "grained"
+            | "porous"
+            | "crystalline"
+            | "shell"
+    ) {
+        return Err(SessionError::InvalidManifest(
+            "surface-profile structure is invalid".to_owned(),
+        ));
+    }
+    if !matches!(
+        profile.coating.as_str(),
+        "none" | "painted" | "lacquered" | "clearcoat"
+    ) {
+        return Err(SessionError::InvalidManifest(
+            "surface-profile coating is invalid".to_owned(),
+        ));
+    }
+    if profile.evidence.trim().is_empty()
+        || profile.evidence.len() > 1024
+        || profile.evidence.chars().any(char::is_control)
+    {
+        return Err(SessionError::InvalidManifest(
+            "surface-profile evidence is missing or invalid".to_owned(),
+        ));
+    }
+    for (name, value) in [
+        ("roughness", profile.fallbacks.roughness),
+        ("metalness", profile.fallbacks.metalness),
+        ("specular", profile.fallbacks.specular),
+        ("height scale", profile.fallbacks.height_scale),
+        ("anisotropy", profile.fallbacks.anisotropy),
+    ] {
+        validate_optional_factor(Some(value), 0.0, 1.0, &format!("surface-profile {name}"))?;
+    }
+    for (name, authored, fallback_applied) in [
+        (
+            "roughness",
+            profile.authored.roughness,
+            profile.fallback_applied.roughness,
+        ),
+        (
+            "metalness",
+            profile.authored.metalness,
+            profile.fallback_applied.metalness,
+        ),
+        (
+            "specular",
+            profile.authored.specular,
+            profile.fallback_applied.specular,
+        ),
+        (
+            "height scale",
+            profile.authored.height_scale,
+            profile.fallback_applied.height_scale,
+        ),
+    ] {
+        if authored && fallback_applied {
+            return Err(SessionError::InvalidManifest(format!(
+                "surface-profile fallback {name} overrides authored data"
+            )));
+        }
+    }
+    if profile.fallback_applied.anisotropy
+        && profile.fallbacks.anisotropy > 0.0
+        && !row.hair_anisotropy
+    {
+        return Err(SessionError::InvalidManifest(
+            "surface-profile anisotropy was not enabled for rendering".to_owned(),
+        ));
     }
     Ok(())
 }
@@ -940,6 +1115,9 @@ fn validate_material_presentations(
             return Err(SessionError::InvalidManifest(
                 "material category confidence is outside 0..=1".to_owned(),
             ));
+        }
+        if let Some(profile) = &row.surface_profile {
+            validate_surface_profile(profile, row)?;
         }
         let shader_family = row.shader_family.trim();
         if shader_family.is_empty()
@@ -1911,6 +2089,36 @@ mod tests {
             material_category: "metal".to_owned(),
             category_code: 1,
             category_confidence: 0.92,
+            surface_profile: Some(SessionSurfaceProfile {
+                family: "metal".to_owned(),
+                family_code: 1,
+                finish: "polished".to_owned(),
+                structure: "smooth".to_owned(),
+                coating: "none".to_owned(),
+                confidence: 0.92,
+                evidence: "shader=standard_v2;surface_profile=source_parameter_or_shader_token"
+                    .to_owned(),
+                fallbacks: SessionSurfaceProfileFallbacks {
+                    roughness: 0.18,
+                    metalness: 0.92,
+                    specular: 0.82,
+                    height_scale: 0.0,
+                    anisotropy: 0.0,
+                },
+                authored: SessionSurfaceProfileAuthored {
+                    roughness: true,
+                    metalness: true,
+                    specular: true,
+                    height_scale: true,
+                },
+                fallback_applied: SessionSurfaceProfileFallbackApplied {
+                    roughness: false,
+                    metalness: false,
+                    specular: false,
+                    height_scale: false,
+                    anisotropy: false,
+                },
+            }),
             shader_family: "standard_v2".to_owned(),
             normal_y_policy: "invert_green_for_directx".to_owned(),
             normal_y_inverted: true,
@@ -1985,6 +2193,7 @@ mod tests {
                 "material_category": presentation.material_category,
                 "category_code": presentation.category_code,
                 "category_confidence": presentation.category_confidence,
+                "surface_profile": presentation.surface_profile,
                 "shader_family": presentation.shader_family,
                 "normal_y_policy": presentation.normal_y_policy,
                 "normal_y_inverted": presentation.normal_y_inverted,
@@ -2058,6 +2267,8 @@ mod tests {
         manifest["edit_backend"] = json!(PREVIEW_BACKEND);
         manifest["preview_core_geometry"] = json!({
             "schema_version": 8,
+            "material_graph_version": PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
+            "material_semantics_version": PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
             "format": "pac",
             "source_sha256": "SOURCE",
             "normalization_center": [10.0, 20.0, 30.0],
@@ -2084,6 +2295,11 @@ mod tests {
                     "content_type": "application/octet-stream"
                 }
             }]
+        });
+        manifest["material_contract"] = json!({
+            "graph_version": PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
+            "semantics_version": PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
+            "conservation": {}
         });
         fs::write(
             &manifest_path,
@@ -2492,6 +2708,10 @@ mod tests {
         let mut valid_skin_detail = material_presentation();
         valid_skin_detail.material_category = "skin".to_owned();
         valid_skin_detail.category_code = 5;
+        if let Some(profile) = &mut valid_skin_detail.surface_profile {
+            profile.family = "skin".to_owned();
+            profile.family_code = 5;
+        }
         valid_skin_detail.skin_detail_scale = Some(0.02);
         valid_skin_detail.skin_detail_opacity = Some(1.0);
         manifest.material_presentations = vec![valid_skin_detail.clone()];

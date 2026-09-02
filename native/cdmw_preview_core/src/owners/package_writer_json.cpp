@@ -1,3 +1,34 @@
+static std::string surface_profile_json(const SurfaceProfile& profile) {
+    std::ostringstream out;
+    out << "{"
+        << "\"family\":\"" << json_escape(profile.family) << "\","
+        << "\"family_code\":" << profile.family_code << ","
+        << "\"finish\":\"" << json_escape(profile.finish) << "\","
+        << "\"structure\":\"" << json_escape(profile.structure) << "\","
+        << "\"coating\":\"" << json_escape(profile.coating) << "\","
+        << "\"confidence\":" << profile.confidence << ","
+        << "\"evidence\":\"" << json_escape(profile.evidence) << "\","
+        << "\"fallbacks\":{"
+        << "\"roughness\":" << profile.fallback_roughness << ","
+        << "\"metalness\":" << profile.fallback_metalness << ","
+        << "\"specular\":" << profile.fallback_specular << ","
+        << "\"height_scale\":" << profile.fallback_height_scale << ","
+        << "\"anisotropy\":" << profile.fallback_anisotropy << "},"
+        << "\"authored\":{"
+        << "\"roughness\":" << (profile.roughness_authored ? "true" : "false") << ","
+        << "\"metalness\":" << (profile.metalness_authored ? "true" : "false") << ","
+        << "\"specular\":" << (profile.specular_authored ? "true" : "false") << ","
+        << "\"height_scale\":" << (profile.height_scale_authored ? "true" : "false") << "},"
+        << "\"fallback_applied\":{"
+        << "\"roughness\":" << (profile.roughness_fallback_applied ? "true" : "false") << ","
+        << "\"metalness\":" << (profile.metalness_fallback_applied ? "true" : "false") << ","
+        << "\"specular\":" << (profile.specular_fallback_applied ? "true" : "false") << ","
+        << "\"height_scale\":" << (profile.height_scale_fallback_applied ? "true" : "false") << ","
+        << "\"anisotropy\":" << (profile.anisotropy_fallback_applied ? "true" : "false") << "}"
+        << "}";
+    return out.str();
+}
+
 static void append_package_material_slot_and_decision(
     PackageWriteState& state,
     const PackageBatchState& batch
@@ -17,6 +48,7 @@ static void append_package_material_slot_and_decision(
         << "\"material_category\":\"" << json_escape(batch.material_category) << "\","
         << "\"material_category_confidence\":" << batch.material_category_confidence << ","
         << "\"material_category_reason\":\"" << json_escape(batch.material_category_reason) << "\","
+        << "\"surface_profile\":" << surface_profile_json(batch.surface_profile) << ","
         << "\"material_response_disposition\":\"" << json_escape(batch.material_response) << "\","
         << "\"base\":\"" << json_escape(preview_base == nullptr ? "" : preview_base->archive_path) << "\","
         << "\"normal\":\"" << json_escape(batch.normal == nullptr ? "" : batch.normal->archive_path) << "\","
@@ -48,6 +80,7 @@ static void append_package_material_slot_and_decision(
         << batch.visible_layer_tint_color[1] << "," << batch.visible_layer_tint_color[2] << ","
         << batch.visible_layer_tint_color[3] << "],"
         << "\"material_category_reason\":\"" << json_escape(batch.material_category_reason) << "\","
+        << "\"surface_profile\":" << surface_profile_json(batch.surface_profile) << ","
         << "\"uv_flip_policy\":\"legacy_no_flip\","
         << "\"normal_y_policy\":\"shader_invert_legacy_compat\","
         << "\"evidence_grade\":\"" << json_escape(
@@ -67,7 +100,12 @@ static void append_material_parameter_records_json(
         out << "{"
             << "\"parameter_kind\":\"" << json_escape(parameter.kind) << "\","
             << "\"parameter_name\":\"" << json_escape(parameter.name) << "\","
+            << "\"tag_name\":\"" << json_escape(parameter.tag_name) << "\","
+            << "\"string_item_id\":\"" << json_escape(parameter.string_item_id) << "\","
+            << "\"item_id\":\"" << json_escape(parameter.item_id) << "\","
+            << "\"index\":" << parameter.index << ","
             << "\"value\":\"" << json_escape(parameter.value) << "\","
+            << "\"texture_path\":\"" << json_escape(parameter.texture_path) << "\","
             << "\"color_value\":[";
         if (parameter.kind == "color") {
             const std::array<float, 4> color = color_parameter_value(parameter.value);
@@ -75,6 +113,9 @@ static void append_material_parameter_records_json(
         }
         out << "],\"numeric_value\":";
         if (parameter.has_numeric) out << parameter.numeric_value;
+        else out << "null";
+        out << ",\"integer_value\":";
+        if (parameter.has_integer) out << parameter.integer_value;
         else out << "null";
         out << "}";
     }
@@ -121,6 +162,7 @@ static void append_package_material_inputs(
             << "\"semantic_type\":\"" << json_escape(binding.semantic_type) << "\","
             << "\"semantic_subtype\":\"" << json_escape(binding.semantic_subtype) << "\","
             << "\"material_name\":\"" << json_escape(binding.material_name) << "\","
+            << "\"owner_wrapper_item_id\":\"" << json_escape(binding.owner_wrapper_item_id) << "\","
             << "\"shader_family\":\"" << json_escape(binding.shader_family) << "\","
             << "\"shader_rule\":\"" << json_escape(binding.shader_rule) << "\","
             << "\"sidecar_path\":\"" << json_escape(binding.sidecar_path) << "\","
@@ -198,10 +240,18 @@ static void append_package_batch_json_head(PackageWriteState& state, const Packa
         << ",\"metalness\":" << batch.metalness_hint
         << ",\"specular\":" << batch.specular_hint
         << ",\"height_scale\":" << batch.effective_material_hints.height_scale
-        << ",\"source\":\"native_core_material_category\"},"
+        << ",\"roughness_authored\":" << (batch.effective_material_hints.roughness_authored ? "true" : "false")
+        << ",\"metalness_authored\":" << (batch.effective_material_hints.metalness_authored ? "true" : "false")
+        << ",\"specular_authored\":" << (batch.effective_material_hints.specular_authored ? "true" : "false")
+        << ",\"height_scale_authored\":" << (batch.effective_material_hints.height_scale_authored ? "true" : "false")
+        << ",\"source\":\"native_core_surface_profile\"},"
         << "\"material_category\":\"" << json_escape(batch.material_category) << "\","
         << "\"material_category_confidence\":" << batch.material_category_confidence << ","
         << "\"material_category_reason\":\"" << json_escape(batch.material_category_reason) << "\","
+        << "\"surface_profile\":" << surface_profile_json(batch.surface_profile) << ","
+        << "\"roughness_hint_present\":" << (batch.effective_material_hints.roughness_authored ? "true" : "false") << ","
+        << "\"metalness_hint_present\":" << (batch.effective_material_hints.metalness_authored ? "true" : "false") << ","
+        << "\"specular_hint_present\":" << (batch.effective_material_hints.specular_authored ? "true" : "false") << ","
         << "\"material_response_promoted\":" << (batch.material_response_promoted ? "true" : "false") << ","
         << "\"material_response_disposition\":\"" << json_escape(batch.material_response) << "\","
         << "\"base_tint_strength\":" << batch.base_tint_strength << ","

@@ -423,6 +423,10 @@ def _dotnet_material_semantic_contract(
         if isinstance(raw_material_response_promoted, str)
         else bool(raw_material_response_promoted)
     )
+    raw_surface_profile = overrides.get("surface_profile", {})
+    surface_profile = (
+        dict(raw_surface_profile) if isinstance(raw_surface_profile, Mapping) else {}
+    )
     source_contract = build_pac_material_graph_v1(
         source,
         channels,
@@ -448,6 +452,7 @@ def _dotnet_material_semantic_contract(
             material_category_reason or ""
         ).strip(),
         "material_response_promoted": material_response_promoted,
+        "surface_profile": surface_profile,
         "channel_color_spaces": dict(sorted(color_spaces.items())),
         "channel_authorities": dict(sorted(channel_authorities.items())),
         **alpha_contract,

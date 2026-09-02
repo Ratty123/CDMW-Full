@@ -109,6 +109,7 @@ static TextureBinding make_sidecar_texture_binding(
     binding.shader_family = shader_family;
     binding.shader_rule = shader_rule;
     binding.material_name = ref.material_name.empty() ? stem_from_path(sidecar.path) : ref.material_name;
+    binding.owner_wrapper_item_id = ref.owner_wrapper_item_id;
     binding.material_wrapper_index = ref.material_wrapper_index;
     binding.material_wrapper_count = parsed.material_wrapper_count;
     binding.material_wrapper_order_authoritative = wrapper_order_authoritative;
@@ -166,6 +167,15 @@ static TextureBinding make_sidecar_texture_binding(
     // from the neutral default without copying the entire PAC parameter table.
     binding.alpha_test_enabled = material_parameters_enable_flag(
         ref.material_parameters, {"AlphaTest", "AlphaClip", "AlphaCutout", "Cutout", "_alphaTest"});
+    binding.roughness_hint_present = material_parameter_has_scalar(
+        ref.material_parameters, {"roughness", "scratchRoughness"});
+    binding.metalness_hint_present = material_parameter_has_scalar(
+        ref.material_parameters, {"metallic", "metalness", "scratchMetallic"});
+    binding.specular_hint_present = material_parameter_has_scalar(
+        ref.material_parameters, {"specular", "specularAmount"});
+    binding.height_scale_hint_present = material_parameter_has_scalar(
+        ref.material_parameters,
+        {"screenSpaceDisplacementScale", "detailScreenSpaceDisplacementScale", "heightIntensity"});
     binding.roughness_hint = std::clamp(scalar_parameter_hint(
         ref.material_parameters, {"roughness", "scratchRoughness"}, 0.0f), 0.0f, 1.0f);
     binding.metalness_hint = std::clamp(scalar_parameter_hint(
@@ -211,7 +221,7 @@ static void add_sidecar_texture_binding(
     bool parameter_was_named
 ) {
     const std::string key = lower_copy(
-        binding.role + "|" + binding.archive_path + "|" + binding.parameter_name + "|" + binding.material_name);
+        binding.owner_wrapper_item_id + "|" + binding.parameter_name + "|" + binding.archive_path);
     if (!state.seen.insert(key).second) return;
     state.bindings.push_back(binding);
     add_asset_family_row(state.package, NativeAssetFamilyRow{

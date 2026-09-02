@@ -641,6 +641,9 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     bool categoryStone = materialCategoryCode > 8.5f && materialCategoryCode < 9.5f;
     bool categoryEye = materialCategoryCode > 9.5f && materialCategoryCode < 10.5f;
     bool categoryTooth = materialCategoryCode > 10.5f && materialCategoryCode < 11.5f;
+    bool categoryBone = materialCategoryCode > 11.5f && materialCategoryCode < 12.5f;
+    bool categoryOrganic = materialCategoryCode > 12.5f && materialCategoryCode < 13.5f;
+    bool categoryFoliage = materialCategoryCode > 13.5f && materialCategoryCode < 14.5f;
     float materialFamilyCode = PresentationDiagnosticTuning.w;
     float familyMetalScale = 1.0f;
     float familySpecularScale = 1.0f;
@@ -694,6 +697,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     bool glossyNonmetal = categoryGlass || categoryGem || categoryEye;
     bool conservativeNonmetal = categoryLeather || categoryWood || categoryCloth
         || categorySkin || categoryHair || categoryStone || categoryTooth
+        || categoryBone || categoryOrganic || categoryFoliage
         || (!hasSourceCategory && MaterialFamilyPolicy.x > 0.5f);
     bool knownNonmetal = conservativeNonmetal || glossyNonmetal;
     float categoryMetalCap = (categoryMetal || hasSourceMetallicMap)

@@ -581,7 +581,8 @@ static const ParsedMaterialSidecar& cached_parsed_material_sidecar(
     if (parsed.refs.empty()) {
         const std::vector<MaterialParameterRecord> material_parameters = extract_material_parameters(material_scope);
         for (const std::string& token : extract_dds_tokens(material_scope)) {
-            parsed.refs.push_back(SidecarTextureRef{token, "", "", parsed.shader_family, -1, material_parameters});
+            parsed.refs.push_back(SidecarTextureRef{
+                token, "", "", parsed.shader_family, "unscoped-material", -1, material_parameters});
         }
     }
     return cache.emplace(key, std::move(parsed)).first->second;
@@ -725,22 +726,20 @@ static std::string packed_channels_for_role(
 
 static std::string layer_channel_from_parameter(const std::string& parameter_name) {
     const std::string key = normalized_key(parameter_name);
-    // SkinnedMeshSkin uses an ordinary red-channel mask.  The generic
-    // `_detailMaskTexture` contract below is blue, but applying that rule to
-    // `_skinDetailMaskTexture` made the authored skin pores disappear.
+    // SkinnedMeshSkin explicitly uses a red-channel mask. Generic selector
+    // textures do not name one fixed layer channel: the associated labelled
+    // grime/detail parameters own their R/G/B channel identity instead.
     if (key == "skindetailmasktexture") return "r";
-    if (key.find("detailmasktexture") != std::string::npos) return "b";
+    if (key == "detailmasktexture" || key == "colorblendingmasktexture") return "";
     if (key.ends_with("r")) return "r";
     if (key.ends_with("g")) return "g";
     if (key.ends_with("b")) return "b";
     if (key.ends_with("a")) return "a";
-    if (key.find("grime") != std::string::npos) return "r";
-    return "r";
+    return "";
 }
 
 // Whether the parameter itself names the mask channel that selects its layer.
-// `_detailDiffuseMaskR/G/B` do; `_detailMaskTexture` is the mask, not a layer,
-// and its "b" above is a fallback for layers that name no channel of their own.
+// `_detailDiffuseMaskR/G/B` do; selector textures are masks, not layers.
 static bool layer_parameter_names_channel(const std::string& parameter_name) {
     const std::string key = normalized_key(parameter_name);
     if (key.find("detailmasktexture") != std::string::npos) return false;

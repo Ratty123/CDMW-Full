@@ -107,6 +107,7 @@ struct PackageBatchState {
     std::string material_category;
     std::string material_category_reason;
     float material_category_confidence = 0.0f;
+    SurfaceProfile surface_profile;
     NativeMaterialHints effective_material_hints;
     bool force_nonmetal_equipment_layer_tint = false;
     bool material_response_promoted = false;

@@ -16,6 +16,7 @@ class PreviewMaterialParameterInput:
     texture_path: str = ""
     color_value: Tuple[float, float, float] = ()
     numeric_value: Optional[float] = None
+    integer_value: Optional[int] = None
 
 
 @dataclass(slots=True)
