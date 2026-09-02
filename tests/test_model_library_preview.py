@@ -11,9 +11,11 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEventLoop, QObject, QThread, QTimer, Qt, Signal, Slot
+from PIL import Image
+from PySide6.QtCore import QEventLoop, QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
+from cdmw.core.dds_native import inspect_dds_native_path
 from cdmw.models import ModelPreviewRenderSettings, RunCancelled
 from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
 from cdmw.services.model_library_preview import (
@@ -98,8 +100,12 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             result = prepare_model_library_inline_preview(scene_path, model_name="Triangle")
 
             package_dir = Path(str(result["dotnet_preview_package_path"]))
+            document = json.loads((package_dir / "document.json").read_text(encoding="utf-8"))
+            manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(result["vertices"], 3)
             self.assertEqual(result["faces"], 1)
+            self.assertEqual(document["format"], "preview")
+            self.assertEqual(manifest["source"]["format"], "gltf")
             self.assertTrue(validate_dotnet_preview_package(package_dir)[0])
 
     def test_backend_uses_high_quality_combined_material_package(self) -> None:
@@ -206,17 +212,24 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             asset_dir = root / "asset"
             asset_dir.mkdir()
             _write_triangle_gltf(asset_dir, with_texture=True)
+            Image.new("RGB", (64, 32), (64, 128, 192)).save(
+                asset_dir / "texture.png"
+            )
             archive_path = root / "wolf_like.zip"
             with zipfile.ZipFile(archive_path, "w") as archive:
                 for path in asset_dir.rglob("*"):
                     archive.write(path, path.relative_to(asset_dir).as_posix())
 
-            result = prepare_model_library_inline_preview(
-                archive_path,
-                extract_root=root / "extract",
-                model_name="Zip Texture",
-                high_quality_textures=False,
-            )
+            with patch(
+                "cdmw.services.mesh_rust_authoring._RUST_EXTERNAL_PREVIEW_TEXTURE_MAX_DIMENSION",
+                16,
+            ):
+                result = prepare_model_library_inline_preview(
+                    archive_path,
+                    extract_root=root / "extract",
+                    model_name="Zip Texture",
+                    high_quality_textures=False,
+                )
 
             package_dir = Path(str(result["dotnet_preview_package_path"]))
             manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -225,6 +238,10 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertFalse(result["high_quality_textures"])
             self.assertGreaterEqual(len(manifest["textures"]), 1)
             self.assertEqual(manifest["texture_status"]["quality"], "direct")
+            texture_path = package_dir / str(manifest["textures"][0]["file"]["path"])
+            texture_info = inspect_dds_native_path(texture_path)
+            self.assertEqual(texture_info.reason, "")
+            self.assertEqual((texture_info.width, texture_info.height), (16, 8))
 
     def test_backend_rejects_legacy_qt_renderer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

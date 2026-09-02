@@ -28,6 +28,7 @@ pub enum MeshFormat {
     Pac,
     Pam,
     Pamlod,
+    Preview,
 }
 
 impl MeshFormat {
@@ -257,6 +258,7 @@ pub fn decode_mesh(bytes: &[u8], format: MeshFormat) -> Result<MeshDocument, For
         MeshFormat::Pac => decode_pac(bytes),
         MeshFormat::Pam => decode_pam(bytes),
         MeshFormat::Pamlod => decode_pamlod(bytes),
+        MeshFormat::Preview => Err(FormatError::UnsupportedExtension),
     }
 }
 

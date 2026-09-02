@@ -27,9 +27,9 @@ from cdmw.modding.material_replacer import ReplacementTextureSet, ReplacementTex
 from cdmw.services.material_authority_resource_service import (
     _channel_preset_key,
     _encode_owned_dds,
+    _encode_owned_image_dds_batch,
     generate_material_authority_resource_bindings,
 )
-
 
 _ALL_CHANNELS = ("base", "normal", "height", "material_mask", "emissive")
 
@@ -135,6 +135,56 @@ def test_rust_preview_keeps_bc7_when_uncompressed_budget_is_exhausted(
     assert info.reason == ""
     assert info.format_name == "BC7_UNORM_SRGB"
     assert artifact["preview_uncompressed"] is False
+
+
+def test_external_preview_images_use_one_native_encode_batch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("cd-texture-dx is not built")
+    from cdmw.core import texture_native
+
+    base_source = tmp_path / "base.png"
+    normal_source = tmp_path / "normal.png"
+    base_target = tmp_path / "base.dds"
+    normal_target = tmp_path / "normal.dds"
+    Image.new("RGBA", (64, 32), (73, 41, 19, 255)).save(base_source)
+    Image.new("RGBA", (8, 8), (128, 128, 255, 255)).save(normal_source)
+    original_batch = texture_native.encode_dds_batch_with_directxtex
+    request_counts: list[int] = []
+
+    def recording_batch(jobs: object, **kwargs: object) -> object:
+        requests = tuple(jobs)  # type: ignore[arg-type]
+        request_counts.append(len(requests))
+        return original_batch(requests, **kwargs)
+
+    monkeypatch.setattr(
+        texture_native,
+        "encode_dds_batch_with_directxtex",
+        recording_batch,
+    )
+    artifacts = _encode_owned_image_dds_batch(
+        (
+            (base_source, base_target, "base"),
+            (normal_source, normal_target, "normal"),
+        ),
+        threading.Event(),
+        preview_uncompressed_max_bytes=1024 * 1024,
+        max_dimension=16,
+    )
+
+    assert request_counts == [2]
+    assert len(artifacts) == 2
+    assert base_target.is_file()
+    assert normal_target.is_file()
+    base_info = inspect_dds_native_path(base_target)
+    normal_info = inspect_dds_native_path(normal_target)
+    assert base_info.reason == ""
+    assert (base_info.width, base_info.height) == (16, 8)
+    assert normal_info.reason == ""
+    assert (normal_info.width, normal_info.height) == (8, 8)
+    assert (artifacts[0]["width"], artifacts[0]["height"]) == (16, 8)
 
 
 def _manual(values: dict[str, object]) -> object:

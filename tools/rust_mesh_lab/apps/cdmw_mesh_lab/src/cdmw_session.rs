@@ -2162,6 +2162,38 @@ mod tests {
     }
 
     #[test]
+    fn pure_preview_loader_accepts_predecoded_external_geometry() {
+        let root = tempdir().expect("root");
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let mut external_document = document();
+        external_document.format = MeshFormat::Preview;
+        let document_bytes = serde_json::to_vec(&external_document).expect("external document");
+        fs::write(root.path().join("document.json"), &document_bytes).expect("document");
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).expect("manifest bytes"))
+                .expect("manifest JSON");
+        manifest["schema"] = json!(PREVIEW_PACKAGE_SCHEMA);
+        manifest["protocol"] = json!(PREVIEW_PROTOCOL);
+        manifest["edit_backend"] = json!(PREVIEW_BACKEND);
+        manifest["interaction_profile"] = json!("read_only");
+        manifest["output_policy"] = json!({"policy": "read_only_preview", "archive_writes": false});
+        manifest["source"] = json!({"path": "scene.gltf", "format": "gltf", "lod_index": 0});
+        manifest["document"]["byte_length"] = json!(document_bytes.len());
+        manifest["document"]["sha256"] = json!(sha256_upper(&document_bytes));
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec(&manifest).expect("preview manifest bytes"),
+        )
+        .expect("preview manifest");
+
+        let package = LoadedCdmwSessionPackage::load_preview(&manifest_path)
+            .expect("external preview package");
+
+        assert_eq!(package.document().format, MeshFormat::Preview);
+        assert_eq!(package.document().lods[0].submeshes.len(), 1);
+    }
+
+    #[test]
     fn pure_preview_loader_decodes_preview_core_geometry_and_identity_directly() {
         let root = tempdir().expect("root");
         let manifest_path = write_preview_core_package_fixture(root.path());

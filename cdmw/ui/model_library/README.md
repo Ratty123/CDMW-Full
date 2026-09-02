@@ -5,8 +5,8 @@ UI, and model-library preview coordination. Keep slow discovery or preview work
 off the UI thread through the tab task worker. Inline preview preparation lives
 in `cdmw/services/model_library_preview.py` and is imported inside that task,
 not while the tab is constructed. Model Library creates the shared
-.NET/Vortice host only when a prepared package is ready, then promotes it after
-the host reports `loaded`; the unopened tab retains a lightweight placeholder.
+Rust host only when a prepared package is ready, then promotes it after the
+host reports `ready`; the unopened tab retains a lightweight placeholder.
 Archive Browser preview remains an explicit manual action.
 
 Scene imports (glTF/GLB/OBJ/DAE) normalize texture V, so the preparation step
@@ -19,6 +19,14 @@ import and returns its stored geometry/texture summary with the package, so
 re-selecting a model or toggling Flip V back skips parsing and packaging. An
 unsupported or incomplete dependency shape bypasses durable reuse rather than
 risking stale rendering.
+
+Pre-decoded external geometry is labelled `preview` inside the Rust document;
+the manifest separately retains its true glTF, GLB, OBJ, DAE, or converted-FBX
+source format. External images are deduplicated by source and texture role, then
+encoded through one native DDS batch per package while preserving the existing
+format, mip, memory-budget, cancellation, and atomic-publication contracts.
+Their temporary preview copies are aspect-preservingly bounded to 2048 pixels;
+the downloaded source images remain unchanged.
 
 Inline packages use the shared Rust direct-texture tier: authored DDS resources
 remain visible, while full PAC/PAC_XML material synthesis stays reserved for

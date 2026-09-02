@@ -97,6 +97,32 @@ def _preview_dds_format(
     return replacement if projected_bytes <= int(max_uncompressed_bytes) else canonical_format
 
 
+def _projected_rgba_dds_bytes(width: int, height: int, mip_count: int) -> int:
+    projected_bytes = 148
+    level_width = max(1, int(width))
+    level_height = max(1, int(height))
+    for _level in range(max(1, int(mip_count))):
+        projected_bytes += level_width * level_height * 4
+        level_width = max(1, level_width // 2)
+        level_height = max(1, level_height // 2)
+    return projected_bytes
+
+
+def _bounded_image_dimensions(
+    width: int,
+    height: int,
+    max_dimension: int,
+) -> tuple[int, int]:
+    width = max(1, int(width))
+    height = max(1, int(height))
+    max_dimension = max(0, int(max_dimension))
+    if max_dimension <= 0 or max(width, height) <= max_dimension:
+        return width, height
+    if width >= height:
+        return max_dimension, max(1, round(height * max_dimension / width))
+    return max(1, round(width * max_dimension / height)), max_dimension
+
+
 def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -124,6 +150,154 @@ def _publish_content_addressed_dds(
     return target
 
 
+def _owned_dds_artifact(
+    target: Path,
+    *,
+    output_format: str,
+    output_srgb: bool,
+    preset: object,
+    expected_width: int | None = None,
+    expected_height: int | None = None,
+) -> dict[str, object]:
+    from cdmw.core.dds_native import inspect_dds_native_path
+
+    info = inspect_dds_native_path(target)
+    expected_mips = int(getattr(preset, "mip_count", 0) or 0)
+    if info.width <= 0 or info.height <= 0 or info.mip_count <= 0 or info.reason:
+        raise ValueError(f"Generated DDS failed readback: {info.reason or 'invalid DDS metadata'}")
+    if (
+        expected_width is not None
+        and expected_height is not None
+        and (
+            int(info.width) != int(expected_width)
+            or int(info.height) != int(expected_height)
+        )
+    ):
+        raise ValueError(
+            "Generated DDS has the wrong preview dimensions: expected "
+            f"{expected_width}x{expected_height}, got {info.width}x{info.height}"
+        )
+    if (
+        str(info.format_name or "").strip().upper() != output_format
+        or int(info.mip_count) != expected_mips
+        or bool(info.srgb) != bool(output_srgb)
+    ):
+        raise ValueError(
+            f"Generated DDS has the wrong preview contract: expected {output_format}/"
+            f"{expected_mips} mips/{'srgb' if output_srgb else 'linear'}, got "
+            f"{info.format_name}/{info.mip_count} mips/{'srgb' if info.srgb else 'linear'}"
+        )
+    canonical_format = str(getattr(preset, "dds_format", "") or "").strip().upper()
+    preset_value = getattr(preset, "preset", None)
+    return {
+        "content_sha256": _file_sha256(target),
+        "byte_count": int(target.stat().st_size),
+        "dds_format": str(info.format_name or output_format),
+        "width": int(info.width),
+        "height": int(info.height),
+        "mip_count": int(info.mip_count),
+        "color_space": "srgb" if info.srgb else "linear",
+        "preset": str(getattr(preset_value, "key", "") or ""),
+        "preview_uncompressed": output_format != canonical_format,
+    }
+
+
+def _encode_owned_image_dds_batch(
+    jobs: Sequence[tuple[Path, Path, str]],
+    stop_event: threading.Event,
+    *,
+    source_color_policy: str = "auto",
+    preview_uncompressed_max_bytes: int = 0,
+    max_dimension: int = 0,
+) -> tuple[dict[str, object], ...]:
+    """Encode external preview images with one native-helper invocation."""
+
+    from PIL import Image
+
+    from cdmw.core.texture_native import (
+        NativeTextureEncodeRequest,
+        encode_dds_batch_with_directxtex,
+    )
+    from cdmw.domain.cancellation import raise_if_cancelled
+    from cdmw.domain.textures.editor_presets import resolve_texture_editor_dds_preset
+
+    if not jobs:
+        return ()
+    remaining_budget = max(0, int(preview_uncompressed_max_bytes))
+    requests: list[NativeTextureEncodeRequest] = []
+    plans: list[tuple[Path, str, bool, object, str, int, int]] = []
+    for raw_source, raw_target, channel in jobs:
+        raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
+        source = Path(raw_source)
+        target = Path(raw_target)
+        if source.suffix.lower() == ".dds":
+            raise ValueError("External preview image batch cannot contain DDS input.")
+        with Image.open(source) as image:
+            width, height = _bounded_image_dimensions(
+                image.width,
+                image.height,
+                max_dimension,
+            )
+        preset = resolve_texture_editor_dds_preset(
+            _channel_preset_key(channel),
+            width=width,
+            height=height,
+        )
+        output_format = _preview_dds_format(
+            preset.dds_format,
+            width=width,
+            height=height,
+            mip_count=preset.mip_count,
+            max_uncompressed_bytes=remaining_budget,
+        )
+        if output_format != preset.dds_format:
+            remaining_budget = max(
+                0,
+                remaining_budget
+                - _projected_rgba_dds_bytes(width, height, preset.mip_count),
+            )
+        output_srgb = output_format.endswith("_SRGB")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        requests.append(
+            NativeTextureEncodeRequest(
+                input_path=source,
+                output_path=target,
+                dds_format=output_format,
+                width=width,
+                height=height,
+                mip_count=preset.mip_count,
+                overwrite=True,
+                source_color_policy=source_color_policy,
+            )
+        )
+        plans.append(
+            (target, output_format, output_srgb, preset, str(channel), width, height)
+        )
+
+    reports = encode_dds_batch_with_directxtex(
+        requests,
+        timeout_seconds=60.0,
+        stop_event=stop_event,
+    )
+    artifacts: list[dict[str, object]] = []
+    for target, output_format, output_srgb, preset, channel, width, height in plans:
+        report = reports.get(str(target))
+        if not report or not target.is_file():
+            raise RuntimeError(f"Native DirectXTex DDS encode failed for {channel}.")
+        raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
+        artifacts.append(
+            _owned_dds_artifact(
+                target,
+                output_format=output_format,
+                output_srgb=output_srgb,
+                preset=preset,
+                expected_width=width,
+                expected_height=height,
+            )
+        )
+    return tuple(artifacts)
+
+
 def _encode_owned_dds(
     source: Path,
     target: Path,
@@ -140,68 +314,56 @@ def _encode_owned_dds(
     )
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.domain.textures.editor_presets import resolve_texture_editor_dds_preset
-    from PIL import Image
+
+    if source.suffix.lower() != ".dds":
+        return _encode_owned_image_dds_batch(
+            ((source, target, channel),),
+            stop_event,
+            source_color_policy=source_color_policy,
+            preview_uncompressed_max_bytes=preview_uncompressed_max_bytes,
+        )[0]
 
     decoded_source: Path | None = None
-    if source.suffix.lower() == ".dds":
-        source_info = inspect_dds_native_path(source)
-        if source_info.width <= 0 or source_info.height <= 0 or source_info.reason:
-            raise ValueError(
-                f"Source {channel} DDS failed readback: {source_info.reason or 'invalid DDS metadata'}"
-            )
-        width, height = int(source_info.width), int(source_info.height)
-        preset = resolve_texture_editor_dds_preset(
-            _channel_preset_key(channel),
-            width=width,
-            height=height,
+    source_info = inspect_dds_native_path(source)
+    if source_info.width <= 0 or source_info.height <= 0 or source_info.reason:
+        raise ValueError(
+            f"Source {channel} DDS failed readback: {source_info.reason or 'invalid DDS metadata'}"
         )
-        output_format = _preview_dds_format(
-            preset.dds_format,
-            width=width,
-            height=height,
-            mip_count=preset.mip_count,
-            max_uncompressed_bytes=preview_uncompressed_max_bytes,
-        )
-        output_srgb = output_format.endswith("_SRGB")
-        canonical_source = (
-            str(source_info.format_name or "").strip().upper() == output_format
-            and int(source_info.mip_count) == int(preset.mip_count)
-            and bool(source_info.srgb) == bool(output_srgb)
-        )
-        if canonical_source:
-            _copy_cancellable(source, target, stop_event)
-        else:
-            decoded_source = target.with_name(f".{target.stem}.decoded.png")
-            report = decode_dds_preview_with_directxtex(
-                source,
-                decoded_source,
-                max_dimension=max(width, height),
-                slot_kind=channel,
-                requested_mip=0,
-                output_pixel_type="rgba8",
-                timeout_seconds=60.0,
-                stop_event=stop_event,
-            )
-            if not report or not decoded_source.is_file():
-                raise RuntimeError(f"Native DirectXTex DDS decode failed for {channel}.")
+    width, height = int(source_info.width), int(source_info.height)
+    preset = resolve_texture_editor_dds_preset(
+        _channel_preset_key(channel),
+        width=width,
+        height=height,
+    )
+    output_format = _preview_dds_format(
+        preset.dds_format,
+        width=width,
+        height=height,
+        mip_count=preset.mip_count,
+        max_uncompressed_bytes=preview_uncompressed_max_bytes,
+    )
+    output_srgb = output_format.endswith("_SRGB")
+    canonical_source = (
+        str(source_info.format_name or "").strip().upper() == output_format
+        and int(source_info.mip_count) == int(preset.mip_count)
+        and bool(source_info.srgb) == bool(output_srgb)
+    )
+    if canonical_source:
+        _copy_cancellable(source, target, stop_event)
     else:
-        raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
-        with Image.open(source) as image:
-            width, height = int(image.width), int(image.height)
-        preset = resolve_texture_editor_dds_preset(
-            _channel_preset_key(channel),
-            width=width,
-            height=height,
+        decoded_source = target.with_name(f".{target.stem}.decoded.png")
+        report = decode_dds_preview_with_directxtex(
+            source,
+            decoded_source,
+            max_dimension=max(width, height),
+            slot_kind=channel,
+            requested_mip=0,
+            output_pixel_type="rgba8",
+            timeout_seconds=60.0,
+            stop_event=stop_event,
         )
-        output_format = _preview_dds_format(
-            preset.dds_format,
-            width=width,
-            height=height,
-            mip_count=preset.mip_count,
-            max_uncompressed_bytes=preview_uncompressed_max_bytes,
-        )
-        output_srgb = output_format.endswith("_SRGB")
-        decoded_source = source
+        if not report or not decoded_source.is_file():
+            raise RuntimeError(f"Native DirectXTex DDS decode failed for {channel}.")
     if decoded_source is not None:
         staged = target.with_name(f".{target.stem}.encoding.dds")
         try:
@@ -225,31 +387,12 @@ def _encode_owned_dds(
             staged.unlink(missing_ok=True)
             if decoded_source != source:
                 decoded_source.unlink(missing_ok=True)
-    info = inspect_dds_native_path(target)
-    if info.width <= 0 or info.height <= 0 or info.mip_count <= 0 or info.reason:
-        raise ValueError(f"Generated {channel} DDS failed readback: {info.reason or 'invalid DDS metadata'}")
-    if (
-        str(info.format_name or "").strip().upper() != output_format
-        or int(info.mip_count) != int(preset.mip_count)
-        or bool(info.srgb) != bool(output_srgb)
-    ):
-        raise ValueError(
-            f"Generated {channel} DDS has the wrong preview contract: expected {output_format}/"
-            f"{preset.mip_count} mips/{'srgb' if output_srgb else 'linear'}, got "
-            f"{info.format_name}/{info.mip_count} mips/{'srgb' if info.srgb else 'linear'}"
-        )
-    preview_uncompressed = output_format != preset.dds_format
-    return {
-        "content_sha256": _file_sha256(target),
-        "byte_count": int(target.stat().st_size),
-        "dds_format": str(info.format_name or output_format),
-        "width": int(info.width),
-        "height": int(info.height),
-        "mip_count": int(info.mip_count),
-        "color_space": "srgb" if info.srgb else "linear",
-        "preset": preset.preset.key,
-        "preview_uncompressed": preview_uncompressed,
-    }
+    return _owned_dds_artifact(
+        target,
+        output_format=output_format,
+        output_srgb=output_srgb,
+        preset=preset,
+    )
 
 
 def generate_material_authority_resource_bindings(

@@ -29,15 +29,15 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from uuid import uuid4
 
+from cdmw.core.archive import ensure_archive_preview_source
+from cdmw.core.common import (
+    read_file_bytes_cancellable,
+)
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
 from cdmw.domain.mesh.authoring_capability import (
     MeshOutputPolicy,
     action_authoring_capability,
-)
-from cdmw.domain.cancellation import RunCancelled
-from cdmw.core.archive import ensure_archive_preview_source
-from cdmw.core.common import (
-    read_file_bytes_cancellable,
 )
 from cdmw.modding.mesh_glb_interchange import import_glb_with_sidecar
 from cdmw.modding.mesh_obj_importer import import_obj
@@ -47,23 +47,26 @@ from cdmw.modding.mesh_parser import (
     resolve_pac_bone_palette,
 )
 from cdmw.models import ArchiveEntry
+from cdmw.rendering.crimson_shader_registry import normalize_shader_family
 from cdmw.rendering.material_category_contract import (
     MATERIAL_CATEGORY_UNCLASSIFIED,
     is_known_material_category,
     material_category_code,
 )
-from cdmw.rendering.crimson_shader_registry import normalize_shader_family
+from cdmw.services.material_authority_resource_service import (
+    _encode_owned_dds,
+    _encode_owned_image_dds_batch,
+)
 from cdmw.services.mesh_dotnet_material_bindings import (
     _DOTNET_PREVIEW_MATERIAL_ATTRS,
     copy_dotnet_preview_material_bindings,
     count_dotnet_own_material_bindings,
 )
-from cdmw.services.mesh_dotnet_material_state import (
-    mesh_dotnet_material_state_payload,
-)
-from cdmw.services.material_authority_resource_service import _encode_owned_dds
 from cdmw.services.mesh_dotnet_material_package import (
     compile_mesh_dotnet_material_manifest,
+)
+from cdmw.services.mesh_dotnet_material_state import (
+    mesh_dotnet_material_state_payload,
 )
 from cdmw.services.mesh_free_edit_output import publish_free_edit_output
 from cdmw.services.mesh_morph_profiles import mesh_morph_profile_root
@@ -122,6 +125,7 @@ _RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES = 16 * 1024 * 1024
 _RUST_PREVIEW_PACKAGE_BATCH_LIMIT = 4_096
 _RUST_PREVIEW_PACKAGE_TEXTURE_LIMIT = 65_536
 _RUST_FAST_PREVIEW_TEXTURE_BUDGET_BYTES = 128 * 1024 * 1024
+_RUST_EXTERNAL_PREVIEW_TEXTURE_MAX_DIMENSION = 2_048
 _RUST_MATERIAL_PRESENTATION_LIMIT = 2_048
 _RUST_MATERIAL_SYNTHESIS_DIAGNOSTIC_LIMIT = 64
 _RUST_MATERIAL_SYNTHESIS_DIAGNOSTIC_TEXT_LIMIT = 384
@@ -365,6 +369,32 @@ def _encode_rust_preview_dds(
             int(artifact.get("byte_count", 0) or 0),
         )
     return artifact
+
+
+def _encode_rust_preview_dds_batch(
+    jobs: Sequence[tuple[Path, Path, str]],
+    stop_event: threading.Event,
+    synthesis_state: _RustMaterialSynthesisState,
+) -> tuple[dict[str, object], ...]:
+    """Encode one preview's external images in a single native batch."""
+
+    remaining_budget = max(
+        0,
+        _RUST_FAST_PREVIEW_TEXTURE_BUDGET_BYTES
+        - max(0, int(synthesis_state.fast_preview_texture_bytes)),
+    )
+    artifacts = _encode_owned_image_dds_batch(
+        jobs,
+        stop_event,
+        preview_uncompressed_max_bytes=remaining_budget,
+        max_dimension=_RUST_EXTERNAL_PREVIEW_TEXTURE_MAX_DIMENSION,
+    )
+    synthesis_state.fast_preview_texture_bytes += sum(
+        max(0, int(artifact.get("byte_count", 0) or 0))
+        for artifact in artifacts
+        if bool(artifact.get("preview_uncompressed", False))
+    )
+    return artifacts
 
 
 def _record_rust_material_synthesis_diagnostic(
@@ -2083,11 +2113,15 @@ def _mesh_document_payload(
                 }
             )
         lod_payloads.append({"level": lod_index, "submeshes": encoded_submeshes})
-    mesh_format = (
-        str(mesh.format or "preview").strip().lower() or "preview"
-        if allow_preview_formats
-        else _mesh_format(mesh)
-    )
+    if allow_preview_formats:
+        source_format = str(mesh.format or "").strip().lower()
+        mesh_format = (
+            source_format
+            if source_format in {"pac", "pam", "pamlod"}
+            else "preview"
+        )
+    else:
+        mesh_format = _mesh_format(mesh)
     return {
         "format": mesh_format,
         "source_sha256": _source_hash(mesh),

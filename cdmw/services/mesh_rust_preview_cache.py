@@ -17,8 +17,8 @@ from pathlib import Path
 
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
-from cdmw.modding.mesh_totals import refresh_mesh_totals
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.modding.mesh_totals import refresh_mesh_totals
 from cdmw.rendering.dotnet_preview_package_cache import (
     acquire_dotnet_preview_package_cache_lease_for_path,
     create_dotnet_preview_package_staging_dir,
@@ -27,7 +27,9 @@ from cdmw.rendering.dotnet_preview_package_cache import (
     release_dotnet_preview_package_staging_dir,
     store_dotnet_preview_package_cache,
 )
-from cdmw.services.mesh_dotnet_reference_composite import decode_dotnet_native_preview_package
+from cdmw.services.mesh_dotnet_reference_composite import (
+    decode_dotnet_native_preview_package,
+)
 from cdmw.services.mesh_rust_contract import (
     RUST_MESH_AUTHORING_PACKAGE,
     RUST_PREVIEW_BACKEND,
@@ -42,8 +44,11 @@ from cdmw.services.mesh_rust_preview_package import (
     rust_preview_package_from_path,
     validate_rust_preview_package,
 )
+
 _PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST = {
-    "schema_version": 1,
+    # Schema 3 normalizes pre-decoded external meshes to Rust's read-only
+    # ``preview`` wire format and bounds transient external texture previews.
+    "schema_version": 3,
     "material_semantics_version": 1,
     "material_graph_version": 1,
 }

@@ -38,15 +38,15 @@ from cdmw.services.mesh_dotnet_material_bindings import (
     apply_dotnet_native_material_batch_binding,
 )
 from cdmw.services.mesh_rust_authoring import (
-    _RustMaterialSynthesisState,
     _atomic_write_payload,
     _deterministic_luminance_face_indices,
-    _encode_rust_preview_dds,
+    _encode_rust_preview_dds_batch,
     _mesh_channel_payload,
     _mesh_document_payload,
     _mesh_lods,
     _mesh_material_presentations,
     _mesh_texture_payloads,
+    _RustMaterialSynthesisState,
     _session_root_identity,
     _source_hash,
 )
@@ -56,7 +56,6 @@ from cdmw.services.mesh_rust_contract import (
     RUST_PREVIEW_PACKAGE,
     RUST_PREVIEW_PROTOCOL,
 )
-
 
 _PREVIEW_CORE_VERTEX = struct.Struct("<23f")
 _PREVIEW_CORE_IDENTITY = struct.Struct("<2i")
@@ -163,6 +162,8 @@ def _encode_non_dds_preview_textures(
     """Convert external-model images to owned DDS while preserving PAC DDS unchanged."""
 
     overrides: dict[tuple[int, int, str], Path] = {}
+    encoded_sources: dict[tuple[Path, str], Path] = {}
+    bindings: list[tuple[object, str, int, int, str, Path]] = []
     for lod_index, submeshes in enumerate(_mesh_lods(mesh)):
         for submesh_index, submesh in enumerate(submeshes):
             for role, dds_attribute, image_attributes in _PREVIEW_IMAGE_TEXTURES:
@@ -177,20 +178,30 @@ def _encode_non_dds_preview_textures(
                 image_path = _existing_preview_image(submesh, image_attributes)
                 if image_path is None:
                     continue
-                target = staging_root / (
-                    f"lod-{lod_index:04d}-material-{submesh_index:04d}-{role}.dds"
+                source_key = (image_path, role)
+                target = encoded_sources.get(source_key)
+                if target is None:
+                    target = staging_root / (
+                        f"texture-{len(encoded_sources):04d}-{role}.dds"
+                    )
+                    encoded_sources[source_key] = target
+                bindings.append(
+                    (submesh, dds_attribute, lod_index, submesh_index, role, target)
                 )
-                _encode_rust_preview_dds(
-                    image_path,
-                    target,
-                    role,
-                    stop_event,  # type: ignore[arg-type]
-                    synthesis,
-                )
-                setattr(submesh, dds_attribute, str(target))
-                overrides[
-                    (lod_index, submesh_index, "base_color" if role == "base" else role)
-                ] = target
+
+    _encode_rust_preview_dds_batch(
+        tuple(
+            (image_path, target, role)
+            for (image_path, role), target in encoded_sources.items()
+        ),
+        stop_event,  # type: ignore[arg-type]
+        synthesis,
+    )
+    for submesh, dds_attribute, lod_index, submesh_index, role, target in bindings:
+        setattr(submesh, dds_attribute, str(target))
+        overrides[
+            (lod_index, submesh_index, "base_color" if role == "base" else role)
+        ] = target
     return overrides
 
 
