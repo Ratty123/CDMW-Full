@@ -1078,7 +1078,7 @@ class ItemPreviewFrame(QWidget):
             self._full_texture_upgrade_from_fast = False
             self.status_changed.emit(preview_status)
             self.ready.emit()
-        elif str(state) == "error":
+        elif str(state) in {"error", "package_error"}:
             failure = str(message or "The viewport reported an error.")
             if self._full_texture_upgrade_from_fast:
                 failure = f"Fast textures remain visible; full textures failed to load: {failure}"

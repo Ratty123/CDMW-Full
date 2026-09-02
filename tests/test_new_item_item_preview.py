@@ -1007,6 +1007,27 @@ class ItemPreviewFrameTests(unittest.TestCase):
         )
         frame.shutdown()
 
+    def test_resident_full_material_rejection_replaces_the_loading_status(self) -> None:
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_resident_failure_"))
+        frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
+        frame._ensure_host()
+        frame._loaded_stage = "materials"
+        frame._full_texture_upgrade_from_fast = True
+        statuses = []
+        frame.status_changed.connect(statuses.append)
+
+        frame._host_state("package_error", "Rust Preview package load failed: missing texture")
+
+        self.assertEqual(
+            statuses[-1],
+            "Fast textures remain visible; full textures failed to load: "
+            "Rust Preview package load failed: missing texture",
+        )
+        self.assertFalse(frame._full_texture_upgrade_from_fast)
+        frame.shutdown()
+
     def test_progressive_template_accepts_a_native_package_without_python_recompile(self) -> None:
         from PySide6.QtCore import QEventLoop
 
