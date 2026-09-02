@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 from dataclasses import dataclass, field
@@ -10,9 +11,13 @@ from typing import Any, Optional
 
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.services.mesh_workflow_service import ParsedMesh
-from cdmw.ui.new_item.model_import import ModelPlacement
+from cdmw.ui.new_item.model_import import ModelPlacement, mesh_bounds
 
-__all__ = ["PlacementScene", "upgrade_item_preview_package_materials"]
+__all__ = [
+    "PlacementScene",
+    "flat_preview_normal_axis",
+    "upgrade_item_preview_package_materials",
+]
 
 
 @dataclass
@@ -25,6 +30,21 @@ class PlacementScene:
     model_bounds: Any = None
     model_origin: Any = None
     character: Any = None
+
+
+def flat_preview_normal_axis(bounds: Any) -> str:
+    """Face the thinnest model axis so placement stays unchanged but reads flat."""
+
+    try:
+        low, high = bounds
+        extents = tuple(abs(float(high[index]) - float(low[index])) for index in range(3))
+    except (IndexError, TypeError, ValueError):
+        return "y"
+    if not all(math.isfinite(value) for value in extents) or not any(extents):
+        return "y"
+    # Prefer the conventional front (Z normal) when two axes are equally thin.
+    axis = min((2, 0, 1), key=lambda index: extents[index])
+    return ("x", "y", "z")[axis]
 
 
 def as_parsed_mesh(item: Any) -> ParsedMesh:
@@ -107,7 +127,7 @@ def upgrade_item_preview_package_materials(
     model = as_parsed_mesh(
         prepare_preview_model(item.model, render_settings=render_settings, stop_event=stop_event)
     )
-    reference = (
+    template = (
         as_parsed_mesh(
             prepare_preview_model(item.template, render_settings=render_settings, stop_event=stop_event)
         )
@@ -121,7 +141,8 @@ def upgrade_item_preview_package_materials(
         if item.character is not None
         else None
     )
-    reference = placement_reference_mesh(reference, character)
+    grid_normal_axis = flat_preview_normal_axis(mesh_bounds(template if template is not None else model))
+    reference = placement_reference_mesh(template, character)
     target = root / f"package_{time.time_ns()}_materials"
     package = build_rust_preview_package(
         model,
@@ -131,6 +152,7 @@ def upgrade_item_preview_package_materials(
         interaction_profile="static_replacement",
         interaction_mode="placement",
         reference_draw="wire",
+        grid_normal_axis=grid_normal_axis,
         scene_transform=item.placement.build_transform(origin=item.model_origin),
         cancelled=stop_event.is_set,
         include_material_resources=True,

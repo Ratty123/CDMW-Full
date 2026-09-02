@@ -66,6 +66,11 @@ class ModelPanelPreviewMixin:
                 token=token,
                 placement=placement,
                 model_bounds=model_bounds,
+                grid_bounds=(
+                    imported.fit_template_bounds
+                    if imported is not None
+                    else None
+                ),
                 gizmo_enabled=imported is not None,
             )
             self._refresh_placement_enabled()

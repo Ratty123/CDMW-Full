@@ -147,7 +147,17 @@ class ItemPreviewPackageTests(unittest.TestCase):
             return SimpleNamespace(package_dir=root / "mesh_pkg")
 
         model = SimpleNamespace(meshes=[object()])
-        mesh = ParsedMesh(path="b", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
+        mesh = ParsedMesh(
+            path="b",
+            format="pac",
+            submeshes=[
+                SubMesh(
+                    name="b",
+                    vertices=[(0, 0, 0), (0, 1, 0), (1, 0, 0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
         character = ParsedMesh(
             path="character",
             format="pac",
@@ -190,6 +200,7 @@ class ItemPreviewPackageTests(unittest.TestCase):
             self.assertEqual(kwargs["comparison_mode"], "overlay")
             self.assertEqual(kwargs["interaction_mode"], "placement")
             self.assertEqual(kwargs["reference_draw"], "wire")
+            self.assertEqual(kwargs["grid_normal_axis"], "z")
             transform = kwargs["scene_transform"]
             self.assertEqual(transform.alignment_mode, "manual")
             self.assertEqual(transform.offset_xyz, (0.0, 0.0, -0.3))
@@ -532,7 +543,13 @@ class ItemPreviewFrameTests(unittest.TestCase):
         frame.placement_changed.connect(lambda p, done: moves.append((p, done)))
         start = ModelPlacement(offset=(0.0, 0.0, -0.2), scale=(0.5, 0.5, 0.5))
         with patch.object(ItemPreviewFrame, "_start_package", lambda self_, request: setattr(self_, "_thread", object())):
-            frame.show_placement(lambda _stop: PlacementScene(template=None, model=None), token="p", placement=start, model_bounds=((0, 0, 0), (1, 1, 1)))
+            frame.show_placement(
+                lambda _stop: PlacementScene(template=None, model=None),
+                token="p",
+                placement=start,
+                model_bounds=((-0.1, 0.0, -1.0), (0.1, 5.0, 1.0)),
+                grid_bounds=((-1.0, 0.0, -0.1), (1.0, 5.0, 0.1)),
+            )
         self.assertIs(frame.placement, start)
         host = frame.host
         # a ready while the newest build is still running belongs to the package before:
@@ -553,11 +570,28 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertIn("set_alignment_preview_transform", names)
         self.assertIn(("set_icon_capture_mode", (False,), {}), host.calls)
         self.assertNotIn(("set_icon_capture_mode", (True,), {}), host.calls, "a placement scene is not in icon-capture mode")
-        self.assertIn("reset_view", names, "the camera is framed on the placed model once")
+        self.assertIn("set_view", names, "the camera faces the model's broad plane once")
         state = next(c for c in host.calls if c[0] == "set_alignment_state")
         self.assertTrue(state[2]["enabled"])
         self.assertNotIn("source_submesh_indices", state[2], "no source highlight: the model draws as itself")
-        self.assertIn(("remember_editable_local_bounds", ((0, 0, 0), (1, 1, 1)), {}), host.calls)
+        self.assertIn(
+            ("remember_editable_local_bounds", ((-0.1, 0.0, -1.0), (0.1, 5.0, 1.0)), {}),
+            host.calls,
+        )
+        self.assertIn(
+            (
+                "set_view",
+                (),
+                {
+                    "yaw": 180.0,
+                    "pitch": 0.0,
+                    "zoom_factor": 1.0,
+                    "fit_to_view": True,
+                    "pan": (0.0, 0.0, 0.0),
+                },
+            ),
+            host.calls,
+        )
         pushed = next(c for c in host.calls if c[0] == "set_alignment_preview_transform")
         self.assertEqual(pushed[2]["translation"], (0.0, 0.0, -0.2))
         self.assertEqual(pushed[2]["scale_xyz"], (0.5, 0.5, 0.5))
@@ -594,7 +628,17 @@ class ItemPreviewFrameTests(unittest.TestCase):
             host.calls,
             [
                 ("set_display_mode", ("side_by_side",), {}),
-                ("reset_view", (), {}),
+                (
+                    "set_view",
+                    (),
+                    {
+                        "yaw": 180.0,
+                        "pitch": 0.0,
+                        "zoom_factor": 1.0,
+                        "fit_to_view": True,
+                        "pan": (0.0, 0.0, 0.0),
+                    },
+                ),
             ],
             "showing a different role layout must immediately frame both visible models",
         )
@@ -1095,6 +1139,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
             self.assertEqual(preview_scene["interaction_mode"], "placement")
             self.assertEqual(preview_scene["comparison_mode"], "overlay")
             self.assertEqual(preview_scene["reference_draw"], "wire")
+            self.assertEqual(preview_scene["grid"]["normal_axis"], "z")
             self.assertGreater(preview_scene["editable_submesh_count"], 0)
             self.assertGreater(preview_scene["reference_submesh_count"], 0)
             self.assertTrue(preview_scene["grid"]["visible"])

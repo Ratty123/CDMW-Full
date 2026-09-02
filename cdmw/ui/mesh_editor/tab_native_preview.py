@@ -57,7 +57,7 @@ class MeshEditorNativePreviewMixin:
                 self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
             self._request_standalone_native_part_picking(False)
             self._sync_standalone_native_mesh_edit_state(force=True)
-            self.standalone_status_label.setText(f"Rust preview loading: {package_path}")
+            self.standalone_status_label.setText(f"Preview loading: {package_path}")
         return ok
     def _launch_standalone_native_preview_package(self, package_dir: Path, *, reset_view: bool = True) -> bool:
         return self.load_standalone_native_preview_package(package_dir, reset_view=reset_view)

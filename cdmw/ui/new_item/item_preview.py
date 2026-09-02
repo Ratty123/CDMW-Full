@@ -30,10 +30,11 @@ from PySide6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_settings
 from cdmw.services.mesh_workflow_service import ParsedMesh
-from cdmw.ui.new_item.model_import import ModelPlacement
+from cdmw.ui.new_item.model_import import ModelPlacement, mesh_bounds
 from cdmw.ui.new_item.item_preview_materials import (
     PlacementScene,
     as_parsed_mesh as _as_parsed_mesh,
+    flat_preview_normal_axis as _flat_preview_normal_axis,
     placement_reference_mesh as _placement_reference_mesh,
     prepare_preview_model as _prepare_preview_model,
     upgrade_item_preview_package_materials,
@@ -61,6 +62,11 @@ __all__ = [
 #: the viewport's display modes for a placement scene (the host's display-mode keys)
 PLACEMENT_VIEW_MODES = ("overlay", "side_by_side", "replacement_only", "original_only")
 GIZMO_TOOLS = ("move", "rotate", "scale")
+_PLACEMENT_FLAT_CAMERA = {
+    "x": (90.0, 0.0),
+    "y": (0.0, -89.0),
+    "z": (180.0, 0.0),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -382,19 +388,23 @@ def build_item_preview_package(
             if item.character is not None
             else None
         )
-        reference_mesh = _placement_reference_mesh(
-            _as_parsed_mesh(reference) if reference is not None else None,
-            _as_parsed_mesh(character) if character is not None else None,
+        model_mesh = _as_parsed_mesh(model)
+        template_mesh = _as_parsed_mesh(reference) if reference is not None else None
+        character_mesh = _as_parsed_mesh(character) if character is not None else None
+        grid_normal_axis = _flat_preview_normal_axis(
+            mesh_bounds(template_mesh if template_mesh is not None else model_mesh)
         )
+        reference_mesh = _placement_reference_mesh(template_mesh, character_mesh)
         package = progressive_material_package(
             lambda quality: build_rust_preview_package(
-                _as_parsed_mesh(model),
+                model_mesh,
                 output_root=output_root,
                 reference_mesh=reference_mesh,
                 comparison_mode="overlay",
                 interaction_profile="static_replacement",
                 interaction_mode="placement",
                 reference_draw="wire",
+                grid_normal_axis=grid_normal_axis,
                 cancelled=stop_event.is_set,
                 scene_transform=item.placement.build_transform(origin=item.model_origin),
                 include_material_resources=bool(include_material_resources),
@@ -516,6 +526,7 @@ class ItemPreviewFrame(QWidget):
         self._gizmo_enabled = True
         self._view_mode = "overlay"
         self._grid_visible = True
+        self._placement_grid_normal_axis = "y"
         self._model_bounds: Any = None
         #: (path, token, is_placement, stage) built while hidden, waiting for the viewport
         self._deferred_package: Optional[tuple[Path, Hashable, bool, str]] = None
@@ -595,6 +606,7 @@ class ItemPreviewFrame(QWidget):
 
         self._placement = None
         self._placement_base = None
+        self._placement_grid_normal_axis = "y"
         self._show(source, token=token, is_placement=False)
 
     def _show(self, source: Any, *, token: Hashable = None, is_placement: bool = False) -> None:
@@ -606,6 +618,7 @@ class ItemPreviewFrame(QWidget):
             self._upgrade_request = None
             self._full_texture_upgrade_from_fast = False
             self._placement = None
+            self._placement_grid_normal_axis = "y"
             self.is_ready = False
             self._drop_deferred_package()
             if self.host is None:
@@ -660,17 +673,22 @@ class ItemPreviewFrame(QWidget):
         token: Hashable,
         placement: ModelPlacement,
         model_bounds: Any = None,
+        grid_bounds: Any = None,
         gizmo_enabled: bool = True,
     ) -> None:
         """Show a `PlacementScene` (or a callable producing one) with the model at
         `placement` (`model_bounds`: the model's own-space bounds, for the host's
-        placement fallback), the gizmo on when `gizmo_enabled`. The same token already
-        showing only takes the new placement and gizmo state."""
+        placement fallback; `grid_bounds`: the template's authoritative bounds), the
+        gizmo on when `gizmo_enabled`. The same token already showing only takes the new
+        placement and gizmo state."""
 
         same = self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready or self._deferred_package is not None)
         self._placement = placement
         self._gizmo_enabled = bool(gizmo_enabled)
         self._model_bounds = model_bounds
+        self._placement_grid_normal_axis = _flat_preview_normal_axis(
+            grid_bounds if grid_bounds is not None else model_bounds
+        )
         if same:
             if self.is_ready:
                 self._apply_placement_presentation()
@@ -739,10 +757,22 @@ class ItemPreviewFrame(QWidget):
             self.fit_view()
 
     def fit_view(self) -> None:
-        """Frame the camera on the model where it sits now (the helper keeps its frame
-        until asked, so a model scaled or moved far goes out of view otherwise)."""
+        """Frame the model flat without changing its game-authoritative placement."""
 
         if self.host is not None and self.is_ready:
+            yaw, pitch = _PLACEMENT_FLAT_CAMERA.get(
+                self._placement_grid_normal_axis,
+                _PLACEMENT_FLAT_CAMERA["y"],
+            )
+            set_view = getattr(self.host, "set_view", None)
+            if callable(set_view) and set_view(
+                yaw=yaw,
+                pitch=pitch,
+                zoom_factor=1.0,
+                fit_to_view=True,
+                pan=(0.0, 0.0, 0.0),
+            ):
+                return
             self.host.reset_view()
 
     def _push_placement(self) -> None:

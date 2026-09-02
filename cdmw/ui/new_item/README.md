@@ -172,8 +172,10 @@ Both the geometry-first and canonical-material stages declare a placement scene:
 the game's template fixed as a wire guide while the imported, textured model is the only editable
 role. Side by side and Template only expose the full reference presentation, and changing among
 the four view modes immediately frames the roles that are now visible. The grid stays anchored to
-the scene frame; Move, Rotate and Scale change only the imported model around its fitted source
-origin, so the template remains the in-game placement authority. A glow
+the scene frame and faces the template's broad plane; the opening camera looks straight at that
+plane, so the template reads flat without changing any model coordinates. Move, Rotate and Scale
+change only the imported model around its fitted source origin, so the template remains the in-game
+placement authority. A glow
 ticked on the step lights its parts in that
 viewport live (`glow_preview_parameter_groups` in the materials service builds
 the renderer's parameter groups from the same three values the plan will write,

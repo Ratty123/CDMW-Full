@@ -1113,6 +1113,7 @@ impl PreviewApplication {
         {
             let grid = self.state.scene.get("grid").unwrap_or(&Value::Null);
             let origin = vec3_value(grid.get("origin"), Vec3::ZERO);
+            let (grid_u, grid_v) = grid_plane_axes(grid);
             let quality = display.get("quality").unwrap_or(&Value::Null);
             let spacing = grid.get("spacing").and_then(Value::as_f64).unwrap_or(0.1) as f32
                 * quality
@@ -1129,10 +1130,10 @@ impl PreviewApplication {
             for index in -count..=count {
                 let offset = spacing * index as f32;
                 lines.extend_from_slice(&[
-                    (origin + Vec3::new(-radius, 0.0, offset)).to_array(),
-                    (origin + Vec3::new(radius, 0.0, offset)).to_array(),
-                    (origin + Vec3::new(offset, 0.0, -radius)).to_array(),
-                    (origin + Vec3::new(offset, 0.0, radius)).to_array(),
+                    (origin - grid_u * radius + grid_v * offset).to_array(),
+                    (origin + grid_u * radius + grid_v * offset).to_array(),
+                    (origin + grid_u * offset - grid_v * radius).to_array(),
+                    (origin + grid_u * offset + grid_v * radius).to_array(),
                 ]);
             }
         }
@@ -3000,6 +3001,21 @@ fn parse_color(value: &str) -> Option<[f32; 4]> {
     ])
 }
 
+fn grid_plane_axes(grid: &Value) -> (Vec3, Vec3) {
+    match grid
+        .get("normal_axis")
+        .and_then(Value::as_str)
+        .unwrap_or("y")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "x" => (Vec3::Y, Vec3::Z),
+        "z" => (Vec3::X, Vec3::Y),
+        _ => (Vec3::X, Vec3::Z),
+    }
+}
+
 fn point_in_triangle(point: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
     let edge = |first: Vec2, second: Vec2, sample: Vec2| {
         (sample.x - second.x) * (first.y - second.y) - (first.x - second.x) * (sample.y - second.y)
@@ -3040,6 +3056,19 @@ mod tests {
         assert_eq!(target["display"]["mode"], "wire");
         assert_eq!(target["display"]["grid_visible"], true);
         assert!(target.get("event").is_none());
+    }
+
+    #[test]
+    fn grid_plane_axes_follow_the_scene_normal_axis() {
+        assert_eq!(grid_plane_axes(&json!({})), (Vec3::X, Vec3::Z));
+        assert_eq!(
+            grid_plane_axes(&json!({"normal_axis": "z"})),
+            (Vec3::X, Vec3::Y),
+        );
+        assert_eq!(
+            grid_plane_axes(&json!({"normal_axis": "x"})),
+            (Vec3::Y, Vec3::Z),
+        );
     }
 
     #[test]

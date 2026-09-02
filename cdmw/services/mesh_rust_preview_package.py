@@ -813,6 +813,7 @@ def build_rust_preview_package(
     reference_mesh: ParsedMesh | None = None,
     comparison_mode: str = "replacement_only",
     reference_draw: str = "wire",
+    grid_normal_axis: str = "y",
     interaction_profile: str = "read_only",
     interaction_mode: str | None = None,
     scene_transform: StaticReplacementTransform | None = None,
@@ -872,6 +873,7 @@ def build_rust_preview_package(
         comparison_mode=str(comparison_mode or "replacement_only"),
         interaction_mode=mode,
         reference_draw=str(reference_draw or "wire"),
+        grid_normal_axis=str(grid_normal_axis or "y"),
         selection_pivot_source=selection_pivot_source,
         cancelled=cancelled,
     )

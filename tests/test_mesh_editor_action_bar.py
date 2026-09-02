@@ -4005,7 +4005,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             host.calls,
         )
         self.assertEqual(Path("C:/tmp/mesh-editor-package"), tab.standalone_native_package_dir)
-        self.assertIn("Rust preview loading:", tab.standalone_status_label.text())
+        self.assertIn("Preview loading:", tab.standalone_status_label.text())
         app.processEvents()
         tab.deleteLater()
 

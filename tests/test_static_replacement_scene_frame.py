@@ -193,6 +193,31 @@ def test_grid_flat_floor_correction_and_model_matrix_share_transform_frame() -> 
     assert scene_frame.grid_origin[1] == pytest.approx(0.0, abs=1.0e-7)
 
 
+def test_preview_grid_can_face_a_flat_model_without_rotating_the_scene() -> None:
+    original = _mesh("original.pac", [(-3.0, 0.0, -0.5), (3.0, 8.0, 0.5)])
+    replacement = _mesh("replacement.gltf", [(-2.0, 1.0, -0.25), (2.0, 7.0, 0.25)])
+    transform = StaticReplacementTransform(
+        alignment_mode="manual",
+        scale_to_original_length=False,
+        offset_xyz=(0.25, -0.5, 0.75),
+    )
+
+    default = build_authoritative_static_scene_frame(original, replacement, transform)
+    flat = build_authoritative_static_scene_frame(
+        original,
+        replacement,
+        transform,
+        grid_normal_axis="z",
+    )
+    payload = flat.to_protocol_payload()
+
+    assert flat.editable.model_matrix == default.editable.model_matrix
+    assert flat.reference.model_matrix == default.reference.model_matrix
+    assert flat.ground_plane.normal == (0.0, 0.0, 1.0)
+    assert payload["grid"]["normal_axis"] == "z"
+    assert flat.grid_origin[2] == pytest.approx(-0.25, abs=1.0e-7)
+
+
 def test_a_manual_y_offset_lifts_the_mesh_instead_of_being_floored_away() -> None:
     """The gizmo "snap back". A drag up by 0.11 raised the lowest vertex by 0.11,
     the grid-flat floor lowered the fit offset by 0.11 to put it back on the

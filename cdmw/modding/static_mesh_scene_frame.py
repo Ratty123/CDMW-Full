@@ -205,7 +205,7 @@ class StaticMeshSceneFrame:
             "grid": {
                 "visible": True,
                 "origin": list(self.grid_origin),
-                "normal_axis": "y",
+                "normal_axis": _grid_axis_name(self.ground_plane.normal),
                 "spacing": max(self.framing_extent / 10.0, 0.01),
                 "major_line_every": 5,
             },
@@ -222,6 +222,30 @@ class StaticMeshSceneFrame:
 
 def _vec3(value: Sequence[float]) -> Vec3:
     return float(value[0]), float(value[1]), float(value[2])
+
+
+_GRID_AXIS_VECTORS: dict[str, Vec3] = {
+    "x": (1.0, 0.0, 0.0),
+    "y": (0.0, 1.0, 0.0),
+    "z": (0.0, 0.0, 1.0),
+}
+
+
+def _grid_axis_name(normal: Sequence[float]) -> str:
+    try:
+        components = tuple(float(normal[index]) for index in range(3))
+    except (IndexError, TypeError, ValueError):
+        return "y"
+    if not all(math.isfinite(value) for value in components) or not any(components):
+        return "y"
+    return ("x", "y", "z")[max(range(3), key=lambda index: abs(components[index]))]
+
+
+def _grid_axis_vector(axis: object) -> Vec3:
+    return _GRID_AXIS_VECTORS.get(
+        str(axis or "y").strip().casefold(),
+        _GRID_AXIS_VECTORS["y"],
+    )
 
 
 def _manual_delta(transform: StaticReplacementTransform) -> StaticManualTransformDelta:
@@ -476,6 +500,7 @@ def build_authoritative_static_scene_frame(
     comparison_mode: str = "side_by_side",
     interaction_mode: str = "placement",
     reference_draw: str = "wire",
+    grid_normal_axis: str = "y",
     alignment_source_indices: set[int] | None = None,
     selection_pivot_source: Vec3 | None = None,
     cancelled: Callable[[], bool] | None = None,
@@ -511,7 +536,11 @@ def build_authoritative_static_scene_frame(
         transform_frame.alignment.model_matrix,
         cancelled=cancelled,
     )
-    ground_origin = (editable_bounds.center[0], automatic_bounds.minimum[1], editable_bounds.center[2])
+    ground_normal = _grid_axis_vector(grid_normal_axis)
+    ground_axis = max(range(3), key=lambda index: abs(ground_normal[index]))
+    ground_origin_values = list(editable_bounds.center)
+    ground_origin_values[ground_axis] = automatic_bounds.minimum[ground_axis]
+    ground_origin = _vec3(ground_origin_values)
     identity = str(source_identity or static_scene_source_identity(replacement_mesh, original_mesh))
     return StaticMeshSceneFrame(
         format="cdmw_resident_scene_frame_v2",
@@ -534,7 +563,7 @@ def build_authoritative_static_scene_frame(
         ),
         placement_pivot=placement_pivot,
         selection_pivot=selection_pivot,
-        ground_plane=StaticGroundPlane(ground_origin),
+        ground_plane=StaticGroundPlane(ground_origin, ground_normal),
         grid_origin=ground_origin,
         framing_bounds=framing_bounds,
         framing_extent=max(0.01, framing_bounds.extent),
