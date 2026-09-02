@@ -34,6 +34,7 @@ from cdmw.services.mesh_rust_contract import (
 from cdmw.services.mesh_rust_preview_package import (
     RustPreviewPackage,
     build_rust_preview_package,
+    build_rust_preview_package_from_preview_core,
     build_rust_preview_prewarm_package,
     rust_preview_package_from_path,
     validate_rust_preview_package,
@@ -49,7 +50,7 @@ _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
 _MAX_CLOTH_PARTICLES = 2_000_000
 _MAX_CLOTH_CONSTRAINTS = 4_000_000
 _LOGGER = logging.getLogger(__name__)
-RUST_PREVIEW_CACHE_SCHEMA = 2
+RUST_PREVIEW_CACHE_SCHEMA = 3
 
 
 def _cancelled(callback: Callable[[], bool] | None) -> bool:
@@ -490,12 +491,20 @@ def build_or_lookup_rust_preview_package(
     durable = str(cache_mode or "off").strip().lower() in {"balanced", "aggressive"} and max_bytes > 0
 
     def build(output_package_dir: Path) -> RustPreviewPackage:
-        mesh = decode_dotnet_native_preview_package(source_package, cancelled=cancelled)
         overlays = rust_preview_overlays_from_preview_core_package(
             source_package,
             cancelled=cancelled,
         )
         _check_cancelled(cancelled)
+        if _safe_int(source_manifest.get("schema_version"), 0) >= 8:
+            return build_rust_preview_package_from_preview_core(
+                source_package,
+                source_manifest=source_manifest,
+                output_package_dir=output_package_dir,
+                preview_overlays=overlays,
+                cancelled=cancelled,
+            )
+        mesh = decode_dotnet_native_preview_package(source_package, cancelled=cancelled)
         return build_rust_preview_package(
             mesh,
             output_package_dir=output_package_dir,

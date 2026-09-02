@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use cdmw_formats::MeshDocument;
+use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh};
 use cdmw_mesh::{Provenance, WorkingMesh};
 use cdmw_texture::{DdsMetadata, TextureRole, inspect_dds};
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded};
@@ -34,6 +34,10 @@ const MAX_PROFILE_DEPTH: usize = 4;
 const MAX_TEXTURE_RESOURCES: usize = 4_096;
 const MAX_TEXTURE_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_MATERIAL_PRESENTATIONS: usize = 2_048;
+const MAX_PREVIEW_CORE_BATCHES: usize = 4_096;
+const MAX_PREVIEW_CORE_VERTICES: usize = 2_000_000;
+const PREVIEW_CORE_VERTEX_BYTES: usize = 23 * std::mem::size_of::<f32>();
+const PREVIEW_CORE_IDENTITY_BYTES: usize = 2 * std::mem::size_of::<i32>();
 
 #[derive(Debug, Error)]
 pub enum SessionError {
@@ -104,6 +108,27 @@ pub struct SessionMaterialPresentation {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct PreviewCoreGeometryBatch {
+    pub index: u32,
+    pub name: String,
+    pub material: String,
+    pub vertex_count: u64,
+    pub vertices: FileReference,
+    pub identity: Option<FileReference>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PreviewCoreGeometry {
+    pub schema_version: u64,
+    pub format: String,
+    #[serde(default)]
+    pub source_sha256: String,
+    pub normalization_center: [f32; 3],
+    pub normalization_scale: f32,
+    pub batches: Vec<PreviewCoreGeometryBatch>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct SessionManifest {
     pub schema: String,
     pub protocol: String,
@@ -115,6 +140,8 @@ pub struct SessionManifest {
     pub edit_backend: String,
     pub document: FileReference,
     pub channels: FileReference,
+    #[serde(default)]
+    pub preview_core_geometry: Option<PreviewCoreGeometry>,
     #[serde(default)]
     pub textures: Vec<SessionTextureReference>,
     #[serde(default)]
@@ -246,7 +273,16 @@ impl LoadedCdmwSessionPackage {
         let _: IgnoredAny =
             serde_json::from_slice(&read_json_reference(&root, &manifest.channels)?)?;
         reject_unexpected_initial_files(&root, &manifest)?;
-        let document: MeshDocument = serde_json::from_slice(&document_bytes)?;
+        let document: MeshDocument = if expected_schema == PREVIEW_PACKAGE_SCHEMA {
+            if let Some(geometry) = &manifest.preview_core_geometry {
+                let _: IgnoredAny = serde_json::from_slice(&document_bytes)?;
+                decode_preview_core_document(&root, geometry)?
+            } else {
+                serde_json::from_slice(&document_bytes)?
+            }
+        } else {
+            serde_json::from_slice(&document_bytes)?
+        };
         validate_document(&document)?;
         validate_material_presentations(&manifest, &document)?;
         let textures = read_texture_resources(&root, &manifest, &document)?;
@@ -650,6 +686,7 @@ impl CdmwBridge {
                 edit_backend: EDIT_BACKEND.to_owned(),
                 document: empty_reference.clone(),
                 channels: empty_reference,
+                preview_core_geometry: None,
                 textures: Vec::new(),
                 material_presentations: Vec::new(),
                 texture_status: Value::Null,
@@ -772,6 +809,11 @@ fn validate_manifest_for(
     if manifest.session_id.trim().is_empty() || manifest.process_generation == 0 {
         return Err(SessionError::InvalidManifest(
             "session id and process generation are required".to_owned(),
+        ));
+    }
+    if manifest.preview_core_geometry.is_some() && expected_schema != PREVIEW_PACKAGE_SCHEMA {
+        return Err(SessionError::InvalidManifest(
+            "Preview Core geometry is allowed only in read-only preview packages".to_owned(),
         ));
     }
     Ok(())
@@ -958,6 +1000,244 @@ fn validate_material_presentations(
         }
     }
     Ok(())
+}
+
+fn preview_core_f32(record: &[u8], offset: usize) -> f32 {
+    let mut bytes = [0_u8; std::mem::size_of::<f32>()];
+    bytes.copy_from_slice(&record[offset..offset + std::mem::size_of::<f32>()]);
+    f32::from_le_bytes(bytes)
+}
+
+fn preview_core_i32(record: &[u8], offset: usize) -> i32 {
+    let mut bytes = [0_u8; std::mem::size_of::<i32>()];
+    bytes.copy_from_slice(&record[offset..offset + std::mem::size_of::<i32>()]);
+    i32::from_le_bytes(bytes)
+}
+
+fn is_owned_preview_core_filename(value: &str, role: &str) -> bool {
+    let Some(stem) = value.strip_suffix(".bin") else {
+        return false;
+    };
+    let mut parts = stem.split('-');
+    matches!(parts.next(), Some("preview"))
+        && parts.next() == Some(role)
+        && parts.next().is_some_and(|index| {
+            index.len() == 4 && index.bytes().all(|byte| byte.is_ascii_digit())
+        })
+        && parts.next().is_some_and(|hash| {
+            hash.len() == 12 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+        && parts.next().is_none()
+}
+
+fn read_preview_core_reference(
+    root: &Path,
+    reference: &FileReference,
+    role: &str,
+    data_type: &str,
+    element_count: u64,
+    element_bytes: usize,
+) -> Result<Vec<u8>, SessionError> {
+    let expected_length = element_count
+        .checked_mul(u64::try_from(element_bytes).map_err(|_| {
+            SessionError::InvalidPayload(
+                "Preview Core element size exceeds this platform".to_owned(),
+            )
+        })?)
+        .ok_or_else(|| {
+            SessionError::InvalidPayload("Preview Core payload size overflowed".to_owned())
+        })?;
+    if reference.content_type != "application/octet-stream"
+        || reference.data_type != data_type
+        || reference.count != element_count
+        || reference.byte_length != expected_length
+        || !is_owned_preview_core_filename(&reference.path, role)
+    {
+        return Err(SessionError::InvalidPayload(format!(
+            "Preview Core {role} reference does not match its binary contract"
+        )));
+    }
+    let relative = Path::new(&reference.path);
+    let mut components = relative.components();
+    if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
+        return Err(SessionError::InvalidPayload(format!(
+            "Preview Core {role} path must be one owned filename"
+        )));
+    }
+    let candidate = fs::canonicalize(root.join(relative))?;
+    if candidate.parent() != Some(root) || !candidate.is_file() {
+        return Err(SessionError::InvalidPayload(format!(
+            "Preview Core {role} path escaped the session root"
+        )));
+    }
+    let metadata = candidate.metadata()?;
+    if metadata.len() != expected_length || metadata.len() > MAX_PAYLOAD_BYTES {
+        return Err(SessionError::InvalidPayload(format!(
+            "Preview Core {role} size does not match"
+        )));
+    }
+    let bytes = read_limited(&candidate, MAX_PAYLOAD_BYTES)?;
+    if sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase() {
+        return Err(SessionError::InvalidPayload(format!(
+            "Preview Core {role} SHA-256 does not match"
+        )));
+    }
+    Ok(bytes)
+}
+
+fn decode_preview_core_document(
+    root: &Path,
+    geometry: &PreviewCoreGeometry,
+) -> Result<MeshDocument, SessionError> {
+    if geometry.schema_version < 8
+        || geometry.batches.is_empty()
+        || geometry.batches.len() > MAX_PREVIEW_CORE_BATCHES
+        || geometry
+            .normalization_center
+            .into_iter()
+            .any(|component| !component.is_finite())
+        || !geometry.normalization_scale.is_finite()
+        || geometry.normalization_scale.abs() <= 1.0e-12
+    {
+        return Err(SessionError::InvalidManifest(
+            "Preview Core geometry metadata is invalid".to_owned(),
+        ));
+    }
+    let format = match geometry.format.trim().to_ascii_lowercase().as_str() {
+        "pac" => MeshFormat::Pac,
+        "pam" => MeshFormat::Pam,
+        "pamlod" => MeshFormat::Pamlod,
+        _ => {
+            return Err(SessionError::InvalidManifest(
+                "Preview Core geometry format is unsupported".to_owned(),
+            ));
+        }
+    };
+    let mut total_vertices = 0_usize;
+    let mut owned_paths = BTreeSet::new();
+    let mut batch_indices = BTreeSet::new();
+    let mut fingerprint = Sha256::new();
+    let mut submeshes = Vec::with_capacity(geometry.batches.len());
+    for batch in &geometry.batches {
+        let vertex_count = usize::try_from(batch.vertex_count).map_err(|_| {
+            SessionError::InvalidPayload(
+                "Preview Core vertex count exceeds this platform".to_owned(),
+            )
+        })?;
+        total_vertices = total_vertices.checked_add(vertex_count).ok_or_else(|| {
+            SessionError::InvalidPayload("Preview Core vertex count overflowed".to_owned())
+        })?;
+        if vertex_count == 0
+            || !vertex_count.is_multiple_of(3)
+            || total_vertices > MAX_PREVIEW_CORE_VERTICES
+            || !batch_indices.insert(batch.index)
+            || !owned_paths.insert(batch.vertices.path.as_str())
+        {
+            return Err(SessionError::InvalidPayload(
+                "Preview Core batch geometry is invalid or duplicated".to_owned(),
+            ));
+        }
+        let vertices = read_preview_core_reference(
+            root,
+            &batch.vertices,
+            "geometry",
+            "preview_core_vertices_f32x23_le",
+            batch.vertex_count,
+            PREVIEW_CORE_VERTEX_BYTES,
+        )?;
+        let identities = if let Some(reference) = &batch.identity {
+            if !owned_paths.insert(reference.path.as_str()) {
+                return Err(SessionError::InvalidPayload(
+                    "Preview Core identity payload is duplicated".to_owned(),
+                ));
+            }
+            Some(read_preview_core_reference(
+                root,
+                reference,
+                "identity",
+                "preview_core_identity_i32x2_le",
+                batch.vertex_count,
+                PREVIEW_CORE_IDENTITY_BYTES,
+            )?)
+        } else {
+            None
+        };
+        fingerprint.update(batch.vertices.sha256.trim().to_ascii_uppercase().as_bytes());
+        if let Some(reference) = &batch.identity {
+            fingerprint.update(reference.sha256.trim().to_ascii_uppercase().as_bytes());
+        }
+
+        let mut positions = Vec::with_capacity(vertex_count);
+        let mut normals = Vec::with_capacity(vertex_count);
+        let mut uvs = Vec::with_capacity(vertex_count);
+        let mut indices = Vec::with_capacity(vertex_count);
+        let mut source_vertex_indices = Vec::with_capacity(vertex_count);
+        for (index, record) in vertices.chunks_exact(PREVIEW_CORE_VERTEX_BYTES).enumerate() {
+            positions.push([
+                preview_core_f32(record, 0) / geometry.normalization_scale
+                    + geometry.normalization_center[0],
+                preview_core_f32(record, 4) / geometry.normalization_scale
+                    + geometry.normalization_center[1],
+                preview_core_f32(record, 8) / geometry.normalization_scale
+                    + geometry.normalization_center[2],
+            ]);
+            normals.push([
+                preview_core_f32(record, 12),
+                preview_core_f32(record, 16),
+                preview_core_f32(record, 20),
+            ]);
+            uvs.push([preview_core_f32(record, 36), preview_core_f32(record, 40)]);
+            indices.push(u32::try_from(index).map_err(|_| {
+                SessionError::InvalidPayload(
+                    "Preview Core local vertex index exceeds u32".to_owned(),
+                )
+            })?);
+            let source_index = if let Some(identity_bytes) = &identities {
+                let offset = index * PREVIEW_CORE_IDENTITY_BYTES;
+                preview_core_i32(
+                    &identity_bytes[offset..offset + PREVIEW_CORE_IDENTITY_BYTES],
+                    std::mem::size_of::<i32>(),
+                )
+            } else {
+                i32::try_from(index).map_err(|_| {
+                    SessionError::InvalidPayload(
+                        "Preview Core source vertex index exceeds i32".to_owned(),
+                    )
+                })?
+            };
+            source_vertex_indices.push(source_index);
+        }
+        submeshes.push(Submesh {
+            name: batch.name.clone(),
+            material: batch.material.clone(),
+            positions,
+            normals,
+            uvs,
+            indices,
+            source_vertex_indices,
+            source_range: SourceRange {
+                offset: 0,
+                length: batch.vertices.byte_length,
+            },
+            vertex_stride: u32::try_from(PREVIEW_CORE_VERTEX_BYTES).map_err(|_| {
+                SessionError::InvalidPayload("Preview Core vertex stride exceeds u32".to_owned())
+            })?,
+            layout: "preview_core_f32x23_le".to_owned(),
+        });
+    }
+    let structural_fingerprint = format!("{:X}", fingerprint.finalize());
+    Ok(MeshDocument {
+        format,
+        source_sha256: geometry.source_sha256.trim().to_ascii_uppercase(),
+        parser: "cdmw_preview_core_direct_v1".to_owned(),
+        lod_count_reported: 1,
+        lods: vec![MeshLod {
+            level: 0,
+            submeshes,
+        }],
+        warnings: Vec::new(),
+        structural_fingerprint,
+    })
 }
 
 fn read_json_reference(root: &Path, reference: &FileReference) -> Result<Vec<u8>, SessionError> {
@@ -1147,6 +1427,12 @@ fn reject_unexpected_initial_files(
             .iter()
             .map(|texture| texture.file.path.as_str()),
     )
+    .chain(manifest.preview_core_geometry.iter().flat_map(|geometry| {
+        geometry.batches.iter().flat_map(|batch| {
+            std::iter::once(batch.vertices.path.as_str())
+                .chain(batch.identity.iter().map(|identity| identity.path.as_str()))
+        })
+    }))
     .collect::<BTreeSet<_>>();
     for entry in fs::read_dir(root)? {
         let entry = entry?;
@@ -1730,6 +2016,83 @@ mod tests {
         manifest_path
     }
 
+    fn write_preview_core_package_fixture(root: &Path) -> PathBuf {
+        let manifest_path = write_loaded_package_fixture(root);
+        let mut vertex_bytes = Vec::new();
+        for (position, uv) in [
+            ([2.0_f32, 0.0, 0.0], [0.0_f32, 0.0]),
+            ([0.0_f32, 2.0, 0.0], [1.0_f32, 0.0]),
+            ([0.0_f32, 0.0, 2.0], [0.0_f32, 1.0]),
+        ] {
+            let mut record = [0.0_f32; 23];
+            record[..3].copy_from_slice(&position);
+            record[3..6].copy_from_slice(&[0.0, 0.0, 1.0]);
+            record[9..11].copy_from_slice(&uv);
+            for value in record {
+                vertex_bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        let mut identity_bytes = Vec::new();
+        for source_index in [7_i32, 8, 9] {
+            identity_bytes.extend_from_slice(&4_i32.to_le_bytes());
+            identity_bytes.extend_from_slice(&source_index.to_le_bytes());
+        }
+        let vertex_sha = sha256_upper(&vertex_bytes);
+        let identity_sha = sha256_upper(&identity_bytes);
+        let vertex_name = format!(
+            "preview-geometry-0000-{}.bin",
+            vertex_sha[..12].to_ascii_lowercase()
+        );
+        let identity_name = format!(
+            "preview-identity-0000-{}.bin",
+            identity_sha[..12].to_ascii_lowercase()
+        );
+        fs::write(root.join(&vertex_name), &vertex_bytes).expect("preview vertices");
+        fs::write(root.join(&identity_name), &identity_bytes).expect("preview identities");
+
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).expect("manifest bytes"))
+                .expect("manifest JSON");
+        manifest["schema"] = json!(PREVIEW_PACKAGE_SCHEMA);
+        manifest["protocol"] = json!(PREVIEW_PROTOCOL);
+        manifest["edit_backend"] = json!(PREVIEW_BACKEND);
+        manifest["preview_core_geometry"] = json!({
+            "schema_version": 8,
+            "format": "pac",
+            "source_sha256": "SOURCE",
+            "normalization_center": [10.0, 20.0, 30.0],
+            "normalization_scale": 2.0,
+            "batches": [{
+                "index": 4,
+                "name": "helmet",
+                "material": "mat",
+                "vertex_count": 3,
+                "vertices": {
+                    "path": vertex_name,
+                    "data_type": "preview_core_vertices_f32x23_le",
+                    "count": 3,
+                    "byte_length": vertex_bytes.len(),
+                    "sha256": vertex_sha,
+                    "content_type": "application/octet-stream"
+                },
+                "identity": {
+                    "path": identity_name,
+                    "data_type": "preview_core_identity_i32x2_le",
+                    "count": 3,
+                    "byte_length": identity_bytes.len(),
+                    "sha256": identity_sha,
+                    "content_type": "application/octet-stream"
+                }
+            }]
+        });
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec(&manifest).expect("direct manifest bytes"),
+        )
+        .expect("direct manifest");
+        manifest_path
+    }
+
     fn state_with_document(
         root: &Path,
         session_id: &str,
@@ -1796,6 +2159,50 @@ mod tests {
             package.take_material_presentations(),
             vec![material_presentation()]
         );
+    }
+
+    #[test]
+    fn pure_preview_loader_decodes_preview_core_geometry_and_identity_directly() {
+        let root = tempdir().expect("root");
+        let manifest_path = write_preview_core_package_fixture(root.path());
+
+        let package =
+            LoadedCdmwSessionPackage::load_preview(&manifest_path).expect("direct preview package");
+        let submesh = &package.document().lods[0].submeshes[0];
+
+        assert_eq!(package.document().parser, "cdmw_preview_core_direct_v1");
+        assert_eq!(submesh.name, "helmet");
+        assert_eq!(submesh.material, "mat");
+        assert_eq!(
+            submesh.positions,
+            vec![[11.0, 20.0, 30.0], [10.0, 21.0, 30.0], [10.0, 20.0, 31.0]]
+        );
+        assert_eq!(submesh.indices, vec![0, 1, 2]);
+        assert_eq!(submesh.source_vertex_indices, vec![7, 8, 9]);
+        assert_eq!(submesh.vertex_stride, 92);
+        assert_eq!(submesh.layout, "preview_core_f32x23_le");
+    }
+
+    #[test]
+    fn pure_preview_loader_rejects_changed_preview_core_geometry() {
+        let root = tempdir().expect("root");
+        let manifest_path = write_preview_core_package_fixture(root.path());
+        let manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).expect("manifest bytes"))
+                .expect("manifest JSON");
+        let geometry_name = manifest["preview_core_geometry"]["batches"][0]["vertices"]["path"]
+            .as_str()
+            .expect("geometry path");
+        fs::write(
+            root.path().join(geometry_name),
+            vec![0_u8; PREVIEW_CORE_VERTEX_BYTES * 3],
+        )
+        .expect("replace geometry");
+
+        let error = LoadedCdmwSessionPackage::load_preview(&manifest_path)
+            .expect_err("geometry hash mismatch");
+
+        assert!(error.to_string().contains("SHA-256 does not match"));
     }
 
     #[test]

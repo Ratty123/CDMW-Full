@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
+import struct
 from pathlib import Path
+
+import pytest
 
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services.mesh_rust_contract import (
@@ -14,6 +18,7 @@ from cdmw.services.mesh_rust_contract import (
 )
 from cdmw.services.mesh_rust_preview_cache import (
     RUST_PREVIEW_CACHE_SCHEMA,
+    build_or_lookup_rust_preview_package,
     rust_preview_package_cache_root,
 )
 from cdmw.services.mesh_rust_preview_package import (
@@ -60,6 +65,107 @@ def _triangle() -> ParsedMesh:
         total_faces=1,
         has_uvs=True,
     )
+
+
+def _write_schema8_preview_core_fixture(
+    tmp_path: Path,
+) -> tuple[Path, bytes, bytes, bytes]:
+    package = tmp_path / "preview-core"
+    geometry = package / "geometry"
+    geometry.mkdir(parents=True)
+    center = (10.0, 20.0, 30.0)
+    scale = 2.0
+    source_positions = (
+        (11.0, 20.0, 30.0),
+        (10.0, 21.0, 30.0),
+        (10.0, 20.0, 31.0),
+    )
+    records = []
+    for corner, position in enumerate(source_positions):
+        normalized = tuple((position[axis] - center[axis]) * scale for axis in range(3))
+        records.append(
+            struct.pack(
+                "<23f",
+                *normalized,
+                0.0,
+                0.0,
+                1.0,
+                0.64,
+                0.64,
+                0.56,
+                float(corner == 1),
+                float(corner == 2),
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                float(corner == 0),
+                float(corner == 1),
+                float(corner == 2),
+            )
+        )
+    geometry_bytes = b"".join(records)
+    identity_bytes = b"".join(
+        struct.pack("<2i", 0, source_index) for source_index in (7, 8, 9)
+    )
+    (geometry / "batch_000.bin").write_bytes(geometry_bytes)
+    (geometry / "batch_000_identity.bin").write_bytes(identity_bytes)
+    texture_bytes = b"DDS " + b"X" * 1024
+    texture_path = tmp_path / "helmet_base.dds"
+    texture_path.write_bytes(texture_bytes)
+    (package / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 8,
+                "material_semantics_version": 1,
+                "material_graph_version": 1,
+                "source_path": "character/helmet.pac",
+                "format": "pac",
+                "normalization_center": list(center),
+                "normalization_scale": scale,
+                "skeleton_overlay": {
+                    "schema_version": 1,
+                    "enabled": True,
+                    "bones": [],
+                },
+                "batches": [
+                    {
+                        "index": 0,
+                        "material_name": "helmet",
+                        "vertex_file": "geometry/batch_000.bin",
+                        "vertex_count": 3,
+                        "editor_identity": {
+                            "source_submesh_index": 4,
+                            "source_local_submesh_index": 4,
+                            "source_component_index": 0,
+                            "identity_file": "geometry/batch_000_identity.bin",
+                        },
+                        "material_category": "metal",
+                        "shader_family": "standard_v2",
+                        "normal_y_policy": "preserve",
+                        "alpha_mode": "opaque",
+                        "roughness": 0.4,
+                        "metalness": 0.8,
+                        "dds_textures": {
+                            "base": {
+                                "slot": "base",
+                                "source_path": str(texture_path),
+                                "semantic_type": "albedo",
+                                "shader_family": "standard_v2",
+                            }
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return package, geometry_bytes, identity_bytes, texture_bytes
 
 
 def _called_names(path: Path) -> set[str]:
@@ -125,10 +231,84 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
     tmp_path: Path,
 ) -> None:
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 2
+    assert RUST_PREVIEW_CACHE_SCHEMA == 3
     assert root == tmp_path / "rust_wgpu_v1"
     assert "dotnet" not in root.name.casefold()
     assert "vortice" not in root.name.casefold()
+
+
+def test_schema8_preview_core_geometry_bypasses_python_and_large_json_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source, geometry_bytes, identity_bytes, texture_bytes = (
+        _write_schema8_preview_core_fixture(tmp_path)
+    )
+
+    def reject_python_decode(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("schema-8 preview must not decode geometry in Python")
+
+    monkeypatch.setattr(
+        "cdmw.services.mesh_rust_preview_cache.decode_dotnet_native_preview_package",
+        reject_python_decode,
+    )
+    package = build_or_lookup_rust_preview_package(
+        source,
+        cache_root=tmp_path / "cache",
+        archive_identity="helmet-entry",
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+    )
+    warm = build_or_lookup_rust_preview_package(
+        source,
+        cache_root=tmp_path / "cache",
+        archive_identity="helmet-entry",
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+    )
+
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    assert warm.package_dir == package.package_dir
+    direct = manifest["preview_core_geometry"]
+    assert direct["schema_version"] == 8
+    assert direct["normalization_center"] == [10.0, 20.0, 30.0]
+    assert direct["normalization_scale"] == 2.0
+    assert len(direct["batches"]) == 1
+    batch = direct["batches"][0]
+    assert batch["vertex_count"] == 3
+    assert batch["vertices"]["sha256"] == hashlib.sha256(
+        geometry_bytes
+    ).hexdigest().upper()
+    assert batch["identity"]["sha256"] == hashlib.sha256(
+        identity_bytes
+    ).hexdigest().upper()
+    assert (
+        package.package_dir / batch["vertices"]["path"]
+    ).read_bytes() == geometry_bytes
+    assert (
+        package.package_dir / batch["identity"]["path"]
+    ).read_bytes() == identity_bytes
+    assert len(manifest["textures"]) == 1
+    texture_reference = manifest["textures"][0]["file"]
+    assert texture_reference["sha256"] == hashlib.sha256(texture_bytes).hexdigest().upper()
+    assert (
+        package.package_dir / texture_reference["path"]
+    ).read_bytes() == texture_bytes
+    assert (package.package_dir / "document.json").stat().st_size < 256
+    assert (package.package_dir / "channels.json").stat().st_size < 256
+    scene = manifest["state"]["preview_scene"]
+    assert scene["protocol_version"] == 2
+    assert scene["roles"]["editable"]["submesh_indices"] == [0]
+    assert scene["skeleton_overlay"] == {
+        "schema_version": 1,
+        "enabled": True,
+        "bones": [],
+    }
+    assert scene["part_identities"][0][
+        "source_submesh_index"
+    ] == 4
 
 
 def test_compiled_preview_contract_declares_the_complete_runtime_surface() -> None:

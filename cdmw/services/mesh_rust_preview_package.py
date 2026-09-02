@@ -8,7 +8,13 @@ handoff files.
 
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
+import math
+import mmap
+import os
+import struct
 import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -28,9 +34,13 @@ from cdmw.modding.static_mesh_scene_frame import (
     static_scene_source_identity,
 )
 from cdmw.modding.static_mesh_types import StaticReplacementTransform
+from cdmw.services.mesh_dotnet_material_bindings import (
+    apply_dotnet_native_material_batch_binding,
+)
 from cdmw.services.mesh_rust_authoring import (
     _RustMaterialSynthesisState,
     _atomic_write_payload,
+    _deterministic_luminance_face_indices,
     _encode_rust_preview_dds,
     _mesh_channel_payload,
     _mesh_document_payload,
@@ -46,6 +56,14 @@ from cdmw.services.mesh_rust_contract import (
     RUST_PREVIEW_PACKAGE,
     RUST_PREVIEW_PROTOCOL,
 )
+
+
+_PREVIEW_CORE_VERTEX = struct.Struct("<23f")
+_PREVIEW_CORE_IDENTITY = struct.Struct("<2i")
+_PREVIEW_CORE_SCHEMA_MINIMUM = 8
+_PREVIEW_CORE_BATCH_LIMIT = 4_096
+_PREVIEW_CORE_VERTEX_LIMIT = 2_000_000
+_PREVIEW_CORE_COPY_CHUNK_BYTES = 4 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,6 +214,566 @@ def _part_identities(mesh: ParsedMesh) -> list[dict[str, object]]:
 def _cancelled(cancelled: Callable[[], bool] | None) -> None:
     if cancelled is not None and cancelled():
         raise RunCancelled("Rust preview package preparation cancelled.")
+
+
+def _preview_core_int(value: object, fallback: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return fallback
+
+
+def _preview_core_float(value: object, fallback: float = 0.0) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return fallback
+    return result if math.isfinite(result) else fallback
+
+
+def _preview_core_vec3(value: object) -> tuple[float, float, float] | None:
+    if (
+        not isinstance(value, Sequence)
+        or isinstance(value, (str, bytes, bytearray))
+        or len(value) < 3
+    ):
+        return None
+    result = tuple(_preview_core_float(component, float("nan")) for component in value[:3])
+    return result if all(math.isfinite(component) for component in result) else None  # type: ignore[return-value]
+
+
+def _preview_core_child(package_dir: Path, value: object) -> Path | None:
+    text = str(value or "").strip().replace("/", os.sep)
+    if not text:
+        return None
+    try:
+        root = package_dir.resolve(strict=True)
+        child = (root / text).resolve(strict=True)
+        child.relative_to(root)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return child if child.is_file() else None
+
+
+def _copy_preview_core_binary(
+    package_dir: Path,
+    source: Path,
+    *,
+    file_index: int,
+    kind: str,
+    data_type: str,
+    element_count: int,
+    expected_byte_length: int,
+    expected_root_identity: tuple[int, int],
+    cancelled: Callable[[], bool] | None,
+) -> dict[str, object]:
+    if kind not in {"geometry", "identity"}:
+        raise ValueError("Unsupported Preview Core binary role.")
+    if expected_byte_length <= 0:
+        raise ValueError("Preview Core binary payload is empty.")
+    try:
+        source_before = source.stat()
+    except OSError as exc:
+        raise ValueError("Preview Core binary payload is missing.") from exc
+    if source_before.st_size != expected_byte_length or source.is_symlink():
+        raise ValueError("Preview Core binary payload size does not match its manifest.")
+
+    temporary = package_dir / f".preview-{kind}-{file_index:04d}-{uuid4().hex}.tmp"
+    digest = hashlib.sha256()
+    byte_length = 0
+    try:
+        with source.open("rb") as reader, temporary.open("xb") as writer:
+            while True:
+                _cancelled(cancelled)
+                block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
+                if not block:
+                    break
+                writer.write(block)
+                digest.update(block)
+                byte_length += len(block)
+            writer.flush()
+            os.fsync(writer.fileno())
+        source_after = source.stat()
+        source_identity_before = (
+            int(source_before.st_dev),
+            int(source_before.st_ino),
+            int(source_before.st_size),
+            int(source_before.st_mtime_ns),
+        )
+        source_identity_after = (
+            int(source_after.st_dev),
+            int(source_after.st_ino),
+            int(source_after.st_size),
+            int(source_after.st_mtime_ns),
+        )
+        if source_identity_before != source_identity_after or byte_length != expected_byte_length:
+            raise ValueError("Preview Core binary payload changed while it was copied.")
+        sha256 = digest.hexdigest().upper()
+        name = f"preview-{kind}-{file_index:04d}-{sha256[:12].lower()}.bin"
+        destination = package_dir / name
+        _cancelled(cancelled)
+        _session_root_identity(package_dir, expected_root_identity)
+        os.replace(temporary, destination)
+        return {
+            "path": name,
+            "data_type": data_type,
+            "count": element_count,
+            "byte_length": byte_length,
+            "sha256": sha256,
+            "content_type": "application/octet-stream",
+        }
+    finally:
+        if temporary.exists() and not temporary.is_symlink():
+            temporary.unlink()
+
+
+def _rebased_preview_core_batch(
+    package_dir: Path,
+    batch: Mapping[str, object],
+) -> dict[str, object]:
+    result = copy.deepcopy(dict(batch))
+    raw_dds = result.get("dds_textures")
+    if not isinstance(raw_dds, Mapping):
+        return result
+    dds: dict[str, object] = copy.deepcopy(dict(raw_dds))
+
+    def rebase_descriptor(value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+        descriptor = copy.deepcopy(dict(value))
+        text = str(descriptor.get("source_path", "") or "").strip()
+        if text and not Path(text).expanduser().is_absolute():
+            resolved = _preview_core_child(package_dir, text)
+            if resolved is not None:
+                descriptor["source_path"] = str(resolved)
+        return descriptor
+
+    for slot, value in tuple(dds.items()):
+        if slot == "material_inputs" and isinstance(value, Sequence) and not isinstance(
+            value, (str, bytes, bytearray)
+        ):
+            dds[slot] = [rebase_descriptor(item) for item in value]
+        else:
+            dds[slot] = rebase_descriptor(value)
+    result["dds_textures"] = dds
+    return result
+
+
+def _preview_core_material_sample(
+    geometry_path: Path,
+    *,
+    vertex_count: int,
+    center: tuple[float, float, float],
+    scale: float,
+    cancelled: Callable[[], bool] | None,
+) -> tuple[
+    list[tuple[float, float, float]],
+    list[tuple[float, float]],
+    list[tuple[int, int, int]],
+]:
+    positions: list[tuple[float, float, float]] = []
+    uvs: list[tuple[float, float]] = []
+    faces: list[tuple[int, int, int]] = []
+    face_indices = _deterministic_luminance_face_indices(vertex_count // 3)
+    with geometry_path.open("rb") as stream, mmap.mmap(
+        stream.fileno(), 0, access=mmap.ACCESS_READ
+    ) as payload:
+        for ordinal, face_index in enumerate(face_indices):
+            if ordinal % 128 == 0:
+                _cancelled(cancelled)
+            base = len(positions)
+            for corner in range(3):
+                record_index = face_index * 3 + corner
+                values = _PREVIEW_CORE_VERTEX.unpack_from(
+                    payload,
+                    record_index * _PREVIEW_CORE_VERTEX.size,
+                )
+                positions.append(
+                    (
+                        values[0] / scale + center[0],
+                        values[1] / scale + center[1],
+                        values[2] / scale + center[2],
+                    )
+                )
+                uvs.append((values[9], values[10]))
+            faces.append((base, base + 1, base + 2))
+    _cancelled(cancelled)
+    return positions, uvs, faces
+
+
+def _preview_core_metadata_mesh(
+    package_dir: Path,
+    manifest: Mapping[str, object],
+    prepared_batches: Sequence[tuple[Mapping[str, object], Path, int]],
+    *,
+    center: tuple[float, float, float],
+    scale: float,
+    cancelled: Callable[[], bool] | None,
+) -> ParsedMesh:
+    submeshes: list[SubMesh] = []
+    for fallback_index, (raw_batch, geometry_path, vertex_count) in enumerate(prepared_batches):
+        batch = _rebased_preview_core_batch(package_dir, raw_batch)
+        identity = batch.get("editor_identity")
+        identity = identity if isinstance(identity, Mapping) else {}
+        raw_index = _preview_core_int(batch.get("index"), fallback_index)
+        source_index = _preview_core_int(identity.get("source_submesh_index"), raw_index)
+        local_index = _preview_core_int(identity.get("source_local_submesh_index"), 0)
+        component_index = _preview_core_int(identity.get("source_component_index"), 0)
+        component_label = str(identity.get("source_component_label", "") or "prefab")
+        positions, uvs, faces = _preview_core_material_sample(
+            geometry_path,
+            vertex_count=vertex_count,
+            center=center,
+            scale=scale,
+            cancelled=cancelled,
+        )
+        submesh = SubMesh(
+            name=f"reference_prefab_{component_index}_{local_index}_{component_label}",
+            material=str(batch.get("material_name", "") or component_label),
+            texture=str(batch.get("texture_name", "") or ""),
+            vertices=positions,
+            uvs=uvs,
+            faces=faces,
+            vertex_count=len(positions),
+            face_count=len(faces),
+            source_index_count=vertex_count,
+        )
+        setattr(submesh, "source_submesh_index", source_index)
+        setattr(submesh, "preview_role", "archive_model")
+        setattr(
+            submesh,
+            "preview_source_asset_path",
+            str(identity.get("source_asset_path", "") or manifest.get("source_path", "") or ""),
+        )
+        setattr(submesh, "cdmw_material_authority_profile", "native_preview_core_direct")
+        setattr(submesh, "cdmw_mesh_edit_topology_source_submesh_index", raw_index)
+        setattr(submesh, "cdmw_native_source_submesh_index", source_index)
+        setattr(submesh, "cdmw_native_source_local_submesh_index", local_index)
+        setattr(submesh, "cdmw_native_source_component_index", component_index)
+        setattr(submesh, "cdmw_native_source_component_label", component_label)
+        setattr(submesh, "cdmw_native_prefab_component", bool(identity.get("prefab_component", False)))
+        setattr(submesh, "cdmw_native_context_component", bool(identity.get("context_component", False)))
+        setattr(submesh, "cdmw_native_editor_identity", copy.deepcopy(dict(identity)))
+        apply_dotnet_native_material_batch_binding(submesh, batch)
+        submeshes.append(submesh)
+
+    extent = 1.0 / abs(scale)
+    mesh = ParsedMesh(
+        path=str(manifest.get("source_path", "") or package_dir),
+        format=str(manifest.get("format", "") or "pac").strip().lower(),
+        bbox_min=tuple(center[axis] - extent for axis in range(3)),
+        bbox_max=tuple(center[axis] + extent for axis in range(3)),
+        submeshes=submeshes,
+        total_vertices=sum(vertex_count for _batch, _path, vertex_count in prepared_batches),
+        total_faces=sum(vertex_count // 3 for _batch, _path, vertex_count in prepared_batches),
+        has_uvs=True,
+    )
+    setattr(mesh, "cdmw_preview_core_package_path", str(package_dir))
+    setattr(mesh, "cdmw_preview_core_manifest", copy.deepcopy(dict(manifest)))
+    return mesh
+
+
+def build_rust_preview_package_from_preview_core(
+    preview_core_package_dir: Path | str,
+    *,
+    source_manifest: Mapping[str, object] | None = None,
+    output_root: Path | str | None = None,
+    output_package_dir: Path | str | None = None,
+    preview_overlays: Mapping[str, object] | None = None,
+    include_material_resources: bool = True,
+    theme: Mapping[str, object] | None = None,
+    cancelled: Callable[[], bool] | None = None,
+) -> RustPreviewPackage:
+    """Publish schema-8 Preview Core geometry without a Python/JSON round trip."""
+
+    source_package = Path(preview_core_package_dir).expanduser().resolve(strict=True)
+    manifest = copy.deepcopy(dict(source_manifest or {}))
+    if not manifest:
+        try:
+            loaded = json.loads((source_package / "manifest.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ValueError("Preview Core manifest is missing or invalid.") from exc
+        if not isinstance(loaded, Mapping):
+            raise ValueError("Preview Core manifest is not an object.")
+        manifest = copy.deepcopy(dict(loaded))
+    source_schema = _preview_core_int(manifest.get("schema_version"), 0)
+    center = _preview_core_vec3(manifest.get("normalization_center"))
+    scale = _preview_core_float(manifest.get("normalization_scale"), 0.0)
+    source_format = str(manifest.get("format", "") or "").strip().lower()
+    raw_batches = manifest.get("batches")
+    if source_schema < _PREVIEW_CORE_SCHEMA_MINIMUM:
+        raise ValueError("Direct Rust preview requires Preview Core schema 8 or newer.")
+    if center is None or abs(scale) <= 1.0e-12:
+        raise ValueError("Preview Core normalization is invalid.")
+    if source_format not in {"pac", "pam", "pamlod"}:
+        raise ValueError("Preview Core source format is not supported by Rust Preview.")
+    if (
+        not isinstance(raw_batches, Sequence)
+        or isinstance(raw_batches, (str, bytes, bytearray))
+        or not raw_batches
+        or len(raw_batches) > _PREVIEW_CORE_BATCH_LIMIT
+    ):
+        raise ValueError("Preview Core batch list is invalid or exceeds the package limit.")
+
+    _cancelled(cancelled)
+    root = (
+        Path(output_root)
+        if output_root is not None
+        else Path(tempfile.gettempdir()) / "cdmw_rust_preview"
+    )
+    package_dir = (
+        Path(output_package_dir)
+        if output_package_dir is not None
+        else root / f"package_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
+    )
+    package_dir.mkdir(parents=True, exist_ok=False)
+    root_identity = _session_root_identity(package_dir)
+    document = _atomic_write_payload(
+        package_dir,
+        "document.json",
+        {
+            "schema_version": 1,
+            "geometry_authority": "manifest.preview_core_geometry",
+        },
+        data_type="mesh_document_pointer_json",
+        element_count=1,
+        expected_root_identity=root_identity,
+    )
+
+    prepared_batches: list[tuple[Mapping[str, object], Path, int]] = []
+    direct_batches: list[dict[str, object]] = []
+    part_identities: list[dict[str, object]] = []
+    total_vertices = 0
+    batch_indices: set[int] = set()
+    for fallback_index, raw_batch in enumerate(raw_batches):
+        _cancelled(cancelled)
+        if not isinstance(raw_batch, Mapping):
+            raise ValueError("Preview Core package contains an invalid batch.")
+        raw_index = _preview_core_int(raw_batch.get("index"), fallback_index)
+        vertex_count = _preview_core_int(raw_batch.get("vertex_count"), 0)
+        if (
+            raw_index < 0
+            or raw_index > 0xFFFF_FFFF
+            or raw_index in batch_indices
+            or vertex_count <= 0
+            or vertex_count % 3
+            or total_vertices + vertex_count > _PREVIEW_CORE_VERTEX_LIMIT
+        ):
+            raise ValueError("Preview Core batch identity or vertex count is invalid.")
+        batch_indices.add(raw_index)
+        source_geometry = _preview_core_child(source_package, raw_batch.get("vertex_file"))
+        if source_geometry is None:
+            raise ValueError("Preview Core geometry is missing or escaped its package.")
+        geometry_reference = _copy_preview_core_binary(
+            package_dir,
+            source_geometry,
+            file_index=fallback_index,
+            kind="geometry",
+            data_type="preview_core_vertices_f32x23_le",
+            element_count=vertex_count,
+            expected_byte_length=vertex_count * _PREVIEW_CORE_VERTEX.size,
+            expected_root_identity=root_identity,
+            cancelled=cancelled,
+        )
+        identity = raw_batch.get("editor_identity")
+        identity = identity if isinstance(identity, Mapping) else {}
+        identity_reference: dict[str, object] | None = None
+        source_identity = _preview_core_child(source_package, identity.get("identity_file"))
+        if source_identity is not None:
+            try:
+                identity_size_matches = (
+                    source_identity.stat().st_size
+                    == vertex_count * _PREVIEW_CORE_IDENTITY.size
+                )
+            except OSError:
+                identity_size_matches = False
+            if identity_size_matches:
+                identity_reference = _copy_preview_core_binary(
+                    package_dir,
+                    source_identity,
+                    file_index=fallback_index,
+                    kind="identity",
+                    data_type="preview_core_identity_i32x2_le",
+                    element_count=vertex_count,
+                    expected_byte_length=vertex_count * _PREVIEW_CORE_IDENTITY.size,
+                    expected_root_identity=root_identity,
+                    cancelled=cancelled,
+                )
+        source_index = _preview_core_int(identity.get("source_submesh_index"), raw_index)
+        local_index = _preview_core_int(identity.get("source_local_submesh_index"), 0)
+        component_index = _preview_core_int(identity.get("source_component_index"), 0)
+        component_label = str(identity.get("source_component_label", "") or "prefab")
+        name = f"reference_prefab_{component_index}_{local_index}_{component_label}"
+        material = str(raw_batch.get("material_name", "") or component_label)
+        direct_batches.append(
+            {
+                "index": raw_index,
+                "name": name,
+                "material": material,
+                "vertex_count": vertex_count,
+                "vertices": geometry_reference,
+                "identity": identity_reference,
+            }
+        )
+        part_identities.append(
+            {
+                "scene_submesh_index": fallback_index,
+                "source_submesh_index": source_index,
+                "name": name,
+                "material": material,
+            }
+        )
+        destination_geometry = package_dir / str(geometry_reference["path"])
+        prepared_batches.append((raw_batch, destination_geometry, vertex_count))
+        total_vertices += vertex_count
+
+    channels = _atomic_write_payload(
+        package_dir,
+        "channels.json",
+        {
+            "schema_version": 1,
+            "geometry_authority": "manifest.preview_core_geometry",
+            "vertex_format": "f32x23_le",
+            "identity_format": "i32x2_le",
+        },
+        data_type="mesh_channels_pointer_json",
+        element_count=len(direct_batches),
+        expected_root_identity=root_identity,
+    )
+    metadata_mesh = _preview_core_metadata_mesh(
+        source_package,
+        manifest,
+        prepared_batches,
+        center=center,
+        scale=scale,
+        cancelled=cancelled,
+    )
+    synthesis = _RustMaterialSynthesisState()
+    stop_event = _CancellationView(cancelled)
+    textures = (
+        _mesh_texture_payloads(
+            package_dir,
+            metadata_mesh,
+            expected_root_identity=root_identity,
+            stop_event=stop_event,  # type: ignore[arg-type]
+            synthesis_state=synthesis,
+            material_package_path=source_package,
+        )
+        if include_material_resources
+        else []
+    )
+    presentations = _mesh_material_presentations(
+        metadata_mesh,
+        generated_overrides=synthesis.presentation_overrides,
+    )
+    _cancelled(cancelled)
+    frame = build_authoritative_static_scene_frame(
+        metadata_mesh,
+        metadata_mesh,
+        StaticReplacementTransform(
+            alignment_mode="manual",
+            scale_to_original_length=False,
+        ),
+        source_identity=static_scene_source_identity(metadata_mesh, None),
+        scene_generation=1,
+        comparison_mode="replacement_only",
+        interaction_mode="preview",
+        reference_draw="wire",
+        cancelled=cancelled,
+    )
+    framing_extent = max(0.01, 2.0 / abs(scale))
+    framing_bounds = StaticWorldBounds(
+        tuple(center[axis] - framing_extent * 0.5 for axis in range(3)),
+        tuple(center[axis] + framing_extent * 0.5 for axis in range(3)),
+    )
+    empty_bounds = StaticWorldBounds((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+    frame = replace(
+        frame,
+        editable=replace(frame.editable, world_bounds=framing_bounds),
+        reference=StaticSceneRoleFrame(
+            role="reference",
+            model_matrix=frame.reference.model_matrix,
+            world_bounds=empty_bounds,
+            visible=False,
+            submesh_indices=(),
+        ),
+        framing_bounds=framing_bounds,
+        framing_extent=framing_extent,
+    )
+    session_id = uuid4().hex
+    scene_payload = frame.to_protocol_payload()
+    scene_payload.update(
+        {
+            "renderer_authority": "rust_wgpu_resident_scene",
+            "session_id": session_id,
+            "part_identities": part_identities,
+        }
+    )
+    if isinstance(preview_overlays, Mapping):
+        for source, target_key in (
+            ("skeleton", "skeleton_overlay"),
+            ("cloth", "cloth_overlay"),
+            ("effects", "effects_overlay"),
+        ):
+            value = preview_overlays.get(source)
+            if isinstance(value, Mapping):
+                scene_payload[target_key] = dict(value)
+
+    source_sha256 = str(manifest.get("source_sha256", "") or "").strip().upper()
+    manifest_payload = {
+        "schema": RUST_PREVIEW_PACKAGE,
+        "protocol": RUST_PREVIEW_PROTOCOL,
+        "session_id": session_id,
+        "process_generation": 1,
+        "base_revision": 0,
+        "shadow_revision": 0,
+        "renderer": RUST_MESH_RENDERER,
+        "edit_backend": RUST_PREVIEW_BACKEND,
+        "interaction_profile": "read_only",
+        "document": document,
+        "channels": channels,
+        "preview_core_geometry": {
+            "schema_version": source_schema,
+            "format": source_format,
+            "source_sha256": source_sha256,
+            "normalization_center": list(center),
+            "normalization_scale": scale,
+            "batches": direct_batches,
+        },
+        "textures": textures,
+        "material_presentations": presentations,
+        "texture_status": {
+            "available": bool(textures),
+            "resource_count": len(textures),
+            "reason": "" if textures else "No readable DDS preview textures were resolved.",
+        },
+        "source": {
+            "path": str(manifest.get("source_path", "") or source_package),
+            "format": source_format,
+            "sha256": source_sha256,
+            "lod_index": 0,
+        },
+        "output_policy": {"policy": "read_only_preview", "archive_writes": False},
+        "theme": dict(theme or {}),
+        "state": {"preview_scene": scene_payload},
+    }
+    manifest_path = package_dir / "manifest.json"
+    atomic_write_text(
+        manifest_path,
+        json.dumps(manifest_payload, indent=2, sort_keys=True),
+    )
+    return RustPreviewPackage(
+        package_dir=package_dir,
+        manifest_path=manifest_path,
+        status_path=package_dir / "rust-preview-status.json",
+        output_dir=package_dir,
+        edit_operations_path=package_dir / "rust-preview-read-only.json",
+        material_signature="",
+        scene_frame=frame,
+        scene_session_id=session_id,
+        editable_submesh_count=len(direct_batches),
+        reference_submesh_count=0,
+    )
 
 
 def build_rust_preview_package(
@@ -482,6 +1060,7 @@ def build_rust_preview_prewarm_package(cache_root: Path | str) -> RustPreviewPac
 __all__ = [
     "RustPreviewPackage",
     "build_rust_preview_package",
+    "build_rust_preview_package_from_preview_core",
     "build_rust_preview_prewarm_package",
     "rust_preview_package_from_path",
     "validate_rust_preview_package",

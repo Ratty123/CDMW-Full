@@ -96,6 +96,12 @@ from cdmw.services.mesh_service_selection import _prune_selection_to_mesh
 _CANDIDATE_FILE_RE = re.compile(r"candidate-[0-9]+-[A-Za-z0-9_-]+\.json\Z")
 _STATE_FILE_RE = re.compile(r"state-[0-9]+-[0-9a-f]{10}\.json\Z")
 _TEXTURE_FILE_RE = re.compile(r"texture-[0-9]{4}-[0-9a-f]{12}\.dds\Z")
+_PREVIEW_GEOMETRY_FILE_RE = re.compile(
+    r"preview-geometry-[0-9]{4}-[0-9a-f]{12}\.bin\Z"
+)
+_PREVIEW_IDENTITY_FILE_RE = re.compile(
+    r"preview-identity-[0-9]{4}-[0-9a-f]{12}\.bin\Z"
+)
 _TEXTURE_IDENTITY_RE = re.compile(
     r"^(?P<prefix>.+)_(?P<identity>[0-9]{4})(?P<suffix>(?:_[a-z0-9]+)*)$",
     re.IGNORECASE,
@@ -1705,6 +1711,8 @@ def _validate_owned_session_tree(
             or _STATE_FILE_RE.fullmatch(name) is not None
             or _CANDIDATE_FILE_RE.fullmatch(name) is not None
             or _TEXTURE_FILE_RE.fullmatch(name) is not None
+            or _PREVIEW_GEOMETRY_FILE_RE.fullmatch(name) is not None
+            or _PREVIEW_IDENTITY_FILE_RE.fullmatch(name) is not None
         ):
             total_bytes += item.stat().st_size
             continue
