@@ -253,6 +253,97 @@ def test_initial_package_uses_persisted_textured_mode_without_followup_job(
     assert harness.render_requests == []
 
 
+def test_initial_rust_package_uses_manifest_textures_without_followup_job(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    package = tmp_path / "rust-textured-package"
+    package.mkdir()
+    (package / "manifest.json").write_text(
+        json.dumps(
+            {
+                "source": {"path": "character/body.pac", "sha256": "source-hash"},
+                "textures": [{"resource_id": "texture:base", "path": "base.dds"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "cdmw.ui.archive_browser.preview_result.validate_dotnet_preview_package",
+        lambda _path: (True, ()),
+    )
+    harness = _PreviewResultHarness()
+    harness.settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+
+    harness._show_archive_preview_result(
+        ArchivePreviewResult(
+            status="ok",
+            preferred_view="model",
+            dotnet_preview_package_path=str(package),
+        ),
+        use_loose=False,
+        request_id=0,
+    )
+
+    assert harness.archive_d3d11_preview_host.loads == [(package, True)]
+    assert harness.archive_d3d11_preview_host.viewport_modes == ["textured"]
+    assert harness._archive_textures_visible is True
+    assert harness.render_requests == []
+
+
+def test_direct_then_full_rust_packages_preserve_the_resident_camera(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    direct = tmp_path / "direct"
+    full = tmp_path / "full"
+    source = {"path": "character/body.pac", "sha256": "same-source-hash"}
+    for package, quality in ((direct, "direct"), (full, "full")):
+        package.mkdir()
+        (package / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "source": source,
+                    "texture_status": {"quality": quality, "available": True},
+                    "textures": [{"resource_id": "texture:base", "path": "base.dds"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+    monkeypatch.setattr(
+        "cdmw.ui.archive_browser.preview_result.validate_dotnet_preview_package",
+        lambda _path: (True, ()),
+    )
+    harness = _PreviewResultHarness()
+    harness.settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+
+    harness._show_archive_preview_result(
+        ArchivePreviewResult(
+            status="ok",
+            quality_tier="fast",
+            preferred_view="model",
+            dotnet_preview_package_path=str(direct),
+        ),
+        use_loose=False,
+        request_id=0,
+    )
+    harness._show_archive_preview_result(
+        ArchivePreviewResult(
+            status="ok",
+            quality_tier="full",
+            preferred_view="model",
+            dotnet_preview_package_path=str(full),
+        ),
+        use_loose=False,
+        request_id=0,
+    )
+
+    assert harness.archive_d3d11_preview_host.loads == [
+        (direct, True),
+        (full, False),
+    ]
+
+
 def test_initial_package_keeps_wire_mode_when_texture_preference_is_disabled(
     tmp_path: Path,
     monkeypatch,

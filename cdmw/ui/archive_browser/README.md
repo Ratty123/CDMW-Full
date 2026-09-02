@@ -19,6 +19,12 @@ logical prefab ahead of shared physical siblings, allowing the background previe
 decode its per-model `_modelPropertyIndex`; variant-aware package keys prevent two items that
 share a PAC from reusing each other's material set.
 
+Textured model requests publish a cache-isolated direct-DDS Rust package as soon
+as Preview Core finishes, then promote the same resident scene to the full
+PAC/PAC_XML material package without resetting its camera. Rust manifest texture
+resources are the active completion authority, so a successful package cannot
+trigger a redundant forced texture request through the retired material format.
+
 Browsing, preview, scan, extraction, and package preparation are read-only.
 Actions that can write route through service-owned confirmation and
 `ArchiveMutationService`; this UI package never patches PAMT/PAZ directly.

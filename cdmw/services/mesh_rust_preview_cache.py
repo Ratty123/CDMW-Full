@@ -12,6 +12,7 @@ import struct
 import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from cdmw.domain.cancellation import RunCancelled
@@ -19,6 +20,7 @@ from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
 from cdmw.modding.mesh_totals import refresh_mesh_totals
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.rendering.dotnet_preview_package_cache import (
+    acquire_dotnet_preview_package_cache_lease_for_path,
     create_dotnet_preview_package_staging_dir,
     dotnet_preview_package_cache_build_lock,
     lookup_dotnet_preview_package_cache,
@@ -36,6 +38,7 @@ from cdmw.services.mesh_rust_preview_package import (
     build_rust_preview_package,
     build_rust_preview_package_from_preview_core,
     build_rust_preview_prewarm_package,
+    normalize_rust_preview_material_quality,
     rust_preview_package_from_path,
     validate_rust_preview_package,
 )
@@ -459,6 +462,184 @@ def _source_manifest(package_dir: Path) -> Mapping[str, object]:
     return payload if isinstance(payload, Mapping) else {}
 
 
+def _material_quality_identity(archive_identity: str, quality: str) -> str:
+    return str(archive_identity or "") if quality == "full" else f"fast-direct-v1:{archive_identity}"
+
+
+@dataclass(frozen=True, slots=True)
+class _PreviewCorePackageRequest:
+    source_package: Path
+    source_manifest: Mapping[str, object]
+    cache_root: Path
+    archive_identity: str
+    sidecar_generation: int
+    cache_mode: str
+    max_bytes: int
+    target_bytes: int
+    cancelled: Callable[[], bool] | None
+    metadata: Mapping[str, object] | None
+
+    @property
+    def derived_cache_root(self) -> Path:
+        return rust_preview_package_cache_root(self.cache_root)
+
+    @property
+    def durable(self) -> bool:
+        return self.cache_mode in {"balanced", "aggressive"} and self.max_bytes > 0
+
+    def cache_key(self, quality: str) -> str:
+        return rust_preview_package_cache_key(
+            _material_quality_identity(self.archive_identity, quality),
+            sidecar_generation=self.sidecar_generation,
+            source_manifest=self.source_manifest,
+        )
+
+    def build(self, output_package_dir: Path, quality: str) -> RustPreviewPackage:
+        overlays = rust_preview_overlays_from_preview_core_package(
+            self.source_package,
+            cancelled=self.cancelled,
+        )
+        _check_cancelled(self.cancelled)
+        if _safe_int(self.source_manifest.get("schema_version"), 0) >= 8:
+            return build_rust_preview_package_from_preview_core(
+                self.source_package,
+                source_manifest=self.source_manifest,
+                output_package_dir=output_package_dir,
+                preview_overlays=overlays,
+                material_quality=quality,
+                cancelled=self.cancelled,
+            )
+        mesh = decode_dotnet_native_preview_package(self.source_package, cancelled=self.cancelled)
+        return build_rust_preview_package(
+            mesh,
+            output_package_dir=output_package_dir,
+            preview_overlays=overlays,
+            material_package_path=self.source_package,
+            material_quality=quality,
+            cancelled=self.cancelled,
+        )
+
+    def cache_metadata(self, quality: str) -> dict[str, object]:
+        result = dict(self.metadata or {})
+        result.update(
+            {
+                "renderer": "rust_wgpu",
+                "preview_schema": RUST_PREVIEW_PACKAGE,
+                "preview_backend": RUST_PREVIEW_BACKEND,
+                "archive_identity": str(self.archive_identity or ""),
+                "sidecar_generation": max(0, int(self.sidecar_generation)),
+                "source_package": str(self.source_package),
+                "material_quality": quality,
+            }
+        )
+        return result
+
+    def _lookup_locked(self, cache_key: str) -> RustPreviewPackage | None:
+        hit = lookup_dotnet_preview_package_cache(
+            self.derived_cache_root,
+            cache_key,
+            validate_package=_validate_rust_cache_package,
+        )
+        return rust_preview_package_from_path(hit.package_dir) if hit is not None else None
+
+    def _publish_locked(self, cache_key: str, quality: str) -> RustPreviewPackage:
+        staging_entry = create_dotnet_preview_package_staging_dir(
+            self.derived_cache_root,
+            leased=True,
+        )
+        try:
+            self.build(staging_entry / "package", quality)
+            hit = store_dotnet_preview_package_cache(
+                self.derived_cache_root,
+                cache_key,
+                staging_entry,
+                self.cache_metadata(quality),
+                validate_package=_validate_rust_cache_package,
+                max_bytes=self.max_bytes,
+                target_bytes=self.target_bytes,
+            )
+            if hit is None:
+                raise RuntimeError("Rust preview cache publication failed.")
+            return rust_preview_package_from_path(hit.package_dir)
+        finally:
+            release_dotnet_preview_package_staging_dir(staging_entry, cleanup=True)
+
+    def build_or_lookup_quality(self, quality: str) -> RustPreviewPackage:
+        if not self.durable:
+            self.cache_root.mkdir(parents=True, exist_ok=True)
+            transient_root = Path(
+                tempfile.mkdtemp(prefix="cdmw_rust_preview_", dir=str(self.cache_root))
+            )
+            return self.build(transient_root / "package", quality)
+        cache_key = self.cache_key(quality)
+        with dotnet_preview_package_cache_build_lock(self.derived_cache_root, cache_key):
+            _check_cancelled(self.cancelled)
+            return self._lookup_locked(cache_key) or self._publish_locked(cache_key, quality)
+
+    def emit_direct(
+        self,
+        callback: Callable[[RustPreviewPackage], None],
+        *,
+        retain_lease: bool,
+    ) -> object | None:
+        lease = None
+        try:
+            package = self.build_or_lookup_quality("direct")
+            if retain_lease:
+                lease = acquire_dotnet_preview_package_cache_lease_for_path(package.package_dir)
+            _check_cancelled(self.cancelled)
+            callback(package)
+            _check_cancelled(self.cancelled)
+            return lease
+        except RunCancelled:
+            if lease is not None:
+                lease.release()
+            raise
+        except Exception:
+            if lease is not None:
+                lease.release()
+            _LOGGER.warning(
+                "rust_preview_direct_tier_failed source=%s; continuing with full quality",
+                self.source_package,
+                exc_info=True,
+            )
+            return None
+
+    def _progressive_durable(
+        self,
+        callback: Callable[[RustPreviewPackage], None],
+    ) -> RustPreviewPackage:
+        full_key = self.cache_key("full")
+        with dotnet_preview_package_cache_build_lock(self.derived_cache_root, full_key):
+            _check_cancelled(self.cancelled)
+            hit = self._lookup_locked(full_key)
+            if hit is not None:
+                return hit
+            fast_lease = self.emit_direct(callback, retain_lease=True)
+            try:
+                return self._publish_locked(full_key, "full")
+            finally:
+                if fast_lease is not None:
+                    fast_lease.release()
+
+    def run(
+        self,
+        quality: str,
+        fast_package_ready: Callable[[RustPreviewPackage], None] | None,
+    ) -> RustPreviewPackage:
+        progressive = (
+            quality == "full"
+            and fast_package_ready is not None
+            and _safe_int(self.source_manifest.get("schema_version"), 0) >= 8
+        )
+        if not progressive:
+            return self.build_or_lookup_quality(quality)
+        if self.durable:
+            return self._progressive_durable(fast_package_ready)
+        self.emit_direct(fast_package_ready, retain_lease=False)
+        return self.build_or_lookup_quality("full")
+
+
 def build_or_lookup_rust_preview_package(
     preview_core_package_dir: Path | str,
     *,
@@ -470,6 +651,8 @@ def build_or_lookup_rust_preview_package(
     target_bytes: int = 0,
     cancelled: Callable[[], bool] | None = None,
     metadata: Mapping[str, object] | None = None,
+    material_quality: str = "full",
+    fast_package_ready: Callable[[RustPreviewPackage], None] | None = None,
 ) -> RustPreviewPackage:
     """Build the Rust viewport package from authoritative Preview Core output.
 
@@ -478,93 +661,191 @@ def build_or_lookup_rust_preview_package(
     """
 
     source_package = Path(preview_core_package_dir).expanduser().resolve()
-    source_manifest = _source_manifest(source_package)
-    if not source_manifest:
+    manifest = _source_manifest(source_package)
+    if not manifest:
         raise ValueError("Preview-core package manifest is missing or invalid.")
+    quality = normalize_rust_preview_material_quality(material_quality)
+    if quality != "full" and fast_package_ready is not None:
+        raise ValueError("A direct Rust preview package cannot request another fast tier.")
     started = time.perf_counter()
-    cache_key = rust_preview_package_cache_key(
-        archive_identity,
-        sidecar_generation=sidecar_generation,
-        source_manifest=source_manifest,
+    request = _PreviewCorePackageRequest(
+        source_package=source_package,
+        source_manifest=manifest,
+        cache_root=Path(cache_root),
+        archive_identity=str(archive_identity or ""),
+        sidecar_generation=max(0, int(sidecar_generation)),
+        cache_mode=str(cache_mode or "off").strip().lower(),
+        max_bytes=max(0, int(max_bytes)),
+        target_bytes=max(0, int(target_bytes)),
+        cancelled=cancelled,
+        metadata=metadata,
     )
-    derived_cache_root = rust_preview_package_cache_root(cache_root)
-    durable = str(cache_mode or "off").strip().lower() in {"balanced", "aggressive"} and max_bytes > 0
-
-    def build(output_package_dir: Path) -> RustPreviewPackage:
-        overlays = rust_preview_overlays_from_preview_core_package(
-            source_package,
-            cancelled=cancelled,
-        )
-        _check_cancelled(cancelled)
-        if _safe_int(source_manifest.get("schema_version"), 0) >= 8:
-            return build_rust_preview_package_from_preview_core(
-                source_package,
-                source_manifest=source_manifest,
-                output_package_dir=output_package_dir,
-                preview_overlays=overlays,
-                cancelled=cancelled,
-            )
-        mesh = decode_dotnet_native_preview_package(source_package, cancelled=cancelled)
-        return build_rust_preview_package(
-            mesh,
-            output_package_dir=output_package_dir,
-            preview_overlays=overlays,
-            material_package_path=source_package,
-            cancelled=cancelled,
-        )
-
-    if durable:
-        with dotnet_preview_package_cache_build_lock(derived_cache_root, cache_key):
-            _check_cancelled(cancelled)
-            hit = lookup_dotnet_preview_package_cache(
-                derived_cache_root,
-                cache_key,
-                validate_package=_validate_rust_cache_package,
-            )
-            if hit is not None:
-                return rust_preview_package_from_path(hit.package_dir)
-            staging_entry = create_dotnet_preview_package_staging_dir(
-                derived_cache_root,
-                leased=True,
-            )
-            try:
-                build(staging_entry / "package")
-                cache_metadata = dict(metadata or {})
-                cache_metadata.update(
-                    {
-                        "renderer": "rust_wgpu",
-                        "preview_schema": RUST_PREVIEW_PACKAGE,
-                        "preview_backend": RUST_PREVIEW_BACKEND,
-                        "archive_identity": str(archive_identity or ""),
-                        "sidecar_generation": max(0, int(sidecar_generation)),
-                        "source_package": str(source_package),
-                    }
-                )
-                hit = store_dotnet_preview_package_cache(
-                    derived_cache_root,
-                    cache_key,
-                    staging_entry,
-                    cache_metadata,
-                    validate_package=_validate_rust_cache_package,
-                    max_bytes=max_bytes,
-                    target_bytes=target_bytes,
-                )
-                if hit is None:
-                    raise RuntimeError("Rust preview cache publication failed.")
-                return rust_preview_package_from_path(hit.package_dir)
-            finally:
-                release_dotnet_preview_package_staging_dir(staging_entry, cleanup=True)
-
-    Path(cache_root).mkdir(parents=True, exist_ok=True)
-    transient_root = Path(tempfile.mkdtemp(prefix="cdmw_rust_preview_", dir=str(cache_root)))
-    package = build(transient_root / "package")
+    package = request.run(quality, fast_package_ready)
     _LOGGER.info(
-        "rust_preview_package source=%s schema=%d elapsed_ms=%.3f",
+        "rust_preview_package source=%s schema=%d material_quality=%s elapsed_ms=%.3f",
         source_package,
-        _safe_int(source_manifest.get("schema_version"), 0),
+        _safe_int(manifest.get("schema_version"), 0),
+        quality,
         max(0.0, (time.perf_counter() - started) * 1000.0),
     )
     return package
+
+
+@dataclass(frozen=True, slots=True)
+class _ModelPreviewPackageRequest:
+    model: object
+    cache_root: Path
+    archive_identity: str
+    sidecar_generation: int
+    cache_mode: str
+    max_bytes: int
+    target_bytes: int
+    cancelled: Callable[[], bool] | None
+    metadata: Mapping[str, object] | None
+    interaction_profile: str
+
+    @property
+    def derived_cache_root(self) -> Path:
+        return rust_preview_package_cache_root(self.cache_root)
+
+    @property
+    def durable(self) -> bool:
+        return self.cache_mode in {"balanced", "aggressive"} and self.max_bytes > 0
+
+    def cache_key(self, quality: str) -> str:
+        identity = _material_quality_identity(self.archive_identity, quality)
+        return rust_preview_package_cache_key(
+            f"python:{self.interaction_profile}:{identity}",
+            sidecar_generation=self.sidecar_generation,
+            source_manifest=_PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST,
+        )
+
+    def build(self, output_package_dir: Path, quality: str) -> RustPreviewPackage:
+        mesh = parsed_mesh_from_model_preview(self.model)
+        _check_cancelled(self.cancelled)
+        return build_rust_preview_package(
+            mesh,
+            output_package_dir=output_package_dir,
+            cancelled=self.cancelled,
+            preview_overlays=getattr(mesh, "cdmw_preview_overlays", None),
+            interaction_profile=self.interaction_profile,
+            material_quality=quality,
+        )
+
+    def cache_metadata(self, quality: str) -> dict[str, object]:
+        result = dict(self.metadata or {})
+        result.update(
+            {
+                "renderer": "rust_wgpu",
+                "preview_schema": RUST_PREVIEW_PACKAGE,
+                "preview_backend": RUST_PREVIEW_BACKEND,
+                "archive_identity": self.archive_identity,
+                "sidecar_generation": self.sidecar_generation,
+                "source_decoder": "python_model_preview",
+                "material_quality": quality,
+            }
+        )
+        return result
+
+    def _lookup_locked(self, cache_key: str) -> RustPreviewPackage | None:
+        hit = lookup_dotnet_preview_package_cache(
+            self.derived_cache_root,
+            cache_key,
+            validate_package=_validate_rust_cache_package,
+        )
+        return rust_preview_package_from_path(hit.package_dir) if hit is not None else None
+
+    def _publish_locked(self, cache_key: str, quality: str) -> RustPreviewPackage:
+        staging_entry = create_dotnet_preview_package_staging_dir(
+            self.derived_cache_root,
+            leased=True,
+        )
+        try:
+            self.build(staging_entry / "package", quality)
+            hit = store_dotnet_preview_package_cache(
+                self.derived_cache_root,
+                cache_key,
+                staging_entry,
+                self.cache_metadata(quality),
+                validate_package=_validate_rust_cache_package,
+                max_bytes=self.max_bytes,
+                target_bytes=self.target_bytes,
+            )
+            if hit is None:
+                raise RuntimeError("Rust preview package cache publication failed.")
+            return rust_preview_package_from_path(hit.package_dir)
+        finally:
+            release_dotnet_preview_package_staging_dir(staging_entry, cleanup=True)
+
+    def build_or_lookup_quality(self, quality: str) -> RustPreviewPackage:
+        if not self.durable:
+            self.cache_root.mkdir(parents=True, exist_ok=True)
+            transient_root = Path(
+                tempfile.mkdtemp(prefix="cdmw_rust_preview_", dir=str(self.cache_root))
+            )
+            return self.build(transient_root / "package", quality)
+        cache_key = self.cache_key(quality)
+        with dotnet_preview_package_cache_build_lock(self.derived_cache_root, cache_key):
+            _check_cancelled(self.cancelled)
+            return self._lookup_locked(cache_key) or self._publish_locked(cache_key, quality)
+
+    def emit_direct(
+        self,
+        callback: Callable[[RustPreviewPackage], None],
+        *,
+        retain_lease: bool,
+    ) -> object | None:
+        lease = None
+        try:
+            package = self.build_or_lookup_quality("direct")
+            if retain_lease:
+                lease = acquire_dotnet_preview_package_cache_lease_for_path(package.package_dir)
+            _check_cancelled(self.cancelled)
+            callback(package)
+            _check_cancelled(self.cancelled)
+            return lease
+        except RunCancelled:
+            if lease is not None:
+                lease.release()
+            raise
+        except Exception:
+            if lease is not None:
+                lease.release()
+            _LOGGER.warning(
+                "rust_model_preview_direct_tier_failed identity=%s; continuing with full quality",
+                self.archive_identity,
+                exc_info=True,
+            )
+            return None
+
+    def _progressive_durable(
+        self,
+        callback: Callable[[RustPreviewPackage], None],
+    ) -> RustPreviewPackage:
+        full_key = self.cache_key("full")
+        with dotnet_preview_package_cache_build_lock(self.derived_cache_root, full_key):
+            _check_cancelled(self.cancelled)
+            hit = self._lookup_locked(full_key)
+            if hit is not None:
+                return hit
+            fast_lease = self.emit_direct(callback, retain_lease=True)
+            try:
+                return self._publish_locked(full_key, "full")
+            finally:
+                if fast_lease is not None:
+                    fast_lease.release()
+
+    def run(
+        self,
+        quality: str,
+        fast_package_ready: Callable[[RustPreviewPackage], None] | None,
+    ) -> RustPreviewPackage:
+        if quality != "full" or fast_package_ready is None:
+            return self.build_or_lookup_quality(quality)
+        if self.durable:
+            return self._progressive_durable(fast_package_ready)
+        self.emit_direct(fast_package_ready, retain_lease=False)
+        return self.build_or_lookup_quality("full")
 
 
 def build_or_lookup_rust_preview_package_from_model(
@@ -579,77 +860,30 @@ def build_or_lookup_rust_preview_package_from_model(
     cancelled: Callable[[], bool] | None = None,
     metadata: Mapping[str, object] | None = None,
     interaction_profile: str = "read_only",
+    material_quality: str = "full",
+    fast_package_ready: Callable[[RustPreviewPackage], None] | None = None,
 ) -> RustPreviewPackage:
     """Build a Rust package from the Python archive preview decoder."""
 
     profile = str(interaction_profile or "read_only").strip().lower()
     if profile not in {"read_only", "static_replacement"}:
         raise ValueError(f"Unsupported Rust preview interaction profile: {profile}")
-    cache_key = rust_preview_package_cache_key(
-        f"python:{profile}:" + str(archive_identity or ""),
-        sidecar_generation=sidecar_generation,
-        source_manifest=_PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST,
-    )
-    derived_cache_root = rust_preview_package_cache_root(cache_root)
-    durable = str(cache_mode or "off").strip().lower() in {"balanced", "aggressive"} and max_bytes > 0
-    if durable:
-        with dotnet_preview_package_cache_build_lock(derived_cache_root, cache_key):
-            _check_cancelled(cancelled)
-            hit = lookup_dotnet_preview_package_cache(
-                derived_cache_root,
-                cache_key,
-                validate_package=_validate_rust_cache_package,
-            )
-            if hit is not None:
-                return rust_preview_package_from_path(hit.package_dir)
-            staging_entry = create_dotnet_preview_package_staging_dir(derived_cache_root, leased=True)
-            try:
-                mesh = parsed_mesh_from_model_preview(model)
-                _check_cancelled(cancelled)
-                build_rust_preview_package(
-                    mesh,
-                    output_package_dir=staging_entry / "package",
-                    cancelled=cancelled,
-                    preview_overlays=getattr(mesh, "cdmw_preview_overlays", None),
-                    interaction_profile=profile,
-                )
-                cache_metadata = dict(metadata or {})
-                cache_metadata.update(
-                    {
-                        "renderer": "rust_wgpu",
-                        "preview_schema": RUST_PREVIEW_PACKAGE,
-                        "preview_backend": RUST_PREVIEW_BACKEND,
-                        "archive_identity": str(archive_identity or ""),
-                        "sidecar_generation": max(0, int(sidecar_generation)),
-                        "source_decoder": "python_model_preview",
-                    }
-                )
-                hit = store_dotnet_preview_package_cache(
-                    derived_cache_root,
-                    cache_key,
-                    staging_entry,
-                    cache_metadata,
-                    validate_package=_validate_rust_cache_package,
-                    max_bytes=max_bytes,
-                    target_bytes=target_bytes,
-                )
-                if hit is None:
-                    raise RuntimeError("Rust preview package cache publication failed.")
-                return rust_preview_package_from_path(hit.package_dir)
-            finally:
-                release_dotnet_preview_package_staging_dir(staging_entry, cleanup=True)
-
-    _check_cancelled(cancelled)
-    Path(cache_root).mkdir(parents=True, exist_ok=True)
-    transient_root = Path(tempfile.mkdtemp(prefix="cdmw_rust_preview_", dir=str(cache_root)))
-    mesh = parsed_mesh_from_model_preview(model)
-    return build_rust_preview_package(
-        mesh,
-        output_package_dir=transient_root / "package",
+    quality = normalize_rust_preview_material_quality(material_quality)
+    if quality != "full" and fast_package_ready is not None:
+        raise ValueError("A direct Rust preview package cannot request another fast tier.")
+    request = _ModelPreviewPackageRequest(
+        model=model,
+        cache_root=Path(cache_root),
+        archive_identity=str(archive_identity or ""),
+        sidecar_generation=max(0, int(sidecar_generation)),
+        cache_mode=str(cache_mode or "off").strip().lower(),
+        max_bytes=max(0, int(max_bytes)),
+        target_bytes=max(0, int(target_bytes)),
         cancelled=cancelled,
-        preview_overlays=getattr(mesh, "cdmw_preview_overlays", None),
+        metadata=metadata,
         interaction_profile=profile,
     )
+    return request.run(quality, fast_package_ready)
 
 
 def lookup_rust_preview_package_from_model_identity(
@@ -658,6 +892,7 @@ def lookup_rust_preview_package_from_model_identity(
     archive_identity: str,
     sidecar_generation: int = 0,
     interaction_profile: str = "read_only",
+    material_quality: str = "full",
     cancelled: Callable[[], bool] | None = None,
 ) -> RustPreviewPackage | None:
     """Return a valid canonical Python-model package without decoding its source."""
@@ -667,6 +902,7 @@ def lookup_rust_preview_package_from_model_identity(
         archive_identity=archive_identity,
         sidecar_generation=sidecar_generation,
         interaction_profile=interaction_profile,
+        material_quality=material_quality,
         cancelled=cancelled,
     )
     return hit[0] if hit is not None else None
@@ -678,6 +914,7 @@ def lookup_rust_preview_package_hit_from_model_identity(
     archive_identity: str,
     sidecar_generation: int = 0,
     interaction_profile: str = "read_only",
+    material_quality: str = "full",
     cancelled: Callable[[], bool] | None = None,
 ) -> tuple[RustPreviewPackage, dict[str, object]] | None:
     """Return a canonical Python-model package and its publication metadata."""
@@ -686,8 +923,10 @@ def lookup_rust_preview_package_hit_from_model_identity(
     profile = str(interaction_profile or "read_only").strip().lower()
     if profile not in {"read_only", "static_replacement"}:
         raise ValueError(f"Unsupported Rust preview interaction profile: {profile}")
+    quality = normalize_rust_preview_material_quality(material_quality)
+    identity = _material_quality_identity(str(archive_identity or ""), quality)
     cache_key = rust_preview_package_cache_key(
-        f"python:{profile}:" + str(archive_identity or ""),
+        f"python:{profile}:{identity}",
         sidecar_generation=sidecar_generation,
         source_manifest=_PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST,
     )

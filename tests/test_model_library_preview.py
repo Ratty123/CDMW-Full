@@ -123,6 +123,7 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertEqual(writer.call_args.kwargs["cache_mode"], "balanced")
             self.assertGreater(int(writer.call_args.kwargs["max_bytes"]), 0)
             self.assertGreater(int(writer.call_args.kwargs["target_bytes"]), 0)
+            self.assertEqual(writer.call_args.kwargs["material_quality"], "direct")
             self.assertEqual(writer.call_args.kwargs["metadata"]["surface"], "model_library")
 
     def test_backend_package_identity_is_stable_per_source_revision_and_orientation(self) -> None:
@@ -223,6 +224,7 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertGreaterEqual(int(result["textures"]), 1)
             self.assertFalse(result["high_quality_textures"])
             self.assertGreaterEqual(len(manifest["textures"]), 1)
+            self.assertEqual(manifest["texture_status"]["quality"], "direct")
 
     def test_backend_rejects_legacy_qt_renderer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

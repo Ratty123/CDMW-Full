@@ -64,6 +64,7 @@ _PREVIEW_CORE_SCHEMA_MINIMUM = 8
 _PREVIEW_CORE_BATCH_LIMIT = 4_096
 _PREVIEW_CORE_VERTEX_LIMIT = 2_000_000
 _PREVIEW_CORE_COPY_CHUNK_BYTES = 4 * 1024 * 1024
+_RUST_PREVIEW_MATERIAL_QUALITIES = frozenset({"direct", "full"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +94,15 @@ class _CancellationView:
 
     def is_set(self) -> bool:
         return bool(self._callback is not None and self._callback())
+
+
+def normalize_rust_preview_material_quality(value: object) -> str:
+    """Return the bounded Rust preview material tier used by package builders."""
+
+    quality = str(value or "full").strip().casefold()
+    if quality not in _RUST_PREVIEW_MATERIAL_QUALITIES:
+        raise ValueError(f"Unsupported Rust preview material quality: {quality}")
+    return quality
 
 
 _PREVIEW_IMAGE_TEXTURES = (
@@ -473,6 +483,15 @@ def _preview_core_metadata_mesh(
     return mesh
 
 
+def _texture_status(textures: Sequence[object], quality: str) -> dict[str, object]:
+    return {
+        "available": bool(textures),
+        "resource_count": len(textures),
+        "quality": quality,
+        "reason": "" if textures else "No readable DDS preview textures were resolved.",
+    }
+
+
 def build_rust_preview_package_from_preview_core(
     preview_core_package_dir: Path | str,
     *,
@@ -481,11 +500,13 @@ def build_rust_preview_package_from_preview_core(
     output_package_dir: Path | str | None = None,
     preview_overlays: Mapping[str, object] | None = None,
     include_material_resources: bool = True,
+    material_quality: str = "full",
     theme: Mapping[str, object] | None = None,
     cancelled: Callable[[], bool] | None = None,
 ) -> RustPreviewPackage:
     """Publish schema-8 Preview Core geometry without a Python/JSON round trip."""
 
+    quality = normalize_rust_preview_material_quality(material_quality)
     source_package = Path(preview_core_package_dir).expanduser().resolve(strict=True)
     manifest = copy.deepcopy(dict(source_manifest or {}))
     if not manifest:
@@ -658,6 +679,7 @@ def build_rust_preview_package_from_preview_core(
             stop_event=stop_event,  # type: ignore[arg-type]
             synthesis_state=synthesis,
             material_package_path=source_package,
+            enable_material_synthesis=quality == "full",
         )
         if include_material_resources
         else []
@@ -742,11 +764,7 @@ def build_rust_preview_package_from_preview_core(
         },
         "textures": textures,
         "material_presentations": presentations,
-        "texture_status": {
-            "available": bool(textures),
-            "resource_count": len(textures),
-            "reason": "" if textures else "No readable DDS preview textures were resolved.",
-        },
+        "texture_status": _texture_status(textures, quality),
         "source": {
             "path": str(manifest.get("source_path", "") or source_package),
             "format": source_format,
@@ -795,6 +813,7 @@ def build_rust_preview_package(
     framing_bounds: tuple[Sequence[float], Sequence[float]] | None = None,
     material_package_path: Path | str | None = None,
     include_material_resources: bool = True,
+    material_quality: str = "full",
     theme: Mapping[str, object] | None = None,
     cancelled: Callable[[], bool] | None = None,
 ) -> RustPreviewPackage:
@@ -804,6 +823,7 @@ def build_rust_preview_package(
     mesh-edit input.  Both profiles remain read-only with respect to PAMT/PAZ.
     """
 
+    quality = normalize_rust_preview_material_quality(material_quality)
     profile = str(interaction_profile or "read_only").strip().lower()
     if profile not in {"read_only", "static_replacement"}:
         raise ValueError(f"Unsupported Rust preview interaction profile: {profile}")
@@ -900,6 +920,7 @@ def build_rust_preview_package(
                 synthesis_state=synthesis,
                 material_package_path=material_package_path or "",
                 preview_texture_overrides=image_overrides,
+                enable_material_synthesis=quality == "full",
             )
     else:
         textures = []
@@ -959,11 +980,7 @@ def build_rust_preview_package(
         "channels": channels,
         "textures": textures,
         "material_presentations": presentations,
-        "texture_status": {
-            "available": bool(textures),
-            "resource_count": len(textures),
-            "reason": "" if textures else "No readable DDS preview textures were resolved.",
-        },
+        "texture_status": _texture_status(textures, quality),
         "source": {
             "path": str(getattr(mesh, "path", "") or ""),
             "format": str(getattr(mesh, "format", "") or ""),
@@ -1062,6 +1079,7 @@ __all__ = [
     "build_rust_preview_package",
     "build_rust_preview_package_from_preview_core",
     "build_rust_preview_prewarm_package",
+    "normalize_rust_preview_material_quality",
     "rust_preview_package_from_path",
     "validate_rust_preview_package",
 ]

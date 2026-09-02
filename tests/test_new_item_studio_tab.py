@@ -677,6 +677,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.prefill_template(TEMPLATE)
         token, build = tab.controller.item_preview_source()
         self.assertIsInstance(build, ProgressivePreviewSource)
+        self.assertTrue(build.supports_fast_material_package)
         self.assertEqual(token[0], "template")
         self.assertEqual(token[1], TEMPLATE)
         by_path, by_basename = tab.controller.snapshot.archive_index_maps()
@@ -716,6 +717,8 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.controller.set_imported_model(None, imported)
         token, build = tab.controller.item_preview_source()
         self.assertEqual(token, ("imported", id(imported)))
+        self.assertIsInstance(build, ProgressivePreviewSource)
+        self.assertTrue(build.supports_fast_material_package)
         self.assertIs(build(threading.Event()), imported.preview_model)
         tab.close()
         tab.deleteLater()
@@ -884,6 +887,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         settings = ModelPreviewRenderSettings(d3d11_tone_gamma=1.17)
         attempt = SimpleNamespace(succeeded=True, package_path=str(native_package))
         package = SimpleNamespace(package_dir=native_package)
+        fast_ready = object()
 
         with patch(
             "cdmw.services.preview_rendering_service.run_native_preview_core_preview_job",
@@ -900,6 +904,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                 native_preview_core_cache_root=native_cache,
                 render_settings=settings,
                 cache_mode="balanced",
+                fast_package_ready=fast_ready,
             )
 
         self.assertEqual(result, native_package)
@@ -913,6 +918,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertEqual(native_kwargs["package_root"], Path(entry.pamt_path).parent.parent)
         self.assertEqual(Path(native_kwargs["output_root"]).parent, output)
         adapt_package.assert_called_once()
+        self.assertIs(adapt_package.call_args.kwargs["fast_package_ready"], fast_ready)
         python_decode.assert_not_called()
         tab.close()
         tab.deleteLater()

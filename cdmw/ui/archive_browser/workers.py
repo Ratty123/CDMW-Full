@@ -479,6 +479,9 @@ class ArchivePreviewWorkerMixin:
             dependency_entries=dependency_entries,
         )
         performance_settings = self._current_archive_performance_settings()
+        progressive_material_preview = bool(
+            performance_settings.quick_then_full_preview and not include_loose_preview_assets
+        )
         preview_cache_snapshot = {
             key: self.archive_preview_cache[key]
             for key in (cache_key, fast_cache_key)
@@ -548,11 +551,8 @@ class ArchivePreviewWorkerMixin:
             full_cache_key=cache_key,
             fast_cache_key=fast_cache_key,
             preview_cache_snapshot=preview_cache_snapshot,
-            emit_quick_preview=(
-                performance_settings.quick_then_full_preview
-                and not include_loose_preview_assets
-                and fast_cache_key not in preview_cache_snapshot
-            ),
+            emit_quick_preview=progressive_material_preview and fast_cache_key not in preview_cache_snapshot,
+            progressive_material_preview=progressive_material_preview,
             texture_entries_by_normalized_path=texture_entries_by_normalized_path,
             texture_entries_by_basename=texture_entries_by_basename,
             sidecar_entries_by_texture_path=(
@@ -675,6 +675,7 @@ class ArchivePreviewWorkerMixin:
         fast_cache_key: str = "",
         preview_cache_snapshot: Optional[Mapping[str, ArchivePreviewResult]] = None,
         emit_quick_preview: bool = False,
+        progressive_material_preview: bool = False,
         texture_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
         texture_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
         sidecar_entries_by_texture_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
@@ -768,6 +769,7 @@ class ArchivePreviewWorkerMixin:
             fast_preview_cache_key=fast_cache_key,
             preview_cache_snapshot=preview_cache_snapshot,
             emit_quick_preview=emit_quick_preview,
+            progressive_material_preview=progressive_material_preview,
             emit_private_payloads=True,
             preview_track_index=int(getattr(self, "archive_preview_track_index", 0) or 0),
         )

@@ -678,7 +678,6 @@ class ArchivePreviewNativeMixin:
         timings: Mapping[str, float],
     ) -> ArchivePreviewResult:
         entry = self.entry
-        metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
         cache_root = (
             getattr(self, "native_preview_package_cache_root", None)
             or self.native_preview_core_cache_root
@@ -693,6 +692,35 @@ class ArchivePreviewNativeMixin:
                 ),
                 timings,
             )
+        rust_started_at = time.perf_counter()
+
+        def fast_package_ready(rust_package) -> None:
+            if self.stop_event.is_set():
+                return
+            fast_timings = dict(timings)
+            rust_elapsed = max(0.0, time.perf_counter() - rust_started_at)
+            fast_timings["rust_preview_direct_s"] = rust_elapsed
+            fast_timings["progressive_fast_s"] = max(
+                0.0,
+                float(fast_timings.get("native_preview_core_s", 0.0)) + rust_elapsed,
+            )
+            payload = self._native_preview_core_package_result(
+                native_attempt,
+                fast_timings,
+                rust_package,
+                quality_tier="fast",
+                material_quality="direct",
+            )
+            if not self.stop_event.is_set():
+                self.completed.emit(self.request_id, payload)
+
+        progressive_callback = (
+            fast_package_ready
+            if bool(getattr(self, "progressive_material_preview", False))
+            and bool(getattr(self.render_settings, "use_textures_by_default", False))
+            and getattr(self, "static_thumbnail_size", None) is None
+            else None
+        )
         try:
             rust_package = build_or_lookup_rust_preview_package(
                 native_attempt.package_path,
@@ -710,6 +738,7 @@ class ArchivePreviewNativeMixin:
                     "entry_path": str(getattr(entry, "path", "") or ""),
                     "native_preview_core_package": native_attempt.package_path,
                 },
+                fast_package_ready=progressive_callback,
             )
         except RunCancelled:
             raise
@@ -725,11 +754,38 @@ class ArchivePreviewNativeMixin:
                 ),
                 timings,
             )
+        full_timings = dict(timings)
+        rust_elapsed = max(0.0, time.perf_counter() - rust_started_at)
+        full_timings["rust_preview_full_s"] = rust_elapsed
+        full_timings["progressive_full_s"] = max(
+            0.0,
+            float(full_timings.get("native_preview_core_s", 0.0)) + rust_elapsed,
+        )
+        return self._native_preview_core_package_result(
+            native_attempt,
+            full_timings,
+            rust_package,
+            quality_tier="full",
+            material_quality="full",
+        )
+
+    def _native_preview_core_package_result(
+        self,
+        native_attempt: NativePreviewCoreAttempt,
+        timings: Mapping[str, float],
+        rust_package,
+        *,
+        quality_tier: str,
+        material_quality: str,
+    ) -> ArchivePreviewResult:
+        entry = self.entry
+        metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
         model_texture_references, asset_family_graph, metadata_lines, native_schema_version = (
             self._native_preview_core_manifest_metadata(native_attempt.package_path)
         )
         diagnostics = dict(native_attempt.diagnostics)
         diagnostics["rust_preview_package_path"] = str(rust_package.package_dir)
+        diagnostics["rust_preview_material_quality"] = str(material_quality)
         notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
         appearance_notes = tuple(
             str(note) for note in tuple(diagnostics.get("character_appearance_notes", ()) or ()) if str(note).strip()
@@ -752,6 +808,7 @@ class ArchivePreviewNativeMixin:
         diagnostic_lines = [
             "Preview Core decoded the archive model for the canonical Rust Preview preview package.",
             "Rust Preview package source: canonical Preview Core decode",
+            f"Rust Preview material tier: {material_quality}",
             native_attempt.diagnostic_line(),
             (
                 "Native Material Quality: "
@@ -787,6 +844,7 @@ class ArchivePreviewNativeMixin:
             title=entry.basename if entry is not None else "Native Preview",
             metadata_summary=metadata_summary,
             detail_text=detail_text,
+            quality_tier=quality_tier,
             timings=dict(timings),
             preview_model=None,
             model_texture_references=model_texture_references,

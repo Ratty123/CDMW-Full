@@ -110,6 +110,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         fast_preview_cache_key: str = "",
         preview_cache_snapshot: Optional[Mapping[str, ArchivePreviewResult]] = None,
         emit_quick_preview: bool = False,
+        progressive_material_preview: bool = False,
         emit_private_payloads: bool = False,
         static_thumbnail_size: Optional[Tuple[int, int]] = None,
         static_thumbnail_text_color: str = "#8b949e",
@@ -161,6 +162,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         self.fast_preview_cache_key = str(fast_preview_cache_key or "").strip()
         self.preview_cache_snapshot = dict(preview_cache_snapshot or {})
         self.emit_quick_preview = bool(emit_quick_preview)
+        self.progressive_material_preview = bool(progressive_material_preview)
         self.emit_private_payloads = bool(emit_private_payloads)
         self.static_thumbnail_size = (
             (max(320, int(static_thumbnail_size[0])), max(260, int(static_thumbnail_size[1])))
@@ -554,6 +556,47 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             )
         )
 
+    def _python_direct_package_callback(
+        self,
+        payload: ArchivePreviewResult,
+        timings: Mapping[str, float],
+        *,
+        prepared_started_at: float,
+        package_started_at: float,
+    ):
+        def package_ready(package: object) -> None:
+            if self.stop_event.is_set():
+                return
+            direct_timings = dict(timings)
+            direct_timings["prepared_model_s"] = max(
+                0.0,
+                float(package_started_at - prepared_started_at),
+            )
+            direct_timings["rust_preview_direct_s"] = max(
+                0.0,
+                float(time.perf_counter() - package_started_at),
+            )
+            direct_timings["progressive_fast_s"] = sum(
+                max(0.0, float(direct_timings.get(key, 0.0)))
+                for key in (
+                    "worker_build_s",
+                    "image_attach_s",
+                    "prepared_model_s",
+                    "rust_preview_direct_s",
+                )
+            )
+            fast_payload = dataclasses.replace(
+                payload,
+                dotnet_preview_package_path=str(getattr(package, "package_dir", "") or ""),
+                preferred_view="model",
+                quality_tier="fast",
+                timings=_merge_timing_maps(getattr(payload, "timings", None), direct_timings),
+                sidecar_generation=self.sidecar_generation,
+            )
+            self._emit_archive_preview_result(fast_payload)
+
+        return package_ready
+
     def _build_archive_preview_payload(
         self,
         *,
@@ -619,6 +662,19 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                     )
                 else:
                     try:
+                        rust_package_started_at = time.perf_counter()
+                        fast_package_ready = (
+                            self._python_direct_package_callback(
+                                payload,
+                                timings,
+                                prepared_started_at=prepared_model_started_at,
+                                package_started_at=rust_package_started_at,
+                            )
+                            if self.progressive_material_preview
+                            and bool(getattr(render_settings, "use_textures_by_default", False))
+                            and self.static_thumbnail_size is None
+                            else None
+                        )
                         rust_package = build_or_lookup_rust_preview_package_from_model(
                             prepared_model,
                             cache_root=Path(cache_root),
@@ -636,6 +692,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                                 "surface": "archive_browser",
                                 "source_decoder": "python_model_preview",
                             },
+                            fast_package_ready=fast_package_ready,
                         )
                         payload = dataclasses.replace(
                             payload,

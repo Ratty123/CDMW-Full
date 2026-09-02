@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services.mesh_rust_contract import (
     RUST_MESH_RENDERER,
@@ -19,6 +20,7 @@ from cdmw.services.mesh_rust_contract import (
 from cdmw.services.mesh_rust_preview_cache import (
     RUST_PREVIEW_CACHE_SCHEMA,
     build_or_lookup_rust_preview_package,
+    build_or_lookup_rust_preview_package_from_model,
     rust_preview_package_cache_root,
 )
 from cdmw.services.mesh_rust_preview_package import (
@@ -309,6 +311,100 @@ def test_schema8_preview_core_geometry_bypasses_python_and_large_json_roundtrip(
     assert scene["part_identities"][0][
         "source_submesh_index"
     ] == 4
+
+
+def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source, _geometry_bytes, _identity_bytes, _texture_bytes = (
+        _write_schema8_preview_core_fixture(tmp_path)
+    )
+    from cdmw.services import mesh_rust_preview_package
+
+    original_texture_payloads = mesh_rust_preview_package._mesh_texture_payloads
+    synthesis_flags: list[bool] = []
+
+    def recording_texture_payloads(*args: object, **kwargs: object):
+        synthesis_flags.append(bool(kwargs.get("enable_material_synthesis", True)))
+        return original_texture_payloads(*args, **kwargs)
+
+    monkeypatch.setattr(
+        mesh_rust_preview_package,
+        "_mesh_texture_payloads",
+        recording_texture_payloads,
+    )
+    direct_packages = []
+    full = build_or_lookup_rust_preview_package(
+        source,
+        cache_root=tmp_path / "cache",
+        archive_identity="helmet-progressive",
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+        fast_package_ready=direct_packages.append,
+    )
+
+    assert synthesis_flags == [False, True]
+    assert len(direct_packages) == 1
+    direct = direct_packages[0]
+    assert direct.package_dir != full.package_dir
+    direct_manifest = json.loads(direct.manifest_path.read_text(encoding="utf-8"))
+    full_manifest = json.loads(full.manifest_path.read_text(encoding="utf-8"))
+    assert direct_manifest["texture_status"]["quality"] == "direct"
+    assert full_manifest["texture_status"]["quality"] == "full"
+    assert direct_manifest["source"] == full_manifest["source"]
+
+    warm_callbacks = []
+    warm = build_or_lookup_rust_preview_package(
+        source,
+        cache_root=tmp_path / "cache",
+        archive_identity="helmet-progressive",
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+        fast_package_ready=warm_callbacks.append,
+    )
+    assert warm.package_dir == full.package_dir
+    assert warm_callbacks == []
+
+
+def test_python_model_preview_uses_the_same_direct_then_full_cache_contract(
+    tmp_path: Path,
+) -> None:
+    model = ModelPreviewData(
+        path="imported/model.fbx",
+        format="fbx",
+        meshes=[
+            ModelPreviewMesh(
+                material_name="imported",
+                positions=[(-0.5, -0.5, 0.0), (0.5, -0.5, 0.0), (0.0, 0.5, 0.0)],
+                normals=[(0.0, 0.0, 1.0)] * 3,
+                texture_coordinates=[(0.0, 1.0), (1.0, 1.0), (0.5, 0.0)],
+                indices=[0, 1, 2],
+            )
+        ],
+    )
+    direct_packages = []
+
+    full = build_or_lookup_rust_preview_package_from_model(
+        model,
+        cache_root=tmp_path / "cache",
+        archive_identity="new-item-imported",
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+        fast_package_ready=direct_packages.append,
+    )
+
+    assert len(direct_packages) == 1
+    direct_manifest = json.loads(
+        direct_packages[0].manifest_path.read_text(encoding="utf-8")
+    )
+    full_manifest = json.loads(full.manifest_path.read_text(encoding="utf-8"))
+    assert direct_manifest["texture_status"]["quality"] == "direct"
+    assert full_manifest["texture_status"]["quality"] == "full"
+    assert direct_packages[0].package_dir != full.package_dir
 
 
 def test_compiled_preview_contract_declares_the_complete_runtime_surface() -> None:

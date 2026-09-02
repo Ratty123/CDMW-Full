@@ -41,6 +41,103 @@ from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
 from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
+
+def _progressive_preview_source(geometry, materials, acquire_usage=None):
+    from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
+
+    return ProgressivePreviewSource(
+        geometry,
+        materials,
+        acquire_usage,
+        supports_fast_material_package=True,
+    )
+
+
+def _placement_progressive_source(
+    source,
+    template_build,
+    geometry_build,
+    placement,
+    character_mesh,
+):
+    from cdmw.ui.new_item.item_preview import PlacementScene
+
+    def build_geometry_scene(stop_event):
+        return PlacementScene(
+            template=geometry_build(stop_event),
+            model=source.baked_scene_mesh(),
+            placement=placement,
+            model_bounds=source.baked_bounds(),
+            model_origin=source.baked_origin(),
+            character=character_mesh(stop_event),
+        )
+
+    def build_material_scene(stop_event, **_preview_context):
+        return PlacementScene(
+            template=template_build(stop_event),
+            model=source.baked_preview_mesh(),
+            placement=placement,
+            model_bounds=source.baked_bounds(),
+            model_origin=source.baked_origin(),
+            character=character_mesh(stop_event),
+        )
+
+    return _progressive_preview_source(
+        build_geometry_scene,
+        build_material_scene,
+        source.acquire_usage,
+    )
+
+
+def _imported_model_progressive_source(model):
+    from cdmw.ui.new_item.item_preview_materials import as_parsed_mesh
+
+    def imported_geometry(stop_event):
+        if stop_event.is_set():
+            raise RunCancelled("Imported model preview cancelled")
+        return as_parsed_mesh(model)
+
+    def imported_materials(_stop_event, **_preview_context):
+        return model
+
+    return _progressive_preview_source(imported_geometry, imported_materials)
+
+
+def _template_progressive_source(
+    token,
+    template_key,
+    geometry_build,
+    material_build,
+    include_character,
+    character_mesh,
+):
+    if not include_character:
+        return token, _progressive_preview_source(geometry_build, material_build)
+    from cdmw.ui.new_item.item_preview import PlacementScene
+
+    def build_geometry_character_scene(stop_event):
+        return PlacementScene(
+            template=None,
+            model=geometry_build(stop_event),
+            character=character_mesh(stop_event),
+        )
+
+    def build_material_character_scene(stop_event, **_preview_context):
+        return PlacementScene(
+            template=None,
+            model=material_build(stop_event),
+            character=character_mesh(stop_event),
+        )
+
+    return (
+        ("template-character", template_key, token),
+        _progressive_preview_source(
+            build_geometry_character_scene,
+            build_material_character_scene,
+        ),
+    )
+
+
 class NewItemPreviewControllerMixin:
     def item_mesh_as_planned(self):
         """The mesh a visual effect will actually sit on, and a word for what it is:
@@ -228,35 +325,13 @@ class NewItemPreviewControllerMixin:
             template_token, template_build = template
             _geometry_token, geometry_build = template_geometry
             placement = self.model_placement
-
-            def build_geometry_scene(stop_event):
-                from cdmw.ui.new_item.item_preview import PlacementScene
-
-                return PlacementScene(
-                    template=geometry_build(stop_event),
-                    model=source.baked_scene_mesh(),
-                    placement=placement,
-                    model_bounds=source.baked_bounds(),
-                    model_origin=source.baked_origin(),
-                    character=character_mesh(stop_event),
-                )
-
-            def build_material_scene(stop_event, **_preview_context):
-                from cdmw.ui.new_item.item_preview import PlacementScene
-
-                model = source.baked_preview_mesh()
-                return PlacementScene(
-                    template=template_build(stop_event),
-                    model=model,
-                    placement=placement,
-                    model_bounds=source.baked_bounds(),
-                    model_origin=source.baked_origin(),
-                    character=character_mesh(stop_event),
-                )
-
-            from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
-
-            build = ProgressivePreviewSource(build_geometry_scene, build_material_scene, source.acquire_usage)
+            build = _placement_progressive_source(
+                source,
+                template_build,
+                geometry_build,
+                placement,
+                character_mesh,
+            )
             return ((
                 "placement",
                 id(source),
@@ -279,7 +354,10 @@ class NewItemPreviewControllerMixin:
                         character=character_mesh(stop_event),
                     ),
                 )
-            return (("imported", id(result)), lambda _stop_event: model)
+            return (
+                ("imported", id(result)),
+                _imported_model_progressive_source(model),
+            )
         if result is not None:
             mesh = self.item_mesh_for_preview()
             if mesh is not None and include_character:
@@ -302,32 +380,14 @@ class NewItemPreviewControllerMixin:
             return template
         token, material_build = template
         _geometry_token, geometry_build = geometry
-        from cdmw.ui.new_item.item_preview import PlacementScene, ProgressivePreviewSource
-
-        if include_character:
-            def build_geometry_character_scene(stop_event):
-                return PlacementScene(
-                    template=None,
-                    model=geometry_build(stop_event),
-                    character=character_mesh(stop_event),
-                )
-
-            def build_material_character_scene(stop_event, **_preview_context):
-                return PlacementScene(
-                    template=None,
-                    model=material_build(stop_event),
-                    character=character_mesh(stop_event),
-                )
-
-            return (
-                ("template-character", self.draft.template_key, token),
-                ProgressivePreviewSource(
-                    build_geometry_character_scene,
-                    build_material_character_scene,
-                ),
-            )
-
-        return (token, ProgressivePreviewSource(geometry_build, material_build))
+        return _template_progressive_source(
+            token,
+            self.draft.template_key,
+            geometry_build,
+            material_build,
+            include_character,
+            character_mesh,
+        )
 
     def _template_geometry_build(self):
         """A fast bare template mesh builder for the first progressive viewport stage."""
@@ -371,7 +431,6 @@ class NewItemPreviewControllerMixin:
 
     def _template_preview_build(self):
         """`(token, build)` for the template's textured package or Python fallback."""
-
         snapshot = self.snapshot
         if snapshot is None or self.draft.template_key is None:
             return None
@@ -416,7 +475,6 @@ class NewItemPreviewControllerMixin:
         )
         cache_key = (id(snapshot), template_key, dependency_revisions)
         cache = self._template_models
-
         def build(
             stop_event,
             *,
@@ -424,6 +482,7 @@ class NewItemPreviewControllerMixin:
             native_preview_core_cache_root=None,
             render_settings=None,
             cache_mode="off",
+            fast_package_ready=None,
         ):
             if output_root is not None and native_preview_core_cache_root is not None:
                 import shutil
@@ -483,6 +542,7 @@ class NewItemPreviewControllerMixin:
                             target_bytes=cache_target_bytes,
                             cancelled=stop_event.is_set,
                             metadata={"surface": "new_item_studio", "source_path": entry.path},
+                            fast_package_ready=fast_package_ready,
                         )
                         return Path(package.package_dir)
                 except RunCancelled:

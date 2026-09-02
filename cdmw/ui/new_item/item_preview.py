@@ -14,11 +14,12 @@ the Model and icon step embeds and the icon capture dialog wraps.
 
 from __future__ import annotations
 
+import logging
 import shutil
 import tempfile
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Hashable, Optional
 
@@ -38,6 +39,9 @@ from cdmw.ui.new_item.item_preview_materials import (
     upgrade_item_preview_package_materials,
 )
 from cdmw.workers.utility_workers import UtilityWorker
+
+
+_LOGGER = logging.getLogger(__name__)
 
 #: "no token given": `_package_ready` then reads the build in flight
 _UNSET = object()
@@ -66,6 +70,7 @@ class ProgressivePreviewSource:
     geometry: Callable[[threading.Event], Any]
     materials: Callable[[threading.Event], Any]
     acquire_usage: Optional[Callable[[], object]] = None
+    supports_fast_material_package: bool = False
 
     def __call__(self, stop_event: threading.Event) -> Any:
         """Compatibility: callers that know only the old callable get full materials."""
@@ -80,6 +85,214 @@ class _PreviewBuildProduct:
     stage: str
 
 
+@dataclass(frozen=True, slots=True)
+class _PreviewPackageTask:
+    output_root: Path
+    token: Hashable
+    candidate: Any
+    is_placement: bool
+    full_stage: bool
+    base_package: Optional[Path]
+    render_settings: object
+    cache_mode: str
+    native_preview_core_cache_root: Optional[Path]
+    source_usage_required: bool
+    source_usage_acquired: bool
+
+    @property
+    def progressive(self) -> bool:
+        return isinstance(self.candidate, ProgressivePreviewSource)
+
+    @property
+    def supports_fast_material_package(self) -> bool:
+        return bool(
+            self.progressive
+            and self.candidate.supports_fast_material_package
+        )
+
+    def __call__(self, _log, progress, stop_event: threading.Event) -> _PreviewBuildProduct:
+        del _log
+        if self.source_usage_required and not self.source_usage_acquired:
+            raise RunCancelled("Operation cancelled.")
+        cached = self._cached_template(stop_event)
+        if cached is not None:
+            return cached
+        if self.progressive and not self.full_stage:
+            return self._build_progressive(progress, stop_event)
+        return self._build_single_stage(stop_event)
+
+    def _cached_template(self, stop_event: threading.Event) -> _PreviewBuildProduct | None:
+        token = self.token
+        if not (
+            not self.full_stage
+            and self.progressive
+            and isinstance(token, tuple)
+            and bool(token)
+            and token[0] == "template"
+            and self.cache_mode in {"balanced", "aggressive"}
+        ):
+            return None
+        from cdmw.services.mesh_rust_preview_cache import (
+            lookup_rust_preview_package_from_model_identity,
+        )
+
+        cached = lookup_rust_preview_package_from_model_identity(
+            cache_root=self.output_root,
+            archive_identity=f"new_item_preview:{token!r}",
+            cancelled=stop_event.is_set,
+        )
+        if cached is None:
+            return None
+        return _PreviewBuildProduct(Path(cached.package_dir), self.candidate, "materials")
+
+    def _build_progressive(self, progress, stop_event: threading.Event) -> _PreviewBuildProduct:
+        candidate = self.candidate
+        materials = _ProgressiveMaterialBuild(self, stop_event)
+        try:
+            geometry_item = candidate.geometry(stop_event)
+        except RunCancelled:
+            raise
+        except Exception:
+            package_dir = materials.package_for(materials.build_item())
+            return _PreviewBuildProduct(package_dir, candidate, "materials")
+
+        material_thread = threading.Thread(
+            target=materials.run,
+            name="cdmw-new-item-preview-materials",
+        )
+        material_thread.start()
+        try:
+            geometry_package = build_item_preview_package(
+                geometry_item,
+                token=self.token,
+                output_root=self.output_root,
+                stop_event=stop_event,
+                include_material_resources=False,
+                render_settings=self.render_settings,
+                cache_mode=self.cache_mode,
+            )
+        except Exception:  # noqa: BLE001 - the full package can still land
+            pass
+        else:
+            progress(
+                1,
+                3 if self.supports_fast_material_package else 2,
+                str(geometry_package),
+            )
+        if self.supports_fast_material_package:
+            while not (
+                materials.fast_ready.is_set()
+                or materials.done.is_set()
+                or stop_event.is_set()
+            ):
+                materials.fast_ready.wait(0.01)
+            if materials.fast_packages and not stop_event.is_set():
+                progress(2, 3, str(materials.fast_packages[-1]))
+        material_thread.join()
+        return materials.product(candidate)
+
+    def _build_single_stage(self, stop_event: threading.Event) -> _PreviewBuildProduct:
+        candidate = self.candidate
+        material_build = _ProgressiveMaterialBuild(self, stop_event)
+        if self.progressive:
+            item = material_build.build_item() if self.full_stage else candidate.geometry(stop_event)
+            resolved_source = candidate
+        else:
+            item = candidate(stop_event) if callable(candidate) else candidate
+            resolved_source = item
+        if self.full_stage and self.is_placement and self.base_package is not None:
+            package_dir = upgrade_item_preview_package_materials(
+                self.base_package,
+                item,
+                output_root=self.output_root,
+                stop_event=stop_event,
+                render_settings=self.render_settings,
+            )
+        elif self.full_stage and self.progressive:
+            package_dir = material_build.package_for(item)
+        else:
+            package_dir = build_item_preview_package(
+                item,
+                token=self.token,
+                output_root=self.output_root,
+                stop_event=stop_event,
+                include_material_resources=self.full_stage,
+                render_settings=self.render_settings,
+                cache_mode=self.cache_mode,
+            )
+        stage = "materials" if self.full_stage else "geometry"
+        return _PreviewBuildProduct(package_dir, resolved_source, stage)
+
+
+@dataclass(slots=True)
+class _ProgressiveMaterialBuild:
+    task: _PreviewPackageTask
+    stop_event: threading.Event
+    fast_packages: list[Path] = field(default_factory=list)
+    packages: list[Path] = field(default_factory=list)
+    errors: list[BaseException] = field(default_factory=list)
+    fast_ready: threading.Event = field(default_factory=threading.Event)
+    done: threading.Event = field(default_factory=threading.Event)
+
+    def handle_fast_package(self, package: object) -> None:
+        package_path = getattr(package, "package_dir", package)
+        if self.stop_event.is_set() or not package_path:
+            return
+        self.fast_packages.append(Path(package_path))
+        self.fast_ready.set()
+
+    def build_item(self) -> Any:
+        candidate = self.task.candidate
+        cache_root = self.task.native_preview_core_cache_root
+        if cache_root is None:
+            return candidate.materials(self.stop_event)
+        preview_context = {
+            "output_root": self.task.output_root,
+            "native_preview_core_cache_root": cache_root,
+            "render_settings": self.task.render_settings,
+            "cache_mode": self.task.cache_mode,
+        }
+        if self.task.supports_fast_material_package:
+            preview_context["fast_package_ready"] = self.handle_fast_package
+        return candidate.materials(self.stop_event, **preview_context)
+
+    def package_for(self, item: Any) -> Path:
+        if isinstance(item, Path):
+            return item
+        return build_item_preview_package(
+            item,
+            token=self.task.token,
+            output_root=self.task.output_root,
+            stop_event=self.stop_event,
+            include_material_resources=True,
+            render_settings=self.task.render_settings,
+            cache_mode=self.task.cache_mode,
+            fast_package_ready=(
+                self.handle_fast_package
+                if self.task.supports_fast_material_package
+                else None
+            ),
+        )
+
+    def run(self) -> None:
+        try:
+            self.packages.append(self.package_for(self.build_item()))
+        except BaseException as exc:  # noqa: BLE001 - delivered by the owning worker
+            self.errors.append(exc)
+        finally:
+            self.done.set()
+
+    def product(self, resolved_source: Any) -> _PreviewBuildProduct:
+        if self.packages:
+            return _PreviewBuildProduct(self.packages[0], resolved_source, "materials")
+        if not self.errors:
+            raise RuntimeError("The material preview ended without a package.")
+        error = self.errors[0]
+        if isinstance(error, Exception):
+            raise error
+        raise RuntimeError(str(error)) from error
+
+
 def build_item_preview_package(
     source: Any,
     *,
@@ -89,6 +302,7 @@ def build_item_preview_package(
     include_material_resources: bool = True,
     render_settings: object | None = None,
     cache_mode: str = "off",
+    fast_package_ready: Optional[Callable[[object], None]] = None,
 ) -> Path:
     """Build the viewport package for `source` off the UI thread and return its directory.
     `source` is a `ModelPreviewData` (the archive or import preview decode, textures
@@ -119,6 +333,25 @@ def build_item_preview_package(
     item = source(stop_event) if callable(source) else source
     if item is None:
         raise ValueError("there is nothing to show")
+
+    def progressive_material_package(build_quality: Callable[[str], object]) -> object:
+        if bool(include_material_resources) and fast_package_ready is not None:
+            try:
+                direct = build_quality("direct")
+                if stop_event.is_set():
+                    raise RunCancelled("Operation cancelled.")
+                fast_package_ready(direct)
+                if stop_event.is_set():
+                    raise RunCancelled("Operation cancelled.")
+            except RunCancelled:
+                raise
+            except Exception:
+                _LOGGER.warning(
+                    "new_item_direct_texture_tier_failed; continuing with full quality",
+                    exc_info=True,
+                )
+        return build_quality("full")
+
     if isinstance(item, PlacementScene):
         from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
 
@@ -153,17 +386,20 @@ def build_item_preview_package(
             _as_parsed_mesh(reference) if reference is not None else None,
             _as_parsed_mesh(character) if character is not None else None,
         )
-        package = build_rust_preview_package(
-            _as_parsed_mesh(model),
-            output_root=output_root,
-            reference_mesh=reference_mesh,
-            comparison_mode="overlay",
-            interaction_profile="static_replacement",
-            interaction_mode="placement",
-            reference_draw="wire",
-            cancelled=stop_event.is_set,
-            scene_transform=item.placement.build_transform(origin=item.model_origin),
-            include_material_resources=bool(include_material_resources),
+        package = progressive_material_package(
+            lambda quality: build_rust_preview_package(
+                _as_parsed_mesh(model),
+                output_root=output_root,
+                reference_mesh=reference_mesh,
+                comparison_mode="overlay",
+                interaction_profile="static_replacement",
+                interaction_mode="placement",
+                reference_draw="wire",
+                cancelled=stop_event.is_set,
+                scene_transform=item.placement.build_transform(origin=item.model_origin),
+                include_material_resources=bool(include_material_resources),
+                material_quality=quality,
+            )
         )
     elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
         from cdmw.services.mesh_rust_preview_cache import (
@@ -187,18 +423,22 @@ def build_item_preview_package(
             target_bytes=cache_target_bytes,
             cancelled=stop_event.is_set,
             metadata={"surface": "new_item_studio", "source_token": repr(token)},
+            fast_package_ready=fast_package_ready,
         )
     else:
         from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
 
-        package = build_rust_preview_package(
-            item,
-            output_root=output_root,
-            reference_mesh=None,
-            comparison_mode="side_by_side",
-            interaction_profile="static_replacement",
-            cancelled=stop_event.is_set,
-            include_material_resources=bool(include_material_resources),
+        package = progressive_material_package(
+            lambda quality: build_rust_preview_package(
+                item,
+                output_root=output_root,
+                reference_mesh=None,
+                comparison_mode="side_by_side",
+                interaction_profile="static_replacement",
+                cancelled=stop_event.is_set,
+                include_material_resources=bool(include_material_resources),
+                material_quality=quality,
+            )
         )
     return Path(package.package_dir)
 
@@ -574,124 +814,19 @@ class ItemPreviewFrame(QWidget):
             self.status_changed.emit("Building the preview...")
         else:
             self.status_changed.emit("Loading model textures…")
-        def task(_log, progress, stop_event: threading.Event) -> _PreviewBuildProduct:
-            if callable(acquire_usage) and source_usage is None:
-                raise RunCancelled("Operation cancelled.")
-            candidate = candidate_source
-
-            def build_material_item() -> Any:
-                if native_preview_core_cache_root is None:
-                    return candidate.materials(stop_event)
-                return candidate.materials(
-                    stop_event,
-                    output_root=root,
-                    native_preview_core_cache_root=native_preview_core_cache_root,
-                    render_settings=render_settings,
-                    cache_mode=cache_mode,
-                )
-
-            def material_package(item: Any) -> Path:
-                if isinstance(item, Path):
-                    return item
-                return build_item_preview_package(
-                    item,
-                    token=token,
-                    output_root=root,
-                    stop_event=stop_event,
-                    include_material_resources=True,
-                    render_settings=render_settings,
-                    cache_mode=cache_mode,
-                )
-
-            if (
-                not full_stage
-                and progressive
-                and isinstance(token, tuple)
-                and bool(token)
-                and token[0] == "template"
-                and cache_mode in {"balanced", "aggressive"}
-            ):
-                from cdmw.services.mesh_rust_preview_cache import (
-                    lookup_rust_preview_package_from_model_identity as lookup_dotnet_preview_package_from_model_identity,
-                )
-
-                cached_package = lookup_dotnet_preview_package_from_model_identity(
-                    cache_root=root,
-                    archive_identity=f"new_item_preview:{token!r}",
-                    cancelled=stop_event.is_set,
-                )
-                if cached_package is not None:
-                    return _PreviewBuildProduct(Path(cached_package.package_dir), candidate, "materials")
-            if progressive and not full_stage:
-                try:
-                    geometry_item = candidate.geometry(stop_event)
-                except RunCancelled:
-                    raise
-                except Exception:
-                    package_dir = material_package(build_material_item())
-                    return _PreviewBuildProduct(package_dir, candidate, "materials")
-
-                material_packages: list[Path] = []
-                material_errors: list[BaseException] = []
-
-                def build_material_package() -> None:
-                    try:
-                        material_packages.append(material_package(build_material_item()))
-                    except BaseException as exc:  # noqa: BLE001 - delivered by the owning worker
-                        material_errors.append(exc)
-
-                material_thread = threading.Thread(
-                    target=build_material_package,
-                    name="cdmw-new-item-preview-materials",
-                )
-                material_thread.start()
-                try:
-                    geometry_package = build_item_preview_package(
-                        geometry_item,
-                        token=token,
-                        output_root=root,
-                        stop_event=stop_event,
-                        include_material_resources=False,
-                        render_settings=render_settings,
-                        cache_mode=cache_mode,
-                    )
-                except Exception:  # noqa: BLE001 - the full package can still land
-                    pass
-                else:
-                    progress(1, 2, str(geometry_package))
-                material_thread.join()
-                if material_packages:
-                    return _PreviewBuildProduct(material_packages[0], candidate, "materials")
-                material_error = material_errors[0]
-                if isinstance(material_error, Exception):
-                    raise material_error
-                raise RuntimeError(str(material_error)) from material_error
-            if isinstance(candidate, ProgressivePreviewSource):
-                item = build_material_item() if full_stage else candidate.geometry(stop_event)
-                upgrade_source = candidate
-            else:
-                item = candidate(stop_event) if callable(candidate) else candidate
-                upgrade_source = item
-            if full_stage and is_placement and base_package is not None:
-                package_dir = upgrade_item_preview_package_materials(
-                    base_package,
-                    item,
-                    output_root=root,
-                    stop_event=stop_event,
-                    render_settings=render_settings,
-                )
-            else:
-                package_dir = build_item_preview_package(
-                    item,
-                    token=token,
-                    output_root=root,
-                    stop_event=stop_event,
-                    include_material_resources=full_stage,
-                    render_settings=render_settings,
-                    cache_mode=cache_mode,
-                )
-            return _PreviewBuildProduct(package_dir, upgrade_source, "materials" if full_stage else "geometry")
-
+        task = _PreviewPackageTask(
+            output_root=root,
+            token=token,
+            candidate=candidate_source,
+            is_placement=is_placement,
+            full_stage=full_stage,
+            base_package=base_package,
+            render_settings=render_settings,
+            cache_mode=cache_mode,
+            native_preview_core_cache_root=native_preview_core_cache_root,
+            source_usage_required=callable(acquire_usage),
+            source_usage_acquired=source_usage is not None,
+        )
         self._launch_package_worker(task, source_usage)
 
     def _launch_package_worker(self, task: Callable, source_usage: object) -> None:
@@ -717,10 +852,14 @@ class ItemPreviewFrame(QWidget):
     def _progressive_package_ready(self, current: int, total: int, package_path: str) -> None:
         """Load the immutable geometry package while the same worker finishes materials."""
 
-        if int(current) != 1 or int(total) != 2 or not str(package_path or "").strip():
+        step = (int(current), int(total))
+        if step not in {(1, 2), (1, 3), (2, 3)} or not str(package_path or "").strip():
             return
         building = self._building
-        self._package_ready(Path(package_path), stage="geometry")
+        self._package_ready(
+            Path(package_path),
+            stage="geometry" if step[0] == 1 else "fast_materials",
+        )
         if (
             building is not None
             and not self._closed
@@ -832,7 +971,7 @@ class ItemPreviewFrame(QWidget):
                 self.status_changed.emit("")
                 return
         previous = self._package_dir
-        reset_view = previous is None or stage != "materials" or self._loaded_token != token
+        reset_view = previous is None or stage == "geometry" or self._loaded_token != token
         if self.host.load_package(result, reset_view=reset_view):
             self._package_dir = result
             if previous is not None and previous != result:
@@ -868,7 +1007,11 @@ class ItemPreviewFrame(QWidget):
             for package in retired:
                 if package != self._package_dir:
                     self._remove_package(package)
-            building_materials = self._building is not None and self._building[2] == "materials"
+            building_materials = (
+                self._building is not None
+                and self._building[2] == "materials"
+                and self._loaded_stage != "materials"
+            )
             self.status_changed.emit("Loading model textures…" if building_materials else "")
             self.ready.emit()
         elif str(state) == "error":

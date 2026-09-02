@@ -146,7 +146,9 @@ and the same cancellable worker reads the template geometry and retains its boun
 centroid for later re-fit. Weapon-family paths use the grip/heavy-end fit; armour,
 accessories and other families keep a centred axis fit instead of being interpreted as
 weapons.
-`item_preview.py` owns the resident frame and publishes fitted geometry first;
+`item_preview.py` owns the resident frame and publishes fitted geometry, direct
+DDS textures, and then the complete synthesized material tier without resetting
+the resident camera;
 `item_preview_materials.py` owns placement-scene composition and the copied-package
 canonical-material upgrade, without restarting the renderer, re-exporting geometry or resetting
 the camera. `panels_model.py` builds the three-column surface while

@@ -388,6 +388,37 @@ def _model_library_cached_preview_result(
     }
 
 
+def _build_model_library_fast_package(
+    model: object,
+    *,
+    cache_root: Path,
+    cache_identity: str | None,
+    import_path: Path,
+    cache_max_bytes: int,
+    cache_target_bytes: int,
+    stop_event: threading.Event | None,
+    summary_metadata: Mapping[str, object],
+) -> str:
+    cache_mode = _PREVIEW_PACKAGE_CACHE_MODE if cache_identity is not None else "off"
+    package = build_or_lookup_dotnet_preview_package_from_model(
+        model,
+        cache_root=cache_root,
+        archive_identity=cache_identity or f"model-library-uncached:{import_path}",
+        cache_mode=cache_mode,
+        max_bytes=cache_max_bytes,
+        target_bytes=cache_target_bytes,
+        cancelled=(stop_event.is_set if stop_event is not None else None),
+        material_quality="direct",
+        metadata={
+            "surface": "model_library",
+            "source_path": str(import_path),
+            "model_library_summary_schema": _MODEL_LIBRARY_CACHE_SUMMARY_SCHEMA,
+            "model_library_summary": dict(summary_metadata),
+        },
+    )
+    return str(package.package_dir)
+
+
 def prepare_model_library_inline_preview(
     source_path: Path | str,
     *,
@@ -449,6 +480,7 @@ def prepare_model_library_inline_preview(
         cached_hit = lookup_rust_preview_package_hit_from_model_identity(
             cache_root=cache_root,
             archive_identity=cache_identity,
+            material_quality="direct",
             cancelled=(stop_event.is_set if stop_event is not None else None),
         )
         lookup_ms = max(0.0, (time.perf_counter() - lookup_started) * 1000.0)
@@ -546,23 +578,15 @@ def prepare_model_library_inline_preview(
         "audit_false_positive": bool(getattr(audit, "false_positive", False)),
         "audit_mixed_model": bool(getattr(audit, "mixed_model", False)),
     }
-    effective_cache_mode = _PREVIEW_PACKAGE_CACHE_MODE if cache_identity is not None else "off"
-    package_dir = str(
-        build_or_lookup_dotnet_preview_package_from_model(
-            prepared_model,
-            cache_root=cache_root,
-            archive_identity=cache_identity or f"model-library-uncached:{resolved_import_path}",
-            cache_mode=effective_cache_mode,
-            max_bytes=cache_max_bytes,
-            target_bytes=cache_target_bytes,
-            cancelled=(stop_event.is_set if stop_event is not None else None),
-            metadata={
-                "surface": "model_library",
-                "source_path": str(resolved_import_path),
-                "model_library_summary_schema": _MODEL_LIBRARY_CACHE_SUMMARY_SCHEMA,
-                "model_library_summary": summary_metadata,
-            },
-        ).package_dir
+    package_dir = _build_model_library_fast_package(
+        prepared_model,
+        cache_root=cache_root,
+        cache_identity=cache_identity,
+        import_path=resolved_import_path,
+        cache_max_bytes=cache_max_bytes,
+        cache_target_bytes=cache_target_bytes,
+        stop_event=stop_event,
+        summary_metadata=summary_metadata,
     )
     package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
     raise_if_cancelled(stop_event)

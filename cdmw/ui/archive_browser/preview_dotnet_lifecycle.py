@@ -166,15 +166,11 @@ class ArchivePreviewDotNetLifecycleMixin:
         )
 
     def _archive_active_package_has_textures(self) -> bool:
-        package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
-        if package_dir is None:
-            return False
-        try:
-            payload = json.loads((Path(package_dir) / "net_materials.json").read_text(encoding="utf-8-sig"))
-        except (OSError, TypeError, ValueError):
-            return False
-        resources = payload.get("resources", ()) if isinstance(payload, Mapping) else ()
-        return bool(resources) and isinstance(resources, Sequence) and not isinstance(resources, (str, bytes, bytearray))
+        from cdmw.ui.archive_browser.preview_state import archive_model_package_has_textures
+
+        return archive_model_package_has_textures(
+            getattr(self, "archive_isolated_renderer_active_package", None)
+        )
 
     def _request_archive_preview_textures(self, *, automatic: bool = False) -> bool:
         current = getattr(self, "_current_archive_entry", lambda: None)()

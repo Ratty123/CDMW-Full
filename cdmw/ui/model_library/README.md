@@ -20,6 +20,11 @@ re-selecting a model or toggling Flip V back skips parsing and packaging. An
 unsupported or incomplete dependency shape bypasses durable reuse rather than
 risking stale rendering.
 
+Inline packages use the shared Rust direct-texture tier: authored DDS resources
+remain visible, while full PAC/PAC_XML material synthesis stays reserved for
+surfaces that promote to the complete tier. Direct packages have their own
+durable cache identity and cannot be mistaken for a full-material package.
+
 ZIP discovery/extraction and generic Preview/Import path resolution run through
 the Model Library task worker. Results are discarded when the selected row
 changes. The shell imports scene geometry and scans texture/sidecar companions

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Optional
 
@@ -68,7 +68,70 @@ def archive_model_manifest_source_path(package_dir: Path | str) -> str:
         return ""
     if not isinstance(payload, Mapping):
         return ""
+    source = payload.get("source")
+    if isinstance(source, Mapping):
+        nested_path = str(source.get("path", "") or "").strip()
+        if nested_path:
+            return nested_path
     return str(payload.get("source_path", "") or "").strip()
+
+
+def archive_model_manifest_source_identity(
+    package_dir: Path | str,
+) -> tuple[str, str]:
+    """Return a stable source identity across direct/full Rust package tiers."""
+
+    try:
+        payload = json.loads(
+            (Path(package_dir) / "manifest.json").read_text(encoding="utf-8-sig")
+        )
+    except (OSError, TypeError, ValueError):
+        return "", ""
+    if not isinstance(payload, Mapping):
+        return "", ""
+    source = payload.get("source")
+    if isinstance(source, Mapping):
+        source_path = str(source.get("path", "") or "").replace("\\", "/").strip().casefold()
+        source_hash = str(source.get("sha256", "") or "").strip().casefold()
+    else:
+        source_path = str(payload.get("source_path", "") or "").replace("\\", "/").strip().casefold()
+        source_hash = str(payload.get("source_sha256", "") or "").strip().casefold()
+    return source_path, source_hash
+
+
+def archive_model_packages_share_source(
+    first_package: Path | str | None,
+    second_package: Path | str | None,
+) -> bool:
+    if first_package is None or second_package is None:
+        return False
+    first = archive_model_manifest_source_identity(first_package)
+    second = archive_model_manifest_source_identity(second_package)
+    return bool(any(first) and any(second) and first == second)
+
+
+def archive_model_package_has_textures(package_dir: Path | str | None) -> bool:
+    """Recognize Rust manifest textures and the older net-material resource list."""
+
+    if package_dir is None:
+        return False
+    root = Path(package_dir)
+    for manifest_name, resources_key in (
+        ("manifest.json", "textures"),
+        ("net_materials.json", "resources"),
+    ):
+        try:
+            payload = json.loads((root / manifest_name).read_text(encoding="utf-8-sig"))
+        except (OSError, TypeError, ValueError):
+            continue
+        resources = payload.get(resources_key, ()) if isinstance(payload, Mapping) else ()
+        if (
+            isinstance(resources, Sequence)
+            and not isinstance(resources, (str, bytes, bytearray))
+            and bool(resources)
+        ):
+            return True
+    return False
 
 
 def archive_model_initial_view_state(source_path: object = "") -> dict[str, object]:

@@ -14,6 +14,7 @@ from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.ui.archive_browser.preview_state import (
     archive_model_initial_view_state,
     archive_model_manifest_source_path,
+    archive_model_packages_share_source,
 )
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.models import ArchivePreviewResult
@@ -133,8 +134,6 @@ class ArchivePreviewResultMixin:
         if preferred_view == "model" and dotnet_package_path and not self.archive_preview_showing_loose:
             if request_id is not None and request_id != self.archive_preview_request_id:
                 return 0.0
-            if str(getattr(result, "quality_tier", "") or "").strip().lower() == "fast":
-                return 0.0
             model_apply_started_at = time.perf_counter()
             package_dir = Path(dotnet_package_path)
             valid_package, missing_paths = validate_dotnet_preview_package(package_dir)
@@ -158,7 +157,8 @@ class ArchivePreviewResultMixin:
                         finish_texture_request(texture_request_id, success=False, message=message)
                     return -1.0
                 return 0.0
-            same_model = package_dir == getattr(self, "archive_isolated_renderer_active_package", None)
+            active_package = getattr(self, "archive_isolated_renderer_active_package", None)
+            same_model = package_dir == active_package or archive_model_packages_share_source(package_dir, active_package)
             detail_text = self._detail_text_with_renderer_note(detail_text, None)
             self._set_archive_preview_base_detail_text(detail_text, include_current_model_debug=False)
             self.archive_media_preview.clear_media("No media preview available.")

@@ -4700,6 +4700,21 @@ def _mesh_synthesized_texture_overrides(
     return overrides
 
 
+def _mesh_material_synthesis_context(
+    root: Path,
+    mesh: ParsedMesh,
+    *,
+    has_layer_manifest: bool,
+    enabled: bool,
+):
+    if not enabled or not (_mesh_has_material_synthesis_inputs(mesh) or has_layer_manifest):
+        return nullcontext(None)
+    return tempfile.TemporaryDirectory(
+        prefix="cdmw-rust-material-synthesis-",
+        dir=root.parent,
+    )
+
+
 def _mesh_texture_payloads(
     root: Path,
     mesh: ParsedMesh,
@@ -4709,6 +4724,7 @@ def _mesh_texture_payloads(
     synthesis_state: _RustMaterialSynthesisState | None = None,
     material_package_path: object = "",
     preview_texture_overrides: Mapping[tuple[int, int, str], Path] | None = None,
+    enable_material_synthesis: bool = True,
 ) -> list[dict[str, object]]:
     lods = _mesh_lods(mesh)
     material_synthesis = synthesis_state or _RustMaterialSynthesisState()
@@ -4730,13 +4746,11 @@ def _mesh_texture_payloads(
         package_root is not None
         and (package_root / "net_materials.json").is_file()
     )
-    synthesis_context = (
-        tempfile.TemporaryDirectory(
-            prefix="cdmw-rust-material-synthesis-",
-            dir=root.parent,
-        )
-        if _mesh_has_material_synthesis_inputs(mesh) or has_layer_manifest
-        else nullcontext(None)
+    synthesis_context = _mesh_material_synthesis_context(
+        root,
+        mesh,
+        has_layer_manifest=has_layer_manifest,
+        enabled=enable_material_synthesis,
     )
     with synthesis_context as synthesis_temporary:
         synthesized: dict[tuple[int, int, str], Path] = dict(

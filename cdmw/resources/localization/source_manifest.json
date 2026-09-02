@@ -3352,6 +3352,21 @@
       ]
     },
     {
+      "key": "A direct Rust preview package cannot request another fast tier.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_cache.py",
+          "line": 669,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_preview_cache.py",
+          "line": 873,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "A little is normal; a lot means the item is buried. It is measured on demand because the check is too slow to run on every frame of a playing animation.",
       "origins": [
         {
@@ -8181,7 +8196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 234,
+          "line": 297,
           "sink": "setText"
         }
       ]
@@ -8286,32 +8301,32 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 76,
+          "line": 77,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 76,
+          "line": 77,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 105,
+          "line": 106,
           "sink": "set_preview_image"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 105,
+          "line": 106,
           "sink": "set_preview_image"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 107,
+          "line": 108,
           "sink": "set_preview_image_path"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 107,
+          "line": 108,
           "sink": "set_preview_image_path"
         }
       ]
@@ -9551,7 +9566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 879,
+          "line": 881,
           "sink": "_write_crash_report"
         }
       ]
@@ -9616,7 +9631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 921,
+          "line": 923,
           "sink": "_write_crash_report"
         }
       ]
@@ -9646,7 +9661,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 889,
+          "line": 891,
           "sink": "set_status_message"
         }
       ]
@@ -14461,7 +14476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 569,
+          "line": 814,
           "sink": "emit"
         }
       ]
@@ -15491,7 +15506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 540,
+          "line": 543,
           "sink": "set_status_message"
         }
       ]
@@ -16181,7 +16196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 911,
+          "line": 1059,
           "sink": "emit"
         }
       ]
@@ -16221,7 +16236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 890,
+          "line": 1038,
           "sink": "emit"
         }
       ]
@@ -16436,7 +16451,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 199,
+          "line": 262,
           "sink": "setText"
         },
         {
@@ -16466,7 +16481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 198,
+          "line": 261,
           "sink": "setText"
         }
       ]
@@ -16481,7 +16496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 212,
+          "line": 275,
           "sink": "setPlainText"
         }
       ]
@@ -16841,7 +16856,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 372,
+          "line": 374,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -17471,7 +17486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 378,
+          "line": 374,
           "sink": "setToolTip"
         }
       ]
@@ -26851,7 +26866,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 505,
+          "line": 526,
           "sink": "ValueError"
         }
       ]
@@ -30106,7 +30121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 212,
+          "line": 275,
           "sink": "setPlainText"
         }
       ]
@@ -33666,7 +33681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 874,
+          "line": 876,
           "sink": "set_status_message"
         }
       ]
@@ -35811,7 +35826,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 199,
+          "line": 262,
           "sink": "setText"
         },
         {
@@ -35936,7 +35951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 198,
+          "line": 261,
           "sink": "setText"
         }
       ]
@@ -35966,7 +35981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 212,
+          "line": 275,
           "sink": "setPlainText"
         }
       ]
@@ -36846,7 +36861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 930,
+          "line": 932,
           "sink": "set_status_message"
         }
       ]
@@ -36861,7 +36876,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 481,
+          "line": 483,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -41108,6 +41123,16 @@
           "path": "cdmw/ui/shell/language_controller.py",
           "line": 178,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Imported model preview cancelled",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_preview_mixin.py",
+          "line": 97,
+          "sink": "RunCancelled"
         }
       ]
     },
@@ -46031,12 +46056,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 369,
+          "line": 365,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 394,
+          "line": 390,
           "sink": "setText"
         },
         {
@@ -46086,7 +46111,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 469,
+          "line": 501,
           "sink": "progress"
         }
       ]
@@ -46096,12 +46121,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 372,
+          "line": 374,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 406,
+          "line": 408,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -46471,17 +46496,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 571,
+          "line": 816,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 729,
+          "line": 873,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 867,
+          "line": 1015,
           "sink": "emit"
         }
       ]
@@ -46621,7 +46646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 196,
+          "line": 192,
           "sink": "set_status_message"
         }
       ]
@@ -46631,7 +46656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 365,
+          "line": 361,
           "sink": "setText"
         }
       ]
@@ -46656,7 +46681,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 841,
+          "line": 985,
           "sink": "emit"
         }
       ]
@@ -47096,7 +47121,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 234,
+          "line": 297,
           "sink": "setText"
         }
       ]
@@ -47106,7 +47131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 83,
+          "line": 84,
           "sink": "_update_archive_preview_warning_controls"
         }
       ]
@@ -48161,7 +48186,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 458,
+          "line": 460,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -48181,7 +48206,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 458,
+          "line": 460,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -53531,7 +53556,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 650,
+          "line": 674,
           "sink": "RuntimeError"
         }
       ]
@@ -53541,7 +53566,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 648,
+          "line": 672,
           "sink": "RuntimeError"
         }
       ]
@@ -53551,7 +53576,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 660,
+          "line": 684,
           "sink": "ValueError"
         }
       ]
@@ -53561,7 +53586,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 653,
+          "line": 677,
           "sink": "RuntimeError"
         }
       ]
@@ -55186,7 +55211,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 785,
+          "line": 842,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -55326,12 +55351,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 785,
+          "line": 842,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 823,
+          "line": 881,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -55376,7 +55401,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 823,
+          "line": 881,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -55501,12 +55526,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 785,
+          "line": 842,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 823,
+          "line": 881,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -57851,7 +57876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 108,
+          "line": 109,
           "sink": "clear_media"
         },
         {
@@ -62871,12 +62896,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 541,
+          "line": 601,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 583,
+          "line": 643,
           "sink": "raise_if_cancelled"
         },
         {
@@ -62891,7 +62916,17 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 574,
+          "line": 116,
+          "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 342,
+          "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 345,
           "sink": "RunCancelled"
         },
         {
@@ -65051,12 +65086,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 372,
+          "line": 374,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 406,
+          "line": 408,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -69676,7 +69711,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 617,
+          "line": 641,
           "sink": "progress"
         }
       ]
@@ -70281,7 +70316,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 562,
+          "line": 583,
           "sink": "ValueError"
         }
       ]
@@ -70291,7 +70326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 516,
+          "line": 537,
           "sink": "ValueError"
         }
       ]
@@ -70301,7 +70336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 310,
+          "line": 320,
           "sink": "ValueError"
         }
       ]
@@ -70311,7 +70346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 273,
+          "line": 283,
           "sink": "ValueError"
         }
       ]
@@ -70321,7 +70356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 277,
+          "line": 287,
           "sink": "ValueError"
         }
       ]
@@ -70331,7 +70366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 279,
+          "line": 289,
           "sink": "ValueError"
         }
       ]
@@ -70341,7 +70376,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 785,
+          "line": 842,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -70381,7 +70416,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 823,
+          "line": 881,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -70401,7 +70436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 566,
+          "line": 587,
           "sink": "ValueError"
         }
       ]
@@ -70421,7 +70456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 495,
+          "line": 516,
           "sink": "ValueError"
         }
       ]
@@ -70431,7 +70466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 497,
+          "line": 518,
           "sink": "ValueError"
         }
       ]
@@ -70451,7 +70486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 507,
+          "line": 528,
           "sink": "ValueError"
         }
       ]
@@ -70461,7 +70496,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 551,
+          "line": 572,
           "sink": "ValueError"
         }
       ]
@@ -70471,7 +70506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 509,
+          "line": 530,
           "sink": "ValueError"
         }
       ]
@@ -70846,12 +70881,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 888,
+          "line": 890,
           "sink": "_clear_archive_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 935,
+          "line": 937,
           "sink": "_clear_archive_preview"
         },
         {
@@ -70906,12 +70941,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 105,
+          "line": 106,
           "sink": "set_preview_image"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 107,
+          "line": 108,
           "sink": "set_preview_image_path"
         }
       ]
@@ -71076,12 +71111,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 77,
+          "line": 78,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 77,
+          "line": 78,
           "sink": "setText"
         },
         {
@@ -71381,7 +71416,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 162,
+          "line": 165,
           "sink": "ValueError"
         }
       ]
@@ -71391,7 +71426,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 184,
+          "line": 187,
           "sink": "ValueError"
         }
       ]
@@ -71401,7 +71436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 160,
+          "line": 163,
           "sink": "ValueError"
         }
       ]
@@ -71411,7 +71446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 182,
+          "line": 185,
           "sink": "ValueError"
         }
       ]
@@ -71421,7 +71456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 133,
+          "line": 136,
           "sink": "ValueError"
         }
       ]
@@ -71431,7 +71466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 135,
+          "line": 138,
           "sink": "ValueError"
         }
       ]
@@ -71441,7 +71476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 139,
+          "line": 142,
           "sink": "ValueError"
         }
       ]
@@ -71526,7 +71561,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 483,
+          "line": 666,
           "sink": "ValueError"
         },
         {
@@ -72396,7 +72431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 287,
+          "line": 290,
           "sink": "ValueError"
         }
       ]
@@ -72516,7 +72551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 872,
+          "line": 874,
           "sink": "set_status_message"
         }
       ]
@@ -73171,7 +73206,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 472,
+          "line": 504,
           "sink": "progress"
         }
       ]
@@ -74146,7 +74181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 531,
+          "line": 534,
           "sink": "_set_archive_preview_health_message"
         }
       ]
@@ -74206,7 +74241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 530,
+          "line": 533,
           "sink": "setText"
         }
       ]
@@ -75441,7 +75476,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 493,
+          "line": 525,
           "sink": "progress"
         }
       ]
@@ -75726,7 +75761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 90,
+          "line": 153,
           "sink": "python-return:archive_model_preview_refresh_tooltip"
         }
       ]
@@ -79021,7 +79056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 367,
+          "line": 363,
           "sink": "setToolTip"
         }
       ]
@@ -79151,7 +79186,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 419,
+          "line": 450,
           "sink": "progress"
         }
       ]
@@ -80976,7 +81011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 212,
+          "line": 275,
           "sink": "setPlainText"
         }
       ]
@@ -81351,7 +81386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8315,
+          "line": 8329,
           "sink": "RuntimeError"
         }
       ]
@@ -81676,7 +81711,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7820,
+          "line": 7834,
           "sink": "RuntimeError"
         }
       ]
@@ -81686,7 +81721,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7759,
+          "line": 7773,
           "sink": "RuntimeError"
         }
       ]
@@ -81696,7 +81731,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7755,
+          "line": 7769,
           "sink": "RuntimeError"
         }
       ]
@@ -81706,7 +81741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7730,
+          "line": 7744,
           "sink": "RuntimeError"
         }
       ]
@@ -82132,6 +82167,16 @@
       ]
     },
     {
+      "key": "Rust Preview material tier: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 842,
+          "sink": "ArchivePreviewResult"
+        }
+      ]
+    },
+    {
       "key": "Rust Preview mesh context hit no source part.",
       "origins": [
         {
@@ -82386,7 +82431,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 785,
+          "line": 842,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -82396,7 +82441,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 372,
+          "line": 374,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -82416,7 +82461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 154,
+          "line": 153,
           "sink": "setText"
         }
       ]
@@ -82426,7 +82471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 153,
+          "line": 152,
           "sink": "set_status_message"
         },
         {
@@ -82596,7 +82641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 153,
+          "line": 152,
           "sink": "set_status_message"
         },
         {
@@ -83041,12 +83086,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6134,
+          "line": 6148,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6232,
+          "line": 6246,
           "sink": "RuntimeError"
         }
       ]
@@ -83056,7 +83101,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 553,
+          "line": 562,
           "sink": "RuntimeError"
         }
       ]
@@ -83126,7 +83171,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1000,
+          "line": 1017,
           "sink": "ValueError"
         }
       ]
@@ -83136,7 +83181,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1009,
+          "line": 1026,
           "sink": "ValueError"
         }
       ]
@@ -83146,7 +83191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 637,
+          "line": 775,
           "sink": "RuntimeError"
         }
       ]
@@ -83181,12 +83226,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 62,
+          "line": 65,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 216,
+          "line": 226,
           "sink": "RunCancelled"
         }
       ]
@@ -83536,7 +83581,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 458,
+          "line": 460,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -86376,12 +86421,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 216,
+          "line": 279,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 217,
+          "line": 280,
           "sink": "clear_media"
         },
         {
@@ -86406,7 +86451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 212,
+          "line": 275,
           "sink": "setPlainText"
         }
       ]
@@ -87236,12 +87281,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 118,
+          "line": 181,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 197,
+          "line": 260,
           "sink": "setText"
         },
         {
@@ -94716,7 +94761,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 642,
+          "line": 666,
           "sink": "progress"
         }
       ]
@@ -96656,7 +96701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 355,
+          "line": 415,
           "sink": "RunCancelled"
         }
       ]
@@ -97826,7 +97871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 344,
+          "line": 340,
           "sink": "set_status_message"
         },
         {
@@ -98216,7 +98261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 238,
+          "line": 234,
           "sink": "set_status_message"
         }
       ]
@@ -98226,7 +98271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 238,
+          "line": 234,
           "sink": "set_status_message"
         }
       ]
@@ -98856,7 +98901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 909,
+          "line": 1057,
           "sink": "emit"
         }
       ]
@@ -99371,7 +99416,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 823,
+          "line": 881,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -99403,6 +99448,16 @@
           "path": "cdmw/ui/texture_workflow/editor_handoff.py",
           "line": 167,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "The material preview ended without a package.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 289,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -99491,7 +99546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 153,
+          "line": 152,
           "sink": "set_status_message"
         },
         {
@@ -99531,7 +99586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 651,
+          "line": 711,
           "sink": "emit"
         }
       ]
@@ -99786,7 +99841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 227,
+          "line": 223,
           "sink": "_finish_archive_texture_request"
         }
       ]
@@ -99816,7 +99871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 734,
+          "line": 878,
           "sink": "emit"
         }
       ]
@@ -99826,7 +99881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 416,
+          "line": 412,
           "sink": "set_status_message"
         }
       ]
@@ -99946,7 +100001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 309,
+          "line": 551,
           "sink": "setText"
         }
       ]
@@ -99976,7 +100031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 844,
+          "line": 988,
           "sink": "emit"
         }
       ]
@@ -100301,7 +100356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 601,
+          "line": 661,
           "sink": "emit"
         }
       ]
@@ -100371,7 +100426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 887,
+          "line": 1035,
           "sink": "emit"
         }
       ]
@@ -100381,12 +100436,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 292,
+          "line": 534,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 368,
+          "line": 610,
           "sink": "setText"
         }
       ]
@@ -101711,7 +101766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 212,
+          "line": 275,
           "sink": "setPlainText"
         }
       ]
@@ -101731,7 +101786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 212,
+          "line": 275,
           "sink": "setPlainText"
         }
       ]
@@ -102721,7 +102776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 374,
+          "line": 370,
           "sink": "setToolTip"
         }
       ]
@@ -103331,7 +103386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 271,
+          "line": 281,
           "sink": "ValueError"
         }
       ]
@@ -103351,7 +103406,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 815,
+          "line": 835,
           "sink": "ValueError"
         }
       ]
@@ -103361,17 +103416,27 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 587,
+          "line": 870,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 688,
+          "line": 925,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 809,
+          "line": 829,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported Rust preview material quality: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 104,
           "sink": "ValueError"
         }
       ]
@@ -103471,7 +103536,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 417,
+          "line": 448,
           "sink": "ValueError"
         }
       ]
@@ -104436,7 +104501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 212,
+          "line": 275,
           "sink": "setPlainText"
         }
       ]
@@ -105011,7 +105076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 83,
+          "line": 84,
           "sink": "_update_archive_preview_warning_controls"
         }
       ]
@@ -106421,12 +106486,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 372,
+          "line": 374,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 406,
+          "line": 408,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -108796,7 +108861,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 522,
+          "line": 554,
           "sink": "progress"
         }
       ]
@@ -113736,7 +113801,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 823,
+          "line": 881,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -113986,7 +114051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6698,
+          "line": 6712,
           "sink": "open_edit_session"
         },
         {
@@ -114646,7 +114711,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 823,
+          "line": 881,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -115902,6 +115967,16 @@
       ]
     },
     {
+      "key": "fast",
+      "origins": [
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 707,
+          "sink": "_native_preview_core_package_result"
+        }
+      ]
+    },
+    {
       "key": "fbx",
       "origins": [
         {
@@ -116443,6 +116518,11 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 340,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 764,
+          "sink": "_native_preview_core_package_result"
         },
         {
           "path": "tools/placement_studio/window_constraints.py",
@@ -117486,7 +117566,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 481,
+          "line": 483,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -119936,17 +120016,17 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 785,
+          "line": 842,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 372,
+          "line": 374,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 406,
+          "line": 408,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -121386,22 +121466,22 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 785,
+          "line": 842,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 372,
+          "line": 374,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 406,
+          "line": 408,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 481,
+          "line": 483,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -123091,7 +123171,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 481,
+          "line": 483,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -124446,7 +124526,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 458,
+          "line": 460,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -201361,7 +201441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 121,
+          "line": 335,
           "sink": "ValueError"
         }
       ]
@@ -205131,7 +205211,7 @@
       "origins": [
         {
           "path": "cdmw/services/model_library_preview.py",
-          "line": 426,
+          "line": 457,
           "sink": "ValueError"
         }
       ]
@@ -206426,7 +206506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_state.py",
-          "line": 201,
+          "line": 264,
           "sink": "_set_archive_preview_health_message"
         }
       ]
@@ -206811,7 +206891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 77,
+          "line": 78,
           "sink": "setText"
         },
         {
@@ -206861,7 +206941,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 481,
+          "line": 483,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -206976,12 +207056,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 372,
+          "line": 374,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 406,
+          "line": 408,
           "sink": "ArchivePreviewResult"
         }
       ]

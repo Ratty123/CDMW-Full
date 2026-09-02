@@ -21,6 +21,7 @@ from cdmw.models import (
     ModelPreviewMesh,
     ModelPreviewRenderSettings,
 )
+from cdmw.rendering.native_preview_core import NativePreviewCoreAttempt
 from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
 from cdmw.ui.archive_browser.preview_loading import ArchivePreviewLoadingMixin
 from cdmw.ui.archive_browser.workers import _archive_preview_debounce_ms
@@ -116,7 +117,7 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
                     side_effect=prepare,
                 ),
                 patch(
-                    "cdmw.workers.archive_preview_workers.build_or_lookup_dotnet_preview_package_from_model",
+                    "cdmw.workers.archive_preview_workers.build_or_lookup_rust_preview_package_from_model",
                     return_value=SimpleNamespace(package_dir=package_dir),
                 ),
             ):
@@ -128,6 +129,63 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertEqual(1, len(prepare_calls))
         self.assertIs(False, prepare_calls[0]["enable_material_combiner"])
         self.assertEqual(str(package_dir), result.dotnet_preview_package_path)
+
+    def test_python_fallback_emits_direct_rust_package_before_full_package(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            direct = root / "direct"
+            full = root / "full"
+            worker = ArchivePreviewWorker(
+                request_id=3,
+                entry=_entry("character/model/body.pac", ".pac"),
+                companion_entry=None,
+                texture_entries_by_normalized_path={},
+                texture_entries_by_basename={},
+                sidecar_entries_by_texture_path=None,
+                sidecar_entries_by_texture_basename=None,
+                loose_search_roots=(),
+                attach_preview_images=False,
+                native_preview_package_cache_root=root,
+                progressive_material_preview=True,
+            )
+            model = _preview_model(1)
+            payload = ArchivePreviewResult(
+                status="ok",
+                preview_model=model,
+                preferred_view="model",
+                quality_tier="full",
+            )
+            emitted: list[ArchivePreviewResult] = []
+            worker.completed.connect(lambda _request_id, result: emitted.append(result))
+
+            def build_progressive(_model: object, **kwargs: object):
+                kwargs["fast_package_ready"](SimpleNamespace(package_dir=direct))
+                return SimpleNamespace(package_dir=full)
+
+            with (
+                patch(
+                    "cdmw.workers.archive_preview_workers.build_archive_preview_result",
+                    return_value=payload,
+                ),
+                patch(
+                    "cdmw.workers.archive_preview_workers.prepare_model_preview",
+                    return_value=(model, SimpleNamespace()),
+                ),
+                patch(
+                    "cdmw.workers.archive_preview_workers.build_or_lookup_rust_preview_package_from_model",
+                    side_effect=build_progressive,
+                ),
+            ):
+                result = worker._build_archive_preview_payload(
+                    quality_tier="full",
+                    render_settings=ModelPreviewRenderSettings(use_textures_by_default=True),
+                )
+
+        self.assertEqual(1, len(emitted))
+        self.assertEqual("fast", emitted[0].quality_tier)
+        self.assertEqual(str(direct), emitted[0].dotnet_preview_package_path)
+        self.assertEqual("full", result.quality_tier)
+        self.assertEqual(str(full), result.dotnet_preview_package_path)
 
     def test_python_package_cache_hit_skips_archive_preview_build(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -148,7 +206,7 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
             )
 
             with patch(
-                "cdmw.workers.archive_preview_workers.lookup_dotnet_preview_package_from_model_identity",
+                "cdmw.workers.archive_preview_workers.lookup_rust_preview_package_from_model_identity",
                 return_value=SimpleNamespace(package_dir=package_dir),
             ) as lookup:
                 payload = worker._durable_python_preview_cache_payload()
@@ -232,6 +290,61 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
             worker.run()
 
         self.assertEqual(["quick_build", "quick_emit", "native_build", "full_emit"], order)
+
+    def test_native_preview_emits_direct_rust_package_before_full_package(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            native = root / "native"
+            direct = root / "direct"
+            full = root / "full"
+            native.mkdir()
+            direct.mkdir()
+            full.mkdir()
+            (native / "manifest.json").write_text(
+                '{"schema_version": 8}',
+                encoding="utf-8",
+            )
+            worker = ArchivePreviewWorker(
+                request_id=7,
+                entry=_entry("character/model/body.pac", ".pac"),
+                companion_entry=None,
+                texture_entries_by_normalized_path={},
+                texture_entries_by_basename={},
+                sidecar_entries_by_texture_path=None,
+                sidecar_entries_by_texture_basename=None,
+                loose_search_roots=(),
+                render_settings=ModelPreviewRenderSettings(use_textures_by_default=True),
+                native_preview_core_enabled=True,
+                native_preview_core_cache_root=root,
+                native_preview_package_cache_root=root,
+                progressive_material_preview=True,
+            )
+            emitted: list[ArchivePreviewResult] = []
+            worker.completed.connect(lambda _request_id, payload: emitted.append(payload))
+
+            def build_progressive(_source: object, **kwargs: object):
+                callback = kwargs["fast_package_ready"]
+                callback(SimpleNamespace(package_dir=direct))
+                return SimpleNamespace(package_dir=full)
+
+            attempt = NativePreviewCoreAttempt(
+                status="ok",
+                package_path=str(native),
+                elapsed_ms=125.0,
+            )
+            with patch(
+                "cdmw.workers.archive_preview_native.build_or_lookup_rust_preview_package",
+                side_effect=build_progressive,
+            ):
+                result = worker._native_preview_core_result(attempt, {"native_preview_core_s": 0.125})
+
+        self.assertEqual(1, len(emitted))
+        self.assertEqual("fast", emitted[0].quality_tier)
+        self.assertEqual(str(direct), emitted[0].dotnet_preview_package_path)
+        self.assertEqual("direct", emitted[0].native_preview_diagnostics["rust_preview_material_quality"])
+        self.assertEqual("full", result.quality_tier)
+        self.assertEqual(str(full), result.dotnet_preview_package_path)
+        self.assertEqual("full", result.native_preview_diagnostics["rust_preview_material_quality"])
 
     def test_quick_metadata_keeps_running_native_renderer_source_guard(self) -> None:
         source = Path("cdmw/ui/archive_browser/preview_result.py").read_text(encoding="utf-8")
@@ -872,7 +985,7 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertIn("def _quick_archive_model_preview_payload", worker)
         self.assertIn('source="preview_cache"', worker)
         self.assertIn('source="preview_cache_fast"', worker)
-        self.assertIn('source="dotnet_package_cache"', worker)
+        self.assertIn('source="rust_preview_package_cache"', worker)
         self.assertIn('source="quick_preview"', worker)
         self.assertIn("emit_private_payloads=True", source)
 

@@ -101,6 +101,35 @@ class ItemPreviewPackageTests(unittest.TestCase):
             enable_material_combiner=False,
         )
 
+    def test_imported_preview_forwards_the_direct_texture_callback(self) -> None:
+        from cdmw.models import ModelPreviewData, ModelPreviewMesh
+        from cdmw.ui.new_item import item_preview
+
+        root = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_direct_"))
+        source = ModelPreviewData(meshes=[ModelPreviewMesh()])
+        direct = SimpleNamespace(package_dir=root / "direct")
+        full = SimpleNamespace(package_dir=root / "full")
+        ready = []
+
+        def fake_from_model(_model, **kwargs):
+            kwargs["fast_package_ready"](direct)
+            return full
+
+        with patch(
+            "cdmw.services.mesh_rust_preview_cache.build_or_lookup_rust_preview_package_from_model",
+            side_effect=fake_from_model,
+        ):
+            result = item_preview.build_item_preview_package(
+                source,
+                token="imported",
+                output_root=root,
+                stop_event=threading.Event(),
+                fast_package_ready=ready.append,
+            )
+
+        self.assertEqual(ready, [direct])
+        self.assertEqual(result, full.package_dir)
+
     def test_a_preview_model_goes_the_textured_route_and_a_mesh_the_bare_one(self) -> None:
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
         from cdmw.ui.new_item import item_preview
@@ -832,6 +861,74 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertEqual([call[1][0] for call in loads], [output / "geometry", output / "materials"])
         self.assertEqual([call[2]["reset_view"] for call in loads], [True, False])
         self.assertIs(frame.host, host, "the resident host is reused for both stages")
+        frame.shutdown()
+
+    def test_progressive_template_loads_direct_textures_before_full_materials(self) -> None:
+        from PySide6.QtCore import QEventLoop
+
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame, ProgressivePreviewSource
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_direct_template_"))
+        frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
+        frame._ensure_host()
+
+        def build_package(_source, *, include_material_resources, output_root, **kwargs):
+            if not include_material_resources:
+                package = Path(output_root) / "geometry"
+                package.mkdir(parents=True, exist_ok=True)
+                return package
+            direct = Path(output_root) / "direct"
+            full = Path(output_root) / "full"
+            direct.mkdir(parents=True, exist_ok=True)
+            full.mkdir(parents=True, exist_ok=True)
+            kwargs["fast_package_ready"](SimpleNamespace(package_dir=direct))
+            return full
+
+        source = ProgressivePreviewSource(
+            geometry=lambda _stop: object(),
+            materials=lambda _stop: object(),
+            supports_fast_material_package=True,
+        )
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", build_package):
+            frame.show(source, token=("template", 23))
+            deadline = time.monotonic() + 2.0
+            while (
+                len([call for call in frame.host.calls if call[0] == "load_package"]) < 3
+                and time.monotonic() < deadline
+            ):
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+
+        loads = [call for call in frame.host.calls if call[0] == "load_package"]
+        self.assertEqual(
+            [call[1][0] for call in loads],
+            [output / "geometry", output / "direct", output / "full"],
+        )
+        self.assertEqual([call[2]["reset_view"] for call in loads], [True, False, False])
+        self.assertEqual(frame._loaded_stage, "materials")
+        frame.shutdown()
+
+    def test_full_material_ready_clears_the_texture_loading_status(self) -> None:
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_status_"))
+        package = output / "full"
+        package.mkdir()
+        frame = ItemPreviewFrame(
+            output_root=output,
+            host_factory=self._fake_host_class(),
+        )
+        frame._ensure_host()
+        frame._package_dir = package
+        frame._pending = ("model", object())
+        frame._loaded_token = "model"
+        frame._loaded_stage = "materials"
+        frame._building = ("model", False, "materials")
+        statuses = []
+        frame.status_changed.connect(statuses.append)
+
+        frame._host_state("ready", "")
+
+        self.assertEqual(statuses[-1], "")
         frame.shutdown()
 
     def test_progressive_template_accepts_a_native_package_without_python_recompile(self) -> None:
