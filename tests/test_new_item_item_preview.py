@@ -159,6 +159,8 @@ class ItemPreviewPackageTests(unittest.TestCase):
             self.assertEqual(reference.submeshes[1].material, "effect_character_body")
             self.assertEqual(len(_mesh.submeshes), 1, "only the item remains editable")
             self.assertEqual(kwargs["comparison_mode"], "overlay")
+            self.assertEqual(kwargs["interaction_mode"], "placement")
+            self.assertEqual(kwargs["reference_draw"], "wire")
             transform = kwargs["scene_transform"]
             self.assertEqual(transform.alignment_mode, "manual")
             self.assertEqual(transform.offset_xyz, (0.0, 0.0, -0.3))
@@ -557,8 +559,16 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertEqual(host.calls[-1][2]["translation"], (1.0, 2.0, 3.0))
         frame.set_gizmo_tool("rotate")
         self.assertIn(("set_alignment_gizmo_tool", ("rotate",), {}), host.calls)
+        host.calls.clear()
         frame.set_view_mode("side_by_side")
-        self.assertIn(("set_display_mode", ("side_by_side",), {}), host.calls)
+        self.assertEqual(
+            host.calls,
+            [
+                ("set_display_mode", ("side_by_side",), {}),
+                ("reset_view", (), {}),
+            ],
+            "showing a different role layout must immediately frame both visible models",
+        )
         frame.set_gizmo_enabled(False)
         self.assertFalse(next(c for c in reversed(host.calls) if c[0] == "set_alignment_state")[2]["enabled"])
         # the same token with a new placement only re-presents
@@ -929,7 +939,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
         texture = output / "item.png"
         Image.new("RGBA", (4, 4), (32, 96, 192, 255)).save(texture)
         mesh.submeshes[0].preview_texture_path = str(texture)
-        scene = PlacementScene(template=None, model=mesh, placement=ModelPlacement())
+        scene = PlacementScene(template=mesh, model=mesh, placement=ModelPlacement())
         geometry = build_item_preview_package(
             scene,
             token="geometry",
@@ -951,6 +961,15 @@ class ItemPreviewFrameTests(unittest.TestCase):
         material_manifest = json.loads((materials / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(geometry_manifest["textures"], [])
         self.assertGreaterEqual(len(material_manifest["textures"]), 1)
+        for manifest in (geometry_manifest, material_manifest):
+            preview_scene = manifest["state"]["preview_scene"]
+            self.assertEqual(preview_scene["interaction_mode"], "placement")
+            self.assertEqual(preview_scene["comparison_mode"], "overlay")
+            self.assertEqual(preview_scene["reference_draw"], "wire")
+            self.assertGreater(preview_scene["editable_submesh_count"], 0)
+            self.assertGreater(preview_scene["reference_submesh_count"], 0)
+            self.assertTrue(preview_scene["grid"]["visible"])
+            self.assertTrue(preview_scene["gizmo"]["visible"])
 
 
 if __name__ == "__main__":

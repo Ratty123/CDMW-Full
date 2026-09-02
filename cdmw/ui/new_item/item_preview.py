@@ -159,6 +159,8 @@ def build_item_preview_package(
             reference_mesh=reference_mesh,
             comparison_mode="overlay",
             interaction_profile="static_replacement",
+            interaction_mode="placement",
+            reference_draw="wire",
             cancelled=stop_event.is_set,
             scene_transform=item.placement.build_transform(origin=item.model_origin),
             include_material_resources=bool(include_material_resources),
@@ -465,9 +467,12 @@ class ItemPreviewFrame(QWidget):
         mode = str(mode or "overlay").strip().lower()
         if mode not in PLACEMENT_VIEW_MODES:
             return
+        changed = mode != self._view_mode
         self._view_mode = mode
         if self.is_ready and self.host is not None and self._placement is not None:
-            self.host.set_display_mode(mode)
+            applied = self.host.set_display_mode(mode)
+            if changed and applied:
+                self.fit_view()
 
     def set_grid_visible(self, visible: bool) -> None:
         self._grid_visible = bool(visible)

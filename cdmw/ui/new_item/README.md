@@ -163,7 +163,13 @@ are disabled. Preview-loading text stays in that pinned operation bar while erro
 ready/capture messages remain below the viewport. Imported-material, Glow and
 template-specific controls live with the model; alternate sheathed/holstered visuals
 and inherited cloth/physics are hidden when the selected family cannot use them. The
-viewport shows the model over the template with the gizmo (`PlacementScene`), a glow
+viewport shows the model over the template with the grid and gizmo (`PlacementScene`).
+Both the geometry-first and canonical-material stages declare a placement scene: Overlay keeps
+the game's template fixed as a wire guide while the imported, textured model is the only editable
+role. Side by side and Template only expose the full reference presentation, and changing among
+the four view modes immediately frames the roles that are now visible. The grid stays anchored to
+the scene frame; Move, Rotate and Scale change only the imported model around its fitted source
+origin, so the template remains the in-game placement authority. A glow
 ticked on the step lights its parts in that
 viewport live (`glow_preview_parameter_groups` in the materials service builds
 the renderer's parameter groups from the same three values the plan will write,

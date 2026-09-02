@@ -129,6 +129,8 @@ def upgrade_item_preview_package_materials(
         reference_mesh=reference,
         comparison_mode="overlay",
         interaction_profile="static_replacement",
+        interaction_mode="placement",
+        reference_draw="wire",
         scene_transform=item.placement.build_transform(origin=item.model_origin),
         cancelled=stop_event.is_set,
         include_material_resources=True,
