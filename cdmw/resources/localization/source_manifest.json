@@ -26847,6 +26847,16 @@
       ]
     },
     {
+      "key": "Direct Rust preview requires Preview Core schema 8 or newer.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 505,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Direct Upscale Controls (NCNN only)",
       "origins": [
         {
@@ -70267,6 +70277,66 @@
       ]
     },
     {
+      "key": "Preview Core batch identity or vertex count is invalid.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 562,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core batch list is invalid or exceeds the package limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 516,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core binary payload changed while it was copied.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 310,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core binary payload is empty.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 273,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core binary payload is missing.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 277,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core binary payload size does not match its manifest.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 279,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Preview Core decoded the archive model for the canonical Rust Preview preview package.",
       "origins": [
         {
@@ -70327,6 +70397,16 @@
       ]
     },
     {
+      "key": "Preview Core geometry is missing or escaped its package.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 566,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Preview Core manifest has no asset_family payload; the decode package cannot be converted.",
       "origins": [
         {
@@ -70337,12 +70417,62 @@
       ]
     },
     {
+      "key": "Preview Core manifest is missing or invalid.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 495,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core manifest is not an object.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 497,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Preview Core manifest metadata is missing; the decode package cannot be converted.",
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
           "line": 524,
           "sink": "python-return:_native_preview_core_manifest_metadata"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core normalization is invalid.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 507,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core package contains an invalid batch.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 551,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core source format is not supported by Rust Preview.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 509,
+          "sink": "ValueError"
         }
       ]
     },
@@ -71251,7 +71381,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 161,
+          "line": 162,
           "sink": "ValueError"
         }
       ]
@@ -71261,7 +71391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 183,
+          "line": 184,
           "sink": "ValueError"
         }
       ]
@@ -71271,7 +71401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 159,
+          "line": 160,
           "sink": "ValueError"
         }
       ]
@@ -71281,7 +71411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 181,
+          "line": 182,
           "sink": "ValueError"
         }
       ]
@@ -71291,7 +71421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 132,
+          "line": 133,
           "sink": "ValueError"
         }
       ]
@@ -71301,7 +71431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 134,
+          "line": 135,
           "sink": "ValueError"
         }
       ]
@@ -71311,7 +71441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 138,
+          "line": 139,
           "sink": "ValueError"
         }
       ]
@@ -71396,7 +71526,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 482,
+          "line": 483,
           "sink": "ValueError"
         },
         {
@@ -72266,7 +72396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 286,
+          "line": 287,
           "sink": "ValueError"
         }
       ]
@@ -81221,7 +81351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8307,
+          "line": 8315,
           "sink": "RuntimeError"
         }
       ]
@@ -81516,7 +81646,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1827,
+          "line": 1835,
           "sink": "ValueError"
         }
       ]
@@ -81526,7 +81656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1868,
+          "line": 1876,
           "sink": "ValueError"
         }
       ]
@@ -81546,7 +81676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7812,
+          "line": 7820,
           "sink": "RuntimeError"
         }
       ]
@@ -81556,7 +81686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7751,
+          "line": 7759,
           "sink": "RuntimeError"
         }
       ]
@@ -81566,7 +81696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7747,
+          "line": 7755,
           "sink": "RuntimeError"
         }
       ]
@@ -81576,7 +81706,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7722,
+          "line": 7730,
           "sink": "RuntimeError"
         }
       ]
@@ -82911,12 +83041,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6126,
+          "line": 6134,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6224,
+          "line": 6232,
           "sink": "RuntimeError"
         }
       ]
@@ -82926,7 +83056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 544,
+          "line": 553,
           "sink": "RuntimeError"
         }
       ]
@@ -82996,7 +83126,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 422,
+          "line": 1000,
           "sink": "ValueError"
         }
       ]
@@ -83006,7 +83136,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 431,
+          "line": 1009,
           "sink": "ValueError"
         }
       ]
@@ -83016,7 +83146,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 628,
+          "line": 637,
           "sink": "RuntimeError"
         }
       ]
@@ -83051,12 +83181,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 61,
+          "line": 62,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 198,
+          "line": 216,
           "sink": "RunCancelled"
         }
       ]
@@ -103197,6 +103327,16 @@
       ]
     },
     {
+      "key": "Unsupported Preview Core binary role.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 271,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Unsupported Rust Mesh protocol event: {value_0}",
       "origins": [
         {
@@ -103211,7 +103351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 237,
+          "line": 815,
           "sink": "ValueError"
         }
       ]
@@ -103221,17 +103361,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 578,
+          "line": 587,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_cache.py",
-          "line": 679,
+          "line": 688,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 231,
+          "line": 809,
           "sink": "ValueError"
         }
       ]
@@ -113846,7 +113986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6690,
+          "line": 6698,
           "sink": "open_edit_session"
         },
         {
@@ -114246,12 +114386,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3176,
+          "line": 3184,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3192,
+          "line": 3200,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -116116,7 +116256,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3198,
+          "line": 3206,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -116451,7 +116591,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3190,
+          "line": 3198,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -116646,7 +116786,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3888,
+          "line": 3896,
           "sink": "ValueError"
         }
       ]
@@ -116786,12 +116926,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3163,
+          "line": 3171,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3196,
+          "line": 3204,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -118551,12 +118691,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3174,
+          "line": 3182,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3202,
+          "line": 3210,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -118716,7 +118856,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3529,
+          "line": 3537,
           "sink": "ValueError"
         }
       ]
@@ -118726,7 +118866,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3518,
+          "line": 3526,
           "sink": "ValueError"
         }
       ]
@@ -118736,7 +118876,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3501,
+          "line": 3509,
           "sink": "ValueError"
         }
       ]
@@ -119596,7 +119736,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3184,
+          "line": 3192,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -120876,12 +121016,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3161,
+          "line": 3169,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3180,
+          "line": 3188,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -121121,7 +121261,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3186,
+          "line": 3194,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -121311,7 +121451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3194,
+          "line": 3202,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -125026,7 +125166,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3182,
+          "line": 3190,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -200401,12 +200541,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3173,
+          "line": 3181,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3188,
+          "line": 3196,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
