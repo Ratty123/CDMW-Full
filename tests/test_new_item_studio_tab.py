@@ -889,7 +889,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             "cdmw.services.preview_rendering_service.run_native_preview_core_preview_job",
             return_value=attempt,
         ) as run_native, patch(
-            "cdmw.services.mesh_dotnet_preview_package.build_or_lookup_dotnet_preview_package",
+            "cdmw.services.mesh_rust_preview_cache.build_or_lookup_rust_preview_package",
             return_value=package,
         ) as adapt_package, patch(
             "cdmw.core.archive_preview_result_builder.build_archive_preview_result",

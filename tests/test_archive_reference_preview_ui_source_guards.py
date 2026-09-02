@@ -110,7 +110,7 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         self.assertNotIn("left-drag orbit | middle/right-drag pan", source)
         self.assertNotIn("These controls move the preview camera/view only", source)
 
-    def test_referenced_pac_preview_uses_canonical_dotnet_package(self) -> None:
+    def test_referenced_pac_preview_uses_canonical_rust_package(self) -> None:
         source = ARCHIVE_REFERENCE_PREVIEW.read_text(encoding="utf-8")
         reference_start = source.index("def _open_archive_reference_preview_entry")
         reference_end = source.index("def _export_selected_archive_texture_reference", reference_start)
@@ -122,7 +122,7 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         self.assertIn("run_native_preview_core_preview_job", reference_source)
         self.assertIn("NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS", reference_source)
         self.assertIn("dotnet_preview_package_path=str(dotnet_package.package_dir)", reference_source)
-        self.assertIn("preview_d3d11_host = DotNetPreviewHostFrame(", dialog_source)
+        self.assertIn("preview_d3d11_host = RustPreviewHostFrame(", dialog_source)
         self.assertIn("profile=DotNetPreviewProfile.PREVIEW", dialog_source)
         self.assertIn("_start_reference_d3d11_preview", dialog_source)
         self.assertIn("preview_d3d11_host.load_package(", dialog_source)

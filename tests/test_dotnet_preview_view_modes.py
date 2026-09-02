@@ -111,7 +111,7 @@ def test_each_exposed_material_debug_mode_has_a_vortice_shader_output() -> None:
     assert "settings.GameOutdoorApprox" in settings_source
 
 
-def test_builder_copy_names_the_control_as_a_dotnet_view() -> None:
+def test_builder_copy_names_the_control_as_a_preview_mode() -> None:
     shell_source = (
         ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_preview_shell.py"
     ).read_text(encoding="utf-8")
@@ -120,5 +120,5 @@ def test_builder_copy_names_the_control_as_a_dotnet_view() -> None:
     ).read_text(encoding="utf-8")
     assert "DOTNET_PREVIEW_VIEW_MODE_OPTIONS" in shell_source
     assert "D3D11_PREVIEW_VIEW_MODES" not in shell_source
-    assert '"dotnet_view_label": ".NET view"' in text_source
+    assert '"dotnet_view_label": "Preview mode"' in text_source
     assert "Only renderer-backed modes are listed." in text_source

@@ -107,7 +107,7 @@ class _TabAuthoringMixin:
             "cdmw.services.preview_rendering_service.run_native_preview_core_preview_job",
             return_value=attempt,
         ) as run_native, patch(
-            "cdmw.services.mesh_dotnet_preview_package.build_or_lookup_dotnet_preview_package",
+            "cdmw.services.mesh_rust_preview_cache.build_or_lookup_rust_preview_package",
             return_value=package,
         ) as build_package:
             _token, source = tab.controller.item_preview_source()

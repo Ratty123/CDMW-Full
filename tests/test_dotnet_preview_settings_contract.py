@@ -253,7 +253,7 @@ def test_dotnet_material_environment_uses_sdr_bounded_split_sum_ibl() -> None:
     assert "litDiffuse + environmentDiffuse" in shader
 
 
-def test_every_retained_vortice_preview_route_uses_the_shared_material_renderer() -> None:
+def test_every_production_preview_route_uses_the_shared_rust_renderer() -> None:
     route_hosts = {
         "archive browser": ROOT / "cdmw/ui/archive_browser/preview_layout.py",
         "archive reference": ROOT / "cdmw/ui/archive_browser/reference_preview.py",
@@ -266,9 +266,11 @@ def test_every_retained_vortice_preview_route_uses_the_shared_material_renderer(
     }
     for route, path in route_hosts.items():
         source = path.read_text(encoding="utf-8")
-        assert "DotNetPreviewHostFrame(" in source, route
+        assert "RustPreviewHostFrame(" in source, route
         assert "DotNetPreviewProfile." in source, route
 
+    public_host = (ROOT / "cdmw/ui/preview/rust_host.py").read_text(encoding="utf-8")
+    assert "RustPreviewHostFrame" in public_host
     host = (ROOT / "cdmw/ui/preview/dotnet_host.py").read_text(encoding="utf-8")
     tuning = (ROOT / "cdmw/ui/preview/dotnet_host_render_tuning.py").read_text(encoding="utf-8")
     assert "render_tuning_payloads" in host

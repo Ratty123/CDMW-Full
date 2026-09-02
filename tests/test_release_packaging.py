@@ -161,6 +161,16 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert 'leaf.startswith("vortice.") and leaf.endswith(".dll")' in spec_source
     assert 'native/cdmw_full_archive_backend/build/{NATIVE_CONFIGURATION}' in spec_source
     assert '"archive_backend"' in spec_source
+    assert "archive_backend_debug_payloads" in spec_source
+    for diagnostic_payload in (
+        "createdump.exe",
+        "Microsoft.DiaSymReader.Native.amd64.dll",
+        "mscordaccore.dll",
+        "mscordaccore_amd64_amd64_10.0.25.52411.dll",
+        "mscordbi.dll",
+    ):
+        assert f'"{diagnostic_payload}"' in spec_source
+    assert "excluded_names=archive_backend_debug_payloads" in spec_source
     assert '"cdmw/resources/localization"' in spec_source
     assert 'suffixes={".json"}' in spec_source
     assert 'scripts\\full_archive_backend_release.ps1' in source

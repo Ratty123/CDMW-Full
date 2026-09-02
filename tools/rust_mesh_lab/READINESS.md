@@ -124,8 +124,9 @@ offscreen D3D12 gate uploads sixteen synthetic DDS files, composes thirteen role
 two independent material ranges, and compares unresolved,
 base-only, one-extra-role, metallic and dielectric Specular-map, metallic and dielectric Glossiness-map, opaque and cutout Opacity-map, positive and zero-scale Height-map, inactive non-hair and active hair Flow-map, layer-mask fallback/R/B-channel, overlay-free Part ID and Game Outdoor, factored-emissive,
 roughness-factor, metalness-factor, metalness-plus-specular-factor, and fully
-composed CPU readbacks plus Bones-off/Bones-on overlay readbacks through the live
-helper during its 83-frame pass, including a Base Color round-trip and curved
+composed CPU readbacks plus Bones-off/Bones-on and authored-colour effect
+off/on overlay readbacks through the live helper during its 84-frame pass,
+including a Base Color round-trip and curved
 generic/metal/leather/cloth/skin/glass material-proof matrix that can be retained
 as a 3x2 BMP. The additional frame reverses every triangle's
 winding and requires a visible lit Solid surface. Every

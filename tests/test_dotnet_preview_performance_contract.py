@@ -271,7 +271,7 @@ def test_protocol_io_is_bounded_ordered_and_telemetry_is_latest_wins() -> None:
     assert "DrainProtocolOutput(TimeSpan.FromMilliseconds(750))" in program
 
 
-def test_performance_protocol_capability_and_compact_completion_stay_additive() -> None:
+def test_retired_performance_contract_stays_historical_while_rust_owns_packaging() -> None:
     provenance = _source("HelperBuildProvenance.cs")
     status = _source("MeshViewport.Status.cs")
     protocol = _source("ExperimentForm.Protocol.cs")
@@ -283,13 +283,11 @@ def test_performance_protocol_capability_and_compact_completion_stay_additive() 
 
     for source in (provenance, status):
         assert '"performance_capture_v1"' in source
-    # The packaged manifest no longer restates the capability list; it reads it
-    # out of HelperBuildProvenance.cs, which is the copy asserted above. Naming
-    # the literal here again would require the duplication that failed the
-    # release build, so this asserts the derivation that replaced it.
-    # tests/test_dotnet_helper_manifest_contract.py covers the parse itself.
-    assert "function Get-DotNetMeshEditorHelperContract" in packaging
-    assert "$helperContract = Get-DotNetMeshEditorHelperContract" in packaging
+    # The retired Vortice sources remain as historical reference, but release
+    # packaging is now owned exclusively by the compiled Rust contract.
+    assert "function Assert-RustMeshEditorControlContract" in packaging
+    assert "Assert-RustMeshEditorControlContract -RustContract $contract" in packaging
+    assert "Get-DotNetMeshEditorHelperContract" not in packaging
     assert '"performance_capture_v1"' not in packaging
     assert 'case "performance_capture_start":' in protocol
     assert 'case "performance_capture_stop":' in protocol

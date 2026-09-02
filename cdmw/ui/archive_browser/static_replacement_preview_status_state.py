@@ -124,7 +124,7 @@ def alignment_preview_control_text() -> dict[str, str]:
             "Rust Preview view mode for the resident Original and Replacement preview panes. "
             "Only renderer-backed modes are listed."
         ),
-        "dotnet_view_label": ".NET view",
+        "dotnet_view_label": "Preview mode",
         "settings_button": "Preview Settings...",
         "use_global": "Use Global",
         "use_global_tooltip": "Reset the alignment render controls to the current global 3D preview settings.",

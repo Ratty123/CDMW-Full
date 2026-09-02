@@ -9,6 +9,7 @@ from cdmw.ui.preview.dotnet_session import DotNetPreviewSessionController
 from cdmw.ui.preview.profile import DotNetPreviewProfile
 from tests.test_dotnet_preview_shared_host import (
     _FakeProcess,
+    _make_ready,
     _own,
     _package,
     _resolution,
@@ -31,11 +32,8 @@ def test_static_provenance_failure_never_constructs_process(tmp_path: Path) -> N
         process_factory=process_factory,
     ))
     with (
-        patch("cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor", return_value=_resolution(executable)),
-        patch(
-            "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers",
-            return_value=("hash mismatch",),
-        ),
+        patch("cdmw.ui.preview.dotnet_session.resolve_rust_mesh_editor", return_value=_resolution(executable)),
+        patch("cdmw.ui.preview.dotnet_session.validate_rust_mesh_editor_package", return_value="hash mismatch"),
     ):
         assert controller.load_package(_package(tmp_path, "blocked"))
     assert process_count == 0
@@ -65,23 +63,11 @@ def _ready_authoring_controller(
         process_factory=process_factory,
     ))
     with (
-        patch("cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor", return_value=_resolution(executable)),
-        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers", return_value=()),
+        patch("cdmw.ui.preview.dotnet_session.resolve_rust_mesh_editor", return_value=_resolution(executable)),
+        patch("cdmw.ui.preview.dotnet_session.validate_rust_mesh_editor_package", return_value=""),
     ):
         assert controller.load_package(_package(tmp_path, "authoring-a"))
-    generation = controller.process_generation
-    with (
-        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers", return_value=()),
-        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_renderer_blockers", return_value=()),
-    ):
-        controller._handle_protocol_event(  # noqa: SLF001
-            {"event": "protocol_ready", "profile": "authoring", "capabilities": []},
-            generation,
-        )
-        controller._handle_protocol_event(  # noqa: SLF001
-            {"event": "ready", "profile": "authoring", "renderer": {"backend": "d3d11_vortice_shader"}},
-            generation,
-        )
+    _make_ready(controller)
     return controller, processes[-1]
 
 

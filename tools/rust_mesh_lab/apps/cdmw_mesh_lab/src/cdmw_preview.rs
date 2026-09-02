@@ -10,9 +10,9 @@ use anyhow::{Context, Result};
 use cdmw_formats::{MeshDocument, SourceRange, Submesh};
 use cdmw_mesh::{DrawSnapshot, Provenance, Selection, WorkingMesh};
 use cdmw_render_wgpu::{
-    HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput, HeadlessMaterialFactors,
-    HeadlessMaterialTexture, MaterialPreviewFactors, ViewMode, WindowRenderer,
-    run_headless_material_capture,
+    EffectLineVertex, HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput,
+    HeadlessMaterialFactors, HeadlessMaterialTexture, MaterialPreviewFactors, ViewMode,
+    WindowRenderer, run_headless_material_capture,
 };
 use crossbeam_channel::{Receiver, Sender, bounded};
 use egui::{Pos2, Rect, Vec2 as EguiVec2};
@@ -1257,6 +1257,7 @@ impl PreviewApplication {
             self.push_submesh_edges(&mut lines, &scene_submeshes);
         }
 
+        let mut effect_lines = Vec::new();
         if display
             .get("effect_particles_visible")
             .and_then(Value::as_bool)
@@ -1268,13 +1269,32 @@ impl PreviewApplication {
                 .and_then(|value| value.get("emitters"))
                 .and_then(Value::as_array)
         {
+            const MAX_EFFECT_LINE_VERTICES: usize = 65_536;
+            let framing_extent = self
+                .state
+                .scene
+                .get("framing")
+                .and_then(|value| value.get("extent"))
+                .and_then(Value::as_f64)
+                .map(|value| value as f32)
+                .filter(|value| value.is_finite())
+                .unwrap_or(1.0)
+                .abs()
+                .max(0.01);
+            let minimum_radius = (framing_extent * 0.006).max(0.003);
             for (emitter_index, emitter) in emitters.iter().take(128).enumerate() {
-                for local in effect_emitter_lines(emitter, emitter_index, time) {
-                    lines.push(
-                        editable_matrix
-                            .transform_point3(Vec3::from_array(local))
-                            .to_array(),
-                    );
+                for mut vertex in effect_emitter_lines(emitter, emitter_index, time, minimum_radius)
+                {
+                    if effect_lines.len() >= MAX_EFFECT_LINE_VERTICES {
+                        break;
+                    }
+                    vertex.position = editable_matrix
+                        .transform_point3(Vec3::from_array(vertex.position))
+                        .to_array();
+                    effect_lines.push(vertex);
+                }
+                if effect_lines.len() >= MAX_EFFECT_LINE_VERTICES {
+                    break;
                 }
             }
         }
@@ -1283,6 +1303,7 @@ impl PreviewApplication {
             let _ = renderer.set_skeleton_lines(&skeleton_lines);
             renderer.set_bone_overlay(skeleton_visible && !skeleton_lines.is_empty());
             let _ = renderer.set_preview_lines(&lines);
+            let _ = renderer.set_effect_lines(&effect_lines);
         }
     }
 
@@ -2342,17 +2363,63 @@ fn curve_sample(value: Option<&Value>, progress: f32, fallback: f32) -> f32 {
     read(lower) + (read(upper) - read(lower)) * scaled.fract()
 }
 
-fn color_curve_luma(value: Option<&Value>, progress: f32) -> f32 {
+fn color_curve_sample(value: Option<&Value>, progress: f32) -> Vec3 {
     let Some(samples) = value
         .and_then(Value::as_array)
         .filter(|samples| !samples.is_empty())
     else {
-        return 1.0;
+        return Vec3::ONE;
     };
-    let index =
-        (progress.clamp(0.0, 1.0) * (samples.len().saturating_sub(1)) as f32).round() as usize;
-    let color = vec3_value(samples.get(index), Vec3::ONE).max(Vec3::ZERO);
-    color.dot(Vec3::new(0.2126, 0.7152, 0.0722)).max(0.05)
+    let scaled = progress.clamp(0.0, 1.0) * (samples.len().saturating_sub(1)) as f32;
+    let lower = scaled.floor() as usize;
+    let upper = (lower + 1).min(samples.len() - 1);
+    vec3_value(samples.get(lower), Vec3::ONE)
+        .lerp(vec3_value(samples.get(upper), Vec3::ONE), scaled.fract())
+        .max(Vec3::ZERO)
+}
+
+fn effect_preview_colour(
+    emitter: &Value,
+    progress: f32,
+    alpha: f32,
+    brightness: f32,
+    blend: &str,
+) -> [f32; 4] {
+    let life_colour = color_curve_sample(emitter.get("color_over_life"), progress);
+    let emissive = vec3_value(emitter.get("emissive_color"), Vec3::ONE).max(Vec3::ZERO);
+    let mut colour = life_colour * emissive * brightness.max(0.15).sqrt();
+    let peak = colour.max_element();
+    if peak > 1.0 {
+        colour /= peak;
+    } else if peak < 0.08 {
+        // Black smoke and incomplete material records still need a visible guide
+        // against the dark Preview background.
+        colour = Vec3::splat(0.42);
+    }
+    let preview_alpha = if blend.eq_ignore_ascii_case("additive") {
+        alpha.max(0.72)
+    } else {
+        alpha.max(0.38)
+    };
+    [
+        colour.x.clamp(0.04, 1.0),
+        colour.y.clamp(0.04, 1.0),
+        colour.z.clamp(0.04, 1.0),
+        preview_alpha.clamp(0.0, 1.0),
+    ]
+}
+
+fn push_effect_line(lines: &mut Vec<EffectLineVertex>, start: Vec3, end: Vec3, colour: [f32; 4]) {
+    lines.extend_from_slice(&[
+        EffectLineVertex {
+            position: start.to_array(),
+            colour,
+        },
+        EffectLineVertex {
+            position: end.to_array(),
+            colour,
+        },
+    ]);
 }
 
 fn effect_spawn_position(emitter: &Value, seed: f32) -> Vec3 {
@@ -2394,7 +2461,12 @@ fn effect_scale(emitter: &Value, seed: f32) -> f32 {
     selected.max_element().max(0.002)
 }
 
-fn effect_emitter_lines(emitter: &Value, emitter_index: usize, time: f32) -> Vec<[f32; 3]> {
+fn effect_emitter_lines(
+    emitter: &Value,
+    emitter_index: usize,
+    time: f32,
+    minimum_radius: f32,
+) -> Vec<EffectLineVertex> {
     const MAX_PARTICLES_PER_EMITTER: usize = 256;
     const MAX_LINE_VERTICES_PER_EMITTER: usize = MAX_PARTICLES_PER_EMITTER * 20;
 
@@ -2496,10 +2568,10 @@ fn effect_emitter_lines(emitter: &Value, emitter_index: usize, time: f32) -> Vec
                 .max(1) as f32
         })
         .unwrap_or(1.0);
-    // Reading these fields is part of the package contract even when the
-    // current line-guide fallback cannot sample a missing sprite resource.
+    // Texture identity remains in the package for a future sprite pass. The
+    // line preview below preserves the authored blend and colour meanwhile.
     let _sprite_identity = emitter.get("texture").and_then(Value::as_str).unwrap_or("");
-    let _blend = emitter
+    let blend = emitter
         .get("blend")
         .and_then(Value::as_str)
         .unwrap_or("alpha");
@@ -2522,7 +2594,7 @@ fn effect_emitter_lines(emitter: &Value, emitter_index: usize, time: f32) -> Vec
             continue;
         }
         for particle in 0..burst {
-            if emitted >= maximum || lines.len() >= MAX_LINE_VERTICES_PER_EMITTER {
+            if emitted >= maximum || lines.len() + 20 > MAX_LINE_VERTICES_PER_EMITTER {
                 break 'bursts;
             }
             let seed =
@@ -2557,19 +2629,23 @@ fn effect_emitter_lines(emitter: &Value, emitter_index: usize, time: f32) -> Vec
                 continue;
             }
             let scale_curve = curve_sample(emitter.get("scale_over_life"), progress, 1.0).max(0.0);
-            let color_luma = color_curve_luma(emitter.get("color_over_life"), progress);
+            let color_luma = color_curve_sample(emitter.get("color_over_life"), progress)
+                .dot(Vec3::new(0.2126, 0.7152, 0.0722))
+                .max(0.05);
             let flipbook_pulse = 0.9
                 + 0.1
                     * (progress * sequence_cells * std::f32::consts::TAU)
                         .sin()
                         .abs();
-            let radius = effect_scale(emitter, seed)
+            let radius = (effect_scale(emitter, seed)
                 * scale_curve
                 * alpha.sqrt()
                 * (brightness * emissive_luma * color_luma)
                     .clamp(0.25, 4.0)
                     .sqrt()
-                * flipbook_pulse;
+                * flipbook_pulse)
+                .max(minimum_radius);
+            let colour = effect_preview_colour(emitter, progress, alpha, brightness, blend);
             let angle = (rotation_low + (rotation_high - rotation_low) * seed_unit(seed + 23.3))
                 .to_radians();
             let right = Vec3::new(angle.cos(), angle.sin(), 0.0) * radius;
@@ -2593,7 +2669,7 @@ fn effect_emitter_lines(emitter: &Value, emitter_index: usize, time: f32) -> Vec
                     .filter(|value| value.is_finite())
                     .unwrap_or(radius)
                     .abs()
-                    .max(0.001);
+                    .max(minimum_radius * 0.5);
                 let jitter = emitter
                     .get("beam_jitter")
                     .and_then(Value::as_f64)
@@ -2609,29 +2685,33 @@ fn effect_emitter_lines(emitter: &Value, emitter_index: usize, time: f32) -> Vec
                     let point = center
                         + axis * length * fraction
                         + side * seed_signed(seed + segment as f32 * 5.19) * length * jitter;
-                    lines.extend_from_slice(&[previous.to_array(), point.to_array()]);
+                    push_effect_line(&mut lines, previous, point, colour);
                     previous = point;
                 }
-                lines.extend_from_slice(&[
-                    (center - side * width).to_array(),
-                    (center + side * width).to_array(),
-                ]);
+                push_effect_line(
+                    &mut lines,
+                    center - side * width,
+                    center + side * width,
+                    colour,
+                );
             } else {
-                lines.extend_from_slice(&[
-                    (center - right).to_array(),
-                    (center + right).to_array(),
-                    (center - up).to_array(),
-                    (center + up).to_array(),
-                ]);
+                push_effect_line(&mut lines, center - right, center + right, colour);
+                push_effect_line(&mut lines, center - up, center + up, colour);
                 if kind == "mesh" {
                     let forward = right.cross(up).normalize_or(Vec3::Z) * radius;
-                    lines.extend_from_slice(&[
-                        (center - forward).to_array(),
-                        (center + forward).to_array(),
-                    ]);
+                    push_effect_line(&mut lines, center - forward, center + forward, colour);
                 }
             }
             emitted += 1;
+        }
+    }
+    if lines.is_empty() {
+        // At time zero many authored alpha curves intentionally start at zero.
+        // Keep the emitter discoverable instead of presenting an empty preview.
+        let radius = minimum_radius.max(0.003);
+        let colour = effect_preview_colour(emitter, 0.5, 0.7, brightness, blend);
+        for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
+            push_effect_line(&mut lines, -axis * radius, axis * radius, colour);
         }
     }
     lines
@@ -3014,14 +3094,51 @@ mod tests {
             "sequence": [4, 4],
             "velocity_stretch": 0.7
         });
-        let first = effect_emitter_lines(&emitter, 2, 0.65);
-        let repeated = effect_emitter_lines(&emitter, 2, 0.65);
-        let later = effect_emitter_lines(&emitter, 2, 0.72);
+        let first = effect_emitter_lines(&emitter, 2, 0.65, 0.01);
+        let repeated = effect_emitter_lines(&emitter, 2, 0.65, 0.01);
+        let later = effect_emitter_lines(&emitter, 2, 0.72, 0.01);
         assert!(!first.is_empty());
         assert_eq!(first, repeated);
         assert_ne!(first, later);
         assert!(first.len() <= 256 * 20);
         assert!(first.len().is_multiple_of(2));
-        assert!(first.iter().flatten().all(|value| value.is_finite()));
+        assert!(first.iter().all(|vertex| {
+            vertex
+                .position
+                .iter()
+                .chain(vertex.colour.iter())
+                .all(|value| value.is_finite())
+        }));
+        assert!(first.iter().all(|vertex| {
+            vertex
+                .colour
+                .iter()
+                .all(|value| (0.0..=1.0).contains(value))
+        }));
+        assert!(
+            first
+                .iter()
+                .any(|vertex| vertex.colour[0] != vertex.colour[2])
+        );
+    }
+
+    #[test]
+    fn zero_alpha_effect_still_has_a_bounded_visible_emitter_marker() {
+        let emitter = json!({
+            "kind": "billboard",
+            "alpha_over_life": [0.0, 0.0],
+            "color_over_life": [[0.1, 0.4, 1.0]],
+            "emissive_color": [0.2, 0.8, 1.0],
+            "brightness": 2.0
+        });
+        let marker = effect_emitter_lines(&emitter, 0, 0.0, 0.025);
+        assert_eq!(marker.len(), 6);
+        assert!(marker.iter().all(|vertex| vertex.colour[3] >= 0.38));
+        let maximum_extent = marker
+            .iter()
+            .flat_map(|vertex| vertex.position)
+            .map(f32::abs)
+            .fold(0.0_f32, f32::max);
+        assert!(maximum_extent >= 0.025);
     }
 }

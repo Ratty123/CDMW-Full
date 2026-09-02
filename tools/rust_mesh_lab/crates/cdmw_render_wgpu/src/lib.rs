@@ -1034,6 +1034,13 @@ fn fs_bounds(_input: VertexOut) -> @location(0) vec4<f32> {
 fn fs_bone(_input: VertexOut) -> @location(0) vec4<f32> {
     return present_srgb(vec3<f32>(0.35, 0.82, 1.0), 1.0);
 }
+
+@fragment
+fn fs_effect(input: VertexOut) -> @location(0) vec4<f32> {
+    let authored_color = clamp(input.normal, vec3<f32>(0.0), vec3<f32>(1.0));
+    let alpha = clamp(input.deformation.x, 0.0, 1.0);
+    return present_srgb(authored_color, alpha);
+}
 "#;
 
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -1201,6 +1208,26 @@ impl GpuVertex {
             deformation: [0.0; 4],
         }
     }
+
+    fn effect_overlay(vertex: EffectLineVertex) -> Self {
+        Self {
+            position: vertex.position,
+            normal: [
+                vertex.colour[0].clamp(0.0, 1.0),
+                vertex.colour[1].clamp(0.0, 1.0),
+                vertex.colour[2].clamp(0.0, 1.0),
+            ],
+            uv: [0.0, 0.0],
+            tangent: [1.0, 0.0, 0.0, 1.0],
+            deformation: [vertex.colour[3].clamp(0.0, 1.0), 0.0, 0.0, 0.0],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EffectLineVertex {
+    pub position: [f32; 3],
+    pub colour: [f32; 4],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1314,6 +1341,7 @@ pub struct HeadlessRenderReport {
     pub part_id_colors_rendered: usize,
     pub outdoor_lighting_pixels_changed: usize,
     pub bone_overlay_pixels_changed: usize,
+    pub effect_overlay_pixels_changed: usize,
     pub opacity_cutout_pixels_removed: usize,
     pub opaque_opacity_pixels_changed: usize,
     pub non_background_pixels: usize,
@@ -1447,6 +1475,7 @@ pub struct GpuMeshBuffers {
 struct GpuOverlayLines {
     vertices: wgpu::Buffer,
     vertex_count: u32,
+    signature: u64,
 }
 
 impl GpuOverlayLines {
@@ -1478,8 +1507,87 @@ impl GpuOverlayLines {
         Ok(Some(Self {
             vertices: buffer,
             vertex_count: u32::try_from(vertices.len()).map_err(|_| RenderError::ResourceLimit)?,
+            signature: overlay_position_signature(positions),
         }))
     }
+
+    fn upload_effects(
+        device: &wgpu::Device,
+        vertices: &[EffectLineVertex],
+    ) -> Result<Option<Self>, RenderError> {
+        if vertices.is_empty() {
+            return Ok(None);
+        }
+        let gpu_vertices = effect_gpu_vertices(vertices)?;
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CDMW Rust Mesh Lab effect lines"),
+            contents: bytemuck::cast_slice(&gpu_vertices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+        Ok(Some(Self {
+            vertices: buffer,
+            vertex_count: u32::try_from(gpu_vertices.len())
+                .map_err(|_| RenderError::ResourceLimit)?,
+            signature: effect_line_signature(vertices),
+        }))
+    }
+
+    fn update_effects(
+        &mut self,
+        queue: &wgpu::Queue,
+        vertices: &[EffectLineVertex],
+    ) -> Result<bool, RenderError> {
+        if usize::try_from(self.vertex_count).ok() != Some(vertices.len()) {
+            return Ok(false);
+        }
+        let gpu_vertices = effect_gpu_vertices(vertices)?;
+        queue.write_buffer(&self.vertices, 0, bytemuck::cast_slice(&gpu_vertices));
+        self.signature = effect_line_signature(vertices);
+        Ok(true)
+    }
+}
+
+fn effect_gpu_vertices(vertices: &[EffectLineVertex]) -> Result<Vec<GpuVertex>, RenderError> {
+    if !vertices.len().is_multiple_of(2) {
+        return Err(RenderError::InvalidOverlay(
+            "effect line-list vertex count must be even".to_owned(),
+        ));
+    }
+    if vertices.iter().any(|vertex| {
+        vertex.position.iter().any(|value| !value.is_finite())
+            || vertex.colour.iter().any(|value| !value.is_finite())
+    }) {
+        return Err(RenderError::InvalidOverlay(
+            "effect line-list positions and colours must be finite".to_owned(),
+        ));
+    }
+    Ok(vertices
+        .iter()
+        .copied()
+        .map(GpuVertex::effect_overlay)
+        .collect())
+}
+
+fn overlay_position_signature(positions: &[[f32; 3]]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    positions.len().hash(&mut hasher);
+    for position in positions {
+        for component in position {
+            component.to_bits().hash(&mut hasher);
+        }
+    }
+    hasher.finish()
+}
+
+fn effect_line_signature(vertices: &[EffectLineVertex]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    vertices.len().hash(&mut hasher);
+    for vertex in vertices {
+        for component in vertex.position.iter().chain(vertex.colour.iter()) {
+            component.to_bits().hash(&mut hasher);
+        }
+    }
+    hasher.finish()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2020,9 +2128,11 @@ pub struct WindowRenderer {
     normal_pipeline: wgpu::RenderPipeline,
     bounds_pipeline: wgpu::RenderPipeline,
     bone_pipeline: wgpu::RenderPipeline,
+    effect_pipeline: wgpu::RenderPipeline,
     mesh: Option<GpuMeshBuffers>,
     skeleton_lines: Option<GpuOverlayLines>,
     preview_lines: Option<GpuOverlayLines>,
+    effect_lines: Option<GpuOverlayLines>,
     egui_renderer: egui_wgpu::Renderer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     default_material_binding: GpuMaterialBinding,
@@ -2162,9 +2272,11 @@ impl WindowRenderer {
             normal_pipeline: pipelines.normal,
             bounds_pipeline: pipelines.bounds,
             bone_pipeline: pipelines.bone,
+            effect_pipeline: pipelines.effect,
             mesh: None,
             skeleton_lines: None,
             preview_lines: None,
+            effect_lines: None,
             egui_renderer,
             texture_bind_group_layout,
             default_material_binding,
@@ -2360,7 +2472,37 @@ impl WindowRenderer {
     /// They share the depth-independent overlay pipeline with skeleton guides,
     /// but are owned separately so toggling bones never removes scene aids.
     pub fn set_preview_lines(&mut self, positions: &[[f32; 3]]) -> Result<(), RenderError> {
+        let signature = overlay_position_signature(positions);
+        if self
+            .preview_lines
+            .as_ref()
+            .is_some_and(|lines| lines.signature == signature)
+            || (positions.is_empty() && self.preview_lines.is_none())
+        {
+            return Ok(());
+        }
         self.preview_lines = GpuOverlayLines::upload(&self.device, positions)?;
+        Ok(())
+    }
+
+    /// Set animated Archive Preview effect guides. Effects use authored colour
+    /// and a dedicated high-visibility pipeline instead of sharing skeleton cyan.
+    pub fn set_effect_lines(&mut self, vertices: &[EffectLineVertex]) -> Result<(), RenderError> {
+        let signature = effect_line_signature(vertices);
+        if self
+            .effect_lines
+            .as_ref()
+            .is_some_and(|lines| lines.signature == signature)
+            || (vertices.is_empty() && self.effect_lines.is_none())
+        {
+            return Ok(());
+        }
+        if let Some(lines) = self.effect_lines.as_mut()
+            && lines.update_effects(&self.queue, vertices)?
+        {
+            return Ok(());
+        }
+        self.effect_lines = GpuOverlayLines::upload_effects(&self.device, vertices)?;
         Ok(())
     }
 
@@ -2626,8 +2768,10 @@ impl WindowRenderer {
                     &self.normal_pipeline,
                     &self.bounds_pipeline,
                     &self.bone_pipeline,
+                    &self.effect_pipeline,
                     self.skeleton_lines.as_ref(),
                     self.preview_lines.as_ref(),
+                    self.effect_lines.as_ref(),
                     self.view_mode,
                     self.show_normals,
                     self.show_bounds,
@@ -2945,6 +3089,7 @@ pub async fn run_headless_material_capture(
             view_projection,
             None,
             false,
+            None,
         )
     };
     let textured_readback = render(ViewMode::TexturedSolid);
@@ -3624,6 +3769,28 @@ async fn run_headless_render_smoke_internal(
         ],
     )?
     .ok_or_else(|| RenderError::InvalidOverlay("headless skeleton lines are empty".to_owned()))?;
+    let effect_lines = GpuOverlayLines::upload_effects(
+        &device,
+        &[
+            EffectLineVertex {
+                position: [overlay_minimum.x, overlay_minimum.y, overlay_depth],
+                colour: [1.0, 0.08, 0.42, 0.9],
+            },
+            EffectLineVertex {
+                position: [overlay_maximum.x, overlay_maximum.y, overlay_depth],
+                colour: [1.0, 0.08, 0.42, 0.9],
+            },
+            EffectLineVertex {
+                position: [overlay_minimum.x, overlay_maximum.y, overlay_depth],
+                colour: [0.1, 0.75, 1.0, 0.8],
+            },
+            EffectLineVertex {
+                position: [overlay_maximum.x, overlay_minimum.y, overlay_depth],
+                colour: [0.1, 0.75, 1.0, 0.8],
+            },
+        ],
+    )?
+    .ok_or_else(|| RenderError::InvalidOverlay("headless effect lines are empty".to_owned()))?;
     let modes = [
         ViewMode::TexturedSolid,
         ViewMode::GameOutdoor,
@@ -3673,6 +3840,7 @@ async fn run_headless_render_smoke_internal(
                 true,
                 None,
                 false,
+                None,
             );
             queue.submit([encoder.finish()]);
             frames_rendered = frames_rendered.saturating_add(1);
@@ -3889,6 +4057,21 @@ async fn run_headless_render_smoke_internal(
         Some(&skeleton_lines),
         true,
     );
+    let effect_overlay_readback = render_headless_readback_with_effects(
+        &device,
+        &queue,
+        format,
+        &mesh,
+        &default_material_binding.bind_group,
+        &BTreeMap::new(),
+        &camera_bind_group,
+        &pipelines,
+        &render_snapshot,
+        &mut camera_uniform,
+        &camera_buffer,
+        ViewMode::Solid,
+        Some(&effect_lines),
+    );
     let reversed_winding_readback = render_headless_readback(
         &device,
         &queue,
@@ -3911,7 +4094,7 @@ async fn run_headless_render_smoke_internal(
         .saturating_add(
             u32::try_from(category_readbacks.len()).map_err(|_| RenderError::ResourceLimit)?,
         )
-        .saturating_add(7);
+        .saturating_add(8);
     device
         .poll(wgpu::PollType::wait_indefinitely())
         .map_err(|error| RenderError::Device(format!("headless GPU wait failed: {error}")))?;
@@ -3972,6 +4155,12 @@ async fn run_headless_render_smoke_internal(
         bone_overlay_readback.1,
         bone_overlay_readback.2,
     )?;
+    let effect_overlay_pixels = read_headless_pixels(
+        &device,
+        &effect_overlay_readback.0,
+        effect_overlay_readback.1,
+        effect_overlay_readback.2,
+    )?;
     let reversed_winding_pixels = read_headless_pixels(
         &device,
         &reversed_winding_readback.0,
@@ -4004,6 +4193,13 @@ async fn run_headless_render_smoke_internal(
     if bone_overlay_pixels_changed == 0 {
         return Err(RenderError::Device(
             "headless Bones overlay did not change any rendered pixel".to_owned(),
+        ));
+    }
+    let effect_overlay_pixels_changed =
+        changed_pixel_count(&bone_overlay_base_pixels, &effect_overlay_pixels)?;
+    if effect_overlay_pixels_changed == 0 {
+        return Err(RenderError::Device(
+            "headless authored-colour effect overlay did not change any rendered pixel".to_owned(),
         ));
     }
     let probe_index = |label: &str| {
@@ -4439,6 +4635,7 @@ async fn run_headless_render_smoke_internal(
         part_id_colors_rendered,
         outdoor_lighting_pixels_changed,
         bone_overlay_pixels_changed,
+        effect_overlay_pixels_changed,
         opacity_cutout_pixels_removed,
         opaque_opacity_pixels_changed,
         non_background_pixels,
@@ -4741,6 +4938,7 @@ fn record_headless_pass(
     show_overlays: bool,
     skeleton_lines: Option<&GpuOverlayLines>,
     show_bones: bool,
+    effect_lines: Option<&GpuOverlayLines>,
 ) {
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("CDMW Rust Mesh Lab headless viewport"),
@@ -4783,8 +4981,10 @@ fn record_headless_pass(
         &pipelines.normal,
         &pipelines.bounds,
         &pipelines.bone,
+        &pipelines.effect,
         skeleton_lines,
         None,
+        effect_lines,
         mode,
         show_overlays,
         show_overlays,
@@ -4862,6 +5062,47 @@ fn render_headless_readback_with_skeleton(
         view_projection,
         skeleton_lines,
         show_bones,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_headless_readback_with_effects(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    format: wgpu::TextureFormat,
+    mesh: &GpuMeshBuffers,
+    default_material_bind_group: &wgpu::BindGroup,
+    active_material_bindings: &BTreeMap<u32, GpuMaterialBinding>,
+    camera_bind_group: &wgpu::BindGroup,
+    pipelines: &Pipelines,
+    snapshot: &DrawSnapshot,
+    camera_uniform: &mut CameraUniform,
+    camera_buffer: &wgpu::Buffer,
+    view_mode: ViewMode,
+    effect_lines: Option<&GpuOverlayLines>,
+) -> (wgpu::Buffer, u32, u32) {
+    let width = 640_u32;
+    let height = 480_u32;
+    let view_projection = headless_view_projection(snapshot, width, height);
+    render_headless_readback_at(
+        device,
+        queue,
+        format,
+        mesh,
+        default_material_bind_group,
+        active_material_bindings,
+        camera_bind_group,
+        pipelines,
+        camera_uniform,
+        camera_buffer,
+        view_mode,
+        width,
+        height,
+        view_projection,
+        None,
+        false,
+        effect_lines,
     )
 }
 
@@ -4883,6 +5124,7 @@ fn render_headless_readback_at(
     view_projection: Mat4,
     skeleton_lines: Option<&GpuOverlayLines>,
     show_bones: bool,
+    effect_lines: Option<&GpuOverlayLines>,
 ) -> (wgpu::Buffer, u32, u32) {
     let color = create_headless_color_target(device, format, width, height);
     let view = color.create_view(&wgpu::TextureViewDescriptor::default());
@@ -4920,6 +5162,7 @@ fn render_headless_readback_at(
         false,
         skeleton_lines,
         show_bones,
+        effect_lines,
     );
     encoder.copy_texture_to_buffer(
         wgpu::TexelCopyTextureInfo {
@@ -5135,6 +5378,7 @@ struct Pipelines {
     normal: wgpu::RenderPipeline,
     bounds: wgpu::RenderPipeline,
     bone: wgpu::RenderPipeline,
+    effect: wgpu::RenderPipeline,
 }
 
 fn create_pipelines_with_sample_count(
@@ -5254,6 +5498,19 @@ fn create_pipelines_with_sample_count(
             "bone overlay",
             wgpu::PrimitiveTopology::LineList,
             "fs_bone",
+            None,
+            PipelineDepth::Ignore,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+            sample_count,
+        ),
+        effect: create_pipeline(
+            device,
+            format,
+            &layout,
+            &shader,
+            "effect overlay",
+            wgpu::PrimitiveTopology::LineList,
+            "fs_effect",
             None,
             PipelineDepth::Ignore,
             Some(wgpu::BlendState::ALPHA_BLENDING),
@@ -5513,8 +5770,10 @@ fn draw_mesh<'a>(
     normal_pipeline: &'a wgpu::RenderPipeline,
     bounds_pipeline: &'a wgpu::RenderPipeline,
     bone_pipeline: &'a wgpu::RenderPipeline,
+    effect_pipeline: &'a wgpu::RenderPipeline,
     skeleton_lines: Option<&'a GpuOverlayLines>,
     preview_lines: Option<&'a GpuOverlayLines>,
+    effect_lines: Option<&'a GpuOverlayLines>,
     view_mode: ViewMode,
     show_normals: bool,
     show_bounds: bool,
@@ -5576,6 +5835,9 @@ fn draw_mesh<'a>(
     }
     if let Some(lines) = preview_lines {
         draw_overlay_lines(pass, &lines.vertices, lines.vertex_count, bone_pipeline);
+    }
+    if let Some(lines) = effect_lines {
+        draw_overlay_lines(pass, &lines.vertices, lines.vertex_count, effect_pipeline);
     }
 }
 

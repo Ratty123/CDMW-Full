@@ -1833,7 +1833,7 @@ fn offscreen_d3d12_renders_every_mode_without_a_window() -> TestResult {
     assert_eq!(report.adapter.backend, "Dx12");
     assert_eq!(report.modes_rendered, 15);
     assert_eq!(report.viewport_sizes_rendered, 3);
-    assert_eq!(report.frames_rendered, 83);
+    assert_eq!(report.frames_rendered, 84);
     assert_eq!(report.dds_textures_uploaded, 16);
     assert_eq!(report.sampled_material_roles, 13);
     assert_eq!(report.material_ranges_rendered, 2);
@@ -1855,6 +1855,7 @@ fn offscreen_d3d12_renders_every_mode_without_a_window() -> TestResult {
     assert_eq!(report.part_id_colors_rendered, 2);
     assert!(report.outdoor_lighting_pixels_changed > 0);
     assert!(report.bone_overlay_pixels_changed > 0);
+    assert!(report.effect_overlay_pixels_changed > 0);
     assert!(report.opacity_cutout_pixels_removed > 0);
     assert_eq!(report.opaque_opacity_pixels_changed, 0);
     assert!(report.non_background_pixels > 0);

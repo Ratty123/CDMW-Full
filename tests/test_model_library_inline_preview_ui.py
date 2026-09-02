@@ -12,6 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QPlainTextEdit, QScrollArea, QSizePolicy
 
+from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.model_library import ModelLibraryTab
 from tests.test_model_library_preview import _write_triangle_gltf
@@ -143,7 +144,7 @@ class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
                         f"events={[event for event, _fields in events]!r}"
                     ),
                 )
-                self.assertEqual(tab._inline_preview_loaded_renderer_backend, "d3d11_vortice_shader")
+                self.assertEqual(tab._inline_preview_loaded_renderer_backend, RUST_MESH_RENDERER)
                 self.assertIn("model_library_preview_start", [event for event, _fields in events])
                 self.assertIn("model_library_preview_prepared", [event for event, _fields in events])
                 self.assertIsNotNone(tab._inline_d3d11_active_package)

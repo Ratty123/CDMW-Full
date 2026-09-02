@@ -392,11 +392,23 @@ _add_data_if_exists(
     "native/rust_mesh_editor",
     required_release=True,
 )
+# Self-contained .NET publishes include crash-dump/debugger data-access tools
+# for post-mortem debugging. The archive worker never invokes or loads them;
+# excluding them preserves the worker/runtime/ABI while avoiding several MB of
+# unreachable release payload.
+archive_backend_debug_payloads = (
+    "createdump.exe",
+    "Microsoft.DiaSymReader.Native.amd64.dll",
+    "mscordaccore.dll",
+    "mscordaccore_amd64_amd64_10.0.25.52411.dll",
+    "mscordbi.dll",
+)
 _add_native_binary_tree(
     f"native/cdmw_full_archive_backend/build/{NATIVE_CONFIGURATION}",
     "archive_backend",
     required_release=True,
     suffixes={".exe", ".dll", ".json"},
+    excluded_names=archive_backend_debug_payloads,
 )
 _add_native_binary("native/cd_hkx/target/release/cd-hkx.exe", "native")
 
