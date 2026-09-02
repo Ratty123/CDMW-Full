@@ -1447,7 +1447,13 @@ class RustPreviewSessionController(
     def _handle_package_failed(self, payload: Mapping[str, object]) -> None:
         if not self._package_event_is_current(payload):
             return
-        message = str(payload.get("message", payload.get("reason", "Package load failed.")) or "Package load failed.")
+        message = str(
+            payload.get(
+                "message",
+                payload.get("error", payload.get("reason", "Package load failed.")),
+            )
+            or "Package load failed."
+        )
         self._fail_current_package(message)
 
     def _accept_applied_package(self, package_path: str, generation: int) -> None:

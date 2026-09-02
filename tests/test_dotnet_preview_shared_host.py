@@ -1573,7 +1573,11 @@ def test_authoritative_rehydrator_prevents_controller_scene_replay_ownership() -
     controller.shutdown()
 
 
-def test_package_failure_keeps_resident_scene_and_process_retryable(tmp_path: Path) -> None:
+@pytest.mark.parametrize("detail_key", ["message", "error"])
+def test_package_failure_keeps_resident_scene_and_process_retryable(
+    tmp_path: Path,
+    detail_key: str,
+) -> None:
     controller, process, first = _start_controller(tmp_path)
     _make_ready(controller)
     states: list[tuple[str, str]] = []
@@ -1585,7 +1589,7 @@ def test_package_failure_keeps_resident_scene_and_process_retryable(tmp_path: Pa
     assert controller.load_package(second)
     request = next(payload for payload in reversed(process.writes) if payload.get("event") == "package_load_request")
     controller._handle_protocol_event(  # noqa: SLF001
-        {**request, "event": "package_load_failed", "message": "missing texture"},
+        {**request, "event": "package_load_failed", detail_key: "missing texture"},
         controller.process_generation,
     )
 
