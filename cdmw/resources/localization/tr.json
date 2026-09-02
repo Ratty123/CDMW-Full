@@ -2250,6 +2250,7 @@
     "Direct NCNN Model / Scale / Tile / Extra Args / Post Correction": "Doğrudan NCNN Modeli / Ölçek / Döşeme / Ekstra Bağımsız Değişkenler / Sonradan Düzeltme",
     "Direct NCNN upscale test": "Doğrudan NCNN yükseltme testi",
     "Direct Real-ESRGAN NCNN": "Doğrudan Gerçek-ESRGAN NCNN",
+    "Direct Rust preview requires Preview Core material graph v4 and semantics v10.": "Direct Rust preview requires Preview Core material graph v4 and semantics v10.",
     "Direct Rust preview requires Preview Core schema 8 or newer.": "Direct Rust preview requires Preview Core schema 8 or newer.",
     "Direct Upscale Controls (NCNN only)": "Doğrudan Yükseltme Kontrolleri (yalnızca NCNN)",
     "Direct backend mode is active, so model choice matters. The app will also auto-route post correction per texture when a Source Match mode is selected.": "Doğrudan arka uç modu etkin olduğundan model seçimi önemlidir. Uygulama aynı zamanda Kaynak Eşleştirme modu seçildiğinde doku başına post düzeltmeyi otomatik olarak yönlendirecektir.",

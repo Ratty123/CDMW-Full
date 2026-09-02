@@ -2250,6 +2250,7 @@
     "Direct NCNN Model / Scale / Tile / Extra Args / Post Correction": "Modelo Direct NCNN / Escala / Bloco / Args extras / Correção posterior",
     "Direct NCNN upscale test": "Teste de upscale Direct NCNN",
     "Direct Real-ESRGAN NCNN": "Direct Real-ESRGAN NCNN",
+    "Direct Rust preview requires Preview Core material graph v4 and semantics v10.": "Direct Rust preview requires Preview Core material graph v4 and semantics v10.",
     "Direct Rust preview requires Preview Core schema 8 or newer.": "Direct Rust preview requires Preview Core schema 8 or newer.",
     "Direct Upscale Controls (NCNN only)": "Controles diretos de upscale (somente NCNN)",
     "Direct backend mode is active, so model choice matters. The app will also auto-route post correction per texture when a Source Match mode is selected.": "O modo de back-end direto está ativo, portanto, a escolha do modelo é importante. O aplicativo também roteará automaticamente a pós-correção por textura quando um modo Source Match for selecionado.",

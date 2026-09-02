@@ -2250,6 +2250,7 @@
     "Direct NCNN Model / Scale / Tile / Extra Args / Post Correction": "직접 NCNN 모델/스케일/타일/추가 인수/사후 수정",
     "Direct NCNN upscale test": "직접 NCNN 업스케일 테스트",
     "Direct Real-ESRGAN NCNN": "직접 Real-ESRGAN NCNN",
+    "Direct Rust preview requires Preview Core material graph v4 and semantics v10.": "Direct Rust preview requires Preview Core material graph v4 and semantics v10.",
     "Direct Rust preview requires Preview Core schema 8 or newer.": "Direct Rust preview requires Preview Core schema 8 or newer.",
     "Direct Upscale Controls (NCNN only)": "직접 업스케일 제어(NCNN만 해당)",
     "Direct backend mode is active, so model choice matters. The app will also auto-route post correction per texture when a Source Match mode is selected.": "직접 백엔드 모드가 활성화되어 있으므로 모델 선택이 중요합니다. 소스 일치 모드가 선택되면 앱은 텍스처당 게시물 수정을 자동으로 라우팅합니다.",
