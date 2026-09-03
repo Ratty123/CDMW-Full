@@ -10,9 +10,9 @@ use anyhow::{Context, Result};
 use cdmw_formats::{MeshDocument, SourceRange, Submesh};
 use cdmw_mesh::{DrawSnapshot, Provenance, Selection, WorkingMesh};
 use cdmw_render_wgpu::{
-    EffectLineVertex, HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput,
-    HeadlessMaterialFactors, HeadlessMaterialTexture, MaterialPreviewFactors, ViewMode,
-    WindowRenderer, run_headless_material_capture,
+    EffectLineVertex, HeadlessMaterialCaptureCamera, HeadlessMaterialCaptureOptions,
+    HeadlessMaterialCaptureOutput, HeadlessMaterialFactors, HeadlessMaterialTexture,
+    MaterialPreviewFactors, ViewMode, WindowRenderer, run_headless_material_capture,
 };
 use crossbeam_channel::{Receiver, Sender, bounded};
 use egui::{Pos2, Rect, Vec2 as EguiVec2};
@@ -588,6 +588,34 @@ impl PreviewApplication {
             .and_then(|value| u32::try_from(value).ok())
             .unwrap_or(512)
             .clamp(64, 2_048);
+        let yaw_degrees = value.get("yaw_degrees").and_then(Value::as_f64);
+        let pitch_degrees = value.get("pitch_degrees").and_then(Value::as_f64);
+        let camera = match yaw_degrees.zip(pitch_degrees) {
+            Some((yaw_degrees, pitch_degrees))
+                if yaw_degrees.is_finite()
+                    && pitch_degrees.is_finite()
+                    && pitch_degrees.abs() <= 89.0 =>
+            {
+                Some(HeadlessMaterialCaptureCamera {
+                    yaw_degrees: yaw_degrees as f32,
+                    pitch_degrees: pitch_degrees as f32,
+                })
+            }
+            None if yaw_degrees.is_none() && pitch_degrees.is_none() => None,
+            _ => {
+                self.bridge.send(json!({
+                    "event": "capture_result",
+                    "request_id": request_id,
+                    "status": "error",
+                    "message": "capture yaw and pitch must both be finite and pitch must be within -89..89 degrees",
+                }));
+                return;
+            }
+        };
+        let isolated_material_index = value
+            .get("material_index")
+            .and_then(Value::as_u64)
+            .and_then(|value| u32::try_from(value).ok());
         let snapshot = self.snapshot.clone();
         let textures = self.textures.clone();
         let presentations = self.presentations.clone();
@@ -635,11 +663,16 @@ impl PreviewApplication {
                             width,
                             height,
                             lod_index,
+                            camera,
+                            isolated_material_index,
                         },
                         HeadlessMaterialCaptureOutput {
                             textured_bmp: &output_path,
                             base_color_bmp: &base_path,
                             part_id_bmp: &part_path,
+                            normal_map: None,
+                            material_response: None,
+                            layer_mask: None,
                         },
                     ))
                     .map_err(|error| anyhow::anyhow!(error.to_string()))?;

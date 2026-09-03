@@ -7,9 +7,75 @@ struct MaterialBindingBuildState {
     std::vector<TextureBinding> bindings;
     std::vector<std::string> notes;
     std::set<std::string> seen;
+    std::set<std::string> conservation_seen;
+    std::unordered_map<std::string, size_t> conservation_row_by_key;
     std::set<std::string> sidecar_kinds;
     std::set<std::string> shader_rules;
 };
+
+struct MaterialComponentScope {
+    std::string id;
+    int model_property_index = 0;
+    bool ambiguous = false;
+};
+
+static std::string material_component_directory_for_identity(const std::string& path) {
+    std::string directory = lower_copy(native_archive_path(dirname_from_path(path)));
+    const std::string marker = "/modelproperty/";
+    const size_t marker_index = directory.find(marker);
+    if (marker_index != std::string::npos) {
+        directory.replace(marker_index, marker.size(), "/model/");
+    }
+    return directory;
+}
+
+static MaterialComponentScope material_component_scope_for_sidecar(
+    const ArchiveEntryRef& sidecar,
+    const std::vector<NativeSubmesh>& meshes
+) {
+    const std::string sidecar_stem = exact_casefolded_name(stem_from_path(sidecar.path));
+    const std::string sidecar_directory = material_component_directory_for_identity(sidecar.path);
+    std::map<std::string, int> exact_models;
+    bool conflicting_model_property_index = false;
+    for (const NativeSubmesh& mesh : meshes) {
+        if (mesh.source_model_path.empty()
+            || exact_casefolded_name(stem_from_path(mesh.source_model_path)) != sidecar_stem
+            || material_component_directory_for_identity(mesh.source_model_path)
+                != sidecar_directory) continue;
+        const std::string model_path = lower_copy(native_archive_path(mesh.source_model_path));
+        auto [found, inserted] = exact_models.emplace(model_path, mesh.model_property_index);
+        if (!inserted && found->second != mesh.model_property_index) {
+            conflicting_model_property_index = true;
+        }
+    }
+    if (exact_models.size() == 1 && !conflicting_model_property_index) {
+        const auto& [model_path, model_property_index] = *exact_models.begin();
+        return MaterialComponentScope{
+            model_path + "#model_property=" + std::to_string(model_property_index),
+            model_property_index,
+            false};
+    }
+
+    const std::string fallback_key = material_component_key_from_path(sidecar.path);
+    int fallback_model_property_index = 0;
+    for (const NativeSubmesh& mesh : meshes) {
+        if (material_component_key_from_path(mesh.source_model_path) == fallback_key) {
+            fallback_model_property_index = mesh.model_property_index;
+            break;
+        }
+    }
+    return MaterialComponentScope{
+        "sidecar:" + lower_copy(native_archive_path(sidecar.path))
+            + "#model_property=" + std::to_string(fallback_model_property_index),
+        fallback_model_property_index,
+        exact_models.size() > 1 || conflicting_model_property_index};
+}
+
+static bool sidecar_ref_has_exact_wrapper_identity(const SidecarTextureRef& ref) {
+    return !ref.owner_wrapper_item_id.empty()
+        && ref.material_wrapper_index >= 0
+        && !ref.parameter_name.empty();
+}
 
 static int sidecar_scoped_mesh_count(
     const std::string& component_key,
@@ -51,6 +117,175 @@ static bool sidecar_ref_matches_meshes(
     return model_family_fallback_allowed_for_sidecar_ref(material_key, texture_key, model_family_key);
 }
 
+static std::string material_conservation_parameter_key(
+    const std::string& component_scope_id,
+    const MaterialWrapperDeclaration& declaration,
+    const MaterialParameterRecord& parameter
+) {
+    if (parameter.kind == "texture") {
+        return lower_copy(
+            component_scope_id + "|" + declaration.owner_wrapper_item_id + "|"
+            + std::to_string(declaration.material_wrapper_index) + "|" + parameter.name + "|"
+            + native_archive_path(parameter.texture_path));
+    }
+    return lower_copy(
+        component_scope_id + "|" + declaration.owner_wrapper_item_id + "|"
+        + std::to_string(declaration.material_wrapper_index) + "|" + parameter.kind + "|"
+        + parameter.name + "|" + parameter.tag_name + "|" + parameter.string_item_id + "|"
+        + parameter.item_id + "|" + std::to_string(parameter.index) + "|"
+        + parameter.texture_path + "|" + parameter.value);
+}
+
+static bool material_declaration_matches_meshes(
+    const MaterialWrapperDeclaration& declaration,
+    const std::string& component_key,
+    bool wrapper_order_authoritative,
+    int scoped_mesh_count,
+    const std::vector<NativeSubmesh>& meshes,
+    const std::string& model_family_key
+) {
+    SidecarTextureRef scope_ref;
+    scope_ref.material_name = declaration.material_name;
+    scope_ref.owner_wrapper_item_id = declaration.owner_wrapper_item_id;
+    scope_ref.material_wrapper_index = declaration.material_wrapper_index;
+    for (const MaterialParameterRecord& parameter : declaration.material_parameters) {
+        if (!parameter.texture_path.empty()) {
+            scope_ref.path = parameter.texture_path;
+            break;
+        }
+    }
+    return sidecar_ref_matches_meshes(
+        scope_ref,
+        component_key,
+        wrapper_order_authoritative,
+        scoped_mesh_count,
+        meshes,
+        model_family_key);
+}
+
+static bool sidecar_ref_owner_declaration_matches_meshes(
+    const ParsedMaterialSidecar& parsed,
+    const SidecarTextureRef& ref,
+    const std::string& component_key,
+    bool wrapper_order_authoritative,
+    int scoped_mesh_count,
+    const std::vector<NativeSubmesh>& meshes,
+    const std::string& model_family_key
+) {
+    return std::any_of(
+        parsed.declarations.begin(),
+        parsed.declarations.end(),
+        [&](const MaterialWrapperDeclaration& declaration) {
+            return lower_copy(declaration.owner_wrapper_item_id)
+                    == lower_copy(ref.owner_wrapper_item_id)
+                && declaration.material_wrapper_index == ref.material_wrapper_index
+                && material_declaration_matches_meshes(
+                    declaration,
+                    component_key,
+                    wrapper_order_authoritative,
+                    scoped_mesh_count,
+                    meshes,
+                    model_family_key);
+        });
+}
+
+static bool declaration_has_exact_logical_texture_edge(
+    const ParsedMaterialSidecar& parsed,
+    const MaterialWrapperDeclaration& declaration,
+    const MaterialParameterRecord& parameter
+) {
+    if (parameter.texture_path.empty()) return true;
+    const std::string declared_path = lower_copy(native_archive_path(parameter.texture_path));
+    for (const SidecarTextureRef& ref : parsed.refs) {
+        if (lower_copy(ref.owner_wrapper_item_id) == lower_copy(declaration.owner_wrapper_item_id)
+            && ref.material_wrapper_index == declaration.material_wrapper_index
+            && lower_copy(ref.parameter_name) == lower_copy(parameter.name)
+            && lower_copy(native_archive_path(ref.path)) == declared_path) return true;
+    }
+    return false;
+}
+
+static void record_material_wrapper_declaration(
+    MaterialBindingBuildState& state,
+    const ArchiveEntryRef& sidecar,
+    const ParsedMaterialSidecar& parsed,
+    const MaterialWrapperDeclaration& declaration,
+    bool wrapper_order_authoritative,
+    int scoped_mesh_count,
+    const std::string& component_key,
+    const std::string& component_scope_id,
+    const std::string& model_family_key
+) {
+    if (!material_declaration_matches_meshes(
+            declaration,
+            component_key,
+            wrapper_order_authoritative,
+            scoped_mesh_count,
+            state.meshes,
+            model_family_key)) return;
+    const std::string shader_family = declaration.shader_family.empty()
+        ? parsed.shader_family : declaration.shader_family;
+    const std::string shader_rule = shader_rule_for_family(shader_family);
+    for (const MaterialParameterRecord& parameter : declaration.material_parameters) {
+        const std::string key = material_conservation_parameter_key(
+            component_scope_id, declaration, parameter);
+        if (!state.conservation_seen.insert(key).second) {
+            auto existing = state.conservation_row_by_key.find(key);
+            if (existing != state.conservation_row_by_key.end()) {
+                NativeMaterialConservationRow& row =
+                    state.package.material_conservation_rows[existing->second];
+                if (std::find(
+                        row.representation_sidecar_paths.begin(),
+                        row.representation_sidecar_paths.end(),
+                        sidecar.path) == row.representation_sidecar_paths.end()) {
+                    row.representation_sidecar_paths.push_back(sidecar.path);
+                }
+            }
+            continue;
+        }
+        NativeMaterialConservationRow row;
+        row.sidecar_path = sidecar.path;
+        row.representation_sidecar_paths.push_back(sidecar.path);
+        row.component_scope_id = component_scope_id;
+        row.material_name = declaration.material_name;
+        row.shader_family = shader_family;
+        row.owner_wrapper_item_id = declaration.owner_wrapper_item_id;
+        row.material_wrapper_index = declaration.material_wrapper_index;
+        row.owner_slot_index = wrapper_order_authoritative
+            ? declaration.material_wrapper_index : -1;
+        row.parameter = parameter;
+        if (parameter.kind == "texture") {
+            const TechniqueParameterInfo* technique_parameter = technique_parameter_for_name(
+                state.technique_index, parameter.name, shader_family);
+            const std::string basename = lower_copy(basename_from_path(parameter.texture_path));
+            row.role = role_from_parameter_shader_and_name(
+                parameter.name, shader_rule, basename, technique_parameter);
+            row.layer_role = layer_role_from_parameter(parameter.name, row.role);
+            row.layer_channel = layer_channel_from_parameter(parameter.name);
+            row.logical_graph_edge = declaration_has_exact_logical_texture_edge(
+                parsed, declaration, parameter);
+            if (parameter.texture_path.empty()) {
+                row.status = "transported_null_texture";
+            } else if (!row.logical_graph_edge) {
+                row.status = "missing_graph_edge";
+                row.finding = "missing_graph_edge";
+                state.package.material_conservation_ok = false;
+                state.package.material_conservation_findings.push_back(
+                    "missing_graph_edge:" + sidecar.path + ":"
+                    + declaration.owner_wrapper_item_id + ":" + parameter.name);
+            } else {
+                row.status = "transported_texture_edge";
+            }
+        } else {
+            row.logical_graph_edge = true;
+            row.status = "transported_parameter";
+        }
+        state.conservation_row_by_key.emplace(
+            key, state.package.material_conservation_rows.size());
+        state.package.material_conservation_rows.push_back(std::move(row));
+    }
+}
+
 static std::optional<ArchiveEntryRef> select_sidecar_texture_candidate(
     const std::vector<ArchiveEntryRef>& candidates,
     const ArchiveEntryRef& sidecar,
@@ -77,6 +312,100 @@ static std::optional<ArchiveEntryRef> select_sidecar_texture_candidate(
     return selected == nullptr ? std::nullopt : std::optional<ArchiveEntryRef>(*selected);
 }
 
+struct ResolvedSidecarTextureCandidate {
+    ArchiveEntryRef entry;
+    std::string resolution;
+    std::string detail;
+    bool declared_source_missing = false;
+};
+
+static const ArchiveEntryRef* exact_archive_path_candidate(
+    const std::vector<ArchiveEntryRef>& candidates,
+    const std::string& archive_path
+) {
+    const std::string wanted = lower_copy(native_archive_path(archive_path));
+    for (const ArchiveEntryRef& candidate : candidates) {
+        if (lower_copy(native_archive_path(candidate.path)) == wanted) return &candidate;
+    }
+    return nullptr;
+}
+
+static std::string corrected_missing_texture_separator_path(const std::string& archive_path) {
+    const std::string normalized = native_archive_path(archive_path);
+    const std::string lower = lower_copy(normalized);
+    static const std::string prefix = "character/texture";
+    if (!lower.starts_with(prefix) || lower.size() <= prefix.size()
+        || lower[prefix.size()] == '/') return {};
+    return normalized.substr(0, prefix.size()) + "/" + normalized.substr(prefix.size());
+}
+
+static std::optional<ResolvedSidecarTextureCandidate> resolve_sidecar_texture_candidate(
+    const EntryJob& job,
+    const PamtIndex& index,
+    const ArchiveEntryRef& sidecar,
+    const SidecarTextureRef& ref,
+    const TechniqueParameterInfo* technique_parameter
+) {
+    const std::string declared_path = native_archive_path(ref.path);
+    const std::string declared_basename = lower_copy(basename_from_path(declared_path));
+    const std::vector<ArchiveEntryRef> declared_candidates =
+        lookup_basename_candidates_across_package(job, index, declared_basename, 96);
+    if (const ArchiveEntryRef* exact = exact_archive_path_candidate(
+            declared_candidates, declared_path)) {
+        return ResolvedSidecarTextureCandidate{
+            *exact, "declared_exact", declared_path, false};
+    }
+
+    const std::string corrected_path = corrected_missing_texture_separator_path(declared_path);
+    if (!corrected_path.empty()) {
+        const std::vector<ArchiveEntryRef> corrected_candidates =
+            lookup_basename_candidates_across_package(
+                job, index, lower_copy(basename_from_path(corrected_path)), 96);
+        if (const ArchiveEntryRef* corrected = exact_archive_path_candidate(
+                corrected_candidates, corrected_path)) {
+            return ResolvedSidecarTextureCandidate{
+                *corrected,
+                "corrected_missing_separator",
+                "declared_missing:" + declared_path + ";resolved_exact:" + corrected->path,
+                true};
+        }
+    }
+
+    if (technique_parameter != nullptr) {
+        const std::string default_path = native_archive_path(technique_parameter->default_value);
+        if (lower_copy(extension_from_path(default_path)) == ".dds") {
+            const std::vector<ArchiveEntryRef> default_candidates =
+                lookup_basename_candidates_across_package(
+                    job, index, lower_copy(basename_from_path(default_path)), 96);
+            const ArchiveEntryRef* selected_default = exact_archive_path_candidate(
+                default_candidates, default_path);
+            if (selected_default == nullptr) {
+                const std::string suffix = "/" + lower_copy(default_path);
+                for (const ArchiveEntryRef& candidate : default_candidates) {
+                    if (lower_copy(native_archive_path(candidate.path)).ends_with(suffix)) {
+                        selected_default = &candidate;
+                        break;
+                    }
+                }
+            }
+            if (selected_default != nullptr) {
+                return ResolvedSidecarTextureCandidate{
+                    *selected_default,
+                    "technique_default_after_missing_declared_source",
+                    "declared_missing:" + declared_path + ";technique_default:"
+                        + default_path + ";technique_source:"
+                        + technique_parameter->default_source_path
+                        + ";material_family:" + technique_parameter->material_family
+                        + ";parameter_group:" + technique_parameter->parameter_group_name
+                        + ";included_by:" + technique_parameter->included_by_source_path
+                        + ";resolved_exact:" + selected_default->path,
+                    true};
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 static TextureBinding make_sidecar_texture_binding(
     const SidecarTextureRef& ref,
     const ParsedMaterialSidecar& parsed,
@@ -86,7 +415,11 @@ static TextureBinding make_sidecar_texture_binding(
     const std::string& shader_family,
     const std::string& shader_rule,
     const TechniqueParameterInfo* technique_parameter,
+    const std::string& source_resolution,
+    const std::string& source_resolution_detail,
+    bool declared_source_missing,
     bool wrapper_order_authoritative,
+    const std::string& component_scope_id,
     const std::vector<NativeSubmesh>& meshes
 ) {
     const std::string basename = lower_copy(basename_from_path(ref.path));
@@ -101,6 +434,10 @@ static TextureBinding make_sidecar_texture_binding(
     binding.dds_height = dds.height;
     binding.dds_format = dds.format;
     binding.parameter_name = ref.parameter_name.empty() ? basename : ref.parameter_name;
+    binding.declared_texture_path = native_archive_path(ref.path);
+    binding.source_resolution = source_resolution;
+    binding.source_resolution_detail = source_resolution_detail;
+    binding.declared_source_missing = declared_source_missing;
     const std::string parameter_lower = lower_copy(binding.parameter_name);
     if (binding.role == "base" && !parameter_is_authoritative_visible_base(binding.parameter_name)
         && role_is_technical_for_base(texture_role_from_name(basename))) binding.role = texture_role_from_name(basename);
@@ -121,6 +458,8 @@ static TextureBinding make_sidecar_texture_binding(
         }
     }
     binding.sidecar_path = sidecar.path;
+    binding.representation_sidecar_paths.push_back(sidecar.path);
+    binding.component_scope_id = component_scope_id;
     binding.sidecar_kind = sidecar.extension;
     if (const NativePbdSidecarHint* hint = best_native_pbd_hint_for_binding(
         parsed.pbd_hints, binding.material_name, ref.material_name, binding.parameter_name)) {
@@ -134,7 +473,11 @@ static TextureBinding make_sidecar_texture_binding(
         binding.role, basename, parameter_lower, binding.shader_rule);
     binding.srgb_mode = srgb_mode_for_role(
         binding.role, binding.parameter_name, technique_parameter);
-    binding.parameter_declared_by = technique_parameter != nullptr ? "technique" : "";
+    binding.parameter_declared_by = technique_parameter == nullptr
+        ? std::string()
+        : (technique_parameter->parameter_group_name.empty()
+            ? "exact_material"
+            : "exact_material_parameter_group");
     binding.visible_class = visible_class_for_binding(binding.parameter_name, binding.archive_path, binding.role);
     binding.source_authority = "sidecar";
     binding.relation_confidence = (!ref.parameter_name.empty() && !ref.material_name.empty())
@@ -221,8 +564,28 @@ static void add_sidecar_texture_binding(
     bool parameter_was_named
 ) {
     const std::string key = lower_copy(
-        binding.owner_wrapper_item_id + "|" + binding.parameter_name + "|" + binding.archive_path);
-    if (!state.seen.insert(key).second) return;
+        binding.component_scope_id + "|" + binding.owner_wrapper_item_id + "|"
+        + std::to_string(binding.material_wrapper_index) + "|" + binding.parameter_name + "|"
+        + binding.declared_texture_path);
+    if (!state.seen.insert(key).second) {
+        for (TextureBinding& existing : state.bindings) {
+            const std::string existing_key = lower_copy(
+                existing.component_scope_id + "|" + existing.owner_wrapper_item_id + "|"
+                + std::to_string(existing.material_wrapper_index) + "|"
+                + existing.parameter_name + "|" + existing.declared_texture_path);
+            if (existing_key != key) continue;
+            for (const std::string& representation : binding.representation_sidecar_paths) {
+                if (std::find(
+                        existing.representation_sidecar_paths.begin(),
+                        existing.representation_sidecar_paths.end(),
+                        representation) == existing.representation_sidecar_paths.end()) {
+                    existing.representation_sidecar_paths.push_back(representation);
+                }
+            }
+            break;
+        }
+        return;
+    }
     state.bindings.push_back(binding);
     add_asset_family_row(state.package, NativeAssetFamilyRow{
         "Textures", "Texture", selected.basename.empty() ? basename_from_path(selected.path) : selected.basename,
@@ -242,10 +605,20 @@ static bool process_sidecar_texture_ref(
     bool wrapper_order_authoritative,
     int scoped_mesh_count,
     const std::string& component_key,
+    const std::string& component_scope_id,
     const std::string& model_family_key
 ) {
-    if (!sidecar_ref_matches_meshes(ref, component_key, wrapper_order_authoritative,
-        scoped_mesh_count, state.meshes, model_family_key)) {
+    const bool owner_declaration_matches = sidecar_ref_owner_declaration_matches_meshes(
+        parsed,
+        ref,
+        component_key,
+        wrapper_order_authoritative,
+        scoped_mesh_count,
+        state.meshes,
+        model_family_key);
+    if (!owner_declaration_matches
+        && !sidecar_ref_matches_meshes(ref, component_key, wrapper_order_authoritative,
+            scoped_mesh_count, state.meshes, model_family_key)) {
         if (state.package.rejected_texture_examples.size() < 16) {
             state.package.rejected_texture_examples.push_back(
                 "sidecar skipped unrelated material wrapper "
@@ -258,7 +631,7 @@ static bool process_sidecar_texture_ref(
     if (shader_family.empty() && sidecar.extension == ".pami") shader_family = "StaticMaterial";
     const std::string shader_rule = shader_rule_for_family(shader_family);
     const TechniqueParameterInfo* technique_parameter = technique_parameter_for_name(
-        state.technique_index, ref.parameter_name);
+        state.technique_index, ref.parameter_name, shader_family);
     const std::string basename = lower_copy(basename_from_path(ref.path));
     const std::string role = role_from_parameter_shader_and_name(
         ref.parameter_name, shader_rule, basename, technique_parameter);
@@ -282,20 +655,37 @@ static bool process_sidecar_texture_ref(
         && !keep_layer_stack_aux
         && !exact_skin_detail_support
         && !exact_emissive_layer_support
+        && !sidecar_ref_has_exact_wrapper_identity(ref)
         && (parameter_key.find("detail") != std::string::npos
             || parameter_key.find("grime") != std::string::npos
             || parameter_key.find("dye") != std::string::npos)
         && role != "base") return false;
-    const std::vector<ArchiveEntryRef> candidates = lookup_basename_candidates_across_package(
-        state.job, state.index, basename, 96);
-    const std::optional<ArchiveEntryRef> selected = select_sidecar_texture_candidate(candidates, sidecar, basename);
+    std::optional<ResolvedSidecarTextureCandidate> selected =
+        resolve_sidecar_texture_candidate(
+            state.job, state.index, sidecar, ref, technique_parameter);
+    if (!selected.has_value() && !state.job.package_root.empty()) {
+        // Most declared DDS paths resolve without a package-wide technique
+        // scan. Load the authoritative global declarations only when a source
+        // is actually absent, then keep them resident for the service's later
+        // jobs. This preserves source defaults without taxing ordinary/Rhett
+        // first-use latency.
+        const TechniqueIndex& package_techniques = cached_package_technique_index(
+            state.job, state.index);
+        technique_parameter = technique_parameter_for_name(
+            package_techniques, ref.parameter_name, shader_family);
+        selected = resolve_sidecar_texture_candidate(
+            state.job, state.index, sidecar, ref, technique_parameter);
+    }
     if (!selected.has_value()) return true;
-    const std::string extracted = extracted_dds_path_for_entry(*selected, state.job.cache_root, state.notes);
+    const std::string extracted = extracted_dds_path_for_entry(
+        selected->entry, state.job.cache_root, state.notes);
     if (extracted.empty()) return true;
     add_sidecar_texture_binding(state, make_sidecar_texture_binding(
-        ref, parsed, sidecar, *selected, extracted, shader_family, shader_rule,
-        technique_parameter, wrapper_order_authoritative, state.meshes),
-        *selected, sidecar, !ref.parameter_name.empty());
+        ref, parsed, sidecar, selected->entry, extracted, shader_family, shader_rule,
+        technique_parameter, selected->resolution, selected->detail,
+        selected->declared_source_missing, wrapper_order_authoritative,
+        component_scope_id, state.meshes),
+        selected->entry, sidecar, !ref.parameter_name.empty());
     return true;
 }
 
@@ -321,9 +711,14 @@ static void process_material_sidecar(MaterialBindingBuildState& state, const Arc
         sidecar.extension, "", "", "", ""
     });
     const std::string component_key = material_component_key_from_path(sidecar.path);
-    const int model_property_index = material_sidecar_model_property_index(
-        component_key,
-        state.meshes);
+    const MaterialComponentScope component_scope =
+        material_component_scope_for_sidecar(sidecar, state.meshes);
+    const int model_property_index = component_scope.model_property_index;
+    if (component_scope.ambiguous) {
+        state.package.material_conservation_ok = false;
+        state.package.material_conservation_findings.push_back(
+            "ambiguous_component_scope:" + sidecar.path);
+    }
     const ParsedMaterialSidecar* parsed = nullptr;
     try {
         parsed = &cached_parsed_material_sidecar(sidecar, model_property_index);
@@ -353,10 +748,22 @@ static void process_material_sidecar(MaterialBindingBuildState& state, const Arc
     const bool wrapper_order_authoritative = parsed->material_wrapper_count > 0
         && parsed->material_wrapper_count == scoped_count;
     const std::string model_family_key = normalized_material_key(stem_from_path(state.job.path));
+    for (const MaterialWrapperDeclaration& declaration : parsed->declarations) {
+        record_material_wrapper_declaration(
+            state,
+            sidecar,
+            *parsed,
+            declaration,
+            wrapper_order_authoritative,
+            scoped_count,
+            component_key,
+            component_scope.id,
+            model_family_key);
+    }
     int considered = 0;
     for (const SidecarTextureRef& ref : parsed->refs) {
         if (process_sidecar_texture_ref(state, sidecar, *parsed, ref, wrapper_order_authoritative,
-            scoped_count, component_key, model_family_key)) ++considered;
+            scoped_count, component_key, component_scope.id, model_family_key)) ++considered;
     }
     state.package.dds_candidates += considered;
 }
@@ -381,6 +788,60 @@ static void finish_material_bindings(MaterialBindingBuildState& state, size_t si
         if (binding.material_output_quality == "exact") ++exact;
         else if (binding.material_output_quality == "approximate") ++approximate;
         else ++inferred;
+    }
+    for (NativeMaterialConservationRow& row : state.package.material_conservation_rows) {
+        if (row.parameter.kind != "texture" || row.parameter.texture_path.empty()
+            || !row.logical_graph_edge) continue;
+        const TextureBinding* resolved = nullptr;
+        const TextureBinding* cross_owner = nullptr;
+        for (const TextureBinding& binding : state.bindings) {
+            const bool same_component_scope = lower_copy(binding.component_scope_id)
+                == lower_copy(row.component_scope_id);
+            const bool same_parameter = lower_copy(binding.parameter_name)
+                == lower_copy(row.parameter.name);
+            const bool same_path = lower_copy(native_archive_path(binding.declared_texture_path))
+                == lower_copy(native_archive_path(row.parameter.texture_path));
+            if (!same_component_scope || !same_parameter || !same_path) continue;
+            if (lower_copy(binding.owner_wrapper_item_id)
+                    == lower_copy(row.owner_wrapper_item_id)
+                && binding.material_wrapper_index == row.material_wrapper_index) {
+                resolved = &binding;
+                break;
+            }
+            cross_owner = &binding;
+        }
+        if (resolved != nullptr) {
+            row.texture_resolved = true;
+            row.role = resolved->role;
+            row.layer_role = resolved->layer_role;
+            row.layer_channel = resolved->layer_channel;
+            row.resolved_source_path = resolved->source_path;
+            row.resolved_archive_path = resolved->archive_path;
+            row.source_resolution = resolved->source_resolution;
+            row.source_resolution_detail = resolved->source_resolution_detail;
+            row.semantic_type = resolved->semantic_type;
+            row.semantic_subtype = resolved->semantic_subtype;
+            row.packed_channels = resolved->packed_channels;
+            row.srgb_mode = resolved->srgb_mode;
+            row.sidecar_kind = resolved->sidecar_kind;
+            row.declared_source_missing = resolved->declared_source_missing;
+            row.status = "resolved_exact_owner";
+        } else if (cross_owner != nullptr) {
+            row.status = "cross_owner_binding";
+            row.finding = "cross_owner_binding";
+            state.package.material_conservation_ok = false;
+            state.package.material_conservation_findings.push_back(
+                "cross_owner_binding:" + row.sidecar_path + ":"
+                + row.owner_wrapper_item_id + ":" + row.parameter.name);
+        } else {
+            row.status = "transported_source_unavailable";
+            row.finding = "source_dds_unavailable";
+            state.package.material_conservation_ok = false;
+            state.package.material_conservation_findings.push_back(
+                "source_dds_unavailable:" + row.sidecar_path + ":"
+                + row.owner_wrapper_item_id + ":" + row.parameter.name + ":"
+                + row.parameter.texture_path);
+        }
     }
     const std::string kind_summary = joined_material_set(state.sidecar_kinds);
     const std::string rule_summary = joined_material_set(state.shader_rules);

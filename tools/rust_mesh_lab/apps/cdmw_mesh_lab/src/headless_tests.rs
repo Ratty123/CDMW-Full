@@ -1901,11 +1901,15 @@ fn offscreen_d3d12_capture_pads_odd_rows_and_matches_alpha_cutout_owners() -> Te
             width: 65,
             height: 73,
             lod_index: 0,
+            ..HeadlessMaterialCaptureOptions::default()
         },
         HeadlessMaterialCaptureOutput {
             textured_bmp: &root.path().join("textured.bmp"),
             base_color_bmp: &root.path().join("base-color.bmp"),
             part_id_bmp: &root.path().join("part-id.bmp"),
+            normal_map: None,
+            material_response: None,
+            layer_mask: None,
         },
     ))?;
     assert!(report.textured.non_background_pixels > 0);
@@ -1934,7 +1938,14 @@ fn offscreen_d3d12_captures_the_exact_cdmw_material_package_without_a_window() -
         .ok_or("CDMW_RUST_REAL_CAPTURE_BMP is required")?;
     let report_path = std::env::var_os("CDMW_RUST_REAL_CAPTURE_REPORT_JSON").map(PathBuf::from);
 
-    capture_cdmw_session(&manifest, &output, report_path.as_deref(), false)?;
+    capture_cdmw_session(
+        &manifest,
+        &output,
+        report_path.as_deref(),
+        false,
+        None,
+        None,
+    )?;
 
     let paths = cdmw_capture_paths(&output, report_path.as_deref())?;
     let report: Value = serde_json::from_slice(&fs::read(paths.report)?)?;

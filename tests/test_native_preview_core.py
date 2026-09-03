@@ -325,7 +325,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("native\\cdmw_preview_core", build_text)
         self.assertIn("run_native_preview_core_preview_job", main_window_text)
         self.assertIn("dotnet_preview_package_path", main_window_text)
-        self.assertIn("DotNetPreviewHostFrame", main_window_text)
+        self.assertIn("RustPreviewHostFrame", main_window_text)
         self.assertIn("preview-job", source_text)
         self.assertIn("--service", source_text)
         self.assertFalse(Path("native/cdmw_d3d11_preview").exists())
@@ -961,7 +961,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("weapon_tinted_detail_layer", layer_source)
         self.assertIn("tint_color_is_visible(layer.tint)", layer_source)
         self.assertIn("layer.weight = std::max(layer.weight, 0.44f);", policy_source)
-        self.assertIn("binding_is_layer_diffuse(*binding, base, weapon_layer_stack && selected_base_layer)", layer_source)
+        self.assertIn("primary_visible_layer == nullptr ? base : primary_visible_layer", layer_source)
+        self.assertIn("selected_base_layer)) continue;", layer_source)
         self.assertIn("selected_base_layer ? 0.48f", policy_source)
         self.assertIn("layer.tint[3] = detail_layer ? 0.68f : 0.55f;", policy_source)
         self.assertIn("std::stable_sort(overlays.begin(), overlays.end()", layer_source)
@@ -1017,6 +1018,16 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("native material graph: version=", source)
         self.assertIn("material_semantics_version", source)
         self.assertIn("material_graph_version", source)
+        self.assertIn("material_conservation", source)
+        self.assertIn("declared_parameter_count", source)
+        self.assertIn("transported_parameter_count", source)
+        self.assertIn("owner_wrapper_item_id", source)
+        self.assertIn("cross_owner_binding", source)
+        self.assertIn("layer_as_base", source)
+        self.assertIn(
+            "batch.material_category_confidence = batch.surface_profile.confidence",
+            source,
+        )
         self.assertIn("material_slots_json", source)
         self.assertIn("selection_decisions_json", source)
         self.assertIn('\\"dds_upload_policy\\"', source)
@@ -1047,7 +1058,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertNotIn("requires Python material resolver", python_source)
         self.assertNotIn("_native_preview_core_quality_fallback_reason", python_source)
         self.assertNotIn("Native Preview Core: material quality fallback", python_source)
-        self.assertIn(".NET/Vortice package source: canonical Preview Core decode", python_source)
+        self.assertIn("Rust Preview package source: canonical Preview Core decode", python_source)
         self.assertIn("dotnet_preview_package_path", python_source)
 
     def test_native_base_selection_prefers_visible_layer_over_low_authority_overlay(self) -> None:
@@ -1174,6 +1185,12 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("binding_owner_submesh_local_index", source)
         self.assertIn("state.submeshes", relevant)
         self.assertIn("owner_slot_index != mesh.source_local_submesh_index", relevant)
+        self.assertIn("package_binding_is_conserved_logical_texture_edge", writer)
+        self.assertIn(
+            "if (!package_binding_is_conserved_logical_texture_edge(state, binding)) continue;",
+            writer,
+        )
+        self.assertIn('"\\\"logical_graph_edge\\\":true,"', writer)
         self.assertIn('"\\\"owner_slot_index\\\":"', writer)
         self.assertIn("binding_owner_submesh_local_index(state.submeshes, binding)", writer)
 
@@ -1357,7 +1374,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('binding_shader_rule.find("generic") != std::string::npos && binding->pbd_simulation_material_name.empty()', layer_source)
 
     def test_d3d11_host_does_not_use_rich_material_inputs_as_base_override(self) -> None:
-        package_text = Path("cdmw/services/mesh_dotnet_preview_package.py").read_text(encoding="utf-8")
+        package_text = Path("cdmw/services/mesh_rust_authoring.py").read_text(encoding="utf-8")
         self.assertIn("net_materials.json", package_text)
         self.assertIn("canonical", package_text.casefold())
 

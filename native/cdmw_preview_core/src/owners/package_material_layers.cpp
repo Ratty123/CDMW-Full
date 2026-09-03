@@ -188,7 +188,21 @@ static const TextureBinding* find_layer_aux_binding(
         }
         int score = -1000;
         if (desired_role == "mask") {
-            if (layer_role == "detail" && (parameter.find("detailmask") != std::string::npos || binding->role == "detail")) score = 120;
+            const bool authoritative_color_region_selector =
+                exact_owner
+                && layer_role == "detail"
+                && parameter == "colorblendingmasktexture"
+                && lower_copy(binding->sidecar_kind).ends_with("pac_xml")
+                && lower_copy(binding->packed_channels).find("layer:color_blending_mask")
+                    != std::string::npos;
+            if (authoritative_color_region_selector) {
+                // PAC R/G/B suffixes such as `_detailDiffuseMaskR` name
+                // authored colour regions in the same wrapper. Their selector
+                // is `_colorBlendingMaskTexture`; `_detailMaskTexture` remains
+                // a distinct technical detail input and a conservative
+                // fallback when the colour-region authority is not exact.
+                score = 180;
+            } else if (layer_role == "detail" && (parameter.find("detailmask") != std::string::npos || binding->role == "detail")) score = 120;
             else if ((layer_role == "grime" || layer_role == "layer") && (parameter.find("colorblendingmask") != std::string::npos || parameter.find("blendingmask") != std::string::npos)) score = 118;
             else if (layer_role == "damage" && parameter.find("mask") != std::string::npos) score = 104;
             else if (exact_owner && parameter == "masktexture") score = 112;
@@ -334,6 +348,9 @@ static void append_skin_detail_support_layer(
     if (normal == nullptr && material == nullptr) return;
 
     MaterialLayer layer;
+    layer.component_scope_id = selector->component_scope_id;
+    layer.owner_wrapper_item_id = selector->owner_wrapper_item_id;
+    layer.material_wrapper_index = selector->material_wrapper_index;
     layer.layer_role = "skin_detail";
     layer.layer_channel = "r";
     layer.shader_family = selector->shader_family;
@@ -443,6 +460,9 @@ static void append_cloth_normal_support_layers(
         }
 
         MaterialLayer layer;
+        layer.component_scope_id = normal->component_scope_id;
+        layer.owner_wrapper_item_id = normal->owner_wrapper_item_id;
+        layer.material_wrapper_index = normal->material_wrapper_index;
         layer.layer_role = "cloth_detail";
         layer.layer_channel = layer_channel;
         layer.shader_family = normal->shader_family;
@@ -472,6 +492,15 @@ static MaterialLayer make_base_material_layer(
     const NativeMaterialHints& hints
 ) {
     MaterialLayer layer;
+    const TextureBinding* owner = base != nullptr ? base
+        : (normal != nullptr ? normal
+            : (material != nullptr ? material
+                : (height != nullptr ? height : specular)));
+    if (owner != nullptr) {
+        layer.component_scope_id = owner->component_scope_id;
+        layer.owner_wrapper_item_id = owner->owner_wrapper_item_id;
+        layer.material_wrapper_index = owner->material_wrapper_index;
+    }
     layer.layer_role = "base";
     layer.layer_channel = base != nullptr && !base->layer_channel.empty() ? base->layer_channel : "r";
     layer.shader_family = base != nullptr ? base->shader_family : "";
@@ -615,6 +644,9 @@ static std::vector<MaterialLayer> compile_color_blending_seed_layers(
     result.reserve(palette_owner->color_blending_tints.size());
     for (size_t channel = 0; channel < palette_owner->color_blending_tints.size(); ++channel) {
         MaterialLayer layer;
+        layer.component_scope_id = palette_owner->component_scope_id;
+        layer.owner_wrapper_item_id = palette_owner->owner_wrapper_item_id;
+        layer.material_wrapper_index = palette_owner->material_wrapper_index;
         layer.layer_role = "color_seed";
         layer.layer_channel = std::string(1, "rgb"[channel]);
         layer.shader_family = palette_owner->shader_family;
@@ -623,10 +655,12 @@ static std::vector<MaterialLayer> compile_color_blending_seed_layers(
         layer.blend_order = "pac_rgb_selector_palette";
         layer.source_parameter = channel_sources[channel];
         layer.mask_parameter = selector->parameter_name;
-        layer.diffuse_source = base != nullptr && !base->source_path.empty()
-            ? base->source_path : palette_owner->source_path;
-        layer.diffuse_archive_path = base != nullptr && !base->archive_path.empty()
-            ? base->archive_path : palette_owner->archive_path;
+        if (!channel_sources[channel].empty()) {
+            layer.diffuse_source = base != nullptr && !base->source_path.empty()
+                ? base->source_path : palette_owner->source_path;
+            layer.diffuse_archive_path = base != nullptr && !base->archive_path.empty()
+                ? base->archive_path : palette_owner->archive_path;
+        }
         layer.mask_source = selector->source_path;
         layer.mask_archive_path = selector->archive_path;
         layer.weight = 1.0f;
@@ -653,24 +687,38 @@ static std::vector<MaterialLayer> compile_material_layers(
     const TextureBinding* height,
     const TextureBinding* specular,
     const NativeMaterialHints& hints,
-    const std::string& visible_texture_mode
+    const std::string& visible_texture_mode,
+    const TextureBinding* primary_visible_layer = nullptr
 ) {
     std::vector<MaterialLayer> layers;
-    const bool base_is_layer_channel = binding_is_explicit_layer_channel_base(base);
+    // Production selection keeps a layer diffuse in `primary_visible_layer`
+    // and passes no base here. Retain the legacy direct-call behavior for the
+    // native contract self-tests and compatibility callers that still pass an
+    // explicit layer-channel base: its same-wrapper auxiliaries remain scoped
+    // together, while the production package never publishes that layer as a
+    // global base slot.
+    const bool base_is_layer_channel = primary_visible_layer == nullptr
+        && binding_is_explicit_layer_channel_base(base);
     const TextureBinding* base_normal = base_is_layer_channel
         ? find_base_layer_aux_companion(bindings, base, "normal")
         : normal;
+    const std::string material_layer_role = material == nullptr
+        ? std::string() : lower_copy(material->layer_role);
+    const bool material_is_layer_scoped = material != nullptr
+        && (binding_is_layer_selector_mask(*material)
+            || material_layer_role == "detail"
+            || material_layer_role == "grime"
+            || material_layer_role == "dye"
+            || material_layer_role == "damage"
+            || material_layer_role == "overlay"
+            || material_layer_role == "layer"
+            || lower_copy(material->packed_channels).find("layer:") != std::string::npos);
     const TextureBinding* base_material = base_is_layer_channel
         ? find_base_layer_aux_companion(bindings, base, "material")
-        : material;
+        : (material_is_layer_scoped ? nullptr : material);
     const TextureBinding* base_height = base_is_layer_channel
         ? find_base_layer_aux_companion(bindings, base, "height")
         : height;
-    // A layer-channel diffuse owns a same-wrapper response companion. The
-    // globally selected material is commonly `_colorBlendingMaskTexture`
-    // (`*_ma`) and remains a selector/mask; it must not become the layer's
-    // roughness/metalness surface. Ordinary direct base/material pairs retain
-    // the existing global material/specular path.
     const TextureBinding* base_specular = base_is_layer_channel ? nullptr : specular;
     layers.push_back(make_base_material_layer(
         base, base_normal, base_material, base_height, base_specular, hints));
@@ -710,8 +758,11 @@ static std::vector<MaterialLayer> compile_material_layers(
         );
     std::set<std::string> seen_layer_keys;
     for (const TextureBinding* binding : bindings) {
-        const bool selected_base_layer = binding == base;
-        if (binding == nullptr || !binding_is_layer_diffuse(*binding, base, weapon_layer_stack && selected_base_layer)) continue;
+        const bool selected_base_layer = binding == primary_visible_layer;
+        if (binding == nullptr || !binding_is_layer_diffuse(
+                *binding,
+                primary_visible_layer == nullptr ? base : primary_visible_layer,
+                selected_base_layer)) continue;
         if (exact_authored_layer_stack
             && !exact_authored_layer_binding_matches_mesh(*binding, mesh)) continue;
         const std::string binding_shader_rule = lower_copy(binding->shader_rule);
@@ -726,13 +777,19 @@ static std::vector<MaterialLayer> compile_material_layers(
             continue;
         }
         const std::string layer_key =
-            lower_copy(binding->archive_path)
+            lower_copy(binding->component_scope_id)
+            + "|" + lower_copy(binding->owner_wrapper_item_id)
+            + "|" + std::to_string(binding->material_wrapper_index)
+            + "|" + lower_copy(binding->archive_path)
             + "|" + lower_copy(binding->layer_role)
             + "|" + lower_copy(binding->layer_channel);
         if (!seen_layer_keys.insert(layer_key).second) {
             continue;
         }
         MaterialLayer layer;
+        layer.component_scope_id = binding->component_scope_id;
+        layer.owner_wrapper_item_id = binding->owner_wrapper_item_id;
+        layer.material_wrapper_index = binding->material_wrapper_index;
         layer.layer_role = binding->layer_role.empty() || binding->layer_role == "base" ? "layer" : binding->layer_role;
         layer.layer_channel = binding->layer_channel.empty() ? "r" : binding->layer_channel;
         layer.shader_family = binding->shader_family;
@@ -815,12 +872,12 @@ static std::vector<MaterialLayer> compile_material_layers(
     }
     if (weapon_layer_stack && !exact_authored_layer_stack && layers.size() > 5) {
         std::vector<MaterialLayer> overlays(layers.begin() + 1, layers.end());
-        std::stable_sort(overlays.begin(), overlays.end(), [base](const MaterialLayer& left, const MaterialLayer& right) {
-            auto priority = [base](const MaterialLayer& layer) -> int {
+        std::stable_sort(overlays.begin(), overlays.end(), [primary_visible_layer](const MaterialLayer& left, const MaterialLayer& right) {
+            auto priority = [primary_visible_layer](const MaterialLayer& layer) -> int {
                 const bool selected_base_layer =
-                    base != nullptr
-                    && lower_copy(layer.diffuse_archive_path) == lower_copy(base->archive_path)
-                    && lower_copy(layer.source_parameter) == lower_copy(base->parameter_name);
+                    primary_visible_layer != nullptr
+                    && lower_copy(layer.diffuse_archive_path) == lower_copy(primary_visible_layer->archive_path)
+                    && lower_copy(layer.source_parameter) == lower_copy(primary_visible_layer->parameter_name);
                 if (selected_base_layer) return 0;
                 const std::string role = lower_copy(layer.layer_role);
                 if (role.find("detail") != std::string::npos) return 1;
@@ -840,6 +897,9 @@ static std::vector<MaterialLayer> compile_material_layers(
 static std::string material_layer_json(const MaterialLayer& layer) {
     std::ostringstream out;
     out << "{"
+        << "\"component_scope_id\":\"" << json_escape(layer.component_scope_id) << "\","
+        << "\"owner_wrapper_item_id\":\"" << json_escape(layer.owner_wrapper_item_id) << "\","
+        << "\"material_wrapper_index\":" << layer.material_wrapper_index << ","
         << "\"layer_role\":\"" << json_escape(layer.layer_role) << "\","
         << "\"mask_channel\":\"" << json_escape(layer.layer_channel) << "\","
         << "\"shader_family\":\"" << json_escape(layer.shader_family) << "\","

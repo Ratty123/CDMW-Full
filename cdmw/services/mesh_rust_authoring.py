@@ -5021,6 +5021,7 @@ _RUST_SURFACE_PROFILE_AUTHORED_FACTORS = (
     "metalness",
     "specular",
     "height_scale",
+    "anisotropy",
 )
 
 
@@ -5053,6 +5054,10 @@ def _rust_surface_profile(
     if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
         raise RustMeshProtocolError(
             "Preview Core surface-profile confidence is outside 0..=1"
+        )
+    if abs(confidence - category_confidence) > 1.0e-6:
+        raise RustMeshProtocolError(
+            "Preview Core surface-profile confidence does not match its material category"
         )
 
     finish = str(raw_profile.get("finish", "") or "").strip().casefold()
@@ -5102,6 +5107,10 @@ def _rust_surface_profile(
         name: bool(raw_fallback_applied.get(name, False))
         for name in _RUST_SURFACE_PROFILE_FACTORS
     }
+    if fallbacks["height_scale"] != 0.0 or fallback_applied["height_scale"]:
+        raise RustMeshProtocolError(
+            "Preview Core surface profile must not supply a height-scale fallback"
+        )
     for name in _RUST_SURFACE_PROFILE_AUTHORED_FACTORS:
         if authored[name] and fallback_applied[name]:
             raise RustMeshProtocolError(
@@ -5196,6 +5205,105 @@ def _rust_exact_authored_height_scale(source: object) -> float | None:
             if value is not None:
                 return max(0.0, min(1.0, value))
     return None
+
+
+def _rust_exact_authored_anisotropy(source: object) -> bool | None:
+    """Resolve explicit owner-scoped anisotropy, preserving an authored zero."""
+
+    try:
+        owner_slot_index = int(
+            getattr(source, "preview_pac_material_owner_slot_index", -1)
+        )
+    except (TypeError, ValueError, OverflowError):
+        owner_slot_index = -1
+    material_inputs = tuple(
+        getattr(source, "preview_material_texture_inputs", ()) or ()
+    )
+    if owner_slot_index < 0:
+        exact_owners: set[int] = set()
+        for item in material_inputs:
+            authority = str(
+                getattr(item, "binding_authority", "") or ""
+            ).strip().casefold()
+            if authority not in {"authoritative", "exact"}:
+                continue
+            try:
+                item_owner = int(getattr(item, "owner_slot_index", -1))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if item_owner >= 0:
+                exact_owners.add(item_owner)
+        if len(exact_owners) == 1:
+            owner_slot_index = next(iter(exact_owners))
+
+    parameters: list[object] = []
+    has_flow = False
+    for item in material_inputs:
+        authority = str(
+            getattr(item, "binding_authority", "") or ""
+        ).strip().casefold()
+        try:
+            item_owner = int(getattr(item, "owner_slot_index", -1))
+        except (TypeError, ValueError, OverflowError):
+            item_owner = -1
+        if (
+            owner_slot_index < 0
+            or authority not in {"authoritative", "exact"}
+            or item_owner != owner_slot_index
+        ):
+            continue
+        has_flow = has_flow or _material_input_texture_role(item) == "flow"
+        parameters.extend(tuple(getattr(item, "material_parameters", ()) or ()))
+    # The flattened parameter list has no per-row owner identity.  It is safe
+    # for an explicitly owned source, a uniquely inferred owner, or a legacy
+    # source with no owner contract at all.  When authoritative inputs prove
+    # multiple owners on one Preview Core batch, accepting that list would let
+    # one owner's anisotropy scalar leak across the whole batch.
+    if owner_slot_index >= 0 or not exact_owners:
+        parameters.extend(
+            tuple(getattr(source, "preview_material_parameters", ()) or ())
+        )
+    authored = False
+    enabled = False
+    for parameter in parameters:
+        name = _rust_normalized_parameter_name(
+            getattr(parameter, "parameter_name", "")
+        )
+        if "anisotrop" not in name:
+            continue
+        authored = True
+        number = _rust_material_parameter_number(parameter)
+        if number is None:
+            value = str(getattr(parameter, "value", "") or "").strip()
+            enabled = enabled or bool(value)
+        else:
+            enabled = enabled or number > 0.0
+    if authored:
+        return enabled
+    return True if has_flow else None
+
+
+def _rust_owner_scoped_surface_profile_anisotropy(
+    surface_profile: dict[str, object] | None,
+    authored_anisotropy: bool | None,
+) -> dict[str, object] | None:
+    """Make Preview Core's batch-wide hint obey the exact PAC material owner."""
+
+    if surface_profile is None:
+        return None
+    authored = dict(surface_profile["authored"])
+    fallback_applied = dict(surface_profile["fallback_applied"])
+    owner_authored = authored_anisotropy is not None
+    authored["anisotropy"] = owner_authored
+    fallback_applied["anisotropy"] = bool(
+        not owner_authored
+        and float(dict(surface_profile["fallbacks"])["anisotropy"]) > 0.0
+    )
+    return {
+        **surface_profile,
+        "authored": authored,
+        "fallback_applied": fallback_applied,
+    }
 
 
 _RUST_SKIN_DETAIL_PARAMETER_NAMES = frozenset(
@@ -5543,10 +5651,17 @@ def _mesh_material_presentations(
             authored_height_scale = _rust_exact_authored_height_scale(
                 submeshes[material_index]
             )
+            authored_anisotropy = _rust_exact_authored_anisotropy(
+                submeshes[material_index]
+            )
             surface_profile = _rust_surface_profile(
                 source.get("surface_profile"),
                 material_category=category,
                 category_confidence=category_confidence,
+            )
+            surface_profile = _rust_owner_scoped_surface_profile_anisotropy(
+                surface_profile,
+                authored_anisotropy,
             )
             profile_anisotropy = bool(
                 surface_profile
@@ -5619,7 +5734,9 @@ def _mesh_material_presentations(
                     "texture_tint": texture_tint,
                     "base_tint_strength": base_tint_strength,
                     "hair_anisotropy": (
-                        shader_family.casefold() == "hair" or profile_anisotropy
+                        authored_anisotropy
+                        if authored_anisotropy is not None
+                        else shader_family.casefold() == "hair" or profile_anisotropy
                     ),
                     "skin_detail_scale": skin_detail_scale,
                     "skin_detail_opacity": skin_detail_opacity,

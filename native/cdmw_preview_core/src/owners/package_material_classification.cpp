@@ -8,6 +8,7 @@ struct NativeMaterialHints {
     bool metalness_authored = false;
     bool specular_authored = false;
     bool height_scale_authored = false;
+    bool anisotropy_authored = false;
 };
 
 struct SurfaceProfile {
@@ -27,6 +28,7 @@ struct SurfaceProfile {
     bool metalness_authored = false;
     bool specular_authored = false;
     bool height_scale_authored = false;
+    bool anisotropy_authored = false;
     bool roughness_fallback_applied = false;
     bool metalness_fallback_applied = false;
     bool specular_fallback_applied = false;
@@ -90,6 +92,16 @@ static NativeMaterialHints material_hints_for_bindings(const std::vector<const T
             || binding->specular_hint_present || binding->role == "specular";
         hints.height_scale_authored = hints.height_scale_authored
             || binding->height_scale_hint_present;
+        hints.anisotropy_authored = hints.anisotropy_authored
+            || binding->role == "flow"
+            || lower_copy(binding->semantic_type).find("anisotrop") != std::string::npos
+            || lower_copy(binding->semantic_subtype).find("anisotrop") != std::string::npos;
+        for (const MaterialParameterRecord& parameter : binding->material_parameters) {
+            if (normalized_key(parameter.name).find("anisotrop") != std::string::npos) {
+                hints.anisotropy_authored = true;
+                break;
+            }
+        }
         roughness_hint = std::max(roughness_hint, binding->roughness_hint);
         metalness_hint = std::max(metalness_hint, binding->metalness_hint);
         specular_hint = std::max(specular_hint, binding->specular_hint);
@@ -840,6 +852,7 @@ static SurfaceProfile surface_profile_for_bindings(
     profile.metalness_authored = authored_hints.metalness_authored;
     profile.specular_authored = authored_hints.specular_authored;
     profile.height_scale_authored = authored_hints.height_scale_authored;
+    profile.anisotropy_authored = authored_hints.anisotropy_authored;
 
     const bool polished_token = evidence_has_any_token(
         source.all, {"polished", "gloss", "glossy", "mirror"});
@@ -872,27 +885,21 @@ static SurfaceProfile surface_profile_for_bindings(
         profile.fallback_roughness = 0.30f;
         profile.fallback_metalness = 0.68f;
         profile.fallback_specular = 0.68f;
-        profile.fallback_height_scale = 0.18f;
     } else if (category == "leather") {
         profile.fallback_roughness = 0.66f;
         profile.fallback_specular = 0.22f;
-        profile.fallback_height_scale = 0.16f;
     } else if (category == "wood") {
         profile.fallback_roughness = 0.72f;
         profile.fallback_specular = 0.18f;
-        profile.fallback_height_scale = 0.18f;
     } else if (category == "cloth") {
         profile.fallback_roughness = 0.84f;
         profile.fallback_specular = 0.055f;
-        profile.fallback_height_scale = 0.12f;
     } else if (category == "skin") {
         profile.fallback_roughness = 0.56f;
         profile.fallback_specular = 0.20f;
-        profile.fallback_height_scale = 0.10f;
     } else if (category == "hair") {
         profile.fallback_roughness = 0.58f;
         profile.fallback_specular = 0.22f;
-        profile.fallback_height_scale = 0.08f;
         profile.fallback_anisotropy = 0.65f;
     } else if (category == "glass") {
         profile.fallback_roughness = 0.30f;
@@ -903,7 +910,6 @@ static SurfaceProfile surface_profile_for_bindings(
     } else if (category == "stone") {
         profile.fallback_roughness = 0.82f;
         profile.fallback_specular = 0.10f;
-        profile.fallback_height_scale = 0.20f;
     } else if (category == "eye") {
         profile.fallback_roughness = 0.30f;
         profile.fallback_specular = 0.44f;
@@ -913,15 +919,12 @@ static SurfaceProfile surface_profile_for_bindings(
     } else if (category == "bone") {
         profile.fallback_roughness = 0.68f;
         profile.fallback_specular = 0.16f;
-        profile.fallback_height_scale = 0.14f;
     } else if (category == "organic") {
         profile.fallback_roughness = 0.62f;
         profile.fallback_specular = 0.18f;
-        profile.fallback_height_scale = 0.12f;
     } else if (category == "foliage") {
         profile.fallback_roughness = 0.82f;
         profile.fallback_specular = 0.08f;
-        profile.fallback_height_scale = 0.10f;
         profile.fallback_anisotropy = 0.35f;
     }
 
@@ -961,10 +964,7 @@ static NativeMaterialHints resolve_surface_profile_fallbacks(
         hints.specular = profile.fallback_specular;
         profile.specular_fallback_applied = true;
     }
-    if (!hints.height_scale_authored) {
-        hints.height_scale = profile.fallback_height_scale;
-        profile.height_scale_fallback_applied = true;
-    }
-    profile.anisotropy_fallback_applied = profile.fallback_anisotropy > 0.0f;
+    profile.anisotropy_fallback_applied = !profile.anisotropy_authored
+        && profile.fallback_anisotropy > 0.0f;
     return hints;
 }

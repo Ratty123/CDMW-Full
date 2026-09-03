@@ -25,6 +25,7 @@ from cdmw.services.mesh_rust_preview_cache import (
 )
 from cdmw.services.mesh_rust_preview_package import (
     build_rust_preview_package,
+    build_rust_preview_package_from_preview_core,
     rust_preview_package_from_path,
     validate_rust_preview_package,
 )
@@ -126,6 +127,16 @@ def _write_schema8_preview_core_fixture(
                 "schema_version": 8,
                 "material_semantics_version": 10,
                 "material_graph_version": 4,
+                "material_conservation": {
+                    "schema_version": 1,
+                    "declared_parameter_count": 0,
+                    "transported_parameter_count": 0,
+                    "resolved_texture_count": 0,
+                    "unresolved_texture_count": 0,
+                    "conserved": True,
+                    "findings": [],
+                    "parameters": [],
+                },
                 "source_path": "character/helmet.pac",
                 "format": "pac",
                 "normalization_center": list(center),
@@ -153,6 +164,21 @@ def _write_schema8_preview_core_fixture(
                         "alpha_mode": "opaque",
                         "roughness": 0.4,
                         "metalness": 0.8,
+                        "base_color": [0.62, 0.62, 0.62],
+                        "material_layers": [
+                            {
+                                "owner_wrapper_item_id": "fixture-wrapper-1",
+                                "material_wrapper_index": 0,
+                                "layer_role": "base",
+                                "mask_channel": "r",
+                                "source_parameter": "_baseColorTexture",
+                                "mask_parameter": "",
+                                "diffuse_source": str(texture_path),
+                                "diffuse_archive_path": "character/texture/helmet_base.dds",
+                                "weight": 1.0,
+                                "tint": [1.0, 1.0, 1.0, 1.0],
+                            }
+                        ],
                         "dds_textures": {
                             "base": {
                                 "slot": "base",
@@ -279,6 +305,20 @@ def test_schema8_preview_core_geometry_bypasses_python_and_large_json_roundtrip(
     assert direct["material_semantics_version"] == 10
     assert manifest["material_contract"]["graph_version"] == 4
     assert manifest["material_contract"]["semantics_version"] == 10
+    assert manifest["material_contract"]["conservation"]["conserved"] is True
+    graph = manifest["preview_core_material_graph"]
+    assert graph["schema_version"] == 1
+    assert graph["quality"] == "full"
+    assert graph["resources_included"] is True
+    assert graph["source_edge_count"] == 1
+    assert graph["unique_resource_count"] == 1
+    assert graph["copied_resource_count"] == 0
+    assert graph["materials"][0]["layers"][0]["owner_wrapper_item_id"] == (
+        "fixture-wrapper-1"
+    )
+    assert graph["materials"][0]["layers"][0]["diffuse"] == manifest["textures"][
+        0
+    ]["file"]
     assert direct["normalization_center"] == [10.0, 20.0, 30.0]
     assert direct["normalization_scale"] == 2.0
     assert len(direct["batches"]) == 1
@@ -349,7 +389,7 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
         fast_package_ready=direct_packages.append,
     )
 
-    assert synthesis_flags == [False, True]
+    assert synthesis_flags == [False, False]
     assert len(direct_packages) == 1
     direct = direct_packages[0]
     assert direct.package_dir != full.package_dir
@@ -357,6 +397,11 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
     full_manifest = json.loads(full.manifest_path.read_text(encoding="utf-8"))
     assert direct_manifest["texture_status"]["quality"] == "direct"
     assert full_manifest["texture_status"]["quality"] == "full"
+    assert direct_manifest["preview_core_material_graph"]["resources_included"] is False
+    assert direct_manifest["preview_core_material_graph"]["materials"][0]["layers"][0][
+        "diffuse"
+    ] is None
+    assert full_manifest["preview_core_material_graph"]["resources_included"] is True
     assert direct_manifest["source"] == full_manifest["source"]
 
     warm_callbacks = []
@@ -371,6 +416,27 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
     )
     assert warm.package_dir == full.package_dir
     assert warm_callbacks == []
+
+
+def test_preview_core_material_conservation_failure_is_not_sent_to_rust(
+    tmp_path: Path,
+) -> None:
+    source, _geometry, _identity, _texture = _write_schema8_preview_core_fixture(
+        tmp_path
+    )
+    source_manifest_path = source / "manifest.json"
+    source_manifest = json.loads(source_manifest_path.read_text(encoding="utf-8"))
+    source_manifest["material_conservation"]["conserved"] = False
+    source_manifest["material_conservation"]["findings"] = [
+        "cross_owner_binding:fixture"
+    ]
+    source_manifest_path.write_text(json.dumps(source_manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="conserved Preview Core material graph"):
+        build_rust_preview_package_from_preview_core(
+            source,
+            output_package_dir=tmp_path / "rejected",
+        )
 
 
 def test_python_model_preview_uses_the_same_direct_then_full_cache_contract(

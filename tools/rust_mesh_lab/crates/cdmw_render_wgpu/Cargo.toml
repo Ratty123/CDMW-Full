@@ -12,6 +12,7 @@ cdmw_texture = { path = "../cdmw_texture" }
 egui.workspace = true
 egui-wgpu.workspace = true
 glam.workspace = true
+png.workspace = true
 thiserror.workspace = true
 wgpu.workspace = true
 winit.workspace = true

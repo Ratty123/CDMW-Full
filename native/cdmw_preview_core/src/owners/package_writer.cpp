@@ -4,6 +4,7 @@ static void emit_package_batch(PackageWriteState& state, size_t batch_index) {
     select_package_batch_bindings(state, batch);
     prepare_package_batch_runtime(state, batch);
     prepare_package_batch_material(state, batch);
+    record_material_conservation_batch(state, batch);
     record_package_batch_selection(state, batch);
     append_package_material_slot_and_decision(state, batch);
     append_package_batch_json(state, batch);

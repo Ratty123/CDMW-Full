@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+bcdec_rs.workspace = true
 cdmw_evidence = { path = "../cdmw_evidence" }
 serde.workspace = true
 thiserror.workspace = true

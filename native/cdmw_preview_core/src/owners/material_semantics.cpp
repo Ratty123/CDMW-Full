@@ -262,6 +262,14 @@ struct SidecarTextureRef {
     std::vector<MaterialParameterRecord> material_parameters;
 };
 
+struct MaterialWrapperDeclaration {
+    std::string material_name;
+    std::string shader_family;
+    std::string owner_wrapper_item_id;
+    int material_wrapper_index = -1;
+    std::vector<MaterialParameterRecord> material_parameters;
+};
+
 static std::string xml_attr_value(const std::string& text, std::initializer_list<const char*> names);
 static std::map<std::string, std::string> xml_attribute_map(const std::string& tag_text);
 static std::string xml_attr_value_from_map(const std::map<std::string, std::string>& attrs, std::initializer_list<const char*> names);

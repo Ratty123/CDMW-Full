@@ -205,46 +205,205 @@ struct TechniqueParameterInfo {
     std::string type;
     std::string srgb;
     std::string default_value;
+    std::string declaration_source_path;
+    std::string default_source_path;
+    std::string material_family;
+    std::string parameter_group_name;
+    std::string included_by_source_path;
+    bool ambiguous = false;
     bool declared = false;
 };
 
+using TechniqueParameterMap = std::unordered_map<std::string, TechniqueParameterInfo>;
+
 struct TechniqueIndex {
-    std::unordered_map<std::string, TechniqueParameterInfo> parameters_by_name;
+    // `parameters_by_name` is diagnostic inventory only. Source defaults are
+    // never selected from it because the same parameter name can have
+    // different meanings/defaults in unrelated shader families.
+    TechniqueParameterMap parameters_by_name;
+    std::unordered_map<std::string, TechniqueParameterMap> direct_parameters_by_family;
+    std::unordered_map<std::string, TechniqueParameterMap> parameter_groups_by_name;
+    std::unordered_map<std::string, TechniqueParameterMap> resolved_parameters_by_family;
+    std::unordered_map<std::string, std::vector<std::string>> group_names_by_family;
+    std::unordered_map<std::string, std::string> family_source_by_name;
+    std::unordered_map<std::string, std::string> group_source_by_name;
+    std::set<std::string> ambiguous_family_keys;
+    std::set<std::string> ambiguous_group_keys;
     std::set<std::string> technique_names;
     int files_scanned = 0;
     int parameters = 0;
     int texture_parameters = 0;
 };
 
-static void add_technique_parameter(TechniqueIndex& index, const std::string& tag) {
+static std::string exact_casefolded_name(std::string value) {
+    size_t start = 0;
+    while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start]))) ++start;
+    size_t end = value.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(value[end - 1]))) --end;
+    return lower_copy(value.substr(start, end - start));
+}
+
+static std::string exact_material_family_key(const std::string& value) {
+    std::string base = basename_from_path(value);
+    if (base.empty()) base = value;
+    const std::string lower = lower_copy(base);
+    for (const std::string& suffix : {std::string(".material"), std::string(".technique")}) {
+        if (lower.ends_with(suffix)) {
+            base.resize(base.size() - suffix.size());
+            break;
+        }
+    }
+    return exact_casefolded_name(base);
+}
+
+static bool technique_parameter_text_conflicts(
+    const std::string& left,
+    const std::string& right,
+    bool archive_path = false
+) {
+    if (left.empty() || right.empty()) return false;
+    const std::string normalized_left = archive_path
+        ? lower_copy(native_archive_path(left)) : exact_casefolded_name(left);
+    const std::string normalized_right = archive_path
+        ? lower_copy(native_archive_path(right)) : exact_casefolded_name(right);
+    return normalized_left != normalized_right;
+}
+
+static void merge_technique_parameter_info(
+    TechniqueParameterMap& destination,
+    const TechniqueParameterInfo& info
+) {
+    const std::string key = exact_casefolded_name(info.name);
+    if (key.empty()) return;
+    auto found = destination.find(key);
+    if (found == destination.end()) {
+        destination.emplace(key, info);
+        return;
+    }
+    TechniqueParameterInfo& current = found->second;
+    current.ambiguous = current.ambiguous || info.ambiguous
+        || technique_parameter_text_conflicts(current.type, info.type)
+        || technique_parameter_text_conflicts(current.srgb, info.srgb)
+        || technique_parameter_text_conflicts(
+            current.default_value, info.default_value, true);
+    if (current.type.empty()) current.type = info.type;
+    if (current.srgb.empty()) current.srgb = info.srgb;
+    if (current.default_value.empty()) {
+        current.default_value = info.default_value;
+        current.default_source_path = info.default_source_path;
+    }
+    if (current.declaration_source_path.empty()) {
+        current.declaration_source_path = info.declaration_source_path;
+    }
+    if (current.material_family.empty()) current.material_family = info.material_family;
+    if (current.parameter_group_name.empty()) {
+        current.parameter_group_name = info.parameter_group_name;
+    }
+    if (current.included_by_source_path.empty()) {
+        current.included_by_source_path = info.included_by_source_path;
+    }
+    current.declared = current.declared || info.declared;
+}
+
+static TechniqueParameterInfo technique_parameter_from_tag(
+    const std::string& tag,
+    const std::string& source_path = {}
+) {
     const auto attrs = xml_attribute_map(tag);
     TechniqueParameterInfo info;
     info.name = xml_attr_value_from_map(attrs, {"Name", "_name"});
-    if (info.name.empty()) return;
+    if (info.name.empty()) return info;
     info.type = xml_attr_value_from_map(attrs, {"Type", "_type"});
     info.srgb = xml_attr_value_from_map(attrs, {"sRGB", "SRGB", "Srgb"});
     info.default_value = xml_attr_value_from_map(attrs, {"DefaultValue", "Value", "_defaultValue"});
+    info.declaration_source_path = source_path;
+    if (!info.default_value.empty()) info.default_source_path = source_path;
     info.declared = true;
+    return info;
+}
+
+static void add_technique_parameter(
+    TechniqueIndex& index,
+    TechniqueParameterMap& destination,
+    const std::string& tag,
+    const std::string& source_path,
+    const std::string& material_family = {},
+    const std::string& parameter_group_name = {}
+) {
+    TechniqueParameterInfo info = technique_parameter_from_tag(tag, source_path);
+    if (info.name.empty()) return;
+    info.material_family = material_family;
+    info.parameter_group_name = parameter_group_name;
     ++index.parameters;
-    const std::string key = lower_copy(info.name);
+    const std::string key = exact_casefolded_name(info.name);
     const std::string type_lower = lower_copy(info.type);
     if (type_lower.find("texture") != std::string::npos || key.find("texture") != std::string::npos) {
         ++index.texture_parameters;
     }
-    auto found = index.parameters_by_name.find(key);
-    if (found == index.parameters_by_name.end()) {
-        index.parameters_by_name.emplace(key, info);
-    } else {
-        if (found->second.srgb.empty()) found->second.srgb = info.srgb;
-        if (found->second.type.empty()) found->second.type = info.type;
-        if (found->second.default_value.empty()) found->second.default_value = info.default_value;
+    merge_technique_parameter_info(destination, info);
+    merge_technique_parameter_info(index.parameters_by_name, info);
+}
+
+static void record_exact_definition_source(
+    std::unordered_map<std::string, std::string>& sources,
+    std::set<std::string>& ambiguous_keys,
+    const std::string& key,
+    const std::string& source_path
+) {
+    if (key.empty()) return;
+    auto found = sources.find(key);
+    if (found == sources.end()) {
+        sources.emplace(key, source_path);
+    } else if (lower_copy(native_archive_path(found->second))
+               != lower_copy(native_archive_path(source_path))) {
+        ambiguous_keys.insert(key);
+    }
+}
+
+static void rebuild_resolved_technique_parameters(TechniqueIndex& index) {
+    index.resolved_parameters_by_family.clear();
+    for (const auto& [family_key, family_source] : index.family_source_by_name) {
+        if (index.ambiguous_family_keys.contains(family_key)) continue;
+        TechniqueParameterMap resolved;
+        auto direct = index.direct_parameters_by_family.find(family_key);
+        if (direct != index.direct_parameters_by_family.end()) resolved = direct->second;
+        auto groups = index.group_names_by_family.find(family_key);
+        if (groups != index.group_names_by_family.end()) {
+            for (const std::string& group_key : groups->second) {
+                if (index.ambiguous_group_keys.contains(group_key)) continue;
+                auto group = index.parameter_groups_by_name.find(group_key);
+                if (group == index.parameter_groups_by_name.end()) continue;
+                for (const auto& [parameter_key, group_info] : group->second) {
+                    TechniqueParameterInfo included = group_info;
+                    included.material_family = family_key;
+                    included.parameter_group_name = group_key;
+                    included.included_by_source_path = family_source;
+                    auto existing = resolved.find(parameter_key);
+                    if (existing == resolved.end()) {
+                        resolved.emplace(parameter_key, std::move(included));
+                    } else if (!existing->second.parameter_group_name.empty()) {
+                        // Two included groups may declare the same parameter.
+                        // Only congruent declarations are safe without knowing
+                        // a proprietary engine precedence rule.
+                        merge_technique_parameter_info(resolved, included);
+                    }
+                    // A direct declaration in the exact .material wins over an
+                    // included group by source contract.
+                }
+            }
+        }
+        index.resolved_parameters_by_family.emplace(family_key, std::move(resolved));
     }
 }
 
 static TechniqueIndex build_technique_index_for_pamt(const PamtIndex& pamt_index) {
     TechniqueIndex index;
     for (const ArchiveEntryRef& ref : pamt_index.material_sidecars) {
-        if (ref.extension != ".technique" && ref.extension != ".material") continue;
+        if (ref.extension != ".technique" && ref.extension != ".material"
+            && ref.extension != ".xml") continue;
+        const std::string path_lower = lower_copy(native_archive_path(ref.path));
+        if (ref.extension == ".xml" && !path_lower.starts_with("material/")
+            && path_lower.find("/material/") == std::string::npos) continue;
         std::vector<char> bytes;
         try {
             bytes = read_archive_ref_decoded_bytes(ref);
@@ -253,14 +412,55 @@ static TechniqueIndex build_technique_index_for_pamt(const PamtIndex& pamt_index
         }
         ++index.files_scanned;
         const std::string text(bytes.begin(), bytes.end());
+        if (ref.extension == ".xml") {
+            for (const std::string& block : collect_xml_tag_blocks(text, "ParameterGroup")) {
+                if (lower_copy(block).find("</parametergroup>") == std::string::npos) continue;
+                const std::string group_name = xml_attr_value_from_map(
+                    xml_attribute_map(block), {"Name"});
+                const std::string group_key = exact_casefolded_name(group_name);
+                if (group_key.empty()) continue;
+                record_exact_definition_source(
+                    index.group_source_by_name,
+                    index.ambiguous_group_keys,
+                    group_key,
+                    ref.path);
+                TechniqueParameterMap& parameters = index.parameter_groups_by_name[group_key];
+                for (const std::string& tag : collect_xml_tag_blocks(block, "Parameter")) {
+                    add_technique_parameter(
+                        index, parameters, tag, ref.path, {}, group_name);
+                }
+            }
+            continue;
+        }
+
+        const std::string family_key = exact_material_family_key(ref.path);
+        if (family_key.empty()) continue;
+        record_exact_definition_source(
+            index.family_source_by_name,
+            index.ambiguous_family_keys,
+            family_key,
+            ref.path);
         for (const std::string& tag : collect_xml_tag_blocks(text, "Technique")) {
             const std::string name = xml_attr_value_from_map(xml_attribute_map(tag), {"Name"});
             if (!name.empty()) index.technique_names.insert(name);
         }
+        auto& included_groups = index.group_names_by_family[family_key];
+        for (const std::string& tag : collect_xml_tag_blocks(text, "ParameterGroup")) {
+            const std::string group_key = exact_casefolded_name(
+                xml_attr_value_from_map(xml_attribute_map(tag), {"Name"}));
+            if (!group_key.empty()
+                && std::find(included_groups.begin(), included_groups.end(), group_key)
+                    == included_groups.end()) {
+                included_groups.push_back(group_key);
+            }
+        }
+        TechniqueParameterMap& direct_parameters = index.direct_parameters_by_family[family_key];
         for (const std::string& tag : collect_xml_tag_blocks(text, "Parameter")) {
-            add_technique_parameter(index, tag);
+            add_technique_parameter(
+                index, direct_parameters, tag, ref.path, family_key, {});
         }
     }
+    rebuild_resolved_technique_parameters(index);
     return index;
 }
 
@@ -270,15 +470,51 @@ static void merge_technique_index(TechniqueIndex& destination, const TechniqueIn
     destination.texture_parameters += source.texture_parameters;
     destination.technique_names.insert(source.technique_names.begin(), source.technique_names.end());
     for (const auto& [key, value] : source.parameters_by_name) {
-        auto found = destination.parameters_by_name.find(key);
-        if (found == destination.parameters_by_name.end()) {
-            destination.parameters_by_name.emplace(key, value);
-        } else {
-            if (found->second.srgb.empty()) found->second.srgb = value.srgb;
-            if (found->second.type.empty()) found->second.type = value.type;
-            if (found->second.default_value.empty()) found->second.default_value = value.default_value;
+        (void)key;
+        merge_technique_parameter_info(destination.parameters_by_name, value);
+    }
+    for (const auto& [family_key, parameters] : source.direct_parameters_by_family) {
+        TechniqueParameterMap& destination_parameters =
+            destination.direct_parameters_by_family[family_key];
+        for (const auto& [key, value] : parameters) {
+            (void)key;
+            merge_technique_parameter_info(destination_parameters, value);
         }
     }
+    for (const auto& [group_key, parameters] : source.parameter_groups_by_name) {
+        TechniqueParameterMap& destination_parameters =
+            destination.parameter_groups_by_name[group_key];
+        for (const auto& [key, value] : parameters) {
+            (void)key;
+            merge_technique_parameter_info(destination_parameters, value);
+        }
+    }
+    for (const auto& [family_key, groups] : source.group_names_by_family) {
+        auto& destination_groups = destination.group_names_by_family[family_key];
+        for (const std::string& group_key : groups) {
+            if (std::find(destination_groups.begin(), destination_groups.end(), group_key)
+                == destination_groups.end()) destination_groups.push_back(group_key);
+        }
+    }
+    for (const auto& [key, path] : source.family_source_by_name) {
+        record_exact_definition_source(
+            destination.family_source_by_name,
+            destination.ambiguous_family_keys,
+            key,
+            path);
+    }
+    for (const auto& [key, path] : source.group_source_by_name) {
+        record_exact_definition_source(
+            destination.group_source_by_name,
+            destination.ambiguous_group_keys,
+            key,
+            path);
+    }
+    destination.ambiguous_family_keys.insert(
+        source.ambiguous_family_keys.begin(), source.ambiguous_family_keys.end());
+    destination.ambiguous_group_keys.insert(
+        source.ambiguous_group_keys.begin(), source.ambiguous_group_keys.end());
+    rebuild_resolved_technique_parameters(destination);
 }
 
 static std::map<std::string, TechniqueIndex>& resident_technique_index_cache() {
@@ -527,11 +763,16 @@ static void trim_resident_material_graph_metadata() {
 
 static const TechniqueParameterInfo* technique_parameter_for_name(
     const TechniqueIndex& index,
-    const std::string& parameter_name
+    const std::string& parameter_name,
+    const std::string& material_family
 ) {
-    if (parameter_name.empty()) return nullptr;
-    auto found = index.parameters_by_name.find(lower_copy(parameter_name));
-    if (found == index.parameters_by_name.end()) return nullptr;
+    if (parameter_name.empty() || material_family.empty()) return nullptr;
+    const std::string family_key = exact_material_family_key(material_family);
+    if (family_key.empty() || index.ambiguous_family_keys.contains(family_key)) return nullptr;
+    auto family = index.resolved_parameters_by_family.find(family_key);
+    if (family == index.resolved_parameters_by_family.end()) return nullptr;
+    auto found = family->second.find(exact_casefolded_name(parameter_name));
+    if (found == family->second.end() || found->second.ambiguous) return nullptr;
     return &found->second;
 }
 
@@ -778,9 +1019,28 @@ static std::string material_sidecar_scope_for_model_property(
     return index_zero_scope.empty() ? text : index_zero_scope;
 }
 
+static void append_material_wrapper_declaration(
+    std::vector<MaterialWrapperDeclaration>* declarations,
+    const std::string& scope,
+    const std::string& material_name,
+    const std::string& shader_family,
+    const std::string& owner_wrapper_item_id,
+    int material_wrapper_index
+) {
+    if (declarations == nullptr) return;
+    declarations->push_back(MaterialWrapperDeclaration{
+        material_name,
+        shader_family,
+        owner_wrapper_item_id,
+        material_wrapper_index,
+        extract_material_parameters(scope),
+    });
+}
+
 static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(
     const std::string& text,
-    int model_property_index = 0
+    int model_property_index = 0,
+    std::vector<MaterialWrapperDeclaration>* declarations = nullptr
 ) {
     std::vector<SidecarTextureRef> refs;
     std::set<std::string> seen;
@@ -800,6 +1060,9 @@ static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(
             ? item_id
             : "model-property:" + std::to_string(model_property_index)
                 + ":wrapper:" + std::to_string(wrapper_index);
+        append_material_wrapper_declaration(
+            declarations, block, material_name, shader_family,
+            wrapper_identity, wrapper_index);
         extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_identity,
             wrapper_index++, refs, seen);
     }
@@ -818,12 +1081,24 @@ static std::vector<SidecarTextureRef> extract_sidecar_texture_refs(
                 ? item_id
                 : "model-property:" + std::to_string(model_property_index)
                     + ":material:" + std::to_string(wrapper_index);
+            append_material_wrapper_declaration(
+                declarations, block, material_name, shader_family,
+                wrapper_identity, wrapper_index);
             extract_texture_refs_from_scope(block, material_name, shader_family, wrapper_identity,
                 wrapper_index++, refs, seen);
         }
     }
 
     if (refs.empty()) {
+        if (declarations == nullptr || declarations->empty()) {
+            append_material_wrapper_declaration(
+                declarations,
+                scope,
+                "",
+                "",
+                "model-property:" + std::to_string(model_property_index) + ":scope",
+                -1);
+        }
         extract_texture_refs_from_scope(scope, "", "",
             "model-property:" + std::to_string(model_property_index) + ":scope",
             -1, refs, seen);

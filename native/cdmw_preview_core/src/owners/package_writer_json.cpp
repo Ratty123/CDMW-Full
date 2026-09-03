@@ -18,7 +18,8 @@ static std::string surface_profile_json(const SurfaceProfile& profile) {
         << "\"roughness\":" << (profile.roughness_authored ? "true" : "false") << ","
         << "\"metalness\":" << (profile.metalness_authored ? "true" : "false") << ","
         << "\"specular\":" << (profile.specular_authored ? "true" : "false") << ","
-        << "\"height_scale\":" << (profile.height_scale_authored ? "true" : "false") << "},"
+        << "\"height_scale\":" << (profile.height_scale_authored ? "true" : "false") << ","
+        << "\"anisotropy\":" << (profile.anisotropy_authored ? "true" : "false") << "},"
         << "\"fallback_applied\":{"
         << "\"roughness\":" << (profile.roughness_fallback_applied ? "true" : "false") << ","
         << "\"metalness\":" << (profile.metalness_fallback_applied ? "true" : "false") << ","
@@ -122,6 +123,30 @@ static void append_material_parameter_records_json(
     out << "]";
 }
 
+static bool package_binding_is_conserved_logical_texture_edge(
+    const PackageWriteState& state,
+    const TextureBinding& binding
+) {
+    const std::string binding_scope = lower_copy(binding.component_scope_id);
+    const std::string binding_owner = lower_copy(binding.owner_wrapper_item_id);
+    const std::string binding_parameter = lower_copy(binding.parameter_name);
+    const std::string binding_path = lower_copy(
+        native_archive_path(binding.declared_texture_path));
+    for (const NativeMaterialConservationRow& row : state.package.material_conservation_rows) {
+        if (!row.logical_graph_edge || row.parameter.kind != "texture"
+            || row.parameter.texture_path.empty()) continue;
+        if (lower_copy(row.component_scope_id) != binding_scope
+            || lower_copy(row.owner_wrapper_item_id) != binding_owner
+            || row.material_wrapper_index != binding.material_wrapper_index
+            || lower_copy(row.parameter.name) != binding_parameter
+            || lower_copy(native_archive_path(row.parameter.texture_path)) != binding_path) {
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
 static void append_package_material_inputs(
     PackageWriteState& state,
     const PackageBatchState& batch
@@ -148,8 +173,17 @@ static void append_package_material_inputs(
     bool first = true;
     for (const TextureBinding* binding_ptr : batch.bindings) {
         if (binding_ptr == nullptr || binding_ptr->source_path.empty()) continue;
-        if (batch.base_tint_only_fallback && binding_ptr == batch.base) continue;
         const TextureBinding& binding = *binding_ptr;
+        // Embedded mesh-name lookups are renderer slot candidates, not PAC
+        // material-parameter edges. They stay in the role slots above and must
+        // not masquerade as conserved sidecar material inputs.
+        if (binding.source_authority == "embedded_mesh") continue;
+        if (batch.base_tint_only_fallback && binding_ptr == batch.base) continue;
+        // Suffix-derived companion maps can still drive selected renderer slots
+        // and compiled material layers, but `material_inputs` is the auditable
+        // PAC edge inventory. Publish only exact component/owner/wrapper/
+        // parameter/path identities already recorded by conservation.
+        if (!package_binding_is_conserved_logical_texture_edge(state, binding)) continue;
         if (!job_allows_texture_role(state.job, binding.role)) continue;
         const int owner_slot_index = binding_owner_submesh_local_index(state.submeshes, binding);
         if (!first) state.batches_json << ",";
@@ -159,6 +193,11 @@ static void append_package_material_inputs(
             << "\"source_path\":\"" << json_escape(binding.source_path) << "\","
             << "\"archive_path\":\"" << json_escape(binding.archive_path) << "\","
             << "\"parameter_name\":\"" << json_escape(binding.parameter_name) << "\","
+            << "\"declared_texture_path\":\"" << json_escape(binding.declared_texture_path) << "\","
+            << "\"source_resolution\":\"" << json_escape(binding.source_resolution) << "\","
+            << "\"source_resolution_detail\":\"" << json_escape(binding.source_resolution_detail) << "\","
+            << "\"declared_source_missing\":" << (binding.declared_source_missing ? "true" : "false") << ","
+            << "\"logical_graph_edge\":true,"
             << "\"semantic_type\":\"" << json_escape(binding.semantic_type) << "\","
             << "\"semantic_subtype\":\"" << json_escape(binding.semantic_subtype) << "\","
             << "\"material_name\":\"" << json_escape(binding.material_name) << "\","
@@ -166,6 +205,16 @@ static void append_package_material_inputs(
             << "\"shader_family\":\"" << json_escape(binding.shader_family) << "\","
             << "\"shader_rule\":\"" << json_escape(binding.shader_rule) << "\","
             << "\"sidecar_path\":\"" << json_escape(binding.sidecar_path) << "\","
+            << "\"component_scope_id\":\"" << json_escape(binding.component_scope_id) << "\","
+            << "\"representation_sidecar_paths\":[";
+        for (size_t representation_index = 0;
+             representation_index < binding.representation_sidecar_paths.size();
+             ++representation_index) {
+            if (representation_index) state.batches_json << ",";
+            state.batches_json << "\"" << json_escape(
+                binding.representation_sidecar_paths[representation_index]) << "\"";
+        }
+        state.batches_json << "],"
             << "\"sidecar_kind\":\"" << json_escape(binding.sidecar_kind) << "\","
             << "\"linked_mesh_path\":\"" << json_escape(binding.linked_mesh_path) << "\","
             << "\"packed_channels\":\"" << json_escape(binding.packed_channels) << "\","
@@ -226,6 +275,8 @@ static void append_package_batch_json_head(PackageWriteState& state, const Packa
         << ",\"source_local_submesh_index\":" << mesh.source_local_submesh_index
         << ",\"source_component_index\":" << mesh.source_component_index
         << ",\"source_model_path\":\"" << json_escape(mesh.source_model_path) << "\""
+        << ",\"component_scope_id\":\"" << json_escape(
+            material_component_scope_id_for_mesh(mesh)) << "\""
         << ",\"source_component_label\":\"" << json_escape(mesh.source_component_label) << "\""
         << ",\"prefab_component\":" << (mesh.source_prefab_component ? "true" : "false")
         << ",\"context_component\":" << (mesh.source_context_component ? "true" : "false")

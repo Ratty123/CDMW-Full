@@ -1,4 +1,26 @@
 
+static int embedded_mesh_owner_index(const NativeSubmesh& mesh) {
+    if (mesh.source_local_submesh_index >= 0) return mesh.source_local_submesh_index;
+    if (mesh.source_submesh_index >= 0) return mesh.source_submesh_index;
+    return 0;
+}
+
+static std::string embedded_mesh_owner_id(
+    const NativeSubmesh& mesh,
+    const std::string& source_path
+) {
+    const std::string identity = lower_copy(source_path)
+        + "|" + std::to_string(embedded_mesh_owner_index(mesh));
+    return "embedded_mesh:" + hex64(fnv1a64(identity));
+}
+
+static std::string native_texture_edge_key(const TextureBinding& binding) {
+    return lower_copy(
+        binding.component_scope_id + "|" + binding.owner_wrapper_item_id + "|"
+        + std::to_string(binding.material_wrapper_index) + "|"
+        + binding.parameter_name + "|" + binding.archive_path);
+}
+
 static void append_mesh_reference_bindings(
     const EntryJob& job,
     const PamtIndex& index,
@@ -8,7 +30,7 @@ static void append_mesh_reference_bindings(
 ) {
     std::set<std::string> seen;
     for (const TextureBinding& binding : bindings) {
-        seen.insert(lower_copy(binding.role + "|" + binding.archive_path + "|" + binding.parameter_name + "|" + binding.material_name));
+        seen.insert(native_texture_edge_key(binding));
     }
     std::vector<std::string> notes;
     for (const NativeSubmesh& mesh : meshes) {
@@ -46,6 +68,10 @@ static void append_mesh_reference_bindings(
             binding.archive_path = selected->path;
             binding.texture_name = selected->basename;
             binding.parameter_name = "embedded_mesh_reference";
+            binding.declared_texture_path = selected->path;
+            binding.owner_wrapper_item_id = embedded_mesh_owner_id(mesh, mesh_source_path);
+            binding.material_wrapper_index = embedded_mesh_owner_index(mesh);
+            binding.component_scope_id = material_component_scope_id_for_mesh(mesh);
             binding.semantic_type = semantic_type_for_role(binding.role);
             binding.semantic_subtype = semantic_subtype_for_role(binding.role);
             binding.shader_family = "";
@@ -70,7 +96,7 @@ static void append_mesh_reference_bindings(
             binding.dds_height = dds_info.height;
             binding.dds_format = dds_info.format;
             binding.material_output_quality = role_is_technical_for_base(binding.role) ? "inferred" : "exact";
-            const std::string key = lower_copy(binding.role + "|" + binding.archive_path + "|" + binding.parameter_name + "|" + binding.material_name);
+            const std::string key = native_texture_edge_key(binding);
             if (!seen.insert(key).second) continue;
             bindings.push_back(binding);
             add_asset_family_row(package, NativeAssetFamilyRow{

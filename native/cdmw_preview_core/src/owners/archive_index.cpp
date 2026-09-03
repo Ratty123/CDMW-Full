@@ -230,6 +230,12 @@ static PamtIndexSourceStamp pamt_index_source_stamp(const fs::path& pamt_path) {
 
 static std::pair<bool, bool> pamt_index_entry_traits(const ArchiveEntryRef& ref) {
     const std::string path_lower = lower_copy(ref.path);
+    const bool material_parameter_xml =
+        ref.extension == ".xml" &&
+        (
+            path_lower.starts_with("material/") ||
+            path_lower.find("/material/") != std::string::npos
+        );
     const bool pbd_xml_sidecar =
         ref.extension == ".xml" &&
         (
@@ -246,6 +252,7 @@ static std::pair<bool, bool> pamt_index_entry_traits(const ArchiveEntryRef& ref)
         ref.extension == ".prefab" ||
         ref.extension == ".prefabdata_xml" ||
         ref.extension == ".meshinfo" ||
+        material_parameter_xml ||
         pbd_xml_sidecar;
     const bool lookup_relevant =
         ref.extension == ".dds" ||
@@ -310,7 +317,7 @@ static std::optional<PamtIndex> load_pamt_index_cache(
     const std::uint64_t entry_count = read_pamt_index_cache_value<std::uint64_t>(in);
     const std::uint64_t relevant_count = read_pamt_index_cache_value<std::uint64_t>(in);
     if (
-        version != 1 || source_size != expected_stamp.size || source_mtime != expected_stamp.mtime ||
+        version != 2 || source_size != expected_stamp.size || source_mtime != expected_stamp.mtime ||
         entry_count > 10000000ull || relevant_count > entry_count
     ) return std::nullopt;
     PamtIndex index;
@@ -358,7 +365,7 @@ static void write_pamt_index_cache(
         std::ofstream out(temp_path, std::ios::binary | std::ios::trunc);
         if (!out) throw std::runtime_error("could not create PAMT index cache");
         out.write("CDMWPIDX", 8);
-        write_pamt_index_cache_value(out, static_cast<std::uint32_t>(1));
+        write_pamt_index_cache_value(out, static_cast<std::uint32_t>(2));
         write_pamt_index_cache_value(out, source_stamp.size);
         write_pamt_index_cache_value(out, source_stamp.mtime);
         write_pamt_index_cache_value(out, static_cast<std::uint64_t>(index.entry_count));

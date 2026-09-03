@@ -40,6 +40,8 @@ const PREVIEW_CORE_VERTEX_BYTES: usize = 23 * std::mem::size_of::<f32>();
 const PREVIEW_CORE_IDENTITY_BYTES: usize = 2 * std::mem::size_of::<i32>();
 const PREVIEW_CORE_MATERIAL_GRAPH_VERSION: u64 = 4;
 const PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION: u64 = 10;
+const PREVIEW_CORE_TRANSPORT_GRAPH_SCHEMA: u64 = 1;
+const MAX_PREVIEW_CORE_MATERIAL_LAYERS: usize = 64;
 
 #[derive(Debug, Error)]
 pub enum SessionError {
@@ -97,6 +99,8 @@ pub struct SessionSurfaceProfileAuthored {
     pub metalness: bool,
     pub specular: bool,
     pub height_scale: bool,
+    #[serde(default)]
+    pub anisotropy: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -175,6 +179,102 @@ pub struct PreviewCoreGeometry {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct PreviewCoreMaterialLayer {
+    pub owner_wrapper_item_id: String,
+    pub material_wrapper_index: u32,
+    pub layer_role: String,
+    pub mask_channel: String,
+    pub shader_family: String,
+    pub shader_rule: String,
+    pub evidence_grade: String,
+    pub source_parameter: String,
+    pub mask_parameter: String,
+    pub weight: f32,
+    pub detail_scale: f32,
+    pub roughness_hint: f32,
+    pub metalness_hint: f32,
+    pub specular_hint: f32,
+    pub height_scale_hint: f32,
+    pub tint: [f32; 4],
+    pub diffuse_declared: bool,
+    pub diffuse_archive_path: String,
+    pub diffuse: Option<FileReference>,
+    pub normal_declared: bool,
+    pub normal_archive_path: String,
+    pub normal: Option<FileReference>,
+    pub material_declared: bool,
+    pub material_archive_path: String,
+    pub material: Option<FileReference>,
+    pub height_declared: bool,
+    pub height_archive_path: String,
+    pub height: Option<FileReference>,
+    pub mask_declared: bool,
+    pub mask_archive_path: String,
+    pub mask: Option<FileReference>,
+}
+
+impl PreviewCoreMaterialLayer {
+    fn resources(&self) -> [(&str, bool, &str, Option<&FileReference>); 5] {
+        [
+            (
+                "diffuse",
+                self.diffuse_declared,
+                self.diffuse_archive_path.as_str(),
+                self.diffuse.as_ref(),
+            ),
+            (
+                "normal",
+                self.normal_declared,
+                self.normal_archive_path.as_str(),
+                self.normal.as_ref(),
+            ),
+            (
+                "material",
+                self.material_declared,
+                self.material_archive_path.as_str(),
+                self.material.as_ref(),
+            ),
+            (
+                "height",
+                self.height_declared,
+                self.height_archive_path.as_str(),
+                self.height.as_ref(),
+            ),
+            (
+                "mask",
+                self.mask_declared,
+                self.mask_archive_path.as_str(),
+                self.mask.as_ref(),
+            ),
+        ]
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PreviewCoreMaterial {
+    pub lod_index: u32,
+    pub material_index: u32,
+    pub material_slot_index: u32,
+    pub material_name: String,
+    pub base_color: [f32; 3],
+    pub layers: Vec<PreviewCoreMaterialLayer>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PreviewCoreMaterialGraph {
+    pub schema_version: u64,
+    pub graph_version: u64,
+    pub semantics_version: u64,
+    pub quality: String,
+    pub resources_included: bool,
+    pub source_edge_count: u64,
+    pub unique_resource_count: u64,
+    pub copied_resource_count: u64,
+    pub unique_resource_bytes: u64,
+    pub materials: Vec<PreviewCoreMaterial>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct SessionManifest {
     pub schema: String,
     pub protocol: String,
@@ -190,6 +290,8 @@ pub struct SessionManifest {
     pub preview_core_geometry: Option<PreviewCoreGeometry>,
     #[serde(default)]
     pub material_contract: Value,
+    #[serde(default)]
+    pub preview_core_material_graph: Option<PreviewCoreMaterialGraph>,
     #[serde(default)]
     pub textures: Vec<SessionTextureReference>,
     #[serde(default)]
@@ -274,6 +376,8 @@ pub struct LoadedCdmwSessionPackage {
     document: MeshDocument,
     source_lod_index: usize,
     textures: Vec<CdmwTextureResource>,
+    material_composition_metrics:
+        crate::preview_core_material::PreviewCoreMaterialCompositionMetrics,
 }
 
 impl LoadedCdmwSessionPackage {
@@ -333,7 +437,19 @@ impl LoadedCdmwSessionPackage {
         };
         validate_document(&document)?;
         validate_material_presentations(&manifest, &document)?;
-        let textures = read_texture_resources(&root, &manifest, &document)?;
+        let mut textures = read_texture_resources(&root, &manifest, &document)?;
+        let material_composition_metrics =
+            if let Some(graph) = manifest.preview_core_material_graph.as_ref() {
+                crate::preview_core_material::compose_preview_core_material_resources(
+                    graph,
+                    &manifest.material_presentations,
+                    &document,
+                    &mut textures,
+                    |reference| read_binary_reference(&root, reference),
+                )?
+            } else {
+                crate::preview_core_material::PreviewCoreMaterialCompositionMetrics::default()
+            };
         let source_lod_index = manifest_source_lod_index(&manifest)?;
         if source_lod_index >= document.lods.len() {
             return Err(SessionError::InvalidManifest(format!(
@@ -346,6 +462,7 @@ impl LoadedCdmwSessionPackage {
             document,
             source_lod_index,
             textures,
+            material_composition_metrics,
         })
     }
 
@@ -371,6 +488,13 @@ impl LoadedCdmwSessionPackage {
 
     pub fn take_textures(&mut self) -> Vec<CdmwTextureResource> {
         std::mem::take(&mut self.textures)
+    }
+
+    #[must_use]
+    pub const fn material_composition_metrics(
+        &self,
+    ) -> &crate::preview_core_material::PreviewCoreMaterialCompositionMetrics {
+        &self.material_composition_metrics
     }
 
     pub fn take_material_presentations(&mut self) -> Vec<SessionMaterialPresentation> {
@@ -401,6 +525,7 @@ impl CdmwBridge {
             document,
             source_lod_index,
             textures,
+            material_composition_metrics: _,
         } = package;
         let (incoming_tx, incoming_rx) = bounded(CONTROL_QUEUE_BOUND);
         let (outbound_tx, outbound_rx) = bounded(OUTBOUND_QUEUE_BOUND);
@@ -736,6 +861,7 @@ impl CdmwBridge {
                 channels: empty_reference,
                 preview_core_geometry: None,
                 material_contract: Value::Null,
+                preview_core_material_graph: None,
                 textures: Vec::new(),
                 material_presentations: Vec::new(),
                 texture_status: Value::Null,
@@ -883,6 +1009,243 @@ fn validate_manifest_for(
                 "Preview Core material contract must be graph v4 and semantics v10".to_owned(),
             ));
         }
+        let conservation = manifest
+            .material_contract
+            .get("conservation")
+            .ok_or_else(|| {
+                SessionError::InvalidManifest(
+                    "Preview Core material conservation report is missing".to_owned(),
+                )
+            })?;
+        let declared = conservation
+            .get("declared_parameter_count")
+            .and_then(Value::as_u64);
+        let transported = conservation
+            .get("transported_parameter_count")
+            .and_then(Value::as_u64);
+        if conservation.get("conserved").and_then(Value::as_bool) != Some(true)
+            || declared.is_none()
+            || declared != transported
+        {
+            return Err(SessionError::InvalidManifest(
+                "Preview Core material graph failed conservation".to_owned(),
+            ));
+        }
+        let graph = manifest
+            .preview_core_material_graph
+            .as_ref()
+            .ok_or_else(|| {
+                SessionError::InvalidManifest(
+                    "Preview Core material transport graph is missing".to_owned(),
+                )
+            })?;
+        validate_preview_core_material_graph(manifest, geometry, graph)?;
+    } else if manifest.preview_core_material_graph.is_some() {
+        return Err(SessionError::InvalidManifest(
+            "Preview Core material transport graph requires Preview Core geometry".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_preview_core_material_graph(
+    manifest: &SessionManifest,
+    geometry: &PreviewCoreGeometry,
+    graph: &PreviewCoreMaterialGraph,
+) -> Result<(), SessionError> {
+    let quality_is_full = graph.quality == "full";
+    if graph.schema_version != PREVIEW_CORE_TRANSPORT_GRAPH_SCHEMA
+        || graph.graph_version != PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+        || graph.semantics_version != PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
+        || !matches!(graph.quality.as_str(), "direct" | "full")
+        || graph.resources_included != quality_is_full
+        || graph.materials.len() != geometry.batches.len()
+        || graph.copied_resource_count > graph.unique_resource_count
+    {
+        return Err(SessionError::InvalidManifest(
+            "Preview Core material transport graph contract does not match".to_owned(),
+        ));
+    }
+
+    let mut resource_shas = BTreeMap::<String, u64>::new();
+    let mut resource_paths = BTreeMap::<String, String>::new();
+    for texture in &manifest.textures {
+        validate_material_graph_file_reference(
+            &texture.file,
+            &mut resource_shas,
+            &mut resource_paths,
+        )?;
+    }
+    let mut material_indices = BTreeSet::new();
+    let mut source_edges = 0_u64;
+    for material in &graph.materials {
+        let material_index = usize::try_from(material.material_index).map_err(|_| {
+            SessionError::InvalidManifest(
+                "Preview Core material graph index exceeds this platform".to_owned(),
+            )
+        })?;
+        let Some(batch) = geometry.batches.get(material_index) else {
+            return Err(SessionError::InvalidManifest(
+                "Preview Core material graph index is outside the geometry".to_owned(),
+            ));
+        };
+        if material.lod_index != 0
+            || !material_indices.insert(material.material_index)
+            || material.material_slot_index != batch.index
+            || material.material_name != batch.material
+            || material.material_name.trim().is_empty()
+            || material.material_name.len() > 256
+            || material.layers.is_empty()
+            || material.layers.len() > MAX_PREVIEW_CORE_MATERIAL_LAYERS
+            || material.layers[0].layer_role != "base"
+            || material
+                .base_color
+                .iter()
+                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+        {
+            return Err(SessionError::InvalidManifest(
+                "Preview Core material graph ownership or base contract is invalid".to_owned(),
+            ));
+        }
+        let mut base_count = 0_usize;
+        for layer in &material.layers {
+            if layer.layer_role == "base" {
+                base_count += 1;
+            }
+            if !matches!(
+                layer.layer_role.as_str(),
+                "base"
+                    | "detail"
+                    | "grime"
+                    | "damage"
+                    | "layer"
+                    | "dye"
+                    | "overlay"
+                    | "skin_detail"
+                    | "cloth_detail"
+                    | "color_seed"
+            ) || !matches!(layer.mask_channel.as_str(), "" | "r" | "g" | "b" | "a")
+                || layer.owner_wrapper_item_id.len() > 64
+                || usize::try_from(layer.material_wrapper_index)
+                    .map_or(true, |index| index >= MAX_PREVIEW_CORE_BATCHES)
+                || layer.source_parameter.len() > 128
+                || layer.mask_parameter.len() > 128
+                || layer.shader_family.len() > 128
+                || layer.shader_rule.len() > 128
+                || layer.evidence_grade.len() > 64
+                || [
+                    layer.weight,
+                    layer.detail_scale,
+                    layer.roughness_hint,
+                    layer.metalness_hint,
+                    layer.specular_hint,
+                    layer.height_scale_hint,
+                ]
+                .iter()
+                .chain(layer.tint.iter())
+                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+            {
+                return Err(SessionError::InvalidManifest(
+                    "Preview Core material layer semantics are invalid".to_owned(),
+                ));
+            }
+            let mut layer_has_source = false;
+            for (role, declared, archive_path, reference) in layer.resources() {
+                if declared {
+                    source_edges = source_edges.saturating_add(1);
+                    layer_has_source = true;
+                    if archive_path.trim().is_empty()
+                        || archive_path.contains('\\')
+                        || archive_path.split('/').any(|part| part == "..")
+                        || (quality_is_full && reference.is_none())
+                        || (!quality_is_full && reference.is_some())
+                    {
+                        return Err(SessionError::InvalidManifest(format!(
+                            "Preview Core {role} layer resource identity is invalid"
+                        )));
+                    }
+                } else if reference.is_some() {
+                    return Err(SessionError::InvalidManifest(format!(
+                        "Preview Core {role} layer resource was not declared"
+                    )));
+                }
+                if let Some(reference) = reference {
+                    validate_material_graph_file_reference(
+                        reference,
+                        &mut resource_shas,
+                        &mut resource_paths,
+                    )?;
+                }
+            }
+            if layer_has_source && layer.owner_wrapper_item_id.trim().is_empty() {
+                return Err(SessionError::InvalidManifest(
+                    "Preview Core material layer lost its wrapper owner".to_owned(),
+                ));
+            }
+            if layer.layer_role != "base"
+                && layer.diffuse_declared
+                && layer.source_parameter.trim().is_empty()
+            {
+                return Err(SessionError::InvalidManifest(
+                    "Preview Core visible material layer lost its source parameter".to_owned(),
+                ));
+            }
+        }
+        if base_count != 1 {
+            return Err(SessionError::InvalidManifest(
+                "Preview Core material graph must contain exactly one neutral/base layer"
+                    .to_owned(),
+            ));
+        }
+    }
+    let unique_bytes = resource_shas
+        .values()
+        .try_fold(0_u64, |total, length| total.checked_add(*length))
+        .ok_or_else(|| {
+            SessionError::InvalidManifest(
+                "Preview Core material resource byte count overflowed".to_owned(),
+            )
+        })?;
+    if source_edges != graph.source_edge_count
+        || u64::try_from(resource_shas.len()).ok() != Some(graph.unique_resource_count)
+        || unique_bytes != graph.unique_resource_bytes
+        || unique_bytes > MAX_TEXTURE_TOTAL_BYTES
+    {
+        return Err(SessionError::InvalidManifest(
+            "Preview Core material resource conservation does not match".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_material_graph_file_reference(
+    reference: &FileReference,
+    shas: &mut BTreeMap<String, u64>,
+    paths: &mut BTreeMap<String, String>,
+) -> Result<(), SessionError> {
+    let sha = reference.sha256.trim().to_ascii_uppercase();
+    if reference.data_type != "dds_texture"
+        || reference.content_type != "image/vnd-ms.dds"
+        || reference.count != 1
+        || reference.byte_length == 0
+        || sha.len() != 64
+        || !sha.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || !is_owned_texture_filename(&reference.path)
+    {
+        return Err(SessionError::InvalidManifest(
+            "Preview Core material DDS reference is invalid".to_owned(),
+        ));
+    }
+    if shas
+        .insert(sha.clone(), reference.byte_length)
+        .is_some_and(|length| length != reference.byte_length)
+        || paths
+            .insert(reference.path.clone(), sha.clone())
+            .is_some_and(|existing| existing != sha)
+    {
+        return Err(SessionError::InvalidManifest(
+            "Preview Core material DDS reference identity conflicts".to_owned(),
+        ));
     }
     Ok(())
 }
@@ -1034,12 +1397,22 @@ fn validate_surface_profile(
             profile.authored.height_scale,
             profile.fallback_applied.height_scale,
         ),
+        (
+            "anisotropy",
+            profile.authored.anisotropy,
+            profile.fallback_applied.anisotropy,
+        ),
     ] {
         if authored && fallback_applied {
             return Err(SessionError::InvalidManifest(format!(
                 "surface-profile fallback {name} overrides authored data"
             )));
         }
+    }
+    if profile.fallbacks.height_scale != 0.0 || profile.fallback_applied.height_scale {
+        return Err(SessionError::InvalidManifest(
+            "surface-profile height scale exceeds profile fallback authority".to_owned(),
+        ));
     }
     if profile.fallback_applied.anisotropy
         && profile.fallbacks.anisotropy > 0.0
@@ -1611,6 +1984,17 @@ fn reject_unexpected_initial_files(
                 .chain(batch.identity.iter().map(|identity| identity.path.as_str()))
         })
     }))
+    .chain(
+        manifest
+            .preview_core_material_graph
+            .iter()
+            .flat_map(|graph| &graph.materials)
+            .flat_map(|material| &material.layers)
+            .flat_map(PreviewCoreMaterialLayer::resources)
+            .filter_map(|(_role, _declared, _archive, reference)| {
+                reference.map(|resource| resource.path.as_str())
+            }),
+    )
     .collect::<BTreeSet<_>>();
     for entry in fs::read_dir(root)? {
         let entry = entry?;
@@ -2110,6 +2494,7 @@ mod tests {
                     metalness: true,
                     specular: true,
                     height_scale: true,
+                    anisotropy: false,
                 },
                 fallback_applied: SessionSurfaceProfileFallbackApplied {
                     roughness: false,
@@ -2299,7 +2684,70 @@ mod tests {
         manifest["material_contract"] = json!({
             "graph_version": PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
             "semantics_version": PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
-            "conservation": {}
+            "conservation": {
+                "schema_version": 1,
+                "declared_parameter_count": 0,
+                "transported_parameter_count": 0,
+                "resolved_texture_count": 0,
+                "unresolved_texture_count": 0,
+                "conserved": true,
+                "findings": [],
+                "parameters": []
+            }
+        });
+        let texture_length = manifest["textures"][0]["file"]["byte_length"]
+            .as_u64()
+            .expect("texture byte length");
+        manifest["preview_core_material_graph"] = json!({
+            "schema_version": PREVIEW_CORE_TRANSPORT_GRAPH_SCHEMA,
+            "graph_version": PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
+            "semantics_version": PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
+            "quality": "direct",
+            "resources_included": false,
+            "source_edge_count": 1,
+            "unique_resource_count": 1,
+            "copied_resource_count": 0,
+            "unique_resource_bytes": texture_length,
+            "materials": [{
+                "lod_index": 0,
+                "material_index": 0,
+                "material_slot_index": 4,
+                "material_name": "mat",
+                "base_color": [0.62, 0.62, 0.62],
+                "layers": [{
+                    "owner_wrapper_item_id": "fixture-wrapper-1",
+                    "material_wrapper_index": 0,
+                    "layer_role": "base",
+                    "mask_channel": "r",
+                    "shader_family": "standard_v2",
+                    "shader_rule": "standard_v2",
+                    "evidence_grade": "exact",
+                    "source_parameter": "_baseColorTexture",
+                    "mask_parameter": "",
+                    "weight": 1.0,
+                    "detail_scale": 0.0,
+                    "roughness_hint": 0.4,
+                    "metalness_hint": 0.8,
+                    "specular_hint": 0.5,
+                    "height_scale_hint": 0.0,
+                    "tint": [1.0, 1.0, 1.0, 1.0],
+                    "diffuse_declared": true,
+                    "diffuse_archive_path": "character/texture/helmet_base.dds",
+                    "diffuse": null,
+                    "normal_declared": false,
+                    "normal_archive_path": "",
+                    "normal": null,
+                    "material_declared": false,
+                    "material_archive_path": "",
+                    "material": null,
+                    "height_declared": false,
+                    "height_archive_path": "",
+                    "height": null,
+                    "mask_declared": false,
+                    "mask_archive_path": "",
+                    "mask": null
+                }]
+            }]
         });
         fs::write(
             &manifest_path,

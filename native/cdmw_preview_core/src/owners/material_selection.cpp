@@ -98,6 +98,24 @@ static bool support_binding_rejected_before_scoring(
         return true;
     }
     const std::string layer_role = lower_copy(binding.layer_role);
+    const bool layer_scoped_response =
+        layer_role == "damage" || layer_role == "detail"
+        || layer_role == "grime" || layer_role == "dye"
+        || layer_role == "overlay" || layer_role == "layer"
+        || lower_copy(binding.packed_channels).find("layer:") != std::string::npos;
+    if ((desired_role == "material" || desired_role == "specular")
+        && layer_scoped_response) {
+        // The full Rust path composites this response through the exact layer
+        // mask. Publishing it as a direct whole-material slot at the same time
+        // paints that layer over every texel and defeats the graph.
+        note_rejected_support_binding(
+            rejected_examples,
+            desired_role,
+            "rejected layer-only material-response candidate",
+            binding,
+            mesh);
+        return true;
+    }
     if (desired_role == "height"
         && (layer_role == "damage" || layer_role == "detail"
             || layer_role == "grime" || layer_role == "layer")) {
@@ -505,6 +523,7 @@ struct ParsedMaterialSidecar {
     std::string shader_rule;
     SidecarParameterSummary parameter_summary;
     std::vector<SidecarTextureRef> refs;
+    std::vector<MaterialWrapperDeclaration> declarations;
     std::vector<NativePbdSidecarHint> pbd_hints;
     int material_wrapper_count = 0;
 };
@@ -571,11 +590,14 @@ static const ParsedMaterialSidecar& cached_parsed_material_sidecar(
     parsed.shader_rule = shader_rule_for_family(parsed.shader_family);
     parsed.parameter_summary = summarize_sidecar_parameters(material_scope);
     parsed.pbd_hints = extract_native_pbd_sidecar_hints(material_scope, sidecar.path);
-    parsed.refs = extract_sidecar_texture_refs(material_scope, model_property_index);
+    parsed.refs = extract_sidecar_texture_refs(
+        material_scope, model_property_index, &parsed.declarations);
     parsed.material_wrapper_count = 0;
-    for (const SidecarTextureRef& ref : parsed.refs) {
-        if (ref.material_wrapper_index >= 0) {
-            parsed.material_wrapper_count = std::max(parsed.material_wrapper_count, ref.material_wrapper_index + 1);
+    for (const MaterialWrapperDeclaration& declaration : parsed.declarations) {
+        if (declaration.material_wrapper_index >= 0) {
+            parsed.material_wrapper_count = std::max(
+                parsed.material_wrapper_count,
+                declaration.material_wrapper_index + 1);
         }
     }
     if (parsed.refs.empty()) {

@@ -28,14 +28,23 @@ static void run_color_blending_palette_contract_self_test() {
         "<MaterialParameterTexture _name=\"_detailDiffuseMaskB\" Value=\"shared_mask.dds\"/>"
         "<MaterialParameterByte4 _name=\"_dyeingTransformProperty0\" _value=\"4294967295\"/>"
         "</SkinnedMeshMaterialWrapper></ModelProperty></Root>";
+    std::vector<MaterialWrapperDeclaration> shared_logical_declarations;
     const std::vector<SidecarTextureRef> shared_logical_refs =
-        extract_sidecar_texture_refs(shared_logical_edge_sidecar, 0);
+        extract_sidecar_texture_refs(
+            shared_logical_edge_sidecar, 0, &shared_logical_declarations);
     require_material_contract(
         shared_logical_refs.size() == 3
             && std::all_of(shared_logical_refs.begin(), shared_logical_refs.end(), [](const SidecarTextureRef& ref) {
-                return ref.owner_wrapper_item_id == "712" && ref.path == "shared_mask.dds";
+                return ref.owner_wrapper_item_id == "712"
+                    && ref.path == "shared_mask.dds"
+                    && sidecar_ref_has_exact_wrapper_identity(ref);
             }),
         "same-DDS logical PAC parameters collapsed or lost wrapper identity");
+    require_material_contract(
+        shared_logical_declarations.size() == 1
+            && shared_logical_declarations.front().owner_wrapper_item_id == "712"
+            && shared_logical_declarations.front().material_parameters.size() == 4,
+        "source parameter declaration inventory is incomplete");
     require_material_contract(
         layer_channel_from_parameter("_detailMaskTexture").empty()
             && layer_channel_from_parameter("_colorBlendingMaskTexture").empty()
@@ -62,6 +71,31 @@ static void run_color_blending_palette_contract_self_test() {
                         && parameter.texture_path == "shared_mask.dds";
                 }),
         "Byte4 PAC value travelled through lossy floating-point transport");
+
+    MaterialParameterRecord duplicate_texture;
+    duplicate_texture.kind = "texture";
+    duplicate_texture.name = "_detailMaskTexture";
+    duplicate_texture.texture_path = "character/texture/shared_mask.dds";
+    require_material_contract(
+        material_conservation_parameter_key(
+            "character/model/component_a.pac#model_property=0",
+            shared_logical_declarations.front(),
+            duplicate_texture)
+            == material_conservation_parameter_key(
+                "character/model/component_a.pac#model_property=0",
+                shared_logical_declarations.front(),
+                duplicate_texture),
+        "logical texture edge dedupe still depended on duplicate sidecar provenance");
+    require_material_contract(
+        material_conservation_parameter_key(
+            "character/model/component_a.pac#model_property=0",
+            shared_logical_declarations.front(),
+            duplicate_texture)
+            != material_conservation_parameter_key(
+                "character/model/component_b.pac#model_property=0",
+                shared_logical_declarations.front(),
+                duplicate_texture),
+        "component-local material wrapper identities were collapsed across physical models");
 
     TextureBinding dyed_base;
     dyed_base.role = "base";
@@ -102,6 +136,20 @@ static void run_color_blending_palette_contract_self_test() {
             && dye_seeds[0].mask_source == dye_selector.source_path
             && dye_seeds[1].tint == dye_colors[1],
         "color blending palette seed contract changed");
+
+    dyed_bindings.front().material_parameter_names = "_dyeingColorMaskG";
+    const std::vector<MaterialLayer> partial_dye_seeds = compile_color_blending_seed_layers(
+        dyed_binding_refs, &dyed_bindings.front(), NativeSubmesh{});
+    require_material_contract(
+        partial_dye_seeds.size() == 3
+            && partial_dye_seeds[0].diffuse_source.empty()
+            && partial_dye_seeds[0].tint[3] == 0.0f
+            && partial_dye_seeds[1].layer_channel == "g"
+            && partial_dye_seeds[1].source_parameter == "_dyeingColorMaskG"
+            && !partial_dye_seeds[1].diffuse_source.empty()
+            && partial_dye_seeds[2].diffuse_source.empty()
+            && partial_dye_seeds[2].tint[3] == 0.0f,
+        "color blending palette exposed an unauthored channel resource");
 
     auto authored_color = [](const char* name, const char* value) {
         MaterialParameterRecord parameter;
@@ -209,6 +257,171 @@ static void run_color_blending_palette_contract_self_test() {
             && parameter_json.str().find("\"integer_value\":4294967295") != std::string::npos
             && parameter_json.str().find("\"color_value\":[0.933") != std::string::npos,
         "PAC material parameter JSON no longer matches the Python consumer shape");
+
+    NativePackage unresolved_texture_package;
+    NativeMaterialConservationRow unresolved_texture_row;
+    unresolved_texture_row.logical_graph_edge = true;
+    unresolved_texture_row.parameter.kind = "texture";
+    unresolved_texture_row.parameter.name = "_baseColorTexture";
+    unresolved_texture_row.parameter.texture_path = "missing.dds";
+    unresolved_texture_package.material_conservation_rows.push_back(unresolved_texture_row);
+    const std::string unresolved_texture_json =
+        native_material_conservation_json(unresolved_texture_package);
+    require_material_contract(
+        unresolved_texture_json.find("\"unresolved_texture_count\":1") != std::string::npos
+            && unresolved_texture_json.find("\"conserved\":false") != std::string::npos,
+        "unresolved source DDS was reported as a conserved material graph");
+
+    EntryJob source_resolution_job;
+    ArchiveEntryRef source_resolution_sidecar;
+    source_resolution_sidecar.path = "character/modelproperty/samuel.pac_xml";
+    PamtIndex corrected_source_index;
+    ArchiveEntryRef corrected_source;
+    corrected_source.path = "character/texture/cd_phw_00_sho_belt_00_0161_disp.dds";
+    corrected_source.basename = "cd_phw_00_sho_belt_00_0161_disp.dds";
+    corrected_source.extension = ".dds";
+    corrected_source_index.by_basename[lower_copy(corrected_source.basename)].push_back(
+        corrected_source);
+    SidecarTextureRef malformed_source_ref;
+    malformed_source_ref.path =
+        "character/texturecd_phw_00_sho_belt_00_0161_disp.dds";
+    const std::optional<ResolvedSidecarTextureCandidate> corrected_resolution =
+        resolve_sidecar_texture_candidate(
+            source_resolution_job,
+            corrected_source_index,
+            source_resolution_sidecar,
+            malformed_source_ref,
+            nullptr);
+    require_material_contract(
+        corrected_resolution.has_value()
+            && corrected_resolution->entry.path == corrected_source.path
+            && corrected_resolution->resolution == "corrected_missing_separator"
+            && corrected_resolution->declared_source_missing,
+        "source-authored missing texture separator was not corrected explicitly");
+
+    TechniqueIndex family_default_index;
+    const std::string cloth_family = "skinnedmeshcloth_ver2";
+    const std::string emissive_family = "skinnedmeshemissive_ver2";
+    const std::string standard_group = "skinnedmeshstandardparameterset_ver2";
+    family_default_index.family_source_by_name[cloth_family] =
+        "material/dist/skinnedmeshcloth_ver2.material";
+    family_default_index.family_source_by_name[emissive_family] =
+        "material/dist/skinnedmeshemissive_ver2.material";
+    family_default_index.group_source_by_name[standard_group] =
+        "material/dist/skinnedmeshparameters.xml";
+    family_default_index.group_names_by_family[cloth_family].push_back(standard_group);
+    TechniqueParameterInfo family_overlay_parameter;
+    family_overlay_parameter.name = "_overlayColorTexture";
+    family_overlay_parameter.type = "Texture";
+    family_overlay_parameter.default_value = "texture/nonetexture0xff888888.dds";
+    family_overlay_parameter.default_source_path =
+        "material/dist/skinnedmeshparameters.xml";
+    family_overlay_parameter.declaration_source_path =
+        "material/dist/skinnedmeshparameters.xml";
+    family_overlay_parameter.parameter_group_name = standard_group;
+    family_overlay_parameter.declared = true;
+    family_default_index.parameter_groups_by_name[standard_group].emplace(
+        lower_copy(family_overlay_parameter.name), family_overlay_parameter);
+    rebuild_resolved_technique_parameters(family_default_index);
+    const TechniqueParameterInfo* exact_cloth_overlay = technique_parameter_for_name(
+        family_default_index, "_overlayColorTexture", "SkinnedMeshCloth_Ver2");
+    require_material_contract(
+        exact_cloth_overlay != nullptr
+            && exact_cloth_overlay->default_value
+                == "texture/nonetexture0xff888888.dds"
+            && exact_cloth_overlay->included_by_source_path
+                == "material/dist/skinnedmeshcloth_ver2.material"
+            && technique_parameter_for_name(
+                family_default_index,
+                "_overlayColorTexture",
+                "SkinnedMeshEmissive_Ver2") == nullptr,
+        "material defaults were not restricted to the exact active family and its groups");
+
+    PamtIndex technique_default_index;
+    ArchiveEntryRef technique_default_source;
+    technique_default_source.path = "texture/nonetexture0xff888888.dds";
+    technique_default_source.basename = "nonetexture0xff888888.dds";
+    technique_default_source.extension = ".dds";
+    technique_default_index.by_basename[lower_copy(technique_default_source.basename)].push_back(
+        technique_default_source);
+    SidecarTextureRef missing_overlay_ref;
+    missing_overlay_ref.path = "character/texture/missing_overlay.dds";
+    TechniqueParameterInfo overlay_parameter;
+    overlay_parameter.name = "_overlayColorTexture";
+    overlay_parameter.type = "Texture";
+    overlay_parameter.default_value = "texture/nonetexture0xff888888.dds";
+    overlay_parameter.default_source_path = "material/dist/standard_ver2.material";
+    overlay_parameter.declared = true;
+    const std::optional<ResolvedSidecarTextureCandidate> default_resolution =
+        resolve_sidecar_texture_candidate(
+            source_resolution_job,
+            technique_default_index,
+            source_resolution_sidecar,
+            missing_overlay_ref,
+            &overlay_parameter);
+    require_material_contract(
+        default_resolution.has_value()
+            && default_resolution->entry.path == technique_default_source.path
+            && default_resolution->resolution
+                == "technique_default_after_missing_declared_source"
+            && default_resolution->detail.find(
+                "technique_source:material/dist/standard_ver2.material")
+                != std::string::npos
+            && default_resolution->declared_source_missing,
+        "missing declared DDS did not resolve through its authored technique default");
+
+    NativePackage resolved_source_package;
+    NativeMaterialConservationRow resolved_source_row;
+    resolved_source_row.logical_graph_edge = true;
+    resolved_source_row.texture_resolved = true;
+    resolved_source_row.parameter.kind = "texture";
+    resolved_source_row.parameter.name = "_overlayColorTexture";
+    resolved_source_row.parameter.texture_path = missing_overlay_ref.path;
+    resolved_source_row.resolved_source_path = "C:/cache/default.dds";
+    resolved_source_row.resolved_archive_path = technique_default_source.path;
+    resolved_source_row.source_resolution = default_resolution->resolution;
+    resolved_source_row.source_resolution_detail = default_resolution->detail;
+    resolved_source_row.declared_source_missing = true;
+    resolved_source_package.material_conservation_rows.push_back(resolved_source_row);
+    const std::string resolved_source_json =
+        native_material_conservation_json(resolved_source_package);
+    require_material_contract(
+        resolved_source_json.find(
+            "\"resolved_archive_path\":\"texture/nonetexture0xff888888.dds\"")
+                != std::string::npos
+            && resolved_source_json.find(
+                "\"source_resolution\":\"technique_default_after_missing_declared_source\"")
+                != std::string::npos
+            && resolved_source_json.find("\"declared_source_missing\":true")
+                != std::string::npos
+            && resolved_source_json.find("\"conserved\":true") != std::string::npos,
+        "resolved logical edge omitted declared-versus-actual source provenance");
+
+    TextureBinding authored_anisotropy_binding;
+    MaterialParameterRecord authored_anisotropy_parameter;
+    authored_anisotropy_parameter.kind = "float";
+    authored_anisotropy_parameter.name = "_anisotropyStrength";
+    authored_anisotropy_parameter.numeric_value = 0.0f;
+    authored_anisotropy_parameter.has_numeric = true;
+    authored_anisotropy_binding.material_parameters.push_back(
+        authored_anisotropy_parameter);
+    const NativeMaterialHints authored_anisotropy_hints =
+        material_hints_for_bindings({&authored_anisotropy_binding});
+    require_material_contract(
+        authored_anisotropy_hints.anisotropy_authored,
+        "authored zero anisotropy did not suppress family fallback");
+    SurfaceProfile profile_authority;
+    profile_authority.fallback_height_scale = 0.95f;
+    profile_authority.fallback_anisotropy = 0.65f;
+    profile_authority.anisotropy_authored = true;
+    NativeMaterialHints profile_hints;
+    profile_hints.height_scale = 0.37f;
+    profile_hints = resolve_surface_profile_fallbacks(profile_hints, profile_authority);
+    require_material_contract(
+        std::abs(profile_hints.height_scale - 0.37f) < 0.0001f
+            && !profile_authority.height_scale_fallback_applied
+            && !profile_authority.anisotropy_fallback_applied,
+        "surface profile exceeded authored roughness/metalness/specular/anisotropy authority");
 
     TextureBinding reliable_chainmail_base;
     reliable_chainmail_base.role = "base";
@@ -468,8 +681,42 @@ static void run_layer_selector_surface_authority_contract_self_test() {
 
     const std::vector<TextureBinding> candidates{color_selector, exact_layer_surface};
     require_material_contract(
-        best_binding_for_role(candidates, mesh, "material") == &candidates[1],
-        "PAC _ma selector outranked its exact _sp surface companion");
+        best_binding_for_role(candidates, mesh, "material") == nullptr,
+        "PAC masked _sp layer companion remained eligible for the global material slot");
+}
+
+static void run_embedded_mesh_owner_contract_self_test() {
+    NativeSubmesh first;
+    first.source_model_path = "character/model/component_a.pac";
+    first.source_local_submesh_index = 3;
+    NativeSubmesh second = first;
+    second.source_local_submesh_index = 4;
+    const std::string first_owner = embedded_mesh_owner_id(first, first.source_model_path);
+    const std::string second_owner = embedded_mesh_owner_id(second, second.source_model_path);
+    require_material_contract(
+        !first_owner.empty()
+            && first_owner.size() <= 64
+            && first_owner != second_owner
+            && embedded_mesh_owner_index(first) == 3,
+        "embedded mesh texture lost its deterministic owning submesh identity");
+
+    TextureBinding first_edge;
+    first_edge.owner_wrapper_item_id = first_owner;
+    first_edge.parameter_name = "embedded_mesh_reference";
+    first_edge.archive_path = "character/texture/shared.dds";
+    TextureBinding duplicate = first_edge;
+    TextureBinding other_owner = first_edge;
+    other_owner.owner_wrapper_item_id = second_owner;
+    TextureBinding other_parameter = first_edge;
+    other_parameter.parameter_name = "_detailDiffuseMaskR";
+    TextureBinding other_path = first_edge;
+    other_path.archive_path = "character/texture/other.dds";
+    require_material_contract(
+        native_texture_edge_key(first_edge) == native_texture_edge_key(duplicate)
+            && native_texture_edge_key(first_edge) != native_texture_edge_key(other_owner)
+            && native_texture_edge_key(first_edge) != native_texture_edge_key(other_parameter)
+            && native_texture_edge_key(first_edge) != native_texture_edge_key(other_path),
+        "native texture edge dedupe did not preserve owner, parameter, and DDS path");
 }
 
 static void run_skin_detail_support_contract_self_test() {
@@ -583,12 +830,18 @@ static TextureBinding exact_layer_contract_binding(
     binding.shader_family = shader_rule == "emissive"
         ? "SkinnedMeshEmissive_Ver2" : "SkinnedMeshStandard";
     binding.sidecar_path = "character/modelproperty/weapon/layered_owner.pac_xml";
+    binding.sidecar_kind = ".pac_xml";
     binding.material_name = "layered_owner";
     binding.material_wrapper_index = wrapper_index;
     binding.material_wrapper_order_authoritative = true;
     binding.source_authority = "exact_sidecar";
     binding.material_output_quality = "exact";
     binding.layer_weight = 0.45f;
+    if (normalized_key(parameter) == "colorblendingmasktexture") {
+        binding.packed_channels = "layer:color_blending_mask";
+    } else if (normalized_key(parameter) == "detailmasktexture") {
+        binding.packed_channels = "layer:detail_grime_dye_mask";
+    }
     return binding;
 }
 
@@ -605,7 +858,7 @@ static void run_exact_layer_owner_stack_contract_self_test() {
     bindings.push_back(exact_layer_contract_binding(
         "detail", "_detailMaskTexture", "owner_detail_mask.dds", "detail", "b", "emissive", 0));
     bindings.push_back(exact_layer_contract_binding(
-        "material", "_colorBlendingMaskTexture", "owner_grime_mask.dds", "material_response", "b", "emissive", 0));
+        "material", "_colorBlendingMaskTexture", "owner_color_region_mask.dds", "material_response", "b", "emissive", 0));
     bindings.push_back(exact_layer_contract_binding(
         "height", "_heightTexture", "owner_global_height.dds", "height", "r", "emissive", 0));
 
@@ -649,6 +902,7 @@ static void run_exact_layer_owner_stack_contract_self_test() {
         "exact emissive owner stack did not preserve all six authored overlays");
     for (size_t index = 1; index < layers.size(); ++index) {
         const MaterialLayer& layer = layers[index];
+        const bool detail_layer = layer.layer_role == "detail";
         require_material_contract(
             !layer.diffuse_source.empty()
                 && !layer.normal_source.empty()
@@ -656,7 +910,10 @@ static void run_exact_layer_owner_stack_contract_self_test() {
                 && !layer.height_source.empty()
                 && layer.height_source != bindings[3].source_path
                 && layer.normal_source != "wrong_wrapper_normal.dds"
-                && layer.diffuse_source != "wrong_wrapper_diffuse.dds",
+                && layer.diffuse_source != "wrong_wrapper_diffuse.dds"
+                && (!detail_layer
+                    || (layer.mask_source == bindings[2].source_path
+                        && layer.mask_parameter == bindings[2].parameter_name)),
             "exact layer companion escaped its sidecar, wrapper, role, or channel");
     }
 }
@@ -763,6 +1020,7 @@ static void run_head_eye_cover_identity_contract_self_test() {
 }
 
 static void run_material_contract_self_test() {
+    run_embedded_mesh_owner_contract_self_test();
     EntryJob bounded_job;
     bounded_job.archive_dependency_entries_complete = true;
     bounded_job.entry.path = "character/model/example.pac";
@@ -816,6 +1074,54 @@ static void run_material_contract_self_test() {
     require_material_contract(
         head_bindings.size() == 1 && head_bindings.front() == &skin_bindings[0],
         "cross-part response survived owner filtering");
+
+    NativeSubmesh aliased_owner_mesh;
+    aliased_owner_mesh.material = "owned_surface";
+    aliased_owner_mesh.name = "owned_surface";
+    aliased_owner_mesh.source_model_path = "character/model/component.pac";
+    aliased_owner_mesh.source_local_submesh_index = 0;
+    MaterialParameterRecord aliased_base_parameter;
+    aliased_base_parameter.kind = "texture";
+    aliased_base_parameter.name = "_baseColorTexture";
+    aliased_base_parameter.texture_path = "character/texture/owned_surface.dds";
+    MaterialParameterRecord aliased_support_parameter;
+    aliased_support_parameter.kind = "texture";
+    aliased_support_parameter.name = "_detailMaskTexture";
+    aliased_support_parameter.texture_path = "character/texture/cd_common_default_mg.dds";
+    MaterialWrapperDeclaration aliased_declaration;
+    aliased_declaration.material_name = "legacy_alias";
+    aliased_declaration.owner_wrapper_item_id = "42";
+    aliased_declaration.material_wrapper_index = 0;
+    aliased_declaration.material_parameters = {
+        aliased_base_parameter,
+        aliased_support_parameter,
+    };
+    SidecarTextureRef aliased_support_ref;
+    aliased_support_ref.path = aliased_support_parameter.texture_path;
+    aliased_support_ref.parameter_name = aliased_support_parameter.name;
+    aliased_support_ref.material_name = aliased_declaration.material_name;
+    aliased_support_ref.owner_wrapper_item_id = aliased_declaration.owner_wrapper_item_id;
+    aliased_support_ref.material_wrapper_index = aliased_declaration.material_wrapper_index;
+    ParsedMaterialSidecar aliased_parsed;
+    aliased_parsed.declarations.push_back(aliased_declaration);
+    const std::vector<NativeSubmesh> aliased_meshes{aliased_owner_mesh};
+    require_material_contract(
+        !sidecar_ref_matches_meshes(
+            aliased_support_ref,
+            "component",
+            false,
+            1,
+            aliased_meshes,
+            "component")
+            && sidecar_ref_owner_declaration_matches_meshes(
+                aliased_parsed,
+                aliased_support_ref,
+                "component",
+                false,
+                1,
+                aliased_meshes,
+                "component"),
+        "an owned wrapper support texture was discarded by its generic DDS name");
 
     NativeSubmesh shared_left;
     shared_left.name = "shared_left";

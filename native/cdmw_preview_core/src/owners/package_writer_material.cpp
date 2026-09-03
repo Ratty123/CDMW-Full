@@ -57,7 +57,7 @@ static void prepare_package_batch_runtime(PackageWriteState& state, PackageBatch
         : (batch.is_eye_surface ? 0.05f
             : (batch.is_tear_shell ? 0.35f : (batch.has_alpha_test ? 0.08f : 0.0f)));
     batch.material_hints = material_hints_for_bindings(batch.bindings);
-    if (batch.base != nullptr) return;
+    if (batch.base != nullptr || batch.primary_visible_layer != nullptr) return;
     for (const TextureBinding* binding : batch.bindings) {
         if (binding == nullptr) continue;
         const auto tint = binding->tint_color;
@@ -102,7 +102,8 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
         batch.height,
         batch.specular,
         batch.material_hints,
-        state.job.visible_texture_mode);
+        state.job.visible_texture_mode,
+        batch.primary_visible_layer);
     if (!batch.held_layer_albedo && !batch.visible_layer_tint_applied) {
         std::array<float, 4> sidecar_tint{1.0f, 1.0f, 1.0f, 1.0f};
         if (preview_sidecar_tint_for_surface(batch.base, mesh, batch.material_layers, &sidecar_tint)) {
@@ -136,6 +137,10 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
         batch.base,
         batch.material_layers,
         batch.material_hints);
+    // The finalized profile may raise confidence when an authored finish,
+    // structure, or coating token exists. Publish one confidence value across
+    // the material slot and Rust profile contracts.
+    batch.material_category_confidence = batch.surface_profile.confidence;
     batch.effective_material_hints = clamp_material_hints_for_category(
         batch.material_hints, batch.material_category);
     batch.effective_material_hints = resolve_surface_profile_fallbacks(
@@ -234,6 +239,7 @@ static void record_package_batch_selection(PackageWriteState& state, const Packa
     state.package.selected_texture_examples.push_back(
         "batch " + std::to_string(batch.index) + " " + mesh.material
         + ": base=" + package_texture_label(batch.base)
+        + ", primary_layer=" + package_texture_label(batch.primary_visible_layer)
         + ", normal=" + package_texture_label(batch.normal)
         + ", material=" + package_texture_label(batch.material)
         + ", height=" + package_texture_label(batch.height)

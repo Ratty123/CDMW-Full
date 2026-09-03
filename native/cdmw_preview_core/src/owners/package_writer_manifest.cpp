@@ -49,6 +49,92 @@ static void add_package_asset_family_rows(PackageWriteState& state) {
         0, static_cast<int>(state.package.asset_family_rows.size()) - 1);
 }
 
+static std::string native_material_conservation_json(const NativePackage& package) {
+    size_t transported_count = 0;
+    size_t resolved_texture_count = 0;
+    size_t unresolved_texture_count = 0;
+    for (const NativeMaterialConservationRow& row : package.material_conservation_rows) {
+        if (row.logical_graph_edge) ++transported_count;
+        if (row.parameter.kind == "texture" && !row.parameter.texture_path.empty()) {
+            if (row.texture_resolved) ++resolved_texture_count;
+            else ++unresolved_texture_count;
+        }
+    }
+    const bool conserved = package.material_conservation_ok
+        && transported_count == package.material_conservation_rows.size()
+        && unresolved_texture_count == 0;
+    std::ostringstream out;
+    out << "{"
+        << "\"schema_version\":1,"
+        << "\"declared_parameter_count\":" << package.material_conservation_rows.size() << ","
+        << "\"transported_parameter_count\":" << transported_count << ","
+        << "\"resolved_texture_count\":" << resolved_texture_count << ","
+        << "\"unresolved_texture_count\":" << unresolved_texture_count << ","
+        << "\"conserved\":" << (conserved ? "true" : "false") << ","
+        << "\"findings\":[";
+    for (size_t index = 0; index < package.material_conservation_findings.size(); ++index) {
+        if (index) out << ",";
+        out << "\"" << json_escape(package.material_conservation_findings[index]) << "\"";
+    }
+    out << "],\"parameters\":[";
+    for (size_t index = 0; index < package.material_conservation_rows.size(); ++index) {
+        if (index) out << ",";
+        const NativeMaterialConservationRow& row = package.material_conservation_rows[index];
+        const MaterialParameterRecord& parameter = row.parameter;
+        out << "{"
+            << "\"sidecar_path\":\"" << json_escape(row.sidecar_path) << "\","
+            << "\"representation_sidecar_paths\":[";
+        for (size_t representation_index = 0;
+             representation_index < row.representation_sidecar_paths.size();
+             ++representation_index) {
+            if (representation_index) out << ",";
+            out << "\"" << json_escape(
+                row.representation_sidecar_paths[representation_index]) << "\"";
+        }
+        out << "],"
+            << "\"component_scope_id\":\"" << json_escape(row.component_scope_id) << "\","
+            << "\"material_name\":\"" << json_escape(row.material_name) << "\","
+            << "\"shader_family\":\"" << json_escape(row.shader_family) << "\","
+            << "\"owner_wrapper_item_id\":\"" << json_escape(row.owner_wrapper_item_id) << "\","
+            << "\"material_wrapper_index\":" << row.material_wrapper_index << ","
+            << "\"owner_slot_index\":" << row.owner_slot_index << ","
+            << "\"parameter_kind\":\"" << json_escape(parameter.kind) << "\","
+            << "\"parameter_name\":\"" << json_escape(parameter.name) << "\","
+            << "\"tag_name\":\"" << json_escape(parameter.tag_name) << "\","
+            << "\"string_item_id\":\"" << json_escape(parameter.string_item_id) << "\","
+            << "\"item_id\":\"" << json_escape(parameter.item_id) << "\","
+            << "\"index\":" << parameter.index << ","
+            << "\"value\":\"" << json_escape(parameter.value) << "\","
+            << "\"texture_path\":\"" << json_escape(parameter.texture_path) << "\","
+            << "\"numeric_value\":";
+        if (parameter.has_numeric) out << parameter.numeric_value;
+        else out << "null";
+        out << ",\"integer_value\":";
+        if (parameter.has_integer) out << parameter.integer_value;
+        else out << "null";
+        out << ",\"role\":\"" << json_escape(row.role) << "\","
+            << "\"layer_role\":\"" << json_escape(row.layer_role) << "\","
+            << "\"layer_channel\":\"" << json_escape(row.layer_channel) << "\","
+            << "\"resolved_source_path\":\"" << json_escape(row.resolved_source_path) << "\","
+            << "\"resolved_archive_path\":\"" << json_escape(row.resolved_archive_path) << "\","
+            << "\"source_resolution\":\"" << json_escape(row.source_resolution) << "\","
+            << "\"source_resolution_detail\":\"" << json_escape(row.source_resolution_detail) << "\","
+            << "\"semantic_type\":\"" << json_escape(row.semantic_type) << "\","
+            << "\"semantic_subtype\":\"" << json_escape(row.semantic_subtype) << "\","
+            << "\"packed_channels\":\"" << json_escape(row.packed_channels) << "\","
+            << "\"srgb_mode\":\"" << json_escape(row.srgb_mode) << "\","
+            << "\"sidecar_kind\":\"" << json_escape(row.sidecar_kind) << "\","
+            << "\"declared_source_missing\":" << (row.declared_source_missing ? "true" : "false") << ","
+            << "\"logical_graph_edge\":" << (row.logical_graph_edge ? "true" : "false") << ","
+            << "\"texture_resolved\":" << (row.texture_resolved ? "true" : "false") << ","
+            << "\"status\":\"" << json_escape(row.status) << "\","
+            << "\"finding\":\"" << json_escape(row.finding) << "\""
+            << "}";
+    }
+    out << "]}";
+    return out.str();
+}
+
 static std::string package_manifest_json(const PackageWriteState& state) {
     const std::string format = state.job.extension.size() > 1 && state.job.extension.front() == '.'
         ? state.job.extension.substr(1) : state.job.extension;
@@ -113,6 +199,7 @@ static std::string package_manifest_json(const PackageWriteState& state) {
         << "\"high_quality_textures\":" << (state.job.high_quality_textures ? "true" : "false") << ","
         << "\"native_preview_core\":{\"runtime_backend\":\"native_cpp\",\"package_builder\":\"cdmw_preview_core_cpp\",\"renderer_contract\":\"d3d11_native_package\",\"python_fallback_allowed\":false,\"mesh_parse\":\"" << json_escape(state.package.mesh_parse) << "\",\"material_index\":\"" << json_escape(state.package.material_index) << "\",\"material_graph_status\":\"" << json_escape(state.package.material_graph_status) << "\",\"material_graph_version\":" << kNativeMaterialGraphVersion << ",\"material_graph_cache_hit\":" << (state.package.material_graph_cache_hit ? "true" : "false") << ",\"material_graph_cache_path\":\"" << json_escape(state.package.material_graph_cache_path) << "\",\"texture_resolution\":\"" << json_escape(state.package.texture_resolution) << "\",\"material_output_quality\":\"" << json_escape(state.package.material_output_quality) << "\",\"material_semantics_version\":" << kNativeMaterialSemanticsVersion << ",\"material_quality_safe\":" << (state.package.material_quality_safe ? "true" : "false") << ",\"base_missing_count\":" << state.package.base_missing_count << ",\"base_low_res_count\":" << state.package.base_low_res_count << ",\"base_low_confidence_count\":" << state.package.base_low_confidence_count << ",\"base_technical_count\":" << state.package.base_technical_count << ",\"asset_family_reference_count\":" << state.package.asset_family_reference_count << ",\"visible_texture_mode\":\"" << json_escape(state.job.visible_texture_mode) << "\",\"lod_count\":" << state.package.lod_count << "},"
         << native_asset_family_json(state.package, state.job) << ","
+        << "\"material_conservation\":" << native_material_conservation_json(state.package) << ","
         << "\"material_slots\":[" << state.material_slots_json.str() << "],"
         << "\"selection_decisions\":[" << state.selection_decisions_json.str() << "],"
         << "\"rejected_candidates\":[";

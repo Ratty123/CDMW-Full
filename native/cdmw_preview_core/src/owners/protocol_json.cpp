@@ -653,12 +653,45 @@ struct MaterialParameterRecord {
     std::string texture_path;
 };
 
+struct NativeMaterialConservationRow {
+    std::string sidecar_path;
+    std::vector<std::string> representation_sidecar_paths;
+    std::string component_scope_id;
+    std::string material_name;
+    std::string shader_family;
+    std::string owner_wrapper_item_id;
+    int material_wrapper_index = -1;
+    int owner_slot_index = -1;
+    MaterialParameterRecord parameter;
+    std::string role;
+    std::string layer_role;
+    std::string layer_channel;
+    std::string resolved_source_path;
+    std::string resolved_archive_path;
+    std::string source_resolution;
+    std::string source_resolution_detail;
+    std::string semantic_type;
+    std::string semantic_subtype;
+    std::string packed_channels;
+    std::string srgb_mode;
+    std::string sidecar_kind;
+    bool declared_source_missing = false;
+    bool logical_graph_edge = false;
+    bool texture_resolved = false;
+    std::string status = "transported";
+    std::string finding;
+};
+
 struct TextureBinding {
     std::string role;
     std::string source_path;
     std::string archive_path;
     std::string texture_name;
     std::string parameter_name;
+    std::string declared_texture_path;
+    std::string source_resolution = "declared_exact";
+    std::string source_resolution_detail;
+    bool declared_source_missing = false;
     std::string semantic_type;
     std::string semantic_subtype;
     std::string shader_family;
@@ -666,6 +699,8 @@ struct TextureBinding {
     std::string material_name;
     std::string owner_wrapper_item_id;
     std::string sidecar_path;
+    std::vector<std::string> representation_sidecar_paths;
+    std::string component_scope_id;
     std::string sidecar_kind;
     std::string linked_mesh_path;
     std::string packed_channels;
@@ -716,6 +751,9 @@ struct TextureBinding {
 };
 
 struct MaterialLayer {
+    std::string component_scope_id;
+    std::string owner_wrapper_item_id;
+    int material_wrapper_index = -1;
     std::string layer_role;
     std::string layer_channel = "r";
     std::string shader_family;
@@ -810,6 +848,9 @@ struct NativePackage {
     std::vector<std::string> rejected_texture_examples;
     std::vector<NativeAssetFamilyRow> asset_family_rows;
     int asset_family_reference_count = 0;
+    bool material_conservation_ok = true;
+    std::vector<NativeMaterialConservationRow> material_conservation_rows;
+    std::vector<std::string> material_conservation_findings;
 };
 
 static std::uint16_t read_u16(const std::vector<char>& data, size_t offset) {

@@ -66,6 +66,10 @@ _PREVIEW_CORE_BATCH_LIMIT = 4_096
 _PREVIEW_CORE_VERTEX_LIMIT = 2_000_000
 _PREVIEW_CORE_COPY_CHUNK_BYTES = 4 * 1024 * 1024
 _RUST_PREVIEW_MATERIAL_QUALITIES = frozenset({"direct", "full"})
+_PREVIEW_CORE_MATERIAL_GRAPH_SCHEMA = 1
+_PREVIEW_CORE_MATERIAL_LAYER_LIMIT = 64
+_PREVIEW_CORE_MATERIAL_RESOURCE_LIMIT = 4_096
+_PREVIEW_CORE_MATERIAL_RESOURCE_BYTES = 512 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -350,6 +354,284 @@ def _copy_preview_core_binary(
             temporary.unlink()
 
 
+def _preview_core_material_source(package_dir: Path, value: object) -> Path | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    candidate = Path(text).expanduser()
+    try:
+        if candidate.is_absolute():
+            candidate = candidate.resolve(strict=True)
+        else:
+            candidate = _preview_core_child(package_dir, text)
+    except (OSError, RuntimeError):
+        return None
+    if (
+        candidate is None
+        or not candidate.is_file()
+        or candidate.is_symlink()
+        or candidate.suffix.casefold() != ".dds"
+    ):
+        return None
+    return candidate
+
+
+def _preview_core_material_resource_index(
+    package_dir: Path,
+    textures: Sequence[object],
+) -> tuple[dict[str, dict[str, object]], int, int]:
+    resources: dict[str, dict[str, object]] = {}
+    next_index = 0
+    total_bytes = 0
+    for raw_texture in textures:
+        if not isinstance(raw_texture, Mapping):
+            continue
+        raw_file = raw_texture.get("file")
+        if not isinstance(raw_file, Mapping):
+            continue
+        reference = copy.deepcopy(dict(raw_file))
+        sha256 = str(reference.get("sha256", "") or "").strip().upper()
+        path = str(reference.get("path", "") or "").strip()
+        try:
+            byte_length = int(reference.get("byte_length", 0))
+        except (TypeError, ValueError, OverflowError):
+            byte_length = 0
+        if len(sha256) == 64 and byte_length > 0 and (package_dir / path).is_file():
+            if sha256 not in resources:
+                resources[sha256] = reference
+                total_bytes += byte_length
+        stem = Path(path).stem.split("-")
+        if len(stem) >= 3 and stem[0] == "texture" and stem[1].isdigit():
+            next_index = max(next_index, int(stem[1]) + 1)
+    return resources, next_index, total_bytes
+
+
+def _copy_preview_core_material_resource(
+    package_dir: Path,
+    source: Path,
+    *,
+    expected_root_identity: tuple[int, int],
+    resources: dict[str, dict[str, object]],
+    next_index: int,
+    aggregate_bytes: int,
+    cancelled: Callable[[], bool] | None,
+) -> tuple[dict[str, object], int, int]:
+    try:
+        source_size = source.stat().st_size
+    except OSError as exc:
+        raise ValueError("Preview Core material DDS is missing.") from exc
+    if source_size <= 0 or source_size > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
+        raise ValueError("Preview Core material DDS is outside the package size limit.")
+    temporary = package_dir / f".material-texture-{uuid4().hex}.tmp"
+    digest = hashlib.sha256()
+    byte_length = 0
+    try:
+        with source.open("rb") as reader, temporary.open("xb") as writer:
+            source_before = os.fstat(reader.fileno())
+            while True:
+                _cancelled(cancelled)
+                block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
+                if not block:
+                    break
+                digest.update(block)
+                writer.write(block)
+                byte_length += len(block)
+                if aggregate_bytes + byte_length > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
+                    raise ValueError(
+                        "Preview Core material DDS resources exceed the 512 MiB package limit."
+                    )
+            writer.flush()
+            os.fsync(writer.fileno())
+            source_after = os.fstat(reader.fileno())
+        before = (
+            int(source_before.st_dev),
+            int(source_before.st_ino),
+            int(source_before.st_size),
+            int(source_before.st_mtime_ns),
+        )
+        after = (
+            int(source_after.st_dev),
+            int(source_after.st_ino),
+            int(source_after.st_size),
+            int(source_after.st_mtime_ns),
+        )
+        if before != after or byte_length != source_size:
+            raise ValueError("Preview Core material DDS changed while it was copied.")
+        sha256 = digest.hexdigest().upper()
+        existing = resources.get(sha256)
+        if existing is not None:
+            return copy.deepcopy(existing), next_index, aggregate_bytes
+        if len(resources) >= _PREVIEW_CORE_MATERIAL_RESOURCE_LIMIT:
+            raise ValueError("Preview Core material graph contains too many unique DDS resources.")
+        while True:
+            name = f"texture-{next_index:04d}-{sha256[:12].lower()}.dds"
+            next_index += 1
+            if not (package_dir / name).exists():
+                break
+        reference: dict[str, object] = {
+            "path": name,
+            "data_type": "dds_texture",
+            "count": 1,
+            "byte_length": byte_length,
+            "sha256": sha256,
+            "content_type": "image/vnd-ms.dds",
+        }
+        _cancelled(cancelled)
+        _session_root_identity(package_dir, expected_root_identity)
+        os.replace(temporary, package_dir / name)
+        resources[sha256] = reference
+        return copy.deepcopy(reference), next_index, aggregate_bytes + byte_length
+    finally:
+        if temporary.exists() and not temporary.is_symlink():
+            temporary.unlink()
+
+
+def _preview_core_layer_float(value: object, *, fallback: float = 0.0) -> float:
+    result = _preview_core_float(value, fallback)
+    return max(0.0, min(1.0, result))
+
+
+def _preview_core_layer_tint(value: object) -> list[float]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        return [1.0, 1.0, 1.0, 1.0]
+    components = [
+        _preview_core_layer_float(component, fallback=1.0)
+        for component in tuple(value)[:4]
+    ]
+    return (components + [1.0] * 4)[:4]
+
+
+def _build_preview_core_material_graph(
+    source_package: Path,
+    package_dir: Path,
+    raw_batches: Sequence[object],
+    *,
+    quality: str,
+    textures: Sequence[object],
+    expected_root_identity: tuple[int, int],
+    cancelled: Callable[[], bool] | None,
+) -> dict[str, object]:
+    resources, next_index, aggregate_bytes = _preview_core_material_resource_index(
+        package_dir,
+        textures,
+    )
+    initial_resource_shas = frozenset(resources)
+    materials: list[dict[str, object]] = []
+    source_edge_count = 0
+    for material_index, raw_batch in enumerate(raw_batches):
+        if not isinstance(raw_batch, Mapping):
+            raise ValueError("Preview Core material graph contains an invalid batch.")
+        raw_layers = raw_batch.get("material_layers")
+        if not isinstance(raw_layers, Sequence) or isinstance(
+            raw_layers, (str, bytes, bytearray)
+        ):
+            raise ValueError("Preview Core batch is missing its material-layer graph.")
+        if not raw_layers or len(raw_layers) > _PREVIEW_CORE_MATERIAL_LAYER_LIMIT:
+            raise ValueError("Preview Core material-layer graph exceeds the bounded layer limit.")
+        layers: list[dict[str, object]] = []
+        for raw_layer in raw_layers:
+            if not isinstance(raw_layer, Mapping):
+                raise ValueError("Preview Core material graph contains an invalid layer.")
+            role = str(raw_layer.get("layer_role", "") or "").strip().casefold()
+            channel = str(raw_layer.get("mask_channel", "") or "").strip().casefold()
+            owner = str(raw_layer.get("owner_wrapper_item_id", "") or "").strip()
+            wrapper_index = _preview_core_int(raw_layer.get("material_wrapper_index"), -1)
+            source_parameter = str(raw_layer.get("source_parameter", "") or "").strip()
+            mask_parameter = str(raw_layer.get("mask_parameter", "") or "").strip()
+            if (
+                not role
+                or len(role) > 32
+                or channel not in {"", "r", "g", "b", "a"}
+                or len(owner) > 64
+                or wrapper_index < 0
+                or len(source_parameter) > 128
+                or len(mask_parameter) > 128
+            ):
+                raise ValueError("Preview Core material layer identity is invalid.")
+            layer: dict[str, object] = {
+                "owner_wrapper_item_id": owner,
+                "material_wrapper_index": wrapper_index,
+                "layer_role": role,
+                "mask_channel": channel,
+                "shader_family": str(raw_layer.get("shader_family", "") or "")[:128],
+                "shader_rule": str(raw_layer.get("shader_rule", "") or "")[:128],
+                "evidence_grade": str(raw_layer.get("evidence_grade", "") or "")[:64],
+                "source_parameter": source_parameter,
+                "mask_parameter": mask_parameter,
+                "weight": _preview_core_layer_float(raw_layer.get("weight"), fallback=1.0),
+                "detail_scale": _preview_core_layer_float(raw_layer.get("detail_scale")),
+                "roughness_hint": _preview_core_layer_float(raw_layer.get("roughness_hint")),
+                "metalness_hint": _preview_core_layer_float(raw_layer.get("metalness_hint")),
+                "specular_hint": _preview_core_layer_float(raw_layer.get("specular_hint")),
+                "height_scale_hint": _preview_core_layer_float(
+                    raw_layer.get("height_scale_hint")
+                ),
+                "tint": _preview_core_layer_tint(raw_layer.get("tint")),
+            }
+            layer_has_source = False
+            for resource_role in ("diffuse", "normal", "material", "height", "mask"):
+                source_key = f"{resource_role}_source"
+                archive_key = f"{resource_role}_archive_path"
+                source_text = str(raw_layer.get(source_key, "") or "").strip()
+                archive_path = str(raw_layer.get(archive_key, "") or "").strip().replace("\\", "/")
+                layer[f"{resource_role}_archive_path"] = archive_path
+                reference: dict[str, object] | None = None
+                layer[f"{resource_role}_declared"] = bool(source_text)
+                if source_text:
+                    layer_has_source = True
+                    source_edge_count += 1
+                    source = _preview_core_material_source(source_package, source_text)
+                    if source is None:
+                        raise ValueError(
+                            f"Preview Core material graph DDS is missing: {archive_path or source_text}"
+                        )
+                    if quality == "full":
+                        reference, next_index, aggregate_bytes = (
+                            _copy_preview_core_material_resource(
+                                package_dir,
+                                source,
+                                expected_root_identity=expected_root_identity,
+                                resources=resources,
+                                next_index=next_index,
+                                aggregate_bytes=aggregate_bytes,
+                                cancelled=cancelled,
+                            )
+                        )
+                layer[resource_role] = reference
+            if layer_has_source and not owner:
+                raise ValueError("Preview Core material layer lost its wrapper owner identity.")
+            if role != "base" and layer.get("diffuse") is not None and not source_parameter:
+                raise ValueError("Preview Core visible layer lost its source parameter identity.")
+            layers.append(layer)
+        material_slot_index = _preview_core_int(raw_batch.get("index"), material_index)
+        materials.append(
+            {
+                "lod_index": 0,
+                "material_index": material_index,
+                "material_slot_index": material_slot_index,
+                "material_name": str(raw_batch.get("material_name", "") or "")[:256],
+                "base_color": [
+                    _preview_core_layer_float(component, fallback=0.62)
+                    for component in tuple(raw_batch.get("base_color", (0.62, 0.62, 0.62)))[:3]
+                ],
+                "layers": layers,
+            }
+        )
+    copied_resource_shas = set(resources).difference(initial_resource_shas)
+    return {
+        "schema_version": _PREVIEW_CORE_MATERIAL_GRAPH_SCHEMA,
+        "graph_version": _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
+        "semantics_version": _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
+        "quality": quality,
+        "resources_included": quality == "full",
+        "source_edge_count": source_edge_count,
+        "unique_resource_count": len(resources),
+        "copied_resource_count": len(copied_resource_shas),
+        "unique_resource_bytes": aggregate_bytes,
+        "materials": materials,
+    }
+
+
 def _rebased_preview_core_batch(
     package_dir: Path,
     batch: Mapping[str, object],
@@ -541,6 +823,7 @@ def build_rust_preview_package_from_preview_core(
     scale = _preview_core_float(manifest.get("normalization_scale"), 0.0)
     source_format = str(manifest.get("format", "") or "").strip().lower()
     raw_batches = manifest.get("batches")
+    raw_material_conservation = manifest.get("material_conservation")
     if source_schema < _PREVIEW_CORE_SCHEMA_MINIMUM:
         raise ValueError("Direct Rust preview requires Preview Core schema 8 or newer.")
     if (
@@ -549,6 +832,13 @@ def build_rust_preview_package_from_preview_core(
     ):
         raise ValueError(
             "Direct Rust preview requires Preview Core material graph v4 and semantics v10."
+        )
+    if (
+        not isinstance(raw_material_conservation, Mapping)
+        or raw_material_conservation.get("conserved") is not True
+    ):
+        raise ValueError(
+            "Direct Rust preview requires a conserved Preview Core material graph."
         )
     if center is None or abs(scale) <= 1.0e-12:
         raise ValueError("Preview Core normalization is invalid.")
@@ -695,6 +985,9 @@ def build_rust_preview_package_from_preview_core(
         scale=scale,
         cancelled=cancelled,
     )
+    # Production full-material work is completed by Rust from the conserved
+    # Preview Core graph. Python packages only directly upload already authored
+    # base/support maps; the Python combiner remains available as an oracle.
     synthesis = _RustMaterialSynthesisState()
     stop_event = _CancellationView(cancelled)
     textures = (
@@ -705,10 +998,19 @@ def build_rust_preview_package_from_preview_core(
             stop_event=stop_event,  # type: ignore[arg-type]
             synthesis_state=synthesis,
             material_package_path=source_package,
-            enable_material_synthesis=quality == "full",
+            enable_material_synthesis=False,
         )
         if include_material_resources
         else []
+    )
+    preview_core_material_graph = _build_preview_core_material_graph(
+        source_package,
+        package_dir,
+        raw_batches,
+        quality=quality,
+        textures=textures,
+        expected_root_identity=root_identity,
+        cancelled=cancelled,
     )
     presentations = _mesh_material_presentations(
         metadata_mesh,
@@ -794,9 +1096,10 @@ def build_rust_preview_package_from_preview_core(
             "graph_version": material_graph_version,
             "semantics_version": material_semantics_version,
             "conservation": copy.deepcopy(
-                dict(manifest.get("material_conservation", {}) or {})
+                dict(raw_material_conservation)
             ),
         },
+        "preview_core_material_graph": preview_core_material_graph,
         "textures": textures,
         "material_presentations": presentations,
         "texture_status": _texture_status(textures, quality),

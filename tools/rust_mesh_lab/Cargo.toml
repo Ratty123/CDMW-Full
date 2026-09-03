@@ -25,6 +25,7 @@ authors = ["CDMW contributors"]
 
 [workspace.dependencies]
 anyhow = "1.0.100"
+bcdec_rs = "0.2.0"
 bytemuck = { version = "1.25", features = ["derive"] }
 chacha20 = { version = "0.10.2", features = ["legacy"] }
 crossbeam-channel = "0.5.15"
@@ -34,6 +35,7 @@ egui-winit = "0.36.1"
 glam = { version = "0.32.1", features = ["serde"] }
 lz4_flex = "0.14.0"
 pollster = "0.4.0"
+png = "0.18.1"
 raw-window-handle = "0.6.2"
 rfd = "0.17.2"
 serde = { version = "1.0.229", features = ["derive"] }

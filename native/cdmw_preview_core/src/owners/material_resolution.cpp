@@ -418,6 +418,11 @@ static std::string material_component_key_from_path(const std::string& path) {
     return key;
 }
 
+static std::string material_component_scope_id_for_mesh(const NativeSubmesh& mesh) {
+    return lower_copy(native_archive_path(mesh.source_model_path))
+        + "#model_property=" + std::to_string(mesh.model_property_index);
+}
+
 static bool material_sidecar_matches_mesh_source(const TextureBinding& binding, const NativeSubmesh& mesh) {
     if (binding.sidecar_path.empty() || mesh.source_model_path.empty()) return true;
     const std::string sidecar_key = material_component_key_from_path(binding.sidecar_path);
@@ -427,6 +432,12 @@ static bool material_sidecar_matches_mesh_source(const TextureBinding& binding, 
 }
 
 static bool material_binding_matches_mesh_source(const TextureBinding& binding, const NativeSubmesh& mesh) {
+    const std::string binding_component_scope = lower_copy(binding.component_scope_id);
+    if (!binding_component_scope.empty()
+        && !binding_component_scope.starts_with("sidecar:")
+        && binding_component_scope != material_component_scope_id_for_mesh(mesh)) {
+        return false;
+    }
     const bool exact_shared_material = binding_texture_family_is_mesh_material(binding, mesh);
     if (!material_sidecar_matches_mesh_source(binding, mesh) && !exact_shared_material) return false;
     if (binding.source_authority != "embedded_mesh" || binding.linked_mesh_path.empty() || mesh.source_model_path.empty()) {

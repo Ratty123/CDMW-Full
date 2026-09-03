@@ -165,6 +165,13 @@ pub struct DdsUploadPlan {
     pub levels: Vec<DdsMipLevel>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedRgba8 {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MaterialTextureReference {
     pub wrapper_type: String,
@@ -240,6 +247,10 @@ pub enum TextureError {
     UnsupportedUpload,
     #[error("DDS mip payload is truncated")]
     TruncatedPayload,
+    #[error("DDS format is not supported for CPU material composition")]
+    UnsupportedDecode,
+    #[error("RGBA8 pixel payload length does not match the requested DDS dimensions")]
+    InvalidPixelPayload,
 }
 
 pub fn plan_2d_upload(bytes: &[u8], role: TextureRole) -> Result<DdsUploadPlan, TextureError> {
@@ -283,6 +294,375 @@ pub fn plan_2d_upload(bytes: &[u8], role: TextureRole) -> Result<DdsUploadPlan, 
         height = (height / 2).max(1);
     }
     Ok(DdsUploadPlan { metadata, levels })
+}
+
+/// Decode the first DDS mip into tightly packed RGBA8 pixels for material
+/// composition. Block decoders always target a 4x4 scratch tile so non-multiple
+/// dimensions cannot write beyond the destination image.
+pub fn decode_dds_rgba8(bytes: &[u8], role: TextureRole) -> Result<DecodedRgba8, TextureError> {
+    let plan = plan_2d_upload(bytes, role)?;
+    let level = plan.levels.first().ok_or(TextureError::TruncatedPayload)?;
+    let pixel_count = usize::try_from(level.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(level.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or(TextureError::ResourceLimit)?;
+    let output_len = pixel_count
+        .checked_mul(4)
+        .ok_or(TextureError::ResourceLimit)?;
+    if output_len > DDS_MAX_PAYLOAD_BYTES {
+        return Err(TextureError::ResourceLimit);
+    }
+    let mut pixels = vec![0_u8; output_len];
+    let source = bytes
+        .get(level.byte_offset..level.byte_offset.saturating_add(level.byte_length))
+        .ok_or(TextureError::TruncatedPayload)?;
+
+    match plan.metadata.format {
+        DdsFormat::Bc1Unorm | DdsFormat::Bc1Srgb => decode_rgba_blocks(
+            source,
+            level.width,
+            level.height,
+            8,
+            &mut pixels,
+            bcdec_rs::bc1,
+        )?,
+        DdsFormat::Bc2Unorm | DdsFormat::Bc2Srgb => decode_rgba_blocks(
+            source,
+            level.width,
+            level.height,
+            16,
+            &mut pixels,
+            bcdec_rs::bc2,
+        )?,
+        DdsFormat::Bc3Unorm | DdsFormat::Bc3Srgb => decode_rgba_blocks(
+            source,
+            level.width,
+            level.height,
+            16,
+            &mut pixels,
+            bcdec_rs::bc3,
+        )?,
+        DdsFormat::Bc7Unorm | DdsFormat::Bc7Srgb => decode_rgba_blocks(
+            source,
+            level.width,
+            level.height,
+            16,
+            &mut pixels,
+            bcdec_rs::bc7,
+        )?,
+        DdsFormat::Bc4Unorm | DdsFormat::Bc4Snorm => decode_bc4_blocks(
+            source,
+            level.width,
+            level.height,
+            matches!(plan.metadata.format, DdsFormat::Bc4Snorm),
+            &mut pixels,
+        )?,
+        DdsFormat::Bc5Unorm | DdsFormat::Bc5Snorm => decode_bc5_blocks(
+            source,
+            level.width,
+            level.height,
+            matches!(plan.metadata.format, DdsFormat::Bc5Snorm),
+            &mut pixels,
+        )?,
+        DdsFormat::Bc6hUnsignedFloat | DdsFormat::Bc6hSignedFloat => decode_bc6_blocks(
+            source,
+            level.width,
+            level.height,
+            matches!(plan.metadata.format, DdsFormat::Bc6hSignedFloat),
+            &mut pixels,
+        )?,
+        DdsFormat::R8Unorm => {
+            for (destination, value) in pixels.chunks_exact_mut(4).zip(source.iter().copied()) {
+                destination.copy_from_slice(&[value, value, value, 255]);
+            }
+        }
+        DdsFormat::Rg8Unorm => {
+            for (destination, value) in pixels.chunks_exact_mut(4).zip(source.chunks_exact(2)) {
+                destination.copy_from_slice(&[value[0], value[1], 0, 255]);
+            }
+        }
+        DdsFormat::Rgba8Unorm | DdsFormat::Rgba8Srgb => pixels.copy_from_slice(source),
+        DdsFormat::Bgra8Unorm | DdsFormat::Bgra8Srgb => {
+            for (destination, value) in pixels.chunks_exact_mut(4).zip(source.chunks_exact(4)) {
+                destination.copy_from_slice(&[value[2], value[1], value[0], value[3]]);
+            }
+        }
+        DdsFormat::Rgba16Float => {
+            for (destination, value) in pixels.chunks_exact_mut(4).zip(source.chunks_exact(8)) {
+                for (component, output) in destination.iter_mut().enumerate() {
+                    let bits = u16::from_le_bytes([value[component * 2], value[component * 2 + 1]]);
+                    *output = float_to_unorm8(half_to_f32(bits));
+                }
+            }
+        }
+        DdsFormat::Rgba32Float => {
+            for (destination, value) in pixels.chunks_exact_mut(4).zip(source.chunks_exact(16)) {
+                for (component, output) in destination.iter_mut().enumerate() {
+                    let offset = component * 4;
+                    *output = float_to_unorm8(f32::from_le_bytes([
+                        value[offset],
+                        value[offset + 1],
+                        value[offset + 2],
+                        value[offset + 3],
+                    ]));
+                }
+            }
+        }
+        DdsFormat::Unknown { .. } => return Err(TextureError::UnsupportedDecode),
+    }
+
+    Ok(DecodedRgba8 {
+        width: level.width,
+        height: level.height,
+        pixels,
+    })
+}
+
+/// Encode one tightly packed RGBA8 mip as a DX10 DDS. Authored colour outputs
+/// receive an sRGB format marker while technical maps remain linear.
+pub fn encode_rgba8_dds(
+    width: u32,
+    height: u32,
+    pixels: &[u8],
+    role: TextureRole,
+) -> Result<Vec<u8>, TextureError> {
+    validate_dimensions(width, height, 1)?;
+    let expected = usize::try_from(width)
+        .ok()
+        .and_then(|value| {
+            usize::try_from(height)
+                .ok()
+                .and_then(|height| value.checked_mul(height))
+        })
+        .and_then(|value| value.checked_mul(4))
+        .ok_or(TextureError::ResourceLimit)?;
+    if expected != pixels.len() {
+        return Err(TextureError::InvalidPixelPayload);
+    }
+    let total = 148_usize
+        .checked_add(expected)
+        .ok_or(TextureError::ResourceLimit)?;
+    if total > DDS_MAX_PAYLOAD_BYTES {
+        return Err(TextureError::ResourceLimit);
+    }
+    let mut bytes = vec![0_u8; total];
+    bytes[..4].copy_from_slice(b"DDS ");
+    write_u32_at(&mut bytes, 4, 124);
+    write_u32_at(&mut bytes, 8, 0x0000_100f);
+    write_u32_at(&mut bytes, 12, height);
+    write_u32_at(&mut bytes, 16, width);
+    write_u32_at(
+        &mut bytes,
+        20,
+        width.checked_mul(4).ok_or(TextureError::ResourceLimit)?,
+    );
+    write_u32_at(&mut bytes, 28, 1);
+    write_u32_at(&mut bytes, 76, 32);
+    write_u32_at(&mut bytes, 80, DDPF_FOURCC);
+    bytes[84..88].copy_from_slice(b"DX10");
+    write_u32_at(&mut bytes, 108, 0x0000_1000);
+    let dxgi = if matches!(role, TextureRole::BaseColor | TextureRole::Emissive) {
+        29
+    } else {
+        28
+    };
+    write_u32_at(&mut bytes, 128, dxgi);
+    write_u32_at(&mut bytes, 132, 3);
+    write_u32_at(&mut bytes, 140, 1);
+    bytes[148..].copy_from_slice(pixels);
+    Ok(bytes)
+}
+
+fn decode_rgba_blocks(
+    source: &[u8],
+    width: u32,
+    height: u32,
+    bytes_per_block: usize,
+    pixels: &mut [u8],
+    decoder: fn(&[u8], &mut [u8], usize),
+) -> Result<(), TextureError> {
+    let columns = width.div_ceil(4);
+    let rows = height.div_ceil(4);
+    for block_y in 0..rows {
+        for block_x in 0..columns {
+            let block_index = usize::try_from(block_y * columns + block_x)
+                .map_err(|_| TextureError::ResourceLimit)?;
+            let offset = block_index
+                .checked_mul(bytes_per_block)
+                .ok_or(TextureError::ResourceLimit)?;
+            let block = source
+                .get(offset..offset.saturating_add(bytes_per_block))
+                .ok_or(TextureError::TruncatedPayload)?;
+            let mut tile = [0_u8; 4 * 4 * 4];
+            decoder(block, &mut tile, 4 * 4);
+            copy_rgba_tile(&tile, width, height, block_x, block_y, pixels)?;
+        }
+    }
+    Ok(())
+}
+
+fn decode_bc4_blocks(
+    source: &[u8],
+    width: u32,
+    height: u32,
+    signed: bool,
+    pixels: &mut [u8],
+) -> Result<(), TextureError> {
+    decode_scalar_blocks(source, width, height, 8, pixels, |block, tile| {
+        let mut values = [0.0_f32; 4 * 4];
+        bcdec_rs::bc4_float(block, &mut values, 4, signed);
+        for (destination, value) in tile.chunks_exact_mut(4).zip(values) {
+            let value = if signed {
+                value.mul_add(0.5, 0.5)
+            } else {
+                value
+            };
+            let byte = float_to_unorm8(value);
+            destination.copy_from_slice(&[byte, byte, byte, 255]);
+        }
+    })
+}
+
+fn decode_bc5_blocks(
+    source: &[u8],
+    width: u32,
+    height: u32,
+    signed: bool,
+    pixels: &mut [u8],
+) -> Result<(), TextureError> {
+    decode_scalar_blocks(source, width, height, 16, pixels, |block, tile| {
+        let mut values = [0.0_f32; 4 * 4 * 2];
+        bcdec_rs::bc5_float(block, &mut values, 4 * 2, signed);
+        for (destination, value) in tile.chunks_exact_mut(4).zip(values.chunks_exact(2)) {
+            let red = if signed {
+                value[0].mul_add(0.5, 0.5)
+            } else {
+                value[0]
+            };
+            let green = if signed {
+                value[1].mul_add(0.5, 0.5)
+            } else {
+                value[1]
+            };
+            destination.copy_from_slice(&[float_to_unorm8(red), float_to_unorm8(green), 0, 255]);
+        }
+    })
+}
+
+fn decode_bc6_blocks(
+    source: &[u8],
+    width: u32,
+    height: u32,
+    signed: bool,
+    pixels: &mut [u8],
+) -> Result<(), TextureError> {
+    decode_scalar_blocks(source, width, height, 16, pixels, |block, tile| {
+        let mut values = [0.0_f32; 4 * 4 * 3];
+        bcdec_rs::bc6h_float(block, &mut values, 4 * 3, signed);
+        for (destination, value) in tile.chunks_exact_mut(4).zip(values.chunks_exact(3)) {
+            destination.copy_from_slice(&[
+                float_to_unorm8(value[0]),
+                float_to_unorm8(value[1]),
+                float_to_unorm8(value[2]),
+                255,
+            ]);
+        }
+    })
+}
+
+fn decode_scalar_blocks(
+    source: &[u8],
+    width: u32,
+    height: u32,
+    bytes_per_block: usize,
+    pixels: &mut [u8],
+    mut decoder: impl FnMut(&[u8], &mut [u8]),
+) -> Result<(), TextureError> {
+    let columns = width.div_ceil(4);
+    let rows = height.div_ceil(4);
+    for block_y in 0..rows {
+        for block_x in 0..columns {
+            let block_index = usize::try_from(block_y * columns + block_x)
+                .map_err(|_| TextureError::ResourceLimit)?;
+            let offset = block_index
+                .checked_mul(bytes_per_block)
+                .ok_or(TextureError::ResourceLimit)?;
+            let block = source
+                .get(offset..offset.saturating_add(bytes_per_block))
+                .ok_or(TextureError::TruncatedPayload)?;
+            let mut tile = [0_u8; 4 * 4 * 4];
+            decoder(block, &mut tile);
+            copy_rgba_tile(&tile, width, height, block_x, block_y, pixels)?;
+        }
+    }
+    Ok(())
+}
+
+fn copy_rgba_tile(
+    tile: &[u8; 4 * 4 * 4],
+    width: u32,
+    height: u32,
+    block_x: u32,
+    block_y: u32,
+    pixels: &mut [u8],
+) -> Result<(), TextureError> {
+    let copy_width = width.saturating_sub(block_x * 4).min(4);
+    let copy_height = height.saturating_sub(block_y * 4).min(4);
+    let width_usize = usize::try_from(width).map_err(|_| TextureError::ResourceLimit)?;
+    for local_y in 0..copy_height {
+        let destination_y = block_y * 4 + local_y;
+        for local_x in 0..copy_width {
+            let destination_x = block_x * 4 + local_x;
+            let destination = (usize::try_from(destination_y)
+                .map_err(|_| TextureError::ResourceLimit)?
+                * width_usize
+                + usize::try_from(destination_x).map_err(|_| TextureError::ResourceLimit)?)
+                * 4;
+            let source = usize::try_from(local_y * 4 + local_x)
+                .map_err(|_| TextureError::ResourceLimit)?
+                * 4;
+            pixels[destination..destination + 4].copy_from_slice(&tile[source..source + 4]);
+        }
+    }
+    Ok(())
+}
+
+fn float_to_unorm8(value: f32) -> u8 {
+    if value.is_nan() {
+        return 0;
+    }
+    (value.clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+fn half_to_f32(bits: u16) -> f32 {
+    let sign = u32::from(bits & 0x8000) << 16;
+    let exponent = u32::from((bits >> 10) & 0x1f);
+    let mantissa = u32::from(bits & 0x03ff);
+    let value = match exponent {
+        0 if mantissa == 0 => sign,
+        0 => {
+            let mut normalized = mantissa;
+            let mut shift = 0_u32;
+            while normalized & 0x0400 == 0 {
+                normalized <<= 1;
+                shift += 1;
+            }
+            sign | ((113_u32.saturating_sub(shift)) << 23) | ((normalized & 0x03ff) << 13)
+        }
+        31 => sign | 0x7f80_0000 | (mantissa << 13),
+        _ => sign | ((exponent + 112) << 23) | (mantissa << 13),
+    };
+    f32::from_bits(value)
+}
+
+fn write_u32_at(bytes: &mut [u8], offset: usize, value: u32) {
+    if let Some(destination) = bytes.get_mut(offset..offset.saturating_add(4)) {
+        destination.copy_from_slice(&value.to_le_bytes());
+    }
 }
 
 pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, TextureError> {
@@ -340,10 +720,21 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         && green_mask == 0x0000_ff00
         && blue_mask == 0x00ff_0000
         && alpha_mask == 0xff00_0000;
+    let legacy_bgra8 = !is_dx10
+        && pixel_format_flags & DDPF_FOURCC == 0
+        && pixel_format_flags & (DDPF_RGB | DDPF_ALPHAPIXELS) == DDPF_RGB | DDPF_ALPHAPIXELS
+        && four_cc_bytes == [0, 0, 0, 0]
+        && rgb_bit_count == 32
+        && red_mask == 0x00ff_0000
+        && green_mask == 0x0000_ff00
+        && blue_mask == 0x0000_00ff
+        && alpha_mask == 0xff00_0000;
     let format = if legacy_l8 {
         DdsFormat::R8Unorm
     } else if legacy_rgba8 {
         DdsFormat::Rgba8Unorm
+    } else if legacy_bgra8 {
+        DdsFormat::Bgra8Unorm
     } else {
         map_format(&four_cc, dxgi)
     };
@@ -1047,6 +1438,18 @@ mod tests {
         bytes
     }
 
+    fn dds_legacy_bgra8() -> Vec<u8> {
+        let mut bytes = dds_legacy_rgba8();
+        write(&mut bytes, 92, 0x00ff_0000);
+        write(&mut bytes, 96, 0x0000_ff00);
+        write(&mut bytes, 100, 0x0000_00ff);
+        let payload = bytes.get_mut(128..).expect("legacy BGRA8 payload");
+        for pixel in payload.chunks_exact_mut(4) {
+            pixel.copy_from_slice(&[0x12, 0x34, 0x56, 0x78]);
+        }
+        bytes
+    }
+
     fn write(bytes: &mut [u8], offset: usize, value: u32) {
         if let Some(slot) = bytes.get_mut(offset..offset.saturating_add(4)) {
             slot.copy_from_slice(&value.to_le_bytes());
@@ -1141,6 +1544,57 @@ mod tests {
         assert_eq!(plan.levels[0].byte_length, 4 * 4 * 4);
         assert_eq!(plan.levels[1].byte_length, 2 * 2 * 4);
         assert_eq!(plan.levels[2].byte_length, 4);
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_bgra8_supports_direct_mip_upload_and_rgba_decode() -> Result<(), TextureError> {
+        let bytes = dds_legacy_bgra8();
+        let plan = plan_2d_upload(&bytes, TextureRole::Material)?;
+        assert_eq!(plan.metadata.format, DdsFormat::Bgra8Unorm);
+        assert_eq!(plan.metadata.color_space, ColorSpace::Linear);
+        assert_eq!(plan.metadata.payload_offset, 128);
+        assert_eq!(plan.levels.len(), 3);
+        assert_eq!(plan.levels[0].byte_length, 4 * 4 * 4);
+        assert_eq!(plan.levels[1].byte_length, 2 * 2 * 4);
+        assert_eq!(plan.levels[2].byte_length, 4);
+        let decoded = decode_dds_rgba8(&bytes, TextureRole::Material)?;
+        assert_eq!(
+            decoded.pixels.get(..4),
+            Some([0x56, 0x34, 0x12, 0x78].as_slice())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn rgba8_material_composition_roundtrips_losslessly() -> Result<(), TextureError> {
+        let pixels = vec![0, 17, 255, 255, 64, 128, 192, 32, 255, 96, 4, 180];
+        let bytes = encode_rgba8_dds(3, 1, &pixels, TextureRole::BaseColor)?;
+        let decoded = decode_dds_rgba8(&bytes, TextureRole::BaseColor)?;
+        assert_eq!(decoded.width, 3);
+        assert_eq!(decoded.height, 1);
+        assert_eq!(decoded.pixels, pixels);
+        assert_eq!(
+            inspect_dds(&bytes, TextureRole::BaseColor)?.format,
+            DdsFormat::Rgba8Srgb
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn odd_sized_bc1_decode_uses_a_bounded_block_scratch_tile() -> Result<(), TextureError> {
+        let mut bytes = dds_dx10(71);
+        write(&mut bytes, 12, 2);
+        write(&mut bytes, 16, 3);
+        bytes.resize(148 + 8, 0);
+        bytes[148..150].copy_from_slice(&0xf800_u16.to_le_bytes());
+        bytes[150..152].copy_from_slice(&0x07e0_u16.to_le_bytes());
+        let decoded = decode_dds_rgba8(&bytes, TextureRole::BaseColor)?;
+        assert_eq!((decoded.width, decoded.height), (3, 2));
+        assert_eq!(decoded.pixels.len(), 3 * 2 * 4);
+        for pixel in decoded.pixels.chunks_exact(4) {
+            assert_eq!(pixel, [255, 0, 0, 255]);
+        }
         Ok(())
     }
 

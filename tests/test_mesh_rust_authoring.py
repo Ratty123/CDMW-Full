@@ -357,6 +357,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                             "metalness": True,
                             "specular": True,
                             "height_scale": True,
+                            "anisotropy": False,
                         },
                         "fallback_applied": {
                             "roughness": False,
@@ -441,12 +442,13 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 "metalness": False,
                 "specular": False,
                 "height_scale": False,
+                "anisotropy": False,
             },
             "fallback_applied": {
                 "roughness": True,
                 "metalness": True,
                 "specular": True,
-                "height_scale": True,
+                "height_scale": False,
                 "anisotropy": False,
             },
         }
@@ -460,6 +462,347 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 material_category="metal",
                 category_confidence=0.8,
             )
+
+    def test_surface_profile_rejects_confidence_drift_from_material_category(self) -> None:
+        profile = {
+            "family": "metal",
+            "family_code": 1,
+            "finish": "polished",
+            "structure": "smooth",
+            "coating": "none",
+            "confidence": 1.0,
+            "evidence": "surface_profile=source_parameter_or_shader_token",
+            "fallbacks": {
+                "roughness": 0.2,
+                "metalness": 0.9,
+                "specular": 0.8,
+                "height_scale": 0.0,
+                "anisotropy": 0.0,
+            },
+            "authored": {
+                "roughness": False,
+                "metalness": False,
+                "specular": False,
+                "height_scale": False,
+                "anisotropy": False,
+            },
+            "fallback_applied": {
+                "roughness": True,
+                "metalness": True,
+                "specular": True,
+                "height_scale": False,
+                "anisotropy": False,
+            },
+        }
+
+        with self.assertRaisesRegex(
+            rust_authoring_module.RustMeshProtocolError,
+            "does not match its material category",
+        ):
+            rust_authoring_module._rust_surface_profile(
+                profile,
+                material_category="metal",
+                category_confidence=0.95,
+            )
+
+    def test_surface_profile_rejects_height_and_authored_anisotropy_fallbacks(
+        self,
+    ) -> None:
+        profile = {
+            "family": "hair",
+            "family_code": 6,
+            "finish": "satin",
+            "structure": "fibrous",
+            "coating": "none",
+            "confidence": 0.9,
+            "evidence": "shader=hair;surface_profile=family_fallback",
+            "fallbacks": {
+                "roughness": 0.58,
+                "metalness": 0.0,
+                "specular": 0.22,
+                "height_scale": 0.1,
+                "anisotropy": 0.65,
+            },
+            "authored": {
+                "roughness": False,
+                "metalness": False,
+                "specular": False,
+                "height_scale": False,
+                "anisotropy": True,
+            },
+            "fallback_applied": {
+                "roughness": True,
+                "metalness": True,
+                "specular": True,
+                "height_scale": True,
+                "anisotropy": True,
+            },
+        }
+
+        with self.assertRaisesRegex(
+            rust_authoring_module.RustMeshProtocolError,
+            "height-scale fallback",
+        ):
+            rust_authoring_module._rust_surface_profile(
+                profile,
+                material_category="hair",
+                category_confidence=0.9,
+            )
+        profile["fallbacks"]["height_scale"] = 0.0
+        profile["fallback_applied"]["height_scale"] = False
+        with self.assertRaisesRegex(
+            rust_authoring_module.RustMeshProtocolError,
+            "over authored data",
+        ):
+            rust_authoring_module._rust_surface_profile(
+                profile,
+                material_category="hair",
+                category_confidence=0.9,
+            )
+
+    def test_exact_authored_zero_anisotropy_suppresses_profile_fallback(self) -> None:
+        source = SimpleNamespace(
+            preview_material_texture_inputs=(),
+            preview_material_parameters=(
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_anisotropyStrength",
+                    numeric_value=0.0,
+                ),
+            ),
+        )
+
+        self.assertIs(
+            False,
+            rust_authoring_module._rust_exact_authored_anisotropy(source),
+        )
+        self.assertIsNone(
+            rust_authoring_module._rust_exact_authored_anisotropy(
+                SimpleNamespace(
+                    preview_material_texture_inputs=(),
+                    preview_material_parameters=(),
+                )
+            )
+        )
+
+    def test_surface_profile_anisotropy_uses_only_uniquely_proven_owner(self) -> None:
+        cross_owner_source = SimpleNamespace(
+            preview_material_texture_inputs=(
+                PreviewMaterialTextureInput(
+                    parameter_name="_ssdmDirectionTexture",
+                    semantic_type="flow",
+                    owner_slot_index=1,
+                    binding_authority="authoritative",
+                    binding_disposition="layer_direction",
+                    source_kind="crimson_hair_direction",
+                ),
+                PreviewMaterialTextureInput(
+                    parameter_name="_normalTexture",
+                    semantic_type="normal",
+                    owner_slot_index=3,
+                    binding_authority="authoritative",
+                ),
+            ),
+            preview_material_parameters=(
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_anisotropyStrength",
+                    numeric_value=1.0,
+                ),
+            ),
+        )
+        exact_owner_source = SimpleNamespace(
+            preview_material_texture_inputs=(
+                PreviewMaterialTextureInput(
+                    parameter_name="_flowTexture",
+                    semantic_type="flow",
+                    owner_slot_index=4,
+                    binding_authority="authoritative",
+                    binding_disposition="layer_flow",
+                    source_kind="crimson_flow_vector",
+                ),
+            ),
+            preview_material_parameters=(),
+        )
+
+        def surface_profile(
+            family: str,
+            family_code: int,
+            *,
+            anisotropy: float,
+        ) -> dict[str, object]:
+            return {
+                "family": family,
+                "family_code": family_code,
+                "finish": "satin" if family == "hair" else "rough",
+                "structure": "fibrous" if family == "hair" else "woven",
+                "coating": "none",
+                "confidence": 0.95,
+                "evidence": "surface_profile=family_fallback",
+                "fallbacks": {
+                    "roughness": 0.58,
+                    "metalness": 0.0,
+                    "specular": 0.22,
+                    "height_scale": 0.0,
+                    "anisotropy": anisotropy,
+                },
+                "authored": {
+                    "roughness": False,
+                    "metalness": False,
+                    "specular": False,
+                    "height_scale": False,
+                    "anisotropy": True,
+                },
+                "fallback_applied": {
+                    "roughness": True,
+                    "metalness": True,
+                    "specular": True,
+                    "height_scale": False,
+                    "anisotropy": False,
+                },
+            }
+
+        mesh = SimpleNamespace(
+            path="character/modelproperty/owner_scoped_anisotropy.pac",
+            lod_levels=[],
+            submeshes=[cross_owner_source, exact_owner_source],
+        )
+        with patch.object(
+            rust_authoring_module,
+            "mesh_dotnet_material_state_payload",
+            return_value={
+                "submeshes": [
+                    {
+                        "submesh_index": 0,
+                        "material_slot_index": 0,
+                        "material_category": "cloth",
+                        "material_category_confidence": 0.95,
+                        "shader_family": "standard_v2",
+                        "surface_profile": surface_profile(
+                            "cloth",
+                            4,
+                            anisotropy=0.0,
+                        ),
+                        "parameters": {},
+                    },
+                    {
+                        "submesh_index": 1,
+                        "material_slot_index": 1,
+                        "material_category": "hair",
+                        "material_category_confidence": 0.95,
+                        "shader_family": "hair",
+                        "surface_profile": surface_profile(
+                            "hair",
+                            6,
+                            anisotropy=0.65,
+                        ),
+                        "parameters": {},
+                    },
+                ]
+            },
+        ):
+            presentations = rust_authoring_module._mesh_material_presentations(mesh)
+
+        self.assertIsNone(
+            rust_authoring_module._rust_exact_authored_anisotropy(
+                cross_owner_source
+            )
+        )
+        self.assertFalse(presentations[0]["surface_profile"]["authored"]["anisotropy"])
+        self.assertFalse(presentations[0]["hair_anisotropy"])
+        self.assertIs(
+            True,
+            rust_authoring_module._rust_exact_authored_anisotropy(
+                exact_owner_source
+            ),
+        )
+        self.assertTrue(presentations[1]["surface_profile"]["authored"]["anisotropy"])
+        self.assertFalse(
+            presentations[1]["surface_profile"]["fallback_applied"]["anisotropy"]
+        )
+        self.assertTrue(presentations[1]["hair_anisotropy"])
+
+    def test_authored_zero_reconciles_preview_core_anisotropy_fallback(self) -> None:
+        owner = 7
+        source = SimpleNamespace(
+            preview_pac_material_owner_slot_index=owner,
+            preview_material_texture_inputs=(
+                PreviewMaterialTextureInput(
+                    parameter_name="_flowTexture",
+                    semantic_type="flow",
+                    owner_slot_index=owner,
+                    binding_authority="authoritative",
+                    binding_disposition="layer_flow",
+                    source_kind="crimson_flow_vector",
+                    material_parameters=(
+                        PreviewMaterialParameterInput(
+                            parameter_kind="float",
+                            parameter_name="_anisotropyStrength",
+                            numeric_value=0.0,
+                        ),
+                    ),
+                ),
+            ),
+            preview_material_parameters=(),
+        )
+        mesh = SimpleNamespace(
+            path="character/modelproperty/authored_zero_anisotropy.pac",
+            lod_levels=[],
+            submeshes=[source],
+        )
+        with patch.object(
+            rust_authoring_module,
+            "mesh_dotnet_material_state_payload",
+            return_value={
+                "submeshes": [
+                    {
+                        "submesh_index": 0,
+                        "material_slot_index": 0,
+                        "material_category": "hair",
+                        "material_category_confidence": 0.95,
+                        "shader_family": "hair",
+                        "surface_profile": {
+                            "family": "hair",
+                            "family_code": 6,
+                            "finish": "satin",
+                            "structure": "fibrous",
+                            "coating": "none",
+                            "confidence": 0.95,
+                            "evidence": "surface_profile=family_fallback",
+                            "fallbacks": {
+                                "roughness": 0.58,
+                                "metalness": 0.0,
+                                "specular": 0.22,
+                                "height_scale": 0.0,
+                                "anisotropy": 0.65,
+                            },
+                            "authored": {
+                                "roughness": False,
+                                "metalness": False,
+                                "specular": False,
+                                "height_scale": False,
+                                "anisotropy": False,
+                            },
+                            "fallback_applied": {
+                                "roughness": True,
+                                "metalness": True,
+                                "specular": True,
+                                "height_scale": False,
+                                "anisotropy": True,
+                            },
+                        },
+                        "parameters": {},
+                    }
+                ]
+            },
+        ):
+            presentation = rust_authoring_module._mesh_material_presentations(mesh)[0]
+
+        self.assertTrue(presentation["surface_profile"]["authored"]["anisotropy"])
+        self.assertFalse(
+            presentation["surface_profile"]["fallback_applied"]["anisotropy"]
+        )
+        self.assertFalse(presentation["hair_anisotropy"])
 
     def test_exact_owner_height_scale_outranks_flattened_native_amount(self) -> None:
         exact_scale = PreviewMaterialParameterInput(

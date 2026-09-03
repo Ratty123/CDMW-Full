@@ -81,6 +81,11 @@ struct PackageBatchState {
     const TextureBinding* detail = nullptr;
     const TextureBinding* emissive = nullptr;
     const TextureBinding* preview_emissive = nullptr;
+    // A PAC layer diffuse may be the first visible colour contribution without
+    // being the material's base texture. Keep that authored edge separate so it
+    // can be masked/composited as a layer and can never leak into the renderer's
+    // global base slot.
+    const TextureBinding* primary_visible_layer = nullptr;
     bool visible_layer_albedo_used = false;
     bool base_low_authority_overlay_selected = false;
     int visible_layer_albedo_score = 0;
@@ -122,6 +127,43 @@ struct PackageBatchState {
 
 static const TextureBinding* package_preview_base(const PackageBatchState& batch) {
     return batch.base_tint_only_fallback ? nullptr : batch.base;
+}
+
+static bool binding_is_layer_only_base(const TextureBinding& binding) {
+    if (binding.role != "base") return false;
+    const std::string parameter = normalized_key(binding.parameter_name);
+    return parameter.find("detail") != std::string::npos
+        || parameter.find("grime") != std::string::npos
+        || parameter.find("dye") != std::string::npos
+        || parameter.find("damage") != std::string::npos
+        || parameter.find("overlay") != std::string::npos
+        || (parameter.find("layer") != std::string::npos
+            && parameter.find("basecolor") == std::string::npos);
+}
+
+static void record_material_conservation_batch(
+    PackageWriteState& state,
+    const PackageBatchState& batch
+) {
+    const TextureBinding* preview_base = package_preview_base(batch);
+    if (preview_base == nullptr || !binding_is_layer_only_base(*preview_base)) return;
+    state.package.material_conservation_ok = false;
+    const std::string finding = "layer_as_base:batch=" + std::to_string(batch.index)
+        + ":owner=" + preview_base->owner_wrapper_item_id
+        + ":parameter=" + preview_base->parameter_name;
+    state.package.material_conservation_findings.push_back(finding);
+    for (NativeMaterialConservationRow& row : state.package.material_conservation_rows) {
+        if (lower_copy(row.component_scope_id)
+                != lower_copy(preview_base->component_scope_id)
+            || lower_copy(row.owner_wrapper_item_id)
+                != lower_copy(preview_base->owner_wrapper_item_id)
+            || row.material_wrapper_index != preview_base->material_wrapper_index
+            || lower_copy(row.parameter.name) != lower_copy(preview_base->parameter_name)
+            || lower_copy(native_archive_path(row.parameter.texture_path))
+                != lower_copy(native_archive_path(preview_base->declared_texture_path))) continue;
+        row.status = "layer_as_base";
+        row.finding = "layer_as_base";
+    }
 }
 
 static PackageWriteState start_package_write(

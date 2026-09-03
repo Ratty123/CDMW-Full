@@ -5,9 +5,17 @@ static void select_package_batch_bindings(PackageWriteState& state, PackageBatch
         ? best_base_binding_for_mode(
             state.bindings, mesh, job, &batch.base_score, &state.package.rejected_texture_examples)
         : nullptr;
+    if (batch.base != nullptr && binding_is_layer_only_base(*batch.base)) {
+        batch.primary_visible_layer = batch.base;
+        batch.visible_layer_albedo_score = batch.base_score;
+        batch.visible_layer_albedo_used = true;
+        batch.base = nullptr;
+        batch.base_score = 0;
+    }
     batch.base_low_authority_overlay_selected = base_binding_is_low_authority_overlay(batch.base)
         && !(batch.base != nullptr && binding_is_authoritative_same_family_overlay_base(*batch.base, mesh));
     if (job_allows_texture_role(job, "base")
+        && batch.primary_visible_layer == nullptr
         && (batch.base == nullptr || batch.base_low_authority_overlay_selected)) {
         const TextureBinding* layer_base = best_visible_layer_base_fallback(
             state.bindings,
@@ -18,14 +26,19 @@ static void select_package_batch_bindings(PackageWriteState& state, PackageBatch
         if (layer_base != nullptr
             && (batch.base == nullptr || batch.visible_layer_albedo_score >= batch.base_score - 20
                 || batch.base_low_authority_overlay_selected)) {
-            batch.base = layer_base;
-            batch.base_score = batch.visible_layer_albedo_score;
+            batch.primary_visible_layer = layer_base;
             batch.visible_layer_albedo_used = true;
+            if (batch.base_low_authority_overlay_selected) {
+                batch.base = nullptr;
+                batch.base_score = 0;
+            }
             batch.base_low_authority_overlay_selected = false;
             state.package.notes.push_back(
                 "native visible layer albedo used: batch " + std::to_string(batch.index)
-                + "; selected=" + (batch.base->texture_name.empty()
-                    ? basename_from_path(batch.base->archive_path) : batch.base->texture_name));
+                + "; selected=" + (batch.primary_visible_layer->texture_name.empty()
+                    ? basename_from_path(batch.primary_visible_layer->archive_path)
+                    : batch.primary_visible_layer->texture_name)
+                + "; authority=masked_layer");
         }
     }
     batch.normal = job_allows_texture_role(job, "normal")
@@ -74,6 +87,6 @@ static void select_package_batch_bindings(PackageWriteState& state, PackageBatch
         state.bindings,
         state.submeshes,
         mesh,
-        {batch.base, batch.normal, batch.material, batch.height,
+        {batch.base, batch.primary_visible_layer, batch.normal, batch.material, batch.height,
          batch.specular, batch.detail, batch.emissive});
 }

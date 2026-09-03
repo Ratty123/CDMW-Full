@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+#![recursion_limit = "256"]
 
 mod camera;
 mod cdmw_preview;
@@ -12,6 +13,7 @@ mod headless_tests;
 #[cfg(test)]
 mod headless_ui_tests;
 mod loader;
+mod preview_core_material;
 mod viewport;
 
 use anyhow::{Context, Result, bail};
@@ -26,17 +28,22 @@ use cdmw_mesh::{
     DrawSnapshot, History, MeshError, Provenance, Selection, VertexHandle, WorkingMesh,
 };
 use cdmw_render_wgpu::{
-    HeadlessFrameStats, HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput,
-    HeadlessMaterialFactors, HeadlessMaterialTexture, MaterialPreviewFactors, ViewMode,
+    HeadlessFrameStats, HeadlessMaterialCaptureCamera, HeadlessMaterialCaptureOptions,
+    HeadlessMaterialCaptureOutput, HeadlessMaterialCaptureRequest, HeadlessMaterialFactors,
+    HeadlessMaterialTexture, IntegratedStartupView, MaterialPreviewFactors, ViewMode,
     WindowRenderer,
 };
-use cdmw_session::{CdmwBridge, HostEvent, LoadedCdmwSessionPackage, SessionMaterialPresentation};
+use cdmw_session::{
+    CdmwBridge, CdmwTextureResource, HostEvent, LoadedCdmwSessionPackage, PreviewCoreMaterialGraph,
+    SessionMaterialPresentation,
+};
 use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
 use glam::{Quat, Vec2, Vec3};
 use loader::{LoadEvent, LoadedMaterialFactors, LoadedMesh, LoadedTexture, Loader};
 use serde_json::{Value, json};
-use std::collections::{HashMap, HashSet, VecDeque};
+use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::env;
 use std::fs;
 use std::io::ErrorKind;
@@ -76,16 +83,28 @@ fn main() -> Result<()> {
         .as_ref()
         .or(options.capture_cdmw_preview_session.as_ref())
     {
-        let output_path = options
-            .capture_output
-            .as_deref()
-            .context("CDMW capture requires --capture-output <bmp>")?;
-        capture_cdmw_session(
-            manifest_path,
-            output_path,
-            options.capture_report_json.as_deref(),
-            options.capture_cdmw_preview_session.is_some(),
-        )?;
+        if let Some(output_root) = options.capture_audit_output.as_deref() {
+            capture_cdmw_audit_session(
+                manifest_path,
+                output_root,
+                options.capture_cdmw_preview_session.is_some(),
+                options.capture_audit_full_model_only,
+                options.capture_audit_repetitions.unwrap_or(1),
+            )?;
+        } else {
+            let output_path = options
+                .capture_output
+                .as_deref()
+                .context("CDMW capture requires --capture-output <bmp>")?;
+            capture_cdmw_session(
+                manifest_path,
+                output_path,
+                options.capture_report_json.as_deref(),
+                options.capture_cdmw_preview_session.is_some(),
+                options.capture_camera(),
+                options.capture_material_index,
+            )?;
+        }
         return Ok(());
     }
     if let Some(manifest_path) = options.cdmw_preview_session {
@@ -128,7 +147,13 @@ struct StartupOptions {
     capture_cdmw_session: Option<PathBuf>,
     capture_cdmw_preview_session: Option<PathBuf>,
     capture_output: Option<PathBuf>,
+    capture_audit_output: Option<PathBuf>,
+    capture_audit_full_model_only: bool,
+    capture_audit_repetitions: Option<u32>,
     capture_report_json: Option<PathBuf>,
+    capture_yaw_degrees: Option<f32>,
+    capture_pitch_degrees: Option<f32>,
+    capture_material_index: Option<u32>,
     control_contract_json: Option<PathBuf>,
     embedded_parent_hwnd: Option<u64>,
 }
@@ -168,9 +193,32 @@ fn parse_startup_options_from(
             "--capture-output" => {
                 options.capture_output = Some(required_path(&mut arguments, "--capture-output")?);
             }
+            "--capture-audit-output" => {
+                options.capture_audit_output =
+                    Some(required_path(&mut arguments, "--capture-audit-output")?);
+            }
+            "--capture-audit-full-model-only" => {
+                options.capture_audit_full_model_only = true;
+            }
+            "--capture-audit-repetitions" => {
+                options.capture_audit_repetitions =
+                    Some(required_u32(&mut arguments, "--capture-audit-repetitions")?);
+            }
             "--capture-report-json" => {
                 options.capture_report_json =
                     Some(required_path(&mut arguments, "--capture-report-json")?);
+            }
+            "--capture-yaw-degrees" => {
+                options.capture_yaw_degrees =
+                    Some(required_f32(&mut arguments, "--capture-yaw-degrees")?);
+            }
+            "--capture-pitch-degrees" => {
+                options.capture_pitch_degrees =
+                    Some(required_f32(&mut arguments, "--capture-pitch-degrees")?);
+            }
+            "--capture-material-index" => {
+                options.capture_material_index =
+                    Some(required_u32(&mut arguments, "--capture-material-index")?);
             }
             "--control-contract-json" => {
                 options.control_contract_json =
@@ -213,11 +261,43 @@ fn parse_startup_options_from(
     {
         bail!("--capture-cdmw-session cannot be combined with windowed or contract options");
     }
-    if capture_requested != options.capture_output.is_some() {
-        bail!("a CDMW capture package and --capture-output must be supplied together");
+    let capture_output_count = usize::from(options.capture_output.is_some())
+        + usize::from(options.capture_audit_output.is_some());
+    if capture_requested != (capture_output_count == 1) {
+        bail!(
+            "a CDMW capture package and exactly one of --capture-output or --capture-audit-output must be supplied together"
+        );
     }
-    if options.capture_report_json.is_some() && !capture_requested {
-        bail!("--capture-report-json requires a CDMW capture package");
+    if options.capture_report_json.is_some() && options.capture_output.is_none() {
+        bail!("--capture-report-json requires --capture-output");
+    }
+    if options.capture_audit_full_model_only && options.capture_audit_output.is_none() {
+        bail!("--capture-audit-full-model-only requires --capture-audit-output");
+    }
+    if let Some(repetitions) = options.capture_audit_repetitions {
+        if options.capture_audit_output.is_none() {
+            bail!("--capture-audit-repetitions requires --capture-audit-output");
+        }
+        if !options.capture_audit_full_model_only {
+            bail!("--capture-audit-repetitions requires --capture-audit-full-model-only");
+        }
+        if !(1..=100).contains(&repetitions) {
+            bail!("--capture-audit-repetitions must be within 1..100");
+        }
+    }
+    if options.capture_yaw_degrees.is_some() != options.capture_pitch_degrees.is_some() {
+        bail!("--capture-yaw-degrees and --capture-pitch-degrees must be supplied together");
+    }
+    if (options.capture_yaw_degrees.is_some() || options.capture_material_index.is_some())
+        && options.capture_output.is_none()
+    {
+        bail!("capture camera and material options require --capture-output");
+    }
+    if options
+        .capture_pitch_degrees
+        .is_some_and(|value| value.abs() > 89.0)
+    {
+        bail!("--capture-pitch-degrees must be within -89..89");
     }
     if options.cdmw_preview_session.is_some()
         && (options.mesh_path.is_some()
@@ -244,6 +324,41 @@ fn required_path(arguments: &mut impl Iterator<Item = String>, option: &str) -> 
         .filter(|value| !value.trim().is_empty())
         .map(PathBuf::from)
         .with_context(|| format!("{option} requires a path"))
+}
+
+fn required_f32(arguments: &mut impl Iterator<Item = String>, option: &str) -> Result<f32> {
+    let value = arguments
+        .next()
+        .with_context(|| format!("{option} requires a number"))?;
+    let parsed = value
+        .parse::<f32>()
+        .with_context(|| format!("invalid {option} value '{value}'"))?;
+    if !parsed.is_finite() {
+        bail!("{option} must be finite");
+    }
+    Ok(parsed)
+}
+
+fn required_u32(arguments: &mut impl Iterator<Item = String>, option: &str) -> Result<u32> {
+    let value = arguments
+        .next()
+        .with_context(|| format!("{option} requires a non-negative integer"))?;
+    value
+        .parse::<u32>()
+        .with_context(|| format!("invalid {option} value '{value}'"))
+}
+
+impl StartupOptions {
+    fn capture_camera(&self) -> Option<HeadlessMaterialCaptureCamera> {
+        self.capture_yaw_degrees
+            .zip(self.capture_pitch_degrees)
+            .map(
+                |(yaw_degrees, pitch_degrees)| HeadlessMaterialCaptureCamera {
+                    yaw_degrees,
+                    pitch_degrees,
+                },
+            )
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -541,6 +656,8 @@ fn capture_cdmw_session(
     output_path: &Path,
     report_path: Option<&Path>,
     preview_package: bool,
+    camera: Option<HeadlessMaterialCaptureCamera>,
+    isolated_material_index: Option<u32>,
 ) -> Result<()> {
     let requested_paths = cdmw_capture_paths(output_path, report_path)?;
     let loaded = if preview_package {
@@ -603,12 +720,17 @@ fn capture_cdmw_session(
         &factor_uploads,
         HeadlessMaterialCaptureOptions {
             lod_index: source_lod_index,
+            camera,
+            isolated_material_index,
             ..HeadlessMaterialCaptureOptions::default()
         },
         HeadlessMaterialCaptureOutput {
             textured_bmp: &temporary_paths.textured,
             base_color_bmp: &temporary_paths.base_color,
             part_id_bmp: &temporary_paths.part_id,
+            normal_map: None,
+            material_response: None,
+            layer_mask: None,
         },
     ))
     .context("CDMW Rust material capture failed")?;
@@ -651,6 +773,12 @@ fn capture_cdmw_session(
             "anisotropy_clamp": report.anisotropy_clamp,
         },
         "dimensions": [report.width, report.height],
+        "camera": {
+            "yaw_degrees": report.camera_yaw_degrees,
+            "pitch_degrees": report.camera_pitch_degrees,
+            "mapping": "cdmw_rust_orbit_perspective_v1",
+        },
+        "isolated_material_index": report.isolated_material_index,
         "dds_textures_uploaded": report.dds_textures_uploaded,
         "texture_bound_materials": report.texture_bound_materials,
         "active_material_bindings": report.active_material_bindings,
@@ -685,6 +813,593 @@ fn capture_cdmw_session(
         paths.report.display()
     );
     Ok(())
+}
+
+const MATERIAL_AUDIT_VIEWS: [(&str, f32, f32); 6] = [
+    ("front", 0.0, 0.0),
+    ("three-quarter-front", -35.0, 20.0),
+    ("side", 90.0, 0.0),
+    ("back", 180.0, 0.0),
+    ("slightly-above", -35.0, -28.0),
+    ("slightly-below", -35.0, 28.0),
+];
+const MATERIAL_AUDIT_REGION_VIEWS: [(&str, f32, f32); 2] =
+    [("front", 0.0, 0.0), ("oblique", -35.0, 20.0)];
+
+#[derive(Debug)]
+struct MaterialAuditCapturePaths {
+    repetition_index: u32,
+    capture_kind: &'static str,
+    name: String,
+    requested_yaw_degrees: f32,
+    requested_pitch_degrees: f32,
+    camera: HeadlessMaterialCaptureCamera,
+    material_index: Option<u32>,
+    textured: PathBuf,
+    base_color: PathBuf,
+    part_id: PathBuf,
+    normal_map: PathBuf,
+    material_response: PathBuf,
+    layer_mask: PathBuf,
+}
+
+fn capture_cdmw_audit_session(
+    manifest_path: &Path,
+    output_root: &Path,
+    preview_package: bool,
+    full_model_only: bool,
+    repetitions: u32,
+) -> Result<()> {
+    let audit_started = Instant::now();
+    let loaded = if preview_package {
+        LoadedCdmwSessionPackage::load_preview(manifest_path)
+    } else {
+        LoadedCdmwSessionPackage::load(manifest_path)
+    };
+    let mut package = loaded.with_context(|| {
+        format!(
+            "failed to load CDMW Rust audit package {}",
+            manifest_path.display()
+        )
+    })?;
+    let package_load_complete_ms = audit_started.elapsed().as_secs_f64() * 1_000.0;
+    let output_root = create_material_audit_root(output_root, package.root())?;
+    let source_lod_index = package.source_lod_index();
+    let lod_count = package.document().lods.len();
+    let snapshot = WorkingMesh::from_document_lod(package.document(), source_lod_index)
+        .with_context(|| format!("audit capture could not create LOD{source_lod_index}"))?
+        .draw_snapshot();
+    let session_id = package.manifest().session_id.clone();
+    let process_generation = package.manifest().process_generation;
+    let source_path = package
+        .manifest()
+        .source
+        .get("path")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let source_dds_metrics = material_audit_source_dds_metrics(
+        package.manifest().preview_core_material_graph.as_ref(),
+        package.material_composition_metrics(),
+    );
+    let material_indices = snapshot
+        .triangle_materials
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    if material_indices.is_empty() {
+        bail!("CDMW Rust audit package has no material-owned triangles");
+    }
+    let base_camera = material_audit_base_camera(&snapshot);
+    let textures = package.take_textures();
+    let mut runtime_dds_metrics = material_audit_runtime_dds_metrics(&textures)?;
+    let expected_physical_upload_count = runtime_dds_metrics
+        .get("resource_count")
+        .and_then(Value::as_u64)
+        .context("runtime DDS metrics omitted the physical upload count")?;
+    let presentations = package.take_material_presentations();
+    let owned_factors = presentations
+        .iter()
+        .map(|presentation| {
+            (
+                cdmw_material_preview_factors(presentation),
+                cdmw_material_ownership(presentation, lod_count),
+            )
+        })
+        .collect::<Vec<_>>();
+    let texture_uploads = textures
+        .iter()
+        .map(|texture| HeadlessMaterialTexture {
+            bytes: &texture.bytes,
+            role: texture.role,
+            material_indices_by_lod: &texture.material_indices_by_lod,
+        })
+        .collect::<Vec<_>>();
+    let factor_uploads = owned_factors
+        .iter()
+        .map(|(factors, ownership)| HeadlessMaterialFactors {
+            factors: *factors,
+            material_indices_by_lod: ownership,
+        })
+        .collect::<Vec<_>>();
+    let mut capture_paths = Vec::new();
+    for repetition_index in 0..repetitions {
+        let repetition_root = if repetitions == 1 {
+            output_root.clone()
+        } else {
+            output_root
+                .join("warm-repetitions")
+                .join(format!("repetition-{:03}", repetition_index + 1))
+        };
+        for (name, yaw_degrees, pitch_degrees) in MATERIAL_AUDIT_VIEWS {
+            capture_paths.push(material_audit_paths(
+                &repetition_root.join("full-model"),
+                "full_model",
+                name,
+                base_camera,
+                yaw_degrees,
+                pitch_degrees,
+                None,
+                repetition_index,
+            ));
+        }
+    }
+    if !full_model_only {
+        for material_index in material_indices.iter().copied() {
+            let material_root = output_root
+                .join("material-regions")
+                .join(format!("material-{material_index:04}"));
+            for (name, yaw_degrees, pitch_degrees) in MATERIAL_AUDIT_REGION_VIEWS {
+                capture_paths.push(material_audit_paths(
+                    &material_root,
+                    "material_region",
+                    name,
+                    base_camera,
+                    yaw_degrees,
+                    pitch_degrees,
+                    Some(material_index),
+                    0,
+                ));
+            }
+        }
+    }
+    for paths in &capture_paths {
+        fs::create_dir_all(
+            paths
+                .textured
+                .parent()
+                .context("material audit capture path has no parent")?,
+        )?;
+    }
+    let requests = capture_paths
+        .iter()
+        .map(|paths| {
+            let isolated_region = paths.material_index.is_some();
+            HeadlessMaterialCaptureRequest {
+                options: HeadlessMaterialCaptureOptions {
+                    width: 768,
+                    height: 768,
+                    lod_index: source_lod_index,
+                    camera: Some(paths.camera),
+                    isolated_material_index: paths.material_index,
+                },
+                output: HeadlessMaterialCaptureOutput {
+                    textured_bmp: &paths.textured,
+                    base_color_bmp: &paths.base_color,
+                    part_id_bmp: &paths.part_id,
+                    normal_map: isolated_region.then_some(paths.normal_map.as_path()),
+                    material_response: isolated_region.then_some(paths.material_response.as_path()),
+                    layer_mask: isolated_region.then_some(paths.layer_mask.as_path()),
+                },
+            }
+        })
+        .collect::<Vec<_>>();
+    let renderer_start_offset_ms = audit_started.elapsed().as_secs_f64() * 1_000.0;
+    let renderer_started = Instant::now();
+    let reports = pollster::block_on(cdmw_render_wgpu::run_headless_material_capture_batch(
+        &snapshot,
+        &texture_uploads,
+        &factor_uploads,
+        &requests,
+    ))
+    .context("CDMW Rust material audit capture failed")?;
+    let physical_uploads_conserved = reports
+        .iter()
+        .all(|report| u64::from(report.dds_textures_uploaded) == expected_physical_upload_count);
+    if let Some(metrics) = runtime_dds_metrics.as_object_mut() {
+        metrics.insert(
+            "renderer_reported_upload_count".to_owned(),
+            json!(
+                reports
+                    .first()
+                    .map_or(0, |report| report.dds_textures_uploaded)
+            ),
+        );
+        metrics.insert(
+            "renderer_uploads_match_unique_binaries".to_owned(),
+            json!(physical_uploads_conserved),
+        );
+    }
+    let captures = capture_paths
+        .iter()
+        .zip(reports.iter())
+        .map(|(paths, report)| material_audit_capture_json(paths, report, &output_root))
+        .collect::<Result<Vec<_>>>()?;
+    let full_model_report_count = usize::try_from(repetitions)
+        .ok()
+        .and_then(|count| count.checked_mul(MATERIAL_AUDIT_VIEWS.len()))
+        .context("material audit repetition count overflowed")?;
+    let warm_repetition_wall_ms = reports[..full_model_report_count]
+        .chunks(MATERIAL_AUDIT_VIEWS.len())
+        .map(|reports| reports.iter().map(|report| report.wall_ms).sum::<f64>())
+        .collect::<Vec<_>>();
+    let manifest_bytes = fs::read(manifest_path).with_context(|| {
+        format!(
+            "failed to hash CDMW Rust audit manifest {}",
+            manifest_path.display()
+        )
+    })?;
+    let adapter = reports
+        .first()
+        .map(|report| {
+            json!({
+                "name": report.adapter.name,
+                "backend": report.adapter.backend,
+                "device_type": report.adapter.device_type,
+                "driver": report.adapter.driver,
+                "driver_info": report.adapter.driver_info,
+            })
+        })
+        .unwrap_or(Value::Null);
+    let first_report = reports
+        .first()
+        .context("CDMW Rust material audit produced no capture reports")?;
+    let renderer_device_ready_ms = renderer_start_offset_ms + first_report.renderer_device_ready_ms;
+    let texture_resources_ready_ms =
+        renderer_start_offset_ms + first_report.texture_resources_ready_ms;
+    let first_textured_frame_ms = renderer_start_offset_ms + first_report.first_textured_frame_ms;
+    let audit_completion_ms = audit_started.elapsed().as_secs_f64() * 1_000.0;
+    let payload = json!({
+        "schema": "cdmw_rust_material_audit_capture_v2",
+        "compatible_schemas": ["cdmw_rust_material_audit_capture_v1"],
+        "ok": true,
+        "renderer": "wgpu_d3d12_rust",
+        "preview_package": preview_package,
+        "session_id": session_id,
+        "process_generation": process_generation,
+        "source_path": source_path,
+        "source_lod_index": source_lod_index,
+        "source_manifest": {
+            "path": manifest_path.display().to_string(),
+            "bytes": manifest_bytes.len(),
+            "sha256": format!("{:x}", Sha256::digest(&manifest_bytes)),
+        },
+        "camera_mapping": "cdmw_integrated_startup_relative_perspective_v1",
+        "base_camera": {
+            "yaw_degrees": base_camera.yaw.to_degrees(),
+            "pitch_degrees": base_camera.pitch.to_degrees(),
+        },
+        "fixed_full_model_view_count": MATERIAL_AUDIT_VIEWS.len(),
+        "repetition_count": repetitions,
+        "material_indices": material_indices,
+        "full_model_only": full_model_only,
+        "material_region_view_count": if full_model_only { 0 } else { MATERIAL_AUDIT_REGION_VIEWS.len() },
+        "capture_count": captures.len(),
+        "warm_cache_proof": {
+            "schema": "cdmw_rust_warm_material_capture_v1",
+            "valid": repetitions > 1 && full_model_only,
+            "package_load_count": 1,
+            "renderer_device_count": 1,
+            "renderer_batch_count": 1,
+            "texture_upload_pass_count": 1,
+            "dds_textures_uploaded_once_for_repetition_set": physical_uploads_conserved,
+            "package_reloads_between_repetitions": 0,
+            "resource_reloads_between_repetitions": 0,
+            "full_model_views_per_repetition": MATERIAL_AUDIT_VIEWS.len(),
+            "per_repetition_wall_ms": warm_repetition_wall_ms,
+        },
+        "dds_resources_uploaded_once_for_capture_set": physical_uploads_conserved,
+        "source_dds": source_dds_metrics,
+        "runtime_dds": runtime_dds_metrics,
+        "adapter": adapter,
+        "phase_timings": {
+            "schema": "cdmw_rust_material_capture_phase_timings_v1",
+            "package_load_complete_ms": package_load_complete_ms,
+            "renderer_device_ready_ms": renderer_device_ready_ms,
+            "texture_resources_ready_ms": texture_resources_ready_ms,
+            "first_textured_frame_ms": first_textured_frame_ms,
+            "audit_completion_ms": audit_completion_ms,
+        },
+        "wall_ms": renderer_started.elapsed().as_secs_f64() * 1_000.0,
+        "captures": captures,
+    });
+    let report_path = output_root.join("audit-report.json");
+    fs::write(&report_path, serde_json::to_vec_pretty(&payload)?).with_context(|| {
+        format!(
+            "failed to write material audit report {}",
+            report_path.display()
+        )
+    })?;
+    eprintln!(
+        "CDMW Rust material audit wrote {} captures to {}",
+        requests.len(),
+        output_root.display()
+    );
+    Ok(())
+}
+
+fn material_audit_source_dds_metrics(
+    graph: Option<&PreviewCoreMaterialGraph>,
+    measured: &crate::preview_core_material::PreviewCoreMaterialCompositionMetrics,
+) -> Value {
+    let Some(graph) = graph else {
+        return json!({
+            "available": false,
+            "each_source_binary_decoded_at_most_once": false,
+        });
+    };
+    let each_source_binary_decoded_at_most_once = measured.source_dds_decode_count
+        <= measured.unique_source_dds_count
+        && u64::try_from(measured.decoded_source_sha256.len())
+            .is_ok_and(|count| count == measured.source_dds_decode_count)
+        && measured
+            .decoded_source_sha256
+            .iter()
+            .collect::<BTreeSet<_>>()
+            .len()
+            == measured.decoded_source_sha256.len();
+    let full_decode_complete = graph.quality != "full"
+        || measured.source_dds_decode_count == measured.unique_source_dds_count;
+    json!({
+        "available": true,
+        "quality": graph.quality,
+        "logical_texture_reference_count": graph.source_edge_count,
+        "unique_source_dds_count": graph.unique_resource_count,
+        "copied_source_dds_count": graph.copied_resource_count,
+        "unique_source_dds_bytes": graph.unique_resource_bytes,
+        "reused_logical_reference_count": graph.source_edge_count.saturating_sub(graph.unique_resource_count),
+        "decode_cache_key": "sha256",
+        "measurement": "actual_rust_source_dds_decode_events_v1",
+        "observed_source_reference_count": measured.source_reference_count,
+        "observed_unique_source_dds_count": measured.unique_source_dds_count,
+        "observed_source_dds_decode_count": measured.source_dds_decode_count,
+        "decoded_source_bytes": measured.decoded_source_bytes,
+        "decoded_rgba8_bytes": measured.decoded_rgba8_bytes,
+        "decoded_source_sha256": measured.decoded_source_sha256,
+        "each_source_binary_decoded_at_most_once": each_source_binary_decoded_at_most_once,
+        "full_source_decode_complete": full_decode_complete,
+    })
+}
+
+fn material_audit_runtime_dds_metrics(resources: &[CdmwTextureResource]) -> Result<Value> {
+    let mut logical_keys = BTreeMap::<(String, String), usize>::new();
+    let mut binaries = BTreeMap::<String, (usize, usize)>::new();
+    let mut logical_resource_bytes = 0_u64;
+    for resource in resources {
+        let sha256 = format!("{:x}", Sha256::digest(&resource.bytes));
+        let role = format!("{:?}", resource.role);
+        *logical_keys.entry((sha256.clone(), role)).or_default() += 1;
+        let payload_bytes = resource
+            .bytes
+            .len()
+            .checked_sub(resource.metadata.payload_offset)
+            .context("runtime DDS payload offset exceeds its binary length")?;
+        binaries
+            .entry(sha256)
+            .or_insert((resource.bytes.len(), payload_bytes));
+        logical_resource_bytes = logical_resource_bytes
+            .checked_add(u64::try_from(resource.bytes.len())?)
+            .context("runtime DDS byte count overflow")?;
+    }
+    let logical_duplicate_binding_count = logical_keys
+        .values()
+        .map(|count| count.saturating_sub(1))
+        .sum::<usize>();
+    let unique_binary_bytes = binaries.values().try_fold(0_u64, |total, (bytes, _)| {
+        total
+            .checked_add(u64::try_from(*bytes)?)
+            .context("unique runtime DDS byte count overflow")
+    })?;
+    let reported_gpu_resident_bytes =
+        binaries
+            .values()
+            .try_fold(0_u64, |total, (_, payload_bytes)| {
+                total
+                    .checked_add(u64::try_from(*payload_bytes)?)
+                    .context("runtime GPU-resident DDS byte count overflow")
+            })?;
+    Ok(json!({
+        "resource_count": binaries.len(),
+        "logical_resource_count": resources.len(),
+        "logical_binding_key_count": logical_keys.len(),
+        "logical_duplicate_binding_count": logical_duplicate_binding_count,
+        "unique_upload_key_count": binaries.len(),
+        "duplicate_upload_key_count": 0,
+        "unique_binary_count": binaries.len(),
+        "reused_logical_resource_count": resources.len().saturating_sub(binaries.len()),
+        "logical_resource_bytes": logical_resource_bytes,
+        "uploaded_resource_bytes": unique_binary_bytes,
+        "reported_gpu_resident_bytes": reported_gpu_resident_bytes,
+        "unique_binary_bytes": unique_binary_bytes,
+        "upload_key": "dds_sha256",
+        "role_specific_sampling_views_share_one_physical_upload": true,
+        "no_duplicate_upload_keys": true,
+    }))
+}
+
+fn create_material_audit_root(output_root: &Path, session_root: &Path) -> Result<PathBuf> {
+    if output_root
+        .components()
+        .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        bail!(
+            "material audit output cannot contain parent traversal: {}",
+            output_root.display()
+        );
+    }
+    let absolute = if output_root.is_absolute() {
+        output_root.to_path_buf()
+    } else {
+        env::current_dir()
+            .context("failed to resolve current material audit directory")?
+            .join(output_root)
+    };
+    if absolute.exists() {
+        bail!(
+            "material audit output already exists; refusing replacement: {}",
+            absolute.display()
+        );
+    }
+    let parent = absolute
+        .parent()
+        .context("material audit output has no parent directory")?;
+    fs::create_dir_all(parent)?;
+    let parent = fs::canonicalize(parent)?;
+    let name = absolute
+        .file_name()
+        .context("material audit output has no directory name")?;
+    let resolved = parent.join(name);
+    let session_root = fs::canonicalize(session_root)?;
+    if resolved.starts_with(&session_root) {
+        bail!("material audit evidence must be outside the source package");
+    }
+    fs::create_dir(&resolved)?;
+    Ok(resolved)
+}
+
+fn material_audit_base_camera(snapshot: &DrawSnapshot) -> IntegratedStartupView {
+    let mut minimum = Vec3::splat(f32::INFINITY);
+    let mut maximum = Vec3::splat(f32::NEG_INFINITY);
+    let mut found = false;
+    for position in snapshot.positions.iter().copied().map(Vec3::from_array) {
+        if position.is_finite() {
+            minimum = minimum.min(position);
+            maximum = maximum.max(position);
+            found = true;
+        }
+    }
+    cdmw_render_wgpu::integrated_startup_view(if found { maximum - minimum } else { Vec3::ONE })
+}
+
+fn material_audit_paths(
+    root: &Path,
+    capture_kind: &'static str,
+    name: &str,
+    base_camera: IntegratedStartupView,
+    requested_yaw_degrees: f32,
+    requested_pitch_degrees: f32,
+    material_index: Option<u32>,
+    repetition_index: u32,
+) -> MaterialAuditCapturePaths {
+    let camera = HeadlessMaterialCaptureCamera {
+        yaw_degrees: base_camera.yaw.to_degrees() + requested_yaw_degrees,
+        pitch_degrees: (base_camera.pitch.to_degrees() + requested_pitch_degrees)
+            .clamp(-89.0, 89.0),
+    };
+    MaterialAuditCapturePaths {
+        repetition_index,
+        capture_kind,
+        name: name.to_owned(),
+        requested_yaw_degrees,
+        requested_pitch_degrees,
+        camera,
+        material_index,
+        textured: root.join(format!("{name}.png")),
+        base_color: root.join(format!("{name}-base-color.png")),
+        part_id: root.join(format!("{name}-part-id.png")),
+        normal_map: root.join(format!("{name}-normal-map.png")),
+        material_response: root.join(format!("{name}-material-response.png")),
+        layer_mask: root.join(format!("{name}-layer-mask.png")),
+    }
+}
+
+fn material_audit_capture_json(
+    paths: &MaterialAuditCapturePaths,
+    report: &cdmw_render_wgpu::HeadlessMaterialCaptureReport,
+    output_root: &Path,
+) -> Result<Value> {
+    let owners = report
+        .owner_coverage
+        .iter()
+        .map(|owner| {
+            json!({
+                "material_index": owner.material_index,
+                "part_id": owner.part_id,
+                "pixel_count": owner.pixel_count,
+                "frame_percent": owner.frame_percent,
+                "textured_mean_luma_255": owner.textured_mean_luma_255,
+                "textured_mean_chroma_255": owner.textured_mean_chroma_255,
+                "base_color_mean_luma_255": owner.base_color_mean_luma_255,
+                "base_color_mean_chroma_255": owner.base_color_mean_chroma_255,
+            })
+        })
+        .collect::<Vec<_>>();
+    let normal_map_output = report
+        .normal_map
+        .as_ref()
+        .map(|_| material_audit_file_evidence(&paths.normal_map, output_root))
+        .transpose()?;
+    let material_response_output = report
+        .material_response
+        .as_ref()
+        .map(|_| material_audit_file_evidence(&paths.material_response, output_root))
+        .transpose()?;
+    let layer_mask_output = report
+        .layer_mask
+        .as_ref()
+        .map(|_| material_audit_file_evidence(&paths.layer_mask, output_root))
+        .transpose()?;
+    Ok(json!({
+        "name": paths.name,
+        "capture_kind": paths.capture_kind,
+        "repetition_index": paths.repetition_index,
+        "material_index": report.isolated_material_index,
+        "yaw": paths.requested_yaw_degrees,
+        "pitch": paths.requested_pitch_degrees,
+        "renderer_yaw": report.camera_yaw_degrees,
+        "renderer_pitch": report.camera_pitch_degrees,
+        "camera_mapping": "cdmw_integrated_startup_relative_perspective_v1",
+        "dimensions": [report.width, report.height],
+        "dds_textures_uploaded": report.dds_textures_uploaded,
+        "active_material_bindings": report.active_material_bindings,
+        "material_ranges_rendered": report.material_ranges_rendered,
+        "renderer_device_ready_ms": report.renderer_device_ready_ms,
+        "texture_resources_ready_ms": report.texture_resources_ready_ms,
+        "first_textured_frame_ms": report.first_textured_frame_ms,
+        "wall_ms": report.wall_ms,
+        "frames": {
+            "textured": frame_stats_json(&report.textured),
+            "base_color": frame_stats_json(&report.base_color),
+            "part_id": frame_stats_json(&report.part_id),
+            "normal_map": report.normal_map.as_ref().map(frame_stats_json),
+            "material_response": report.material_response.as_ref().map(frame_stats_json),
+            "layer_mask": report.layer_mask.as_ref().map(frame_stats_json),
+        },
+        "owner_coverage": owners,
+        "outputs": {
+            "textured": material_audit_file_evidence(&paths.textured, output_root)?,
+            "base_color": material_audit_file_evidence(&paths.base_color, output_root)?,
+            "part_id": material_audit_file_evidence(&paths.part_id, output_root)?,
+            "normal_map": normal_map_output,
+            "material_response": material_response_output,
+            "layer_mask": layer_mask_output,
+        },
+    }))
+}
+
+fn material_audit_file_evidence(path: &Path, output_root: &Path) -> Result<Value> {
+    let bytes = fs::read(path)
+        .with_context(|| format!("failed to read material audit capture {}", path.display()))?;
+    let relative = path
+        .strip_prefix(output_root)
+        .map_err(|_| anyhow::anyhow!("material audit capture escaped its output root"))?
+        .to_string_lossy()
+        .replace('\\', "/");
+    Ok(json!({
+        "path": relative,
+        "bytes": bytes.len(),
+        "sha256": format!("{:x}", Sha256::digest(&bytes)),
+    }))
 }
 
 #[derive(Debug, Clone)]
@@ -5714,6 +6429,12 @@ mod tests {
                 "preview.bmp",
                 "--capture-report-json",
                 "preview.json",
+                "--capture-yaw-degrees",
+                "-35",
+                "--capture-pitch-degrees",
+                "20",
+                "--capture-material-index",
+                "7",
             ]
             .into_iter()
             .map(str::to_owned),
@@ -5724,6 +6445,14 @@ mod tests {
             Some(PathBuf::from("manifest.json"))
         );
         assert_eq!(options.capture_output, Some(PathBuf::from("preview.bmp")));
+        assert_eq!(
+            options.capture_camera(),
+            Some(HeadlessMaterialCaptureCamera {
+                yaw_degrees: -35.0,
+                pitch_degrees: 20.0,
+            })
+        );
+        assert_eq!(options.capture_material_index, Some(7));
 
         let missing_output = parse_startup_options_from(
             ["--capture-cdmw-preview-session", "manifest.json"]
@@ -5745,6 +6474,98 @@ mod tests {
             .map(str::to_owned),
         );
         assert!(conflicting.is_err());
+
+        let incomplete_camera = parse_startup_options_from(
+            [
+                "--capture-cdmw-preview-session",
+                "manifest.json",
+                "--capture-output",
+                "preview.bmp",
+                "--capture-yaw-degrees",
+                "0",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        );
+        assert!(incomplete_camera.is_err());
+
+        let audit = parse_startup_options_from(
+            [
+                "--capture-cdmw-preview-session",
+                "manifest.json",
+                "--capture-audit-output",
+                "audit-evidence",
+                "--capture-audit-full-model-only",
+                "--capture-audit-repetitions",
+                "20",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap_or_else(|error| panic!("audit capture options failed: {error}"));
+        assert_eq!(
+            audit.capture_audit_output,
+            Some(PathBuf::from("audit-evidence"))
+        );
+        assert!(audit.capture_audit_full_model_only);
+        assert_eq!(audit.capture_audit_repetitions, Some(20));
+
+        let orphaned_full_model_only = parse_startup_options_from(
+            ["--capture-audit-full-model-only"]
+                .into_iter()
+                .map(str::to_owned),
+        );
+        assert!(orphaned_full_model_only.is_err());
+
+        let orphaned_repetitions = parse_startup_options_from(
+            ["--capture-audit-repetitions", "20"]
+                .into_iter()
+                .map(str::to_owned),
+        );
+        assert!(orphaned_repetitions.is_err());
+
+        let repetitions_with_regions = parse_startup_options_from(
+            [
+                "--capture-cdmw-preview-session",
+                "manifest.json",
+                "--capture-audit-output",
+                "audit-evidence",
+                "--capture-audit-repetitions",
+                "20",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        );
+        assert!(repetitions_with_regions.is_err());
+
+        let zero_repetitions = parse_startup_options_from(
+            [
+                "--capture-cdmw-preview-session",
+                "manifest.json",
+                "--capture-audit-output",
+                "audit-evidence",
+                "--capture-audit-full-model-only",
+                "--capture-audit-repetitions",
+                "0",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        );
+        assert!(zero_repetitions.is_err());
+
+        let conflicting_outputs = parse_startup_options_from(
+            [
+                "--capture-cdmw-preview-session",
+                "manifest.json",
+                "--capture-output",
+                "preview.bmp",
+                "--capture-audit-output",
+                "audit-evidence",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        );
+        assert!(conflicting_outputs.is_err());
     }
 
     #[test]
@@ -5783,5 +6604,99 @@ mod tests {
             .map(|point| point.screen.x)
             .fold(f32::NEG_INFINITY, f32::max);
         assert!(maximum_x - minimum_x > viewport.width() * 0.75);
+    }
+
+    #[test]
+    fn material_audit_angles_are_relative_to_the_integrated_broadside_camera() {
+        let snapshot = WorkingMesh::from_document_lod(&z_elongated_document(), 0)
+            .expect("elongated audit mesh")
+            .draw_snapshot();
+        let base = material_audit_base_camera(&snapshot);
+        let front = material_audit_paths(
+            Path::new("audit"),
+            "full_model",
+            "front",
+            base,
+            0.0,
+            0.0,
+            None,
+            0,
+        );
+        assert!((front.camera.yaw_degrees - 90.0).abs() < 1.0e-4);
+        assert!((front.camera.pitch_degrees + 35.0).abs() < 1.0e-4);
+        let oblique = material_audit_paths(
+            Path::new("audit"),
+            "material_region",
+            "oblique",
+            base,
+            -35.0,
+            20.0,
+            Some(2),
+            0,
+        );
+        assert!((oblique.camera.yaw_degrees - 55.0).abs() < 1.0e-4);
+        assert!((oblique.camera.pitch_degrees + 15.0).abs() < 1.0e-4);
+        assert_eq!(oblique.material_index, Some(2));
+    }
+
+    #[test]
+    fn material_audit_reports_source_reuse_and_rejects_duplicate_runtime_upload_keys() {
+        let source = material_audit_source_dds_metrics(
+            Some(&PreviewCoreMaterialGraph {
+                schema_version: 1,
+                graph_version: 4,
+                semantics_version: 10,
+                quality: "full".to_owned(),
+                resources_included: true,
+                source_edge_count: 9,
+                unique_resource_count: 3,
+                copied_resource_count: 3,
+                unique_resource_bytes: 512,
+                materials: Vec::new(),
+            }),
+            &crate::preview_core_material::PreviewCoreMaterialCompositionMetrics {
+                source_reference_count: 9,
+                unique_source_dds_count: 3,
+                source_dds_decode_count: 3,
+                decoded_source_bytes: 512,
+                decoded_rgba8_bytes: 768,
+                decoded_source_sha256: vec!["a".repeat(64), "b".repeat(64), "c".repeat(64)],
+            },
+        );
+        assert_eq!(source["reused_logical_reference_count"], 6);
+        assert_eq!(source["each_source_binary_decoded_at_most_once"], true);
+        assert_eq!(source["full_source_decode_complete"], true);
+        assert_eq!(source["observed_source_dds_decode_count"], 3);
+
+        let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+        let resource = |role| CdmwTextureResource {
+            label: format!("{role:?}"),
+            metadata: cdmw_texture::inspect_dds(&bytes, role).expect("DDS metadata"),
+            bytes: bytes.clone(),
+            role,
+            material_indices_by_lod: vec![vec![0]],
+        };
+        let distinct_interpretations = [
+            resource(cdmw_texture::TextureRole::BaseColor),
+            resource(cdmw_texture::TextureRole::LayerMask),
+        ];
+        let metrics = material_audit_runtime_dds_metrics(&distinct_interpretations)
+            .expect("distinct role interpretations");
+        assert_eq!(metrics["logical_resource_count"], 2);
+        assert_eq!(metrics["resource_count"], 1);
+        assert_eq!(metrics["unique_upload_key_count"], 1);
+        assert_eq!(metrics["unique_binary_count"], 1);
+        assert_eq!(metrics["reused_logical_resource_count"], 1);
+        assert_eq!(metrics["upload_key"], "dds_sha256");
+        assert_eq!(metrics["no_duplicate_upload_keys"], true);
+
+        let duplicate = [
+            resource(cdmw_texture::TextureRole::BaseColor),
+            resource(cdmw_texture::TextureRole::BaseColor),
+        ];
+        let duplicate_metrics =
+            material_audit_runtime_dds_metrics(&duplicate).expect("shared physical upload");
+        assert_eq!(duplicate_metrics["resource_count"], 1);
+        assert_eq!(duplicate_metrics["logical_duplicate_binding_count"], 1);
     }
 }

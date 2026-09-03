@@ -365,7 +365,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             texel = vec4<f32>(
                 clamp(texel.rgb * texture_tint, vec3<f32>(0.0), vec3<f32>(1.0)),
                 texel.a);
-        } else if min(u32(material.relief_factors.z + 0.5), 11u) == 6u {
+        } else if min(u32(material.relief_factors.z + 0.5), 14u) == 6u {
             // PAC hair dye is authored in display-space colour. Decode it before
             // deriving the hue bias so a neutral hair tile keeps its value and
             // gains the authored warmth instead of collapsing toward grey.
@@ -497,7 +497,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         return present_srgb(surface_normal * 0.5 + vec3<f32>(0.5), 1.0);
     }
 
-    let category_code = min(u32(material.relief_factors.z + 0.5), 11u);
+    let category_code = min(u32(material.relief_factors.z + 0.5), 14u);
     let category_confidence = clamp(material.relief_factors.w, 0.0, 1.0);
     let is_metal = category_code == 1u;
     let is_leather = category_code == 2u;
@@ -510,7 +510,12 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     let is_stone = category_code == 9u;
     let is_eye = category_code == 10u;
     let is_tooth = category_code == 11u;
+    let is_bone = category_code == 12u;
+    let is_organic = category_code == 13u;
+    let is_foliage = category_code == 14u;
     let is_glossy = is_glass || is_gem || is_eye;
+    let conservative_nonmetal = is_leather || is_wood || is_cloth || is_skin
+        || is_hair || is_stone || is_tooth || is_bone || is_organic || is_foliage;
     let has_skin_specular_response =
         is_skin && (material.flags & MATERIAL_SPECULAR) != 0u;
     let has_authoritative_roughness =
@@ -711,8 +716,6 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             cloth_high_luma_guard * 0.35,
         );
     }
-    let conservative_nonmetal = is_leather || is_wood || is_cloth || is_skin
-        || is_hair || is_stone || is_tooth;
     let nonmetal_texture_scale = select(
         1.0,
         1.03,
@@ -1363,11 +1366,19 @@ pub struct HeadlessMaterialFactors<'a> {
     pub material_indices_by_lod: &'a [Vec<u32>],
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HeadlessMaterialCaptureCamera {
+    pub yaw_degrees: f32,
+    pub pitch_degrees: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HeadlessMaterialCaptureOptions {
     pub width: u32,
     pub height: u32,
     pub lod_index: usize,
+    pub camera: Option<HeadlessMaterialCaptureCamera>,
+    pub isolated_material_index: Option<u32>,
 }
 
 impl Default for HeadlessMaterialCaptureOptions {
@@ -1376,6 +1387,8 @@ impl Default for HeadlessMaterialCaptureOptions {
             width: 1_024,
             height: 1_024,
             lod_index: 0,
+            camera: None,
+            isolated_material_index: None,
         }
     }
 }
@@ -1385,6 +1398,15 @@ pub struct HeadlessMaterialCaptureOutput<'a> {
     pub textured_bmp: &'a Path,
     pub base_color_bmp: &'a Path,
     pub part_id_bmp: &'a Path,
+    pub normal_map: Option<&'a Path>,
+    pub material_response: Option<&'a Path>,
+    pub layer_mask: Option<&'a Path>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct HeadlessMaterialCaptureRequest<'a> {
+    pub options: HeadlessMaterialCaptureOptions,
+    pub output: HeadlessMaterialCaptureOutput<'a>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1419,13 +1441,23 @@ pub struct HeadlessMaterialCaptureReport {
     pub width: u32,
     pub height: u32,
     pub lod_index: usize,
+    pub camera_yaw_degrees: f32,
+    pub camera_pitch_degrees: f32,
+    pub isolated_material_index: Option<u32>,
     pub dds_textures_uploaded: u32,
     pub texture_bound_materials: u32,
     pub active_material_bindings: u32,
     pub material_ranges_rendered: u32,
+    pub renderer_device_ready_ms: f64,
+    pub texture_resources_ready_ms: f64,
+    pub first_textured_frame_ms: f64,
+    pub wall_ms: f64,
     pub textured: HeadlessFrameStats,
     pub base_color: HeadlessFrameStats,
     pub part_id: HeadlessFrameStats,
+    pub normal_map: Option<HeadlessFrameStats>,
+    pub material_response: Option<HeadlessFrameStats>,
+    pub layer_mask: Option<HeadlessFrameStats>,
     pub owner_coverage: Vec<HeadlessMaterialOwnerCoverage>,
 }
 
@@ -1599,7 +1631,9 @@ struct GpuMaterialRange {
 }
 
 struct GpuMaterialTexture {
-    _texture: wgpu::Texture,
+    texture: Arc<wgpu::Texture>,
+    view_format: wgpu::TextureFormat,
+    source_sha256: String,
     role: TextureRole,
     single_channel: bool,
     material_indices_by_lod: Vec<Vec<u32>>,
@@ -2523,9 +2557,26 @@ impl WindowRenderer {
         material_indices_by_lod: &[Vec<u32>],
     ) -> Result<(), RenderError> {
         validate_material_texture_ownership(role, material_indices_by_lod)?;
-        let uploaded = upload_dds_texture(&self.device, &self.queue, bytes, role)?;
+        let identity = dds_texture_identity(bytes, role)?;
+        let shared_texture = self
+            .material_textures
+            .iter()
+            .find(|texture| texture.source_sha256 == identity.source_sha256)
+            .map(|texture| Arc::clone(&texture.texture));
+        let uploaded = if let Some(texture) = shared_texture {
+            UploadedDdsTexture {
+                texture,
+                view_format: identity.view_format,
+                source_sha256: identity.source_sha256,
+                single_channel: identity.single_channel,
+            }
+        } else {
+            upload_dds_texture(&self.device, &self.queue, bytes, role)?
+        };
         self.material_textures.push(GpuMaterialTexture {
-            _texture: uploaded.texture,
+            texture: uploaded.texture,
+            view_format: uploaded.view_format,
+            source_sha256: uploaded.source_sha256,
             role,
             single_channel: uploaded.single_channel,
             material_indices_by_lod: material_indices_by_lod.to_vec(),
@@ -2907,7 +2958,7 @@ fn validate_material_factor_ownership(
             "material factors contain a non-finite or out-of-range value".to_owned(),
         ));
     }
-    if factors.category_code.is_some_and(|code| code > 11) {
+    if factors.category_code.is_some_and(|code| code > 14) {
         return Err(RenderError::Texture(
             "material category code is outside the shared CDMW contract".to_owned(),
         ));
@@ -2951,10 +3002,36 @@ pub async fn run_headless_material_capture(
     options: HeadlessMaterialCaptureOptions,
     output: HeadlessMaterialCaptureOutput<'_>,
 ) -> Result<HeadlessMaterialCaptureReport, RenderError> {
-    if options.width == 0 || options.height == 0 || options.width > 4_096 || options.height > 4_096
-    {
+    let request = HeadlessMaterialCaptureRequest { options, output };
+    run_headless_material_capture_batch(snapshot, textures, factors, &[request])
+        .await?
+        .pop()
+        .ok_or_else(|| RenderError::Device("material capture returned no report".to_owned()))
+}
+
+pub async fn run_headless_material_capture_batch(
+    snapshot: &DrawSnapshot,
+    textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>],
+    requests: &[HeadlessMaterialCaptureRequest<'_>],
+) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
+    let batch_started = std::time::Instant::now();
+    let Some(first_request) = requests.first() else {
+        return Err(RenderError::InvalidSnapshot(
+            "headless material capture batch has no requests".to_owned(),
+        ));
+    };
+    if requests.iter().any(|request| {
+        let options = request.options;
+        options.width == 0
+            || options.height == 0
+            || options.width > 4_096
+            || options.height > 4_096
+            || options.lod_index != first_request.options.lod_index
+    }) {
         return Err(RenderError::ResourceLimit);
     }
+    let lod_index = first_request.options.lod_index;
     let mut instance_descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
     instance_descriptor.backends = wgpu::Backends::DX12;
     let instance = wgpu::Instance::new(instance_descriptor);
@@ -2979,6 +3056,7 @@ pub async fn run_headless_material_capture(
         })
         .await
         .map_err(|error| RenderError::Device(error.to_string()))?;
+    let renderer_device_ready_ms = batch_started.elapsed().as_secs_f64() * 1_000.0;
     let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
     let format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let sample_count = preferred_sample_count(&adapter, format);
@@ -2997,11 +3075,29 @@ pub async fn run_headless_material_capture(
     );
 
     let mut material_textures = Vec::with_capacity(textures.len());
+    let mut uploaded_textures = BTreeMap::<String, Arc<wgpu::Texture>>::new();
     for texture in textures {
         validate_material_texture_ownership(texture.role, texture.material_indices_by_lod)?;
-        let uploaded = upload_dds_texture(&device, &queue, texture.bytes, texture.role)?;
+        let identity = dds_texture_identity(texture.bytes, texture.role)?;
+        let uploaded = if let Some(existing) = uploaded_textures.get(&identity.source_sha256) {
+            UploadedDdsTexture {
+                texture: Arc::clone(existing),
+                view_format: identity.view_format,
+                source_sha256: identity.source_sha256,
+                single_channel: identity.single_channel,
+            }
+        } else {
+            let uploaded = upload_dds_texture(&device, &queue, texture.bytes, texture.role)?;
+            uploaded_textures.insert(
+                uploaded.source_sha256.clone(),
+                Arc::clone(&uploaded.texture),
+            );
+            uploaded
+        };
         material_textures.push(GpuMaterialTexture {
-            _texture: uploaded.texture,
+            texture: uploaded.texture,
+            view_format: uploaded.view_format,
+            source_sha256: uploaded.source_sha256,
             role: texture.role,
             single_channel: uploaded.single_channel,
             material_indices_by_lod: texture.material_indices_by_lod.to_vec(),
@@ -3019,14 +3115,14 @@ pub async fn run_headless_material_capture(
         material_textures
             .iter()
             .map(|texture| (texture.role, texture.material_indices_by_lod.as_slice())),
-        options.lod_index,
+        lod_index,
     )?;
     let texture_bound_materials = resolved.len();
     let resolved_factors = resolve_material_factors(
         material_factors
             .iter()
             .map(|factor| (factor.factors, factor.material_indices_by_lod.as_slice())),
-        options.lod_index,
+        lod_index,
     )?;
     for material in resolved_factors.keys() {
         resolved.entry(*material).or_default();
@@ -3069,110 +3165,198 @@ pub async fn run_headless_material_capture(
         &camera_layout,
         sample_count,
     );
-    let mesh = GpuMeshBuffers::upload(&device, snapshot)?;
-    let view_projection = headless_capture_view_projection(snapshot, options.width, options.height);
-    let mut render = |view_mode| {
-        render_headless_readback_at(
-            &device,
-            &queue,
-            format,
-            &mesh,
-            &default_material_binding.bind_group,
-            &active_material_bindings,
-            &camera_bind_group,
-            &pipelines,
-            &mut camera_uniform,
-            &camera_buffer,
-            view_mode,
-            options.width,
-            options.height,
-            view_projection,
-            None,
-            false,
-            None,
-        )
-    };
-    let textured_readback = render(ViewMode::TexturedSolid);
-    let base_color_readback = render(ViewMode::BaseColor);
-    let part_id_readback = render(ViewMode::PartId);
     if let Some(error) = error_scope.pop().await {
         return Err(RenderError::Device(format!(
-            "material capture validation failed: {error}"
+            "material capture setup validation failed: {error}"
         )));
     }
-    let textured_pixels = read_headless_pixels(
-        &device,
-        &textured_readback.0,
-        textured_readback.1,
-        textured_readback.2,
-    )?;
-    let base_color_pixels = read_headless_pixels(
-        &device,
-        &base_color_readback.0,
-        base_color_readback.1,
-        base_color_readback.2,
-    )?;
-    let part_id_pixels = read_headless_pixels(
-        &device,
-        &part_id_readback.0,
-        part_id_readback.1,
-        part_id_readback.2,
-    )?;
-    write_bgra_bmp(
-        output.textured_bmp,
-        options.width,
-        options.height,
-        &textured_pixels,
-    )?;
-    write_bgra_bmp(
-        output.base_color_bmp,
-        options.width,
-        options.height,
-        &base_color_pixels,
-    )?;
-    write_bgra_bmp(
-        output.part_id_bmp,
-        options.width,
-        options.height,
-        &part_id_pixels,
-    )?;
-    let textured = headless_frame_stats(&textured_pixels)?;
-    let base_color = headless_frame_stats(&base_color_pixels)?;
-    let part_id = headless_frame_stats(&part_id_pixels)?;
-    if textured.non_background_pixels == 0
-        || base_color.non_background_pixels == 0
-        || part_id.non_background_pixels == 0
-    {
-        return Err(RenderError::Device(
-            "material capture contained only the clear color".to_owned(),
-        ));
+    let texture_resources_ready_ms = batch_started.elapsed().as_secs_f64() * 1_000.0;
+    let dds_textures_uploaded =
+        u32::try_from(uploaded_textures.len()).map_err(|_| RenderError::ResourceLimit)?;
+    let texture_bound_materials =
+        u32::try_from(texture_bound_materials).map_err(|_| RenderError::ResourceLimit)?;
+    let active_material_bindings_count =
+        u32::try_from(active_material_bindings.len()).map_err(|_| RenderError::ResourceLimit)?;
+    let mut reports = Vec::with_capacity(requests.len());
+    let mut first_textured_frame_ms = None;
+    for request in requests {
+        let capture_started = std::time::Instant::now();
+        let options = request.options;
+        let output = request.output;
+        let isolated_snapshot = options
+            .isolated_material_index
+            .map(|material_index| isolate_material_snapshot(snapshot, material_index))
+            .transpose()?;
+        let capture_snapshot = isolated_snapshot.as_ref().unwrap_or(snapshot);
+        let capture_view = resolved_headless_capture_view(capture_snapshot, options.camera)?;
+        let capture_error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let mesh = GpuMeshBuffers::upload(&device, capture_snapshot)?;
+        let view_projection = headless_capture_view_projection(
+            capture_snapshot,
+            options.width,
+            options.height,
+            capture_view,
+        );
+        let mut render = |view_mode| {
+            render_headless_readback_at(
+                &device,
+                &queue,
+                format,
+                &mesh,
+                &default_material_binding.bind_group,
+                &active_material_bindings,
+                &camera_bind_group,
+                &pipelines,
+                &mut camera_uniform,
+                &camera_buffer,
+                view_mode,
+                options.width,
+                options.height,
+                view_projection,
+                None,
+                false,
+                None,
+            )
+        };
+        let textured_readback = render(ViewMode::TexturedSolid);
+        let base_color_readback = render(ViewMode::BaseColor);
+        let part_id_readback = render(ViewMode::PartId);
+        let normal_map_readback = output.normal_map.map(|_| render(ViewMode::NormalMap));
+        let material_response_readback = output
+            .material_response
+            .map(|_| render(ViewMode::MaterialResponse));
+        let layer_mask_readback = output.layer_mask.map(|_| render(ViewMode::LayerMask));
+        if let Some(error) = capture_error_scope.pop().await {
+            return Err(RenderError::Device(format!(
+                "material capture validation failed: {error}"
+            )));
+        }
+        let textured_pixels = read_headless_pixels(
+            &device,
+            &textured_readback.0,
+            textured_readback.1,
+            textured_readback.2,
+        )?;
+        let first_textured_frame_ms = *first_textured_frame_ms
+            .get_or_insert_with(|| batch_started.elapsed().as_secs_f64() * 1_000.0);
+        let base_color_pixels = read_headless_pixels(
+            &device,
+            &base_color_readback.0,
+            base_color_readback.1,
+            base_color_readback.2,
+        )?;
+        let part_id_pixels = read_headless_pixels(
+            &device,
+            &part_id_readback.0,
+            part_id_readback.1,
+            part_id_readback.2,
+        )?;
+        let normal_map_pixels = normal_map_readback
+            .map(|readback| read_headless_pixels(&device, &readback.0, readback.1, readback.2))
+            .transpose()?;
+        let material_response_pixels = material_response_readback
+            .map(|readback| read_headless_pixels(&device, &readback.0, readback.1, readback.2))
+            .transpose()?;
+        let layer_mask_pixels = layer_mask_readback
+            .map(|readback| read_headless_pixels(&device, &readback.0, readback.1, readback.2))
+            .transpose()?;
+        write_bgra_image(
+            output.textured_bmp,
+            options.width,
+            options.height,
+            &textured_pixels,
+        )?;
+        write_bgra_image(
+            output.base_color_bmp,
+            options.width,
+            options.height,
+            &base_color_pixels,
+        )?;
+        write_bgra_image(
+            output.part_id_bmp,
+            options.width,
+            options.height,
+            &part_id_pixels,
+        )?;
+        for (path, pixels) in [
+            (output.normal_map, normal_map_pixels.as_deref()),
+            (
+                output.material_response,
+                material_response_pixels.as_deref(),
+            ),
+            (output.layer_mask, layer_mask_pixels.as_deref()),
+        ] {
+            if let (Some(path), Some(pixels)) = (path, pixels) {
+                write_bgra_image(path, options.width, options.height, pixels)?;
+            }
+        }
+        let textured = headless_frame_stats(&textured_pixels)?;
+        let base_color = headless_frame_stats(&base_color_pixels)?;
+        let part_id = headless_frame_stats(&part_id_pixels)?;
+        let normal_map = normal_map_pixels
+            .as_deref()
+            .map(headless_frame_stats)
+            .transpose()?;
+        let material_response = material_response_pixels
+            .as_deref()
+            .map(headless_frame_stats)
+            .transpose()?;
+        let layer_mask = layer_mask_pixels
+            .as_deref()
+            .map(headless_frame_stats)
+            .transpose()?;
+        if textured.non_background_pixels == 0
+            || base_color.non_background_pixels == 0
+            || part_id.non_background_pixels == 0
+            || normal_map
+                .as_ref()
+                .is_some_and(|stats| stats.non_background_pixels == 0)
+            || material_response
+                .as_ref()
+                .is_some_and(|stats| stats.non_background_pixels == 0)
+            || layer_mask
+                .as_ref()
+                .is_some_and(|stats| stats.non_background_pixels == 0)
+        {
+            return Err(RenderError::Device(
+                "material capture contained only the clear color".to_owned(),
+            ));
+        }
+        let owner_coverage = headless_material_owner_coverage(
+            &mesh.material_ranges,
+            &textured_pixels,
+            &base_color_pixels,
+            &part_id_pixels,
+        )?;
+        reports.push(HeadlessMaterialCaptureReport {
+            adapter: adapter_report(&adapter),
+            sample_count,
+            anisotropy_clamp,
+            width: options.width,
+            height: options.height,
+            lod_index: options.lod_index,
+            camera_yaw_degrees: capture_view.yaw.to_degrees(),
+            camera_pitch_degrees: capture_view.pitch.to_degrees(),
+            isolated_material_index: options.isolated_material_index,
+            dds_textures_uploaded,
+            texture_bound_materials,
+            active_material_bindings: active_material_bindings_count,
+            material_ranges_rendered: u32::try_from(mesh.material_ranges.len())
+                .map_err(|_| RenderError::ResourceLimit)?,
+            renderer_device_ready_ms,
+            texture_resources_ready_ms,
+            first_textured_frame_ms,
+            wall_ms: capture_started.elapsed().as_secs_f64() * 1_000.0,
+            textured,
+            base_color,
+            part_id,
+            normal_map,
+            material_response,
+            layer_mask,
+            owner_coverage,
+        });
     }
-    let owner_coverage = headless_material_owner_coverage(
-        &mesh.material_ranges,
-        &textured_pixels,
-        &base_color_pixels,
-        &part_id_pixels,
-    )?;
-    Ok(HeadlessMaterialCaptureReport {
-        adapter: adapter_report(&adapter),
-        sample_count,
-        anisotropy_clamp,
-        width: options.width,
-        height: options.height,
-        lod_index: options.lod_index,
-        dds_textures_uploaded: u32::try_from(material_textures.len())
-            .map_err(|_| RenderError::ResourceLimit)?,
-        texture_bound_materials: u32::try_from(texture_bound_materials)
-            .map_err(|_| RenderError::ResourceLimit)?,
-        active_material_bindings: u32::try_from(active_material_bindings.len())
-            .map_err(|_| RenderError::ResourceLimit)?,
-        material_ranges_rendered: u32::try_from(mesh.material_ranges.len())
-            .map_err(|_| RenderError::ResourceLimit)?,
-        textured,
-        base_color,
-        part_id,
-        owner_coverage,
-    })
+    Ok(reports)
 }
 
 async fn run_headless_render_smoke_internal(
@@ -3344,7 +3528,9 @@ async fn run_headless_render_smoke_internal(
     ] {
         let uploaded = upload_dds_texture(&device, &queue, &bytes, role)?;
         material_textures.push(GpuMaterialTexture {
-            _texture: uploaded.texture,
+            texture: uploaded.texture,
+            view_format: uploaded.view_format,
+            source_sha256: uploaded.source_sha256,
             role,
             single_channel: uploaded.single_channel,
             material_indices_by_lod: vec![vec![material]],
@@ -4849,14 +5035,42 @@ fn headless_view_projection(snapshot: &DrawSnapshot, width: u32, height: u32) ->
         * Mat4::look_at_rh(target + Vec3::Z * distance, target, Vec3::Y)
 }
 
-fn headless_capture_view_projection(snapshot: &DrawSnapshot, width: u32, height: u32) -> Mat4 {
+fn resolved_headless_capture_view(
+    snapshot: &DrawSnapshot,
+    camera: Option<HeadlessMaterialCaptureCamera>,
+) -> Result<IntegratedStartupView, RenderError> {
+    let Some(camera) = camera else {
+        let (minimum, maximum) =
+            mesh_bounds(&snapshot.positions).unwrap_or((Vec3::splat(-1.0), Vec3::ONE));
+        return Ok(integrated_startup_view(maximum - minimum));
+    };
+    if !camera.yaw_degrees.is_finite()
+        || !camera.pitch_degrees.is_finite()
+        || camera.pitch_degrees.abs() > 89.0
+    {
+        return Err(RenderError::InvalidSnapshot(
+            "headless capture camera must use finite yaw and pitch within -89..89 degrees"
+                .to_owned(),
+        ));
+    }
+    Ok(IntegratedStartupView {
+        yaw: camera.yaw_degrees.to_radians(),
+        pitch: camera.pitch_degrees.to_radians(),
+    })
+}
+
+fn headless_capture_view_projection(
+    snapshot: &DrawSnapshot,
+    width: u32,
+    height: u32,
+    capture_view: IntegratedStartupView,
+) -> Mat4 {
     let (minimum, maximum) =
         mesh_bounds(&snapshot.positions).unwrap_or((Vec3::splat(-1.0), Vec3::ONE));
     let target = (minimum + maximum) * 0.5;
     let extent = maximum - minimum;
-    let startup_view = integrated_startup_view(extent);
-    let view_axis = startup_view.eye_direction();
-    let up_axis = startup_view.up_direction();
+    let view_axis = capture_view.eye_direction();
+    let up_axis = capture_view.up_direction();
     let radius = (extent * 0.5).length().max(1.0e-4);
     let field_of_view = 45.0_f32.to_radians();
     let aspect = (width as f32 / height.max(1) as f32).max(1.0e-4);
@@ -4868,6 +5082,80 @@ fn headless_capture_view_projection(snapshot: &DrawSnapshot, width: u32, height:
     let far = (distance + radius * 8.0).max(near + 1.0);
     Mat4::perspective_rh(field_of_view, aspect, near, far)
         * Mat4::look_at_rh(target + view_axis * distance, target, up_axis)
+}
+
+fn isolate_material_snapshot(
+    snapshot: &DrawSnapshot,
+    material_index: u32,
+) -> Result<DrawSnapshot, RenderError> {
+    if snapshot.positions.len() != snapshot.normals.len()
+        || snapshot.positions.len() != snapshot.uvs.len()
+        || !snapshot.indices.len().is_multiple_of(3)
+        || snapshot.triangle_materials.len() != snapshot.indices.len() / 3
+    {
+        return Err(RenderError::InvalidSnapshot(
+            "material isolation requires aligned positions, normals, UVs, and triangle owners"
+                .to_owned(),
+        ));
+    }
+    let mut remapped_vertices = BTreeMap::<u32, u32>::new();
+    let mut positions = Vec::new();
+    let mut normals = Vec::new();
+    let mut uvs = Vec::new();
+    let mut indices = Vec::new();
+    let mut triangle_materials = Vec::new();
+    for (triangle, owner) in snapshot
+        .indices
+        .chunks_exact(3)
+        .zip(snapshot.triangle_materials.iter().copied())
+    {
+        if owner != material_index {
+            continue;
+        }
+        for source_index in triangle.iter().copied() {
+            let source = usize::try_from(source_index).map_err(|_| RenderError::ResourceLimit)?;
+            let position = snapshot.positions.get(source).copied().ok_or_else(|| {
+                RenderError::InvalidSnapshot(format!(
+                    "material {material_index} references vertex {source_index} outside the snapshot"
+                ))
+            })?;
+            let destination = if let Some(destination) = remapped_vertices.get(&source_index) {
+                *destination
+            } else {
+                let destination =
+                    u32::try_from(positions.len()).map_err(|_| RenderError::ResourceLimit)?;
+                positions.push(position);
+                normals.push(snapshot.normals[source]);
+                uvs.push(snapshot.uvs[source]);
+                remapped_vertices.insert(source_index, destination);
+                destination
+            };
+            indices.push(destination);
+        }
+        triangle_materials.push(owner);
+    }
+    if indices.is_empty() {
+        return Err(RenderError::InvalidSnapshot(format!(
+            "material {material_index} owns no triangles in the capture snapshot"
+        )));
+    }
+    let selected_vertices = snapshot
+        .selected_vertices
+        .iter()
+        .filter_map(|source| remapped_vertices.get(source).copied())
+        .collect();
+    Ok(DrawSnapshot {
+        mesh_identity: snapshot.mesh_identity,
+        draw_revision: snapshot.draw_revision,
+        topology_generation: snapshot.topology_generation,
+        positions,
+        normals,
+        uvs,
+        indices,
+        triangle_materials,
+        selected_vertices,
+        fingerprint: format!("{}|material:{material_index}", snapshot.fingerprint),
+    })
 }
 
 fn material_proof_sphere_snapshot() -> DrawSnapshot {
@@ -5348,6 +5636,64 @@ fn write_bgra_bmp(path: &Path, width: u32, height: u32, pixels: &[u8]) -> Result
     std::fs::write(path, bmp).map_err(|error| {
         RenderError::Device(format!(
             "failed to write headless capture BMP {}: {error}",
+            path.display()
+        ))
+    })
+}
+
+fn write_bgra_image(
+    path: &Path,
+    width: u32,
+    height: u32,
+    pixels: &[u8],
+) -> Result<(), RenderError> {
+    if path
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("png"))
+    {
+        return write_bgra_png(path, width, height, pixels);
+    }
+    write_bgra_bmp(path, width, height, pixels)
+}
+
+fn write_bgra_png(path: &Path, width: u32, height: u32, pixels: &[u8]) -> Result<(), RenderError> {
+    let expected_len = usize::try_from(
+        u64::from(width)
+            .checked_mul(u64::from(height))
+            .and_then(|pixel_count| pixel_count.checked_mul(4))
+            .ok_or(RenderError::ResourceLimit)?,
+    )
+    .map_err(|_| RenderError::ResourceLimit)?;
+    if pixels.len() != expected_len {
+        return Err(RenderError::Device(format!(
+            "PNG dimensions require {expected_len} BGRA bytes, received {}",
+            pixels.len()
+        )));
+    }
+    let mut rgba = pixels.to_vec();
+    for pixel in rgba.chunks_exact_mut(4) {
+        pixel.swap(0, 2);
+    }
+    let file = std::fs::File::create(path).map_err(|error| {
+        RenderError::Device(format!(
+            "failed to create headless capture PNG {}: {error}",
+            path.display()
+        ))
+    })?;
+    let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_compression(png::Compression::Fast);
+    encoder.set_filter(png::Filter::Sub);
+    let mut writer = encoder.write_header().map_err(|error| {
+        RenderError::Device(format!(
+            "failed to write headless capture PNG header {}: {error}",
+            path.display()
+        ))
+    })?;
+    writer.write_image_data(&rgba).map_err(|error| {
+        RenderError::Device(format!(
+            "failed to write headless capture PNG {}: {error}",
             path.display()
         ))
     })
@@ -6712,6 +7058,22 @@ fn material_texture_tint_uniform(factors: MaterialPreviewFactors) -> Option<[f32
     })
 }
 
+fn material_texture_view(
+    textures: &[GpuMaterialTexture],
+    index: Option<usize>,
+    default: &wgpu::Texture,
+) -> wgpu::TextureView {
+    index.and_then(|index| textures.get(index)).map_or_else(
+        || default.create_view(&wgpu::TextureViewDescriptor::default()),
+        |texture| {
+            texture.texture.create_view(&wgpu::TextureViewDescriptor {
+                format: Some(texture.view_format),
+                ..Default::default()
+            })
+        },
+    )
+}
+
 fn create_material_bind_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
@@ -6721,89 +7083,25 @@ fn create_material_bind_group(
     indices: MaterialTextureIndices,
     factors: MaterialPreviewFactors,
 ) -> GpuMaterialBinding {
-    let base_texture = indices
-        .base_color
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.base_color, |texture| &texture._texture);
-    let normal_texture = indices
-        .normal
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.normal, |texture| &texture._texture);
-    let surface_texture = indices
-        .surface
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.surface, |texture| &texture._texture);
-    let roughness_texture = indices
-        .roughness
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.roughness, |texture| &texture._texture);
-    let metalness_texture = indices
-        .metalness
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.metalness, |texture| &texture._texture);
-    let occlusion_texture = indices
-        .occlusion
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.occlusion, |texture| &texture._texture);
-    let emissive_texture = indices
-        .emissive
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.emissive, |texture| &texture._texture);
-    let specular_texture = indices
-        .specular
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.specular, |texture| &texture._texture);
-    let glossiness_texture = indices
-        .glossiness
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.glossiness, |texture| &texture._texture);
-    let opacity_texture = indices
-        .opacity
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.opacity, |texture| &texture._texture);
-    let height_texture = indices
-        .height
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.height, |texture| &texture._texture);
-    let flow_texture = indices
-        .flow
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.flow, |texture| &texture._texture);
-    let layer_mask_texture = indices
-        .layer_mask
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.layer_mask, |texture| &texture._texture);
-    let skin_detail_mask_texture = indices
-        .skin_detail_mask
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.layer_mask, |texture| &texture._texture);
-    let skin_detail_normal_texture = indices
-        .skin_detail_normal
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.normal, |texture| &texture._texture);
-    let skin_detail_material_texture = indices
-        .skin_detail_material
-        .and_then(|index| textures.get(index))
-        .map_or(&defaults.surface, |texture| &texture._texture);
-    let base_view = base_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let normal_view = normal_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let surface_view = surface_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let roughness_view = roughness_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let metalness_view = metalness_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let occlusion_view = occlusion_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let emissive_view = emissive_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let specular_view = specular_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let glossiness_view = glossiness_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let opacity_view = opacity_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let height_view = height_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let flow_view = flow_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let layer_mask_view = layer_mask_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let base_view = material_texture_view(textures, indices.base_color, &defaults.base_color);
+    let normal_view = material_texture_view(textures, indices.normal, &defaults.normal);
+    let surface_view = material_texture_view(textures, indices.surface, &defaults.surface);
+    let roughness_view = material_texture_view(textures, indices.roughness, &defaults.roughness);
+    let metalness_view = material_texture_view(textures, indices.metalness, &defaults.metalness);
+    let occlusion_view = material_texture_view(textures, indices.occlusion, &defaults.occlusion);
+    let emissive_view = material_texture_view(textures, indices.emissive, &defaults.emissive);
+    let specular_view = material_texture_view(textures, indices.specular, &defaults.specular);
+    let glossiness_view = material_texture_view(textures, indices.glossiness, &defaults.glossiness);
+    let opacity_view = material_texture_view(textures, indices.opacity, &defaults.opacity);
+    let height_view = material_texture_view(textures, indices.height, &defaults.height);
+    let flow_view = material_texture_view(textures, indices.flow, &defaults.flow);
+    let layer_mask_view = material_texture_view(textures, indices.layer_mask, &defaults.layer_mask);
     let skin_detail_mask_view =
-        skin_detail_mask_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        material_texture_view(textures, indices.skin_detail_mask, &defaults.layer_mask);
     let skin_detail_normal_view =
-        skin_detail_normal_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        material_texture_view(textures, indices.skin_detail_normal, &defaults.normal);
     let skin_detail_material_view =
-        skin_detail_material_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        material_texture_view(textures, indices.skin_detail_material, &defaults.surface);
     let mut flags = 0;
     if indices.base_color.is_some() {
         flags |= MATERIAL_BASE_COLOR;
@@ -7002,7 +7300,15 @@ fn create_material_bind_group(
 }
 
 struct UploadedDdsTexture {
-    texture: wgpu::Texture,
+    texture: Arc<wgpu::Texture>,
+    view_format: wgpu::TextureFormat,
+    source_sha256: String,
+    single_channel: bool,
+}
+
+struct DdsTextureIdentity {
+    view_format: wgpu::TextureFormat,
+    source_sha256: String,
     single_channel: bool,
 }
 
@@ -7011,6 +7317,19 @@ fn dds_format_is_single_channel(format: &DdsFormat) -> bool {
         format,
         DdsFormat::Bc4Unorm | DdsFormat::Bc4Snorm | DdsFormat::R8Unorm
     )
+}
+
+fn dds_texture_identity(
+    bytes: &[u8],
+    role: TextureRole,
+) -> Result<DdsTextureIdentity, RenderError> {
+    let plan =
+        plan_2d_upload(bytes, role).map_err(|error| RenderError::Texture(error.to_string()))?;
+    Ok(DdsTextureIdentity {
+        view_format: map_dds_format(&plan.metadata.format, plan.metadata.color_space)?,
+        source_sha256: plan.metadata.source_sha256,
+        single_channel: dds_format_is_single_channel(&plan.metadata.format),
+    })
 }
 
 fn upload_dds_texture(
@@ -7022,9 +7341,15 @@ fn upload_dds_texture(
     let plan =
         plan_2d_upload(bytes, role).map_err(|error| RenderError::Texture(error.to_string()))?;
     let single_channel = dds_format_is_single_channel(&plan.metadata.format);
-    let format = map_dds_format(&plan.metadata.format, plan.metadata.color_space)?;
+    let view_format = map_dds_format(&plan.metadata.format, plan.metadata.color_space)?;
+    let format = map_dds_format(&plan.metadata.format, ColorSpace::Linear)?;
     validate_dds_upload_requirements(&plan, format, &device.limits(), device.features())?;
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
+    let alternate_view_formats = map_dds_format(&plan.metadata.format, ColorSpace::Srgb)
+        .ok()
+        .filter(|candidate| *candidate != format)
+        .into_iter()
+        .collect::<Vec<_>>();
+    let texture = Arc::new(device.create_texture(&wgpu::TextureDescriptor {
         label: Some("CDMW Rust Mesh Lab DDS"),
         size: wgpu::Extent3d {
             width: plan.metadata.width,
@@ -7036,8 +7361,8 @@ fn upload_dds_texture(
         dimension: wgpu::TextureDimension::D2,
         format,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &[],
-    });
+        view_formats: &alternate_view_formats,
+    }));
     for level in &plan.levels {
         let data = bytes
             .get(level.byte_offset..level.byte_offset.saturating_add(level.byte_length))
@@ -7060,6 +7385,8 @@ fn upload_dds_texture(
     }
     Ok(UploadedDdsTexture {
         texture,
+        view_format,
+        source_sha256: plan.metadata.source_sha256,
         single_channel,
     })
 }
@@ -7427,7 +7754,7 @@ mod tests {
         assert!(SHADER.contains("const MATERIAL_TEXTURE_TINT: u32 = 8388608u;"));
         assert!(SHADER.contains("if (material.flags & MATERIAL_TEXTURE_TINT) != 0u"));
         assert!(SHADER.contains("texel.rgb * texture_tint"));
-        assert!(SHADER.contains("else if min(u32(material.relief_factors.z + 0.5), 11u) == 6u"));
+        assert!(SHADER.contains("else if min(u32(material.relief_factors.z + 0.5), 14u) == 6u"));
         assert!(SHADER.contains("let linear_tint = srgb_to_linear(texture_tint);"));
         assert!(SHADER.contains("linear_tint / tint_luma"));
         assert!(SHADER.contains("mix(texel.rgb, dyed, tint_strength)"));
@@ -7436,6 +7763,50 @@ mod tests {
         ));
         assert!(SHADER.contains("texture_tint / tint_luma"));
         assert!(SHADER.contains("mix(texel.rgb, tinted, tint_strength)"));
+    }
+
+    #[test]
+    fn renderer_accepts_the_complete_shared_material_category_contract() {
+        let ownership = [vec![0_u32]];
+        for category_code in 0..=14 {
+            validate_material_factor_ownership(
+                MaterialPreviewFactors {
+                    category_code: Some(category_code),
+                    category_confidence: Some(1.0),
+                    ..MaterialPreviewFactors::default()
+                },
+                &ownership,
+            )
+            .unwrap_or_else(|error| {
+                panic!("shared material category {category_code} was rejected: {error}")
+            });
+        }
+        let error = validate_material_factor_ownership(
+            MaterialPreviewFactors {
+                category_code: Some(15),
+                category_confidence: Some(1.0),
+                ..MaterialPreviewFactors::default()
+            },
+            &ownership,
+        )
+        .expect_err("category 15 is outside the shared contract");
+        assert!(
+            error
+                .to_string()
+                .contains("material category code is outside the shared CDMW contract")
+        );
+
+        assert!(SHADER.contains("min(u32(material.relief_factors.z + 0.5), 14u)"));
+        for (name, code) in [("bone", 12), ("organic", 13), ("foliage", 14)] {
+            assert!(
+                SHADER.contains(&format!("let is_{name} = category_code == {code}u;")),
+                "WGSL does not decode shared category {name}={code}"
+            );
+        }
+        assert!(
+            SHADER
+                .contains("is_hair || is_stone || is_tooth || is_bone || is_organic || is_foliage")
+        );
     }
 
     #[test]
@@ -7871,6 +8242,19 @@ mod tests {
     }
 
     #[test]
+    fn one_binary_identity_supports_role_specific_sampling_views() -> Result<(), RenderError> {
+        let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+        let base_color = dds_texture_identity(&bytes, TextureRole::BaseColor)?;
+        let layer_mask = dds_texture_identity(&bytes, TextureRole::LayerMask)?;
+
+        assert_eq!(base_color.source_sha256, layer_mask.source_sha256);
+        assert_eq!(base_color.view_format, wgpu::TextureFormat::Rgba8UnormSrgb);
+        assert_eq!(layer_mask.view_format, wgpu::TextureFormat::Rgba8Unorm);
+        assert_ne!(base_color.view_format, layer_mask.view_format);
+        Ok(())
+    }
+
+    #[test]
     fn every_view_mode_has_a_distinct_user_label() {
         let labels = [
             ViewMode::TexturedSolid,
@@ -7952,6 +8336,61 @@ mod tests {
                     index_count: 6,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn material_isolation_compacts_owned_triangles_and_preserves_the_owner() {
+        let snapshot = DrawSnapshot {
+            mesh_identity: 17,
+            draw_revision: 4,
+            topology_generation: 2,
+            positions: vec![
+                [-10.0, 0.0, 0.0],
+                [-9.0, 0.0, 0.0],
+                [-10.0, 1.0, 0.0],
+                [4.0, 0.0, 0.0],
+                [5.0, 0.0, 0.0],
+                [4.0, 1.0, 0.0],
+            ],
+            normals: vec![[0.0, 0.0, 1.0]; 6],
+            uvs: vec![[0.0, 0.0]; 6],
+            indices: vec![0, 1, 2, 3, 4, 5],
+            triangle_materials: vec![3, 7],
+            selected_vertices: vec![1, 4],
+            fingerprint: "two-owner".to_owned(),
+        };
+        let isolated = isolate_material_snapshot(&snapshot, 7).expect("material isolation");
+        assert_eq!(isolated.positions, snapshot.positions[3..].to_vec());
+        assert_eq!(isolated.indices, vec![0, 1, 2]);
+        assert_eq!(isolated.triangle_materials, vec![7]);
+        assert_eq!(isolated.selected_vertices, vec![1]);
+        assert_eq!(isolated.fingerprint, "two-owner|material:7");
+        assert!(isolate_material_snapshot(&snapshot, 99).is_err());
+    }
+
+    #[test]
+    fn explicit_headless_capture_camera_preserves_the_requested_audit_angles() {
+        let snapshot = material_proof_sphere_snapshot();
+        let view = resolved_headless_capture_view(
+            &snapshot,
+            Some(HeadlessMaterialCaptureCamera {
+                yaw_degrees: -35.0,
+                pitch_degrees: 20.0,
+            }),
+        )
+        .expect("audit camera");
+        assert!((view.yaw.to_degrees() + 35.0).abs() < 1.0e-4);
+        assert!((view.pitch.to_degrees() - 20.0).abs() < 1.0e-4);
+        assert!(
+            resolved_headless_capture_view(
+                &snapshot,
+                Some(HeadlessMaterialCaptureCamera {
+                    yaw_degrees: 0.0,
+                    pitch_degrees: 90.0,
+                }),
+            )
+            .is_err()
         );
     }
 
