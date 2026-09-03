@@ -34,6 +34,7 @@ from cdmw.services.preview_workflow_service import scene_import_normalizes_textu
 from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions, StaticReplacementTransform, StaticTextureUvTransform
 
 __all__ = [
+    "MeshPrincipalFrame",
     "ModelImportSource",
     "ModelPlacement",
     "Vec3",
@@ -44,11 +45,35 @@ __all__ = [
     "load_model_import_source",
     "mesh_bounds",
     "mesh_centroid",
+    "mesh_principal_frame",
     "prepare_model_import_mesh_edit",
 ]
 
 Vec3 = Tuple[float, float, float]
 Bounds = Tuple[Vec3, Vec3]
+
+
+@dataclass(frozen=True)
+class MeshPrincipalFrame:
+    """A mesh's oriented bounds, ordered from its longest axis to its shortest.
+
+    The frame is used only for an unambiguous elongated source/template pair. A
+    near-symmetric helmet or accessory keeps the established axis-aligned fit,
+    where an unstable eigendirection would be worse than no extra rotation.
+    """
+
+    axes: Tuple[Vec3, Vec3, Vec3]
+    intervals: Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]
+    center: Vec3
+
+    @property
+    def extents(self) -> Vec3:
+        return tuple(max(0.0, high - low) for low, high in self.intervals)
+
+    @property
+    def is_elongated(self) -> bool:
+        long, middle, _short = self.extents
+        return long > 1e-9 and long >= max(middle, 1e-9) * 1.15
 
 
 class _ModelImportUsage:
@@ -207,6 +232,67 @@ def mesh_centroid(mesh: object) -> Optional[Vec3]:
     return tuple(value / count for value in total)
 
 
+def mesh_principal_frame(mesh: object) -> Optional[MeshPrincipalFrame]:
+    """Return a memory-bounded PCA frame for a mesh, or ``None`` without enough data."""
+
+    try:
+        import numpy as np
+    except Exception:  # pragma: no cover - the bundled runtime includes NumPy
+        return None
+
+    total = np.zeros(3, dtype=np.float64)
+    second = np.zeros((3, 3), dtype=np.float64)
+    count = 0
+    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        for vertex in tuple(getattr(submesh, "vertices", ()) or ()):
+            if len(vertex) < 3:
+                continue
+            point = np.asarray(vertex[:3], dtype=np.float64)
+            if not np.all(np.isfinite(point)):
+                continue
+            total += point
+            second += np.outer(point, point)
+            count += 1
+    if count < 3:
+        return None
+    mean = total / count
+    covariance = second / count - np.outer(mean, mean)
+    try:
+        eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    except np.linalg.LinAlgError:
+        return None
+    order = np.argsort(eigenvalues)[::-1]
+    if float(eigenvalues[order[0]]) <= 1e-18:
+        return None
+    axes = [np.asarray(eigenvectors[:, index], dtype=np.float64) for index in order]
+    if float(np.dot(np.cross(axes[0], axes[1]), axes[2])) < 0.0:
+        axes[2] = -axes[2]
+    lows = [math.inf, math.inf, math.inf]
+    highs = [-math.inf, -math.inf, -math.inf]
+    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        for vertex in tuple(getattr(submesh, "vertices", ()) or ()):
+            if len(vertex) < 3:
+                continue
+            point = np.asarray(vertex[:3], dtype=np.float64)
+            if not np.all(np.isfinite(point)):
+                continue
+            for index, axis in enumerate(axes):
+                value = float(np.dot(point, axis))
+                lows[index] = min(lows[index], value)
+                highs[index] = max(highs[index], value)
+    if any(not math.isfinite(value) for value in (*lows, *highs)):
+        return None
+    center_vector = sum(
+        (axis * ((lows[index] + highs[index]) * 0.5) for index, axis in enumerate(axes)),
+        np.zeros(3, dtype=np.float64),
+    )
+    return MeshPrincipalFrame(
+        axes=tuple(tuple(float(value) for value in axis) for axis in axes),
+        intervals=tuple((float(lows[index]), float(highs[index])) for index in range(3)),
+        center=tuple(float(value) for value in center_vector),
+    )
+
+
 def _dot(a: Sequence[float], b: Sequence[float]) -> float:
     return sum(float(x) * float(y) for x, y in zip(a, b))
 
@@ -218,6 +304,8 @@ def fitted_placement(
     source_centroid: Optional[Vec3] = None,
     template_centroid: Optional[Vec3] = None,
     match_grip: bool = True,
+    source_frame: Optional[MeshPrincipalFrame] = None,
+    template_frame: Optional[MeshPrincipalFrame] = None,
 ) -> ModelPlacement:
     """A first placement: scale uniformly to the template's longest extent, turn by right
     angles so the long and middle axes match, then centre the bounding boxes. Weapon
@@ -227,6 +315,19 @@ def fitted_placement(
 
     if source_bounds is None or template_bounds is None:
         return ModelPlacement()
+    if (
+        source_frame is not None
+        and template_frame is not None
+        and source_frame.is_elongated
+        and template_frame.is_elongated
+    ):
+        return _fitted_principal_placement(
+            source_frame,
+            template_frame,
+            source_centroid=source_centroid,
+            template_centroid=template_centroid,
+            match_grip=match_grip,
+        )
     s_lo, s_hi = source_bounds
     t_lo, t_hi = template_bounds
     s_ext = tuple(max(0.0, s_hi[i] - s_lo[i]) for i in range(3))
@@ -294,6 +395,131 @@ def fitted_placement(
             source_grip = source_low if ours > 0 else source_high
             offset[axis] = template_grip - source_grip
     return placement.with_values(offset=tuple(offset))
+
+
+def _row_matrix_vector(vector: Sequence[float], matrix: Sequence[Sequence[float]]) -> Vec3:
+    return tuple(
+        sum(float(vector[row]) * float(matrix[row][column]) for row in range(3))
+        for column in range(3)
+    )
+
+
+def _xyz_degrees_from_row_matrix(matrix: Sequence[Sequence[float]]) -> Vec3:
+    """Invert the shared row-vector ``Rx @ Ry @ Rz`` placement convention."""
+
+    sin_y = max(-1.0, min(1.0, -float(matrix[0][2])))
+    y = math.asin(sin_y)
+    if abs(math.cos(y)) > 1e-8:
+        x = math.atan2(float(matrix[1][2]), float(matrix[2][2]))
+        z = math.atan2(float(matrix[0][1]), float(matrix[0][0]))
+    else:
+        x = math.atan2(-float(matrix[2][1]), float(matrix[1][1]))
+        z = 0.0
+    return tuple(math.degrees(value) for value in (x, y, z))
+
+
+def _fitted_principal_placement(
+    source: MeshPrincipalFrame,
+    template: MeshPrincipalFrame,
+    *,
+    source_centroid: Optional[Vec3],
+    template_centroid: Optional[Vec3],
+    match_grip: bool,
+) -> ModelPlacement:
+    """Align two stable oriented frames, including a non-axis-aligned source."""
+
+    source_lean = (
+        tuple(source_centroid[index] - source.center[index] for index in range(3))
+        if source_centroid is not None
+        else None
+    )
+    template_lean = (
+        tuple(template_centroid[index] - template.center[index] for index in range(3))
+        if template_centroid is not None
+        else None
+    )
+    candidates = (
+        (1.0, 1.0, 1.0),
+        (1.0, -1.0, -1.0),
+        (-1.0, 1.0, -1.0),
+        (-1.0, -1.0, 1.0),
+    )
+    best_matrix = None
+    best_signs = candidates[0]
+    best_score = None
+    for signs in candidates:
+        signed_target = tuple(
+            tuple(signs[index] * component for component in template.axes[index])
+            for index in range(3)
+        )
+        # S * R = T for row-vector axes, so R = transpose(S) * T.
+        matrix = tuple(
+            tuple(
+                sum(source.axes[index][row] * signed_target[index][column] for index in range(3))
+                for column in range(3)
+            )
+            for row in range(3)
+        )
+        trace = sum(matrix[index][index] for index in range(3))
+        turn = math.acos(max(-1.0, min(1.0, (trace - 1.0) * 0.5)))
+        long_match = middle_match = 0
+        if match_grip and source_lean is not None and template_lean is not None:
+            turned_lean = _row_matrix_vector(source_lean, matrix)
+            for index, weight in ((0, 2), (1, 1)):
+                ours = _dot(turned_lean, template.axes[index])
+                theirs = _dot(template_lean, template.axes[index])
+                if (
+                    abs(ours) > 0.02 * template.extents[index]
+                    and abs(theirs) > 0.02 * template.extents[index]
+                ):
+                    matched = 1 if ours * theirs > 0.0 else -1
+                    if index == 0:
+                        long_match = matched * weight
+                    else:
+                        middle_match = matched * weight
+        score = (long_match, middle_match, -turn)
+        if best_score is None or score > best_score:
+            best_score = score
+            best_matrix = matrix
+            best_signs = signs
+
+    assert best_matrix is not None
+    source_length = source.extents[0]
+    template_length = template.extents[0]
+    scale = template_length / source_length if source_length > 1e-9 else 1.0
+    placement = ModelPlacement(
+        rotation=_xyz_degrees_from_row_matrix(best_matrix),
+        scale=(scale, scale, scale),
+    )
+    moved_center = placement.apply(source.center)
+    offset = [template.center[index] - moved_center[index] for index in range(3)]
+    placement = placement.with_values(offset=offset)
+
+    if match_grip and source_lean is not None and template_lean is not None:
+        turned_lean = _row_matrix_vector(source_lean, best_matrix)
+        ours = _dot(turned_lean, template.axes[0]) * scale
+        theirs = _dot(template_lean, template.axes[0])
+        if (
+            abs(ours) > 0.02 * template.extents[0]
+            and abs(theirs) > 0.02 * template.extents[0]
+        ):
+            template_low, template_high = template.intervals[0]
+            source_low, source_high = source.intervals[0]
+            if best_signs[0] < 0.0:
+                source_low, source_high = -source_high, -source_low
+            source_low *= scale
+            source_high *= scale
+            current_offset = _dot(placement.offset, template.axes[0])
+            template_grip = template_low if theirs > 0.0 else template_high
+            source_grip = source_low + current_offset if ours > 0.0 else source_high + current_offset
+            delta = template_grip - source_grip
+            placement = placement.with_values(
+                offset=tuple(
+                    placement.offset[index] + template.axes[0][index] * delta
+                    for index in range(3)
+                )
+            )
+    return placement
 
 
 def flip_v_transforms(mesh: object) -> Tuple[StaticTextureUvTransform, ...]:
@@ -435,10 +661,12 @@ class ModelImportSource:
     owns_extract_root: bool = False
     #: the mean vertex, for the fit's sense of which end is the heavy one
     centroid: Optional[Vec3] = None
+    principal_frame: Optional[MeshPrincipalFrame] = None
     #: immutable template facts prepared with the import on its worker. Re-fit uses these
     #: instead of reading and parsing the template PAC again on the UI thread.
     fit_template_bounds: Optional[Bounds] = None
     fit_template_centroid: Optional[Vec3] = None
+    fit_template_frame: Optional[MeshPrincipalFrame] = None
     fit_match_grip: bool = True
     #: the fit baked into the mesh the viewport and the build see; the numbers start at zero on top
     bake: ModelPlacement = field(default_factory=ModelPlacement)
@@ -811,6 +1039,7 @@ def load_model_import_source(
             extract_root=root,
             owns_extract_root=owns_root,
             centroid=mesh_centroid(scene.mesh),
+            principal_frame=mesh_principal_frame(scene.mesh),
         )
     except BaseException:
         if owns_root:

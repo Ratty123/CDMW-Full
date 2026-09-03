@@ -4128,11 +4128,25 @@ def _atomic_copy_texture_payload(
 
 
 def _mesh_has_material_synthesis_inputs(mesh: ParsedMesh) -> bool:
+    # External scene importers have already resolved their ordinary PBR images
+    # into renderer roles. Feeding those direct glTF/OBJ/DAE bindings through
+    # the PAC material compiler starts a native synthesis pass that cannot add
+    # any archive material information and used to dominate a small import's
+    # preview time. Converted FBX arrives as GLB/glTF here as well.
+    source_format = str(getattr(mesh, "format", "") or "").strip().casefold().lstrip(".")
+    if source_format in {"gltf", "glb", "obj", "dae", "collada"}:
+        return False
     return any(
         tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ())
         for level in _mesh_lods(mesh)
         for submesh in level
     )
+
+
+def rust_preview_mesh_needs_material_synthesis(mesh: ParsedMesh) -> bool:
+    """Whether a full tier can add anything beyond the direct texture tier."""
+
+    return _mesh_has_material_synthesis_inputs(mesh)
 
 
 def _validate_rust_material_synthesis_tree(
@@ -5681,6 +5695,16 @@ def _mesh_material_presentations(
                     "normal_y_policy": normal_y_policy,
                     "normal_y_inverted": normal_y_policy
                     == "invert_green_for_directx",
+                    "texture_flip_vertical": bool(
+                        source.get(
+                            "texture_flip_vertical",
+                            getattr(
+                                submeshes[material_index],
+                                "preview_texture_flip_vertical",
+                                False,
+                            ),
+                        )
+                    ),
                     "alpha_mode": alpha_mode,
                     "alpha_cutoff": _rust_material_optional_scalar(
                         source,

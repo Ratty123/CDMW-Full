@@ -27,6 +27,7 @@ from cdmw.ui.new_item.model_import import (
     load_model_import_source,
     mesh_bounds,
     mesh_centroid,
+    mesh_principal_frame,
     prepare_model_import_mesh_edit,
 )
 from cdmw.services.effect_catalogue import EffectCatalogue
@@ -115,6 +116,8 @@ class NewItemModelControllerMixin:
             source_centroid=source.centroid,
             template_centroid=source.fit_template_centroid,
             match_grip=source.fit_match_grip,
+            source_frame=source.principal_frame,
+            template_frame=source.fit_template_frame,
         )
 
     def _template_uses_weapon_fit(self) -> bool:
@@ -197,6 +200,7 @@ class NewItemModelControllerMixin:
                     template_mesh = None
             result.fit_template_bounds = mesh_bounds(template_mesh)
             result.fit_template_centroid = mesh_centroid(template_mesh)
+            result.fit_template_frame = mesh_principal_frame(template_mesh)
             result.fit_match_grip = bool(match_grip)
             result.set_bake(
                 fitted_placement(
@@ -205,6 +209,8 @@ class NewItemModelControllerMixin:
                     source_centroid=result.centroid,
                     template_centroid=result.fit_template_centroid,
                     match_grip=result.fit_match_grip,
+                    source_frame=result.principal_frame,
+                    template_frame=result.fit_template_frame,
                 )
             )
             progress(1, 1, "Model source ready")

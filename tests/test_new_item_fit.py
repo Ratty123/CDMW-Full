@@ -92,6 +92,73 @@ class FitTests(unittest.TestCase):
         self.assertEqual(fitted_placement(None, self.TEMPLATE).offset, (0.0, 0.0, 0.0))
         self.assertEqual(fitted_placement(self.TEMPLATE, None).scale, (1.0, 1.0, 1.0))
 
+    def test_a_diagonal_authored_weapon_is_straightened_to_the_template_axis(self) -> None:
+        """The supplied gravestone sword is authored diagonally inside its AABB. A
+        quarter-turn-only box fit leaves it visibly diagonal over a straight template."""
+
+        import math
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.model_import import mesh_bounds, mesh_principal_frame
+
+        angle = math.radians(39.0)
+        long_axis = (math.cos(angle), math.sin(angle), 0.0)
+        side_axis = (-math.sin(angle), math.cos(angle), 0.0)
+
+        def prism(axis, side, half_length, half_width):
+            return [
+                (
+                    axis[0] * along + side[0] * across,
+                    axis[1] * along + side[1] * across,
+                    z,
+                )
+                for along in (-half_length, half_length)
+                for across in (-half_width, half_width)
+                for z in (-0.01, 0.01)
+            ]
+
+        source_mesh = ParsedMesh(
+            path="diagonal.gltf",
+            format="gltf",
+            submeshes=[SubMesh(name="sword", vertices=prism(long_axis, side_axis, 2.0, 0.2), faces=[])],
+        )
+        template_mesh = ParsedMesh(
+            path="template.pac",
+            format="pac",
+            submeshes=[SubMesh(name="template", vertices=prism((0.0, 1.0, 0.0), (1.0, 0.0, 0.0), 1.0, 0.1), faces=[])],
+        )
+        source_frame = mesh_principal_frame(source_mesh)
+        template_frame = mesh_principal_frame(template_mesh)
+        self.assertIsNotNone(source_frame)
+        self.assertIsNotNone(template_frame)
+
+        placement = fitted_placement(
+            mesh_bounds(source_mesh),
+            mesh_bounds(template_mesh),
+            match_grip=False,
+            source_frame=source_frame,
+            template_frame=template_frame,
+        )
+        matrix = placement.matrix()
+        mapped_long = (
+            source_frame.axes[0][0] * matrix[0] + source_frame.axes[0][1] * matrix[4] + source_frame.axes[0][2] * matrix[8],
+            source_frame.axes[0][0] * matrix[1] + source_frame.axes[0][1] * matrix[5] + source_frame.axes[0][2] * matrix[9],
+            source_frame.axes[0][0] * matrix[2] + source_frame.axes[0][1] * matrix[6] + source_frame.axes[0][2] * matrix[10],
+        )
+        alignment = abs(sum(mapped_long[index] * template_frame.axes[0][index] for index in range(3)))
+        self.assertAlmostEqual(alignment / placement.scale[0], 1.0, places=5)
+        self.assertAlmostEqual(
+            source_frame.extents[0] * placement.scale[0],
+            template_frame.extents[0],
+            places=6,
+        )
+        for actual, expected in zip(placement.apply(source_frame.center), template_frame.center):
+            self.assertAlmostEqual(actual, expected, places=6)
+        self.assertFalse(
+            all(abs(value / 90.0 - round(value / 90.0)) < 1e-5 for value in placement.rotation),
+            "the fit must correct the authored diagonal, not choose another quarter turn",
+        )
+
     def test_bake_uses_the_native_affine_path_and_preserves_direction_channels(self) -> None:
         from unittest.mock import patch
 

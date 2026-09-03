@@ -340,7 +340,16 @@ def build_item_preview_package(
     if item is None:
         raise ValueError("there is nothing to show")
 
-    def progressive_material_package(build_quality: Callable[[str], object]) -> object:
+    def progressive_material_package(
+        build_quality: Callable[[str], object],
+        *,
+        needs_full_material_tier: bool = True,
+    ) -> object:
+        if bool(include_material_resources) and not needs_full_material_tier:
+            # Imported glTF/OBJ/DAE images are already the complete material
+            # authority. Publish that direct package once; a second nominal
+            # "full" package would contain the same result and reload the view.
+            return build_quality("direct")
         if bool(include_material_resources) and fast_package_ready is not None:
             try:
                 direct = build_quality("direct")
@@ -360,6 +369,7 @@ def build_item_preview_package(
 
     if isinstance(item, PlacementScene):
         from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+        from cdmw.services.mesh_rust_authoring import rust_preview_mesh_needs_material_synthesis
 
         model = (
             _prepare_preview_model(
@@ -409,7 +419,10 @@ def build_item_preview_package(
                 scene_transform=item.placement.build_transform(origin=item.model_origin),
                 include_material_resources=bool(include_material_resources),
                 material_quality=quality,
-            )
+            ),
+            # The template/character role is wire-only in this workspace, so
+            # only the imported editable model can require a material compiler.
+            needs_full_material_tier=rust_preview_mesh_needs_material_synthesis(model_mesh),
         )
     elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
         from cdmw.services.mesh_rust_preview_cache import (
@@ -437,6 +450,7 @@ def build_item_preview_package(
         )
     else:
         from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+        from cdmw.services.mesh_rust_authoring import rust_preview_mesh_needs_material_synthesis
 
         package = progressive_material_package(
             lambda quality: build_rust_preview_package(
@@ -448,7 +462,8 @@ def build_item_preview_package(
                 cancelled=stop_event.is_set,
                 include_material_resources=bool(include_material_resources),
                 material_quality=quality,
-            )
+            ),
+            needs_full_material_tier=rust_preview_mesh_needs_material_synthesis(item),
         )
     return Path(package.package_dir)
 
@@ -522,6 +537,7 @@ class ItemPreviewFrame(QWidget):
         #: the placement scene's state: None outside a placement
         self._placement: Optional[ModelPlacement] = None
         self._placement_base: Optional[ModelPlacement] = None
+        self._last_pushed_placement: Optional[ModelPlacement] = None
         self._gizmo_tool = "move"
         self._gizmo_enabled = True
         self._view_mode = "overlay"
@@ -606,6 +622,7 @@ class ItemPreviewFrame(QWidget):
 
         self._placement = None
         self._placement_base = None
+        self._last_pushed_placement = None
         self._placement_grid_normal_axis = "y"
         self._show(source, token=token, is_placement=False)
 
@@ -618,6 +635,7 @@ class ItemPreviewFrame(QWidget):
             self._upgrade_request = None
             self._full_texture_upgrade_from_fast = False
             self._placement = None
+            self._last_pushed_placement = None
             self._placement_grid_normal_axis = "y"
             self.is_ready = False
             self._drop_deferred_package()
@@ -683,6 +701,9 @@ class ItemPreviewFrame(QWidget):
         placement and gizmo state."""
 
         same = self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready or self._deferred_package is not None)
+        previous_placement = self._placement
+        previous_gizmo_enabled = self._gizmo_enabled
+        previous_model_bounds = self._model_bounds
         self._placement = placement
         self._gizmo_enabled = bool(gizmo_enabled)
         self._model_bounds = model_bounds
@@ -690,8 +711,13 @@ class ItemPreviewFrame(QWidget):
             grid_bounds if grid_bounds is not None else model_bounds
         )
         if same:
-            if self.is_ready:
-                self._apply_placement_presentation()
+            if self.is_ready and self.host is not None:
+                if previous_model_bounds != model_bounds and model_bounds is not None:
+                    self.host.remember_editable_local_bounds(model_bounds[0], model_bounds[1])
+                if previous_gizmo_enabled != self._gizmo_enabled:
+                    self.host.set_alignment_state(enabled=self._gizmo_enabled)
+                if previous_placement != placement:
+                    self._push_placement()
             return
         self._show(source, token=token, is_placement=True)
 
@@ -780,7 +806,14 @@ class ItemPreviewFrame(QWidget):
         placement = self._placement
         if host is None or placement is None or not self.is_ready:
             return
-        host.set_alignment_preview_transform(translation=placement.offset, rotation_degrees=placement.rotation, scale_xyz=placement.scale)
+        if placement == self._last_pushed_placement:
+            return
+        if host.set_alignment_preview_transform(
+            translation=placement.offset,
+            rotation_degrees=placement.rotation,
+            scale_xyz=placement.scale,
+        ):
+            self._last_pushed_placement = placement
 
     def _drag_started(self) -> None:
         if self._placement is not None:
@@ -1017,6 +1050,7 @@ class ItemPreviewFrame(QWidget):
         previous_stage = self._loaded_stage
         reset_view = previous is None or stage == "geometry" or self._loaded_token != token
         if self.host.load_package(result, reset_view=reset_view):
+            self._last_pushed_placement = None
             self._package_dir = result
             if previous is not None and previous != result:
                 self._retire_after_ready.append(previous)

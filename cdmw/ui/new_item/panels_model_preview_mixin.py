@@ -114,7 +114,6 @@ class ModelPanelPreviewMixin:
             self._sync_placement_numbers(placement)
             if self._controller.model_import is not None:
                 self.preview.set_placement(placement)
-                self.refresh_preview()
 
     def _sync_placement_numbers(self, placement: ModelPlacement) -> None:
         self._syncing_numbers = True

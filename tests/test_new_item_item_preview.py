@@ -130,6 +130,40 @@ class ItemPreviewPackageTests(unittest.TestCase):
         self.assertEqual(ready, [direct])
         self.assertEqual(result, full.package_dir)
 
+    def test_external_placement_does_not_build_a_duplicate_full_material_package(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item import item_preview
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        root = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_external_direct_"))
+        model = ParsedMesh(
+            path="diagonal.gltf",
+            format="gltf",
+            submeshes=[SubMesh(name="model", vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)])],
+        )
+        template = ParsedMesh(
+            path="template.pac",
+            format="pac",
+            submeshes=[SubMesh(name="template", vertices=[(0, 0, 0), (0, 1, 0), (0, 0, 1)], faces=[(0, 1, 2)])],
+        )
+        calls = []
+
+        def fake_build(_mesh, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(package_dir=root / "direct")
+
+        with patch("cdmw.services.mesh_rust_preview_package.build_rust_preview_package", fake_build):
+            result = item_preview.build_item_preview_package(
+                item_preview.PlacementScene(template=template, model=model, placement=ModelPlacement()),
+                token="external-placement",
+                output_root=root,
+                stop_event=threading.Event(),
+                fast_package_ready=lambda _package: self.fail("one final direct package needs no interim reload"),
+            )
+
+        self.assertEqual(result, root / "direct")
+        self.assertEqual([call["material_quality"] for call in calls], ["direct"])
+
     def test_a_preview_model_goes_the_textured_route_and_a_mesh_the_bare_one(self) -> None:
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
         from cdmw.ui.new_item import item_preview
@@ -644,10 +678,18 @@ class ItemPreviewFrameTests(unittest.TestCase):
         )
         frame.set_gizmo_enabled(False)
         self.assertFalse(next(c for c in reversed(host.calls) if c[0] == "set_alignment_state")[2]["enabled"])
-        # the same token with a new placement only re-presents
+        # the same token changes only the resident transform; it does not replay the
+        # complete presentation or send the same transform twice.
         host.calls.clear()
         frame.show_placement(lambda _stop: None, token="p", placement=ModelPlacement())
-        self.assertIn("set_alignment_preview_transform", [c[0] for c in host.calls])
+        self.assertEqual(
+            [c[0] for c in host.calls],
+            ["set_alignment_state", "set_alignment_preview_transform"],
+            "the previously disabled gizmo is re-enabled without replaying the scene presentation",
+        )
+        host.calls.clear()
+        frame.show_placement(lambda _stop: None, token="p", placement=ModelPlacement())
+        self.assertEqual(host.calls, [])
         # a new request takes the gizmo off the scene on screen at once
         host.calls.clear()
         with patch.object(ItemPreviewFrame, "_start_package", lambda self_, request: None):
@@ -658,6 +700,40 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertIsNone(frame.placement)
         self.assertFalse(frame.showing_placement)
         frame._closed = True
+
+    def test_panel_records_a_finished_gizmo_drag_without_refreshing_the_package(self) -> None:
+        from cdmw.ui.new_item.model_import import ModelPlacement
+        from cdmw.ui.new_item.panels_model_preview_mixin import ModelPanelPreviewMixin
+
+        placement = ModelPlacement(offset=(0.2, 0.0, 0.0))
+        preview = SimpleNamespace(set_placement=lambda value: calls.append(("placement", value)))
+        controller = SimpleNamespace(model_import=object())
+        calls = []
+        panel = SimpleNamespace(
+            _controller=controller,
+            preview=preview,
+            _sync_placement_numbers=lambda value: calls.append(("numbers", value)),
+            refresh_preview=lambda: calls.append(("refresh", None)),
+        )
+
+        ModelPanelPreviewMixin._placement_changed(panel, placement)
+
+        self.assertEqual(calls, [("numbers", placement), ("placement", placement)])
+
+    def test_rust_material_presentation_carries_the_imported_v_flip(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+
+        mesh = ParsedMesh(
+            path="model.gltf",
+            format="gltf",
+            submeshes=[SubMesh(name="model", vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)])],
+        )
+        mesh.submeshes[0].preview_texture_flip_vertical = True
+        package = build_rust_preview_package(mesh, include_material_resources=False)
+        manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(manifest["material_presentations"][0]["texture_flip_vertical"])
 
     def test_the_finished_build_is_read_back_on_this_thread(self) -> None:
         """`completed` is connected to a bound method of the frame, so Qt runs it on the

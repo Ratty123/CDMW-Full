@@ -120,9 +120,13 @@ Create New Item creates a new equipment row from a shipped template; it never
 silently overwrites the template. Search covers the internal name, localized
 English name, numeric item key, and equipment type. Template and imported-model
 previews use the same resident Rust D3D12 host and native Preview Core cache as the
-Archive Browser, with geometry and direct low-quality textures allowed to arrive
-before the complete synthesized material package. Model placement, icon capture,
-the enhancement ladder, base prices,
+Archive Browser. Imported glTF, GLB, OBJ, DAE, and converted-FBX materials arrive
+as one complete direct-texture package, preserve their vertical texture orientation,
+and do not trigger a duplicate PAC-material pass. Placement aligns elongated models
+from their principal axes instead of only trying right-angle rotations; its muted
+depth-tested grid, distinct reference wire, and labelled red X, green Y, and blue Z
+gizmo remain resident while numeric and gizmo movement update in place. Model
+placement, icon capture, the enhancement ladder, base prices,
 Abyss Gear perks, shop and item-group membership, and the final file plan stay
 visible as separate decisions.
 

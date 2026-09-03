@@ -1835,6 +1835,7 @@ fn cdmw_material_preview_factors(
         category_code: Some(presentation.category_code),
         category_confidence: Some(presentation.category_confidence),
         normal_y_inverted: Some(presentation.normal_y_inverted),
+        texture_flip_vertical: Some(presentation.texture_flip_vertical),
         skin_detail_scale: presentation.skin_detail_scale,
         skin_detail_opacity: presentation.skin_detail_opacity,
     }

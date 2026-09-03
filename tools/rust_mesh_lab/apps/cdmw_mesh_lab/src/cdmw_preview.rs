@@ -1079,7 +1079,12 @@ impl PreviewApplication {
         matrix
     }
 
-    fn push_submesh_edges(&self, lines: &mut Vec<[f32; 3]>, wanted: &HashSet<u32>) {
+    fn push_submesh_edges(
+        &self,
+        lines: &mut Vec<EffectLineVertex>,
+        wanted: &HashSet<u32>,
+        colour: [f32; 4],
+    ) {
         const MAX_GUIDE_VERTICES: usize = 240_000;
         for (_handle, face) in self.mesh.faces() {
             if !wanted.contains(&face.submesh) || lines.len() >= MAX_GUIDE_VERTICES {
@@ -1094,14 +1099,9 @@ impl PreviewApplication {
             let [Some(a), Some(b), Some(c)] = points else {
                 continue;
             };
-            lines.extend_from_slice(&[
-                a.to_array(),
-                b.to_array(),
-                b.to_array(),
-                c.to_array(),
-                c.to_array(),
-                a.to_array(),
-            ]);
+            push_effect_line(lines, a, b, colour);
+            push_effect_line(lines, b, c, colour);
+            push_effect_line(lines, c, a, colour);
         }
     }
 
@@ -1133,12 +1133,15 @@ impl PreviewApplication {
             }
         }
 
-        let mut lines = Vec::new();
+        let mut guide_lines = Vec::new();
+        let mut emphasis_lines = Vec::new();
         let display = self
             .state
             .presentation
             .get("display")
             .unwrap_or(&Value::Null);
+        let quality = display.get("quality").unwrap_or(&Value::Null);
+        let guide_colours = scene_guide_colours(quality);
         if display
             .get("grid_visible")
             .and_then(Value::as_bool)
@@ -1147,7 +1150,6 @@ impl PreviewApplication {
             let grid = self.state.scene.get("grid").unwrap_or(&Value::Null);
             let origin = vec3_value(grid.get("origin"), Vec3::ZERO);
             let (grid_u, grid_v) = grid_plane_axes(grid);
-            let quality = display.get("quality").unwrap_or(&Value::Null);
             let spacing = grid.get("spacing").and_then(Value::as_f64).unwrap_or(0.1) as f32
                 * quality
                     .get("d3d11_grid_spacing_scale")
@@ -1162,12 +1164,23 @@ impl PreviewApplication {
             let radius = spacing.max(0.001) * count as f32;
             for index in -count..=count {
                 let offset = spacing * index as f32;
-                lines.extend_from_slice(&[
-                    (origin - grid_u * radius + grid_v * offset).to_array(),
-                    (origin + grid_u * radius + grid_v * offset).to_array(),
-                    (origin + grid_u * offset - grid_v * radius).to_array(),
-                    (origin + grid_u * offset + grid_v * radius).to_array(),
-                ]);
+                let colour = if index == 0 {
+                    guide_colours.grid_major
+                } else {
+                    guide_colours.grid
+                };
+                push_effect_line(
+                    &mut guide_lines,
+                    origin - grid_u * radius + grid_v * offset,
+                    origin + grid_u * radius + grid_v * offset,
+                    colour,
+                );
+                push_effect_line(
+                    &mut guide_lines,
+                    origin + grid_u * offset - grid_v * radius,
+                    origin + grid_u * offset + grid_v * radius,
+                    colour,
+                );
             }
         }
 
@@ -1211,7 +1224,12 @@ impl PreviewApplication {
                         })
                         .collect::<Vec<_>>();
                     if points.len() == 2 {
-                        lines.extend_from_slice(&points);
+                        push_effect_line(
+                            &mut guide_lines,
+                            Vec3::from_array(points[0]),
+                            Vec3::from_array(points[1]),
+                            guide_colours.cloth,
+                        );
                     }
                 }
             }
@@ -1230,6 +1248,11 @@ impl PreviewApplication {
                 .unwrap_or(true);
         if gizmo_visible {
             let pivot = vec3_value(self.state.scene.get("placement_pivot"), Vec3::ZERO);
+            let size_scale = quality
+                .get("gizmo_size_scale")
+                .and_then(Value::as_f64)
+                .unwrap_or(1.0)
+                .clamp(0.5, 3.0) as f32;
             let length = self
                 .state
                 .scene
@@ -1237,11 +1260,16 @@ impl PreviewApplication {
                 .and_then(|value| value.get("extent"))
                 .and_then(Value::as_f64)
                 .unwrap_or(1.0) as f32
-                * 0.12;
-            for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
-                lines.push(pivot.to_array());
-                lines.push((pivot + axis * length.max(0.025)).to_array());
-            }
+                * 0.18
+                * size_scale;
+            push_gizmo_axes(
+                &mut emphasis_lines,
+                pivot,
+                length.max(0.04),
+                self.camera.right(),
+                self.camera.up(),
+                guide_colours.gizmo,
+            );
         }
 
         let comparison_mode = self
@@ -1265,7 +1293,11 @@ impl PreviewApplication {
                 .unwrap_or("wire")
                 == "wire"
         {
-            self.push_submesh_edges(&mut lines, &reference_indices(&self.state.scene));
+            self.push_submesh_edges(
+                &mut guide_lines,
+                &reference_indices(&self.state.scene),
+                guide_colours.reference,
+            );
         }
         let highlighted = self
             .state
@@ -1288,10 +1320,14 @@ impl PreviewApplication {
                         .then_some(face.submesh)
                 })
                 .collect::<HashSet<_>>();
-            self.push_submesh_edges(&mut lines, &scene_submeshes);
+            self.push_submesh_edges(
+                &mut emphasis_lines,
+                &scene_submeshes,
+                guide_colours.highlight,
+            );
         }
 
-        let mut effect_lines = Vec::new();
+        let mut effect_lines = emphasis_lines;
         if display
             .get("effect_particles_visible")
             .and_then(Value::as_bool)
@@ -1336,7 +1372,7 @@ impl PreviewApplication {
         if let Some(renderer) = &mut self.renderer {
             let _ = renderer.set_skeleton_lines(&skeleton_lines);
             renderer.set_bone_overlay(skeleton_visible && !skeleton_lines.is_empty());
-            let _ = renderer.set_preview_lines(&lines);
+            let _ = renderer.set_preview_lines(&guide_lines);
             let _ = renderer.set_effect_lines(&effect_lines);
         }
     }
@@ -3034,6 +3070,132 @@ fn parse_color(value: &str) -> Option<[f32; 4]> {
     ])
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct SceneGuideColours {
+    grid: [f32; 4],
+    grid_major: [f32; 4],
+    reference: [f32; 4],
+    cloth: [f32; 4],
+    highlight: [f32; 4],
+    gizmo: [[f32; 4]; 3],
+}
+
+fn quality_colour(quality: &Value, key: &str, fallback: [f32; 4]) -> [f32; 4] {
+    quality
+        .get(key)
+        .and_then(Value::as_str)
+        .and_then(parse_color)
+        .unwrap_or(fallback)
+}
+
+fn scene_guide_colours(quality: &Value) -> SceneGuideColours {
+    let mut grid = quality_colour(quality, "d3d11_grid_color", [0.35, 0.41, 0.47, 1.0]);
+    grid[3] = 0.30;
+    let grid_major = [
+        (grid[0] * 1.22).min(1.0),
+        (grid[1] * 1.22).min(1.0),
+        (grid[2] * 1.22).min(1.0),
+        0.48,
+    ];
+    let fallback_reference = [0.18, 0.68, 1.0, 0.92];
+    let mut reference = quality_colour(quality, "d3d11_wire_color", fallback_reference);
+    let reference_luma = reference[0] * 0.299 + reference[1] * 0.587 + reference[2] * 0.114;
+    let distance = (reference[0] - grid[0]).powi(2)
+        + (reference[1] - grid[1]).powi(2)
+        + (reference[2] - grid[2]).powi(2);
+    if reference_luma < 0.08 || distance < 0.035 {
+        reference = fallback_reference;
+    } else {
+        reference[3] = 0.92;
+    }
+    SceneGuideColours {
+        grid,
+        grid_major,
+        reference,
+        cloth: [0.82, 0.68, 0.30, 0.72],
+        highlight: quality_colour(quality, "gizmo_highlight_color", [1.0, 0.88, 0.37, 0.96]),
+        gizmo: [
+            quality_colour(quality, "gizmo_x_axis_color", [0.92, 0.29, 0.29, 1.0]),
+            quality_colour(quality, "gizmo_y_axis_color", [0.31, 0.86, 0.41, 1.0]),
+            quality_colour(quality, "gizmo_z_axis_color", [0.29, 0.57, 1.0, 1.0]),
+        ],
+    }
+}
+
+fn push_axis_label(
+    lines: &mut Vec<EffectLineVertex>,
+    center: Vec3,
+    right: Vec3,
+    up: Vec3,
+    size: f32,
+    label: char,
+    colour: [f32; 4],
+) {
+    let r = right.normalize_or(Vec3::X) * size;
+    let u = up.normalize_or(Vec3::Y) * size;
+    match label {
+        'X' => {
+            push_effect_line(lines, center - r - u, center + r + u, colour);
+            push_effect_line(lines, center - r + u, center + r - u, colour);
+        }
+        'Y' => {
+            push_effect_line(lines, center - r + u, center, colour);
+            push_effect_line(lines, center + r + u, center, colour);
+            push_effect_line(lines, center, center - u, colour);
+        }
+        'Z' => {
+            push_effect_line(lines, center - r + u, center + r + u, colour);
+            push_effect_line(lines, center + r + u, center - r - u, colour);
+            push_effect_line(lines, center - r - u, center + r - u, colour);
+        }
+        _ => {}
+    }
+}
+
+fn push_gizmo_axes(
+    lines: &mut Vec<EffectLineVertex>,
+    pivot: Vec3,
+    length: f32,
+    camera_right: Vec3,
+    camera_up: Vec3,
+    colours: [[f32; 4]; 3],
+) {
+    for (index, (axis, label)) in [(Vec3::X, 'X'), (Vec3::Y, 'Y'), (Vec3::Z, 'Z')]
+        .into_iter()
+        .enumerate()
+    {
+        let colour = colours[index];
+        let tip = pivot + axis * length;
+        let perpendicular = if axis.dot(camera_right).abs() < 0.86 {
+            camera_right.normalize_or(Vec3::X)
+        } else {
+            camera_up.normalize_or(Vec3::Y)
+        };
+        push_effect_line(lines, pivot, tip, colour);
+        push_effect_line(
+            lines,
+            tip,
+            tip - axis * length * 0.15 + perpendicular * length * 0.08,
+            colour,
+        );
+        push_effect_line(
+            lines,
+            tip,
+            tip - axis * length * 0.15 - perpendicular * length * 0.08,
+            colour,
+        );
+        push_axis_label(
+            lines,
+            tip + axis * length * 0.22,
+            camera_right,
+            camera_up,
+            length * 0.075,
+            label,
+            colour,
+        );
+    }
+}
+
 fn grid_plane_axes(grid: &Value) -> (Vec3, Vec3) {
     match grid
         .get("normal_axis")
@@ -3102,6 +3264,28 @@ mod tests {
             grid_plane_axes(&json!({"normal_axis": "x"})),
             (Vec3::Y, Vec3::Z),
         );
+    }
+
+    #[test]
+    fn grid_reference_and_xyz_gizmo_use_distinct_readable_colours() {
+        let colours = scene_guide_colours(&json!({
+            "d3d11_grid_color": "#39C5FF",
+            "d3d11_wire_color": "#39C5FF",
+            "gizmo_x_axis_color": "#EB4B4B",
+            "gizmo_y_axis_color": "#50DC69",
+            "gizmo_z_axis_color": "#4B91FF"
+        }));
+        assert_ne!(colours.grid[..3], colours.reference[..3]);
+        assert!(colours.grid[3] < colours.reference[3]);
+        assert_ne!(colours.gizmo[0], colours.gizmo[1]);
+        assert_ne!(colours.gizmo[1], colours.gizmo[2]);
+
+        let mut lines = Vec::new();
+        push_gizmo_axes(&mut lines, Vec3::ZERO, 1.0, Vec3::X, Vec3::Y, colours.gizmo);
+        assert_eq!(lines.len(), 34, "three arrows and the X/Y/Z line labels");
+        for colour in colours.gizmo {
+            assert!(lines.iter().any(|vertex| vertex.colour == colour));
+        }
     }
 
     #[test]

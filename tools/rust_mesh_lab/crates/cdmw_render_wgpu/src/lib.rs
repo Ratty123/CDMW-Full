@@ -90,6 +90,7 @@ const MATERIAL_SKIN_DETAIL_NORMAL: u32 = 1048576u;
 const MATERIAL_SKIN_DETAIL_MATERIAL: u32 = 2097152u;
 const MATERIAL_GLOSSINESS: u32 = 4194304u;
 const MATERIAL_TEXTURE_TINT: u32 = 8388608u;
+const MATERIAL_FLIP_V: u32 = 16777216u;
 const MATERIAL_MIP_LOD_BIAS: f32 = -2.0;
 
 fn make_vertex_out(
@@ -340,8 +341,12 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     if camera.view_mode == 1u {
         return present(neutral_surface(input.normal, front_facing), 1.0);
     }
+    var sample_uv = input.uv;
+    if (material.flags & MATERIAL_FLIP_V) != 0u {
+        sample_uv.y = 1.0 - sample_uv.y;
+    }
     if camera.view_mode == 4u {
-        let checker = (u32(floor(input.uv.x * 16.0)) + u32(floor(input.uv.y * 16.0))) & 1u;
+        let checker = (u32(floor(sample_uv.x * 16.0)) + u32(floor(sample_uv.y * 16.0))) & 1u;
         let value = select(0.08, 0.88, checker != 0u);
         return present_srgb(vec3<f32>(value), 1.0);
     }
@@ -353,7 +358,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         return present(neutral_surface(input.normal, front_facing), 1.0);
     }
 
-    var texel = textureSampleBias(base_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS);
+    var texel = textureSampleBias(base_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
     if (material.flags & MATERIAL_TEXTURE_TINT) != 0u {
         let texture_tint = max(
             material.texture_tint_and_strength.rgb,
@@ -402,7 +407,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     }
     var material_alpha = texel.a;
     if (material.flags & MATERIAL_OPACITY) != 0u {
-        material_alpha = textureSampleBias(opacity_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS).r;
+        material_alpha = textureSampleBias(opacity_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r;
     }
     if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u {
         if material_alpha < material.surface_factors.w {
@@ -422,7 +427,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     if camera.view_mode == 7u {
         var layer_mask = texel.a;
         if (material.flags & MATERIAL_LAYER_MASK) != 0u {
-            let mask = textureSampleBias(layer_mask_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS);
+            let mask = textureSampleBias(layer_mask_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
             layer_mask = mask[min(u32(material.relief_factors.y), 3u)];
         }
         return present_srgb(vec3<f32>(layer_mask), 1.0);
@@ -432,7 +437,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     let bitangent = normalize(cross(geometry_normal, tangent)) * input.tangent.w;
     var tangent_normal = vec3<f32>(0.0, 0.0, 1.0);
     if (material.flags & MATERIAL_NORMAL) != 0u {
-        var tangent_xy = textureSampleBias(normal_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS).xy * 2.0 - vec2<f32>(1.0);
+        var tangent_xy = textureSampleBias(normal_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).xy * 2.0 - vec2<f32>(1.0);
         if (material.flags & MATERIAL_NORMAL_Y_INVERTED) != 0u {
             tangent_xy.y = -tangent_xy.y;
         }
@@ -445,12 +450,12 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             textureSampleBias(
                 skin_detail_mask_texture,
                 material_sampler,
-                input.uv,
+                sample_uv,
                 MATERIAL_MIP_LOD_BIAS).r * material.skin_detail_opacity,
             0.0,
             1.0);
     }
-    let skin_detail_uv = input.uv / max(material.skin_detail_scale, 0.001);
+    let skin_detail_uv = sample_uv / max(material.skin_detail_scale, 0.001);
     if (material.flags & MATERIAL_SKIN_DETAIL_NORMAL) != 0u && skin_detail_weight > 0.0001 {
         var detail_xy = textureSampleBias(
             skin_detail_normal_texture,
@@ -473,19 +478,19 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         + geometry_normal * tangent_normal.z);
     var height_value = 0.5;
     if (material.flags & MATERIAL_HEIGHT) != 0u {
-        height_value = textureSampleBias(height_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS).r;
-        var height_uv_x = dpdx(input.uv);
-        var height_uv_y = dpdy(input.uv);
+        height_value = textureSampleBias(height_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r;
+        var height_uv_x = dpdx(sample_uv);
+        var height_uv_y = dpdy(sample_uv);
         if dot(height_uv_x, height_uv_x) < 1e-8 {
             height_uv_x = vec2<f32>(1.0 / 1024.0, 0.0);
         }
         if dot(height_uv_y, height_uv_y) < 1e-8 {
             height_uv_y = vec2<f32>(0.0, 1.0 / 1024.0);
         }
-        let height_x = textureSampleBias(height_texture, material_sampler, input.uv + height_uv_x, MATERIAL_MIP_LOD_BIAS).r
-            - textureSampleBias(height_texture, material_sampler, input.uv - height_uv_x, MATERIAL_MIP_LOD_BIAS).r;
-        let height_y = textureSampleBias(height_texture, material_sampler, input.uv + height_uv_y, MATERIAL_MIP_LOD_BIAS).r
-            - textureSampleBias(height_texture, material_sampler, input.uv - height_uv_y, MATERIAL_MIP_LOD_BIAS).r;
+        let height_x = textureSampleBias(height_texture, material_sampler, sample_uv + height_uv_x, MATERIAL_MIP_LOD_BIAS).r
+            - textureSampleBias(height_texture, material_sampler, sample_uv - height_uv_x, MATERIAL_MIP_LOD_BIAS).r;
+        let height_y = textureSampleBias(height_texture, material_sampler, sample_uv + height_uv_y, MATERIAL_MIP_LOD_BIAS).r
+            - textureSampleBias(height_texture, material_sampler, sample_uv - height_uv_y, MATERIAL_MIP_LOD_BIAS).r;
         let height_normal = normalize(
             surface_normal - tangent * height_x * 2.4 + bitangent * height_y * 2.4);
         surface_normal = normalize(mix(
@@ -534,21 +539,21 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     var metalness = 0.0;
     var skin_subsurface_multiplier = 1.0;
     if (material.flags & MATERIAL_SURFACE) != 0u {
-        let packed = textureSampleBias(material_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS);
+        let packed = textureSampleBias(material_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
         roughness = clamp(packed.g, 0.04, 1.0);
         metalness = clamp(packed.b, 0.0, 1.0);
     }
     if (material.flags & MATERIAL_ROUGHNESS) != 0u {
-        roughness = clamp(textureSampleBias(roughness_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS).r, 0.04, 1.0);
+        roughness = clamp(textureSampleBias(roughness_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r, 0.04, 1.0);
     }
     if (material.flags & MATERIAL_METALNESS) != 0u {
-        metalness = clamp(textureSampleBias(metalness_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
+        metalness = clamp(textureSampleBias(metalness_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
     }
     if has_skin_specular_response {
         let skin_specular_response = textureSampleBias(
             specular_texture,
             material_sampler,
-            input.uv,
+            sample_uv,
             MATERIAL_MIP_LOD_BIAS).rgb;
         // SkinnedMeshSkin packs subsurface response in R and direct roughness
         // in G. B is deliberately ignored: unlike equipment `_sp`, it is not
@@ -563,7 +568,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         let authored_glossiness = clamp(textureSampleBias(
             glossiness_texture,
             material_sampler,
-            input.uv,
+            sample_uv,
             MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
         roughness = clamp(1.0 - authored_glossiness, 0.04, 1.0);
     }
@@ -613,7 +618,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     }
     var raw_occlusion = 1.0;
     if (material.flags & MATERIAL_OCCLUSION) != 0u {
-        raw_occlusion = clamp(textureSampleBias(occlusion_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
+        raw_occlusion = clamp(textureSampleBias(occlusion_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
     }
     var occlusion_category_weight = 0.78;
     if is_metal { occlusion_category_weight = 1.0; }
@@ -740,7 +745,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     );
     let source_stable_f0 = f0;
     if (material.flags & MATERIAL_SPECULAR) != 0u && !is_skin {
-        let mapped_specular = textureSampleBias(specular_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS).rgb;
+        let mapped_specular = textureSampleBias(specular_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).rgb;
         let source_weight = max(metalness, select(0.0, 0.75, is_glossy));
         f0 = mix(f0, max(f0, mapped_specular), vec3<f32>(source_weight));
     }
@@ -818,7 +823,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             * (0.20 + 0.80 * (1.0 - roughness))
             * 0.62;
         if (material.flags & MATERIAL_HAIR_FLOW) != 0u {
-            let flow = textureSampleBias(flow_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS).xy * 2.0
+            let flow = textureSampleBias(flow_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).xy * 2.0
                 - vec2<f32>(1.0);
             var flow_direction = vec2<f32>(0.0, 1.0);
             let flow_length_squared = dot(flow, flow);
@@ -982,7 +987,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     var emissive = vec3<f32>(0.0);
     if (material.flags & MATERIAL_EMISSIVE) != 0u {
         let emissive_sample = textureSampleBias(
-            emissive_texture, material_sampler, input.uv, MATERIAL_MIP_LOD_BIAS);
+            emissive_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
         let emissive_rgb = select(
             emissive_sample.rgb,
             emissive_sample.rrr,
@@ -1159,6 +1164,7 @@ const MATERIAL_SKIN_DETAIL_NORMAL: u32 = 1048576;
 const MATERIAL_SKIN_DETAIL_MATERIAL: u32 = 2097152;
 const MATERIAL_GLOSSINESS: u32 = 4194304;
 const MATERIAL_TEXTURE_TINT: u32 = 8388608;
+const MATERIAL_FLIP_V: u32 = 16777216;
 const NEUTRAL_MISSING_BASE_COLOR_SRGB: [u8; 4] = [144, 144, 144, 255];
 
 impl CameraUniform {
@@ -1272,6 +1278,7 @@ pub struct MaterialPreviewFactors {
     pub category_code: Option<u32>,
     pub category_confidence: Option<f32>,
     pub normal_y_inverted: Option<bool>,
+    pub texture_flip_vertical: Option<bool>,
     pub skin_detail_scale: Option<f32>,
     pub skin_detail_opacity: Option<f32>,
 }
@@ -2162,6 +2169,7 @@ pub struct WindowRenderer {
     normal_pipeline: wgpu::RenderPipeline,
     bounds_pipeline: wgpu::RenderPipeline,
     bone_pipeline: wgpu::RenderPipeline,
+    guide_pipeline: wgpu::RenderPipeline,
     effect_pipeline: wgpu::RenderPipeline,
     mesh: Option<GpuMeshBuffers>,
     skeleton_lines: Option<GpuOverlayLines>,
@@ -2306,6 +2314,7 @@ impl WindowRenderer {
             normal_pipeline: pipelines.normal,
             bounds_pipeline: pipelines.bounds,
             bone_pipeline: pipelines.bone,
+            guide_pipeline: pipelines.guide,
             effect_pipeline: pipelines.effect,
             mesh: None,
             skeleton_lines: None,
@@ -2502,20 +2511,25 @@ impl WindowRenderer {
         Ok(())
     }
 
-    /// Set transient Archive Preview guides (grid, cloth, gizmo and effects).
-    /// They share the depth-independent overlay pipeline with skeleton guides,
-    /// but are owned separately so toggling bones never removes scene aids.
-    pub fn set_preview_lines(&mut self, positions: &[[f32; 3]]) -> Result<(), RenderError> {
-        let signature = overlay_position_signature(positions);
+    /// Set depth-aware, individually coloured scene guides such as the grid and
+    /// reference wire. Mesh depth occludes these lines instead of painting them
+    /// through the solid item.
+    pub fn set_preview_lines(&mut self, vertices: &[EffectLineVertex]) -> Result<(), RenderError> {
+        let signature = effect_line_signature(vertices);
         if self
             .preview_lines
             .as_ref()
             .is_some_and(|lines| lines.signature == signature)
-            || (positions.is_empty() && self.preview_lines.is_none())
+            || (vertices.is_empty() && self.preview_lines.is_none())
         {
             return Ok(());
         }
-        self.preview_lines = GpuOverlayLines::upload(&self.device, positions)?;
+        if let Some(lines) = self.preview_lines.as_mut()
+            && lines.update_effects(&self.queue, vertices)?
+        {
+            return Ok(());
+        }
+        self.preview_lines = GpuOverlayLines::upload_effects(&self.device, vertices)?;
         Ok(())
     }
 
@@ -2819,6 +2833,7 @@ impl WindowRenderer {
                     &self.normal_pipeline,
                     &self.bounds_pipeline,
                     &self.bone_pipeline,
+                    &self.guide_pipeline,
                     &self.effect_pipeline,
                     self.skeleton_lines.as_ref(),
                     self.preview_lines.as_ref(),
@@ -2923,6 +2938,7 @@ fn validate_material_factor_ownership(
         && factors.category_code.is_none()
         && factors.category_confidence.is_none()
         && factors.normal_y_inverted.is_none()
+        && factors.texture_flip_vertical.is_none()
         && factors.skin_detail_scale.is_none()
         && factors.skin_detail_opacity.is_none()
     {
@@ -5269,6 +5285,7 @@ fn record_headless_pass(
         &pipelines.normal,
         &pipelines.bounds,
         &pipelines.bone,
+        &pipelines.guide,
         &pipelines.effect,
         skeleton_lines,
         None,
@@ -5724,6 +5741,7 @@ struct Pipelines {
     normal: wgpu::RenderPipeline,
     bounds: wgpu::RenderPipeline,
     bone: wgpu::RenderPipeline,
+    guide: wgpu::RenderPipeline,
     effect: wgpu::RenderPipeline,
 }
 
@@ -5849,6 +5867,19 @@ fn create_pipelines_with_sample_count(
             Some(wgpu::BlendState::ALPHA_BLENDING),
             sample_count,
         ),
+        guide: create_pipeline(
+            device,
+            format,
+            &layout,
+            &shader,
+            "scene guide overlay",
+            wgpu::PrimitiveTopology::LineList,
+            "fs_effect",
+            None,
+            scene_guide_pipeline_depth(),
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+            sample_count,
+        ),
         effect: create_pipeline(
             device,
             format,
@@ -5870,6 +5901,10 @@ enum PipelineDepth {
     Write,
     Test,
     Ignore,
+}
+
+const fn scene_guide_pipeline_depth() -> PipelineDepth {
+    PipelineDepth::Test
 }
 
 const fn solid_cull_mode() -> Option<wgpu::Face> {
@@ -6116,6 +6151,7 @@ fn draw_mesh<'a>(
     normal_pipeline: &'a wgpu::RenderPipeline,
     bounds_pipeline: &'a wgpu::RenderPipeline,
     bone_pipeline: &'a wgpu::RenderPipeline,
+    guide_pipeline: &'a wgpu::RenderPipeline,
     effect_pipeline: &'a wgpu::RenderPipeline,
     skeleton_lines: Option<&'a GpuOverlayLines>,
     preview_lines: Option<&'a GpuOverlayLines>,
@@ -6180,7 +6216,7 @@ fn draw_mesh<'a>(
         draw_overlay_lines(pass, &lines.vertices, lines.vertex_count, bone_pipeline);
     }
     if let Some(lines) = preview_lines {
-        draw_overlay_lines(pass, &lines.vertices, lines.vertex_count, bone_pipeline);
+        draw_overlay_lines(pass, &lines.vertices, lines.vertex_count, guide_pipeline);
     }
     if let Some(lines) = effect_lines {
         draw_overlay_lines(pass, &lines.vertices, lines.vertex_count, effect_pipeline);
@@ -6474,6 +6510,17 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.normal_y_inverted = Some(normal_y_inverted);
+            }
+            if let Some(texture_flip_vertical) = factors.texture_flip_vertical {
+                if resolved
+                    .texture_flip_vertical
+                    .is_some_and(|existing| existing != texture_flip_vertical)
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting texture V-flip policies in LOD {lod_index}"
+                    )));
+                }
+                resolved.texture_flip_vertical = Some(texture_flip_vertical);
             }
             if let Some(skin_detail_scale) = factors.skin_detail_scale {
                 if resolved
@@ -7174,6 +7221,9 @@ fn create_material_bind_group(
     }
     if factors.normal_y_inverted == Some(true) {
         flags |= MATERIAL_NORMAL_Y_INVERTED;
+    }
+    if factors.texture_flip_vertical == Some(true) {
+        flags |= MATERIAL_FLIP_V;
     }
     if factors.category_code.is_some() {
         flags |= MATERIAL_CATEGORY;
@@ -8028,7 +8078,7 @@ mod tests {
         assert_eq!(MATERIAL_SKIN_DETAIL_NORMAL, 1_048_576);
         assert_eq!(MATERIAL_SKIN_DETAIL_MATERIAL, 2_097_152);
         assert!(SHADER.contains("skin_detail_mask_texture"));
-        assert!(SHADER.contains("input.uv / max(material.skin_detail_scale, 0.001)"));
+        assert!(SHADER.contains("sample_uv / max(material.skin_detail_scale, 0.001)"));
         assert!(SHADER.contains("skin_detail_mask_texture,"));
         assert!(SHADER.contains("MATERIAL_MIP_LOD_BIAS).r * material.skin_detail_opacity"));
         assert!(SHADER.contains("tangent_normal.xy + detail_normal.xy"));
@@ -8220,11 +8270,25 @@ mod tests {
         assert_eq!(compare, wgpu::CompareFunction::LessEqual);
         assert_eq!(bias, wgpu::DepthBiasState::default());
         assert_eq!(pipeline_vertex_entry(PipelineDepth::Test), "vs_main");
+        assert_eq!(scene_guide_pipeline_depth(), PipelineDepth::Test);
         assert!(!SHADER.contains("out.position.z -= out.position.w"));
 
         let (xray_writes_depth, xray_compare, _) = pipeline_depth_state(PipelineDepth::Ignore);
         assert!(!xray_writes_depth);
         assert_eq!(xray_compare, wgpu::CompareFunction::Always);
+    }
+
+    #[test]
+    fn imported_texture_v_flip_is_owner_scoped_gpu_state() {
+        let factors = MaterialPreviewFactors {
+            texture_flip_vertical: Some(true),
+            ..MaterialPreviewFactors::default()
+        };
+        assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
+        assert_eq!(MATERIAL_FLIP_V, 16_777_216);
+        assert!(SHADER.contains("const MATERIAL_FLIP_V: u32 = 16777216u;"));
+        assert!(SHADER.contains("sample_uv.y = 1.0 - sample_uv.y;"));
+        assert!(SHADER.contains("textureSampleBias(base_texture, material_sampler, sample_uv"));
     }
 
     #[test]
@@ -8436,7 +8500,7 @@ mod tests {
         ));
         assert!(SHADER.contains("roughness = clamp(1.0 - authored_glossiness, 0.04, 1.0);"));
         assert!(SHADER.contains(
-            "textureSampleBias(\n            glossiness_texture,\n            material_sampler,\n            input.uv,\n            MATERIAL_MIP_LOD_BIAS).r"
+            "textureSampleBias(\n            glossiness_texture,\n            material_sampler,\n            sample_uv,\n            MATERIAL_MIP_LOD_BIAS).r"
         ));
 
         let authority_declaration = SHADER
