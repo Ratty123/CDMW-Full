@@ -2538,7 +2538,6 @@ impl WindowRenderer {
         let effect_particle_alpha_pipeline = create_effect_particle_pipeline(
             &device,
             format,
-            &texture_bind_group_layout,
             &camera_bind_group_layout,
             &effect_texture_bind_group_layout,
             sample_count,
@@ -2548,7 +2547,6 @@ impl WindowRenderer {
         let effect_particle_additive_pipeline = create_effect_particle_pipeline(
             &device,
             format,
-            &texture_bind_group_layout,
             &camera_bind_group_layout,
             &effect_texture_bind_group_layout,
             sample_count,
@@ -3358,6 +3356,7 @@ impl WindowRenderer {
                     &self.effect_quad,
                     &self.effect_batches,
                     &self.effect_textures,
+                    &self.camera_bind_group,
                     &self.effect_particle_alpha_pipeline,
                     &self.effect_particle_additive_pipeline,
                 );
@@ -4378,6 +4377,19 @@ async fn run_headless_render_smoke_internal(
         &texture_layout,
         &camera_layout,
         sample_count,
+    );
+    // Construct the live particle pipeline under the same default device
+    // limits used by production. This makes the no-window D3D12 gate catch
+    // accidental aggregation with the 16-texture material layout.
+    let effect_layout = create_effect_texture_bind_group_layout(&device);
+    let _effect_particle_pipeline = create_effect_particle_pipeline(
+        &device,
+        format,
+        &camera_layout,
+        &effect_layout,
+        sample_count,
+        wgpu::BlendState::ALPHA_BLENDING,
+        "CDMW Rust Preview headless effect particles",
     );
     let mut render_snapshot = snapshot.clone();
     render_snapshot.triangle_materials.fill(0);
@@ -6408,7 +6420,6 @@ fn create_procedural_effect_texture(
 fn create_effect_particle_pipeline(
     device: &wgpu::Device,
     format: wgpu::TextureFormat,
-    material_layout: &wgpu::BindGroupLayout,
     camera_layout: &wgpu::BindGroupLayout,
     effect_layout: &wgpu::BindGroupLayout,
     sample_count: u32,
@@ -6421,11 +6432,11 @@ fn create_effect_particle_pipeline(
     });
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("CDMW Rust Preview effect particle pipeline layout"),
-        bind_group_layouts: &[
-            Some(material_layout),
-            Some(camera_layout),
-            Some(effect_layout),
-        ],
+        // Particle entry points use only camera group 1 and sprite group 2.
+        // Keeping group 0 empty avoids combining the 16-texture material
+        // layout with the sprite texture and exceeding WebGPU's default
+        // 16-sampled-texture device limit.
+        bind_group_layouts: &[None, Some(camera_layout), Some(effect_layout)],
         immediate_size: 0,
     });
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -6959,6 +6970,7 @@ fn draw_effect_particles<'a>(
     quad: &'a wgpu::Buffer,
     batches: &'a [GpuEffectBatch],
     textures: &'a [GpuEffectTexture],
+    camera_bind_group: &'a wgpu::BindGroup,
     alpha_pipeline: &'a wgpu::RenderPipeline,
     additive_pipeline: &'a wgpu::RenderPipeline,
 ) {
@@ -6974,6 +6986,9 @@ fn draw_effect_particles<'a>(
             EffectBlendMode::Additive => additive_pipeline,
             EffectBlendMode::Alpha => alpha_pipeline,
         });
+        // Group 0 intentionally differs from the material pipelines, so a
+        // pipeline switch invalidates inherited groups at and above zero.
+        pass.set_bind_group(1, camera_bind_group, &[]);
         pass.set_bind_group(2, &texture.bind_group, &[]);
         pass.set_vertex_buffer(1, batch.instances.slice(..));
         pass.draw(0..6, 0..batch.instance_count);
