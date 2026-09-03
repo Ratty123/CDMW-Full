@@ -792,6 +792,17 @@ function Assert-RustMeshEditorControlContract {
     if ([string]$RustContract.schema -ne "cdmw_rust_mesh_editor_control_contract_v2") {
         throw "Rust Mesh Editor control-contract schema is not v2."
     }
+    if ($RustContract.preview_contract.ok -ne $true) {
+        throw "The Rust Preview control contract did not report success."
+    }
+    $previewCapabilities = @(
+        $RustContract.preview_contract.capabilities |
+            ForEach-Object { [string]$_ } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+    if ($previewCapabilities.Count -eq 0) {
+        throw "The Rust Preview control contract did not advertise any capabilities."
+    }
 
     $rustRows = @($RustContract.rows)
     if ([int]$RustContract.row_count -ne $rustRows.Count -or $rustRows.Count -eq 0) {
@@ -911,24 +922,8 @@ function Invoke-RustMeshEditorBuild {
         control_contract_schema = "cdmw_rust_mesh_editor_control_contract_v2"
         capabilities = @("embedded_child_window_v1", "rust_preview_runtime_v1")
         preview_capabilities = @(
-            "preview_profile_read_only_v1",
-            "preview_session_v1",
-            "resident_package_load_v1",
-            "resident_preview_package_replace_v2",
-            "absolute_camera_state_v1",
-            "view_state_changed_v1",
-            "viewport_display_modes_v1",
-            "read_only_part_pick_v1",
-            "overlay_state_update_v1",
-            "skeleton_overlay_v1",
-            "pbd_cloth_overlay_v1",
-            "deterministic_offscreen_capture_v1",
-            "comparison_scene_v1",
-            "alignment_preview_v1",
-            "static_replacement_mesh_input_v1",
-            "effect_particle_preview_v1",
-            "ui_theme_state_v1",
-            "ui_localization_v1"
+            $contract.preview_contract.capabilities |
+                ForEach-Object { [string]$_ }
         )
         source_revision = [string]$sourceRevision
         source_tree_sha256 = Get-RustMeshEditorSourceFingerprint

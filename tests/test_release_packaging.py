@@ -130,8 +130,10 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert 'preview_package = "cdmw_rust_preview_package_v1"' in source
     assert 'preview_backend = "cdmw_rust_preview_0.1"' in source
     assert 'capabilities = @("embedded_child_window_v1", "rust_preview_runtime_v1")' in source
-    assert '"resident_preview_package_replace_v2"' in source
-    assert '"static_replacement_mesh_input_v1"' in source
+    assert "The Rust Preview control contract did not report success." in source
+    assert "The Rust Preview control contract did not advertise any capabilities." in source
+    assert "preview_capabilities = @(" in source
+    assert "$contract.preview_contract.capabilities" in source
     assert 'Start-Process -FilePath $stagedExecutable' in source
     assert "dotnet_mesh_editor_experiment" not in source
     assert "cdmw-mesh-dotnet-editor" not in source
