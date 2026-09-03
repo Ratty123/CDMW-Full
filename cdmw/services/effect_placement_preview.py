@@ -17,10 +17,12 @@ applies is exactly the ``_offsetTransform`` the game will.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional, Sequence, Tuple
 
+from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
 if TYPE_CHECKING:
@@ -530,18 +532,31 @@ def write_effect_preview(
     files: dict = {}
     missing: list = []
     texture_dir = Path(package_dir) / EFFECT_TEXTURE_DIR
+    written: set[str] = set()
+    aggregate = 0
     for archive_path in preview.textures:
-        data = texture_reader(archive_path) if texture_reader is not None else None
-        if not data:
+        try:
+            raw = texture_reader(archive_path) if texture_reader is not None else None
+        except Exception:  # noqa: BLE001 - an unreadable archive resource stays diagnostic
+            raw = None
+        data = bytes(raw or b"")
+        if not data.startswith(b"DDS ") or not (128 <= len(data) <= 64 * 1024 * 1024):
             missing.append(archive_path)
             continue
+        digest = hashlib.sha256(data).hexdigest()
+        if digest not in written:
+            aggregate += len(data)
+        if aggregate > 512 * 1024 * 1024:
+            raise ValueError("Effect preview sprite textures exceed the aggregate size limit.")
         texture_dir.mkdir(parents=True, exist_ok=True)
-        name = archive_path.rsplit("/", 1)[-1]
-        (texture_dir / name).write_bytes(bytes(data))
+        name = f"{digest}.dds"
+        if digest not in written:
+            atomic_write_bytes(texture_dir / name, data)
+            written.add(digest)
         files[archive_path] = f"{EFFECT_TEXTURE_DIR}/{name}"
     payload["texture_files"] = files
     target = Path(package_dir) / EFFECT_PREVIEW_FILE
-    target.write_text(json.dumps(payload, indent=1), encoding="utf-8")
+    atomic_write_text(target, json.dumps(payload, indent=1))
     return target, tuple(missing)
 
 
@@ -680,24 +695,30 @@ def build_effect_placement_package(
         }
 
     effect_payload = None
+    effect_resources: dict[str, bytes] = {}
     missing: Tuple[str, ...] = ()
     if effect_preview is not None:
         effect_payload = json.loads(effect_preview_json(effect_preview))
-        # Particle geometry and colours do not depend on a sprite texture, but
-        # keep the existing status contract honest about unavailable archive
-        # resources.  Resolved DDS names remain in the payload for future
-        # textured billboards and diagnostic provenance.
-        missing = tuple(
-            path
-            for path in effect_preview.textures
-            if texture_reader is None or not texture_reader(path)
-        )
+        missing_items: list[str] = []
+        for path in effect_preview.textures:
+            try:
+                raw = texture_reader(path) if texture_reader is not None else None
+            except Exception:  # noqa: BLE001 - resource failures are reported, not fatal
+                raw = None
+            data = bytes(raw or b"")
+            if not data.startswith(b"DDS ") or not (128 <= len(data) <= 64 * 1024 * 1024):
+                missing_items.append(path)
+            else:
+                effect_resources[path] = data
+        missing = tuple(missing_items)
 
     frame_low, frame_high = framing_bounds_for(
         item_mesh,
         include_body=include_body,
         body_mesh=character_mesh if include_body else None,
     )
+    from cdmw.services.mesh_rust_preview_package import semantic_initial_view
+
     package = build_rust_preview_package(
         anchor,
         reference_mesh=reference,
@@ -710,7 +731,9 @@ def build_effect_placement_package(
         interaction_profile="static_replacement",
         interaction_mode="placement",
         framing_bounds=(frame_low, frame_high),
+        initial_view=semantic_initial_view((frame_low, frame_high), "z"),
         effects_overlay=effect_payload,
+        effect_texture_resources=effect_resources,
     )
     preview_file: Optional[Path] = package.manifest_path if effect_payload is not None else None
     return EffectPlacementPreview(

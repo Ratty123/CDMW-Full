@@ -62,11 +62,6 @@ __all__ = [
 #: the viewport's display modes for a placement scene (the host's display-mode keys)
 PLACEMENT_VIEW_MODES = ("overlay", "side_by_side", "replacement_only", "original_only")
 GIZMO_TOOLS = ("move", "rotate", "scale")
-_PLACEMENT_FLAT_CAMERA = {
-    "x": (90.0, 0.0),
-    "y": (0.0, -89.0),
-    "z": (180.0, 0.0),
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,7 +363,10 @@ def build_item_preview_package(
         return build_quality("full")
 
     if isinstance(item, PlacementScene):
-        from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+        from cdmw.services.mesh_rust_preview_package import (
+            build_rust_preview_package,
+            semantic_initial_view,
+        )
         from cdmw.services.mesh_rust_authoring import rust_preview_mesh_needs_material_synthesis
 
         model = (
@@ -401,25 +399,51 @@ def build_item_preview_package(
         model_mesh = _as_parsed_mesh(model)
         template_mesh = _as_parsed_mesh(reference) if reference is not None else None
         character_mesh = _as_parsed_mesh(character) if character is not None else None
-        grid_normal_axis = _flat_preview_normal_axis(
-            mesh_bounds(template_mesh if template_mesh is not None else model_mesh)
-        )
+        semantic_bounds = mesh_bounds(template_mesh if template_mesh is not None else model_mesh)
+        grid_normal_axis = _flat_preview_normal_axis(semantic_bounds)
         reference_mesh = _placement_reference_mesh(template_mesh, character_mesh)
-        package = progressive_material_package(
-            lambda quality: build_rust_preview_package(
-                model_mesh,
-                output_root=output_root,
-                reference_mesh=reference_mesh,
-                comparison_mode="overlay",
-                interaction_profile="static_replacement",
-                interaction_mode="placement",
-                reference_draw="wire",
-                grid_normal_axis=grid_normal_axis,
+        def build_placement_quality(quality: str):
+            def publish(target: Optional[Path] = None):
+                return build_rust_preview_package(
+                    model_mesh,
+                    output_package_dir=target,
+                    output_root=None if target is not None else output_root,
+                    reference_mesh=reference_mesh,
+                    comparison_mode="overlay",
+                    interaction_profile="static_replacement",
+                    interaction_mode="placement",
+                    reference_draw="wire",
+                    grid_normal_axis=grid_normal_axis,
+                    cancelled=stop_event.is_set,
+                    scene_transform=item.placement.build_transform(origin=item.model_origin),
+                    include_material_resources=bool(include_material_resources),
+                    material_quality=quality,
+                    initial_view=semantic_initial_view(semantic_bounds, grid_normal_axis),
+                )
+
+            if normalized_cache_mode not in {"balanced", "aggressive"}:
+                return publish()
+            from cdmw.services.mesh_rust_preview_cache import (
+                build_or_lookup_rust_preview_package_with_builder,
+            )
+            from cdmw.services.preview_rendering_service import dotnet_preview_package_cache_budget
+
+            cache_max_bytes, cache_target_bytes = dotnet_preview_package_cache_budget(cache_mode)
+            return build_or_lookup_rust_preview_package_with_builder(
+                cache_root=output_root,
+                archive_identity=(
+                    f"{archive_identity}:placement:{quality}:materials={bool(include_material_resources)}:"
+                    f"placement={item.placement!r}:origin={item.model_origin!r}"
+                ),
+                cache_mode=cache_mode,
+                max_bytes=cache_max_bytes,
+                target_bytes=cache_target_bytes,
                 cancelled=stop_event.is_set,
-                scene_transform=item.placement.build_transform(origin=item.model_origin),
-                include_material_resources=bool(include_material_resources),
-                material_quality=quality,
-            ),
+                metadata={"surface": "new_item_placement", "source_token": repr(token)},
+                builder=lambda target: publish(target),
+            )
+        package = progressive_material_package(
+            build_placement_quality,
             # The template/character role is wire-only in this workspace, so
             # only the imported editable model can require a material compiler.
             needs_full_material_tier=rust_preview_mesh_needs_material_synthesis(model_mesh),
@@ -446,12 +470,18 @@ def build_item_preview_package(
             target_bytes=cache_target_bytes,
             cancelled=stop_event.is_set,
             metadata={"surface": "new_item_studio", "source_token": repr(token)},
+            semantic_view_axis="auto",
             fast_package_ready=fast_package_ready,
         )
     else:
-        from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+        from cdmw.services.mesh_rust_preview_package import (
+            build_rust_preview_package,
+            semantic_initial_view,
+        )
         from cdmw.services.mesh_rust_authoring import rust_preview_mesh_needs_material_synthesis
 
+        semantic_bounds = mesh_bounds(item)
+        grid_normal_axis = _flat_preview_normal_axis(semantic_bounds)
         package = progressive_material_package(
             lambda quality: build_rust_preview_package(
                 item,
@@ -459,9 +489,11 @@ def build_item_preview_package(
                 reference_mesh=None,
                 comparison_mode="side_by_side",
                 interaction_profile="static_replacement",
+                grid_normal_axis=grid_normal_axis,
                 cancelled=stop_event.is_set,
                 include_material_resources=bool(include_material_resources),
                 material_quality=quality,
+                initial_view=semantic_initial_view(semantic_bounds, grid_normal_axis),
             ),
             needs_full_material_tier=rust_preview_mesh_needs_material_synthesis(item),
         )
@@ -517,6 +549,7 @@ class ItemPreviewFrame(QWidget):
         self._host_error = ""
         self._render_settings: ModelPreviewRenderSettings = clamp_model_preview_render_settings()
         self._cache_mode = "off"
+        self._lighting_preset = "neutral_studio"
         self._package_dir: Optional[Path] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
@@ -592,6 +625,9 @@ class ItemPreviewFrame(QWidget):
         self.host.alignment_scale_changed.connect(lambda x, y, z: self._drag_delta("scale", (x, y, z), False))
         self.host.alignment_scale_finished.connect(lambda x, y, z: self._drag_delta("scale", (x, y, z), True))
         self.host.set_render_tuning(self._render_settings)
+        lighting = getattr(self.host, "set_lighting_preset", None)
+        if callable(lighting):
+            lighting(self._lighting_preset)
         return True
 
     def set_render_settings(self, settings: object | None) -> None:
@@ -606,6 +642,16 @@ class ItemPreviewFrame(QWidget):
 
         normalized = str(mode or "off").strip().lower()
         self._cache_mode = normalized if normalized in {"off", "balanced", "aggressive"} else "off"
+
+    def set_lighting_preset(self, preset: object) -> None:
+        normalized = str(preset or "neutral_studio").strip().lower()
+        self._lighting_preset = (
+            normalized if normalized in {"neutral_studio", "showcase"} else "neutral_studio"
+        )
+        if self.host is not None:
+            lighting = getattr(self.host, "set_lighting_preset", None)
+            if callable(lighting):
+                lighting(self._lighting_preset)
 
     def show_mesh(self, mesh: Optional[ParsedMesh]) -> None:
         """Show the bare `mesh` (None clears the view); a build already running is superseded."""
@@ -772,6 +818,9 @@ class ItemPreviewFrame(QWidget):
             return
         host.set_display_mode(self._view_mode)
         host.set_grid_visible(self._grid_visible)
+        lighting = getattr(host, "set_lighting_preset", None)
+        if callable(lighting):
+            lighting(self._lighting_preset)
         # no source highlight: the model draws as itself (textured), not as the Builder's yellow wire
         host.set_alignment_state(enabled=self._gizmo_enabled)
         host.set_alignment_gizmo_tool(self._gizmo_tool)
@@ -786,18 +835,8 @@ class ItemPreviewFrame(QWidget):
         """Frame the model flat without changing its game-authoritative placement."""
 
         if self.host is not None and self.is_ready:
-            yaw, pitch = _PLACEMENT_FLAT_CAMERA.get(
-                self._placement_grid_normal_axis,
-                _PLACEMENT_FLAT_CAMERA["y"],
-            )
-            set_view = getattr(self.host, "set_view", None)
-            if callable(set_view) and set_view(
-                yaw=yaw,
-                pitch=pitch,
-                zoom_factor=1.0,
-                fit_to_view=True,
-                pan=(0.0, 0.0, 0.0),
-            ):
+            canonical = getattr(self.host, "request_canonical_view", None)
+            if callable(canonical) and canonical():
                 return
             self.host.reset_view()
 
@@ -1048,7 +1087,7 @@ class ItemPreviewFrame(QWidget):
                 return
         previous = self._package_dir
         previous_stage = self._loaded_stage
-        reset_view = previous is None or stage == "geometry" or self._loaded_token != token
+        reset_view = previous is None or (stage == "geometry" and self._loaded_token != token)
         if self.host.load_package(result, reset_view=reset_view):
             self._last_pushed_placement = None
             self._package_dir = result
@@ -1201,14 +1240,18 @@ class ItemPreviewFrame(QWidget):
     def _remove_package(self, package_dir: Path) -> None:
         """Remove one transient package; durable cache entries outlive this frame."""
 
+        from cdmw.services.mesh_rust_preview_cache import rust_preview_package_cache_root
         from cdmw.services.preview_rendering_service import (
             dotnet_preview_package_derived_cache_root,
             is_durable_dotnet_preview_package_path,
         )
 
-        derived_cache_root = dotnet_preview_package_derived_cache_root(self._output_root)
-        if is_durable_dotnet_preview_package_path(derived_cache_root, package_dir):
-            return
+        for cache_root in (
+            rust_preview_package_cache_root(self._output_root),
+            dotnet_preview_package_derived_cache_root(self._output_root),
+        ):
+            if is_durable_dotnet_preview_package_path(cache_root, package_dir):
+                return
         shutil.rmtree(self._package_cleanup_root(package_dir), ignore_errors=True)
 
     def _package_cleanup_root(self, package_dir: Path) -> Path:

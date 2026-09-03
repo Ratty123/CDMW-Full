@@ -154,7 +154,7 @@ class EffectPlacementGuidedMixin:
             self.view_group.addButton(button)
             button.clicked.connect(lambda _checked=False, y=yaw, p=pitch: self._look_from(y, p))
             self.view_buttons.append(button)
-        self.view_buttons[-1].setChecked(True)
+        self.view_buttons[0].setChecked(True)
 
     def _set_viewport_controls_available(self, available: bool) -> None:
         for button in (

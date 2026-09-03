@@ -27,6 +27,7 @@ from cdmw.services.mesh_rust_preview_package import (
     build_rust_preview_package,
     build_rust_preview_package_from_preview_core,
     rust_preview_package_from_path,
+    semantic_initial_view,
     validate_rust_preview_package,
 )
 from cdmw.ui.preview.rust_host import RustPreviewHostFrame
@@ -243,6 +244,68 @@ def test_rust_preview_package_is_bounded_read_only_and_self_identifying(
     assert not package.edit_operations_path.exists()
 
 
+def test_preview_package_carries_semantic_broadside_camera_and_fit_bounds(
+    tmp_path: Path,
+) -> None:
+    bounds = ((-0.1, -2.0, -0.2), (0.1, 2.0, 0.2))
+    initial_view = semantic_initial_view(bounds, "x")
+
+    package = build_rust_preview_package(
+        _triangle(),
+        output_package_dir=tmp_path / "semantic-view",
+        include_material_resources=False,
+        framing_bounds=bounds,
+        initial_view=initial_view,
+    )
+
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["state"]["preview_scene"]["framing"]["initial_view"] == {
+        "view_direction": [1.0, 0.0, 0.0],
+        "screen_up_direction": [0.0, 1.0, 0.0],
+        "fit_bounds": [[-0.1, -2.0, -0.2], [0.1, 2.0, 0.2]],
+    }
+
+
+def test_effect_sprite_resources_are_hash_deduplicated_and_path_bounded(
+    tmp_path: Path,
+) -> None:
+    texture = b"DDS " + bytes(range(124))
+    digest = hashlib.sha256(texture).hexdigest()
+    resources = {
+        "effect/texture/fire_a.dds": texture,
+        "effect/texture/fire_alias.dds": texture,
+    }
+    package = build_rust_preview_package(
+        _triangle(),
+        output_package_dir=tmp_path / "effect-package",
+        include_material_resources=False,
+        effects_overlay={"schema": 1, "emitters": []},
+        effect_texture_resources=resources,
+    )
+
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    references = manifest["effect_textures"]
+    assert len(references) == 2
+    assert {entry["archive_path"] for entry in references} == set(resources)
+    assert {entry["file"]["path"] for entry in references} == {
+        f"effect_textures/{digest}.dds"
+    }
+    assert manifest["state"]["preview_scene"]["effects_overlay"]["texture_files"] == {
+        archive_path: f"effect_textures/{digest}.dds" for archive_path in resources
+    }
+    assert len(list((package.package_dir / "effect_textures").glob("*.dds"))) == 1
+    assert validate_rust_preview_package(package.package_dir) == ()
+
+    with pytest.raises(ValueError, match="archive path is invalid"):
+        build_rust_preview_package(
+            _triangle(),
+            output_package_dir=tmp_path / "escaped-effect-package",
+            include_material_resources=False,
+            effects_overlay={"schema": 1, "emitters": []},
+            effect_texture_resources={"../outside.dds": texture},
+        )
+
+
 def test_static_replacement_is_the_only_mesh_input_profile(tmp_path: Path) -> None:
     package = build_rust_preview_package(
         _triangle(),
@@ -259,7 +322,7 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
     tmp_path: Path,
 ) -> None:
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 3
+    assert RUST_PREVIEW_CACHE_SCHEMA == 4
     assert root == tmp_path / "rust_wgpu_v1"
     assert "dotnet" not in root.name.casefold()
     assert "vortice" not in root.name.casefold()
@@ -485,8 +548,18 @@ def test_compiled_preview_contract_declares_the_complete_runtime_surface() -> No
     assert '"read_only_mutations_rejected": true' in source
     for capability in RUST_PREVIEW_REQUIRED_CAPABILITIES:
         assert f'"{capability}"' in source
+    for capability in (
+        "semantic_framing_v1",
+        "gpu_scene_transforms_v1",
+        "full_gizmo_handles_v1",
+        "camera_navigator_v1",
+        "lighting_presets_v1",
+        "textured_effect_particles_v1",
+    ):
+        assert f'"{capability}"' in source
     for command in (
         "package_load_request",
+        "canonical_view_request",
         "presentation_state_update",
         "overlay_state_update",
         "scene_state_update",

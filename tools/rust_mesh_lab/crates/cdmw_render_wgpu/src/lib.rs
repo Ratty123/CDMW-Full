@@ -18,11 +18,15 @@ struct CameraUniform {
     view_projection: mat4x4<f32>,
     view_mode: u32,
     output_is_srgb: u32,
-    _padding_1: u32,
+    lighting_preset: u32,
     _padding_2: u32,
     wire_colour: vec4<f32>,
     point_colour: vec4<f32>,
     view_direction: vec4<f32>,
+    camera_right: vec4<f32>,
+    camera_up: vec4<f32>,
+    scene_model: mat4x4<f32>,
+    scene_normal: mat4x4<f32>,
 };
 
 struct VertexOut {
@@ -65,6 +69,8 @@ struct MaterialUniform {
 @group(0) @binding(16) var skin_detail_material_texture: texture_2d<f32>;
 @group(0) @binding(17) var glossiness_texture: texture_2d<f32>;
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
+@group(2) @binding(0) var effect_sprite: texture_2d<f32>;
+@group(2) @binding(1) var effect_sampler: sampler;
 
 const MATERIAL_BASE_COLOR: u32 = 1u;
 const MATERIAL_NORMAL: u32 = 2u;
@@ -99,14 +105,27 @@ fn make_vertex_out(
     uv: vec2<f32>,
     tangent: vec4<f32>,
     deformation: vec4<f32>,
+    editable_role: u32,
     instance_index: u32,
 ) -> VertexOut {
     var out: VertexOut;
-    out.position = camera.view_projection * vec4<f32>(position, 1.0);
-    out.color = normal * 0.35 + vec3<f32>(0.55, 0.58, 0.65);
+    var world_position = position;
+    var world_normal = normal;
+    var world_tangent = tangent;
+    if editable_role != 0u {
+        world_position = (camera.scene_model * vec4<f32>(position, 1.0)).xyz;
+        world_normal = safe_normalize(
+            (camera.scene_normal * vec4<f32>(normal, 0.0)).xyz,
+            vec3<f32>(0.0, 1.0, 0.0));
+        world_tangent = vec4<f32>(safe_normalize(
+            (camera.scene_model * vec4<f32>(tangent.xyz, 0.0)).xyz,
+            vec3<f32>(1.0, 0.0, 0.0)), tangent.w);
+    }
+    out.position = camera.view_projection * vec4<f32>(world_position, 1.0);
+    out.color = world_normal * 0.35 + vec3<f32>(0.55, 0.58, 0.65);
     out.uv = uv;
-    out.normal = normal;
-    out.tangent = tangent;
+    out.normal = world_normal;
+    out.tangent = world_tangent;
     out.part_id = instance_index;
     out.deformation = deformation;
     return out;
@@ -119,9 +138,10 @@ fn vs_main(
     @location(2) uv: vec2<f32>,
     @location(3) tangent: vec4<f32>,
     @location(4) deformation: vec4<f32>,
+    @location(5) editable_role: u32,
     @builtin(instance_index) instance_index: u32,
 ) -> VertexOut {
-    return make_vertex_out(position, normal, uv, tangent, deformation, instance_index);
+    return make_vertex_out(position, normal, uv, tangent, deformation, editable_role, instance_index);
 }
 
 fn safe_normalize(value: vec3<f32>, fallback: vec3<f32>) -> vec3<f32> {
@@ -176,6 +196,16 @@ fn aces_tone_map(value: f32) -> f32 {
 fn workbench_tone(color: vec3<f32>, exposure: f32) -> vec3<f32> {
     let exposed = max(color * max(exposure, 0.05), vec3<f32>(0.0));
     let exposed_luma = dot(exposed, vec3<f32>(0.2126, 0.7152, 0.0722));
+    if camera.lighting_preset == 0u {
+        // Neutral Studio preserves chroma and applies one bounded luminance
+        // compression in linear space. The sRGB target performs the sole
+        // output conversion in `present`.
+        let mapped_luma = exposed_luma / (1.0 + exposed_luma);
+        return clamp(
+            exposed * (mapped_luma / max(exposed_luma, 1e-5)),
+            vec3<f32>(0.0),
+            vec3<f32>(1.0));
+    }
     let mapped_luma = aces_tone_map(exposed_luma);
     var mapped = exposed * (mapped_luma / max(exposed_luma, 1e-5));
     let current_luma = dot(mapped, vec3<f32>(0.2126, 0.7152, 0.0722));
@@ -629,13 +659,10 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     let occlusion = mix(1.0, raw_occlusion, 0.45 * occlusion_category_weight);
 
     let game_outdoor = camera.view_mode == 9u;
+    let showcase = camera.lighting_preset == 1u && !game_outdoor;
     let view_direction = safe_normalize(camera.view_direction.xyz, vec3<f32>(0.0, 0.0, -1.0));
-    let camera_right = safe_normalize(
-        cross(view_direction, vec3<f32>(0.0, 1.0, 0.0)),
-        vec3<f32>(1.0, 0.0, 0.0));
-    let camera_up = safe_normalize(
-        cross(camera_right, view_direction),
-        vec3<f32>(0.0, 1.0, 0.0));
+    let camera_right = safe_normalize(camera.camera_right.xyz, vec3<f32>(1.0, 0.0, 0.0));
+    let camera_up = safe_normalize(camera.camera_up.xyz, vec3<f32>(0.0, 1.0, 0.0));
     let key_direction = safe_normalize(
         view_direction - camera_right * 0.18 + camera_up * 0.35,
         view_direction);
@@ -660,6 +687,10 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     if is_wood { ambient_floor = 0.49; depth_authority = 0.70; }
     if is_stone { ambient_floor = 0.48; depth_authority = 0.78; }
     if is_tooth { ambient_floor = 0.54; depth_authority = 0.58; }
+    if !showcase && !game_outdoor {
+        ambient_floor *= 0.62;
+        depth_authority = min(1.0, depth_authority + 0.12);
+    }
     let shaped_light = ambient_floor * 0.84
         + 0.62 * (key_light * 0.72 + fill_light * 0.18 + rim_light * 0.10);
     let diffuse_depth = mix(1.0, shaped_light, depth_authority);
@@ -721,15 +752,21 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             cloth_high_luma_guard * 0.35,
         );
     }
+    if !showcase && !game_outdoor {
+        // The sampled base is already decoded by an sRGB texture view. Do not
+        // add category tint, a dark-colour lift, or a second gamma-like boost.
+        material_reference_albedo = clamp(texel.rgb, vec3<f32>(0.0), vec3<f32>(1.0));
+    }
     let nonmetal_texture_scale = select(
         1.0,
         1.03,
         conservative_nonmetal && !authored_cloth_or_leather);
+    let resolved_nonmetal_texture_scale = select(1.0, nonmetal_texture_scale, showcase || game_outdoor);
     var diffuse = material_reference_albedo
         * occlusion
         * diffuse_depth
         * body_scale
-        * nonmetal_texture_scale;
+        * resolved_nonmetal_texture_scale;
 
     var dielectric_f0 = 0.04;
     if is_glass { dielectric_f0 = 0.08; }
@@ -864,6 +901,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     if has_source_roughness && !is_metal && !is_skin {
         environment_scale = max(environment_scale, mix(0.06, 0.30, 1.0 - roughness));
     }
+    if !showcase && !game_outdoor { environment_scale *= 0.68; }
     let smoothness = clamp(1.0 - roughness, 0.0, 1.0);
     let reflected_view = safe_normalize(
         reflect(-view_direction, surface_normal),
@@ -933,7 +971,8 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         vec3<f32>(0.0),
         vec3<f32>(1.0),
     ) * (1.0 - clamp(metalness, 0.0, 1.0));
-    let environment_diffuse_scale = select(0.24, 0.18, conservative_nonmetal);
+    var environment_diffuse_scale = select(0.24, 0.18, conservative_nonmetal);
+    if !showcase && !game_outdoor { environment_diffuse_scale *= 0.62; }
     let environment_diffuse = material_reference_albedo
         * environment_irradiance
         * environment_diffuse_energy
@@ -950,8 +989,9 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         clamp(resolved_specular * mix(0.06, 0.20, smoothness), 0.0, 1.0),
         is_glossy,
     );
-    diffuse += material_reference_albedo * metal_cue * 0.16;
-    diffuse += material_reference_albedo * glossy_cue * 0.22;
+    let cue_weight = select(0.0, 1.0, showcase || game_outdoor);
+    diffuse += material_reference_albedo * metal_cue * 0.16 * cue_weight;
+    diffuse += material_reference_albedo * glossy_cue * 0.22 * cue_weight;
     let metallic_source_anchor = select(
         material_reference_albedo
             * metalness
@@ -997,13 +1037,14 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             * material.emissive_color_and_intensity.a
             * 2.2;
     }
-    let exposure = select(1.0, 1.06, game_outdoor);
+    let showcase_warmth = select(vec3<f32>(1.0), vec3<f32>(1.08, 0.99, 0.90), showcase);
+    let exposure = select(select(0.90, 1.0, showcase), 1.06, game_outdoor);
     let shaded = workbench_tone(
         diffuse
             + environment_diffuse
             + metallic_source_anchor
-            + specular
-            + environment_specular
+            + specular * showcase_warmth
+            + environment_specular * showcase_warmth
             + leather_sheen
             + cloth_sheen
             + skin_scatter
@@ -1049,9 +1090,57 @@ fn fs_effect(input: VertexOut) -> @location(0) vec4<f32> {
     let alpha = clamp(input.deformation.x, 0.0, 1.0);
     return present_srgb(authored_color, alpha);
 }
+
+struct EffectParticleOut {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) colour: vec4<f32>,
+};
+
+@vertex
+fn vs_effect_particle(
+    @location(0) corner: vec2<f32>,
+    @location(1) uv: vec2<f32>,
+    @location(2) center: vec3<f32>,
+    @location(3) axis_right: vec3<f32>,
+    @location(4) axis_up: vec3<f32>,
+    @location(5) colour: vec4<f32>,
+    @location(6) uv_rect: vec4<f32>,
+) -> EffectParticleOut {
+    var out: EffectParticleOut;
+    let world = center + axis_right * corner.x + axis_up * corner.y;
+    out.position = camera.view_projection * vec4<f32>(world, 1.0);
+    out.uv = uv_rect.xy + uv * uv_rect.zw;
+    out.colour = colour;
+    return out;
+}
+
+@fragment
+fn fs_effect_particle(input: EffectParticleOut) -> @location(0) vec4<f32> {
+    let sprite = textureSample(effect_sprite, effect_sampler, input.uv);
+    let alpha = clamp(sprite.a * input.colour.a, 0.0, 1.0);
+    return present(
+        max(sprite.rgb * srgb_to_linear(input.colour.rgb), vec3<f32>(0.0)),
+        alpha);
+}
 "#;
 
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LightingPreset {
+    NeutralStudio,
+    Showcase,
+}
+
+impl LightingPreset {
+    const fn shader_value(self) -> u32 {
+        match self {
+            Self::NeutralStudio => 0,
+            Self::Showcase => 1,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -1121,10 +1210,15 @@ struct CameraUniform {
     view_projection: [[f32; 4]; 4],
     view_mode: u32,
     output_is_srgb: u32,
-    _padding: [u32; 2],
+    lighting_preset: u32,
+    _padding: u32,
     wire_colour: [f32; 4],
     point_colour: [f32; 4],
     view_direction: [f32; 4],
+    camera_right: [f32; 4],
+    camera_up: [f32; 4],
+    scene_model: [[f32; 4]; 4],
+    scene_normal: [[f32; 4]; 4],
 }
 
 #[repr(C)]
@@ -1173,10 +1267,15 @@ impl CameraUniform {
             view_projection: Mat4::IDENTITY.to_cols_array_2d(),
             view_mode: 0,
             output_is_srgb: u32::from(output_is_srgb),
-            _padding: [0; 2],
+            lighting_preset: 0,
+            _padding: 0,
             wire_colour: srgb_rgba_to_linear([0.72, 0.78, 0.88, 1.0]),
             point_colour: srgb_rgba_to_linear([0.92, 0.94, 1.0, 1.0]),
             view_direction: [0.0, 0.0, -1.0, 0.0],
+            camera_right: [1.0, 0.0, 0.0, 0.0],
+            camera_up: [0.0, 1.0, 0.0, 0.0],
+            scene_model: Mat4::IDENTITY.to_cols_array_2d(),
+            scene_normal: Mat4::IDENTITY.to_cols_array_2d(),
         }
     }
 }
@@ -1189,15 +1288,17 @@ struct GpuVertex {
     uv: [f32; 2],
     tangent: [f32; 4],
     deformation: [f32; 4],
+    editable_role: u32,
 }
 
 impl GpuVertex {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+    const ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
         0 => Float32x3,
         1 => Float32x3,
         2 => Float32x2,
         3 => Float32x4,
-        4 => Float32x4
+        4 => Float32x4,
+        5 => Uint32
     ];
 
     fn layout() -> wgpu::VertexBufferLayout<'static> {
@@ -1215,6 +1316,7 @@ impl GpuVertex {
             uv: [0.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
             deformation: [0.0; 4],
+            editable_role: 0,
         }
     }
 
@@ -1229,6 +1331,7 @@ impl GpuVertex {
             uv: [0.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
             deformation: [vertex.colour[3].clamp(0.0, 1.0), 0.0, 0.0, 0.0],
+            editable_role: 0,
         }
     }
 }
@@ -1237,6 +1340,77 @@ impl GpuVertex {
 pub struct EffectLineVertex {
     pub position: [f32; 3],
     pub colour: [f32; 4],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EffectBlendMode {
+    Additive,
+    Alpha,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EffectBillboardInstance {
+    pub center: [f32; 3],
+    pub axis_right: [f32; 3],
+    pub axis_up: [f32; 3],
+    pub colour: [f32; 4],
+    pub uv_rect: [f32; 4],
+    /// Zero selects the procedural soft sprite; uploaded package sprites begin at one.
+    pub texture_index: usize,
+    pub blend: EffectBlendMode,
+    /// Camera-space sorting key. Larger values are drawn first for alpha blending.
+    pub depth: f32,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct EffectQuadVertex {
+    corner: [f32; 2],
+    uv: [f32; 2],
+}
+
+impl EffectQuadVertex {
+    const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
+        wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2];
+
+    fn layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBUTES,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+struct GpuEffectBillboardInstance {
+    center: [f32; 3],
+    _pad_0: f32,
+    axis_right: [f32; 3],
+    _pad_1: f32,
+    axis_up: [f32; 3],
+    _pad_2: f32,
+    colour: [f32; 4],
+    uv_rect: [f32; 4],
+}
+
+impl GpuEffectBillboardInstance {
+    const ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+        2 => Float32x3,
+        3 => Float32x3,
+        4 => Float32x3,
+        5 => Float32x4,
+        6 => Float32x4
+    ];
+
+    fn layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &Self::ATTRIBUTES,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1260,6 +1434,7 @@ pub struct MeshUploadStats {
     pub full_uploads: u64,
     pub in_place_geometry_updates: u64,
     pub unchanged_reuses: u64,
+    pub scene_transform_updates: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -1505,6 +1680,7 @@ pub struct GpuMeshBuffers {
     mesh_identity: u64,
     topology_signature: u64,
     deformation_signature: u64,
+    role_signature: u64,
     tangents: Vec<[f32; 4]>,
     tangents_exact: bool,
     pub draw_revision: u64,
@@ -1515,6 +1691,19 @@ struct GpuOverlayLines {
     vertices: wgpu::Buffer,
     vertex_count: u32,
     signature: u64,
+}
+
+struct GpuEffectTexture {
+    source_sha256: String,
+    _texture: Arc<wgpu::Texture>,
+    bind_group: wgpu::BindGroup,
+}
+
+struct GpuEffectBatch {
+    texture_index: usize,
+    blend: EffectBlendMode,
+    instances: wgpu::Buffer,
+    instance_count: u32,
 }
 
 impl GpuOverlayLines {
@@ -1714,12 +1903,14 @@ struct MeshUploadKey {
     topology_generation: u64,
     topology_signature: u64,
     deformation_signature: u64,
+    role_signature: u64,
 }
 
 fn classify_mesh_upload(current: MeshUploadKey, next: MeshUploadKey) -> MeshUploadAction {
     if current.mesh_identity != next.mesh_identity
         || current.topology_generation != next.topology_generation
         || current.topology_signature != next.topology_signature
+        || current.role_signature != next.role_signature
     {
         MeshUploadAction::Replace
     } else if current.draw_revision == next.draw_revision
@@ -1773,6 +1964,22 @@ fn deformation_signature(reference: Option<&[[f32; 3]]>) -> Result<u64, RenderEr
             coordinate.to_bits().hash(&mut hasher);
         }
     }
+    Ok(hasher.finish())
+}
+
+fn scene_role_signature(roles: Option<&[u32]>, vertex_count: usize) -> Result<u64, RenderError> {
+    let Some(roles) = roles else {
+        return Ok(0);
+    };
+    if roles.len() != vertex_count {
+        return Err(RenderError::InvalidSnapshot(format!(
+            "scene role list has {} entries for {vertex_count} vertices",
+            roles.len()
+        )));
+    }
+    let mut hasher = DefaultHasher::new();
+    1_u8.hash(&mut hasher);
+    roles.hash(&mut hasher);
     Ok(hasher.finish())
 }
 
@@ -1845,6 +2052,7 @@ fn deformation_colours(
 fn gpu_vertices_with_tangents(
     snapshot: &DrawSnapshot,
     deformation_reference: Option<&[[f32; 3]]>,
+    scene_roles: Option<&[u32]>,
     tangents: &[[f32; 4]],
 ) -> Result<Vec<GpuVertex>, RenderError> {
     if tangents.len() != snapshot.positions.len() {
@@ -1852,6 +2060,13 @@ fn gpu_vertices_with_tangents(
             "{} positions have {} tangents",
             snapshot.positions.len(),
             tangents.len()
+        )));
+    }
+    if scene_roles.is_some_and(|roles| roles.len() != snapshot.positions.len()) {
+        return Err(RenderError::InvalidSnapshot(format!(
+            "scene role list has {} entries for {} positions",
+            scene_roles.map_or(0, <[u32]>::len),
+            snapshot.positions.len()
         )));
     }
     let deformation = deformation_colours(snapshot, deformation_reference)?;
@@ -1873,6 +2088,7 @@ fn gpu_vertices_with_tangents(
                 uv,
                 tangent,
                 deformation: deformation[index],
+                editable_role: scene_roles.map_or(0, |roles| roles[index]),
             }
         })
         .collect())
@@ -1880,17 +2096,22 @@ fn gpu_vertices_with_tangents(
 
 impl GpuMeshBuffers {
     pub fn upload(device: &wgpu::Device, snapshot: &DrawSnapshot) -> Result<Self, RenderError> {
-        Self::upload_with_deformation(device, snapshot, None)
+        Self::upload_with_deformation(device, snapshot, None, None)
     }
 
     fn upload_with_deformation(
         device: &wgpu::Device,
         snapshot: &DrawSnapshot,
         deformation_reference: Option<&[[f32; 3]]>,
+        scene_roles: Option<&[u32]>,
     ) -> Result<Self, RenderError> {
         let tangents = vertex_tangents(snapshot)?;
-        let vertices =
-            gpu_vertices_with_tangents(snapshot, deformation_reference, tangents.as_slice())?;
+        let vertices = gpu_vertices_with_tangents(
+            snapshot,
+            deformation_reference,
+            scene_roles,
+            tangents.as_slice(),
+        )?;
         let vertex = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("CDMW Rust Mesh Lab vertices"),
             contents: bytemuck::cast_slice(&vertices),
@@ -1939,6 +2160,7 @@ impl GpuMeshBuffers {
             mesh_identity: snapshot.mesh_identity,
             topology_signature: topology_signature(snapshot),
             deformation_signature: deformation_signature(deformation_reference)?,
+            role_signature: scene_role_signature(scene_roles, snapshot.positions.len())?,
             tangents,
             tangents_exact: true,
             draw_revision: snapshot.draw_revision,
@@ -1950,6 +2172,7 @@ impl GpuMeshBuffers {
         &self,
         snapshot: &DrawSnapshot,
         deformation_signature: u64,
+        role_signature: u64,
     ) -> MeshUploadAction {
         classify_mesh_upload(
             MeshUploadKey {
@@ -1958,6 +2181,7 @@ impl GpuMeshBuffers {
                 topology_generation: self.topology_generation,
                 topology_signature: self.topology_signature,
                 deformation_signature: self.deformation_signature,
+                role_signature: self.role_signature,
             },
             MeshUploadKey {
                 mesh_identity: snapshot.mesh_identity,
@@ -1965,12 +2189,13 @@ impl GpuMeshBuffers {
                 topology_generation: snapshot.topology_generation,
                 topology_signature: topology_signature(snapshot),
                 deformation_signature,
+                role_signature,
             },
         )
     }
 
     fn matches_snapshot(&self, snapshot: &DrawSnapshot) -> bool {
-        self.upload_action(snapshot, 0) == MeshUploadAction::Reuse
+        self.upload_action(snapshot, 0, 0) == MeshUploadAction::Reuse
     }
 
     fn refresh_geometry(
@@ -1979,6 +2204,8 @@ impl GpuMeshBuffers {
         snapshot: &DrawSnapshot,
         deformation_reference: Option<&[[f32; 3]]>,
         deformation_signature: u64,
+        scene_roles: Option<&[u32]>,
+        role_signature: u64,
         update_mode: GeometryUpdateMode,
     ) -> Result<(), RenderError> {
         let tangents = match update_mode {
@@ -1987,8 +2214,12 @@ impl GpuMeshBuffers {
             }
             GeometryUpdateMode::Final => vertex_tangents(snapshot)?,
         };
-        let vertices =
-            gpu_vertices_with_tangents(snapshot, deformation_reference, tangents.as_slice())?;
+        let vertices = gpu_vertices_with_tangents(
+            snapshot,
+            deformation_reference,
+            scene_roles,
+            tangents.as_slice(),
+        )?;
         let normal_line_vertices = normal_line_vertices(snapshot);
         let bounds_line_vertices = bounds_line_vertices(&snapshot.positions);
         if u32::try_from(vertices.len()).ok() != Some(self.vertex_count)
@@ -2012,6 +2243,7 @@ impl GpuMeshBuffers {
         );
         self.draw_revision = snapshot.draw_revision;
         self.deformation_signature = deformation_signature;
+        self.role_signature = role_signature;
         self.tangents = tangents;
         self.tangents_exact = update_mode == GeometryUpdateMode::Final;
         Ok(())
@@ -2171,6 +2403,13 @@ pub struct WindowRenderer {
     bone_pipeline: wgpu::RenderPipeline,
     guide_pipeline: wgpu::RenderPipeline,
     effect_pipeline: wgpu::RenderPipeline,
+    effect_particle_alpha_pipeline: wgpu::RenderPipeline,
+    effect_particle_additive_pipeline: wgpu::RenderPipeline,
+    effect_quad: wgpu::Buffer,
+    effect_texture_bind_group_layout: wgpu::BindGroupLayout,
+    effect_sampler: wgpu::Sampler,
+    effect_textures: Vec<GpuEffectTexture>,
+    effect_batches: Vec<GpuEffectBatch>,
     mesh: Option<GpuMeshBuffers>,
     skeleton_lines: Option<GpuOverlayLines>,
     preview_lines: Option<GpuOverlayLines>,
@@ -2288,6 +2527,76 @@ impl WindowRenderer {
             &camera_bind_group_layout,
             sample_count,
         );
+        let effect_texture_bind_group_layout = create_effect_texture_bind_group_layout(&device);
+        let effect_sampler = create_effect_sampler(&device);
+        let effect_textures = vec![create_procedural_effect_texture(
+            &device,
+            &queue,
+            &effect_texture_bind_group_layout,
+            &effect_sampler,
+        )];
+        let effect_particle_alpha_pipeline = create_effect_particle_pipeline(
+            &device,
+            format,
+            &texture_bind_group_layout,
+            &camera_bind_group_layout,
+            &effect_texture_bind_group_layout,
+            sample_count,
+            wgpu::BlendState::ALPHA_BLENDING,
+            "CDMW Rust Preview alpha effect particles",
+        );
+        let effect_particle_additive_pipeline = create_effect_particle_pipeline(
+            &device,
+            format,
+            &texture_bind_group_layout,
+            &camera_bind_group_layout,
+            &effect_texture_bind_group_layout,
+            sample_count,
+            wgpu::BlendState {
+                color: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::SrcAlpha,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+                alpha: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+            },
+            "CDMW Rust Preview additive effect particles",
+        );
+        let effect_quad_vertices = [
+            EffectQuadVertex {
+                corner: [-1.0, -1.0],
+                uv: [0.0, 1.0],
+            },
+            EffectQuadVertex {
+                corner: [1.0, -1.0],
+                uv: [1.0, 1.0],
+            },
+            EffectQuadVertex {
+                corner: [1.0, 1.0],
+                uv: [1.0, 0.0],
+            },
+            EffectQuadVertex {
+                corner: [-1.0, -1.0],
+                uv: [0.0, 1.0],
+            },
+            EffectQuadVertex {
+                corner: [1.0, 1.0],
+                uv: [1.0, 0.0],
+            },
+            EffectQuadVertex {
+                corner: [-1.0, 1.0],
+                uv: [0.0, 0.0],
+            },
+        ];
+        let effect_quad = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CDMW Rust Preview effect billboard quad"),
+            contents: bytemuck::cast_slice(&effect_quad_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
         let depth_target = create_depth_target_with_sample_count(
             &device,
             config.width,
@@ -2316,6 +2625,13 @@ impl WindowRenderer {
             bone_pipeline: pipelines.bone,
             guide_pipeline: pipelines.guide,
             effect_pipeline: pipelines.effect,
+            effect_particle_alpha_pipeline,
+            effect_particle_additive_pipeline,
+            effect_quad,
+            effect_texture_bind_group_layout,
+            effect_sampler,
+            effect_textures,
+            effect_batches: Vec::new(),
             mesh: None,
             skeleton_lines: None,
             preview_lines: None,
@@ -2368,6 +2684,21 @@ impl WindowRenderer {
         self.set_snapshot_with_deformation(snapshot, None)
     }
 
+    /// Uploads a scene once while tagging vertices that should receive the live
+    /// placement transform. Role zero is static; any non-zero role is editable.
+    pub fn set_snapshot_with_scene_roles(
+        &mut self,
+        snapshot: &DrawSnapshot,
+        scene_roles: &[u32],
+    ) -> Result<(), RenderError> {
+        self.set_snapshot_with_deformation_mode(
+            snapshot,
+            None,
+            Some(scene_roles),
+            GeometryUpdateMode::Final,
+        )
+    }
+
     pub fn set_snapshot_with_deformation(
         &mut self,
         snapshot: &DrawSnapshot,
@@ -2376,6 +2707,7 @@ impl WindowRenderer {
         self.set_snapshot_with_deformation_mode(
             snapshot,
             deformation_reference,
+            None,
             GeometryUpdateMode::Final,
         )
     }
@@ -2388,6 +2720,7 @@ impl WindowRenderer {
         self.set_snapshot_with_deformation_mode(
             snapshot,
             deformation_reference,
+            None,
             GeometryUpdateMode::Interactive,
         )
     }
@@ -2396,14 +2729,16 @@ impl WindowRenderer {
         &mut self,
         snapshot: &DrawSnapshot,
         deformation_reference: Option<&[[f32; 3]]>,
+        scene_roles: Option<&[u32]>,
         update_mode: GeometryUpdateMode,
     ) -> Result<(), RenderError> {
         let deformation_signature = deformation_signature(deformation_reference)?;
+        let role_signature = scene_role_signature(scene_roles, snapshot.positions.len())?;
         let mut action = self
             .mesh
             .as_ref()
             .map_or(MeshUploadAction::Replace, |mesh| {
-                mesh.upload_action(snapshot, deformation_signature)
+                mesh.upload_action(snapshot, deformation_signature, role_signature)
             });
         action = resolve_mesh_upload_action(
             action,
@@ -2424,6 +2759,8 @@ impl WindowRenderer {
                         snapshot,
                         deformation_reference,
                         deformation_signature,
+                        scene_roles,
+                        role_signature,
                         update_mode,
                     )?;
                 self.upload_stats.in_place_geometry_updates = self
@@ -2436,6 +2773,7 @@ impl WindowRenderer {
                     &self.device,
                     snapshot,
                     deformation_reference,
+                    scene_roles,
                 )?);
                 self.upload_stats.full_uploads = self.upload_stats.full_uploads.saturating_add(1);
             }
@@ -2443,18 +2781,66 @@ impl WindowRenderer {
         Ok(())
     }
 
+    /// Updates only the small camera/scene uniform used by editable-role
+    /// vertices. This deliberately leaves all mesh buffers untouched.
+    pub fn set_scene_transform(&mut self, model: Mat4) -> Result<(), RenderError> {
+        let determinant = model.determinant();
+        let normal = model.inverse().transpose();
+        if !model.is_finite()
+            || determinant == 0.0
+            || !determinant.is_finite()
+            || !normal.is_finite()
+        {
+            return Err(RenderError::InvalidSnapshot(
+                "scene transform must be finite and invertible".to_owned(),
+            ));
+        }
+        let model_columns = model.to_cols_array_2d();
+        let normal_columns = normal.to_cols_array_2d();
+        if self.camera_uniform.scene_model == model_columns
+            && self.camera_uniform.scene_normal == normal_columns
+        {
+            return Ok(());
+        }
+        self.camera_uniform.scene_model = model_columns;
+        self.camera_uniform.scene_normal = normal_columns;
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&self.camera_uniform),
+        );
+        self.upload_stats.scene_transform_updates =
+            self.upload_stats.scene_transform_updates.saturating_add(1);
+        Ok(())
+    }
+
     pub fn set_camera(&mut self, view_projection: Mat4) {
+        self.set_camera_with_basis(view_projection, Vec3::X, Vec3::Y);
+    }
+
+    pub fn set_camera_with_basis(
+        &mut self,
+        view_projection: Mat4,
+        camera_right: Vec3,
+        camera_up: Vec3,
+    ) {
         let view_direction = view_direction_from_view_projection(view_projection)
             .extend(0.0)
             .to_array();
+        let camera_right = camera_right.normalize_or(Vec3::X).extend(0.0).to_array();
+        let camera_up = camera_up.normalize_or(Vec3::Y).extend(0.0).to_array();
         let view_projection = view_projection.to_cols_array_2d();
         if self.camera_uniform.view_projection == view_projection
             && self.camera_uniform.view_direction == view_direction
+            && self.camera_uniform.camera_right == camera_right
+            && self.camera_uniform.camera_up == camera_up
         {
             return;
         }
         self.camera_uniform.view_projection = view_projection;
         self.camera_uniform.view_direction = view_direction;
+        self.camera_uniform.camera_right = camera_right;
+        self.camera_uniform.camera_up = camera_up;
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -2468,6 +2854,19 @@ impl WindowRenderer {
         }
         self.view_mode = view_mode;
         self.camera_uniform.view_mode = view_mode.shader_mode();
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&self.camera_uniform),
+        );
+    }
+
+    pub fn set_lighting_preset(&mut self, preset: LightingPreset) {
+        let value = preset.shader_value();
+        if self.camera_uniform.lighting_preset == value {
+            return;
+        }
+        self.camera_uniform.lighting_preset = value;
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -2551,6 +2950,117 @@ impl WindowRenderer {
             return Ok(());
         }
         self.effect_lines = GpuOverlayLines::upload_effects(&self.device, vertices)?;
+        Ok(())
+    }
+
+    /// Remove package-authored sprites while retaining the built-in soft
+    /// procedural fallback at texture index zero.
+    pub fn reset_effect_textures(&mut self) {
+        self.effect_textures.truncate(1);
+        self.effect_batches.clear();
+    }
+
+    /// Upload one validated package DDS. Identical bytes share the same GPU
+    /// texture even when several archive paths refer to them.
+    pub fn add_effect_dds_texture(&mut self, bytes: &[u8]) -> Result<usize, RenderError> {
+        let identity = dds_texture_identity(bytes, TextureRole::BaseColor)?;
+        if let Some(index) = self
+            .effect_textures
+            .iter()
+            .position(|texture| texture.source_sha256 == identity.source_sha256)
+        {
+            return Ok(index);
+        }
+        let uploaded =
+            upload_dds_texture(&self.device, &self.queue, bytes, TextureRole::BaseColor)?;
+        let texture = effect_texture_binding(
+            &self.device,
+            &self.effect_texture_bind_group_layout,
+            &self.effect_sampler,
+            uploaded.texture,
+            uploaded.view_format,
+            uploaded.source_sha256,
+        );
+        self.effect_textures.push(texture);
+        Ok(self.effect_textures.len() - 1)
+    }
+
+    /// Publish bounded billboard/ribbon instances. Alpha particles retain a
+    /// global far-to-near order; contiguous texture runs become instanced draws.
+    pub fn set_effect_particles(
+        &mut self,
+        instances: &[EffectBillboardInstance],
+    ) -> Result<(), RenderError> {
+        const MAX_EFFECT_INSTANCES: usize = 32_768;
+        if instances.len() > MAX_EFFECT_INSTANCES {
+            return Err(RenderError::ResourceLimit);
+        }
+        if instances.iter().any(|instance| {
+            instance.texture_index >= self.effect_textures.len()
+                || !instance.depth.is_finite()
+                || !instance
+                    .center
+                    .iter()
+                    .chain(instance.axis_right.iter())
+                    .chain(instance.axis_up.iter())
+                    .chain(instance.colour.iter())
+                    .chain(instance.uv_rect.iter())
+                    .all(|value| value.is_finite())
+        }) {
+            return Err(RenderError::InvalidOverlay(
+                "effect billboard instance is non-finite or names an unavailable texture"
+                    .to_owned(),
+            ));
+        }
+        let mut ordered = instances.to_vec();
+        ordered.sort_by(|left, right| match (left.blend, right.blend) {
+            (EffectBlendMode::Additive, EffectBlendMode::Alpha) => std::cmp::Ordering::Less,
+            (EffectBlendMode::Alpha, EffectBlendMode::Additive) => std::cmp::Ordering::Greater,
+            (EffectBlendMode::Additive, EffectBlendMode::Additive) => {
+                left.texture_index.cmp(&right.texture_index)
+            }
+            (EffectBlendMode::Alpha, EffectBlendMode::Alpha) => right.depth.total_cmp(&left.depth),
+        });
+        self.effect_batches.clear();
+        let mut start = 0usize;
+        while start < ordered.len() {
+            let texture_index = ordered[start].texture_index;
+            let blend = ordered[start].blend;
+            let mut end = start + 1;
+            while end < ordered.len()
+                && ordered[end].texture_index == texture_index
+                && ordered[end].blend == blend
+            {
+                end += 1;
+            }
+            let gpu = ordered[start..end]
+                .iter()
+                .map(|instance| GpuEffectBillboardInstance {
+                    center: instance.center,
+                    _pad_0: 0.0,
+                    axis_right: instance.axis_right,
+                    _pad_1: 0.0,
+                    axis_up: instance.axis_up,
+                    _pad_2: 0.0,
+                    colour: instance.colour,
+                    uv_rect: instance.uv_rect,
+                })
+                .collect::<Vec<_>>();
+            let buffer = self
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("CDMW Rust Preview effect instances"),
+                    contents: bytemuck::cast_slice(&gpu),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
+            self.effect_batches.push(GpuEffectBatch {
+                texture_index,
+                blend,
+                instances: buffer,
+                instance_count: u32::try_from(gpu.len()).map_err(|_| RenderError::ResourceLimit)?,
+            });
+            start = end;
+        }
         Ok(())
     }
 
@@ -2842,6 +3352,14 @@ impl WindowRenderer {
                     self.show_normals,
                     self.show_bounds,
                     self.show_bones,
+                );
+                draw_effect_particles(
+                    &mut pass,
+                    &self.effect_quad,
+                    &self.effect_batches,
+                    &self.effect_textures,
+                    &self.effect_particle_alpha_pipeline,
+                    &self.effect_particle_additive_pipeline,
                 );
             }
         }
@@ -3928,12 +4446,20 @@ async fn run_headless_render_smoke_internal(
     if let Some(position) = refreshed_mesh.positions.first_mut() {
         position[0] += 0.001;
     }
-    if mesh.upload_action(&refreshed_mesh, 0) != MeshUploadAction::UpdateGeometry {
+    if mesh.upload_action(&refreshed_mesh, 0, 0) != MeshUploadAction::UpdateGeometry {
         return Err(RenderError::Device(
             "headless mesh cache did not choose an in-place same-topology refresh".to_owned(),
         ));
     }
-    mesh.refresh_geometry(&queue, &refreshed_mesh, None, 0, GeometryUpdateMode::Final)?;
+    mesh.refresh_geometry(
+        &queue,
+        &refreshed_mesh,
+        None,
+        0,
+        None,
+        0,
+        GeometryUpdateMode::Final,
+    )?;
     if !mesh.matches_snapshot(&refreshed_mesh) {
         return Err(RenderError::Device(
             "headless in-place geometry refresh did not advance the cached revision".to_owned(),
@@ -3941,7 +4467,7 @@ async fn run_headless_render_smoke_internal(
     }
     let mut changed_topology = refreshed_mesh.clone();
     changed_topology.indices.swap(0, 1);
-    if mesh.upload_action(&changed_topology, 0) != MeshUploadAction::Replace {
+    if mesh.upload_action(&changed_topology, 0, 0) != MeshUploadAction::Replace {
         return Err(RenderError::Device(
             "headless mesh cache did not replace buffers after topology changed".to_owned(),
         ));
@@ -5745,6 +6271,211 @@ struct Pipelines {
     effect: wgpu::RenderPipeline,
 }
 
+fn create_effect_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("CDMW Rust Preview effect sprite layout"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+        ],
+    })
+}
+
+fn create_effect_sampler(device: &wgpu::Device) -> wgpu::Sampler {
+    device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("CDMW Rust Preview effect sprite sampler"),
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        address_mode_w: wgpu::AddressMode::ClampToEdge,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::MipmapFilterMode::Linear,
+        ..wgpu::SamplerDescriptor::default()
+    })
+}
+
+fn effect_texture_binding(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    sampler: &wgpu::Sampler,
+    texture: Arc<wgpu::Texture>,
+    view_format: wgpu::TextureFormat,
+    source_sha256: String,
+) -> GpuEffectTexture {
+    let view = texture.create_view(&wgpu::TextureViewDescriptor {
+        label: Some("CDMW Rust Preview effect sprite view"),
+        format: Some(view_format),
+        ..wgpu::TextureViewDescriptor::default()
+    });
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("CDMW Rust Preview effect sprite binding"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(sampler),
+            },
+        ],
+    });
+    GpuEffectTexture {
+        source_sha256,
+        _texture: texture,
+        bind_group,
+    }
+}
+
+fn create_procedural_effect_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layout: &wgpu::BindGroupLayout,
+    sampler: &wgpu::Sampler,
+) -> GpuEffectTexture {
+    const SIZE: u32 = 64;
+    let mut pixels = Vec::with_capacity((SIZE * SIZE * 4) as usize);
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let uv = Vec2::new(
+                (x as f32 + 0.5) / SIZE as f32 * 2.0 - 1.0,
+                (y as f32 + 0.5) / SIZE as f32 * 2.0 - 1.0,
+            );
+            let radius = uv.length();
+            let core = (1.0 - radius).clamp(0.0, 1.0);
+            let alpha = (core * core * (3.0 - 2.0 * core) * 255.0).round() as u8;
+            pixels.extend_from_slice(&[255, 255, 255, alpha]);
+        }
+    }
+    let texture = Arc::new(device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("CDMW Rust Preview procedural soft sprite"),
+        size: wgpu::Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    }));
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &pixels,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(SIZE * 4),
+            rows_per_image: Some(SIZE),
+        },
+        wgpu::Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+    );
+    effect_texture_binding(
+        device,
+        layout,
+        sampler,
+        texture,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        "procedural-soft-sprite-v1".to_owned(),
+    )
+}
+
+fn create_effect_particle_pipeline(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    material_layout: &wgpu::BindGroupLayout,
+    camera_layout: &wgpu::BindGroupLayout,
+    effect_layout: &wgpu::BindGroupLayout,
+    sample_count: u32,
+    blend: wgpu::BlendState,
+    label: &str,
+) -> wgpu::RenderPipeline {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("CDMW Rust Preview effect particle shader"),
+        source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+    });
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("CDMW Rust Preview effect particle pipeline layout"),
+        bind_group_layouts: &[
+            Some(material_layout),
+            Some(camera_layout),
+            Some(effect_layout),
+        ],
+        immediate_size: 0,
+    });
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(label),
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_effect_particle"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            buffers: &[
+                Some(EffectQuadVertex::layout()),
+                Some(GpuEffectBillboardInstance::layout()),
+            ],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_effect_particle"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: Some(blend),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: None,
+            unclipped_depth: false,
+            polygon_mode: wgpu::PolygonMode::Fill,
+            conservative: false,
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState {
+            count: sample_count,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
+        multiview_mask: None,
+        cache: None,
+    })
+}
+
 fn create_pipelines_with_sample_count(
     device: &wgpu::Device,
     format: wgpu::TextureFormat,
@@ -6220,6 +6951,32 @@ fn draw_mesh<'a>(
     }
     if let Some(lines) = effect_lines {
         draw_overlay_lines(pass, &lines.vertices, lines.vertex_count, effect_pipeline);
+    }
+}
+
+fn draw_effect_particles<'a>(
+    pass: &mut wgpu::RenderPass<'a>,
+    quad: &'a wgpu::Buffer,
+    batches: &'a [GpuEffectBatch],
+    textures: &'a [GpuEffectTexture],
+    alpha_pipeline: &'a wgpu::RenderPipeline,
+    additive_pipeline: &'a wgpu::RenderPipeline,
+) {
+    if batches.is_empty() {
+        return;
+    }
+    pass.set_vertex_buffer(0, quad.slice(..));
+    for batch in batches {
+        let Some(texture) = textures.get(batch.texture_index) else {
+            continue;
+        };
+        pass.set_pipeline(match batch.blend {
+            EffectBlendMode::Additive => additive_pipeline,
+            EffectBlendMode::Alpha => alpha_pipeline,
+        });
+        pass.set_bind_group(2, &texture.bind_group, &[]);
+        pass.set_vertex_buffer(1, batch.instances.slice(..));
+        pass.draw(0..6, 0..batch.instance_count);
     }
 }
 
@@ -7725,10 +8482,15 @@ mod tests {
 
     #[test]
     fn camera_uniform_matches_the_wgsl_scalar_padding_contract() {
-        assert_eq!(std::mem::size_of::<CameraUniform>(), 128);
+        assert_eq!(std::mem::size_of::<CameraUniform>(), 288);
         let uniform = CameraUniform::new(true);
         assert_eq!(uniform.output_is_srgb, 1);
+        assert_eq!(uniform.lighting_preset, 0);
         assert_eq!(uniform.view_direction, [0.0, 0.0, -1.0, 0.0]);
+        assert_eq!(uniform.camera_right, [1.0, 0.0, 0.0, 0.0]);
+        assert_eq!(uniform.camera_up, [0.0, 1.0, 0.0, 0.0]);
+        assert_eq!(uniform.scene_model, Mat4::IDENTITY.to_cols_array_2d());
+        assert_eq!(uniform.scene_normal, Mat4::IDENTITY.to_cols_array_2d());
         assert!(uniform.wire_colour[0] < 0.72);
         assert!(uniform.point_colour[0] < 0.92);
         assert_eq!(uniform.wire_colour[3], 1.0);
@@ -7783,7 +8545,9 @@ mod tests {
     #[test]
     fn material_uniform_and_vertex_match_the_wgsl_layout_contracts() {
         assert_eq!(std::mem::size_of::<MaterialUniform>(), 80);
-        assert_eq!(std::mem::size_of::<GpuVertex>(), 64);
+        assert_eq!(std::mem::size_of::<GpuVertex>(), 68);
+        assert_eq!(GpuVertex::ATTRIBUTES[5].shader_location, 5);
+        assert_eq!(GpuVertex::ATTRIBUTES[5].format, wgpu::VertexFormat::Uint32);
     }
 
     #[test]
@@ -7919,7 +8683,7 @@ mod tests {
     }
 
     #[test]
-    fn vortice_metal_readability_path_uses_source_coloured_bounded_ggx() {
+    fn neutral_metal_readability_uses_source_coloured_bounded_ggx_without_cue_lift() {
         assert!(SHADER.contains("fn distribution_ggx("));
         assert!(SHADER.contains("fn geometry_smith("));
         assert!(SHADER.contains("fn fresnel_schlick("));
@@ -7935,7 +8699,11 @@ mod tests {
         assert!(
             SHADER.contains("let metal_body_scale = select(0.34, 0.20, has_source_metalness);")
         );
-        assert!(SHADER.contains("diffuse += material_reference_albedo * metal_cue * 0.16;"));
+        assert!(
+            SHADER
+                .contains("diffuse += material_reference_albedo * metal_cue * 0.16 * cue_weight;")
+        );
+        assert!(SHADER.contains("let cue_weight = select(0.0, 1.0, showcase || game_outdoor);"));
         assert!(!SHADER.contains("metal_cook_torrance + vec3<f32>"));
 
         fn fresnel_reference(cos_theta: f32, f0: Vec3) -> Vec3 {
@@ -7970,12 +8738,11 @@ mod tests {
         assert!(response.max_element() <= 0.85);
         assert!(response.x > response.y && response.y > response.z);
 
-        let dark_source = Vec3::new(0.25, 0.12, 0.04);
-        let source_luma = dark_source.dot(Vec3::new(0.299, 0.587, 0.114));
-        let lifted = (dark_source * 1.03 + Vec3::splat(0.020 * (1.0 - source_luma)))
-            .clamp(Vec3::ZERO, Vec3::ONE);
-        assert!(lifted.dot(Vec3::new(0.299, 0.587, 0.114)) > source_luma);
-        assert!(lifted.x > lifted.y && lifted.y > lifted.z);
+        assert!(SHADER.contains("if camera.lighting_preset == 0u"));
+        assert!(SHADER.contains("let mapped_luma = exposed_luma / (1.0 + exposed_luma);"));
+        assert!(SHADER.contains(
+            "material_reference_albedo = clamp(texel.rgb, vec3<f32>(0.0), vec3<f32>(1.0));"
+        ));
     }
 
     #[test]
@@ -8037,7 +8804,8 @@ mod tests {
         assert_eq!(preferred_anisotropy_clamp(wgpu::DownlevelFlags::empty()), 1);
         assert!(SHADER.contains("const MATERIAL_MIP_LOD_BIAS: f32 = -2.0;"));
         assert!(SHADER.contains("textureSampleBias(base_texture"));
-        assert!(!SHADER.contains("textureSample("));
+        assert!(!SHADER.contains("textureSample(base_texture"));
+        assert!(SHADER.contains("textureSample(effect_sprite, effect_sampler, input.uv)"));
         assert_eq!(
             preferred_present_mode(&[
                 wgpu::PresentMode::Immediate,
@@ -8148,6 +8916,7 @@ mod tests {
             topology_generation: 3,
             topology_signature: 99,
             deformation_signature: 0,
+            role_signature: 0,
         };
         assert_eq!(
             classify_mesh_upload(current, current),
@@ -8184,6 +8953,10 @@ mod tests {
             },
             MeshUploadKey {
                 topology_signature: 100,
+                ..current
+            },
+            MeshUploadKey {
+                role_signature: 101,
                 ..current
             },
         ] {

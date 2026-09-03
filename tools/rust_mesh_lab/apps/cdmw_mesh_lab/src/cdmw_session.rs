@@ -33,6 +33,9 @@ const MAX_PROFILE_ENTRIES: usize = 4_096;
 const MAX_PROFILE_DEPTH: usize = 4;
 const MAX_TEXTURE_RESOURCES: usize = 4_096;
 const MAX_TEXTURE_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_EFFECT_TEXTURE_RESOURCES: usize = 128;
+const MAX_EFFECT_TEXTURE_FILE_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_EFFECT_TEXTURE_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_MATERIAL_PRESENTATIONS: usize = 2_048;
 const MAX_PREVIEW_CORE_BATCHES: usize = 4_096;
 const MAX_PREVIEW_CORE_VERTICES: usize = 2_000_000;
@@ -82,6 +85,19 @@ pub struct CdmwTextureResource {
     pub metadata: DdsMetadata,
     pub bytes: Vec<u8>,
     pub material_indices_by_lod: Vec<Vec<u32>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct EffectTextureReference {
+    pub archive_path: String,
+    pub file: FileReference,
+}
+
+#[derive(Debug, Clone)]
+pub struct CdmwEffectTextureResource {
+    pub archive_path: String,
+    pub _metadata: DdsMetadata,
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -297,6 +313,8 @@ pub struct SessionManifest {
     #[serde(default)]
     pub textures: Vec<SessionTextureReference>,
     #[serde(default)]
+    pub effect_textures: Vec<EffectTextureReference>,
+    #[serde(default)]
     pub material_presentations: Vec<SessionMaterialPresentation>,
     #[serde(default)]
     pub texture_status: Value,
@@ -378,6 +396,7 @@ pub struct LoadedCdmwSessionPackage {
     document: MeshDocument,
     source_lod_index: usize,
     textures: Vec<CdmwTextureResource>,
+    effect_textures: Vec<CdmwEffectTextureResource>,
     material_composition_metrics:
         crate::preview_core_material::PreviewCoreMaterialCompositionMetrics,
 }
@@ -440,6 +459,7 @@ impl LoadedCdmwSessionPackage {
         validate_document(&document)?;
         validate_material_presentations(&manifest, &document)?;
         let mut textures = read_texture_resources(&root, &manifest, &document)?;
+        let effect_textures = read_effect_texture_resources(&root, &manifest)?;
         let material_composition_metrics =
             if let Some(graph) = manifest.preview_core_material_graph.as_ref() {
                 crate::preview_core_material::compose_preview_core_material_resources(
@@ -464,6 +484,7 @@ impl LoadedCdmwSessionPackage {
             document,
             source_lod_index,
             textures,
+            effect_textures,
             material_composition_metrics,
         })
     }
@@ -490,6 +511,10 @@ impl LoadedCdmwSessionPackage {
 
     pub fn take_textures(&mut self) -> Vec<CdmwTextureResource> {
         std::mem::take(&mut self.textures)
+    }
+
+    pub fn take_effect_textures(&mut self) -> Vec<CdmwEffectTextureResource> {
+        std::mem::take(&mut self.effect_textures)
     }
 
     #[must_use]
@@ -527,6 +552,7 @@ impl CdmwBridge {
             document,
             source_lod_index,
             textures,
+            effect_textures: _,
             material_composition_metrics: _,
         } = package;
         let (incoming_tx, incoming_rx) = bounded(CONTROL_QUEUE_BOUND);
@@ -865,6 +891,7 @@ impl CdmwBridge {
                 material_contract: Value::Null,
                 preview_core_material_graph: None,
                 textures: Vec::new(),
+                effect_textures: Vec::new(),
                 material_presentations: Vec::new(),
                 texture_status: Value::Null,
                 source: Value::Null,
@@ -1932,6 +1959,112 @@ fn read_texture_resources(
     Ok(resources)
 }
 
+fn is_owned_effect_texture_path(value: &str, expected_sha256: &str) -> bool {
+    let relative = Path::new(value);
+    let mut components = relative.components();
+    let directory_ok =
+        matches!(components.next(), Some(Component::Normal(value)) if value == "effect_textures");
+    let Some(Component::Normal(filename)) = components.next() else {
+        return false;
+    };
+    if components.next().is_some() {
+        return false;
+    }
+    let Some(filename) = filename.to_str() else {
+        return false;
+    };
+    let Some(stem) = filename.strip_suffix(".dds") else {
+        return false;
+    };
+    directory_ok
+        && stem.len() == 64
+        && stem.bytes().all(|byte| byte.is_ascii_hexdigit())
+        && stem.eq_ignore_ascii_case(expected_sha256.trim())
+}
+
+fn read_effect_texture_reference(
+    root: &Path,
+    reference: &FileReference,
+) -> Result<Vec<u8>, SessionError> {
+    if reference.content_type != "image/vnd-ms.dds"
+        || reference.data_type != "effect_sprite_dds"
+        || reference.count != 1
+        || reference.byte_length < 128
+        || reference.byte_length > MAX_EFFECT_TEXTURE_FILE_BYTES
+        || !is_owned_effect_texture_path(&reference.path, &reference.sha256)
+    {
+        return Err(SessionError::InvalidPayload(
+            "effect sprite reference does not match its DDS contract".to_owned(),
+        ));
+    }
+    let candidate = fs::canonicalize(root.join(&reference.path))?;
+    let directory = fs::canonicalize(root.join("effect_textures"))?;
+    if candidate.parent() != Some(directory.as_path())
+        || !candidate.is_file()
+        || fs::symlink_metadata(&candidate)?.file_type().is_symlink()
+    {
+        return Err(SessionError::InvalidPayload(
+            "effect sprite path escaped the package texture directory".to_owned(),
+        ));
+    }
+    let bytes = read_limited(&candidate, MAX_EFFECT_TEXTURE_FILE_BYTES)?;
+    if u64::try_from(bytes.len()).ok() != Some(reference.byte_length)
+        || sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase()
+    {
+        return Err(SessionError::InvalidPayload(
+            "effect sprite size or SHA-256 does not match".to_owned(),
+        ));
+    }
+    Ok(bytes)
+}
+
+fn read_effect_texture_resources(
+    root: &Path,
+    manifest: &SessionManifest,
+) -> Result<Vec<CdmwEffectTextureResource>, SessionError> {
+    if manifest.effect_textures.len() > MAX_EFFECT_TEXTURE_RESOURCES {
+        return Err(SessionError::InvalidManifest(
+            "the session contains too many effect sprite textures".to_owned(),
+        ));
+    }
+    let mut aggregate = 0_u64;
+    let mut archive_paths = BTreeSet::new();
+    let mut resource_hashes = BTreeSet::new();
+    let mut resources = Vec::with_capacity(manifest.effect_textures.len());
+    for texture in &manifest.effect_textures {
+        let archive_path = texture.archive_path.trim().replace('\\', "/");
+        if archive_path.is_empty()
+            || archive_path.len() > 1_024
+            || Path::new(&archive_path).is_absolute()
+            || archive_path.split('/').any(|component| {
+                component.is_empty() || matches!(component, "." | "..") || component.contains(':')
+            })
+            || !archive_paths.insert(archive_path.clone())
+        {
+            return Err(SessionError::InvalidManifest(
+                "effect sprite archive identity is invalid or duplicated".to_owned(),
+            ));
+        }
+        if resource_hashes.insert(texture.file.sha256.trim().to_ascii_uppercase()) {
+            aggregate = aggregate.saturating_add(texture.file.byte_length);
+        }
+        if aggregate > MAX_EFFECT_TEXTURE_TOTAL_BYTES {
+            return Err(SessionError::InvalidManifest(
+                "effect sprite textures exceed the aggregate limit".to_owned(),
+            ));
+        }
+        let bytes = read_effect_texture_reference(root, &texture.file)?;
+        let metadata = inspect_dds(&bytes, TextureRole::BaseColor)
+            .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+        resources.push(CdmwEffectTextureResource {
+            archive_path,
+            _metadata: metadata,
+            bytes,
+        });
+    }
+    Ok(resources)
+}
+
 fn simple_owned_path(root: &Path, name: &str) -> Result<PathBuf, SessionError> {
     let relative = Path::new(name);
     let mut components = relative.components();
@@ -2009,9 +2142,46 @@ fn reject_unexpected_initial_files(
             validate_owned_profile_directory(&entry.path())?;
             continue;
         }
+        if name == "effect_textures" && file_type.is_dir() && !manifest.effect_textures.is_empty() {
+            validate_owned_effect_texture_directory(&entry.path(), manifest)?;
+            continue;
+        }
         return Err(SessionError::InvalidManifest(format!(
             "unexpected session entry {name}"
         )));
+    }
+    Ok(())
+}
+
+fn validate_owned_effect_texture_directory(
+    directory: &Path,
+    manifest: &SessionManifest,
+) -> Result<(), SessionError> {
+    if fs::symlink_metadata(directory)?.file_type().is_symlink() {
+        return Err(SessionError::InvalidManifest(
+            "effect texture directory must not be a link".to_owned(),
+        ));
+    }
+    let allowed = manifest
+        .effect_textures
+        .iter()
+        .filter_map(|texture| Path::new(&texture.file.path).file_name())
+        .map(|name| name.to_string_lossy().into_owned())
+        .collect::<BTreeSet<_>>();
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let file_type = entry.file_type()?;
+        if !file_type.is_file() || file_type.is_symlink() || !allowed.contains(&name) {
+            return Err(SessionError::InvalidManifest(format!(
+                "unexpected effect texture entry {name}"
+            )));
+        }
+    }
+    if allowed.len() != fs::read_dir(directory)?.count() {
+        return Err(SessionError::InvalidManifest(
+            "effect texture directory does not conserve declared resources".to_owned(),
+        ));
     }
     Ok(())
 }
@@ -3105,6 +3275,61 @@ mod tests {
             resources[0].metadata.source_sha256.to_ascii_uppercase(),
             sha256_upper(&resources[0].bytes)
         );
+    }
+
+    #[test]
+    fn effect_textures_are_hash_checked_deduplicated_files_with_bounded_identities() {
+        let root = tempdir().expect("root");
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+        let sha256 = sha256_upper(&bytes);
+        let relative = format!("effect_textures/{}.dds", sha256.to_ascii_lowercase());
+        fs::create_dir(root.path().join("effect_textures")).expect("effect texture directory");
+        fs::write(root.path().join(&relative), &bytes).expect("effect texture");
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).expect("manifest bytes"))
+                .expect("manifest JSON");
+        let file = json!({
+            "path": relative,
+            "data_type": "effect_sprite_dds",
+            "count": 1,
+            "byte_length": bytes.len(),
+            "sha256": sha256,
+            "content_type": "image/vnd-ms.dds"
+        });
+        manifest["effect_textures"] = json!([
+            {"archive_path": "effect/texture/fire.dds", "file": file.clone()},
+            {"archive_path": "effect/texture/fire_alias.dds", "file": file}
+        ]);
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec(&manifest).expect("effect manifest bytes"),
+        )
+        .expect("effect manifest");
+
+        let mut package =
+            LoadedCdmwSessionPackage::load(&manifest_path).expect("valid effect texture package");
+        let resources = package.take_effect_textures();
+        assert_eq!(resources.len(), 2);
+        assert_eq!(resources[0].bytes, bytes);
+        assert_eq!(resources[1].bytes, bytes);
+        assert_eq!(
+            fs::read_dir(root.path().join("effect_textures"))
+                .expect("effect directory")
+                .count(),
+            1,
+            "aliases share one immutable package resource"
+        );
+
+        manifest["effect_textures"][0]["archive_path"] = json!("../escape.dds");
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec(&manifest).expect("invalid effect manifest bytes"),
+        )
+        .expect("invalid effect manifest");
+        let error =
+            LoadedCdmwSessionPackage::load(&manifest_path).expect_err("escaped archive identity");
+        assert!(error.to_string().contains("archive identity"));
     }
 
     #[test]

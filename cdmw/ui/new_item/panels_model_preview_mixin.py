@@ -19,6 +19,19 @@ IMPORT_DIR_SETTING = "ui/new_item_import_dir"
 
 
 class ModelPanelPreviewMixin:
+    def _lighting_preset_changed(self, _index: int) -> None:
+        preset = str(self.lighting_preset.currentData() or "neutral_studio")
+        self.preview.set_lighting_preset(preset)
+        self._controller.set_preview_lighting_preset(preset)
+
+    def _sync_lighting_preset(self, preset: str) -> None:
+        index = self.lighting_preset.findData(str(preset))
+        if index >= 0 and index != self.lighting_preset.currentIndex():
+            self.lighting_preset.blockSignals(True)
+            self.lighting_preset.setCurrentIndex(index)
+            self.lighting_preset.blockSignals(False)
+        self.preview.set_lighting_preset(preset)
+
     def _icon_source_changed(self, keep: bool) -> None:
         self._controller.draft.icon = IconSource.TEMPLATE if keep else IconSource.GENERATED
         for widget in (self.icon_source, self.icon_file_button, self.icon_folder_button):
@@ -163,6 +176,9 @@ class ModelPanelPreviewMixin:
         ):
             widget.setEnabled(not busy)
         model_busy = bool(busy) and lane in {"model_import", "model_apply", "model_part_edit"}
+        self.placement_group.setVisible(
+            self._controller.model_import is not None or model_busy
+        )
         self.operation_banner.setVisible(model_busy or self._preview_busy)
         self.operation_spinner.set_running(model_busy or self._preview_busy)
         self.cancel_operation_button.setVisible(model_busy)
@@ -221,6 +237,7 @@ class ModelPanelPreviewMixin:
 
     def _refresh_placement_enabled(self) -> None:
         ready = bool(getattr(self.preview, "showing_placement", False)) and not self._controller.busy
+        self.placement_group.setEnabled(ready)
         widgets = (
             *self.offset_spins,
             *self.rotation_spins,

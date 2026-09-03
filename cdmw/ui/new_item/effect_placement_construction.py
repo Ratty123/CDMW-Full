@@ -123,8 +123,8 @@ class EffectPlacementConstructionMixin:
             self._add_view_button(views, "Front", "Looking the character in the face: which side of the item the effect sits on.")
             self._add_view_button(views, "Side", "From the side: the item's longest span, and how far along it the effect sits.")
             self._add_view_button(views, "Top", "From above: how far in front of or behind the item the effect sits.")
-            self._add_view_button(views, "Angled", "The three-quarter view the dialog opens on.")
-            self.view_buttons[-1].setChecked(True)
+            self._add_view_button(views, "Angled", "A three-quarter view for depth checks.")
+            self.view_buttons[0].setChecked(True)
             views.addStretch(1)
             viewport_column.addLayout(views)
             # Keep the gesture reference without spending a permanent line on it.
@@ -309,10 +309,20 @@ class EffectPlacementConstructionMixin:
                 break
         self.backdrop_choice.currentIndexChanged.connect(lambda _index: self._backdrop_changed())
         backdrop_row.addWidget(self.backdrop_choice, 1)
+        lighting_row = QHBoxLayout()
+        lighting_row.addWidget(QLabel("Lighting"))
+        self.lighting_choice = QComboBox()
+        self.lighting_choice.addItem("Neutral Studio", "neutral_studio")
+        self.lighting_choice.addItem("Showcase", "showcase")
+        selected = self.lighting_choice.findData(self._lighting_preset)
+        self.lighting_choice.setCurrentIndex(max(0, selected))
+        self.lighting_choice.currentIndexChanged.connect(lambda _index: self._lighting_changed())
+        lighting_row.addWidget(self.lighting_choice, 1)
         orbit_row = self._build_orbit_controls()
         self.show_character.toggled.connect(lambda _checked: self._apply_scene_visibility())
         view.addWidget(self.show_character)
         view.addLayout(backdrop_row)
+        view.addLayout(lighting_row)
         view.addLayout(orbit_row)
 
     def _build_orbit_controls(self) -> QHBoxLayout:

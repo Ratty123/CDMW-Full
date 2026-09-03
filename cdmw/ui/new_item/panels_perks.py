@@ -637,6 +637,8 @@ class PerksPanel(QGroupBox):
             effect_preview=effect_preview_builder, texture_reader=texture_reader,
             character_builder=self._controller.character_holding_the_item,
             model_source_usage=model_source_usage if callable(model_source_usage) else None,
+            lighting_preset=self._controller.preview_lighting_preset,
+            lighting_changed=self._controller.set_preview_lighting_preset,
         )
         if dialog.exec() != QDialog.Accepted:
             return

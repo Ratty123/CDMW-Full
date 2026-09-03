@@ -42,6 +42,7 @@ from cdmw.services.mesh_rust_preview_package import (
     build_rust_preview_prewarm_package,
     normalize_rust_preview_material_quality,
     rust_preview_package_from_path,
+    semantic_initial_view,
     validate_rust_preview_package,
 )
 
@@ -58,7 +59,7 @@ _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
 _MAX_CLOTH_PARTICLES = 2_000_000
 _MAX_CLOTH_CONSTRAINTS = 4_000_000
 _LOGGER = logging.getLogger(__name__)
-RUST_PREVIEW_CACHE_SCHEMA = 3
+RUST_PREVIEW_CACHE_SCHEMA = 4
 
 
 def _cancelled(callback: Callable[[], bool] | None) -> bool:
@@ -448,6 +449,58 @@ def rust_preview_package_cache_root(cache_root: Path | str) -> Path:
     return Path(cache_root) / "rust_wgpu_v1"
 
 
+def build_or_lookup_rust_preview_package_with_builder(
+    *,
+    cache_root: Path,
+    archive_identity: str,
+    cache_mode: str,
+    max_bytes: int,
+    target_bytes: int,
+    builder: Callable[[Path], RustPreviewPackage],
+    cancelled: Callable[[], bool] | None = None,
+    metadata: Mapping[str, object] | None = None,
+) -> RustPreviewPackage:
+    """Atomically cache a caller-composed immutable Rust preview package."""
+
+    if str(cache_mode or "off").strip().lower() not in {"balanced", "aggressive"} or max_bytes <= 0:
+        root = Path(cache_root)
+        root.mkdir(parents=True, exist_ok=True)
+        transient = Path(tempfile.mkdtemp(prefix="cdmw_rust_preview_", dir=str(root)))
+        return builder(transient / "package")
+    cache_key = rust_preview_package_cache_key(
+        f"composed:{archive_identity}",
+        source_manifest=_PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST,
+    )
+    derived_root = rust_preview_package_cache_root(cache_root)
+    with dotnet_preview_package_cache_build_lock(derived_root, cache_key):
+        _check_cancelled(cancelled)
+        hit = lookup_dotnet_preview_package_cache(
+            derived_root,
+            cache_key,
+            validate_package=_validate_rust_cache_package,
+        )
+        if hit is not None:
+            return rust_preview_package_from_path(hit.package_dir)
+        staging = create_dotnet_preview_package_staging_dir(derived_root, leased=True)
+        try:
+            builder(staging / "package")
+            _check_cancelled(cancelled)
+            hit = store_dotnet_preview_package_cache(
+                derived_root,
+                cache_key,
+                staging,
+                dict(metadata or {}),
+                validate_package=_validate_rust_cache_package,
+                max_bytes=max(0, int(max_bytes)),
+                target_bytes=max(0, int(target_bytes)),
+            )
+            if hit is None:
+                raise RuntimeError("Rust preview package cache publication failed.")
+            return rust_preview_package_from_path(hit.package_dir)
+        finally:
+            release_dotnet_preview_package_staging_dir(staging, cleanup=True)
+
+
 def _validate_rust_cache_package(package_dir: Path) -> tuple[bool, tuple[str, ...]]:
     missing = validate_rust_preview_package(package_dir)
     return not missing, missing
@@ -708,6 +761,7 @@ class _ModelPreviewPackageRequest:
     cancelled: Callable[[], bool] | None
     metadata: Mapping[str, object] | None
     interaction_profile: str
+    semantic_view_axis: str
 
     @property
     def derived_cache_root(self) -> Path:
@@ -728,6 +782,17 @@ class _ModelPreviewPackageRequest:
     def build(self, output_package_dir: Path, quality: str) -> RustPreviewPackage:
         mesh = parsed_mesh_from_model_preview(self.model)
         _check_cancelled(self.cancelled)
+        initial_view = None
+        if self.semantic_view_axis:
+            bounds = (
+                tuple(float(value) for value in mesh.bbox_min[:3]),
+                tuple(float(value) for value in mesh.bbox_max[:3]),
+            )
+            view_axis = self.semantic_view_axis
+            if view_axis == "auto":
+                extents = tuple(abs(bounds[1][index] - bounds[0][index]) for index in range(3))
+                view_axis = ("x", "y", "z")[min((2, 0, 1), key=extents.__getitem__)]
+            initial_view = semantic_initial_view(bounds, view_axis)
         return build_rust_preview_package(
             mesh,
             output_package_dir=output_package_dir,
@@ -735,6 +800,7 @@ class _ModelPreviewPackageRequest:
             preview_overlays=getattr(mesh, "cdmw_preview_overlays", None),
             interaction_profile=self.interaction_profile,
             material_quality=quality,
+            initial_view=initial_view,
         )
 
     def cache_metadata(self, quality: str) -> dict[str, object]:
@@ -865,6 +931,7 @@ def build_or_lookup_rust_preview_package_from_model(
     cancelled: Callable[[], bool] | None = None,
     metadata: Mapping[str, object] | None = None,
     interaction_profile: str = "read_only",
+    semantic_view_axis: str = "",
     material_quality: str = "full",
     fast_package_ready: Callable[[RustPreviewPackage], None] | None = None,
 ) -> RustPreviewPackage:
@@ -887,6 +954,7 @@ def build_or_lookup_rust_preview_package_from_model(
         cancelled=cancelled,
         metadata=metadata,
         interaction_profile=profile,
+        semantic_view_axis=str(semantic_view_axis or "").strip().lower(),
     )
     return request.run(quality, fast_package_ready)
 
@@ -955,6 +1023,7 @@ def build_rust_preview_cache_prewarm_package(cache_root: Path) -> RustPreviewPac
 __all__ = [
     "build_or_lookup_rust_preview_package",
     "build_or_lookup_rust_preview_package_from_model",
+    "build_or_lookup_rust_preview_package_with_builder",
     "build_rust_preview_cache_prewarm_package",
     "rust_preview_overlays_from_model",
     "rust_preview_overlays_from_preview_core_package",

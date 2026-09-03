@@ -466,12 +466,14 @@ def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:
 
     second = _package(tmp_path, "package-b")
     third = _package(tmp_path, "package-c")
-    assert controller.load_package(second)
+    assert controller.load_package(second, reset_view=True)
     second_request = next(payload for payload in reversed(process.writes) if payload.get("event") == "package_load_request")
-    assert controller.load_package(third)
+    assert controller.load_package(third, reset_view=False)
     third_request = next(payload for payload in reversed(process.writes) if payload.get("event") == "package_load_request")
     assert second_request["generation"] == 2
     assert third_request["generation"] == 3
+    assert second_request["reset_view"] is True
+    assert third_request["reset_view"] is False
 
     controller._handle_protocol_event(  # noqa: SLF001
         {**second_request, "event": "package_load_applied"},
@@ -1664,6 +1666,7 @@ def test_preview_host_restores_absolute_camera_and_rejects_mutation(tmp_path: Pa
         "role": "editable",
         "yaw": 27.0,
         "pitch": -11.0,
+        "roll": 0.0,
         "fit_mode": "manual",
         "fit_relative_zoom": 2.5,
         "pan": [3.0, 4.0],
@@ -1748,6 +1751,64 @@ def test_preview_host_turns_the_effect_particle_layer_off_and_on(tmp_path: Path)
     controller.shutdown()
 
 
+def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path) -> None:
+    controller, process, package = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(package)
+    package_requests_before = sum(
+        payload.get("event") == "package_load_request" for payload in process.writes
+    )
+
+    assert host.set_lighting_preset("showcase")
+    event, payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert event == "presentation_state_update"
+    assert payload["display"]["lighting_preset"] == "showcase"
+    assert sum(
+        item.get("event") == "package_load_request" for item in process.writes
+    ) == package_requests_before
+
+    assert host.set_lighting_preset("unknown")
+    _event, payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert payload["display"]["lighting_preset"] == "neutral_studio"
+    controller.shutdown()
+
+
+def test_preview_host_fit_requests_package_authored_canonical_view(tmp_path: Path) -> None:
+    controller, process, package = _start_controller(tmp_path)
+    controller._test_handshake_capabilities = ("semantic_framing_v1",)  # type: ignore[attr-defined]
+    _make_ready(controller)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(package)
+
+    assert host.request_canonical_view()
+    request = process.writes[-1]
+    assert request["event"] == "canonical_view_request"
+    assert request["request_id"] > 0
+    controller.shutdown()
+
+
+def test_semantic_package_reset_waits_for_the_new_package_to_be_adopted(
+    tmp_path: Path,
+) -> None:
+    controller, process, _initial_package = _start_controller(tmp_path)
+    controller._test_handshake_capabilities = ("semantic_framing_v1",)  # type: ignore[attr-defined]
+    _make_ready(controller)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    controller.set_visible(True)
+    next_package = _package(tmp_path, "semantic-package-b")
+
+    assert host.load_package(next_package, reset_view=True)
+    package_request = next(
+        item for item in reversed(process.writes) if item.get("event") == "package_load_request"
+    )
+    assert package_request["reset_view"] is True
+    assert not any(
+        item.get("event") == "canonical_view_request"
+        for item in process.writes[process.writes.index(package_request) + 1 :]
+    ), "the helper must frame the newly adopted package, not the previously resident one"
+    controller.shutdown()
+
+
 def test_preview_host_new_package_reset_replaces_stale_camera_replay(tmp_path: Path) -> None:
     controller, _process, first = _start_controller(tmp_path)
     host = DotNetPreviewHostFrame(profile="preview", controller=controller)
@@ -1775,6 +1836,7 @@ def test_preview_host_new_package_reset_replaces_stale_camera_replay(tmp_path: P
         "role": "editable",
         "yaw": 0.0,
         "pitch": -89.0,
+        "roll": 0.0,
         "fit_mode": "fit",
         "fit_relative_zoom": 1.0,
         "pan": [0.0, 0.0],
@@ -1824,6 +1886,7 @@ def test_preview_host_new_body_package_applies_front_camera_with_safe_fit_margin
         "role": "editable",
         "yaw": 180.0,
         "pitch": 0.0,
+        "roll": 0.0,
         "fit_mode": "fit",
         "fit_relative_zoom": 0.75,
         "pan": [0.0, 0.0],

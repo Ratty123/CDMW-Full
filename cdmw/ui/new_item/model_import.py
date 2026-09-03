@@ -19,6 +19,7 @@ would have handed over: the rebuilt mesh and its side files.
 from __future__ import annotations
 
 import copy
+import hashlib
 import math
 import shutil
 import tempfile
@@ -34,6 +35,7 @@ from cdmw.services.preview_workflow_service import scene_import_normalizes_textu
 from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions, StaticReplacementTransform, StaticTextureUvTransform
 
 __all__ = [
+    "MeshGeometryAnalysis",
     "MeshPrincipalFrame",
     "ModelImportSource",
     "ModelPlacement",
@@ -43,6 +45,7 @@ __all__ = [
     "flip_v_transforms",
     "fitted_placement",
     "load_model_import_source",
+    "analyze_mesh_geometry",
     "mesh_bounds",
     "mesh_centroid",
     "mesh_principal_frame",
@@ -51,6 +54,8 @@ __all__ = [
 
 Vec3 = Tuple[float, float, float]
 Bounds = Tuple[Vec3, Vec3]
+MODEL_IMPORTER_SCHEMA_VERSION = 2
+MODEL_FIT_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -65,6 +70,10 @@ class MeshPrincipalFrame:
     axes: Tuple[Vec3, Vec3, Vec3]
     intervals: Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]
     center: Vec3
+    direction_hint: Optional[Vec3] = None
+    grip: Optional[Vec3] = None
+    tip: Optional[Vec3] = None
+    end_weights: Tuple[float, float] = (0.0, 0.0)
 
     @property
     def extents(self) -> Vec3:
@@ -74,6 +83,15 @@ class MeshPrincipalFrame:
     def is_elongated(self) -> bool:
         long, middle, _short = self.extents
         return long > 1e-9 and long >= max(middle, 1e-9) * 1.15
+
+
+@dataclass(frozen=True)
+class MeshGeometryAnalysis:
+    """Bounds, mass cues, and principal frame computed from one vertex walk."""
+
+    bounds: Optional[Bounds]
+    centroid: Optional[Vec3]
+    principal_frame: Optional[MeshPrincipalFrame]
 
 
 class _ModelImportUsage:
@@ -191,23 +209,172 @@ class ModelPlacement:
 # ------------------------------------------------------------------ bounds and the fit
 
 
-def mesh_bounds(mesh: object) -> Optional[Bounds]:
-    """The axis-aligned bounds of a ParsedMesh (or anything with `submeshes` carrying
-    `vertices`); None when there is no vertex."""
+def analyze_mesh_geometry(mesh: object) -> MeshGeometryAnalysis:
+    """Analyze geometry once, including named anchors and surface-weighted ends."""
 
+    try:
+        import numpy as np
+    except Exception:  # pragma: no cover - the bundled runtime includes NumPy
+        np = None
+
+    points: list[tuple[float, float, float]] = []
+    triangle_centres: list[tuple[float, float, float]] = []
+    triangle_areas: list[float] = []
+    named: dict[str, list[tuple[float, float, float]]] = {"grip": [], "tip": []}
     lo = [math.inf, math.inf, math.inf]
     hi = [-math.inf, -math.inf, -math.inf]
+    total = [0.0, 0.0, 0.0]
+    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        raw_vertices = tuple(getattr(submesh, "vertices", ()) or ())
+        local: list[Optional[tuple[float, float, float]]] = []
+        label = " ".join(
+            str(value or "").casefold()
+            for value in (getattr(submesh, "name", ""), getattr(submesh, "material", ""))
+        )
+        group = (
+            "grip"
+            if any(token in label for token in ("grip", "hilt", "handle", "pommel"))
+            else "tip"
+            if any(token in label for token in ("tip", "blade_end", "point"))
+            else ""
+        )
+        for vertex in raw_vertices:
+            try:
+                point = tuple(float(vertex[axis]) for axis in range(3))
+            except (IndexError, TypeError, ValueError):
+                local.append(None)
+                continue
+            if not all(math.isfinite(value) for value in point):
+                local.append(None)
+                continue
+            local.append(point)
+            points.append(point)
+            if group:
+                named[group].append(point)
+            for axis, value in enumerate(point):
+                lo[axis] = min(lo[axis], value)
+                hi[axis] = max(hi[axis], value)
+                total[axis] += value
+        for face in tuple(getattr(submesh, "faces", ()) or ()):
+            try:
+                indices = tuple(int(face[index]) for index in range(3))
+                triangle = tuple(local[index] for index in indices)
+            except (IndexError, TypeError, ValueError):
+                continue
+            if any(point is None for point in triangle):
+                continue
+            a, b, c = triangle  # type: ignore[misc]
+            ab = tuple(b[index] - a[index] for index in range(3))
+            ac = tuple(c[index] - a[index] for index in range(3))
+            cross = (
+                ab[1] * ac[2] - ab[2] * ac[1],
+                ab[2] * ac[0] - ab[0] * ac[2],
+                ab[0] * ac[1] - ab[1] * ac[0],
+            )
+            area = 0.5 * math.sqrt(sum(value * value for value in cross))
+            if area > 1e-18 and math.isfinite(area):
+                triangle_areas.append(area)
+                triangle_centres.append(tuple((a[index] + b[index] + c[index]) / 3.0 for index in range(3)))
+    if not points:
+        return MeshGeometryAnalysis(None, None, None)
+    bounds: Bounds = (tuple(lo), tuple(hi))  # type: ignore[assignment]
+    centroid: Vec3 = tuple(value / len(points) for value in total)  # type: ignore[assignment]
+    if np is None or len(points) < 3:
+        return MeshGeometryAnalysis(bounds, centroid, None)
+
+    array = np.asarray(points, dtype=np.float64)
+    mean = array.mean(axis=0)
+    covariance = (array.T @ array) / len(array) - np.outer(mean, mean)
+    try:
+        eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    except np.linalg.LinAlgError:
+        return MeshGeometryAnalysis(bounds, centroid, None)
+    order = np.argsort(eigenvalues)[::-1]
+    if float(eigenvalues[order[0]]) <= 1e-18:
+        return MeshGeometryAnalysis(bounds, centroid, None)
+    axes = [np.asarray(eigenvectors[:, index], dtype=np.float64) for index in order]
+    if float(np.dot(np.cross(axes[0], axes[1]), axes[2])) < 0.0:
+        axes[2] = -axes[2]
+    projections = array @ np.stack(axes, axis=1)
+    lows = projections.min(axis=0)
+    highs = projections.max(axis=0)
+    center_vector = sum(
+        (axis * ((lows[index] + highs[index]) * 0.5) for index, axis in enumerate(axes)),
+        np.zeros(3, dtype=np.float64),
+    )
+
+    def named_center(key: str) -> Optional[Vec3]:
+        values = named[key]
+        if not values:
+            return None
+        centre = np.asarray(values, dtype=np.float64).mean(axis=0)
+        return tuple(float(value) for value in centre)
+
+    grip = named_center("grip")
+    tip = named_center("tip")
+    direction = None
+    if grip is not None and tip is not None:
+        direction = tuple(tip[index] - grip[index] for index in range(3))
+    elif grip is not None:
+        direction = tuple(float(center_vector[index]) - grip[index] for index in range(3))
+    elif tip is not None:
+        direction = tuple(tip[index] - float(center_vector[index]) for index in range(3))
+
+    end_weights = (0.0, 0.0)
+    if triangle_centres:
+        centres = np.asarray(triangle_centres, dtype=np.float64)
+        areas = np.asarray(triangle_areas, dtype=np.float64)
+        long_projection = centres @ axes[0]
+        span = max(float(highs[0] - lows[0]), 1e-12)
+        low_weight = float(areas[long_projection <= lows[0] + span * 0.28].sum())
+        high_weight = float(areas[long_projection >= highs[0] - span * 0.28].sum())
+        end_weights = (low_weight, high_weight)
+        if direction is None and max(low_weight, high_weight) > min(low_weight, high_weight) * 1.05:
+            sign = 1.0 if high_weight > low_weight else -1.0
+            direction = tuple(float(value * sign) for value in axes[0])
+        if direction is None:
+            surface_center = (centres * areas[:, None]).sum(axis=0) / max(float(areas.sum()), 1e-12)
+            surface_lean = surface_center - center_vector
+            if float(np.linalg.norm(surface_lean)) > span * 0.02:
+                direction = tuple(float(value) for value in surface_lean)
+    if direction is None:
+        vertex_lean = np.asarray(centroid) - center_vector
+        if float(np.linalg.norm(vertex_lean)) > max(float(highs[0] - lows[0]), 1e-12) * 0.02:
+            direction = tuple(float(value) for value in vertex_lean)
+
+    frame = MeshPrincipalFrame(
+        axes=tuple(tuple(float(value) for value in axis) for axis in axes),
+        intervals=tuple((float(lows[index]), float(highs[index])) for index in range(3)),
+        center=tuple(float(value) for value in center_vector),
+        direction_hint=direction,
+        grip=grip,
+        tip=tip,
+        end_weights=end_weights,
+    )
+    return MeshGeometryAnalysis(bounds, centroid, frame)
+
+
+def mesh_bounds(mesh: object) -> Optional[Bounds]:
+    """Return an AABB without paying for PCA when framing alone needs bounds."""
+
+    low = [math.inf, math.inf, math.inf]
+    high = [-math.inf, -math.inf, -math.inf]
+    found = False
     for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
         for vertex in tuple(getattr(submesh, "vertices", ()) or ()):
-            for axis in range(3):
-                value = float(vertex[axis])
-                if value < lo[axis]:
-                    lo[axis] = value
-                if value > hi[axis]:
-                    hi[axis] = value
-    if lo[0] is math.inf or hi[0] == -math.inf:
+            try:
+                point = tuple(float(vertex[axis]) for axis in range(3))
+            except (IndexError, TypeError, ValueError):
+                continue
+            if not all(math.isfinite(value) for value in point):
+                continue
+            found = True
+            for axis, value in enumerate(point):
+                low[axis] = min(low[axis], value)
+                high[axis] = max(high[axis], value)
+    if not found:
         return None
-    return (tuple(lo), tuple(hi))
+    return tuple(low), tuple(high)  # type: ignore[return-value]
 
 
 def _axis_order(extent: Sequence[float]) -> Tuple[int, int, int]:
@@ -224,73 +391,24 @@ def mesh_centroid(mesh: object) -> Optional[Vec3]:
     count = 0
     for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
         for vertex in tuple(getattr(submesh, "vertices", ()) or ()):
-            for axis in range(3):
-                total[axis] += float(vertex[axis])
+            try:
+                point = tuple(float(vertex[axis]) for axis in range(3))
+            except (IndexError, TypeError, ValueError):
+                continue
+            if not all(math.isfinite(value) for value in point):
+                continue
+            for axis, value in enumerate(point):
+                total[axis] += value
             count += 1
     if not count:
         return None
-    return tuple(value / count for value in total)
+    return tuple(value / count for value in total)  # type: ignore[return-value]
 
 
 def mesh_principal_frame(mesh: object) -> Optional[MeshPrincipalFrame]:
-    """Return a memory-bounded PCA frame for a mesh, or ``None`` without enough data."""
+    """Return the consolidated PCA frame, or ``None`` without enough data."""
 
-    try:
-        import numpy as np
-    except Exception:  # pragma: no cover - the bundled runtime includes NumPy
-        return None
-
-    total = np.zeros(3, dtype=np.float64)
-    second = np.zeros((3, 3), dtype=np.float64)
-    count = 0
-    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
-        for vertex in tuple(getattr(submesh, "vertices", ()) or ()):
-            if len(vertex) < 3:
-                continue
-            point = np.asarray(vertex[:3], dtype=np.float64)
-            if not np.all(np.isfinite(point)):
-                continue
-            total += point
-            second += np.outer(point, point)
-            count += 1
-    if count < 3:
-        return None
-    mean = total / count
-    covariance = second / count - np.outer(mean, mean)
-    try:
-        eigenvalues, eigenvectors = np.linalg.eigh(covariance)
-    except np.linalg.LinAlgError:
-        return None
-    order = np.argsort(eigenvalues)[::-1]
-    if float(eigenvalues[order[0]]) <= 1e-18:
-        return None
-    axes = [np.asarray(eigenvectors[:, index], dtype=np.float64) for index in order]
-    if float(np.dot(np.cross(axes[0], axes[1]), axes[2])) < 0.0:
-        axes[2] = -axes[2]
-    lows = [math.inf, math.inf, math.inf]
-    highs = [-math.inf, -math.inf, -math.inf]
-    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
-        for vertex in tuple(getattr(submesh, "vertices", ()) or ()):
-            if len(vertex) < 3:
-                continue
-            point = np.asarray(vertex[:3], dtype=np.float64)
-            if not np.all(np.isfinite(point)):
-                continue
-            for index, axis in enumerate(axes):
-                value = float(np.dot(point, axis))
-                lows[index] = min(lows[index], value)
-                highs[index] = max(highs[index], value)
-    if any(not math.isfinite(value) for value in (*lows, *highs)):
-        return None
-    center_vector = sum(
-        (axis * ((lows[index] + highs[index]) * 0.5) for index, axis in enumerate(axes)),
-        np.zeros(3, dtype=np.float64),
-    )
-    return MeshPrincipalFrame(
-        axes=tuple(tuple(float(value) for value in axis) for axis in axes),
-        intervals=tuple((float(lows[index]), float(highs[index])) for index in range(3)),
-        center=tuple(float(value) for value in center_vector),
-    )
+    return analyze_mesh_geometry(mesh).principal_frame
 
 
 def _dot(a: Sequence[float], b: Sequence[float]) -> float:
@@ -428,12 +546,12 @@ def _fitted_principal_placement(
 ) -> ModelPlacement:
     """Align two stable oriented frames, including a non-axis-aligned source."""
 
-    source_lean = (
+    source_lean = source.direction_hint or (
         tuple(source_centroid[index] - source.center[index] for index in range(3))
         if source_centroid is not None
         else None
     )
-    template_lean = (
+    template_lean = template.direction_hint or (
         tuple(template_centroid[index] - template.center[index] for index in range(3))
         if template_centroid is not None
         else None
@@ -494,6 +612,16 @@ def _fitted_principal_placement(
     moved_center = placement.apply(source.center)
     offset = [template.center[index] - moved_center[index] for index in range(3)]
     placement = placement.with_values(offset=offset)
+
+    if match_grip and source.grip is not None and template.grip is not None:
+        moved_grip = placement.apply(source.grip)
+        placement = placement.with_values(
+            offset=tuple(
+                placement.offset[index] + template.grip[index] - moved_grip[index]
+                for index in range(3)
+            )
+        )
+        return placement
 
     if match_grip and source_lean is not None and template_lean is not None:
         turned_lean = _row_matrix_vector(source_lean, best_matrix)
@@ -653,6 +781,9 @@ class ModelImportSource:
     scene: object
     preview_model: object
     bounds: Optional[Bounds]
+    preview_mesh: object = None
+    source_fingerprint: str = ""
+    external_texture_fingerprint: str = ""
     texture_count: int = 0
     notes: Tuple[str, ...] = ()
     extract_root: Optional[Path] = None
@@ -685,6 +816,15 @@ class ModelImportSource:
     @property
     def label(self) -> str:
         return self.chosen_path.name
+
+    @property
+    def cache_identity(self) -> tuple:
+        return (
+            self.source_fingerprint or str(self.model_path.resolve(strict=False)),
+            self.external_texture_fingerprint,
+            MODEL_IMPORTER_SCHEMA_VERSION,
+            MODEL_FIT_VERSION,
+        )
 
     def set_bake(self, bake: ModelPlacement) -> None:
         """Take a new fit: the meshes are re-baked on the next read, the token moves on."""
@@ -749,16 +889,21 @@ class ModelImportSource:
         """The scene import's mesh with the bake applied (what the build rebuilds from)."""
 
         if self._baked_scene_mesh is None:
-            self._baked_scene_mesh = bake_mesh(self.scene.mesh, self.bake)
+            self._baked_scene_mesh = bake_mesh(self.preview_mesh or self.scene.mesh, self.bake)
+            if self.preview_mesh is not None:
+                self._baked_preview_mesh = self._baked_scene_mesh
         return self._baked_scene_mesh
 
     def baked_preview_mesh(self) -> object:
         """The textured preview mesh with the bake applied (what the viewport shows)."""
 
         if self._baked_preview_mesh is None:
-            from cdmw.services.mesh_rust_preview_cache import parsed_mesh_from_model_preview
+            if self.preview_mesh is not None:
+                self._baked_preview_mesh = self.baked_scene_mesh()
+            else:
+                from cdmw.services.mesh_rust_preview_cache import parsed_mesh_from_model_preview
 
-            self._baked_preview_mesh = bake_mesh(parsed_mesh_from_model_preview(self.preview_model), self.bake)
+                self._baked_preview_mesh = bake_mesh(parsed_mesh_from_model_preview(self.preview_model), self.bake)
         return self._baked_preview_mesh
 
     def baked_bounds(self) -> Optional[Bounds]:
@@ -781,7 +926,7 @@ def prepare_model_import_mesh_edit(
     scene: object,
     model_path: Path,
     stop_event: Optional[threading.Event] = None,
-) -> tuple[object, object, Optional[Bounds], Optional[Vec3], int]:
+) -> tuple[object, object, MeshGeometryAnalysis, int]:
     """Prepare one Mesh Editor revision for New Item Studio off the UI thread.
 
     The edited mesh becomes a fresh scene/preview pair while the imported scene's
@@ -805,6 +950,8 @@ def prepare_model_import_mesh_edit(
     preview_model = parsed_mesh_to_preview_model(mesh)
     raise_if_cancelled(stop_event)
     texture_count = int(attach_scene_preview_textures(preview_model, edited_scene, Path(model_path)) or 0)
+    from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
+
     set_dotnet_preview_texture_flip_vertical(
         preview_model,
         scene_import_normalizes_texture_v(
@@ -812,8 +959,13 @@ def prepare_model_import_mesh_edit(
             getattr(mesh, "path", "") or str(model_path),
         ),
     )
+    for source, target in zip(
+        tuple(getattr(preview_model, "meshes", ()) or ()),
+        tuple(mesh.submeshes or ()),
+    ):
+        copy_extra_submesh_attrs(source, target)
     raise_if_cancelled(stop_event)
-    return edited_scene, preview_model, mesh_bounds(mesh), mesh_centroid(mesh), texture_count
+    return edited_scene, preview_model, analyze_mesh_geometry(mesh), texture_count
 
 
 def _name_separated_parts_uniquely(mesh: object) -> None:
@@ -984,6 +1136,43 @@ def _fbx_converted_to_glb(
     return convert_fbx_to_glb(source, blender, output_dir=root, on_log=on_log).glb
 
 
+def _file_fingerprint(path: Path, stop_event: Optional[threading.Event]) -> str:
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            raise_if_cancelled(stop_event)
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _preview_texture_fingerprint(preview_model: object, stop_event: Optional[threading.Event]) -> str:
+    digest = hashlib.sha256()
+    paths: set[Path] = set()
+    for batch in tuple(getattr(preview_model, "meshes", ()) or ()):
+        for name in (
+            "preview_texture_path",
+            "preview_texture_dds_path",
+            "preview_normal_texture_path",
+            "preview_normal_texture_dds_path",
+            "preview_material_texture_path",
+            "preview_material_texture_dds_path",
+            "preview_height_texture_path",
+            "preview_height_texture_dds_path",
+            "preview_emissive_texture_path",
+            "preview_emissive_texture_dds_path",
+        ):
+            value = str(getattr(batch, name, "") or "").strip()
+            if value:
+                paths.add(Path(value))
+    for path in sorted(paths, key=lambda value: str(value).casefold()):
+        digest.update(str(path.name).casefold().encode("utf-8", errors="replace"))
+        if path.is_file():
+            digest.update(_file_fingerprint(path, stop_event).encode("ascii"))
+    return digest.hexdigest()
+
+
 def load_model_import_source(
     chosen_path: Path,
     *,
@@ -1022,24 +1211,37 @@ def load_model_import_source(
         raise_if_cancelled(stop_event)
         preview_model = parsed_mesh_to_preview_model(scene.mesh)
         texture_count = int(attach_scene_preview_textures(preview_model, scene, Path(model_path)) or 0)
+        from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
+
         set_dotnet_preview_texture_flip_vertical(
             preview_model, scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path)),
         )
+        for source, target in zip(
+            tuple(getattr(preview_model, "meshes", ()) or ()),
+            tuple(getattr(scene.mesh, "submeshes", ()) or ()),
+        ):
+            copy_extra_submesh_attrs(source, target)
         notes = tuple(str(line) for line in tuple(getattr(scene, "diagnostics", ()) or ())[:6])
         flip_v = scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path))
+        analysis = analyze_mesh_geometry(scene.mesh)
+        source_fingerprint = _file_fingerprint(Path(model_path), stop_event)
+        texture_fingerprint = _preview_texture_fingerprint(preview_model, stop_event)
         return ModelImportSource(
             flip_texture_v=bool(flip_v),
             chosen_path=chosen,
             model_path=Path(model_path),
             scene=scene,
             preview_model=preview_model,
-            bounds=mesh_bounds(scene.mesh),
+            bounds=analysis.bounds,
+            preview_mesh=scene.mesh,
+            source_fingerprint=source_fingerprint,
+            external_texture_fingerprint=texture_fingerprint,
             texture_count=texture_count,
             notes=notes,
             extract_root=root,
             owns_extract_root=owns_root,
-            centroid=mesh_centroid(scene.mesh),
-            principal_frame=mesh_principal_frame(scene.mesh),
+            centroid=analysis.centroid,
+            principal_frame=analysis.principal_frame,
         )
     except BaseException:
         if owns_root:
@@ -1080,7 +1282,7 @@ def build_placed_import(
     )
     if on_progress is not None:
         on_progress(0, 11, "Transform mesh")
-    scene = dc_replace(source.scene, mesh=bake_mesh(source.scene.mesh, source.bake))
+    scene = dc_replace(source.scene, mesh=source.baked_scene_mesh())
 
     def forward_progress(current: int, total: int, detail: str) -> None:
         if on_progress is not None:

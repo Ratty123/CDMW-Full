@@ -644,7 +644,10 @@ class PackageFrameTests(unittest.TestCase):
     def test_the_item_is_turned_and_the_rotation_comes_back(self) -> None:
         preview = self._package(character_mesh=_body(1), item_rotation=QUARTER_TURN)
         self.assertEqual(preview.item_rotation, QUARTER_TURN)
-        scene = json.loads((Path(preview.package_dir) / "dotnet_scene.json").read_text(encoding="utf-8"))
+        manifest = json.loads(
+            (Path(preview.package_dir) / "manifest.json").read_text(encoding="utf-8")
+        )
+        scene = manifest["state"]["preview_scene"]
         bounds = scene.get("bounds") or {}
         low = tuple(float(v) for v in (bounds.get("min") or bounds.get("low") or (0, 0, 0)))
         high = tuple(float(v) for v in (bounds.get("max") or bounds.get("high") or (0, 0, 0)))
@@ -658,12 +661,26 @@ class PackageFrameTests(unittest.TestCase):
         from cdmw.services.effect_placement_preview import BODY_TINT
 
         preview = self._package(character_mesh=_body(2), item_rotation=QUARTER_TURN)
-        payload = json.loads((Path(preview.package_dir) / "net_materials.json").read_text(encoding="utf-8"))
-        tints = {
-            str(item.get("material", "")): tuple(item.get("parameters", {}).get("base_tint_color") or ())
-            for item in payload.get("submeshes", ())
-        }
-        self.assertIn(f"{CHARACTER_SUBMESH_PREFIX}body", tints, "the character reached the materials file")
+        manifest = json.loads(
+            (Path(preview.package_dir) / "manifest.json").read_text(encoding="utf-8")
+        )
+        document_path = Path(preview.package_dir) / manifest["document"]["path"]
+        document = json.loads(document_path.read_text(encoding="utf-8"))
+        submeshes = document["lods"][0]["submeshes"]
+        tints = {}
+        for item in manifest.get("material_presentations", ()):
+            if int(item.get("lod_index", -1)) != 0:
+                continue
+            material_index = int(item.get("material_index", -1))
+            if 0 <= material_index < len(submeshes):
+                tints[str(submeshes[material_index].get("material", ""))] = tuple(
+                    item.get("texture_tint") or ()
+                )
+        self.assertIn(
+            f"{CHARACTER_SUBMESH_PREFIX}body",
+            tints,
+            "the character reached the canonical Rust material rows",
+        )
         self.assertEqual(tints[f"{CHARACTER_SUBMESH_PREFIX}body"], tuple(BODY_TINT))
         self.assertEqual(tints["steel"], (), "the item's canonical material is not rewritten")
 

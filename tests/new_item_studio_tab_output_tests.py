@@ -424,7 +424,7 @@ class _TabOutputMixin:
         self.assertEqual(scene.placement, tab.controller.model_placement, "the scene is written at the placement")
         self.assertEqual(scene.model_bounds, source.baked_bounds())
         self.assertEqual(scene.model_origin, source.baked_origin())
-        self.assertEqual(token[2], source.bake_generation, "the token moves with the bake")
+        self.assertEqual(token[2], source.bake, "the cache token carries the exact baked fit")
         # the numbers move the placement
         panel.offset_spins[2].setValue(-0.25)
         self.assertAlmostEqual(tab.controller.model_placement.offset[2], -0.25, places=6)

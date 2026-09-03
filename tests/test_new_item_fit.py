@@ -159,6 +159,68 @@ class FitTests(unittest.TestCase):
             "the fit must correct the authored diagonal, not choose another quarter turn",
         )
 
+    def test_named_grips_and_tips_drive_alignment_without_a_reflection(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.model_import import analyze_mesh_geometry
+
+        def anchor_triangle(name, center):
+            x, y, z = center
+            return SubMesh(
+                name=name,
+                vertices=[
+                    (x, y - 0.10, z - 0.05),
+                    (x, y + 0.10, z - 0.05),
+                    (x, y, z + 0.05),
+                ],
+                faces=[(0, 1, 2)],
+            )
+
+        source = ParsedMesh(
+            path="named-source.gltf",
+            format="gltf",
+            submeshes=[
+                anchor_triangle("weapon_handle", (-2.0, 0.0, 0.0)),
+                anchor_triangle("blade_tip", (2.0, 0.0, 0.0)),
+            ],
+        )
+        template = ParsedMesh(
+            path="named-template.pac",
+            format="pac",
+            submeshes=[
+                anchor_triangle("hilt", (0.0, -1.0, 0.0)),
+                anchor_triangle("point", (0.0, 1.0, 0.0)),
+            ],
+        )
+        source_analysis = analyze_mesh_geometry(source)
+        template_analysis = analyze_mesh_geometry(template)
+        self.assertIsNotNone(source_analysis.principal_frame)
+        self.assertIsNotNone(template_analysis.principal_frame)
+        source_frame = source_analysis.principal_frame
+        template_frame = template_analysis.principal_frame
+        self.assertIsNotNone(source_frame.grip)
+        self.assertIsNotNone(source_frame.tip)
+        self.assertIsNotNone(source_frame.direction_hint)
+
+        placement = fitted_placement(
+            source_analysis.bounds,
+            template_analysis.bounds,
+            source_centroid=source_analysis.centroid,
+            template_centroid=template_analysis.centroid,
+            source_frame=source_frame,
+            template_frame=template_frame,
+            match_grip=True,
+        )
+
+        for actual, expected in zip(placement.apply(source_frame.grip), template_frame.grip):
+            self.assertAlmostEqual(actual, expected, places=5)
+        matrix = placement.matrix()
+        determinant = (
+            matrix[0] * (matrix[5] * matrix[10] - matrix[6] * matrix[9])
+            - matrix[1] * (matrix[4] * matrix[10] - matrix[6] * matrix[8])
+            + matrix[2] * (matrix[4] * matrix[9] - matrix[5] * matrix[8])
+        )
+        self.assertGreater(determinant, 0.0, "automatic fitting must preserve handedness")
+
     def test_bake_uses_the_native_affine_path_and_preserves_direction_channels(self) -> None:
         from unittest.mock import patch
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import hashlib
 import json
 import os
 import tempfile
@@ -244,13 +245,16 @@ class EffectPreviewInPackageTests(unittest.TestCase):
 
         preview = _fire_preview()
         with tempfile.TemporaryDirectory() as folder:
-            target, missing = write_effect_preview(Path(folder), preview, texture_reader=lambda path: b"DDS fake" if path.endswith("pafx_fire_003a_kjd.dds") else None)
+            texture = b"DDS " + (b"\0" * 124)
+            digest = hashlib.sha256(texture).hexdigest()
+            target, missing = write_effect_preview(Path(folder), preview, texture_reader=lambda path: texture if path.endswith("pafx_fire_003a_kjd.dds") else None)
             self.assertEqual(target.name, EFFECT_PREVIEW_FILE)
             self.assertEqual(missing, ())
             payload = json.loads(target.read_text(encoding="utf-8"))
             self.assertEqual(payload["schema"], 1)
-            self.assertEqual(payload["texture_files"], {"effect/texture/pafx_fire_003a_kjd.dds": f"{EFFECT_TEXTURE_DIR}/pafx_fire_003a_kjd.dds"})
-            self.assertEqual((Path(folder) / EFFECT_TEXTURE_DIR / "pafx_fire_003a_kjd.dds").read_bytes(), b"DDS fake")
+            relative = f"{EFFECT_TEXTURE_DIR}/{digest}.dds"
+            self.assertEqual(payload["texture_files"], {"effect/texture/pafx_fire_003a_kjd.dds": relative})
+            self.assertEqual((Path(folder) / relative).read_bytes(), texture)
             self.assertEqual(len(payload["emitters"]), 2)
             # no reader: the JSON is still written, the texture is said to be missing
             target, missing = write_effect_preview(Path(folder), preview)

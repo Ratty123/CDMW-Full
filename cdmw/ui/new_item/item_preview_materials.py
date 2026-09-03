@@ -109,7 +109,10 @@ def upgrade_item_preview_package_materials(
 ) -> Path:
     """Attach canonical materials to a copied geometry package without re-exporting it."""
 
-    from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+    from cdmw.services.mesh_rust_preview_package import (
+        build_rust_preview_package,
+        semantic_initial_view,
+    )
 
     root = Path(output_root).resolve(strict=False)
     base = Path(geometry_package).resolve(strict=False)
@@ -141,7 +144,8 @@ def upgrade_item_preview_package_materials(
         if item.character is not None
         else None
     )
-    grid_normal_axis = flat_preview_normal_axis(mesh_bounds(template if template is not None else model))
+    semantic_bounds = mesh_bounds(template if template is not None else model)
+    grid_normal_axis = flat_preview_normal_axis(semantic_bounds)
     reference = placement_reference_mesh(template, character)
     target = root / f"package_{time.time_ns()}_materials"
     package = build_rust_preview_package(
@@ -156,5 +160,6 @@ def upgrade_item_preview_package_materials(
         scene_transform=item.placement.build_transform(origin=item.model_origin),
         cancelled=stop_event.is_set,
         include_material_resources=True,
+        initial_view=semantic_initial_view(semantic_bounds, grid_normal_axis),
     )
     return Path(package.package_dir)

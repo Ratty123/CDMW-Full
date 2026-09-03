@@ -310,6 +310,7 @@ class DotNetPreviewHostProtocolMixin:
             "fit_to_view": str(camera.get("fit_mode", "manual") or "manual") == "fit",
             "yaw": camera_float("yaw_degrees", self._DEFAULT_YAW),
             "pitch": camera_float("pitch_degrees", self._DEFAULT_PITCH),
+            "roll": camera_float("roll_degrees", 0.0),
             "pan": pan,
         }
         self._zoom_factor = fit_relative_zoom

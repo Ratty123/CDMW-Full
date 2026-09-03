@@ -132,6 +132,7 @@ class RustPreviewSessionController(
         self._prewarm_package: RustPreviewPackage | None = None
         self._desired_package: RustPreviewPackage | None = None
         self._desired_package_identity: tuple[str, str, str] | None = None
+        self._desired_reset_view = False
         self._applied_package: RustPreviewPackage | None = None
         self._applied_package_identity: tuple[str, str, str] | None = None
         self._invalid_retry_package_path = ""
@@ -589,6 +590,7 @@ class RustPreviewSessionController(
         else:
             self._follow_preview_package_session(resolved, scene_session_id)
         if not force_reload and identity == self._desired_package_identity:
+            self._desired_reset_view = bool(reset_view)
             if reset_view:
                 self._resident_state.pop("presentation", None)
             if self._visible and identity == self._applied_package_identity:
@@ -624,6 +626,7 @@ class RustPreviewSessionController(
         self._package_generation += 1
         self._desired_package = resolved
         self._desired_package_identity = identity
+        self._desired_reset_view = bool(reset_view)
         if reset_view:
             self._resident_state.pop("presentation", None)
         if (
@@ -714,6 +717,7 @@ class RustPreviewSessionController(
         self._package_generation += 1
         self._desired_package = None
         self._desired_package_identity = None
+        self._desired_reset_view = False
         self._applied_package = None
         self._applied_package_identity = None
         self._applied_package_path = ""
@@ -842,7 +846,11 @@ class RustPreviewSessionController(
         self._retry_timer.stop()
         if self._process is not None and qprocess_is_running(self._process):
             if self._can_send_protocol():
-                self.load_package(self._desired_package, force_reload=True)
+                self.load_package(
+                    self._desired_package,
+                    reset_view=self._desired_reset_view,
+                    force_reload=True,
+                )
             return
         self._launch_if_needed()
 
@@ -1429,6 +1437,7 @@ class RustPreviewSessionController(
                 "request_id": request_id,
                 "generation": generation,
                 "package_path": str(package.package_dir),
+                "reset_view": bool(self._desired_reset_view),
             }
         )
         if sent:

@@ -87,6 +87,7 @@ class NewItemStudioController(
     effect_catalogue_progress = Signal(int, int, str)
     effect_catalogue_failed = Signal(str)
     effect_changed = Signal(object)
+    preview_lighting_changed = Signal(str)
 
     def __init__(
         self,
@@ -122,6 +123,7 @@ class NewItemStudioController(
         #: the model file read for the studio's own placement, and where it sits
         self.model_import: Optional[ModelImportSource] = None
         self.model_placement: ModelPlacement = ModelPlacement()
+        self.preview_lighting_preset = "neutral_studio"
         #: the template's decoded preview (textures resolved), kept for the current template so
         #: a re-fit or an import does not decode it again (the worker fills it)
         self._template_models: Dict[tuple, object] = {}
@@ -174,6 +176,17 @@ class NewItemStudioController(
         self._plan_revision = -1
         self.plan = None
         self.plan_invalidated.emit()
+
+    def set_preview_lighting_preset(self, preset: object) -> None:
+        """Share a renderer-only lighting choice across this Studio session."""
+
+        normalized = str(preset or "neutral_studio").strip().lower()
+        if normalized not in {"neutral_studio", "showcase"}:
+            normalized = "neutral_studio"
+        if normalized == self.preview_lighting_preset:
+            return
+        self.preview_lighting_preset = normalized
+        self.preview_lighting_changed.emit(normalized)
 
     def _cleanup_model_source(self, source: Optional[ModelImportSource]) -> None:
         self._model_cleanup_lane.retire(source)

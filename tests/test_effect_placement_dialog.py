@@ -75,6 +75,7 @@ class _Host(QWidget):
         self.camera_bindings: list = []
         self.restored_views: list[dict] = []
         self.gizmo_tools: list = []
+        self.lightings: list = []
         self.remembered: tuple = ()
         self.loaded = None
         self.controller = _Controller(self)
@@ -148,6 +149,10 @@ class _Host(QWidget):
         self.camera_bindings.append(dict(_bindings))
         return True
 
+    def set_lighting_preset(self, preset: str) -> bool:
+        self.lightings.append(str(preset))
+        return True
+
 
 class _AckController(_Controller):
     package_applied = Signal(str, int)
@@ -200,6 +205,24 @@ from tests.effect_placement_dialog_presentation_tests import _DialogPresentation
 
 
 class DialogTests(_DialogPresentationMixin, _DialogTestCase):
+    def test_lighting_choice_is_shared_and_changes_renderer_state_only(self) -> None:
+        changes = []
+        dialog = self._dialog(
+            lighting_preset="showcase",
+            lighting_changed=changes.append,
+        )
+        self.assertEqual(dialog.lighting_choice.currentData(), "showcase")
+        dialog._host_state("ready", "")
+        self.assertEqual(dialog.host.lightings[-1], "showcase")
+        loaded_before = dialog.host.loaded
+
+        dialog.lighting_choice.setCurrentIndex(
+            dialog.lighting_choice.findData("neutral_studio")
+        )
+        self.assertEqual(changes, ["neutral_studio"])
+        self.assertEqual(dialog.host.lightings[-1], "neutral_studio")
+        self.assertIs(dialog.host.loaded, loaded_before)
+
     def test_the_legend_names_what_is_on_screen_and_nothing_else(self) -> None:
         dialog = self._dialog()
         dialog.show_character.setChecked(True)
@@ -217,7 +240,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         dialog = self._dialog()
         self.assertEqual(len(dialog.view_buttons), len(STANDING_VIEW_ANGLES))
         self.assertEqual([button.text() for button in dialog.view_buttons], ["Front", "Side", "Top", "Angled"])
-        self.assertTrue(dialog.view_buttons[-1].isChecked(), "the selected opening view is visible")
+        self.assertTrue(dialog.view_buttons[0].isChecked(), "Front is the selected opening view")
         for button in dialog.view_buttons:
             button.click()
         self.assertEqual(
@@ -234,8 +257,7 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         dialog = self._dialog(offset=(3.704, 0.756, -0.344), scale=0.6)
         dialog._host_state("ready", "")
         self.assertEqual(dialog.host.remembered, (), "the editable role keeps its own bounds")
-        self.assertEqual(dialog.host.view_roles[-1], "replacement", "the opening fit drives the visible overlay")
-        self.assertEqual(dialog.host.view_fit_roles[-1], "reference", "the item supplies the fit bounds")
+        self.assertEqual(dialog.host.view_roles, [], "the package-authored Front camera owns the opening fit")
 
         dialog._fit_reach_to_item()
         self.assertEqual(dialog.host.view_roles[-1], "replacement", "Fit keeps driving the visible overlay")

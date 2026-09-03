@@ -334,8 +334,8 @@ class NewItemPreviewControllerMixin:
             )
             return ((
                 "placement",
-                id(source),
-                source.bake_generation,
+                source.cache_identity,
+                source.bake,
                 source.mesh_generation,
                 template_token,
                 include_character,

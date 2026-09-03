@@ -1,18 +1,19 @@
 #![forbid(unsafe_code)]
 
-use crate::camera::OrbitCamera;
+use crate::camera::{OrbitCamera, StandardView};
 use crate::cdmw_material_preview_factors;
 use crate::cdmw_session::{
-    CdmwTextureResource, LoadedCdmwSessionPackage, PREVIEW_BACKEND, PREVIEW_PROTOCOL, RENDERER,
-    SessionMaterialPresentation,
+    CdmwEffectTextureResource, CdmwTextureResource, LoadedCdmwSessionPackage, PREVIEW_BACKEND,
+    PREVIEW_PROTOCOL, RENDERER, SessionMaterialPresentation,
 };
 use anyhow::{Context, Result};
 use cdmw_formats::{MeshDocument, SourceRange, Submesh};
 use cdmw_mesh::{DrawSnapshot, Provenance, Selection, WorkingMesh};
 use cdmw_render_wgpu::{
-    EffectLineVertex, HeadlessMaterialCaptureCamera, HeadlessMaterialCaptureOptions,
-    HeadlessMaterialCaptureOutput, HeadlessMaterialFactors, HeadlessMaterialTexture,
-    MaterialPreviewFactors, ViewMode, WindowRenderer, run_headless_material_capture,
+    EffectBillboardInstance, EffectBlendMode, EffectLineVertex, HeadlessMaterialCaptureCamera,
+    HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput, HeadlessMaterialFactors,
+    HeadlessMaterialTexture, LightingPreset, MaterialPreviewFactors, ViewMode, WindowRenderer,
+    run_headless_material_capture,
 };
 use crossbeam_channel::{Receiver, Sender, bounded};
 use egui::{Pos2, Rect, Vec2 as EguiVec2};
@@ -52,8 +53,14 @@ pub(crate) const CAPABILITIES: &[&str] = &[
     "deterministic_offscreen_capture_v1",
     "comparison_scene_v1",
     "alignment_preview_v1",
+    "semantic_framing_v1",
+    "gpu_scene_transforms_v1",
+    "full_gizmo_handles_v1",
+    "camera_navigator_v1",
+    "lighting_presets_v1",
     "static_replacement_mesh_input_v1",
     "effect_particle_preview_v1",
+    "textured_effect_particles_v1",
     "ui_theme_state_v1",
     "ui_localization_v1",
 ];
@@ -62,6 +69,7 @@ pub(crate) fn control_contract() -> Value {
     let commands = [
         ("preview_session_state", "both", "preview_session_state_ack"),
         ("package_load_request", "both", "package_loaded"),
+        ("canonical_view_request", "both", "canonical_view_applied"),
         (
             "presentation_state_update",
             "both",
@@ -136,6 +144,7 @@ struct PackageResult {
     request_id: u64,
     generation: u64,
     path: PathBuf,
+    reset_view: bool,
     result: std::result::Result<LoadedCdmwSessionPackage, String>,
 }
 
@@ -276,10 +285,25 @@ struct PreviewState {
 #[derive(Debug, Clone)]
 struct GizmoDrag {
     tool: String,
+    handle: String,
     start_pointer: Vec2,
     start_placement: Value,
     start_model_matrix: Mat4,
     start_pivot: Vec3,
+}
+
+#[derive(Debug, Clone)]
+struct NavigatorDrag {
+    start_pointer: Vec2,
+    last_pointer: Vec2,
+    moved: bool,
+}
+
+#[derive(Debug, Clone)]
+struct PendingGizmoUpdate {
+    tool: String,
+    handle: String,
+    placement: Value,
 }
 
 #[derive(Debug)]
@@ -323,7 +347,10 @@ pub struct PreviewApplication {
     document: MeshDocument,
     mesh: WorkingMesh,
     snapshot: DrawSnapshot,
+    snapshot_scene_roles: Option<Vec<u32>>,
     textures: Vec<CdmwTextureResource>,
+    effect_textures: Vec<CdmwEffectTextureResource>,
+    effect_texture_indices: HashMap<String, usize>,
     presentations: Vec<SessionMaterialPresentation>,
     camera: OrbitCamera,
     view_mode: ViewMode,
@@ -335,7 +362,10 @@ pub struct PreviewApplication {
     panning: bool,
     right_press: Option<Vec2>,
     hovered_part: Option<u32>,
+    hovered_gizmo_handle: Option<String>,
     gizmo_drag: Option<GizmoDrag>,
+    navigator_drag: Option<NavigatorDrag>,
+    pending_gizmo_update: Option<PendingGizmoUpdate>,
     scene_revision: u64,
     effect_clock: EffectClock,
     package_tx: Sender<PackageResult>,
@@ -354,6 +384,7 @@ impl PreviewApplication {
             .context("Rust Preview document could not create its requested LOD")?;
         let snapshot = mesh.draw_snapshot();
         let textures = package.take_textures();
+        let effect_textures = package.take_effect_textures();
         let presentations = package.take_material_presentations();
         let scene = package
             .manifest()
@@ -378,7 +409,10 @@ impl PreviewApplication {
             document,
             mesh,
             snapshot,
+            snapshot_scene_roles: None,
             textures,
+            effect_textures,
+            effect_texture_indices: HashMap::new(),
             presentations,
             camera,
             view_mode: ViewMode::TexturedSolid,
@@ -393,7 +427,10 @@ impl PreviewApplication {
             panning: false,
             right_press: None,
             hovered_part: None,
+            hovered_gizmo_handle: None,
             gizmo_drag: None,
+            navigator_drag: None,
+            pending_gizmo_update: None,
             scene_revision: 1,
             effect_clock: EffectClock::new(),
             package_tx,
@@ -403,14 +440,7 @@ impl PreviewApplication {
             newest_package_generation: 0,
         };
         application.refresh_visible_snapshot();
-        application.camera.frame_integrated_positions(
-            application
-                .snapshot
-                .positions
-                .iter()
-                .copied()
-                .map(Vec3::from_array),
-        );
+        application.apply_canonical_view(false);
         Ok(application)
     }
 
@@ -426,11 +456,74 @@ impl PreviewApplication {
         )
     }
 
+    fn apply_canonical_view(&mut self, emit: bool) {
+        let initial = self
+            .state
+            .scene
+            .get("framing")
+            .and_then(|value| value.get("initial_view"))
+            .cloned();
+        let rectangle = self.viewport_rect();
+        let used_semantic = initial.as_ref().is_some_and(|initial| {
+            let view = vec3_value(initial.get("view_direction"), Vec3::ZERO);
+            let up = vec3_value(initial.get("screen_up_direction"), Vec3::ZERO);
+            self.camera.set_semantic_view(view, up)
+        });
+        if used_semantic {
+            let bounds = initial
+                .as_ref()
+                .and_then(|value| value.get("fit_bounds"))
+                .and_then(Value::as_array);
+            if let Some(bounds) = bounds.filter(|bounds| bounds.len() == 2) {
+                let minimum = vec3_value(bounds.first(), Vec3::ZERO);
+                let maximum = vec3_value(bounds.get(1), Vec3::ZERO);
+                self.camera
+                    .frame_explicit_bounds_in_viewport(minimum, maximum, rectangle);
+            } else {
+                self.camera.frame_positions_in_current_view(
+                    self.snapshot
+                        .positions
+                        .iter()
+                        .copied()
+                        .map(Vec3::from_array),
+                    rectangle,
+                );
+            }
+        } else {
+            self.camera.frame_integrated_positions(
+                self.snapshot
+                    .positions
+                    .iter()
+                    .copied()
+                    .map(Vec3::from_array),
+            );
+            self.camera.frame_positions_in_current_view(
+                self.snapshot
+                    .positions
+                    .iter()
+                    .copied()
+                    .map(Vec3::from_array),
+                rectangle,
+            );
+        }
+        if emit {
+            self.emit_view_state("fit");
+        }
+    }
+
     fn configure_renderer(&mut self) -> Result<(), String> {
         let Some(renderer) = &mut self.renderer else {
             return Ok(());
         };
         renderer.reset_texture();
+        renderer.reset_effect_textures();
+        let mut effect_texture_indices = HashMap::new();
+        for texture in &self.effect_textures {
+            let index = renderer
+                .add_effect_dds_texture(&texture.bytes)
+                .map_err(|error| error.to_string())?;
+            effect_texture_indices.insert(texture.archive_path.clone(), index);
+        }
         for texture in &self.textures {
             renderer
                 .add_dds_texture(
@@ -450,13 +543,32 @@ impl PreviewApplication {
         renderer
             .set_material_lod(self.package.source_lod_index())
             .map_err(|error| error.to_string())?;
-        renderer
-            .set_snapshot(&self.snapshot)
-            .map_err(|error| error.to_string())?;
+        if let Some(roles) = self.snapshot_scene_roles.as_deref() {
+            renderer
+                .set_snapshot_with_scene_roles(&self.snapshot, roles)
+                .map_err(|error| error.to_string())?;
+            renderer
+                .set_scene_transform(role_model_matrix(&self.state.scene, "editable"))
+                .map_err(|error| error.to_string())?;
+        } else {
+            renderer
+                .set_snapshot(&self.snapshot)
+                .map_err(|error| error.to_string())?;
+            renderer
+                .set_scene_transform(Mat4::IDENTITY)
+                .map_err(|error| error.to_string())?;
+        }
+        self.effect_texture_indices = effect_texture_indices;
         Ok(())
     }
 
-    fn start_package_load(&mut self, request_id: u64, generation: u64, path: PathBuf) {
+    fn start_package_load(
+        &mut self,
+        request_id: u64,
+        generation: u64,
+        path: PathBuf,
+        reset_view: bool,
+    ) {
         if generation < self.newest_package_generation {
             return;
         }
@@ -476,6 +588,7 @@ impl PreviewApplication {
                     request_id,
                     generation,
                     path,
+                    reset_view,
                     result,
                 });
             })
@@ -500,6 +613,7 @@ impl PreviewApplication {
                             self.mesh = mesh;
                             self.snapshot = self.mesh.draw_snapshot();
                             self.textures = package.take_textures();
+                            self.effect_textures = package.take_effect_textures();
                             self.presentations = package.take_material_presentations();
                             self.state.scene = package
                                 .manifest()
@@ -511,13 +625,11 @@ impl PreviewApplication {
                             self.effect_clock.reset();
                             self.scene_revision = self.scene_revision.saturating_add(1);
                             self.refresh_visible_snapshot();
-                            self.camera.frame_integrated_positions(
-                                self.snapshot
-                                    .positions
-                                    .iter()
-                                    .copied()
-                                    .map(Vec3::from_array),
-                            );
+                            if result.reset_view
+                                && let Some(presentation) = self.state.presentation.as_object_mut()
+                            {
+                                presentation.remove("camera");
+                            }
                             let apply = self.configure_renderer();
                             if let Err(error) = apply {
                                 self.bridge.send(json!({
@@ -528,7 +640,12 @@ impl PreviewApplication {
                                     "error": error,
                                 }));
                             } else {
-                                self.apply_presentation();
+                                // A resident geometry/material/effect refresh
+                                // must never replay a stale named-view command.
+                                self.apply_presentation(false);
+                                if result.reset_view {
+                                    self.apply_canonical_view(true);
+                                }
                                 self.bridge.send(json!({
                                     "event": "package_load_applied",
                                     "request_id": result.request_id,
@@ -730,12 +847,30 @@ impl PreviewApplication {
                 let request_id = value.get("request_id").and_then(Value::as_u64).unwrap_or(0);
                 let generation = value.get("generation").and_then(Value::as_u64).unwrap_or(0);
                 if let Some(path) = value.get("package_path").and_then(Value::as_str) {
-                    self.start_package_load(request_id, generation, PathBuf::from(path));
+                    // Missing retains the original package-load behavior for
+                    // older clients. Progressive geometry/material upgrades
+                    // opt out explicitly so the user's view is conserved.
+                    let reset_view = value
+                        .get("reset_view")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(true);
+                    self.start_package_load(
+                        request_id,
+                        generation,
+                        PathBuf::from(path),
+                        reset_view,
+                    );
                 }
             }
+            "canonical_view_request" => {
+                self.apply_canonical_view(true);
+                self.ack_state(event, &value);
+                return true;
+            }
             "presentation_state_update" => {
+                let camera_changed = value.get("camera").is_some();
                 merge_value(&mut self.state.presentation, &value);
-                self.apply_presentation();
+                self.apply_presentation(camera_changed);
                 self.ack_state(event, &value);
                 return true;
             }
@@ -748,7 +883,7 @@ impl PreviewApplication {
             "scene_state_update" => {
                 merge_value(&mut self.state.scene, &value);
                 self.scene_revision = self.scene_revision.saturating_add(1);
-                self.apply_presentation();
+                self.apply_presentation(false);
                 self.ack_state(event, &value);
                 return true;
             }
@@ -876,7 +1011,7 @@ impl PreviewApplication {
         changed
     }
 
-    fn apply_presentation(&mut self) {
+    fn apply_presentation(&mut self, apply_camera: bool) {
         let display = self
             .state
             .presentation
@@ -920,18 +1055,14 @@ impl PreviewApplication {
                 renderer.set_clear_colour(background);
             }
             renderer.set_overlay_colours(wire, vertex);
+            renderer.set_lighting_preset(
+                match display.get("lighting_preset").and_then(Value::as_str) {
+                    Some("showcase") => LightingPreset::Showcase,
+                    _ => LightingPreset::NeutralStudio,
+                },
+            );
         }
-        if let Some(camera) = self.state.presentation.get("camera") {
-            if camera.get("fit_mode").and_then(Value::as_str) == Some("fit") {
-                self.camera.frame_positions_in_current_view(
-                    self.snapshot
-                        .positions
-                        .iter()
-                        .copied()
-                        .map(Vec3::from_array),
-                    self.viewport_rect(),
-                );
-            }
+        if apply_camera && let Some(camera) = self.state.presentation.get("camera") {
             let yaw_degrees = camera.get("yaw").and_then(Value::as_f64).unwrap_or(-35.0) as f32;
             let pitch_degrees = camera.get("pitch").and_then(Value::as_f64).unwrap_or(20.0) as f32;
             let pan = camera
@@ -943,9 +1074,28 @@ impl PreviewApplication {
                 .get("fit_relative_zoom")
                 .and_then(Value::as_f64)
                 .map(|value| value as f32);
-            self.camera.set_orbit_state(
+            let roll_degrees = camera.get("roll").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+            self.camera.set_orbit_state_with_roll(
                 yaw_degrees.to_radians(),
                 pitch_degrees.to_radians(),
+                roll_degrees.to_radians(),
+                None,
+                None,
+            );
+            if camera.get("fit_mode").and_then(Value::as_str) == Some("fit") {
+                self.camera.frame_positions_in_current_view(
+                    self.snapshot
+                        .positions
+                        .iter()
+                        .copied()
+                        .map(Vec3::from_array),
+                    self.viewport_rect(),
+                );
+            }
+            self.camera.set_orbit_state_with_roll(
+                yaw_degrees.to_radians(),
+                pitch_degrees.to_radians(),
+                roll_degrees.to_radians(),
                 None,
                 zoom,
             );
@@ -953,9 +1103,10 @@ impl PreviewApplication {
                 let target = self.camera.fit_target()
                     + self.camera.right() * pan.x
                     + self.camera.up() * pan.y;
-                self.camera.set_orbit_state(
+                self.camera.set_orbit_state_with_roll(
                     yaw_degrees.to_radians(),
                     pitch_degrees.to_radians(),
+                    roll_degrees.to_radians(),
                     Some(target),
                     None,
                 );
@@ -1253,19 +1404,35 @@ impl PreviewApplication {
                 .and_then(Value::as_f64)
                 .unwrap_or(1.0)
                 .clamp(0.5, 3.0) as f32;
-            let length = self
-                .state
-                .scene
-                .get("framing")
-                .and_then(|value| value.get("extent"))
-                .and_then(Value::as_f64)
-                .unwrap_or(1.0) as f32
-                * 0.18
-                * size_scale;
-            push_gizmo_axes(
+            let selected = self
+                .gizmo_drag
+                .as_ref()
+                .map(|drag| drag.handle.as_str())
+                .or(self.hovered_gizmo_handle.as_deref());
+            push_transform_gizmo(
                 &mut emphasis_lines,
                 pivot,
-                length.max(0.04),
+                self.gizmo_length() * size_scale,
+                self.camera.right(),
+                self.camera.up(),
+                &self.gizmo_tool(),
+                selected,
+                guide_colours.gizmo,
+                guide_colours.highlight,
+            );
+        }
+
+        let navigator_center = self.navigator_center();
+        let rectangle = self.viewport_rect();
+        if let Some(anchor) =
+            self.camera
+                .point_on_view_plane(navigator_center, self.camera.target(), rectangle)
+        {
+            let length = self.camera.world_units_per_pixel(rectangle) * 28.0 * self.ui_scale();
+            push_camera_navigator(
+                &mut emphasis_lines,
+                anchor,
+                length,
                 self.camera.right(),
                 self.camera.up(),
                 guide_colours.gizmo,
@@ -1328,6 +1495,7 @@ impl PreviewApplication {
         }
 
         let mut effect_lines = emphasis_lines;
+        let mut effect_particles = Vec::new();
         if display
             .get("effect_particles_visible")
             .and_then(Value::as_bool)
@@ -1353,17 +1521,51 @@ impl PreviewApplication {
                 .max(0.01);
             let minimum_radius = (framing_extent * 0.006).max(0.003);
             for (emitter_index, emitter) in emitters.iter().take(128).enumerate() {
-                for mut vertex in effect_emitter_lines(emitter, emitter_index, time, minimum_radius)
-                {
-                    if effect_lines.len() >= MAX_EFFECT_LINE_VERTICES {
-                        break;
+                let kind = emitter
+                    .get("kind")
+                    .and_then(Value::as_str)
+                    .unwrap_or("billboard");
+                if kind == "mesh" {
+                    for mut vertex in
+                        effect_emitter_lines(emitter, emitter_index, time, minimum_radius)
+                    {
+                        if effect_lines.len() >= MAX_EFFECT_LINE_VERTICES {
+                            break;
+                        }
+                        vertex.position = editable_matrix
+                            .transform_point3(Vec3::from_array(vertex.position))
+                            .to_array();
+                        effect_lines.push(vertex);
                     }
-                    vertex.position = editable_matrix
-                        .transform_point3(Vec3::from_array(vertex.position))
-                        .to_array();
-                    effect_lines.push(vertex);
+                } else {
+                    let texture_index = emitter
+                        .get("texture")
+                        .and_then(Value::as_str)
+                        .and_then(|path| self.effect_texture_indices.get(path))
+                        .copied()
+                        .unwrap_or(0);
+                    for mut instance in effect_emitter_billboards(
+                        emitter,
+                        emitter_index,
+                        time,
+                        minimum_radius,
+                        texture_index,
+                        editable_matrix,
+                        self.camera.right(),
+                        self.camera.up(),
+                        self.camera.forward(),
+                    ) {
+                        if effect_particles.len() >= 32_768 {
+                            break;
+                        }
+                        instance.depth =
+                            Vec3::from_array(instance.center).distance_squared(self.camera.eye());
+                        effect_particles.push(instance);
+                    }
                 }
-                if effect_lines.len() >= MAX_EFFECT_LINE_VERTICES {
+                if effect_lines.len() >= MAX_EFFECT_LINE_VERTICES
+                    || effect_particles.len() >= 32_768
+                {
                     break;
                 }
             }
@@ -1374,6 +1576,7 @@ impl PreviewApplication {
             renderer.set_bone_overlay(skeleton_visible && !skeleton_lines.is_empty());
             let _ = renderer.set_preview_lines(&guide_lines);
             let _ = renderer.set_effect_lines(&effect_lines);
+            let _ = renderer.set_effect_particles(&effect_particles);
         }
     }
 
@@ -1773,13 +1976,44 @@ impl PreviewApplication {
                 uv[1] = 1.0 - uv[1];
             }
         }
-        self.transform_snapshot(&visible, scene_has_roles);
+        self.snapshot_scene_roles = self.transform_snapshot(&visible, scene_has_roles);
         if let Some(renderer) = &mut self.renderer {
-            let _ = renderer.set_snapshot(&self.snapshot);
+            if let Some(roles) = self.snapshot_scene_roles.as_deref() {
+                let _ = renderer.set_snapshot_with_scene_roles(&self.snapshot, roles);
+                let _ =
+                    renderer.set_scene_transform(role_model_matrix(&self.state.scene, "editable"));
+            } else {
+                let _ = renderer.set_snapshot(&self.snapshot);
+                let _ = renderer.set_scene_transform(Mat4::IDENTITY);
+            }
         }
     }
 
-    fn transform_snapshot(&mut self, visible: &HashSet<u32>, filtered: bool) {
+    fn transform_snapshot(&mut self, visible: &HashSet<u32>, filtered: bool) -> Option<Vec<u32>> {
+        let editable = editable_indices(&self.state.scene);
+        let gpu_scene_transform = self.package.manifest().interaction_profile
+            == "static_replacement"
+            && !editable.is_empty()
+            && self
+                .state
+                .presentation
+                .get("part_transforms")
+                .and_then(Value::as_object)
+                .is_none_or(serde_json::Map::is_empty)
+            && self
+                .state
+                .presentation
+                .get("comparison_mode")
+                .and_then(Value::as_str)
+                .or_else(|| {
+                    self.state
+                        .scene
+                        .get("comparison_mode")
+                        .and_then(Value::as_str)
+                })
+                != Some("side_by_side");
+        let mut scene_roles =
+            gpu_scene_transform.then(|| Vec::with_capacity(self.snapshot.positions.len()));
         let mut snapshot_index = 0usize;
         for (_handle, vertex) in self.mesh.vertices() {
             let source_submesh = match vertex.provenance {
@@ -1789,29 +2023,38 @@ impl PreviewApplication {
             if filtered && !visible.contains(&source_submesh) {
                 continue;
             }
-            let matrix = self.submesh_model_matrix(source_submesh);
-            if let Some(position) = self.snapshot.positions.get_mut(snapshot_index) {
-                *position = matrix
-                    .transform_point3(Vec3::from_array(*position))
-                    .to_array();
+            let editable_role = gpu_scene_transform && editable.contains(&source_submesh);
+            if let Some(roles) = &mut scene_roles {
+                roles.push(u32::from(editable_role));
             }
-            if let Some(normal) = self.snapshot.normals.get_mut(snapshot_index) {
-                let normal_matrix = Mat3::from_mat4(matrix).inverse().transpose();
-                *normal = (normal_matrix * Vec3::from_array(*normal))
-                    .normalize_or(Vec3::Y)
-                    .to_array();
+            if !editable_role {
+                let matrix = self.submesh_model_matrix(source_submesh);
+                if let Some(position) = self.snapshot.positions.get_mut(snapshot_index) {
+                    *position = matrix
+                        .transform_point3(Vec3::from_array(*position))
+                        .to_array();
+                }
+                if let Some(normal) = self.snapshot.normals.get_mut(snapshot_index) {
+                    let normal_matrix = Mat3::from_mat4(matrix).inverse().transpose();
+                    *normal = (normal_matrix * Vec3::from_array(*normal))
+                        .normalize_or(Vec3::Y)
+                        .to_array();
+                }
             }
             snapshot_index = snapshot_index.saturating_add(1);
         }
-        self.snapshot.draw_revision = self
-            .snapshot
-            .draw_revision
-            .wrapping_mul(1_099_511_628_211)
-            .wrapping_add(self.scene_revision);
-        self.snapshot.fingerprint = format!(
-            "{}:scene:{}",
-            self.snapshot.fingerprint, self.scene_revision
-        );
+        if !gpu_scene_transform {
+            self.snapshot.draw_revision = self
+                .snapshot
+                .draw_revision
+                .wrapping_mul(1_099_511_628_211)
+                .wrapping_add(self.scene_revision);
+            self.snapshot.fingerprint = format!(
+                "{}:scene:{}",
+                self.snapshot.fingerprint, self.scene_revision
+            );
+        }
+        scene_roles
     }
 
     fn emit_view_state(&self, reason: &str) {
@@ -1830,6 +2073,7 @@ impl PreviewApplication {
                 "camera": {
                     "yaw_degrees": yaw.to_degrees(),
                     "pitch_degrees": pitch.to_degrees(),
+                    "roll_degrees": self.camera.roll().to_degrees(),
                     "pan": pan,
                     "fit_relative_zoom": self.camera.relative_zoom(),
                     "fit_mode": "manual",
@@ -1985,16 +2229,135 @@ impl PreviewApplication {
                 .unwrap_or(true)
     }
 
-    fn gizmo_hit(&self, point: Vec2) -> bool {
-        if !self.gizmo_visible() {
-            return false;
+    fn ui_scale(&self) -> f32 {
+        self.window
+            .as_ref()
+            .map(|window| window.scale_factor() as f32)
+            .filter(|value| value.is_finite())
+            .unwrap_or(1.0)
+            .clamp(0.75, 4.0)
+    }
+
+    fn gizmo_tool(&self) -> String {
+        self.state
+            .scene
+            .get("gizmo")
+            .and_then(|gizmo| gizmo.get("tool"))
+            .and_then(Value::as_str)
+            .filter(|tool| matches!(*tool, "move" | "rotate" | "scale"))
+            .unwrap_or("move")
+            .to_owned()
+    }
+
+    fn gizmo_length(&self) -> f32 {
+        self.camera.world_units_per_pixel(self.viewport_rect()) * 88.0 * self.ui_scale()
+    }
+
+    fn gizmo_handle_at(&self, point: Vec2) -> Option<String> {
+        if !self.gizmo_visible() || !point.is_finite() {
+            return None;
         }
+        let rectangle = self.viewport_rect();
         let pivot = vec3_value(self.state.scene.get("placement_pivot"), Vec3::ZERO);
-        self.camera
-            .project(pivot, self.viewport_rect())
-            .is_some_and(|projected| {
-                projected.inside_view && projected.screen.distance(point) <= 72.0
-            })
+        let pivot_screen = self.camera.project(pivot, rectangle)?.screen;
+        let scale = self.ui_scale();
+        let threshold = 12.0 * scale;
+        if pivot_screen.distance(point) <= 11.0 * scale {
+            return Some("center".to_owned());
+        }
+        let length = self.gizmo_length();
+        let axes = [("x", Vec3::X), ("y", Vec3::Y), ("z", Vec3::Z)];
+        let tool = self.gizmo_tool();
+        let mut best: Option<(f32, String)> = None;
+        let mut consider = |distance: f32, handle: &str| {
+            if distance <= threshold && best.as_ref().is_none_or(|(value, _)| distance < *value) {
+                best = Some((distance, handle.to_owned()));
+            }
+        };
+        if tool == "rotate" {
+            for (label, axis) in axes {
+                let (u, v) = axis_plane_basis(axis);
+                let mut previous = None;
+                for step in 0..=64 {
+                    let angle = std::f32::consts::TAU * step as f32 / 64.0;
+                    let world = pivot + (u * angle.cos() + v * angle.sin()) * length * 0.78;
+                    let current = self
+                        .camera
+                        .project(world, rectangle)
+                        .map(|value| value.screen);
+                    if let (Some(a), Some(b)) = (previous, current) {
+                        consider(screen_segment_distance(point, a, b), label);
+                    }
+                    previous = current;
+                }
+            }
+            return best.map(|(_, handle)| handle);
+        }
+        for (label, axis) in axes {
+            if let Some(end) = self
+                .camera
+                .project(pivot + axis * length, rectangle)
+                .map(|value| value.screen)
+            {
+                consider(screen_segment_distance(point, pivot_screen, end), label);
+            }
+        }
+        if tool == "move" {
+            for (label, first, second) in [
+                ("xy", Vec3::X, Vec3::Y),
+                ("xz", Vec3::X, Vec3::Z),
+                ("yz", Vec3::Y, Vec3::Z),
+            ] {
+                let center = pivot + (first + second) * length * 0.28;
+                if let Some(projected) = self.camera.project(center, rectangle) {
+                    consider(projected.screen.distance(point), label);
+                }
+            }
+        }
+        best.map(|(_, handle)| handle)
+    }
+
+    fn navigator_center(&self) -> Vec2 {
+        let rectangle = self.viewport_rect();
+        let inset = 58.0 * self.ui_scale();
+        Vec2::new(rectangle.right() - inset, rectangle.top() + inset)
+    }
+
+    fn navigator_view_at(&self, point: Vec2) -> Option<StandardView> {
+        if !point.is_finite() {
+            return None;
+        }
+        let rectangle = self.viewport_rect();
+        let center = self.navigator_center();
+        let anchor = self
+            .camera
+            .point_on_view_plane(center, self.camera.target(), rectangle)?;
+        let length = self.camera.world_units_per_pixel(rectangle) * 28.0 * self.ui_scale();
+        let mut best: Option<(f32, StandardView)> = None;
+        for (axis, positive, negative) in [
+            (Vec3::X, StandardView::Right, StandardView::Left),
+            (Vec3::Y, StandardView::Top, StandardView::Bottom),
+            (Vec3::Z, StandardView::Back, StandardView::Front),
+        ] {
+            for (endpoint, view) in [
+                (anchor + axis * length, positive),
+                (anchor - axis * length, negative),
+            ] {
+                if let Some(projected) = self.camera.project(endpoint, rectangle) {
+                    let distance = projected.screen.distance(point);
+                    if distance <= 13.0 * self.ui_scale()
+                        && best.as_ref().is_none_or(|(current, _)| distance < *current)
+                    {
+                        best = Some((distance, view));
+                    }
+                }
+            }
+        }
+        best.map(|(_, view)| view)
+    }
+
+    fn navigator_hit(&self, point: Vec2) -> bool {
+        point.is_finite() && point.distance(self.navigator_center()) <= 48.0 * self.ui_scale()
     }
 
     fn placement_payload(&self) -> Value {
@@ -2011,34 +2374,27 @@ impl PreviewApplication {
             })
     }
 
-    fn emit_gizmo(&self, phase: &str, tool: &str, placement: &Value) {
+    fn emit_gizmo(&self, phase: &str, tool: &str, handle: &str, placement: &Value) {
         self.bridge.send(json!({
             "event": "placement_transform_request",
             "placement": placement,
             "placement_phase": phase,
             "gizmo_tool": tool,
-            "gizmo_handle": "screen",
+            "gizmo_handle": handle,
         }));
     }
 
     fn begin_gizmo_drag(&mut self, point: Vec2) -> bool {
-        if !self.gizmo_hit(point) {
+        let Some(handle) = self.gizmo_handle_at(point) else {
             return false;
-        }
-        let tool = self
-            .state
-            .scene
-            .get("gizmo")
-            .and_then(|gizmo| gizmo.get("tool"))
-            .and_then(Value::as_str)
-            .filter(|tool| matches!(*tool, "move" | "rotate" | "scale"))
-            .unwrap_or("move")
-            .to_owned();
+        };
+        let tool = self.gizmo_tool();
         let start_placement = self.placement_payload();
         let start_pivot = vec3_value(self.state.scene.get("placement_pivot"), Vec3::ZERO);
-        self.emit_gizmo("begin", &tool, &start_placement);
+        self.emit_gizmo("begin", &tool, &handle, &start_placement);
         self.gizmo_drag = Some(GizmoDrag {
             tool,
+            handle,
             start_pointer: point,
             start_placement,
             start_model_matrix: role_model_matrix(&self.state.scene, "editable"),
@@ -2058,7 +2414,9 @@ impl PreviewApplication {
         match drag.tool.as_str() {
             "rotate" => {
                 let start = vec3_value(placement.get("rotation_degrees"), Vec3::ZERO);
-                let degrees = Vec3::new(delta.y * 0.18, delta.x * 0.18, 0.0);
+                let amount = (delta.x - delta.y) * 0.22;
+                let axis = handle_axis(&drag.handle).unwrap_or(Vec3::Z);
+                let degrees = axis * amount;
                 placement["rotation_degrees"] = json!((start + degrees).to_array());
                 let radians = degrees * std::f32::consts::PI / 180.0;
                 let rotation = Mat4::from_quat(Quat::from_euler(
@@ -2080,17 +2438,61 @@ impl PreviewApplication {
                     Vec3::ONE,
                 );
                 let factor = (delta.x - delta.y).mul_add(0.006, 1.0).clamp(0.01, 100.0);
-                placement["scale"] = json!((start * factor).to_array());
+                let scale_delta = match drag.handle.as_str() {
+                    "x" => Vec3::new(factor, 1.0, 1.0),
+                    "y" => Vec3::new(1.0, factor, 1.0),
+                    "z" => Vec3::new(1.0, 1.0, factor),
+                    _ => Vec3::splat(factor),
+                };
+                placement["scale"] = json!((start * scale_delta).to_array());
                 model_matrix = Mat4::from_translation(pivot)
-                    * Mat4::from_scale(Vec3::splat(factor))
+                    * Mat4::from_scale(scale_delta)
                     * Mat4::from_translation(-pivot)
                     * model_matrix;
             }
             _ => {
                 let start = vec3_value(placement.get("translation"), Vec3::ZERO);
-                let movement = self
-                    .camera
-                    .screen_delta_to_world(delta, self.viewport_rect());
+                let movement = match drag.handle.as_str() {
+                    "x" | "y" | "z" => self.camera.axis_drag_delta(
+                        handle_axis(&drag.handle).unwrap_or(Vec3::X),
+                        pivot,
+                        delta,
+                        self.viewport_rect(),
+                    ),
+                    "xy" => {
+                        self.camera
+                            .axis_drag_delta(Vec3::X, pivot, delta, self.viewport_rect())
+                            + self.camera.axis_drag_delta(
+                                Vec3::Y,
+                                pivot,
+                                delta,
+                                self.viewport_rect(),
+                            )
+                    }
+                    "xz" => {
+                        self.camera
+                            .axis_drag_delta(Vec3::X, pivot, delta, self.viewport_rect())
+                            + self.camera.axis_drag_delta(
+                                Vec3::Z,
+                                pivot,
+                                delta,
+                                self.viewport_rect(),
+                            )
+                    }
+                    "yz" => {
+                        self.camera
+                            .axis_drag_delta(Vec3::Y, pivot, delta, self.viewport_rect())
+                            + self.camera.axis_drag_delta(
+                                Vec3::Z,
+                                pivot,
+                                delta,
+                                self.viewport_rect(),
+                            )
+                    }
+                    _ => self
+                        .camera
+                        .screen_delta_to_world(delta, self.viewport_rect()),
+                };
                 placement["translation"] = json!((start + movement).to_array());
                 model_matrix = Mat4::from_translation(movement) * model_matrix;
                 pivot += movement;
@@ -2112,10 +2514,23 @@ impl PreviewApplication {
             }
         }
         self.scene_revision = self.scene_revision.saturating_add(1);
-        self.refresh_visible_snapshot();
-        let effect_time = self.effect_time();
-        self.refresh_scene_overlays(effect_time);
-        self.emit_gizmo(phase, &drag.tool, &placement);
+        if self.snapshot_scene_roles.is_some() {
+            if let Some(renderer) = &mut self.renderer {
+                let _ = renderer.set_scene_transform(model_matrix);
+            }
+        } else {
+            self.refresh_visible_snapshot();
+        }
+        if phase == "end" {
+            self.pending_gizmo_update = None;
+            self.emit_gizmo("end", &drag.tool, &drag.handle, &placement);
+        } else {
+            self.pending_gizmo_update = Some(PendingGizmoUpdate {
+                tool: drag.tool,
+                handle: drag.handle,
+                placement,
+            });
+        }
         true
     }
 }
@@ -2166,7 +2581,13 @@ impl ApplicationHandler for PreviewApplication {
             self.exit_requested = true;
             return;
         }
-        self.apply_presentation();
+        let has_explicit_camera = self.state.presentation.get("camera").is_some();
+        self.apply_presentation(has_explicit_camera);
+        if !has_explicit_camera {
+            // The package was opened before the native child had its real
+            // dimensions. Refit the semantic view once against that viewport.
+            self.apply_canonical_view(false);
+        }
         let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
         self.bridge.announce(child_hwnd, self.parent_hwnd, &adapter);
         window.request_redraw();
@@ -2196,6 +2617,18 @@ impl ApplicationHandler for PreviewApplication {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let current = Vec2::new(position.x as f32, position.y as f32);
+                if let Some(mut drag) = self.navigator_drag.take() {
+                    let delta = current - drag.last_pointer;
+                    if delta.length_squared() > 0.0 {
+                        self.camera.orbit(delta);
+                        drag.moved |= current.distance(drag.start_pointer) > 4.0 * self.ui_scale();
+                    }
+                    drag.last_pointer = current;
+                    self.navigator_drag = Some(drag);
+                    self.pointer = Some(current);
+                    window.request_redraw();
+                    return;
+                }
                 if self.gizmo_drag.is_some() && self.update_gizmo_drag(current, "update") {
                     self.pointer = Some(current);
                     window.request_redraw();
@@ -2214,6 +2647,13 @@ impl ApplicationHandler for PreviewApplication {
                     }
                 }
                 self.pointer = Some(current);
+                if !self.orbiting && !self.panning {
+                    let hovered = self.gizmo_handle_at(current);
+                    if hovered != self.hovered_gizmo_handle {
+                        self.hovered_gizmo_handle = hovered;
+                        window.request_redraw();
+                    }
+                }
                 if self.part_picking_enabled() && !self.orbiting && !self.panning {
                     let part = self.pick_part(current);
                     if part != self.hovered_part {
@@ -2225,6 +2665,15 @@ impl ApplicationHandler for PreviewApplication {
             WindowEvent::MouseInput { state, button, .. } => match (state, button) {
                 (ElementState::Pressed, MouseButton::Left) => {
                     if let Some(point) = self.pointer
+                        && self.navigator_hit(point)
+                    {
+                        self.navigator_drag = Some(NavigatorDrag {
+                            start_pointer: point,
+                            last_pointer: point,
+                            moved: false,
+                        });
+                        window.request_redraw();
+                    } else if let Some(point) = self.pointer
                         && self.begin_gizmo_drag(point)
                     {
                         window.request_redraw();
@@ -2235,7 +2684,18 @@ impl ApplicationHandler for PreviewApplication {
                     }
                 }
                 (ElementState::Released, MouseButton::Left) => {
-                    if let Some(point) = self.pointer
+                    if let Some(drag) = self.navigator_drag.take() {
+                        if !drag.moved
+                            && let Some(point) = self.pointer
+                            && let Some(view) = self.navigator_view_at(point)
+                        {
+                            self.camera.set_standard_view(view);
+                            self.emit_view_state("navigator_snap");
+                        } else {
+                            self.emit_view_state("navigator_orbit");
+                        }
+                        window.request_redraw();
+                    } else if let Some(point) = self.pointer
                         && self.update_gizmo_drag(point, "end")
                     {
                         self.gizmo_drag = None;
@@ -2278,14 +2738,15 @@ impl ApplicationHandler for PreviewApplication {
                 window.request_redraw();
             }
             WindowEvent::RedrawRequested => {
-                if self.has_dynamic_effects() {
-                    let effect_time = self.effect_time();
-                    self.refresh_scene_overlays(effect_time);
+                if let Some(pending) = self.pending_gizmo_update.take() {
+                    self.emit_gizmo("update", &pending.tool, &pending.handle, &pending.placement);
                 }
+                let effect_time = self.effect_time();
+                self.refresh_scene_overlays(effect_time);
                 let camera = self.camera.view_projection(self.viewport_rect());
                 if let Some(renderer) = &mut self.renderer {
                     renderer.set_view_mode(self.view_mode);
-                    renderer.set_camera(camera);
+                    renderer.set_camera_with_basis(camera, self.camera.right(), self.camera.up());
                     renderer.set_mesh_viewport(None);
                     let _ = renderer.render();
                 }
@@ -2479,6 +2940,18 @@ fn effect_preview_colour(
     ]
 }
 
+fn effect_billboard_colour(
+    emitter: &Value,
+    progress: f32,
+    alpha: f32,
+    brightness: f32,
+) -> [f32; 4] {
+    let life_colour = color_curve_sample(emitter.get("color_over_life"), progress);
+    let emissive = vec3_value(emitter.get("emissive_color"), Vec3::ONE).max(Vec3::ZERO);
+    let colour = (life_colour * emissive * brightness.max(0.0)).clamp(Vec3::ZERO, Vec3::ONE);
+    [colour.x, colour.y, colour.z, alpha.clamp(0.0, 1.0)]
+}
+
 fn push_effect_line(lines: &mut Vec<EffectLineVertex>, start: Vec3, end: Vec3, colour: [f32; 4]) {
     lines.extend_from_slice(&[
         EffectLineVertex {
@@ -2521,6 +2994,28 @@ fn effect_force(emitter: &Value, seed: f32) -> Vec3 {
     )
 }
 
+fn particle_kinematics(
+    origin: Vec3,
+    initial_velocity: Vec3,
+    acceleration: Vec3,
+    damping: f32,
+    age: f32,
+) -> (Vec3, Vec3) {
+    if damping > 1.0e-5 {
+        let terminal_velocity = acceleration / damping;
+        let attenuation = (-damping * age).exp();
+        let transient = initial_velocity - terminal_velocity;
+        let velocity = terminal_velocity + transient * attenuation;
+        let position =
+            origin + terminal_velocity * age + transient * ((1.0 - attenuation) / damping);
+        (position, velocity)
+    } else {
+        let velocity = initial_velocity + acceleration * age;
+        let position = origin + initial_velocity * age + acceleration * (0.5 * age * age);
+        (position, velocity)
+    }
+}
+
 fn effect_scale(emitter: &Value, seed: f32) -> f32 {
     let Some(values) = emitter.get("scale").and_then(Value::as_array) else {
         return 0.04;
@@ -2529,6 +3024,289 @@ fn effect_scale(emitter: &Value, seed: f32) -> f32 {
     let high = vec3_value(values.get(1), low).abs();
     let selected = low.lerp(high, seed_unit(seed + 0.91));
     selected.max_element().max(0.002)
+}
+
+fn effect_sequence_uv(emitter: &Value, progress: f32) -> [f32; 4] {
+    let values = emitter.get("sequence").and_then(Value::as_array);
+    let columns = values
+        .and_then(|items| items.first())
+        .and_then(Value::as_u64)
+        .unwrap_or(1)
+        .clamp(1, 64) as u32;
+    let rows = values
+        .and_then(|items| items.get(1))
+        .and_then(Value::as_u64)
+        .unwrap_or(1)
+        .clamp(1, 64) as u32;
+    let cell_count = columns.saturating_mul(rows).max(1);
+    let frame =
+        ((progress.clamp(0.0, 0.999_999) * cell_count as f32).floor() as u32).min(cell_count - 1);
+    let column = frame % columns;
+    let row = frame / columns;
+    [
+        column as f32 / columns as f32,
+        row as f32 / rows as f32,
+        1.0 / columns as f32,
+        1.0 / rows as f32,
+    ]
+}
+
+#[allow(clippy::too_many_arguments)]
+fn effect_emitter_billboards(
+    emitter: &Value,
+    emitter_index: usize,
+    time: f32,
+    minimum_radius: f32,
+    texture_index: usize,
+    model_matrix: Mat4,
+    camera_right: Vec3,
+    camera_up: Vec3,
+    camera_forward: Vec3,
+) -> Vec<EffectBillboardInstance> {
+    const MAX_PARTICLES_PER_EMITTER: usize = 256;
+    const MAX_INSTANCES_PER_EMITTER: usize = MAX_PARTICLES_PER_EMITTER * 8;
+    let simulation_speed = emitter
+        .get("simulation_speed")
+        .and_then(Value::as_f64)
+        .map(|value| value as f32)
+        .filter(|value| value.is_finite())
+        .unwrap_or(1.0)
+        .clamp(0.0, 20.0);
+    let simulation_time = time.max(0.0) * simulation_speed;
+    let burst = emitter
+        .get("burst")
+        .and_then(Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok())
+        .unwrap_or(1)
+        .clamp(1, 64);
+    let maximum = emitter
+        .get("max_particles")
+        .and_then(Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok())
+        .unwrap_or(burst)
+        .clamp(1, MAX_PARTICLES_PER_EMITTER);
+    let bursts_per_second = emitter
+        .get("bursts_per_second")
+        .and_then(Value::as_f64)
+        .map(|value| value as f32)
+        .filter(|value| value.is_finite())
+        .unwrap_or(1.0)
+        .clamp(0.01, 120.0);
+    let interval = bursts_per_second.recip();
+    let (life_low, life_high) = value_pair(emitter.get("life"), (1.0, 1.0));
+    let longest_life = life_high.clamp(0.01, 120.0);
+    let looping = emitter.get("loop").and_then(Value::as_bool).unwrap_or(true);
+    let spawn_time = emitter
+        .get("spawn_time")
+        .and_then(Value::as_f64)
+        .map(|value| value as f32)
+        .filter(|value| value.is_finite())
+        .unwrap_or(0.0)
+        .max(0.0);
+    let newest_burst = (simulation_time / interval).floor() as i64;
+    let burst_history =
+        ((longest_life / interval).ceil() as usize + 1).min(MAX_PARTICLES_PER_EMITTER);
+    let kind = emitter
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or("billboard");
+    let mass = emitter
+        .get("mass")
+        .and_then(Value::as_f64)
+        .map(|value| value as f32)
+        .filter(|value| value.is_finite())
+        .unwrap_or(1.0)
+        .abs()
+        .max(0.01);
+    let damping = emitter
+        .get("damping")
+        .and_then(Value::as_f64)
+        .map(|value| value as f32)
+        .filter(|value| value.is_finite())
+        .unwrap_or(0.0)
+        .clamp(0.0, 100.0);
+    let speed_limit = emitter
+        .get("speed_limit")
+        .and_then(Value::as_f64)
+        .map(|value| value as f32)
+        .filter(|value| value.is_finite())
+        .unwrap_or(0.0)
+        .max(0.0);
+    let (rotation_low, rotation_high) = value_pair(emitter.get("rotation"), (0.0, 0.0));
+    let velocity_stretch = emitter
+        .get("velocity_stretch")
+        .and_then(Value::as_f64)
+        .map(|value| value as f32)
+        .filter(|value| value.is_finite())
+        .unwrap_or(0.0)
+        .clamp(0.0, 20.0);
+    let brightness = emitter
+        .get("brightness")
+        .and_then(Value::as_f64)
+        .map(|value| value as f32)
+        .filter(|value| value.is_finite())
+        .unwrap_or(1.0)
+        .max(0.0);
+    let blend_name = emitter
+        .get("blend")
+        .and_then(Value::as_str)
+        .unwrap_or("alpha");
+    let blend = if blend_name.eq_ignore_ascii_case("additive") {
+        EffectBlendMode::Additive
+    } else {
+        EffectBlendMode::Alpha
+    };
+    let scene_scale = (model_matrix.transform_vector3(Vec3::X).length()
+        + model_matrix.transform_vector3(Vec3::Y).length()
+        + model_matrix.transform_vector3(Vec3::Z).length())
+        / 3.0;
+    let scene_scale = scene_scale.max(1.0e-6);
+    let mut instances = Vec::new();
+    let mut emitted = 0usize;
+    'bursts: for history in 0..burst_history {
+        let burst_index = newest_burst - history as i64;
+        if burst_index < 0 {
+            continue;
+        }
+        let birth = burst_index as f32 * interval;
+        if !looping
+            && ((spawn_time <= 0.0 && burst_index > 0) || (spawn_time > 0.0 && birth > spawn_time))
+        {
+            continue;
+        }
+        let age = simulation_time - birth;
+        if age < 0.0 || age > longest_life {
+            continue;
+        }
+        for particle in 0..burst {
+            if emitted >= maximum || instances.len() >= MAX_INSTANCES_PER_EMITTER {
+                break 'bursts;
+            }
+            let seed =
+                emitter_index as f32 * 173.17 + burst_index as f32 * 19.91 + particle as f32 * 7.13;
+            let life =
+                (life_low + (life_high - life_low) * seed_unit(seed + 3.73)).clamp(0.01, 120.0);
+            if age > life {
+                continue;
+            }
+            let progress = (age / life).clamp(0.0, 1.0);
+            let origin = effect_spawn_position(emitter, seed);
+            let acceleration = effect_force(emitter, seed) / mass;
+            let initial_direction = Vec3::new(
+                seed_signed(seed + 11.1),
+                seed_signed(seed + 13.7),
+                seed_signed(seed + 17.9),
+            )
+            .normalize_or(Vec3::Y);
+            let initial_speed = vec3_value(emitter.get("spread"), Vec3::splat(0.1))
+                .abs()
+                .max_element()
+                .max(0.01);
+            let initial_velocity = initial_direction * initial_speed;
+            let (local_center, mut velocity) =
+                particle_kinematics(origin, initial_velocity, acceleration, damping, age);
+            if speed_limit > 0.0 && velocity.length() > speed_limit {
+                velocity = velocity.normalize_or_zero() * speed_limit;
+            }
+            let center = model_matrix.transform_point3(local_center);
+            let alpha = curve_sample(emitter.get("alpha_over_life"), progress, 1.0).clamp(0.0, 1.0);
+            if alpha <= 0.001 {
+                continue;
+            }
+            let scale_curve = curve_sample(emitter.get("scale_over_life"), progress, 1.0).max(0.0);
+            let radius = (effect_scale(emitter, seed) * scale_curve).max(minimum_radius);
+            let colour = effect_billboard_colour(emitter, progress, alpha, brightness);
+            let uv_rect = effect_sequence_uv(emitter, progress);
+            if kind == "beam" {
+                let local_axis =
+                    vec3_value(emitter.get("beam_axis"), Vec3::Y).normalize_or(Vec3::Y);
+                let length = emitter
+                    .get("beam_length")
+                    .and_then(Value::as_f64)
+                    .map(|value| value as f32)
+                    .filter(|value| value.is_finite())
+                    .unwrap_or(0.0)
+                    .abs()
+                    .max(radius * 2.0);
+                let width = emitter
+                    .get("beam_width")
+                    .and_then(Value::as_f64)
+                    .map(|value| value as f32)
+                    .filter(|value| value.is_finite())
+                    .unwrap_or(radius)
+                    .abs()
+                    .max(minimum_radius * 0.5);
+                let jitter = emitter
+                    .get("beam_jitter")
+                    .and_then(Value::as_f64)
+                    .map(|value| value as f32)
+                    .filter(|value| value.is_finite())
+                    .unwrap_or(0.0)
+                    .abs();
+                let beam_delta = model_matrix.transform_vector3(local_axis * length);
+                let world_length = beam_delta.length().max(radius * scene_scale * 2.0);
+                let side = beam_delta
+                    .normalize_or(Vec3::Y)
+                    .cross(camera_forward)
+                    .normalize_or(camera_right);
+                let mut previous = center;
+                for segment in 1..=6 {
+                    if instances.len() >= MAX_INSTANCES_PER_EMITTER {
+                        break;
+                    }
+                    let fraction = segment as f32 / 6.0;
+                    let current = center
+                        + beam_delta * fraction
+                        + side * seed_signed(seed + segment as f32 * 5.19) * world_length * jitter;
+                    let segment_axis = current - previous;
+                    let ribbon_up = camera_forward.cross(segment_axis).normalize_or(camera_up)
+                        * width
+                        * scene_scale;
+                    instances.push(EffectBillboardInstance {
+                        center: ((previous + current) * 0.5).to_array(),
+                        axis_right: (segment_axis * 0.5).to_array(),
+                        axis_up: ribbon_up.to_array(),
+                        colour,
+                        uv_rect,
+                        texture_index,
+                        blend,
+                        depth: 0.0,
+                    });
+                    previous = current;
+                }
+            } else {
+                let angle = (rotation_low
+                    + (rotation_high - rotation_low) * seed_unit(seed + 23.3))
+                .to_radians()
+                    + progress * seed_signed(seed + 29.7) * std::f32::consts::FRAC_PI_2;
+                let mut right_direction = camera_right * angle.cos() + camera_up * angle.sin();
+                let mut up_direction = -camera_right * angle.sin() + camera_up * angle.cos();
+                let world_velocity = model_matrix.transform_vector3(velocity);
+                let projected_velocity =
+                    world_velocity - camera_forward * world_velocity.dot(camera_forward);
+                let stretch = 1.0 + projected_velocity.length() * velocity_stretch;
+                if velocity_stretch > 0.0 && projected_velocity.length_squared() > 1.0e-8 {
+                    up_direction = projected_velocity.normalize();
+                    right_direction = up_direction
+                        .cross(camera_forward)
+                        .normalize_or(right_direction);
+                }
+                instances.push(EffectBillboardInstance {
+                    center: center.to_array(),
+                    axis_right: (right_direction * radius * scene_scale).to_array(),
+                    axis_up: (up_direction * radius * scene_scale * stretch.clamp(1.0, 20.0))
+                        .to_array(),
+                    colour,
+                    uv_rect,
+                    texture_index,
+                    blend,
+                    depth: 0.0,
+                });
+            }
+            emitted += 1;
+        }
+    }
+    instances
 }
 
 fn effect_emitter_lines(
@@ -2687,13 +3465,12 @@ fn effect_emitter_lines(
                 .abs()
                 .max_element()
                 .max(0.01);
-            let attenuation = (-damping * age).exp();
-            let mut velocity =
-                (initial_direction * initial_speed + acceleration * age) * attenuation;
+            let initial_velocity = initial_direction * initial_speed;
+            let (center, mut velocity) =
+                particle_kinematics(origin, initial_velocity, acceleration, damping, age);
             if speed_limit > 0.0 && velocity.length() > speed_limit {
                 velocity = velocity.normalize_or_zero() * speed_limit;
             }
-            let center = origin + velocity * age + acceleration * (0.5 * age * age);
             let alpha = curve_sample(emitter.get("alpha_over_life"), progress, 1.0).clamp(0.0, 1.0);
             if alpha <= 0.001 {
                 continue;
@@ -3152,6 +3929,272 @@ fn push_axis_label(
     }
 }
 
+fn handle_axis(handle: &str) -> Option<Vec3> {
+    match handle {
+        "x" => Some(Vec3::X),
+        "y" => Some(Vec3::Y),
+        "z" => Some(Vec3::Z),
+        _ => None,
+    }
+}
+
+fn axis_plane_basis(axis: Vec3) -> (Vec3, Vec3) {
+    if axis.abs().x > 0.5 {
+        (Vec3::Y, Vec3::Z)
+    } else if axis.abs().y > 0.5 {
+        (Vec3::X, Vec3::Z)
+    } else {
+        (Vec3::X, Vec3::Y)
+    }
+}
+
+fn screen_segment_distance(point: Vec2, start: Vec2, end: Vec2) -> f32 {
+    let segment = end - start;
+    if segment.length_squared() <= 1.0e-6 {
+        return point.distance(start);
+    }
+    let amount = ((point - start).dot(segment) / segment.length_squared()).clamp(0.0, 1.0);
+    point.distance(start + segment * amount)
+}
+
+fn selected_colour(
+    selected: Option<&str>,
+    handle: &str,
+    regular: [f32; 4],
+    highlight: [f32; 4],
+) -> [f32; 4] {
+    if selected == Some(handle) {
+        highlight
+    } else {
+        regular
+    }
+}
+
+fn push_outlined_line(
+    lines: &mut Vec<EffectLineVertex>,
+    start: Vec3,
+    end: Vec3,
+    camera_right: Vec3,
+    camera_up: Vec3,
+    width: f32,
+    colour: [f32; 4],
+) {
+    let outline = [0.015, 0.018, 0.025, 0.96];
+    for offset in [
+        camera_right * width,
+        -camera_right * width,
+        camera_up * width,
+        -camera_up * width,
+    ] {
+        push_effect_line(lines, start + offset, end + offset, outline);
+    }
+    push_effect_line(lines, start, end, colour);
+}
+
+fn push_billboard_diamond(
+    lines: &mut Vec<EffectLineVertex>,
+    center: Vec3,
+    camera_right: Vec3,
+    camera_up: Vec3,
+    radius: f32,
+    colour: [f32; 4],
+) {
+    let points = [
+        center + camera_right * radius,
+        center + camera_up * radius,
+        center - camera_right * radius,
+        center - camera_up * radius,
+    ];
+    for index in 0..4 {
+        push_outlined_line(
+            lines,
+            points[index],
+            points[(index + 1) % 4],
+            camera_right,
+            camera_up,
+            radius * 0.08,
+            colour,
+        );
+    }
+}
+
+fn push_transform_gizmo(
+    lines: &mut Vec<EffectLineVertex>,
+    pivot: Vec3,
+    length: f32,
+    camera_right: Vec3,
+    camera_up: Vec3,
+    tool: &str,
+    selected: Option<&str>,
+    colours: [[f32; 4]; 3],
+    highlight: [f32; 4],
+) {
+    let length = length.max(1.0e-4);
+    let width = length * 0.008;
+    if tool == "rotate" {
+        for (index, (axis, label)) in [(Vec3::X, "x"), (Vec3::Y, "y"), (Vec3::Z, "z")]
+            .into_iter()
+            .enumerate()
+        {
+            let colour = selected_colour(selected, label, colours[index], highlight);
+            let (first, second) = axis_plane_basis(axis);
+            let radius = length * 0.78;
+            let mut previous = pivot + first * radius;
+            for step in 1..=64 {
+                let angle = std::f32::consts::TAU * step as f32 / 64.0;
+                let current = pivot + (first * angle.cos() + second * angle.sin()) * radius;
+                push_outlined_line(
+                    lines,
+                    previous,
+                    current,
+                    camera_right,
+                    camera_up,
+                    width,
+                    colour,
+                );
+                previous = current;
+            }
+        }
+        push_billboard_diamond(
+            lines,
+            pivot,
+            camera_right,
+            camera_up,
+            length * 0.075,
+            selected_colour(selected, "center", [0.82, 0.84, 0.90, 1.0], highlight),
+        );
+        return;
+    }
+
+    for (index, (axis, label, glyph)) in [
+        (Vec3::X, "x", 'X'),
+        (Vec3::Y, "y", 'Y'),
+        (Vec3::Z, "z", 'Z'),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let colour = selected_colour(selected, label, colours[index], highlight);
+        let tip = pivot + axis * length;
+        push_outlined_line(lines, pivot, tip, camera_right, camera_up, width, colour);
+        if tool == "scale" {
+            push_billboard_diamond(lines, tip, camera_right, camera_up, length * 0.085, colour);
+        } else {
+            let perpendicular = if axis.dot(camera_right).abs() < 0.86 {
+                camera_right.normalize_or(Vec3::X)
+            } else {
+                camera_up.normalize_or(Vec3::Y)
+            };
+            for side in [-1.0_f32, 1.0] {
+                push_outlined_line(
+                    lines,
+                    tip,
+                    tip - axis * length * 0.17 + perpendicular * length * 0.09 * side,
+                    camera_right,
+                    camera_up,
+                    width,
+                    colour,
+                );
+            }
+        }
+        push_axis_label(
+            lines,
+            tip + axis * length * 0.20,
+            camera_right,
+            camera_up,
+            length * 0.065,
+            glyph,
+            colour,
+        );
+    }
+
+    if tool == "move" {
+        for (label, first, second, colour) in [
+            ("xy", Vec3::X, Vec3::Y, [0.88, 0.80, 0.20, 0.88]),
+            ("xz", Vec3::X, Vec3::Z, [0.80, 0.30, 0.78, 0.88]),
+            ("yz", Vec3::Y, Vec3::Z, [0.20, 0.78, 0.76, 0.88]),
+        ] {
+            let colour = selected_colour(selected, label, colour, highlight);
+            let side = length * 0.20;
+            let offset = length * 0.18;
+            let corners = [
+                pivot + first * offset + second * offset,
+                pivot + first * (offset + side) + second * offset,
+                pivot + first * (offset + side) + second * (offset + side),
+                pivot + first * offset + second * (offset + side),
+            ];
+            for index in 0..4 {
+                push_outlined_line(
+                    lines,
+                    corners[index],
+                    corners[(index + 1) % 4],
+                    camera_right,
+                    camera_up,
+                    width,
+                    colour,
+                );
+            }
+        }
+    }
+    push_billboard_diamond(
+        lines,
+        pivot,
+        camera_right,
+        camera_up,
+        length * 0.085,
+        selected_colour(selected, "center", [0.88, 0.90, 0.96, 1.0], highlight),
+    );
+}
+
+fn push_camera_navigator(
+    lines: &mut Vec<EffectLineVertex>,
+    center: Vec3,
+    length: f32,
+    camera_right: Vec3,
+    camera_up: Vec3,
+    colours: [[f32; 4]; 3],
+) {
+    let width = length * 0.012;
+    for step in 0..32 {
+        let first = std::f32::consts::TAU * step as f32 / 32.0;
+        let second = std::f32::consts::TAU * (step + 1) as f32 / 32.0;
+        push_effect_line(
+            lines,
+            center + (camera_right * first.cos() + camera_up * first.sin()) * length * 1.45,
+            center + (camera_right * second.cos() + camera_up * second.sin()) * length * 1.45,
+            [0.52, 0.56, 0.66, 0.58],
+        );
+    }
+    for (index, (axis, glyph)) in [(Vec3::X, 'X'), (Vec3::Y, 'Y'), (Vec3::Z, 'Z')]
+        .into_iter()
+        .enumerate()
+    {
+        let colour = colours[index];
+        for sign in [-1.0_f32, 1.0] {
+            let end = center + axis * length * sign;
+            let dimmed = if sign > 0.0 {
+                colour
+            } else {
+                [colour[0] * 0.45, colour[1] * 0.45, colour[2] * 0.45, 0.78]
+            };
+            push_outlined_line(lines, center, end, camera_right, camera_up, width, dimmed);
+            push_billboard_diamond(lines, end, camera_right, camera_up, length * 0.12, dimmed);
+            if sign > 0.0 {
+                push_axis_label(
+                    lines,
+                    end,
+                    camera_right,
+                    camera_up,
+                    length * 0.09,
+                    glyph,
+                    colour,
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
 fn push_gizmo_axes(
     lines: &mut Vec<EffectLineVertex>,
     pivot: Vec3,
@@ -3160,40 +4203,17 @@ fn push_gizmo_axes(
     camera_up: Vec3,
     colours: [[f32; 4]; 3],
 ) {
-    for (index, (axis, label)) in [(Vec3::X, 'X'), (Vec3::Y, 'Y'), (Vec3::Z, 'Z')]
-        .into_iter()
-        .enumerate()
-    {
-        let colour = colours[index];
-        let tip = pivot + axis * length;
-        let perpendicular = if axis.dot(camera_right).abs() < 0.86 {
-            camera_right.normalize_or(Vec3::X)
-        } else {
-            camera_up.normalize_or(Vec3::Y)
-        };
-        push_effect_line(lines, pivot, tip, colour);
-        push_effect_line(
-            lines,
-            tip,
-            tip - axis * length * 0.15 + perpendicular * length * 0.08,
-            colour,
-        );
-        push_effect_line(
-            lines,
-            tip,
-            tip - axis * length * 0.15 - perpendicular * length * 0.08,
-            colour,
-        );
-        push_axis_label(
-            lines,
-            tip + axis * length * 0.22,
-            camera_right,
-            camera_up,
-            length * 0.075,
-            label,
-            colour,
-        );
-    }
+    push_transform_gizmo(
+        lines,
+        pivot,
+        length,
+        camera_right,
+        camera_up,
+        "move",
+        None,
+        colours,
+        [1.0, 0.88, 0.37, 0.96],
+    );
 }
 
 fn grid_plane_axes(grid: &Value) -> (Vec3, Vec3) {
@@ -3282,7 +4302,10 @@ mod tests {
 
         let mut lines = Vec::new();
         push_gizmo_axes(&mut lines, Vec3::ZERO, 1.0, Vec3::X, Vec3::Y, colours.gizmo);
-        assert_eq!(lines.len(), 34, "three arrows and the X/Y/Z line labels");
+        assert!(
+            lines.len() >= 250,
+            "outlined arrows, plane handles, center handle, and X/Y/Z labels"
+        );
         for colour in colours.gizmo {
             assert!(lines.iter().any(|vertex| vertex.colour == colour));
         }
@@ -3303,6 +4326,54 @@ mod tests {
         let resumed = clock.sample(false);
         assert!(resumed > held);
         assert!(resumed - held < 0.05);
+    }
+
+    #[test]
+    fn particle_motion_integrates_force_and_damping_once() {
+        let (position, velocity) =
+            particle_kinematics(Vec3::ZERO, Vec3::X, Vec3::Y * 2.0, 0.0, 2.0);
+        assert!((position - Vec3::new(2.0, 4.0, 0.0)).length() < 1.0e-5);
+        assert!((velocity - Vec3::new(1.0, 4.0, 0.0)).length() < 1.0e-5);
+
+        let (damped_position, damped_velocity) =
+            particle_kinematics(Vec3::ZERO, Vec3::X, Vec3::ZERO, 1.0, 1.0);
+        let attenuation = (-1.0_f32).exp();
+        assert!((damped_velocity - Vec3::X * attenuation).length() < 1.0e-5);
+        assert!((damped_position - Vec3::X * (1.0 - attenuation)).length() < 1.0e-5);
+    }
+
+    #[test]
+    fn billboard_planes_stay_camera_facing_after_scene_rotation() {
+        let instances = effect_emitter_billboards(
+            &json!({
+                "kind": "billboard",
+                "burst": 1,
+                "max_particles": 1,
+                "loop": false,
+                "life": [1.0, 1.0],
+                "scale": [[0.1, 0.1, 0.1], [0.1, 0.1, 0.1]],
+                "alpha_over_life": [1.0, 1.0]
+            }),
+            0,
+            0.0,
+            0.01,
+            3,
+            Mat4::from_scale_rotation_translation(
+                Vec3::splat(2.0),
+                Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+                Vec3::new(1.0, 2.0, 3.0),
+            ),
+            Vec3::X,
+            Vec3::Y,
+            Vec3::Z,
+        );
+
+        assert_eq!(instances.len(), 1);
+        let right = Vec3::from_array(instances[0].axis_right).normalize();
+        let up = Vec3::from_array(instances[0].axis_up).normalize();
+        assert!(right.dot(Vec3::X) > 0.999);
+        assert!(up.dot(Vec3::Y) > 0.999);
+        assert_eq!(instances[0].texture_index, 3);
     }
 
     #[test]

@@ -738,6 +738,19 @@ class _TabAuthoringMixin:
         self.assertIs(panel.workspace_splitter.widget(1), panel.placement_column)
         self.assertIs(panel.workspace_splitter.widget(2), panel.preview_group)
         self.assertIs(panel.operation_banner.parentWidget(), panel.placement_column)
+        margins = panel.placement_column.layout().contentsMargins()
+        self.assertEqual((margins.left(), margins.top(), margins.right(), margins.bottom()), (8, 0, 8, 0))
+        self.assertEqual(panel.operation_banner.objectName(), "new_item_loading_card")
+        self.assertEqual(
+            panel.operation_banner.sizePolicy().verticalPolicy(),
+            QSizePolicy.Policy.Fixed,
+        )
+        self.assertGreaterEqual(panel.operation_banner.minimumHeight(), 64)
+        card_margins = panel.operation_banner.layout().contentsMargins()
+        self.assertEqual(
+            (card_margins.left(), card_margins.top(), card_margins.right(), card_margins.bottom()),
+            (10, 8, 10, 8),
+        )
         self.assertIs(panel.preview_group.parentWidget(), panel.workspace_splitter)
         self.assertIs(panel.preview.parentWidget(), panel.preview_group)
         self.assertEqual(panel.title(), "")
@@ -821,6 +834,18 @@ class _TabAuthoringMixin:
         frames = []
         panel.operation_spinner.frame_advanced.connect(frames.append)
         preview_height = panel.preview_group.height()
+        tab.controller._lane = "model_import"
+        panel._busy_changed(True)
+        self.app.processEvents()
+        self.assertTrue(panel.placement_group.isVisibleTo(panel))
+        self.assertFalse(panel.placement_group.isEnabled())
+        self.assertGreaterEqual(panel.operation_banner.geometry().left(), 8)
+        self.assertGreaterEqual(
+            panel.placement_column.width() - panel.operation_banner.geometry().right() - 1,
+            8,
+        )
+        panel._busy_changed(False)
+
         tab.controller._lane = "model_apply"
         panel._busy_changed(True)
         self.app.processEvents()

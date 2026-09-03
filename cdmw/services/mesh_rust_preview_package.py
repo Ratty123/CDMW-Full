@@ -19,10 +19,10 @@ import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
-from cdmw.core.atomic_file import atomic_write_text
+from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
@@ -70,6 +70,102 @@ _PREVIEW_CORE_MATERIAL_GRAPH_SCHEMA = 1
 _PREVIEW_CORE_MATERIAL_LAYER_LIMIT = 64
 _PREVIEW_CORE_MATERIAL_RESOURCE_LIMIT = 4_096
 _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES = 512 * 1024 * 1024
+_EFFECT_TEXTURE_RESOURCE_LIMIT = 128
+_EFFECT_TEXTURE_FILE_BYTES = 64 * 1024 * 1024
+_EFFECT_TEXTURE_TOTAL_BYTES = 512 * 1024 * 1024
+
+
+def _write_effect_texture_resources(
+    package_dir: Path,
+    resources: Mapping[str, bytes],
+    *,
+    expected_root_identity: tuple[int, int],
+    cancelled: Callable[[], bool] | None,
+) -> tuple[dict[str, str], list[dict[str, object]]]:
+    """Publish bounded, hash-addressed DDS sprites inside an immutable package."""
+
+    if len(resources) > _EFFECT_TEXTURE_RESOURCE_LIMIT:
+        raise ValueError("Effect preview contains too many sprite textures.")
+    texture_dir = package_dir / "effect_textures"
+    files: dict[str, str] = {}
+    references: list[dict[str, object]] = []
+    written: dict[str, dict[str, object]] = {}
+    aggregate = 0
+    for raw_archive_path, raw_data in resources.items():
+        _cancelled(cancelled)
+        archive_path = str(raw_archive_path or "").strip().replace("\\", "/")
+        components = tuple(archive_path.split("/"))
+        if (
+            not archive_path
+            or len(archive_path) > 1_024
+            or "\x00" in archive_path
+            or PurePosixPath(archive_path).is_absolute()
+            or any(component in {"", ".", ".."} for component in components)
+            or ":" in components[0]
+            or archive_path in files
+        ):
+            raise ValueError("Effect preview texture archive path is invalid.")
+        data = bytes(raw_data)
+        if (
+            len(data) < 128
+            or len(data) > _EFFECT_TEXTURE_FILE_BYTES
+            or not data.startswith(b"DDS ")
+        ):
+            raise ValueError(f"Effect preview texture is not a bounded DDS resource: {archive_path}")
+        digest = hashlib.sha256(data).hexdigest().upper()
+        aggregate += len(data) if digest not in written else 0
+        if aggregate > _EFFECT_TEXTURE_TOTAL_BYTES:
+            raise ValueError("Effect preview sprite textures exceed the aggregate size limit.")
+        relative = f"effect_textures/{digest.casefold()}.dds"
+        if digest not in written:
+            texture_dir.mkdir(parents=True, exist_ok=True)
+            _session_root_identity(package_dir, expected_root_identity)
+            atomic_write_bytes(package_dir / Path(relative), data)
+            _session_root_identity(package_dir, expected_root_identity)
+            written[digest] = {
+                "path": relative,
+                "data_type": "effect_sprite_dds",
+                "count": 1,
+                "byte_length": len(data),
+                "sha256": digest,
+                "content_type": "image/vnd-ms.dds",
+            }
+        files[archive_path] = relative
+        references.append(
+            {
+                "archive_path": archive_path,
+                "file": dict(written[digest]),
+            }
+        )
+    return files, references
+
+
+def semantic_initial_view(
+    bounds: tuple[Sequence[float], Sequence[float]],
+    normal_axis: str,
+) -> dict[str, list[float]]:
+    """Describe a stable broadside view without baking camera angles into Qt.
+
+    The thinnest/template-normal axis faces the camera and the longest remaining
+    axis is kept upright. Keeping this semantic lets the renderer frame the same
+    authored side at every DPI and aspect ratio.
+    """
+
+    low, high = bounds
+    minimum = [float(low[index]) for index in range(3)]
+    maximum = [float(high[index]) for index in range(3)]
+    extents = [abs(maximum[index] - minimum[index]) for index in range(3)]
+    axis = {"x": 0, "y": 1, "z": 2}.get(str(normal_axis or "y").casefold(), 1)
+    upright = max((index for index in range(3) if index != axis), key=extents.__getitem__)
+    view_direction = [0.0, 0.0, 0.0]
+    screen_up_direction = [0.0, 0.0, 0.0]
+    view_direction[axis] = 1.0
+    screen_up_direction[upright] = 1.0
+    return {
+        "view_direction": view_direction,
+        "screen_up_direction": screen_up_direction,
+        "fit_bounds": [minimum, maximum],
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -1149,7 +1245,9 @@ def build_rust_preview_package(
     selection_pivot_source: tuple[float, float, float] | None = None,
     preview_overlays: Mapping[str, object] | None = None,
     effects_overlay: Mapping[str, object] | None = None,
+    effect_texture_resources: Mapping[str, bytes] | None = None,
     framing_bounds: tuple[Sequence[float], Sequence[float]] | None = None,
+    initial_view: Mapping[str, object] | None = None,
     material_package_path: Path | str | None = None,
     include_material_resources: bool = True,
     material_quality: str = "full",
@@ -1291,6 +1389,17 @@ def build_rust_preview_package(
         grid = scene_payload.get("grid")
         if isinstance(grid, dict):
             grid["spacing"] = max(extent / 10.0, 0.01)
+    if isinstance(initial_view, Mapping):
+        framing = scene_payload.setdefault("framing", {})
+        if isinstance(framing, dict):
+            semantic = {
+                key: list(value)
+                for key in ("view_direction", "screen_up_direction", "fit_bounds")
+                if isinstance((value := initial_view.get(key)), Sequence)
+                and not isinstance(value, (str, bytes, bytearray))
+            }
+            if semantic:
+                framing["initial_view"] = semantic
     scene_payload.update(
         {
             "renderer_authority": "rust_wgpu_resident_scene",
@@ -1304,8 +1413,20 @@ def build_rust_preview_package(
             value = overlays.get(source)
             if isinstance(value, Mapping):
                 scene_payload[target_key] = dict(value)
+    effect_texture_references: list[dict[str, object]] = []
     if isinstance(effects_overlay, Mapping):
-        scene_payload["effects_overlay"] = dict(effects_overlay)
+        effect_payload = copy.deepcopy(dict(effects_overlay))
+        if effect_texture_resources:
+            texture_files, effect_texture_references = _write_effect_texture_resources(
+                package_dir,
+                effect_texture_resources,
+                expected_root_identity=root_identity,
+                cancelled=cancelled,
+            )
+            effect_payload["texture_files"] = texture_files
+        else:
+            effect_payload.setdefault("texture_files", {})
+        scene_payload["effects_overlay"] = effect_payload
     manifest = {
         "schema": RUST_PREVIEW_PACKAGE,
         "protocol": RUST_PREVIEW_PROTOCOL,
@@ -1319,6 +1440,7 @@ def build_rust_preview_package(
         "document": document,
         "channels": channels,
         "textures": textures,
+        "effect_textures": effect_texture_references,
         "material_presentations": presentations,
         "texture_status": _texture_status(textures, quality),
         "source": {

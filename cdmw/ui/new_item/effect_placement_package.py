@@ -294,13 +294,14 @@ class EffectPlacementPackageMixin:
             self._apply_orbit_preferences()
             self._sync_host()
             self._apply_scene_visibility()
-            yaw, pitch = self._standing_view_angles[-1]
-            self._point_camera(yaw=yaw, pitch=pitch)
             sentences = []
             if self._preview.preview_file is not None and not self._host_draws_particles():
                 sentences.append("This viewport build draws no particles yet; the anchor shows where the effect sits.")
             if self._preview.missing_textures:
-                sentences.append(f"{len(self._preview.missing_textures)} sprite texture(s) could not be read from the archives.")
+                sentences.append(
+                    f"{len(self._preview.missing_textures)} sprite texture(s) could not be read from the archives. "
+                    "Soft procedural sprites are shown for those emitters."
+                )
             self.status.setText(" ".join(sentences))
             self._show_caveats()
         elif str(state) == "error":

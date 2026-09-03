@@ -467,6 +467,11 @@ class ModelImportBuildTests(unittest.TestCase):
         with patch("cdmw.services.preview_workflow_service.build_mesh_import_preview", fake_build):
             self.assertEqual(build_placed_import(SimpleNamespace(path="x.pac"), source, ModelPlacement()), "result")
         options = seen["static_replacement_options"]
+        self.assertIs(
+            seen["scene_import_result"].mesh,
+            source.baked_scene_mesh(),
+            "the Builder receives the same cached fit mesh that the preview uses",
+        )
         self.assertTrue(options.texture_uv_transforms, "the flip goes into the build")
         self.assertTrue(all(t.flip_v for t in options.texture_uv_transforms))
         self.assertTrue(options.full_import_model_replacement, "the imported model owns the materials")
@@ -544,6 +549,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
         frame.set_render_settings(first)
         frame._ensure_host()
         frame.set_render_settings(second)
+        frame.set_lighting_preset("showcase")
 
         tuning = [call for call in frame.host.calls if call[0] == "set_render_tuning"]
         self.assertEqual(len(tuning), 2)
@@ -551,20 +557,40 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertAlmostEqual(tuning[0][1][0].d3d11_ao_strength, 0.7)
         self.assertAlmostEqual(tuning[1][1][0].d3d11_tone_gamma, 0.91)
         self.assertAlmostEqual(tuning[1][1][0].d3d11_ao_strength, 0.4)
+        lighting = [call for call in frame.host.calls if call[0] == "set_lighting_preset"]
+        self.assertEqual([call[1][0] for call in lighting], ["neutral_studio", "showcase"])
+        self.assertFalse(
+            any(call[0] == "load_package" for call in frame.host.calls),
+            "a lighting-only change must not rebuild or replace the resident package",
+        )
         frame.shutdown()
 
     def test_shutdown_keeps_a_durable_cached_package(self) -> None:
         from cdmw.services.preview_rendering_service import dotnet_preview_package_derived_cache_root
+        from cdmw.services.mesh_rust_preview_cache import rust_preview_package_cache_root
         from cdmw.ui.new_item.item_preview import ItemPreviewFrame
 
         with tempfile.TemporaryDirectory(prefix="cdmw_item_preview_cache_shutdown_") as temporary:
             root = Path(temporary)
-            package = dotnet_preview_package_derived_cache_root(root) / "packages" / "cache-key" / "package"
-            package.mkdir(parents=True)
-            frame = ItemPreviewFrame(output_root=root, host_factory=self._fake_host_class())
-            frame._package_dir = package
-            frame.shutdown()
-            self.assertTrue(package.is_dir(), "closing the frame must not delete a durable cache entry")
+            packages = (
+                dotnet_preview_package_derived_cache_root(root)
+                / "packages"
+                / "cache-key"
+                / "package",
+                rust_preview_package_cache_root(root)
+                / "packages"
+                / "rust-cache-key"
+                / "package",
+            )
+            for package in packages:
+                package.mkdir(parents=True)
+                frame = ItemPreviewFrame(output_root=root, host_factory=self._fake_host_class())
+                frame._package_dir = package
+                frame.shutdown()
+                self.assertTrue(
+                    package.is_dir(),
+                    "closing the frame must not delete a durable cache entry",
+                )
 
     def test_a_placement_scene_takes_the_gizmo_and_the_numbers(self) -> None:
         from cdmw.ui.new_item.item_preview import ItemPreviewFrame, PlacementScene
@@ -604,7 +630,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertIn("set_alignment_preview_transform", names)
         self.assertIn(("set_icon_capture_mode", (False,), {}), host.calls)
         self.assertNotIn(("set_icon_capture_mode", (True,), {}), host.calls, "a placement scene is not in icon-capture mode")
-        self.assertIn("set_view", names, "the camera faces the model's broad plane once")
+        self.assertIn("reset_view", names, "the package-authored canonical view is restored once")
         state = next(c for c in host.calls if c[0] == "set_alignment_state")
         self.assertTrue(state[2]["enabled"])
         self.assertNotIn("source_submesh_indices", state[2], "no source highlight: the model draws as itself")
@@ -612,20 +638,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
             ("remember_editable_local_bounds", ((-0.1, 0.0, -1.0), (0.1, 5.0, 1.0)), {}),
             host.calls,
         )
-        self.assertIn(
-            (
-                "set_view",
-                (),
-                {
-                    "yaw": 180.0,
-                    "pitch": 0.0,
-                    "zoom_factor": 1.0,
-                    "fit_to_view": True,
-                    "pan": (0.0, 0.0, 0.0),
-                },
-            ),
-            host.calls,
-        )
+        self.assertIn(("reset_view", (), {}), host.calls)
         pushed = next(c for c in host.calls if c[0] == "set_alignment_preview_transform")
         self.assertEqual(pushed[2]["translation"], (0.0, 0.0, -0.2))
         self.assertEqual(pushed[2]["scale_xyz"], (0.5, 0.5, 0.5))
@@ -662,17 +675,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
             host.calls,
             [
                 ("set_display_mode", ("side_by_side",), {}),
-                (
-                    "set_view",
-                    (),
-                    {
-                        "yaw": 180.0,
-                        "pitch": 0.0,
-                        "zoom_factor": 1.0,
-                        "fit_to_view": True,
-                        "pan": (0.0, 0.0, 0.0),
-                    },
-                ),
+                ("reset_view", (), {}),
             ],
             "showing a different role layout must immediately frame both visible models",
         )

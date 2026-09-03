@@ -17,8 +17,10 @@ from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
 from cdmw.ui.new_item.blender_setting import blender_for_fbx
 from cdmw.ui.new_item.model_import import (
+    MeshGeometryAnalysis,
     ModelImportSource,
     ModelPlacement,
+    analyze_mesh_geometry,
     bake_mesh,
     build_placed_import,
     fbx_needing_blender,
@@ -198,9 +200,10 @@ class NewItemModelControllerMixin:
                     raise
                 except Exception:  # noqa: BLE001 - an unreadable template preserves the identity-fit fallback
                     template_mesh = None
-            result.fit_template_bounds = mesh_bounds(template_mesh)
-            result.fit_template_centroid = mesh_centroid(template_mesh)
-            result.fit_template_frame = mesh_principal_frame(template_mesh)
+            template_analysis = analyze_mesh_geometry(template_mesh)
+            result.fit_template_bounds = template_analysis.bounds
+            result.fit_template_centroid = template_analysis.centroid
+            result.fit_template_frame = template_analysis.principal_frame
             result.fit_match_grip = bool(match_grip)
             result.set_bake(
                 fitted_placement(
@@ -357,14 +360,20 @@ class NewItemModelControllerMixin:
                 current = mesh_controller.session_view()
                 if current.session_id != session_id or current.revision != int(revision):
                     raise RuntimeError("The Mesh Editor revision could not be captured safely.")
-                edited_scene, preview_model, bounds, centroid, texture_count = prepared
+                if len(prepared) == 4 and isinstance(prepared[2], MeshGeometryAnalysis):
+                    edited_scene, preview_model, analysis, texture_count = prepared
+                else:
+                    edited_scene, preview_model, bounds, centroid, texture_count = prepared
+                    analysis = MeshGeometryAnalysis(bounds, centroid, mesh_principal_frame(edited_scene.mesh))
             except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
                 failed(str(exc))
                 return
             source.scene = edited_scene
             source.preview_model = preview_model
-            source.bounds = bounds
-            source.centroid = centroid
+            source.preview_mesh = edited_scene.mesh
+            source.bounds = analysis.bounds
+            source.centroid = analysis.centroid
+            source.principal_frame = analysis.principal_frame
             source.texture_count = int(texture_count)
             source.mesh_generation += 1
             source._baked_scene_mesh = None

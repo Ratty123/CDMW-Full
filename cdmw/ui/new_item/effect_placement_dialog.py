@@ -126,6 +126,8 @@ class EffectPlacementWorkspace(
         spawn_rate: float = 1.0,
         lifetime: float = 1.0,
         compatibility_ui: bool = False,
+        lighting_preset: str = "neutral_studio",
+        lighting_changed: Optional[Callable[[str], None]] = None,
     ) -> None:
         super().__init__(parent)
         self._item_mesh = item_mesh
@@ -146,6 +148,12 @@ class EffectPlacementWorkspace(
         self.spawn_rate = float(spawn_rate)
         self.lifetime = float(lifetime)
         self._compatibility_ui = bool(compatibility_ui)
+        self._lighting_preset = (
+            str(lighting_preset or "neutral_studio").strip().lower()
+            if str(lighting_preset or "neutral_studio").strip().lower() in {"neutral_studio", "showcase"}
+            else "neutral_studio"
+        )
+        self._lighting_changed_callback = lighting_changed
         self._output_root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_effect_placement"
         self._preview: Optional[EffectPlacementPreview] = None
         self._effect_preview = effect_preview
@@ -309,6 +317,15 @@ class EffectPlacementWorkspace(
             except Exception:  # noqa: BLE001 - a host without the call keeps its own
                 pass
 
+    def _lighting_changed(self) -> None:
+        preset = str(self.lighting_choice.currentData() or "neutral_studio")
+        self._lighting_preset = preset
+        setter = getattr(self.host, "set_lighting_preset", None) if self.host is not None else None
+        if callable(setter):
+            setter(preset)
+        if callable(self._lighting_changed_callback):
+            self._lighting_changed_callback(preset)
+
     def _apply_orbit_preferences(self, *, remember: bool = False) -> None:
         """Apply this dialog's shared X/Y orbit choice without changing other tuning."""
 
@@ -375,8 +392,8 @@ class EffectPlacementWorkspace(
                     state = snapshot() or {}
                 except Exception:  # noqa: BLE001 - the angles fall back to the opening view
                     state = {}
-            yaw = float(state.get("yaw", STANDING_VIEW_ANGLES[-1][0])) if yaw is None else yaw
-            pitch = float(state.get("pitch", STANDING_VIEW_ANGLES[-1][1])) if pitch is None else pitch
+            yaw = float(state.get("yaw", STANDING_VIEW_ANGLES[0][0])) if yaw is None else yaw
+            pitch = float(state.get("pitch", STANDING_VIEW_ANGLES[0][1])) if pitch is None else pitch
         try:
             # Overlay presentation links its visible camera to the editable role, while
             # the item and character are the stable bounds that camera must fit from.
@@ -520,13 +537,19 @@ class EffectPlacementWorkspace(
             capabilities = host.controller.capabilities
         except Exception:  # noqa: BLE001 - a fake host in tests has none
             return False
-        return "effect_particle_preview_v1" in (capabilities or ())
+        return bool(
+            {"effect_particle_preview_v1", "textured_effect_particles_v1"}
+            & set(capabilities or ())
+        )
 
     # ------------------------------------------------------------------ edits
 
     def _sync_host(self) -> None:
         if self.host is None or self._preview is None:
             return
+        lighting = getattr(self.host, "set_lighting_preset", None)
+        if callable(lighting):
+            lighting(self._lighting_preset)
         self.host.set_alignment_preview_transform(
             translation=self._frame.to_scene_point(self.offset),
             rotation_degrees=self._frame.to_scene_euler(self.rotation),

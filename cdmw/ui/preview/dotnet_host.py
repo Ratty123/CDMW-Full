@@ -105,6 +105,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             "fit_to_view": True,
             "yaw": self._DEFAULT_YAW,
             "pitch": self._DEFAULT_PITCH,
+            "roll": 0.0,
             "pan": (0.0, 0.0, 0.0),
         }
         self._view_states_by_role: dict[str, dict[str, object]] = {
@@ -345,6 +346,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             zoom = max(0.1, min(64.0, float(state.get("zoom_factor", self._zoom_factor) or self._zoom_factor)))
             yaw = float(state.get("yaw", self._view_state.get("yaw", self._DEFAULT_YAW)))
             pitch = float(state.get("pitch", self._view_state.get("pitch", self._DEFAULT_PITCH)))
+            roll = float(state.get("roll", self._view_state.get("roll", 0.0)))
         except (TypeError, ValueError, OverflowError):
             return False
         fit = bool(state.get("fit_to_view", self._fit_to_view))
@@ -362,6 +364,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             "role": "reference" if role in {"reference", "original"} else "editable",
             "yaw": yaw,
             "pitch": pitch,
+            "roll": roll,
             "fit_mode": "fit" if fit else "manual",
             "fit_relative_zoom": zoom,
             "pan": [pan[0], pan[1]],
@@ -381,6 +384,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
                 "fit_to_view": fit,
                 "yaw": yaw,
                 "pitch": pitch,
+                "roll": roll,
                 "pan": pan,
             }
             if fit_role:
@@ -400,12 +404,14 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         pan: Sequence[float] = (0.0, 0.0, 0.0),
         role: str = "replacement",
         fit_role: Optional[str] = None,
+        roll: float = 0.0,
     ) -> bool:
         return self.restore_view_state(
             {
                 "role": role,
                 "yaw": yaw,
                 "pitch": pitch,
+                "roll": roll,
                 "zoom_factor": self._zoom_factor if zoom_factor is None else zoom_factor,
                 "fit_to_view": self._fit_to_view if fit_to_view is None else fit_to_view,
                 "pan": pan,
@@ -448,6 +454,17 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         display["mode"] = normalized
         self._presentation_state["display"] = display
         return self._remember_presentation_state({"display": {"mode": normalized}})
+
+    def set_lighting_preset(self, preset: object) -> bool:
+        normalized = str(preset or "neutral_studio").strip().lower()
+        if normalized not in {"neutral_studio", "showcase"}:
+            normalized = "neutral_studio"
+        display = dict(self._presentation_state.get("display", {}))
+        display["lighting_preset"] = normalized
+        self._presentation_state["display"] = display
+        return self._remember_presentation_state(
+            {"display": {"lighting_preset": normalized}}
+        )
 
     def remember_side_by_side_split_ratio(self, ratio: Optional[float] = None) -> float:
         if ratio is not None:
@@ -925,17 +942,32 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
                 "role": "replacement",
                 "yaw": self._DEFAULT_YAW,
                 "pitch": self._DEFAULT_PITCH,
+                "roll": 0.0,
                 "zoom_factor": 1.0,
                 "fit_to_view": True,
                 "pan": (0.0, 0.0, 0.0),
             }
         )
 
+    def request_canonical_view(self) -> bool:
+        """Restore the package-authored semantic camera and fit bounds."""
+
+        if "semantic_framing_v1" not in self.controller.capabilities:
+            return False
+        return self.controller.send_correlated("canonical_view_request") > 0
+
     def _reset_package_view_state(
         self,
         initial_view_state: Mapping[str, object] | None = None,
     ) -> None:
         """Stage a centered fit camera so later state replay cannot restore stale pan."""
+
+        if "semantic_framing_v1" in self.controller.capabilities:
+            # reset_view travels with the asynchronous package request. The
+            # helper applies the new package's semantic camera after adoption
+            # and reports that exact state; sending a command here would still
+            # address the previously resident package.
+            return
 
         initial = initial_view_state if isinstance(initial_view_state, Mapping) else {}
 
@@ -948,6 +980,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
 
         yaw = finite_float("yaw", self._DEFAULT_YAW)
         pitch = finite_float("pitch", self._DEFAULT_PITCH)
+        roll = finite_float("roll", 0.0)
         zoom = max(0.1, min(64.0, finite_float("zoom_factor", 1.0)))
         reason = str(initial.get("reason", "package_reset") or "package_reset")
         self._zoom_factor = zoom
@@ -959,6 +992,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             "fit_to_view": True,
             "yaw": yaw,
             "pitch": pitch,
+            "roll": roll,
             "pan": (0.0, 0.0, 0.0),
         }
         self._view_state = dict(base_state)
@@ -971,6 +1005,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             "role": "editable",
             "yaw": yaw,
             "pitch": pitch,
+            "roll": roll,
             "fit_mode": "fit",
             "fit_relative_zoom": zoom,
             "pan": [0.0, 0.0],

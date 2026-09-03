@@ -32,6 +32,7 @@ pub struct OrbitCamera {
     target: Vec3,
     yaw: f32,
     pitch: f32,
+    roll: f32,
     distance: f32,
     fit_target: Vec3,
     fit_distance: f32,
@@ -45,6 +46,7 @@ impl Default for OrbitCamera {
             target: Vec3::ZERO,
             yaw: std::f32::consts::PI,
             pitch: 0.0,
+            roll: 0.0,
             distance: 5.0,
             fit_target: Vec3::ZERO,
             fit_distance: 5.0,
@@ -77,12 +79,12 @@ impl OrbitCamera {
 
     #[must_use]
     pub fn right(&self) -> Vec3 {
-        self.forward().cross(Vec3::Y).normalize_or_zero()
+        (self.orientation() * Vec3::X).normalize_or_zero()
     }
 
     #[must_use]
     pub fn up(&self) -> Vec3 {
-        self.right().cross(self.forward()).normalize_or_zero()
+        (self.orientation() * Vec3::Y).normalize_or_zero()
     }
 
     #[must_use]
@@ -206,7 +208,50 @@ impl OrbitCamera {
             StandardView::Top => (0.0, -std::f32::consts::FRAC_PI_2 + 1.0e-3),
             StandardView::Bottom => (0.0, std::f32::consts::FRAC_PI_2 - 1.0e-3),
         };
+        self.roll = 0.0;
         self.bump_revision();
+    }
+
+    /// Point the camera using package-authored semantic vectors.
+    ///
+    /// `view_direction` is the direction from the eye toward the subject and
+    /// `screen_up` fixes roll, which is essential for long assets whose
+    /// authored upright axis is not world Y.
+    pub fn set_semantic_view(&mut self, view_direction: Vec3, screen_up: Vec3) -> bool {
+        let forward = view_direction.normalize_or_zero();
+        if forward == Vec3::ZERO {
+            return false;
+        }
+        let desired_up = (screen_up - forward * screen_up.dot(forward)).normalize_or_zero();
+        if desired_up == Vec3::ZERO {
+            return false;
+        }
+        let eye_direction = -forward;
+        self.yaw = eye_direction
+            .x
+            .atan2(eye_direction.z)
+            .rem_euclid(std::f32::consts::TAU);
+        self.pitch = (-eye_direction.y.asin()).clamp(
+            -std::f32::consts::FRAC_PI_2 + 0.01,
+            std::f32::consts::FRAC_PI_2 - 0.01,
+        );
+        let base = Quat::from_rotation_y(self.yaw) * Quat::from_rotation_x(self.pitch);
+        let base_right = base * Vec3::X;
+        let base_up = base * Vec3::Y;
+        self.roll = (-desired_up.dot(base_right)).atan2(desired_up.dot(base_up));
+        self.bump_revision();
+        true
+    }
+
+    pub fn frame_explicit_bounds_in_viewport(
+        &mut self,
+        minimum: Vec3,
+        maximum: Vec3,
+        rectangle: Rect,
+    ) {
+        if minimum.is_finite() && maximum.is_finite() {
+            self.frame_bounds_in_viewport(minimum.min(maximum), minimum.max(maximum), rectangle);
+        }
     }
 
     pub fn orbit(&mut self, delta: Vec2) {
@@ -240,10 +285,11 @@ impl OrbitCamera {
         self.bump_revision();
     }
 
-    pub fn set_orbit_state(
+    pub fn set_orbit_state_with_roll(
         &mut self,
         yaw: f32,
         pitch: f32,
+        roll: f32,
         target: Option<Vec3>,
         relative_zoom: Option<f32>,
     ) {
@@ -255,6 +301,9 @@ impl OrbitCamera {
                 -std::f32::consts::FRAC_PI_2 + 0.01,
                 std::f32::consts::FRAC_PI_2 - 0.01,
             );
+        }
+        if roll.is_finite() {
+            self.roll = roll.rem_euclid(std::f32::consts::TAU);
         }
         if let Some(target) = target.filter(|value| value.is_finite()) {
             self.target = target;
@@ -271,6 +320,11 @@ impl OrbitCamera {
     #[must_use]
     pub fn orbit_state(&self) -> (f32, f32, Vec3, f32) {
         (self.yaw, self.pitch, self.target, self.distance)
+    }
+
+    #[must_use]
+    pub fn roll(&self) -> f32 {
+        self.roll
     }
 
     #[must_use]
@@ -348,7 +402,9 @@ impl OrbitCamera {
     }
 
     fn orientation(&self) -> Quat {
-        Quat::from_rotation_y(self.yaw) * Quat::from_rotation_x(self.pitch)
+        Quat::from_rotation_y(self.yaw)
+            * Quat::from_rotation_x(self.pitch)
+            * Quat::from_rotation_z(self.roll)
     }
 
     fn frame_positions(&mut self, positions: impl Iterator<Item = Vec3>) {
@@ -532,6 +588,30 @@ mod tests {
         camera.set_standard_view(StandardView::Back);
         assert!(camera.eye().z > camera.target().z);
         assert!(camera.forward().z < -0.999);
+    }
+
+    #[test]
+    fn semantic_view_preserves_authored_upright_and_fits_explicit_bounds() {
+        let mut camera = OrbitCamera::default();
+        let minimum = Vec3::new(-0.1, -0.25, -2.0);
+        let maximum = Vec3::new(0.1, 0.25, 2.0);
+        let viewport = rectangle(900.0, 600.0);
+
+        assert!(camera.set_semantic_view(Vec3::X, Vec3::Z));
+        camera.frame_explicit_bounds_in_viewport(minimum, maximum, viewport);
+
+        assert!(camera.forward().dot(Vec3::X) > 0.999);
+        assert!(camera.up().dot(Vec3::Z) > 0.999);
+        for x in [minimum.x, maximum.x] {
+            for y in [minimum.y, maximum.y] {
+                for z in [minimum.z, maximum.z] {
+                    let projected = camera
+                        .project(Vec3::new(x, y, z), viewport)
+                        .unwrap_or_else(|| panic!("semantic-view corner did not project"));
+                    assert!(projected.inside_view);
+                }
+            }
+        }
     }
 
     #[test]
