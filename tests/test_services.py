@@ -97,7 +97,12 @@ class ServiceLayerTests(unittest.TestCase):
             self.assertFalse(settings.fallbacks_enabled)
 
     def test_texture_default_migration_runs_once_and_preserves_later_opt_in(self) -> None:
-        settings = _SettingsDict({"archive/model_use_textures": True})
+        settings = _SettingsDict(
+            {
+                "archive/model_use_textures": True,
+                "archive/model_texture_on_demand_migration_v1": True,
+            }
+        )
 
         self.assertTrue(migrate_model_texture_setting_to_on_demand(settings))
         self.assertFalse(settings.values["archive/model_use_textures"])

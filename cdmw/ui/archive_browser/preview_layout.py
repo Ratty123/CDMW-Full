@@ -44,9 +44,7 @@ class ArchivePreviewLayoutMixin:
         """Create the model toolbar checkboxes, hidden until a model loads."""
 
         self.archive_isolated_renderer_button = QCheckBox("Load textures")
-        self.archive_isolated_renderer_button.setToolTip(
-            "Resolve and display model textures on demand. This choice is kept after restart."
-        )
+        self.archive_isolated_renderer_button.setToolTip("Load textures")
         self.archive_isolated_renderer_button.setEnabled(False)
         self.archive_isolated_renderer_button.setVisible(False)
 

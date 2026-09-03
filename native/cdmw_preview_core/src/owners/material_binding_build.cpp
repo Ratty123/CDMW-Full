@@ -374,9 +374,17 @@ static std::optional<ResolvedSidecarTextureCandidate> resolve_sidecar_texture_ca
     if (technique_parameter != nullptr) {
         const std::string default_path = native_archive_path(technique_parameter->default_value);
         if (lower_copy(extension_from_path(default_path)) == ".dds") {
+            // Preview associations contain source-declared dependencies, while
+            // this authoritative default is discovered later from the global
+            // technique graph. A bounded miss therefore cannot prove that the
+            // default DDS is absent from the package.
             const std::vector<ArchiveEntryRef> default_candidates =
                 lookup_basename_candidates_across_package(
-                    job, index, lower_copy(basename_from_path(default_path)), 96);
+                    job,
+                    index,
+                    lower_copy(basename_from_path(default_path)),
+                    96,
+                    true);
             const ArchiveEntryRef* selected_default = exact_archive_path_candidate(
                 default_candidates, default_path);
             if (selected_default == nullptr) {

@@ -547,20 +547,20 @@ def test_reload_without_package_requests_canonical_preparation() -> None:
     assert harness.render_requests == [(harness.entry, True)]
 
 
-def test_archive_texture_checkbox_updates_the_persisted_preview_preference() -> None:
+def test_archive_texture_checkbox_is_a_current_model_request_not_a_persisted_preference() -> None:
     harness = _LifecycleHarness()
     checkbox = _FakeCheckbox()
     harness.archive_isolated_renderer_button = checkbox
 
     checkbox.setChecked(True)
     harness._open_archive_isolated_d3d11_preview()
-    harness._sync_archive_texture_action_state()
 
-    assert len(harness.settings_changes) == 1
-    assert harness.settings.use_textures_by_default is True
+    assert harness.settings_changes == []
+    assert harness.settings.use_textures_by_default is False
+    assert harness.render_requests == [(harness.entry, True)]
     assert checkbox.checked is True
-    assert checkbox.text == "Load textures"
-    assert "kept after restart" in checkbox.tooltip
+    assert checkbox.text == "Loading textures..."
+    assert "restart" not in checkbox.tooltip.casefold()
 
 
 def test_material_debug_reads_canonical_net_materials(tmp_path: Path) -> None:

@@ -129,7 +129,8 @@ static std::vector<ArchiveEntryRef> lookup_basename_candidates_across_package(
     const EntryJob& job,
     const PamtIndex& primary_index,
     const std::string& basename,
-    size_t max_count = 64
+    size_t max_count = 64,
+    bool fallback_after_bounded_miss = false
 ) {
     std::vector<ArchiveEntryRef> result;
     std::set<std::string> seen;
@@ -148,13 +149,15 @@ static std::vector<ArchiveEntryRef> lookup_basename_candidates_across_package(
         return result;
     }
     std::vector<ArchiveEntryRef> bounded_candidates;
-    if (lookup_bounded_archive_dependency_basename(job, basename, max_count, bounded_candidates)) {
+    const bool used_bounded_dependencies = lookup_bounded_archive_dependency_basename(
+        job, basename, max_count, bounded_candidates);
+    if (used_bounded_dependencies) {
         for (const ArchiveEntryRef& ref : bounded_candidates) {
             const std::string key = lower_copy(ref.pamt_path.string() + "|" + ref.path);
             if (seen.insert(key).second) result.push_back(ref);
             if (result.size() >= max_count) break;
         }
-        return result;
+        if (!result.empty() || !fallback_after_bounded_miss) return result;
     }
     if (job.package_root.empty()) {
         record_archive_lite_dependency_query(basename, max_count, "package_scan_fallback");

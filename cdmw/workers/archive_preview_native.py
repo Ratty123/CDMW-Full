@@ -461,6 +461,14 @@ class ArchivePreviewNativeMixin:
         if not isinstance(manifest, Mapping):
             return False, ("manifest is not a JSON object",)
         missing: List[str] = []
+        material_conservation = manifest.get("material_conservation")
+        if (
+            isinstance(material_conservation, Mapping)
+            and material_conservation.get("conserved") is not True
+        ):
+            findings = tuple(material_conservation.get("findings", ()) or ())
+            detail = str(findings[0] if findings else "no finding reported").strip()
+            missing.append(f"material graph is not conserved:{detail}")
 
         def check_path(raw_value: object, *, package_relative: bool) -> None:
             text = str(raw_value or "").strip()

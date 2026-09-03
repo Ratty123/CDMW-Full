@@ -67,6 +67,29 @@ def _raw_cache_entry(cache_root: Path, key: str) -> Path:
 
 
 class NativePreviewPackageCacheConcurrencyTests(unittest.TestCase):
+    def test_native_package_validation_rejects_non_conserved_material_graph(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package = Path(temp_dir) / "package"
+            package.mkdir()
+            (package / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "material_conservation": {
+                            "conserved": False,
+                            "findings": ["source_dds_unavailable:missing_overlay.dds"],
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            valid, reasons = ArchivePreviewNativeMixin._validate_native_preview_core_package_basic(
+                package
+            )
+
+            self.assertFalse(valid)
+            self.assertIn("source_dds_unavailable:missing_overlay.dds", reasons[0])
+
     def test_cached_total_bytes_increment_is_atomic(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_root = Path(temp_dir) / "cache"

@@ -11,11 +11,11 @@ from cdmw.core.classification_registry import configure_texture_classification_r
 from cdmw.services.workspace_layout import WORKSPACE_MIGRATION_SETTINGS_KEY, migrate_legacy_workspace_layout
 
 
-MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY = "archive/model_texture_on_demand_migration_v1"
+MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY = "archive/model_texture_on_demand_migration_v2"
 
 
 def migrate_model_texture_setting_to_on_demand(settings: object) -> bool:
-    """Migrate every pre-v1 profile once while preserving later user opt-in."""
+    """Migrate every pre-v2 profile once while preserving later settings opt-in."""
 
     try:
         marker = str(settings.value(MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY, "") or "").strip().lower()

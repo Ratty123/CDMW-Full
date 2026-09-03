@@ -7466,7 +7466,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 246,
+          "line": 244,
           "sink": "setToolTip"
         }
       ]
@@ -7481,7 +7481,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 231,
+          "line": 229,
           "sink": "setToolTip"
         }
       ]
@@ -10276,7 +10276,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 157,
+          "line": 155,
           "sink": "QPushButton"
         },
         {
@@ -10331,7 +10331,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 192,
+          "line": 190,
           "sink": "QPushButton"
         }
       ]
@@ -16756,7 +16756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 136,
+          "line": 134,
           "sink": "QPushButton"
         },
         {
@@ -17368,16 +17368,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 356,
           "sink": "python-return:_build_archive_mesh_sections"
-        }
-      ]
-    },
-    {
-      "key": "Check to resolve and display textures after geometry is usable. This choice is kept after restart.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 394,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -19571,7 +19561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 144,
+          "line": 142,
           "sink": "setToolTip"
         }
       ]
@@ -20136,7 +20126,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 206,
+          "line": 204,
           "sink": "setToolTip"
         }
       ]
@@ -21061,7 +21051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 169,
+          "line": 167,
           "sink": "QPushButton"
         }
       ]
@@ -22236,7 +22226,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 180,
+          "line": 178,
           "sink": "QPushButton"
         },
         {
@@ -22336,7 +22326,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 181,
+          "line": 179,
           "sink": "setToolTip"
         }
       ]
@@ -24081,7 +24071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 470,
+          "line": 468,
           "sink": "setToolTip"
         }
       ]
@@ -26001,7 +25991,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 639,
+          "line": 637,
           "sink": "addTab"
         },
         {
@@ -28226,12 +28216,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 250,
+          "line": 248,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 255,
+          "line": 253,
           "sink": "QPushButton"
         },
         {
@@ -28546,7 +28536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 256,
+          "line": 254,
           "sink": "setToolTip"
         }
       ]
@@ -30611,7 +30601,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 359,
+          "line": 357,
           "sink": "_make_archive_action_menu_button"
         },
         {
@@ -30801,7 +30791,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 205,
+          "line": 203,
           "sink": "QPushButton"
         }
       ]
@@ -30976,7 +30966,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 215,
+          "line": 213,
           "sink": "QPushButton"
         }
       ]
@@ -31006,7 +30996,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 202,
+          "line": 200,
           "sink": "QPushButton"
         },
         {
@@ -31036,7 +31026,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 183,
+          "line": 181,
           "sink": "QPushButton"
         }
       ]
@@ -31121,7 +31111,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 225,
+          "line": 223,
           "sink": "QPushButton"
         }
       ]
@@ -31136,7 +31126,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 235,
+          "line": 233,
           "sink": "QPushButton"
         }
       ]
@@ -31151,7 +31141,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 240,
+          "line": 238,
           "sink": "QPushButton"
         }
       ]
@@ -31256,7 +31246,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 210,
+          "line": 208,
           "sink": "QPushButton"
         }
       ]
@@ -31431,7 +31421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 264,
+          "line": 262,
           "sink": "QPushButton"
         }
       ]
@@ -31486,7 +31476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 236,
+          "line": 234,
           "sink": "setToolTip"
         }
       ]
@@ -31501,7 +31491,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 226,
+          "line": 224,
           "sink": "setToolTip"
         }
       ]
@@ -31521,7 +31511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 241,
+          "line": 239,
           "sink": "setToolTip"
         }
       ]
@@ -31551,7 +31541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 265,
+          "line": 263,
           "sink": "setToolTip"
         }
       ]
@@ -31736,7 +31726,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 203,
+          "line": 201,
           "sink": "setToolTip"
         }
       ]
@@ -31751,7 +31741,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 184,
+          "line": 182,
           "sink": "setToolTip"
         }
       ]
@@ -31766,7 +31756,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 216,
+          "line": 214,
           "sink": "setToolTip"
         }
       ]
@@ -31776,7 +31766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 211,
+          "line": 209,
           "sink": "setToolTip"
         }
       ]
@@ -32681,7 +32671,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 186,
+          "line": 184,
           "sink": "QPushButton"
         }
       ]
@@ -32816,7 +32806,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 187,
+          "line": 185,
           "sink": "setToolTip"
         }
       ]
@@ -33836,7 +33826,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 198,
+          "line": 196,
           "sink": "setToolTip"
         },
         {
@@ -34151,7 +34141,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 197,
+          "line": 195,
           "sink": "QPushButton"
         },
         {
@@ -34896,12 +34886,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 93,
+          "line": 91,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 99,
+          "line": 97,
           "sink": "QLabel"
         },
         {
@@ -35061,7 +35051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 94,
+          "line": 92,
           "sink": "setToolTip"
         },
         {
@@ -35281,7 +35271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 101,
+          "line": 99,
           "sink": "QCheckBox"
         },
         {
@@ -36466,7 +36456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 265,
+          "line": 257,
           "sink": "set_status_message"
         }
       ]
@@ -39956,7 +39946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 374,
+          "line": 372,
           "sink": "_make_archive_action_menu_button"
         },
         {
@@ -40011,7 +40001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 230,
+          "line": 228,
           "sink": "QPushButton"
         }
       ]
@@ -40021,7 +40011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 245,
+          "line": 243,
           "sink": "QPushButton"
         }
       ]
@@ -40101,7 +40091,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 282,
+          "line": 280,
           "sink": "QPushButton"
         }
       ]
@@ -41861,7 +41851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 269,
+          "line": 267,
           "sink": "QPushButton"
         }
       ]
@@ -41946,7 +41936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 270,
+          "line": 268,
           "sink": "setToolTip"
         }
       ]
@@ -45206,7 +45196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 283,
+          "line": 281,
           "sink": "setToolTip"
         }
       ]
@@ -45226,7 +45216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 159,
+          "line": 157,
           "sink": "setToolTip"
         }
       ]
@@ -45296,18 +45286,28 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 385,
+          "line": 388,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 410,
+          "line": 395,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
+          "line": 409,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
           "line": 46,
           "sink": "QCheckBox"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/preview_layout.py",
+          "line": 47,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -45891,7 +45891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 192,
+          "line": 184,
           "sink": "set_status_message"
         }
       ]
@@ -45901,7 +45901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 381,
+          "line": 384,
           "sink": "setText"
         }
       ]
@@ -46361,7 +46361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 84,
+          "line": 82,
           "sink": "QPushButton"
         },
         {
@@ -54426,7 +54426,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 842,
+          "line": 850,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -54566,12 +54566,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 842,
+          "line": 850,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 881,
+          "line": 889,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -54616,7 +54616,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 881,
+          "line": 889,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -54676,7 +54676,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 528,
+          "line": 536,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -54741,12 +54741,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 842,
+          "line": 850,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 881,
+          "line": 889,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -55561,7 +55561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 106,
+          "line": 104,
           "sink": "QCheckBox"
         }
       ]
@@ -60591,7 +60591,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 177,
+          "line": 175,
           "sink": "QPushButton"
         }
       ]
@@ -60636,7 +60636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 149,
+          "line": 147,
           "sink": "setToolTip"
         }
       ]
@@ -60756,7 +60756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 251,
+          "line": 249,
           "sink": "setToolTip"
         }
       ]
@@ -60986,7 +60986,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 220,
+          "line": 218,
           "sink": "QPushButton"
         },
         {
@@ -61231,7 +61231,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 193,
+          "line": 191,
           "sink": "setToolTip"
         }
       ]
@@ -61266,7 +61266,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 178,
+          "line": 176,
           "sink": "setToolTip"
         }
       ]
@@ -61281,7 +61281,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 221,
+          "line": 219,
           "sink": "setToolTip"
         },
         {
@@ -64686,7 +64686,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 116,
+          "line": 114,
           "sink": "setText"
         },
         {
@@ -69201,17 +69201,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 54,
+          "line": 52,
           "sink": "FlatSectionPanel"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 174,
+          "line": 172,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 638,
+          "line": 636,
           "sink": "addTab"
         },
         {
@@ -69406,7 +69406,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 842,
+          "line": 850,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -69446,7 +69446,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 881,
+          "line": 889,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -69476,7 +69476,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 532,
+          "line": 540,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -69506,7 +69506,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 524,
+          "line": 532,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -69781,7 +69781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 148,
+          "line": 146,
           "sink": "QPushButton"
         },
         {
@@ -69876,7 +69876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 170,
+          "line": 168,
           "sink": "setToolTip"
         }
       ]
@@ -74041,7 +74041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 79,
+          "line": 77,
           "sink": "setToolTip"
         }
       ]
@@ -74736,7 +74736,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 111,
+          "line": 109,
           "sink": "QPushButton"
         },
         {
@@ -75841,7 +75841,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 175,
+          "line": 173,
           "sink": "setToolTip"
         }
       ]
@@ -76806,7 +76806,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 143,
+          "line": 141,
           "sink": "QPushButton"
         },
         {
@@ -77882,16 +77882,6 @@
       ]
     },
     {
-      "key": "Resolve and display model textures on demand. This choice is kept after restart.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 47,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "Resolve material/shader/XML references for a selected texture, or inspect outbound texture references from a selected material sidecar.",
       "origins": [
         {
@@ -78061,7 +78051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 383,
+          "line": 386,
           "sink": "setToolTip"
         }
       ]
@@ -78336,7 +78326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 278,
+          "line": 276,
           "sink": "QPushButton"
         }
       ]
@@ -78386,7 +78376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 279,
+          "line": 277,
           "sink": "setToolTip"
         }
       ]
@@ -80756,7 +80746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 602,
+          "line": 600,
           "sink": "QLabel"
         },
         {
@@ -81176,7 +81166,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 842,
+          "line": 850,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -81436,7 +81426,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 842,
+          "line": 850,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -83241,7 +83231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 260,
+          "line": 258,
           "sink": "QPushButton"
         }
       ]
@@ -83251,7 +83241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 274,
+          "line": 272,
           "sink": "QPushButton"
         }
       ]
@@ -83291,7 +83281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 261,
+          "line": 259,
           "sink": "setToolTip"
         }
       ]
@@ -83371,7 +83361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 275,
+          "line": 273,
           "sink": "setToolTip"
         }
       ]
@@ -83756,7 +83746,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 190,
+          "line": 188,
           "sink": "setToolTip"
         }
       ]
@@ -86266,7 +86256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 73,
+          "line": 71,
           "sink": "QLabel"
         },
         {
@@ -86356,12 +86346,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 550,
+          "line": 548,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 606,
+          "line": 604,
           "sink": "MediaPreviewWidget"
         },
         {
@@ -88971,7 +88961,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 189,
+          "line": 187,
           "sink": "QPushButton"
         }
       ]
@@ -89206,7 +89196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 138,
+          "line": 136,
           "sink": "setToolTip"
         }
       ]
@@ -89366,7 +89356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 119,
+          "line": 117,
           "sink": "setToolTip"
         }
       ]
@@ -89586,7 +89576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 96,
+          "line": 94,
           "sink": "setToolTip"
         },
         {
@@ -94581,7 +94571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 85,
+          "line": 83,
           "sink": "setToolTip"
         }
       ]
@@ -95731,7 +95721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 107,
+          "line": 105,
           "sink": "setToolTip"
         }
       ]
@@ -95741,7 +95731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 102,
+          "line": 100,
           "sink": "setToolTip"
         }
       ]
@@ -96811,7 +96801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 360,
+          "line": 359,
           "sink": "set_status_message"
         },
         {
@@ -97191,7 +97181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 151,
+          "line": 143,
           "sink": "set_status_message"
         }
       ]
@@ -97201,7 +97191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 243,
+          "line": 235,
           "sink": "set_status_message"
         }
       ]
@@ -97211,7 +97201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 243,
+          "line": 235,
           "sink": "set_status_message"
         }
       ]
@@ -97221,8 +97211,13 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 146,
+          "line": 138,
           "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
+          "line": 393,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -98356,7 +98351,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 881,
+          "line": 889,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -98781,7 +98776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 232,
+          "line": 224,
           "sink": "_finish_archive_texture_request"
         }
       ]
@@ -98821,7 +98816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 432,
+          "line": 431,
           "sink": "set_status_message"
         }
       ]
@@ -100591,7 +100586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 382,
+          "line": 380,
           "sink": "_make_sectioned_archive_action_menu_button"
         },
         {
@@ -101698,16 +101693,6 @@
           "path": "cdmw/ui/model_library/commands.py",
           "line": 467,
           "sink": "addAction"
-        }
-      ]
-    },
-    {
-      "key": "Uncheck to hide textures without unloading geometry. This choice is kept after restart.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 390,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -108716,7 +108701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 98,
+          "line": 96,
           "sink": "setToolTip"
         },
         {
@@ -108741,7 +108726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 92,
+          "line": 90,
           "sink": "setToolTip"
         },
         {
@@ -112051,7 +112036,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 881,
+          "line": 889,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -112956,7 +112941,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 881,
+          "line": 889,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -113646,7 +113631,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 707,
+          "line": 715,
           "sink": "_native_preview_core_package_result"
         }
       ]
@@ -114196,7 +114181,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 764,
+          "line": 772,
           "sink": "_native_preview_core_package_result"
         },
         {
@@ -116751,7 +116736,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 842,
+          "line": 850,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -118091,7 +118076,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 842,
+          "line": 850,
           "sink": "ArchivePreviewResult"
         },
         {

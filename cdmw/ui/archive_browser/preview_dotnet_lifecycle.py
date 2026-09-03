@@ -108,18 +108,12 @@ class ArchivePreviewDotNetLifecycleMixin:
         self.archive_isolated_renderer_package_source = ""
 
     def _open_archive_isolated_d3d11_preview(self) -> None:
-        """Apply the persisted texture checkbox without restarting the renderer."""
+        """Apply the current model's texture checkbox without restarting the renderer."""
         checkbox = getattr(self, "archive_isolated_renderer_button", None)
-        settings = self._current_model_preview_render_settings()
         host = getattr(self, "archive_d3d11_preview_host", None)
         package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
         if checkbox is not None and hasattr(checkbox, "isChecked"):
             enabled = bool(checkbox.isChecked())
-            if bool(settings.use_textures_by_default) != enabled:
-                self._handle_model_preview_settings_changed(
-                    replace(settings, use_textures_by_default=enabled)
-                )
-                return
         else:
             enabled = bool(
                 package_dir is None
@@ -136,9 +130,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         showing = bool(getattr(self, "_archive_textures_visible", False))
         if enabled:
             if package_dir is None or not self._archive_active_package_has_textures():
-                self._request_archive_preview_textures(
-                    automatic=bool(checkbox is not None and hasattr(checkbox, "isChecked"))
-                )
+                self._request_archive_preview_textures(automatic=False)
                 return
             host.set_viewport_display_mode("textured")
             self._archive_textures_visible = True
@@ -323,7 +315,14 @@ class ArchivePreviewDotNetLifecycleMixin:
             return
         if self._archive_active_package_has_textures():
             return
-        if not bool(self._current_model_preview_render_settings().use_textures_by_default):
+        if (
+            bool(automatic)
+            and not bool(self._current_model_preview_render_settings().use_textures_by_default)
+            and not isinstance(
+                getattr(self, "_mesh_editor_pending_rust_texture_launch", None),
+                Mapping,
+            )
+        ):
             return
         self._request_archive_preview_textures(automatic=bool(automatic))
 
@@ -368,15 +367,19 @@ class ArchivePreviewDotNetLifecycleMixin:
         checkbox = getattr(self, "archive_isolated_renderer_button", None)
         if checkbox is None:
             return
-        preference_enabled = bool(
-            self._current_model_preview_render_settings().use_textures_by_default
+        loading = bool(getattr(self, "_archive_texture_request_loading", False))
+        checked = bool(
+            loading
+            or (
+                self._archive_active_package_has_textures()
+                and bool(getattr(self, "_archive_textures_visible", False))
+            )
         )
         previous_blocked = checkbox.blockSignals(True)
         try:
-            checkbox.setChecked(preference_enabled)
+            checkbox.setChecked(checked)
         finally:
             checkbox.blockSignals(previous_blocked)
-        loading = bool(getattr(self, "_archive_texture_request_loading", False))
         if loading:
             checkbox.setText("Loading textures...")
             checkbox.setEnabled(False)
@@ -387,13 +390,9 @@ class ArchivePreviewDotNetLifecycleMixin:
             if self._archive_active_package_has_textures() and bool(
                 getattr(self, "_archive_textures_visible", False)
             ):
-                checkbox.setToolTip(
-                    "Uncheck to hide textures without unloading geometry. This choice is kept after restart."
-                )
+                checkbox.setToolTip("Textures shown.")
             else:
-                checkbox.setToolTip(
-                    "Check to resolve and display textures after geometry is usable. This choice is kept after restart."
-                )
+                checkbox.setToolTip("Load textures")
 
     def _sync_archive_model_toolbar_toggles(
         self,

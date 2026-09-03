@@ -1037,6 +1037,34 @@ static void run_material_contract_self_test() {
     require_material_contract(
         bounded_index.entry_count == 2 && bounded_index.material_sidecars.size() == 1,
         "bounded preview dependencies did not form a complete in-memory index");
+    reset_archive_lite_lookup_diagnostics();
+    const std::vector<ArchiveEntryRef> bounded_default_miss =
+        lookup_basename_candidates_across_package(
+            bounded_job,
+            bounded_index,
+            "nonetexture0xff888888.dds",
+            96,
+            true);
+    const bool recorded_bounded_default_lookup = std::any_of(
+        g_archive_lite_dependency_queries.begin(),
+        g_archive_lite_dependency_queries.end(),
+        [](const ArchiveLiteDependencyQuery& query) {
+            return query.basename == "nonetexture0xff888888.dds"
+                && query.scope == "bounded_dependencies";
+        });
+    const bool recorded_authoritative_default_fallback = std::any_of(
+        g_archive_lite_dependency_queries.begin(),
+        g_archive_lite_dependency_queries.end(),
+        [](const ArchiveLiteDependencyQuery& query) {
+            return query.basename == "nonetexture0xff888888.dds"
+                && query.scope == "package_scan_fallback";
+        });
+    require_material_contract(
+        bounded_default_miss.empty()
+            && recorded_bounded_default_lookup
+            && recorded_authoritative_default_fallback,
+        "bounded dependency miss suppressed the authoritative technique-default lookup");
+    reset_archive_lite_lookup_diagnostics();
 
     NativeSubmesh head;
     head.name = "head_skin";
