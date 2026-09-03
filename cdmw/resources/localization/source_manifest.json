@@ -26421,7 +26421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 550,
+          "line": 833,
           "sink": "ValueError"
         }
       ]
@@ -26431,7 +26431,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 545,
+          "line": 828,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Direct Rust preview requires a conserved Preview Core material graph.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 840,
           "sink": "ValueError"
         }
       ]
@@ -69326,7 +69336,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 609,
+          "line": 899,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core batch is missing its material-layer graph.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 528,
           "sink": "ValueError"
         }
       ]
@@ -69336,7 +69356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 563,
+          "line": 853,
           "sink": "ValueError"
         }
       ]
@@ -69346,7 +69366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 333,
+          "line": 337,
           "sink": "ValueError"
         }
       ]
@@ -69356,7 +69376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 296,
+          "line": 300,
           "sink": "ValueError"
         }
       ]
@@ -69366,7 +69386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 300,
+          "line": 304,
           "sink": "ValueError"
         }
       ]
@@ -69376,7 +69396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 302,
+          "line": 306,
           "sink": "ValueError"
         }
       ]
@@ -69446,7 +69466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 613,
+          "line": 903,
           "sink": "ValueError"
         }
       ]
@@ -69466,7 +69486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 529,
+          "line": 811,
           "sink": "ValueError"
         }
       ]
@@ -69476,7 +69496,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 531,
+          "line": 813,
           "sink": "ValueError"
         }
       ]
@@ -69492,11 +69512,121 @@
       ]
     },
     {
+      "key": "Preview Core material DDS changed while it was copied.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 459,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material DDS is missing.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 422,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material DDS is outside the package size limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 424,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material DDS resources exceed the 512 MiB package limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 440,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material graph DDS is missing: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 585,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material graph contains an invalid batch.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 523,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material graph contains an invalid layer.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 534,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material graph contains too many unique DDS resources.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 465,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material layer identity is invalid.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 550,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material layer lost its wrapper owner identity.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 602,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material-layer graph exceeds the bounded layer limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 530,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Preview Core normalization is invalid.",
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 554,
+          "line": 844,
           "sink": "ValueError"
         }
       ]
@@ -69506,7 +69636,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 598,
+          "line": 888,
           "sink": "ValueError"
         }
       ]
@@ -69516,7 +69646,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 556,
+          "line": 846,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core visible layer lost its source parameter identity.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 604,
           "sink": "ValueError"
         }
       ]
@@ -80251,7 +80391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8506,
+          "line": 8623,
           "sink": "RuntimeError"
         }
       ]
@@ -80576,7 +80716,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8011,
+          "line": 8128,
           "sink": "RuntimeError"
         }
       ]
@@ -80586,7 +80726,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7950,
+          "line": 8067,
           "sink": "RuntimeError"
         }
       ]
@@ -80596,7 +80736,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7946,
+          "line": 8063,
           "sink": "RuntimeError"
         }
       ]
@@ -80606,7 +80746,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7921,
+          "line": 8038,
           "sink": "RuntimeError"
         }
       ]
@@ -80881,7 +81021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1638,
+          "line": 1644,
           "sink": "_set_state"
         }
       ]
@@ -80916,7 +81056,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1623,
+          "line": 1629,
           "sink": "_set_state"
         }
       ]
@@ -80956,7 +81096,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1540,
+          "line": 1546,
           "sink": "_set_state"
         }
       ]
@@ -81246,7 +81386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1778,
+          "line": 1784,
           "sink": "_set_state"
         }
       ]
@@ -81951,12 +82091,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6325,
+          "line": 6442,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6423,
+          "line": 6540,
           "sink": "RuntimeError"
         }
       ]
@@ -82026,7 +82166,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1054,
+          "line": 1357,
           "sink": "ValueError"
         }
       ]
@@ -82036,7 +82176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1063,
+          "line": 1366,
           "sink": "ValueError"
         }
       ]
@@ -82086,7 +82226,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 239,
+          "line": 243,
           "sink": "RunCancelled"
         }
       ]
@@ -102176,7 +102316,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 294,
+          "line": 298,
           "sink": "ValueError"
         }
       ]
@@ -102196,7 +102336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 871,
+          "line": 1174,
           "sink": "ValueError"
         }
       ]
@@ -102216,7 +102356,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 865,
+          "line": 1168,
           "sink": "ValueError"
         }
       ]
@@ -102226,7 +102366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 105,
+          "line": 109,
           "sink": "ValueError"
         }
       ]
@@ -112161,7 +112301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6889,
+          "line": 7006,
           "sink": "open_edit_session"
         },
         {
@@ -114866,7 +115006,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1817,
+          "line": 1823,
           "sink": "_set_state"
         }
       ]
@@ -118911,7 +119051,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1623,
+          "line": 1629,
           "sink": "_set_state"
         }
       ]
@@ -119091,7 +119231,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1638,
+          "line": 1644,
           "sink": "_set_state"
         }
       ]
@@ -120441,7 +120581,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1540,
+          "line": 1546,
           "sink": "_set_state"
         }
       ]
@@ -120481,7 +120621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1830,
+          "line": 1836,
           "sink": "_set_state"
         }
       ]
@@ -126176,7 +126316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1830,
+          "line": 1836,
           "sink": "_set_state"
         }
       ]
