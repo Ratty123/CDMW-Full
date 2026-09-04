@@ -109,6 +109,16 @@ class EmitterPreview:
     #: beams: how far the bolt runs, metres (from the emitter's own box), and along which axis
     beam_length: float = 0.0
     beam_axis: Vec3 = (0.0, 0.0, 0.0)
+    #: Authored initial velocity; absence means stationary, not random drift.
+    velocity: Tuple[Vec3, Vec3] = ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+    scale_axes_over_life: Tuple[Vec3, ...] = ()
+    #: Mask textures supply coverage, not RGB. Packed textures contain four masks.
+    texture_is_mask: bool = False
+    texture_channels: int = 1
+    particle_vertices: Tuple[Vec3, ...] = ()
+    particle_uvs: Tuple[Tuple[float, float], ...] = ()
+    particle_faces: Tuple[Tuple[int, int, int], ...] = ()
+    rotation_3d: Tuple[Vec3, Vec3] = ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +177,14 @@ def _number(node: Optional[ReflectNode], name: str, default: float) -> float:
     return float(raw) if isinstance(raw, (int, float)) else default
 
 
+def _brightness(node: Optional[ReflectNode], name: str, default: float) -> float:
+    value = node.value(name) if node is not None else None
+    raw = value.value if value is not None else None
+    if isinstance(raw, (tuple, list)) and raw:
+        return max(float(v) for v in raw)
+    return float(raw) if isinstance(raw, (int, float)) else default
+
+
 def _first_child(node: ReflectNode, member: str) -> Optional[ReflectNode]:
     child = node.child(member)
     return child if isinstance(child, ReflectNode) else None
@@ -184,6 +202,9 @@ class _Material:
     #: the temperature ramp: R, G, B, intensity splines as sorted (x, y) points, x in 0..1
     ramp: Ramp = ()
     temperature_brightness: Optional[float] = None
+    mask: str = ""
+    packed_channels: Optional[bool] = None
+    texture_is_emissive: Optional[bool] = None
 
 
 def _named_parameters(material: Optional[ReflectNode], layout: EmitterLayout) -> Iterable[Tuple[str, ReflectNode]]:
@@ -233,6 +254,12 @@ def _read_material(material: Optional[ReflectNode], layout: EmitterLayout) -> _M
             path = child.value("_path") if child is not None else None
             if path is not None and str(path.value) and "nonetexture" not in str(path.value).lower():
                 out.texture = str(path.value)
+                out.texture_is_emissive = label == "_textureEmissive"
+        elif label == "_textureMask":
+            child = _first_child(parameter, "_value")
+            path = child.value("_path") if child is not None else None
+            if path is not None and str(path.value) and "nonetexture" not in str(path.value).lower():
+                out.mask = str(path.value)
         elif label == TEMPERATURE_RAMP and not out.ramp:
             ramp = _spline_points(parameter)
             if len(ramp) >= 3 and any(len(component) > 0 for component in ramp[:3]):
@@ -247,6 +274,8 @@ def _read_material(material: Optional[ReflectNode], layout: EmitterLayout) -> _M
         value = permutation.value("_value")
         if name is not None and name.value == "BLEND_MODE" and value is not None and isinstance(value.value, int):
             out.blend = "alpha" if int(value.value) not in (0, 1) else "additive"
+        if name is not None and name.value == "USE_4CHANNEL":
+            out.packed_channels = bool(value.value) if value is not None else False
     return out
 
 
@@ -390,8 +419,8 @@ def _curve_from(sources: Sequence[_Source], curve_id: int, assumed_components: i
 def _string_from(sources: Sequence[_Source], name: str) -> str:
     for source in sources:
         value = source.node.value(name)
-        if value is not None and str(value.value or ""):
-            return str(value.value)
+        if value is not None:
+            return str(value.value or "")
     return ""
 
 
@@ -417,8 +446,8 @@ def _emitter_preview(
 
     burst = int(_read(sources, "_spawnData", "_spawnCountMax", fallback("_spawnCountMax", 1), _number))
     term_min = float(_read(sources, "_spawnData", "_spawnTermMin", fallback("_spawnTermMin", 0.05), _number))
-    term_max = float(_read(sources, "_spawnData", "_spawnTermMax", term_min or fallback("_spawnTermMax", 0.05), _number))
-    term = max(1e-3, (term_min + term_max) / 2.0)
+    term_max = float(_read(sources, "_spawnData", "_spawnTermMax", term_min, _number))
+    term = max(0.0, (term_min + term_max) / 2.0)
     life = (
         float(_read(sources, "_spawnData", "_lifeTimeMin", fallback("_lifeTimeMin", 1.0), _number)),
         float(_read(sources, "_spawnData", "_lifeTimeMax", fallback("_lifeTimeMax", 1.0), _number)),
@@ -452,19 +481,40 @@ def _emitter_preview(
     presets = [source for source in sources if source.node.type_name == RENDER_PRESET_TYPE]
     emissive_sources = sources if override_flag or not presets else presets + [source for source in sources if source not in presets]
     emissive = _read(emissive_sources, "_renderData", "_emissiveColor", (1.0, 1.0, 1.0), _vec3)
-    brightness_vec = _read(sources, "_renderData", "_emissiveBrightness", (1.0, 1.0, 1.0), _vec3)
-    brightness = float(max(brightness_vec)) if brightness_vec else 1.0
-    spread = _read(sources, "_renderData", "_particleAverageDistance", (0.25, 0.25, 0.25), _vec3)
+    brightness = float(_read(sources, "_renderData", "_emissiveBrightness", 1.0, _brightness))
+    # Average distance is a measured render statistic, not a spawn volume.
+    # Procedural volume encodings are shape-dependent, not XYZ box extents.
+    # Until those shapes are decoded, use the placed origin or a sampled mesh.
+    spread = (0.0, 0.0, 0.0)
+    velocity = (
+        _read(sources, "_emitterDynamicData", "_velocityMin", (0.0, 0.0, 0.0), _vec3),
+        _read(sources, "_emitterDynamicData", "_velocityMax", (0.0, 0.0, 0.0), _vec3),
+    )
 
-    texture, blend, ramp, temperature_brightness = "", "", (), None
+    texture, mask, blend, ramp, temperature_brightness = "", "", "", (), None
+    packed_channels = None
+    texture_is_emissive = None
     for source in sources:
         material = _read_material(_first_child(source.node, "_effectMaterialData2"), source.layout)
-        texture = texture or material.texture
+        if not texture and material.texture:
+            texture = material.texture
+            texture_is_emissive = material.texture_is_emissive
+        mask = mask or material.mask
+        if packed_channels is None:
+            packed_channels = material.packed_channels
         blend = blend or material.blend
         ramp = ramp or material.ramp
         if temperature_brightness is None:
             temperature_brightness = material.temperature_brightness
-    blend = blend or "additive"
+    texture_is_mask = not texture and bool(mask)
+    texture = texture or mask
+    if "4pack" in texture.lower():
+        # These atlases pack four masks into each RGBA texel; the authored
+        # logical grid counts the four channels as a 2x2 subdivision.
+        sequence = (max(1, (sequence[0] + 1) // 2), max(1, (sequence[1] + 1) // 2))
+        packed_channels = True
+    uses_base_colour = texture_is_mask or texture_is_emissive is False
+    blend = blend or ("alpha" if uses_base_colour else "additive")
     if temperature_brightness is None:
         temperature_brightness = 1.0
 
@@ -480,14 +530,26 @@ def _emitter_preview(
     scale_over_life = tuple(max(0.0, sum(s[:3]) / max(1, len(s[:3]))) for s in scale_curve) if scale_curve else tuple(1.0 for _ in range(CURVE_SAMPLES))
     alpha_over_life = tuple(max(0.0, min(1.0, s[0])) for s in alpha_curve) if alpha_curve else tuple(_bell(k / (CURVE_SAMPLES - 1)) for k in range(CURVE_SAMPLES))
     color_over_life = _colors_over_life(color_curve, ramp, temperature_brightness, emissive)
+    if uses_base_colour:
+        # An unlit mask is coverage for the base colour. Applying the emitter's
+        # emissive colour here turned authored black smoke into white light.
+        base = _read(emissive_sources, "_renderData", "_color", (1.0, 1.0, 1.0), _vec3)
+        modulation = _colors_over_life(color_curve, (), 0.0, (1.0, 1.0, 1.0))
+        color_over_life = tuple(tuple(c[i] * base[i] for i in range(3)) for c in modulation)
+        brightness = 1.0
+    opacity = max(0.0, min(1.0, float(_read(sources, "_renderData", "_opacity", 1.0, _number))))
+    if blend == "alpha":
+        alpha_over_life = tuple(a * opacity for a in alpha_over_life)
 
     kind = "billboard"
     beam_width = 0.0
     beam_jitter = 0.0
     beam_length = 0.0
     beam_axis: Vec3 = (0.0, 0.0, 0.0)
+    # A textured lightning or spark sprite already contains its authored shape.
+    # The line fallback is only for an untextured beam whose geometry is unavailable.
     lowered = name.lower()
-    if "beam" in lowered or "lightning" in lowered or "spark_once" in lowered or "ray" in lowered:
+    if not texture and not particle_mesh and ("beam" in lowered or "lightning" in lowered):
         kind = "beam"
         # a reading: a bolt as wide as a quarter of the particle scale, as long as the
         # emitter's own box (what the game reserves for it), jittered a sixth of that
@@ -506,7 +568,7 @@ def _emitter_preview(
 
     return EmitterPreview(
         name=name, kind=kind, texture=texture, blend=blend,
-        burst=max(1, burst), bursts_per_second=1.0 / term, max_particles=max(1, min(max_particles, 2000)),
+        burst=max(1, burst), bursts_per_second=1.0 / term if term > 0.0 else 0.0, max_particles=max(1, min(max_particles, 2000)),
         life=(max(0.05, life[0]), max(0.05, max(life))), loop=loop,
         spawn="points" if points else "spread", spread=tuple(abs(float(v)) for v in spread), points=points,  # type: ignore[arg-type]
         force=force, damping=damping, speed_limit=speed_limit, scale=scale, rotation=rotation,
@@ -514,6 +576,12 @@ def _emitter_preview(
         emissive_color=emissive, brightness=brightness, beam_width=beam_width, beam_jitter=beam_jitter, mesh=particle_mesh,
         spawn_time=max(0.0, spawn_time), mass=max(0.0, mass), simulation_speed=max(0.05, simulation_speed),
         sequence=sequence, velocity_stretch=max(0.0, velocity_stretch), beam_length=beam_length, beam_axis=beam_axis,
+        velocity=velocity, scale_axes_over_life=tuple(tuple(max(0.0, float(v)) for v in s[:3]) for s in scale_curve),
+        texture_is_mask=texture_is_mask, texture_channels=4 if packed_channels else 1,
+        rotation_3d=(
+            _read(sources, "_simulationData", "_rotationMin", (0.0, 0.0, 0.0), _vec3),
+            _read(sources, "_simulationData", "_rotationMax", (0.0, 0.0, 0.0), _vec3),
+        ),
     )
 
 
@@ -588,16 +656,18 @@ def build_effect_preview(
         base_doc = emitter_documents.get(path) if emitter_documents else None
         if base_doc is not None:
             sources.append(_Source(base_doc.root, EmitterLayout()))
-        else:
+        elif embedded.type_name != "EmitterData":
             notes.append(
                 f"{name}: the emitter file {path.rsplit('/', 1)[-1]} is not in the archives; the effect's own overrides "
                 "describe it, and what they leave out is what a shipped emitter typically does"
             )
-        preset_name = embedded.value("_renderGroupPreset")
-        preset = preset_documents.get(str(preset_name.value)) if preset_name is not None and preset_documents else None
+        if not _read(sources, "", "_enableParticleRender", 1, _number):
+            continue
+        preset_name = _string_from(sources, "_renderGroupPreset")
+        preset = preset_documents.get(preset_name) if preset_name and preset_documents else None
         if preset is not None:
             sources.append(_Source(preset.root, EmitterLayout()))
-        emitters.append(_emitter_preview(name, sources, meshes, notes, emitter_file_read=base_doc is not None))
+        emitters.append(_emitter_preview(name, sources, meshes, notes, emitter_file_read=base_doc is not None or embedded.type_name == "EmitterData"))
     box_min = _vec3(document.root, "_boundingBoxMin", (-0.5, -0.5, -0.5))
     box_max = _vec3(document.root, "_boundingBoxMax", (0.5, 0.5, 0.5))
     if not emitters and not paths:
@@ -708,7 +778,10 @@ def preview_effect_from_snapshot(
             if vertices:
                 meshes[path] = vertices
     check_cancelled()
-    return build_effect_preview(stem, document, emitter_documents=emitter_documents, layouts=layouts, preset_documents=preset_documents, meshes=meshes)
+    preview = build_effect_preview(stem, document, emitter_documents=emitter_documents, layouts=layouts, preset_documents=preset_documents, meshes=meshes)
+    from cdmw.services.effect_preview_geometry import load_particle_geometry
+
+    return load_particle_geometry(preview, snapshot, parser, check_cancelled)
 
 
 def effect_preview_json(preview: EffectPreview) -> str:

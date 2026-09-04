@@ -69,6 +69,20 @@ impl ApplicationHandler for CaptureProbe {
             renderer
                 .set_scene_transform(Mat4::from_translation(Vec3::X * 0.6))
                 .map_err(|e| e.to_string())?;
+            let resident_particles = crate::preview_effects::effect_emitter_billboards(
+                &serde_json::json!({"loop":false,"alpha_over_life":[1.0],"color_over_life":[[1.0,0.0,0.0]],"scale":[[0.1,0.3,0.1],[0.1,0.3,0.1]],"spread":[0.,0.,0.]}),
+                0,
+                0.,
+                0.,
+                0,
+                Mat4::IDENTITY,
+                Vec3::X,
+                Vec3::Y,
+                Vec3::Z,
+            );
+            renderer
+                .set_effect_particles(&resident_particles)
+                .map_err(|e| e.to_string())?;
             let moved = capture(&mut renderer, "moved.png")?;
             if moved == baseline {
                 return Err("Capture ignored live placement".into());
@@ -76,6 +90,9 @@ impl ApplicationHandler for CaptureProbe {
             let failure = renderer.replace_preview_scene(|candidate| {
                 candidate.set_snapshot(&snapshot)?;
                 candidate.set_scene_transform(Mat4::IDENTITY)?;
+                let mut changed = resident_particles.clone();
+                changed[0].center = [100., 0., 0.];
+                candidate.set_effect_particles(&changed)?;
                 candidate.add_dds_texture(b"invalid DDS", TextureRole::BaseColor, &[vec![0]])?;
                 Ok(())
             });
@@ -120,4 +137,204 @@ fn resident_capture_keeps_live_transform_effects_and_failed_upload_state() {
         .result
         .expect("probe ran")
         .expect("resident GPU capture contract");
+}
+
+#[derive(Default)]
+struct EffectProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for EffectProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            let root = std::path::PathBuf::from(std::env::var("CDMW_EFFECT_PROBE_DIR")?);
+            let label = std::env::var("CDMW_EFFECT_PROBE_LABEL")?;
+            anyhow::ensure!(
+                matches!(label.as_str(), "before" | "after"),
+                "invalid capture label"
+            );
+            let window = Arc::new(
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_title("CDMW effect capture verification")
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(640, 480)),
+                )?,
+            );
+            let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
+            // The production preview has a resident item mesh. Keep a fixture
+            // mesh outside the view so captures exercise the same scene path.
+            let document = decode_mesh(
+                &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
+                MeshFormat::Pam,
+            )?;
+            let mut snapshot = WorkingMesh::from_document(&document)?.draw_snapshot();
+            for p in &mut snapshot.positions {
+                *p = [10000.0, 10000.0, 10000.0];
+            }
+            renderer.set_snapshot(&snapshot)?;
+            renderer.set_scene_transform(Mat4::from_translation(Vec3::splat(10_000.0)))?;
+            renderer.set_camera_with_basis(
+                Mat4::orthographic_rh(-1., 1., -1., 1., 0.1, 10.)
+                    * Mat4::look_at_rh(Vec3::Z * 2., Vec3::ZERO, Vec3::Y),
+                Vec3::X,
+                Vec3::Y,
+            );
+            let sentinel = crate::preview_effects::effect_emitter_billboards(
+                &serde_json::json!({"loop":false,"alpha_over_life":[1.0],"color_over_life":[[1.0,0.0,0.0]],"scale":[[0.5,0.5,0.5],[0.5,0.5,0.5]],"spread":[0.0,0.0,0.0]}),
+                0,
+                0.0,
+                0.01,
+                0,
+                Mat4::IDENTITY,
+                Vec3::X,
+                Vec3::Y,
+                -Vec3::Z,
+            );
+            renderer.set_effect_particles(&sentinel)?;
+            renderer
+                .capture_frame(640, 480, None)?
+                .write(&root.join("sentinel.png"))?;
+            for entry in std::fs::read_dir(&root)? {
+                let dir = entry?.path();
+                if !dir.join("effect.json").is_file() {
+                    continue;
+                }
+                let effect: serde_json::Value =
+                    serde_json::from_slice(&std::fs::read(dir.join("effect.json"))?)?;
+                let inputs: serde_json::Value =
+                    serde_json::from_slice(&std::fs::read(dir.join("inputs.json"))?)?;
+                renderer.reset_effect_textures();
+                let mut textures = std::collections::HashMap::new();
+                for (name, path) in inputs["textures"].as_object().expect("texture map") {
+                    textures.insert(
+                        name.as_str(),
+                        renderer.add_effect_dds_texture(&std::fs::read(
+                            path.as_str().expect("path"),
+                        )?)?,
+                    );
+                }
+                let mut low = Vec3::splat(f32::MAX);
+                let mut high = Vec3::splat(f32::MIN);
+                for time in [0.15, 0.5, 1.0, 2.5] {
+                    for (index, emitter) in effect["emitters"]
+                        .as_array()
+                        .expect("emitters")
+                        .iter()
+                        .enumerate()
+                    {
+                        for p in crate::preview_effects::effect_emitter_billboards(
+                            emitter,
+                            index,
+                            time,
+                            0.001,
+                            0,
+                            Mat4::IDENTITY,
+                            Vec3::X,
+                            Vec3::Y,
+                            -Vec3::Z,
+                        ) {
+                            let center = Vec3::from_array(p.center);
+                            let radius = Vec3::from_array(p.axis_right).abs()
+                                + Vec3::from_array(p.axis_up).abs();
+                            low = low.min(center - radius);
+                            high = high.max(center + radius);
+                        }
+                    }
+                }
+                anyhow::ensure!(
+                    low.is_finite() && high.is_finite() && low.cmple(high).all(),
+                    "effect has no finite particle bounds"
+                );
+                let target = (low + high) * 0.5;
+                let extent = (high - low).max_element().clamp(0.5, 100.);
+                let eye = target + Vec3::Z * extent * 1.5;
+                renderer.set_camera_with_basis(
+                    Mat4::perspective_rh(45_f32.to_radians(), 640. / 480., 0.01, 1000.)
+                        * Mat4::look_at_rh(eye, target, Vec3::Y),
+                    Vec3::X,
+                    Vec3::Y,
+                );
+                renderer.set_clear_colour([0.18, 0.20, 0.23, 1.]);
+                let clear = renderer.capture_frame(1, 1, None)?.read_rgba()?;
+                let mut report = Vec::new();
+                let mut total_visible = 0;
+                for time in [0.15, 0.5, 1.0, 2.5] {
+                    let mut particles = Vec::new();
+                    for (index, emitter) in effect["emitters"]
+                        .as_array()
+                        .expect("emitters")
+                        .iter()
+                        .enumerate()
+                    {
+                        if emitter["kind"] == "mesh"
+                            && emitter["particle_faces"]
+                                .as_array()
+                                .is_none_or(|v| v.is_empty())
+                        {
+                            continue;
+                        }
+                        let texture = textures
+                            .get(emitter["texture"].as_str().unwrap_or(""))
+                            .copied()
+                            .unwrap_or(0);
+                        particles.extend(crate::preview_effects::effect_emitter_billboards(
+                            emitter,
+                            index,
+                            time,
+                            extent * 0.006,
+                            texture,
+                            Mat4::IDENTITY,
+                            Vec3::X,
+                            Vec3::Y,
+                            -Vec3::Z,
+                        ));
+                    }
+                    for p in &mut particles {
+                        p.depth = (Vec3::from_array(p.center) - eye).dot(-Vec3::Z);
+                    }
+                    renderer.set_effect_particles(&particles)?;
+                    renderer
+                        .capture_frame(640, 480, None)?
+                        .write(&dir.join(format!("{label}-{time}.png")))?;
+                    let pixels = renderer.capture_frame(640, 480, None)?.read_rgba()?;
+                    let visible = pixels
+                        .chunks_exact(4)
+                        .filter(|p| {
+                            p[..3]
+                                .iter()
+                                .zip(&clear[..3])
+                                .any(|(a, b)| a.abs_diff(*b) > 3)
+                        })
+                        .count();
+                    total_visible += visible;
+                    report.push(serde_json::json!({"time":time,"instances":particles.len(),"visible_pixels":visible}));
+                }
+                anyhow::ensure!(
+                    label == "before" || total_visible > 0,
+                    "no visible particles in {}",
+                    dir.display()
+                );
+                std::fs::write(
+                    dir.join(format!("{label}-report.json")),
+                    serde_json::to_vec_pretty(&report)?,
+                )?;
+            }
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}
+
+#[test]
+#[ignore = "explicit local DDS corpus capture; requires CDMW_EFFECT_PROBE_DIR and CDMW_EFFECT_PROBE_LABEL"]
+fn capture_effect_corpus() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = EffectProbe::default();
+    event_loop.run_app(&mut probe).expect("event loop");
+    probe.result.expect("probe ran").expect("effect captures");
 }

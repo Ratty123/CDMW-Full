@@ -334,14 +334,15 @@ class ViewerParticleLayerContractTests(unittest.TestCase):
 
     def test_the_viewer_reads_the_description_and_announces_the_capability(self) -> None:
         runtime = (self.ROOT / "cdmw_preview.rs").read_text(encoding="utf-8")
+        simulation = (self.ROOT / "preview_effects.rs").read_text(encoding="utf-8").split("#[cfg(test)]", 1)[0]
         for key in ("bursts_per_second", "life", "spawn", "spread", "points", "force", "damping", "speed_limit", "scale", "rotation",
                     "scale_over_life", "alpha_over_life", "color_over_life", "emissive_color", "beam_width", "beam_length", "beam_axis",
                     "mass", "simulation_speed", "sequence", "velocity_stretch", "texture", "blend"):
-            self.assertIn(f'"{key}"', runtime, key)
-        self.assertIn("fn effect_emitter_lines", runtime)
+            self.assertTrue(f'"{key}"' in simulation, key)
+        self.assertTrue("fn effect_emitter_lines" in simulation)
         self.assertIn('"effect_particle_preview_v1"', runtime)
-        self.assertIn("MAX_PARTICLES_PER_EMITTER", runtime)
-        self.assertIn("MAX_LINE_VERTICES_PER_EMITTER", runtime)
+        self.assertTrue("MAX_PARTICLES_PER_EMITTER" in simulation)
+        self.assertTrue("MAX_LINE_VERTICES_PER_EMITTER" in simulation)
 
     def test_effect_output_is_deterministic_and_resource_bounded_in_rust(self) -> None:
         runtime = (self.ROOT / "cdmw_preview.rs").read_text(encoding="utf-8")

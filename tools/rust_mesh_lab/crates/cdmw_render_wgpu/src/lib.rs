@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+mod effect_particle_proof;
+mod effect_particle_shader;
+
 use bytemuck::{Pod, Zeroable};
 use cdmw_mesh::DrawSnapshot;
 use cdmw_texture::{ColorSpace, DdsFormat, TextureRole, plan_2d_upload};
@@ -69,8 +72,6 @@ struct MaterialUniform {
 @group(0) @binding(16) var skin_detail_material_texture: texture_2d<f32>;
 @group(0) @binding(17) var glossiness_texture: texture_2d<f32>;
 @group(1) @binding(0) var<uniform> camera: CameraUniform;
-@group(2) @binding(0) var effect_sprite: texture_2d<f32>;
-@group(2) @binding(1) var effect_sampler: sampler;
 
 const MATERIAL_BASE_COLOR: u32 = 1u;
 const MATERIAL_NORMAL: u32 = 2u;
@@ -1091,38 +1092,7 @@ fn fs_effect(input: VertexOut) -> @location(0) vec4<f32> {
     return present_srgb(authored_color, alpha);
 }
 
-struct EffectParticleOut {
-    @builtin(position) position: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-    @location(1) colour: vec4<f32>,
-};
 
-@vertex
-fn vs_effect_particle(
-    @location(0) corner: vec2<f32>,
-    @location(1) uv: vec2<f32>,
-    @location(2) center: vec3<f32>,
-    @location(3) axis_right: vec3<f32>,
-    @location(4) axis_up: vec3<f32>,
-    @location(5) colour: vec4<f32>,
-    @location(6) uv_rect: vec4<f32>,
-) -> EffectParticleOut {
-    var out: EffectParticleOut;
-    let world = center + axis_right * corner.x + axis_up * corner.y;
-    out.position = camera.view_projection * vec4<f32>(world, 1.0);
-    out.uv = uv_rect.xy + uv * uv_rect.zw;
-    out.colour = colour;
-    return out;
-}
-
-@fragment
-fn fs_effect_particle(input: EffectParticleOut) -> @location(0) vec4<f32> {
-    let sprite = textureSample(effect_sprite, effect_sampler, input.uv);
-    let alpha = clamp(sprite.a * input.colour.a, 0.0, 1.0);
-    return present(
-        max(sprite.rgb * srgb_to_linear(input.colour.rgb), vec3<f32>(0.0)),
-        alpha);
-}
 "#;
 
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -1355,6 +1325,12 @@ pub struct EffectBillboardInstance {
     pub axis_up: [f32; 3],
     pub colour: [f32; 4],
     pub uv_rect: [f32; 4],
+    /// -1 for colour, 0..3 for the selected packed coverage channel.
+    pub texture_channel: i32,
+    pub frame_blend: f32,
+    /// Mesh triangles share the instanced stream. The second quad triangle is
+    /// collapsed; center/right/up encode vertex 0 and its two edge vectors.
+    pub triangle_uvs: Option<[[f32; 2]; 3]>,
     /// Zero selects the procedural soft sprite; uploaded package sprites begin at one.
     pub texture_index: usize,
     pub blend: EffectBlendMode,
@@ -1386,22 +1362,23 @@ impl EffectQuadVertex {
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 struct GpuEffectBillboardInstance {
     center: [f32; 3],
-    _pad_0: f32,
     axis_right: [f32; 3],
-    _pad_1: f32,
     axis_up: [f32; 3],
-    _pad_2: f32,
     colour: [f32; 4],
     uv_rect: [f32; 4],
+    sprite_options: [f32; 4],
+    third_uv: [f32; 2],
 }
 
 impl GpuEffectBillboardInstance {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+    const ATTRIBUTES: [wgpu::VertexAttribute; 7] = wgpu::vertex_attr_array![
         2 => Float32x3,
         3 => Float32x3,
         4 => Float32x3,
         5 => Float32x4,
-        6 => Float32x4
+        6 => Float32x4,
+        7 => Float32x4,
+        8 => Float32x2
     ];
 
     fn layout() -> wgpu::VertexBufferLayout<'static> {
@@ -1704,7 +1681,8 @@ struct GpuEffectTexture {
 struct GpuEffectBatch {
     texture_index: usize,
     blend: EffectBlendMode,
-    instances: wgpu::Buffer,
+    instances: Arc<wgpu::Buffer>,
+    first_instance: u32,
     instance_count: u32,
 }
 
@@ -2397,6 +2375,22 @@ pub struct PendingFrameCapture {
     format: wgpu::TextureFormat,
 }
 impl PendingFrameCapture {
+    /// Read the rendered frame as tightly packed RGBA8 pixels. Like `write`,
+    /// this waits for the submitted frame and belongs on a worker.
+    pub fn read_rgba(self) -> Result<Vec<u8>, RenderError> {
+        let mut pixels =
+            read_headless_pixels(&self.device, &self.readback, self.width, self.height)?;
+        if matches!(
+            self.format,
+            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+        ) {
+            for pixel in pixels.chunks_exact_mut(4) {
+                pixel.swap(0, 2);
+            }
+        }
+        Ok(pixels)
+    }
+
     pub fn write(self, path: &Path) -> Result<(), RenderError> {
         let mut pixels =
             read_headless_pixels(&self.device, &self.readback, self.width, self.height)?;
@@ -2436,6 +2430,7 @@ pub struct WindowRenderer {
     effect_sampler: wgpu::Sampler,
     effect_textures: Vec<GpuEffectTexture>,
     effect_batches: Vec<GpuEffectBatch>,
+    effect_instance_buffer: Option<(Arc<wgpu::Buffer>, usize)>,
     mesh: Option<GpuMeshBuffers>,
     skeleton_lines: Option<GpuOverlayLines>,
     preview_lines: Option<GpuOverlayLines>,
@@ -2477,6 +2472,7 @@ impl WindowRenderer {
         let bindings = std::mem::take(&mut self.active_material_bindings);
         let effects = self.effect_textures.split_off(1);
         let batches = std::mem::take(&mut self.effect_batches);
+        let instance_buffer = self.effect_instance_buffer.take();
         let camera = self.camera_uniform;
         let stats = self.upload_stats;
         let result = apply(self);
@@ -2488,6 +2484,7 @@ impl WindowRenderer {
             self.effect_textures.truncate(1);
             self.effect_textures.extend(effects);
             self.effect_batches = batches;
+            self.effect_instance_buffer = instance_buffer;
             self.camera_uniform = camera;
             self.upload_stats = stats;
             self.queue
@@ -2713,6 +2710,7 @@ impl WindowRenderer {
             effect_sampler,
             effect_textures,
             effect_batches: Vec::new(),
+            effect_instance_buffer: None,
             mesh: None,
             skeleton_lines: None,
             preview_lines: None,
@@ -3079,6 +3077,12 @@ impl WindowRenderer {
         if instances.iter().any(|instance| {
             instance.texture_index >= self.effect_textures.len()
                 || !instance.depth.is_finite()
+                || !(-1..=3).contains(&instance.texture_channel)
+                || !instance.frame_blend.is_finite()
+                || !(0.0..=1.0).contains(&instance.frame_blend)
+                || instance
+                    .triangle_uvs
+                    .is_some_and(|uvs| uvs.iter().flatten().any(|v| !v.is_finite()))
                 || !instance
                     .center
                     .iter()
@@ -3094,15 +3098,59 @@ impl WindowRenderer {
             ));
         }
         let mut ordered = instances.to_vec();
-        ordered.sort_by(|left, right| match (left.blend, right.blend) {
-            (EffectBlendMode::Additive, EffectBlendMode::Alpha) => std::cmp::Ordering::Less,
-            (EffectBlendMode::Alpha, EffectBlendMode::Additive) => std::cmp::Ordering::Greater,
-            (EffectBlendMode::Additive, EffectBlendMode::Additive) => {
-                left.texture_index.cmp(&right.texture_index)
-            }
-            (EffectBlendMode::Alpha, EffectBlendMode::Alpha) => right.depth.total_cmp(&left.depth),
-        });
+        // Smoke and additive light must share depth order: distant smoke must
+        // not cover a nearer flame merely because it uses a different blend.
+        ordered.sort_by(|left, right| right.depth.total_cmp(&left.depth));
         self.effect_batches.clear();
+        if ordered.is_empty() {
+            return Ok(());
+        }
+        let required = ordered.len();
+        if self
+            .effect_instance_buffer
+            .as_ref()
+            .is_none_or(|(_, capacity)| *capacity < required)
+        {
+            let capacity = required.next_power_of_two().min(MAX_EFFECT_INSTANCES);
+            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("CDMW reusable effect instances"),
+                size: (capacity * std::mem::size_of::<GpuEffectBillboardInstance>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.effect_instance_buffer = Some((Arc::new(buffer), capacity));
+        }
+        let buffer = &self
+            .effect_instance_buffer
+            .as_ref()
+            .expect("allocated instances")
+            .0;
+        let gpu = ordered
+            .iter()
+            .map(|instance| GpuEffectBillboardInstance {
+                center: instance.center,
+                axis_right: instance.axis_right,
+                axis_up: instance.axis_up,
+                colour: instance.colour,
+                uv_rect: instance
+                    .triangle_uvs
+                    .map(|uv| [uv[0][0], uv[0][1], uv[1][0], uv[1][1]])
+                    .unwrap_or(instance.uv_rect),
+                sprite_options: [
+                    instance.texture_channel as f32,
+                    instance.frame_blend,
+                    if instance.triangle_uvs.is_some() {
+                        1.0
+                    } else {
+                        0.0
+                    },
+                    0.0,
+                ],
+                third_uv: instance.triangle_uvs.map(|uv| uv[2]).unwrap_or([0.0; 2]),
+            })
+            .collect::<Vec<_>>();
+        self.queue
+            .write_buffer(buffer, 0, bytemuck::cast_slice(&gpu));
         let mut start = 0usize;
         while start < ordered.len() {
             let texture_index = ordered[start].texture_index;
@@ -3114,31 +3162,12 @@ impl WindowRenderer {
             {
                 end += 1;
             }
-            let gpu = ordered[start..end]
-                .iter()
-                .map(|instance| GpuEffectBillboardInstance {
-                    center: instance.center,
-                    _pad_0: 0.0,
-                    axis_right: instance.axis_right,
-                    _pad_1: 0.0,
-                    axis_up: instance.axis_up,
-                    _pad_2: 0.0,
-                    colour: instance.colour,
-                    uv_rect: instance.uv_rect,
-                })
-                .collect::<Vec<_>>();
-            let buffer = self
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("CDMW Rust Preview effect instances"),
-                    contents: bytemuck::cast_slice(&gpu),
-                    usage: wgpu::BufferUsages::VERTEX,
-                });
             self.effect_batches.push(GpuEffectBatch {
                 texture_index,
                 blend,
-                instances: buffer,
-                instance_count: u32::try_from(gpu.len()).map_err(|_| RenderError::ResourceLimit)?,
+                instances: Arc::clone(buffer),
+                first_instance: start as u32,
+                instance_count: (end - start) as u32,
             });
             start = end;
         }
@@ -4577,19 +4606,9 @@ async fn run_headless_render_smoke_internal(
         &camera_layout,
         sample_count,
     );
-    // Construct the live particle pipeline under the same default device
-    // limits used by production. This makes the no-window D3D12 gate catch
-    // accidental aggregation with the 16-texture material layout.
-    let effect_layout = create_effect_texture_bind_group_layout(&device);
-    let _effect_particle_pipeline = create_effect_particle_pipeline(
-        &device,
-        format,
-        &camera_layout,
-        &effect_layout,
-        sample_count,
-        wgpu::BlendState::ALPHA_BLENDING,
-        "CDMW Rust Preview headless effect particles",
-    );
+    // Pipeline construction alone missed particles disappearing on D3D12.
+    // Assert actual pixels through the production bindings and vertex layout.
+    effect_particle_proof::verify(&device, &queue)?;
     let mut render_snapshot = snapshot.clone();
     render_snapshot.triangle_materials.fill(0);
     let first_triangle = render_snapshot.indices.get(..3).ok_or_else(|| {
@@ -6630,15 +6649,13 @@ fn create_effect_particle_pipeline(
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("CDMW Rust Preview effect particle shader"),
-        source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+        source: wgpu::ShaderSource::Wgsl(effect_particle_shader::SHADER.into()),
     });
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("CDMW Rust Preview effect particle pipeline layout"),
-        // Particle entry points use only camera group 1 and sprite group 2.
-        // Keeping group 0 empty avoids combining the 16-texture material
-        // layout with the sprite texture and exceeding WebGPU's default
-        // 16-sampled-texture device limit.
-        bind_group_layouts: &[None, Some(camera_layout), Some(effect_layout)],
+        // Contiguous bindings are required for the particle camera on D3D12.
+        // This dedicated shader never includes the 16-texture mesh material group.
+        bind_group_layouts: &[Some(camera_layout), Some(effect_layout)],
         immediate_size: 0,
     });
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -7188,12 +7205,13 @@ fn draw_effect_particles<'a>(
             EffectBlendMode::Additive => additive_pipeline,
             EffectBlendMode::Alpha => alpha_pipeline,
         });
-        // Group 0 intentionally differs from the material pipelines, so a
-        // pipeline switch invalidates inherited groups at and above zero.
-        pass.set_bind_group(1, camera_bind_group, &[]);
-        pass.set_bind_group(2, &texture.bind_group, &[]);
+        pass.set_bind_group(0, camera_bind_group, &[]);
+        pass.set_bind_group(1, &texture.bind_group, &[]);
         pass.set_vertex_buffer(1, batch.instances.slice(..));
-        pass.draw(0..6, 0..batch.instance_count);
+        pass.draw(
+            0..6,
+            batch.first_instance..batch.first_instance + batch.instance_count,
+        );
     }
 }
 
@@ -9099,7 +9117,8 @@ mod tests {
         assert!(SHADER.contains("const MATERIAL_MIP_LOD_BIAS: f32 = -2.0;"));
         assert!(SHADER.contains("textureSampleBias(base_texture"));
         assert!(!SHADER.contains("textureSample(base_texture"));
-        assert!(SHADER.contains("textureSample(effect_sprite, effect_sampler, input.uv)"));
+        // Effect texture sampling is verified by effect_particle_proof::verify;
+        // matching a shader string never proved that a particle produced pixels.
         assert_eq!(
             preferred_present_mode(&[
                 wgpu::PresentMode::Immediate,

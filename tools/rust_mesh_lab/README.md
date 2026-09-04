@@ -107,6 +107,23 @@ surface. Every enabled row must have a painted UI anchor and compiled dispatch
 target; every disabled row must have a reason. Rust contract generation does
 not resolve, launch, hash, or read a Vortice executable or report.
 
+## Effects in CDMW previews
+
+The resident effect overlay renders DDS sprites, interpolated flipbooks,
+packed mask channels and bounded decoded mesh particles. It uses authored
+velocity, damping, speed limits, independent size axes, colour and alpha curves.
+Particle camera/sprite bindings are separate from the mesh material bindings;
+transparent particles share camera-depth order and a reusable upload buffer.
+The synthetic D3D12 smoke gate asserts particle pixels, mask channels, frame
+selection, transparency and triangle shape through the production draw path.
+
+This is an approximate preview. Procedural spawn volumes use the placed origin
+unless a spawn mesh was decoded; packed mask variants are selected
+deterministically. Vector fields, collision, trails, game lighting, distortion
+and full material composition are not reproduced. Missing mesh geometry uses
+its sprite when available and reports the missing asset. Captures establish
+renderer output, not in-game parity.
+
 ## User interface
 
 The interface described below is the standalone Rust Mesh Lab layout. In

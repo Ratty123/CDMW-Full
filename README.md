@@ -568,7 +568,12 @@ registered backend action can be published into an exact game mesh.
 bounded.** `.pae` / `.paem` look values can be edited only where the decoded
 fixed-size layout preserves every offset, and references are renamed only at the
 same byte length. The resident particle preview is an approximation, not a claim
-of engine-identical simulation or in-game appearance. See
+of engine-identical simulation or in-game appearance. It renders the shipped
+flame and lightning textures, packed smoke masks, animated sprite sheets and
+decoded particle meshes, with authored colour, velocity, size and fading.
+Game-only vector fields, collisions, lighting and distortion remain approximate;
+procedural spawn shapes currently use the placed origin unless a spawn mesh is
+available. See
 [what is still closed](#what-is-still-closed) for the remaining formats and the
 order in which closing them would pay off.
 
