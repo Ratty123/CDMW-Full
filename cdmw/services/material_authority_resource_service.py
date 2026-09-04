@@ -223,79 +223,86 @@ def _encode_owned_image_dds_batch(
 
     if not jobs:
         return ()
-    remaining_budget = max(0, int(preview_uncompressed_max_bytes))
-    requests: list[NativeTextureEncodeRequest] = []
-    plans: list[tuple[Path, str, bool, object, str, int, int]] = []
-    for raw_source, raw_target, channel in jobs:
-        raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
-        source = Path(raw_source)
-        target = Path(raw_target)
-        if source.suffix.lower() == ".dds":
-            raise ValueError("External preview image batch cannot contain DDS input.")
-        with Image.open(source) as image:
-            width, height = _bounded_image_dimensions(
-                image.width,
-                image.height,
-                max_dimension,
+    with tempfile.TemporaryDirectory(prefix="cdmw-material-images-") as normalized_root:
+        remaining_budget = max(0, int(preview_uncompressed_max_bytes))
+        requests: list[NativeTextureEncodeRequest] = []
+        plans: list[tuple[Path, str, bool, object, str, int, int]] = []
+        for raw_source, raw_target, channel in jobs:
+            raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
+            source = Path(raw_source)
+            target = Path(raw_target)
+            if source.suffix.lower() == ".dds":
+                raise ValueError("External preview image batch cannot contain DDS input.")
+            with Image.open(source) as image:
+                width, height = _bounded_image_dimensions(
+                    image.width,
+                    image.height,
+                    max_dimension,
+                )
+                # The native encoder accepts PNG bytes only. External scene textures
+                # also arrive as JPEG/TGA/WebP, so normalize an owned temporary copy.
+                if image.format != "PNG":
+                    source = Path(normalized_root) / f"{len(requests):04d}.png"
+                    with image.convert("RGBA") as rgba:
+                        rgba.save(source, format="PNG")
+            preset = resolve_texture_editor_dds_preset(
+                _channel_preset_key(channel),
+                width=width,
+                height=height,
             )
-        preset = resolve_texture_editor_dds_preset(
-            _channel_preset_key(channel),
-            width=width,
-            height=height,
-        )
-        output_format = _preview_dds_format(
-            preset.dds_format,
-            width=width,
-            height=height,
-            mip_count=preset.mip_count,
-            max_uncompressed_bytes=remaining_budget,
-        )
-        if output_format != preset.dds_format:
-            remaining_budget = max(
-                0,
-                remaining_budget
-                - _projected_rgba_dds_bytes(width, height, preset.mip_count),
-            )
-        output_srgb = output_format.endswith("_SRGB")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        requests.append(
-            NativeTextureEncodeRequest(
-                input_path=source,
-                output_path=target,
-                dds_format=output_format,
+            output_format = _preview_dds_format(
+                preset.dds_format,
                 width=width,
                 height=height,
                 mip_count=preset.mip_count,
-                overwrite=True,
-                source_color_policy=source_color_policy,
+                max_uncompressed_bytes=remaining_budget,
             )
-        )
-        plans.append(
-            (target, output_format, output_srgb, preset, str(channel), width, height)
-        )
+            if output_format != preset.dds_format:
+                remaining_budget = max(
+                    0,
+                    remaining_budget
+                    - _projected_rgba_dds_bytes(width, height, preset.mip_count),
+                )
+            output_srgb = output_format.endswith("_SRGB")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            requests.append(
+                NativeTextureEncodeRequest(
+                    input_path=source,
+                    output_path=target,
+                    dds_format=output_format,
+                    width=width,
+                    height=height,
+                    mip_count=preset.mip_count,
+                    overwrite=True,
+                    source_color_policy=source_color_policy,
+                )
+            )
+            plans.append(
+                (target, output_format, output_srgb, preset, str(channel), width, height)
+            )
 
-    reports = encode_dds_batch_with_directxtex(
-        requests,
-        timeout_seconds=60.0,
-        stop_event=stop_event,
-    )
-    artifacts: list[dict[str, object]] = []
-    for target, output_format, output_srgb, preset, channel, width, height in plans:
-        report = reports.get(str(target))
-        if not report or not target.is_file():
-            raise RuntimeError(f"Native DirectXTex DDS encode failed for {channel}.")
-        raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
-        artifacts.append(
-            _owned_dds_artifact(
-                target,
-                output_format=output_format,
-                output_srgb=output_srgb,
-                preset=preset,
-                expected_width=width,
-                expected_height=height,
-            )
+        reports = encode_dds_batch_with_directxtex(
+            requests,
+            timeout_seconds=60.0,
+            stop_event=stop_event,
         )
-    return tuple(artifacts)
+        artifacts: list[dict[str, object]] = []
+        for target, output_format, output_srgb, preset, channel, width, height in plans:
+            report = reports.get(str(target))
+            if not report or not target.is_file():
+                raise RuntimeError(f"Native DirectXTex DDS encode failed for {channel}.")
+            raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
+            artifacts.append(
+                _owned_dds_artifact(
+                    target,
+                    output_format=output_format,
+                    output_srgb=output_srgb,
+                    preset=preset,
+                    expected_width=width,
+                    expected_height=height,
+                )
+            )
+        return tuple(artifacts)
 
 
 def _encode_owned_dds(

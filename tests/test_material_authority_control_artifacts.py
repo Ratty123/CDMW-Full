@@ -137,26 +137,31 @@ def test_rust_preview_keeps_bc7_when_uncompressed_budget_is_exhausted(
     assert artifact["preview_uncompressed"] is False
 
 
+@pytest.mark.parametrize("source_format", ("PNG", "JPEG", "TGA", "WEBP"))
 def test_external_preview_images_use_one_native_encode_batch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    source_format: str,
 ) -> None:
     if find_directxtex_texture_binary() is None:
         pytest.skip("cd-texture-dx is not built")
     from cdmw.core import texture_native
 
-    base_source = tmp_path / "base.png"
+    base_source = tmp_path / f"base.{source_format.lower()}"
     normal_source = tmp_path / "normal.png"
     base_target = tmp_path / "base.dds"
     normal_target = tmp_path / "normal.dds"
-    Image.new("RGBA", (64, 32), (73, 41, 19, 255)).save(base_source)
+    Image.new("RGB", (64, 32), (73, 41, 19)).save(base_source, format=source_format)
+    source_bytes = base_source.read_bytes()
     Image.new("RGBA", (8, 8), (128, 128, 255, 255)).save(normal_source)
     original_batch = texture_native.encode_dds_batch_with_directxtex
     request_counts: list[int] = []
+    native_inputs: list[Path] = []
 
     def recording_batch(jobs: object, **kwargs: object) -> object:
         requests = tuple(jobs)  # type: ignore[arg-type]
         request_counts.append(len(requests))
+        native_inputs.extend(request.input_path for request in requests)
         return original_batch(requests, **kwargs)
 
     monkeypatch.setattr(
@@ -185,6 +190,44 @@ def test_external_preview_images_use_one_native_encode_batch(
     assert normal_info.reason == ""
     assert (normal_info.width, normal_info.height) == (8, 8)
     assert (artifacts[0]["width"], artifacts[0]["height"]) == (16, 8)
+    assert base_source.read_bytes() == source_bytes
+    assert native_inputs[1] == normal_source
+    if source_format == "PNG":
+        assert native_inputs[0] == base_source
+    else:
+        assert native_inputs[0] != base_source
+        assert not native_inputs[0].exists()
+
+
+@pytest.mark.parametrize("cancel", (False, True))
+def test_external_preview_normalized_images_are_removed_on_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancel: bool,
+) -> None:
+    from cdmw.core import texture_native
+    from cdmw.domain.cancellation import RunCancelled
+
+    source = tmp_path / "base.jpg"
+    Image.new("RGB", (8, 8), (73, 41, 19)).save(source)
+    source_bytes = source.read_bytes()
+    native_inputs: list[Path] = []
+    failure = RunCancelled if cancel else RuntimeError
+
+    def failed_batch(jobs: object, **kwargs: object) -> object:
+        requests = tuple(jobs)  # type: ignore[arg-type]
+        native_inputs.extend(request.input_path for request in requests)
+        assert native_inputs[0].read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+        raise failure("test encode interrupted")
+
+    monkeypatch.setattr(texture_native, "encode_dds_batch_with_directxtex", failed_batch)
+    with pytest.raises(failure, match="test encode interrupted"):
+        _encode_owned_image_dds_batch(
+            ((source, tmp_path / "base.dds", "base"),), threading.Event(),
+        )
+
+    assert native_inputs
+    assert not native_inputs[0].parent.exists()
+    assert not (tmp_path / "base.dds").exists()
+    assert source.read_bytes() == source_bytes
 
 
 def _manual(values: dict[str, object]) -> object:

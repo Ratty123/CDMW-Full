@@ -555,6 +555,75 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
     assert warm_callbacks == []
 
 
+@pytest.mark.parametrize("quality", ("direct", "full"))
+@pytest.mark.parametrize("has_detail", (False, True))
+def test_preview_core_preserves_untextured_base_without_a_wrapper(
+    tmp_path: Path, quality: str, has_detail: bool,
+) -> None:
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    source_manifest = source / "manifest.json"
+    native = json.loads(source_manifest.read_text(encoding="utf-8"))
+    batch = native["batches"][0]
+    detail = dict(batch["material_layers"][0], layer_role="detail")
+    # make_base_material_layer emits this sentinel when all global maps are absent,
+    # including models whose visible textures belong only to detail layers.
+    batch["material_layers"] = [{
+        "owner_wrapper_item_id": "",
+        "material_wrapper_index": -1,
+        "layer_role": "base",
+        "mask_channel": "r",
+        "source_parameter": "",
+        "mask_parameter": "",
+        "weight": 1.0,
+        "tint": [0.2, 0.3, 0.4, 1.0],
+    }]
+    batch["dds_textures"] = {}
+    if has_detail:
+        batch["material_layers"].append(detail)
+    source_manifest.write_text(json.dumps(native), encoding="utf-8")
+
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "package", material_quality=quality,
+    )
+
+    assert validate_rust_preview_package(package.package_dir) == ()
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    layers = manifest["preview_core_material_graph"]["materials"][0]["layers"]
+    assert layers[0]["owner_wrapper_item_id"] == ""
+    assert layers[0]["material_wrapper_index"] == 0
+    assert layers[0]["tint"] == [0.2, 0.3, 0.4, 1.0]
+    assert layers[0]["diffuse"] is None
+    assert len(layers) == (2 if has_detail else 1)
+    if has_detail:
+        assert layers[1]["owner_wrapper_item_id"] == "fixture-wrapper-1"
+        assert layers[1]["material_wrapper_index"] == 0
+        assert (layers[1]["diffuse"] is not None) == (quality == "full")
+
+
+@pytest.mark.parametrize("quality", ("direct", "full"))
+@pytest.mark.parametrize("damage", ("missing_owner", "negative_wrapper", "missing_wrapper"))
+def test_preview_core_rejects_textured_layer_without_valid_ownership(
+    tmp_path: Path, quality: str, damage: str,
+) -> None:
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    source_manifest = source / "manifest.json"
+    native = json.loads(source_manifest.read_text(encoding="utf-8"))
+    layer = native["batches"][0]["material_layers"][0]
+    if damage == "missing_owner":
+        layer["owner_wrapper_item_id"] = ""
+    elif damage == "negative_wrapper":
+        layer["material_wrapper_index"] = -1
+    else:
+        del layer["material_wrapper_index"]
+    source_manifest.write_text(json.dumps(native), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="identity"):
+        build_rust_preview_package_from_preview_core(
+            source, output_package_dir=tmp_path / "package", material_quality=quality,
+        )
+    assert not (tmp_path / "package").exists()
+
+
 def test_preview_core_material_conservation_failure_is_not_sent_to_rust(
     tmp_path: Path,
 ) -> None:

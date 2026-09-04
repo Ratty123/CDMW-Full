@@ -636,6 +636,22 @@ def _build_preview_core_material_graph(
             source_parameter = str(raw_layer.get("source_parameter", "") or "").strip()
             mask_parameter = str(raw_layer.get("mask_parameter", "") or "").strip()
             if (
+                raw_layer.get("material_wrapper_index") == -1
+                and not owner
+                and role == "base"
+                and not source_parameter
+                and not mask_parameter
+                and all(
+                    not str(raw_layer.get(f"{resource_role}_{field}", "") or "").strip()
+                    for resource_role in ("diffuse", "normal", "material", "height", "mask")
+                    for field in ("source", "archive_path")
+                )
+            ):
+                # Preview Core emits an ownerless base when no global map is
+                # bound. Give this source-free layer its batch-local Rust index;
+                # keep its absent wrapper identity and all textured layers intact.
+                wrapper_index = material_index
+            if (
                 not role
                 or len(role) > 32
                 or channel not in {"", "r", "g", "b", "a"}

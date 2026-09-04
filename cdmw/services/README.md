@@ -79,6 +79,13 @@ the model-preview services share the canonical material route rather than
 building a New Item-only renderer. None of these services mutates a widget or a
 shipped archive on its own.
 
+`mesh_rust_preview_package.py` adapts Preview Core's material graph for both
+direct and full Rust preview packages. An untextured base layer may carry
+Preview Core's absent-wrapper sentinel (`-1`), including when only detail
+layers supply textures. The adapter assigns that source-free base its local
+batch index while preserving its empty wrapper identity. Textured layers still
+require valid wrapper ownership; the adapter does not assign them an owner.
+
 Related tests: `tests/test_services.py`, `tests/test_archive_service_boundaries.py`,
 `tests/test_research_service_boundary.py`, `tests/test_diagnostics_service.py`,
 and service entries under `tests/`.

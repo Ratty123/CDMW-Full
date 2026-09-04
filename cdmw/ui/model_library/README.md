@@ -25,6 +25,9 @@ the manifest separately retains its true glTF, GLB, OBJ, DAE, or converted-FBX
 source format. External images are deduplicated by source and texture role, then
 encoded through one native DDS batch per package while preserving the existing
 format, mip, memory-budget, cancellation, and atomic-publication contracts.
+Non-PNG images (including JPEG, TGA, and WebP) are normalized to temporary RGBA
+PNGs for the PNG-only native encoder; those intermediates are removed after
+success, failure, or cancellation.
 Their temporary preview copies are aspect-preservingly bounded to 2048 pixels;
 the downloaded source images remain unchanged.
 
