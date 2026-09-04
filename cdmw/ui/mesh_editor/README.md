@@ -107,7 +107,16 @@ split into named compact groups so controls remain scannable at constrained
 sizes.
 
 Select, Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch execute locally in
-Rust; numeric transform steps use the same revisioned transaction lane. Inflate
+Rust. Selection is acknowledged with a selection-only command; it never sends
+geometry channels. Geometry candidates preserve original channel values when
+their Rust `f32` representation is unchanged, including fractional PAC values.
+Whole-part translation preserves authored normals; rotation and nonuniform
+scaling transform them without replacing custom shading with face averages.
+Partial-part deformation still updates affected geometry normals.
+Selection, bone choice, output policy, and layer presentation changes leave
+resident geometry loaded. Geometry updates reuse successfully uploaded textures
+when their ownership is unchanged and retain the Bones overlay preference.
+Numeric transform steps use the same revisioned transaction lane. Inflate
 uses signed strength, where positive values inflate and negative values deflate,
 and face Extrude sends an explicit world-X, Y, or Z offset. Cleanup, mirror,
 normals/tangents, UV0, bone selection and skin-weight editing are strict typed

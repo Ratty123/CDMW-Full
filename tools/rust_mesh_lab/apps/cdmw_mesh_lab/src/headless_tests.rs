@@ -438,6 +438,77 @@ fn pending_cdmw_result_blocks_edit_actions_but_keeps_camera_navigation_available
 }
 
 #[test]
+fn integrated_selection_uses_commands_without_geometry_candidates() -> TestResult {
+    for action in [
+        UiAction::SelectAllVertices,
+        UiAction::SetPartSelection(vec![0]),
+    ] {
+        let root = tempdir()?;
+        let mut application = triangle_application()?;
+        application.cdmw_bridge = Some(CdmwBridge::for_test(
+            root.path().to_path_buf(),
+            "selection-only",
+            1,
+            0,
+        ));
+        let before = application.mesh.as_ref().ok_or("mesh")?.geometry_revision;
+        application.handle_actions(vec![action]);
+        assert_eq!(application.cdmw_transaction_attempts, 0);
+        assert_eq!(
+            application.mesh.as_ref().ok_or("mesh")?.geometry_revision,
+            before
+        );
+        let pending = application
+            .cdmw_pending_request
+            .as_ref()
+            .ok_or("missing selection request")?;
+        assert_eq!(pending.event, "command_result");
+        let selection = cdmw_session::selection_payload(application.mesh.as_ref().ok_or("mesh")?)?;
+        application.handle_cdmw_result("command_result", pending.request_id, 1, true, json!({
+            "state": {"session_id": "selection-only", "base_revision": 1, "selection": selection}
+        }), "");
+        assert!(!application.cdmw_exit_requested, "{}", application.status);
+        assert!(application.cdmw_pending_request.is_none());
+    }
+    Ok(())
+}
+
+#[test]
+fn integrated_selection_gesture_does_not_submit_mesh_channels() -> TestResult {
+    let root = tempdir()?;
+    let mut application = triangle_application()?;
+    application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "selection-gesture",
+        1,
+        0,
+    ));
+    application.viewport_tool = ViewportTool::Select;
+    application.selection_domain = SelectionDomain::Vertex;
+    let handle = application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .vertices()
+        .next()
+        .ok_or("vertex")?
+        .0;
+    let point = projected_vertex(&application, handle)?;
+    application.begin_primary_gesture(viewport(), point);
+    application.finish_primary_gesture();
+    assert_eq!(application.cdmw_transaction_attempts, 0);
+    assert_eq!(
+        application
+            .cdmw_pending_request
+            .as_ref()
+            .ok_or("selection request")?
+            .event,
+        "command_result"
+    );
+    Ok(())
+}
+
+#[test]
 fn matched_rejection_restores_host_document_before_clearing_pending_request() -> TestResult {
     let root = tempdir()?;
     let root_path = root.path().to_path_buf();

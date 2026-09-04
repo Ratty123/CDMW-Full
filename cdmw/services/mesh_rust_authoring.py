@@ -17,6 +17,7 @@ import os
 import re
 import shutil
 import stat
+import struct
 import tempfile
 import threading
 from collections.abc import Mapping, Sequence
@@ -7701,9 +7702,13 @@ class RustMeshAuthoringSession:
                 ("replace_uv0_same_count", "uvs", uvs),
             )
             for operation_name, attribute, values in channel_values:
-                if not values or list(getattr(target, attribute, ()) or ()) == values:
+                original = list(getattr(target, attribute, ()) or ())
+                if not values or original == values:
                     continue
-                setattr(target, attribute, copy.deepcopy(values))
+                values = _preserve_unchanged_rust_channel(original, values)
+                if original == values:
+                    continue
+                setattr(target, attribute, values)
                 operations.append(
                     {
                         "operation": operation_name,
@@ -7999,8 +8004,22 @@ class RustMeshAuthoringSession:
             before_revision=before_revision,
             before_signature=before_signature,
         )
+        # These commands change selection/presentation, not the resident mesh.
+        # Protocol revisions still advance so stale requests remain rejected.
+        state_only = command in {
+            "select",
+            "rig_select_bone",
+            "configure_output_policy",
+            "layer_activate",
+            "layer_rename",
+            "layer_visibility",
+            "layer_move",
+            "layer_copy",
+        }
         state = self.state_payload(
-            include_document=(command == "state" or after_revision != before_revision)
+            include_document=(
+                command == "state" or (after_revision != before_revision and not state_only)
+            )
         )
         return {"result": _json_safe(result), "state": state}
 
@@ -8729,6 +8748,39 @@ class RustMeshAuthoringSession:
         finally:
             self.closed = True
         return warning
+
+
+def _preserve_unchanged_rust_channel(
+    original: list[tuple[float, ...]],
+    candidate: list[tuple[float, ...]],
+) -> list[tuple[float, ...]]:
+    """Keep source precision where the editor's f32 value has not changed.
+
+    Rust serializes f32 with its shortest round-tripping decimal. Comparing
+    that JSON number to a Python double directly invents edits. Compare the
+    actual f32 representations instead; even a one-ULP Rust edit remains real.
+    """
+    if len(original) != len(candidate):
+        return candidate
+    restored: list[tuple[float, ...]] = []
+    try:
+        for before, after in zip(original, candidate):
+            if len(before) != len(after):
+                raise RustMeshProtocolError("Rust Mesh channel row width changed")
+            if before == after:
+                restored.append(before)
+            else:
+                restored.append(
+                    tuple(
+                        old
+                        if old == new or struct.pack("<f", old) == struct.pack("<f", new)
+                        else new
+                        for old, new in zip(before, after)
+                    )
+                )
+    except (OverflowError, struct.error) as exc:
+        raise RustMeshProtocolError("Rust Mesh channel exceeds finite f32 range") from exc
+    return restored
 
 
 def _finite_rows(value: object, width: int, label: str) -> list[tuple[float, ...]]:

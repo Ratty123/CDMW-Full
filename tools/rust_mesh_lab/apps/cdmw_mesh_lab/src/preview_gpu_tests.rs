@@ -140,6 +140,144 @@ fn resident_capture_keeps_live_transform_effects_and_failed_upload_state() {
 }
 
 #[derive(Default)]
+struct AuthoringRefreshProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for AuthoringRefreshProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            let window = Arc::new(
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(256, 256)),
+                )?,
+            );
+            let root = tempfile::tempdir()?;
+            let mut document = decode_mesh(
+                &cdmw_formats::synthetic::triangle_pam("owned.dds"),
+                MeshFormat::Pam,
+            )?;
+            document.lods[0].submeshes[0].name = "Part A".to_owned();
+            let mut second = document.lods[0].submeshes[0].clone();
+            second.name = "Part B".to_owned();
+            for position in &mut second.positions {
+                position[0] += 2.0;
+            }
+            document.lods[0].submeshes.push(second);
+            let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+            let bridge = crate::cdmw_session::CdmwBridge::for_test_with_textures(
+                root.path().to_path_buf(),
+                "gpu-authoring-refresh",
+                1,
+                0,
+                vec![crate::cdmw_session::CdmwTextureResource {
+                    label: "owned.dds".to_owned(),
+                    role: TextureRole::BaseColor,
+                    metadata: cdmw_texture::inspect_dds(&bytes, TextureRole::BaseColor)?,
+                    bytes,
+                    material_indices_by_lod: vec![vec![0]],
+                }],
+            );
+            let mut app = crate::LabApplication::new_cdmw(bridge, document.clone(), None)?;
+            let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(256.0, 256.0));
+            app.update_viewport_rect(viewport);
+            app.renderer = Some(pollster::block_on(WindowRenderer::new(window))?);
+            app.install_cdmw_document(document.clone())?;
+            let capture = |app: &mut crate::LabApplication| -> anyhow::Result<Vec<u8>> {
+                let camera = app.camera.view_projection(viewport);
+                let renderer = app.renderer.as_mut().expect("renderer");
+                renderer.set_camera(camera);
+                renderer.set_view_mode(ViewMode::TexturedSolid);
+                Ok(renderer.capture_frame(256, 256, None)?.read_rgba()?)
+            };
+            let baseline = capture(&mut app)?;
+            anyhow::ensure!(
+                app.cdmw_textured_mode_available,
+                "initial texture did not bind"
+            );
+            anyhow::ensure!(
+                app.material_reload_count == 1,
+                "initial materials not uploaded once"
+            );
+            anyhow::ensure!(
+                baseline
+                    .chunks_exact(4)
+                    .any(|pixel| pixel != &baseline[..4]),
+                "blank capture"
+            );
+
+            let selection_revision = app.mesh.as_ref().expect("mesh").selection_revision;
+            app.install_validated_cdmw_state(serde_json::json!({"selection": {}}), None)?;
+            anyhow::ensure!(
+                app.mesh.as_ref().expect("mesh").selection_revision == selection_revision,
+                "state-only result rewrote selection"
+            );
+            anyhow::ensure!(
+                capture(&mut app)? == baseline,
+                "state-only result changed pixels"
+            );
+
+            app.install_cdmw_document(document.clone())?;
+            anyhow::ensure!(
+                capture(&mut app)? == baseline,
+                "same document changed pixels"
+            );
+            let mut edited = document.clone();
+            edited.lods[0].submeshes[0].positions[0][0] += 0.4;
+            app.install_cdmw_document(edited)?;
+            anyhow::ensure!(
+                capture(&mut app)? != baseline,
+                "edited mesh did not reach GPU"
+            );
+            app.install_cdmw_document(document.clone())?;
+            anyhow::ensure!(
+                capture(&mut app)? == baseline,
+                "undo did not restore pixels"
+            );
+            anyhow::ensure!(
+                app.material_reload_count == 1,
+                "unchanged textures were re-uploaded"
+            );
+
+            document.lods[0].submeshes.swap(0, 1);
+            app.install_cdmw_document(document)?;
+            anyhow::ensure!(
+                app.material_reload_count == 2,
+                "ownership change did not refresh bindings"
+            );
+            anyhow::ensure!(
+                app.cdmw_texture_resources[0].material_indices_by_lod == vec![vec![1]],
+                "texture remained on the old part"
+            );
+            anyhow::ensure!(
+                app.cdmw_textured_mode_available,
+                "remapped texture did not bind"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}
+
+#[test]
+#[ignore = "explicit hidden-window D3D12 authoring texture reuse verification"]
+fn authoring_refresh_reuses_textures_and_updates_geometry_pixels() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = AuthoringRefreshProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe
+        .result
+        .expect("probe ran")
+        .expect("authoring GPU refresh contract");
+}
+
+#[derive(Default)]
 struct EffectProbe {
     result: Option<anyhow::Result<()>>,
 }

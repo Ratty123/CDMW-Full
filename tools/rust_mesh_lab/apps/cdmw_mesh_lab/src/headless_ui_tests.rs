@@ -1180,6 +1180,34 @@ fn integrated_bone_overlay_requires_complete_hierarchy_and_paints_selected_weigh
     assert_eq!(ui.application.skeleton_overlay_lines.len(), 2);
     ui.click("Bones")?;
     assert!(ui.application.show_bones);
+    let state = ui.application.cdmw_state.clone();
+    let mut document = ui.application.document.clone().ok_or("document")?;
+    document.lods[0].submeshes[0].positions[0][0] += 0.2;
+    ui.application
+        .install_validated_cdmw_state(state, Some(document))?;
+    assert!(
+        ui.application.show_bones,
+        "a geometry result must preserve the Bones toggle"
+    );
+    assert_eq!(ui.application.skeleton_overlay_lines.len(), 2);
+    let selection_revision = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .selection_revision;
+    let mut state = ui.application.cdmw_state.clone();
+    state["skeleton"]["selected_bone_index"] = json!(1);
+    ui.application.install_validated_cdmw_state(state, None)?;
+    assert!(ui.application.show_bones);
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .selection_revision,
+        selection_revision
+    );
     ui.click("Rig & Weights")?;
     ui.reveal("Selected vertex weights")?;
     ui.reveal("SM 0 · V 2 · Root 0.750, Spine 0.250 · Σ 1.000")?;

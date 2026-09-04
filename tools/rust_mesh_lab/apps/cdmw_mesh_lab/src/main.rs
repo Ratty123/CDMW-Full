@@ -1558,6 +1558,11 @@ struct CdmwPendingRequest {
     origin: Option<CdmwRequestOrigin>,
 }
 
+enum CdmwLocalEdit {
+    Selection(String),
+    Geometry(String),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CdmwRequestOrigin {
     Normals,
@@ -2027,6 +2032,8 @@ struct LabApplication {
     cdmw_finish_accepted: bool,
     #[cfg(test)]
     cdmw_transaction_attempts: usize,
+    #[cfg(test)]
+    material_reload_count: usize,
 }
 
 impl LabApplication {
@@ -2175,6 +2182,8 @@ impl LabApplication {
             cdmw_finish_accepted: false,
             #[cfg(test)]
             cdmw_transaction_attempts: 0,
+            #[cfg(test)]
+            material_reload_count: 0,
         }
     }
 
@@ -2270,7 +2279,7 @@ impl LabApplication {
         application.status = format!(
             "CDMW shadow session loaded · Orbit mode · {output_policy} · base {authoritative_base_revision} · shadow {initial_shadow_revision} · edits are isolated until Finish Edit Mesh"
         );
-        application.apply_cdmw_selection_state();
+        application.apply_cdmw_selection_state(true);
         Ok(application)
     }
 
@@ -2390,6 +2399,25 @@ impl LabApplication {
 
     fn cdmw_busy(&self) -> bool {
         self.cdmw_pending_request.is_some()
+    }
+
+    fn submit_cdmw_local_edit(&mut self, edit: CdmwLocalEdit) {
+        match edit {
+            CdmwLocalEdit::Geometry(label) => self.submit_cdmw_transaction(&label),
+            CdmwLocalEdit::Selection(label) => {
+                let Some(mesh) = &self.mesh else {
+                    return;
+                };
+                match cdmw_session::selection_payload(mesh) {
+                    Ok(selection) => self.submit_cdmw_command(
+                        "select",
+                        json!({"selection": selection, "operation": "replace"}),
+                        &label,
+                    ),
+                    Err(error) => self.status = format!("Could not map selection: {error}"),
+                }
+            }
+        }
     }
 
     fn submit_cdmw_transaction(&mut self, label: &str) {
@@ -2738,11 +2766,15 @@ impl LabApplication {
         state: Value,
         document: Option<MeshDocument>,
     ) -> Result<()> {
+        let previous_visibility = self.cdmw_visible_submeshes();
         let previous_state = std::mem::replace(&mut self.cdmw_state, state);
         let result = if let Some(document) = document {
             self.install_cdmw_document(document)
         } else {
-            self.apply_cdmw_selection_state();
+            self.apply_cdmw_selection_state(
+                previous_visibility != self.cdmw_visible_submeshes()
+                    || previous_state.get("selection") != self.cdmw_state.get("selection"),
+            );
             Ok(())
         };
         if result.is_err() {
@@ -2759,6 +2791,7 @@ impl LabApplication {
         let orbit_mode = self.cdmw_orbit_mode;
         let rail_page = self.cdmw_rail_page;
         let viewport_tool = self.viewport_tool;
+        let show_bones = self.show_bones;
         let active_lod_index = self.active_lod_index;
         let textures = self.document.as_ref().map_or_else(
             || self.cdmw_texture_resources.clone(),
@@ -2766,6 +2799,31 @@ impl LabApplication {
                 remap_texture_ownership(&self.cdmw_texture_resources, previous_document, &document)
             },
         );
+        // These resources come from this session's immutable texture payloads;
+        // remapping only changes their owners. Preserve GPU resources when the
+        // ownership and LOD shape are unchanged and the previous upload succeeded.
+        let reuse_materials = self.document.as_ref().is_some_and(|previous| {
+            previous.lods.len() == document.lods.len()
+                && previous
+                    .lods
+                    .iter()
+                    .zip(&document.lods)
+                    .all(|(before, after)| {
+                        before.submeshes.len() == after.submeshes.len()
+                            && before
+                                .submeshes
+                                .iter()
+                                .zip(&after.submeshes)
+                                .all(|(before, after)| same_source_part(before, after))
+                    })
+                && self.cdmw_uploaded_texture_count == textures.len()
+                && textures
+                    .iter()
+                    .zip(&self.cdmw_texture_resources)
+                    .all(|(next, previous)| {
+                        next.material_indices_by_lod == previous.material_indices_by_lod
+                    })
+        });
         let mesh = WorkingMesh::from_document(&document).context("invalid CDMW LOD0 state")?;
         let other_lod_meshes = (1..document.lods.len())
             .map(|index| {
@@ -2778,25 +2836,30 @@ impl LabApplication {
             .iter()
             .map(|presentation| loaded_cdmw_material_factor(presentation, document.lods.len()))
             .collect::<Vec<_>>();
-        self.install_loaded_mesh(LoadedMesh {
-            path,
-            document,
-            mesh,
-            other_lod_meshes,
-            textures: textures.clone(),
-            material_parameters: Vec::new(),
-            material_factors,
-            skeleton: None,
-        });
+        self.install_loaded_mesh_with_materials(
+            LoadedMesh {
+                path,
+                document,
+                mesh,
+                other_lod_meshes,
+                textures: textures.clone(),
+                material_parameters: Vec::new(),
+                material_factors,
+                skeleton: None,
+            },
+            reuse_materials,
+        );
         self.cdmw_texture_resources = textures;
         if let Some(renderer) = &mut self.renderer {
-            add_cdmw_material_presentations(
-                renderer,
-                &self.cdmw_material_presentations,
-                self.document
-                    .as_ref()
-                    .map_or(0, |document| document.lods.len()),
-            )?;
+            if !reuse_materials {
+                add_cdmw_material_presentations(
+                    renderer,
+                    &self.cdmw_material_presentations,
+                    self.document
+                        .as_ref()
+                        .map_or(0, |document| document.lods.len()),
+                )?;
+            }
             renderer
                 .set_material_lod(active_lod_index)
                 .context("CDMW material presentation LOD could not be restored")?;
@@ -2811,11 +2874,12 @@ impl LabApplication {
         self.cdmw_orbit_mode = orbit_mode;
         self.cdmw_rail_page = rail_page;
         self.viewport_tool = viewport_tool;
-        self.apply_cdmw_selection_state();
+        self.show_bones = show_bones;
+        self.apply_cdmw_selection_state(true);
         Ok(())
     }
 
-    fn apply_cdmw_selection_state(&mut self) {
+    fn apply_cdmw_selection_state(&mut self, force_snapshot: bool) {
         let visible_submeshes = self.cdmw_visible_submeshes();
         let Some(mesh) = &mut self.mesh else {
             return;
@@ -2891,8 +2955,13 @@ impl LabApplication {
                 .submeshes
                 .retain(|submesh| visible_submeshes.contains(submesh));
         }
-        let _ = mesh.set_selection(selection);
-        self.publish_mesh_snapshot();
+        let selection_changed = mesh.selection != selection;
+        if selection_changed {
+            let _ = mesh.set_selection(selection);
+        }
+        if selection_changed || force_snapshot {
+            self.publish_mesh_snapshot();
+        }
     }
 
     fn poll_loader(&mut self) -> bool {
@@ -2986,6 +3055,10 @@ impl LabApplication {
     }
 
     fn install_loaded_mesh(&mut self, loaded: LoadedMesh) {
+        self.install_loaded_mesh_with_materials(loaded, false);
+    }
+
+    fn install_loaded_mesh_with_materials(&mut self, loaded: LoadedMesh, reuse_materials: bool) {
         let LoadedMesh {
             path,
             document,
@@ -3207,17 +3280,27 @@ impl LabApplication {
                 }
             })
             .collect::<Vec<_>>();
-        let mut texture_upload_count = 0_usize;
+        let mut texture_upload_count = if reuse_materials {
+            self.cdmw_uploaded_texture_count
+        } else {
+            0
+        };
         let mut material_factor_count = 0_usize;
         let mut bound_material_count = 0_usize;
         let mut gpu_errors = Vec::new();
         if let Some(renderer) = &mut self.renderer {
-            renderer.reset_texture();
+            if !reuse_materials {
+                renderer.reset_texture();
+                #[cfg(test)]
+                {
+                    self.material_reload_count += 1;
+                }
+            }
             renderer.set_view_mode(self.view_mode);
             if let Some(rectangle) = self.viewport_rect {
                 renderer.set_camera(self.camera.view_projection(rectangle));
             }
-            for texture in &textures {
+            for texture in textures.iter().filter(|_| !reuse_materials) {
                 match renderer.add_dds_texture(
                     &texture.bytes,
                     texture.role,
@@ -3227,7 +3310,7 @@ impl LabApplication {
                     Err(error) => gpu_errors.push(error.to_string()),
                 }
             }
-            for factors in &material_factors {
+            for factors in material_factors.iter().filter(|_| !reuse_materials) {
                 match renderer.add_material_factors(
                     MaterialPreviewFactors {
                         emissive_color: factors.emissive_color,
@@ -3979,7 +4062,7 @@ impl LabApplication {
 
     fn handle_actions(&mut self, actions: Vec<UiAction>) {
         let mut publish_mesh = false;
-        let mut cdmw_transaction: Option<String> = None;
+        let mut cdmw_transaction = None;
         for action in actions {
             if self.cdmw_mode()
                 && (self.cdmw_busy() || cdmw_transaction.is_some())
@@ -4002,7 +4085,8 @@ impl LabApplication {
                         SelectionDomain::Vertex,
                         SelectionCommand::SelectAll,
                     );
-                    cdmw_transaction = Some("Select all vertices".to_owned());
+                    cdmw_transaction =
+                        Some(CdmwLocalEdit::Selection("Select all vertices".to_owned()));
                 }
                 UiAction::SelectAllEdges => {
                     self.selection_domain = SelectionDomain::Edge;
@@ -4011,7 +4095,8 @@ impl LabApplication {
                         SelectionDomain::Edge,
                         SelectionCommand::SelectAll,
                     );
-                    cdmw_transaction = Some("Select all edges".to_owned());
+                    cdmw_transaction =
+                        Some(CdmwLocalEdit::Selection("Select all edges".to_owned()));
                 }
                 UiAction::SelectAllFaces => {
                     self.selection_domain = SelectionDomain::Face;
@@ -4020,7 +4105,8 @@ impl LabApplication {
                         SelectionDomain::Face,
                         SelectionCommand::SelectAll,
                     );
-                    cdmw_transaction = Some("Select all faces".to_owned());
+                    cdmw_transaction =
+                        Some(CdmwLocalEdit::Selection("Select all faces".to_owned()));
                 }
                 UiAction::SelectLinked(domain) => {
                     self.selection_domain = domain;
@@ -4029,7 +4115,9 @@ impl LabApplication {
                         domain,
                         SelectionCommand::SelectLinked,
                     );
-                    cdmw_transaction = Some(format!("Select linked {domain:?}"));
+                    cdmw_transaction = Some(CdmwLocalEdit::Selection(format!(
+                        "Select linked {domain:?}"
+                    )));
                 }
                 UiAction::GrowSelection(domain) => {
                     self.selection_domain = domain;
@@ -4038,7 +4126,9 @@ impl LabApplication {
                         domain,
                         SelectionCommand::Grow,
                     );
-                    cdmw_transaction = Some(format!("Grow {domain:?} selection"));
+                    cdmw_transaction = Some(CdmwLocalEdit::Selection(format!(
+                        "Grow {domain:?} selection"
+                    )));
                 }
                 UiAction::ShrinkSelection(domain) => {
                     self.selection_domain = domain;
@@ -4047,7 +4137,9 @@ impl LabApplication {
                         domain,
                         SelectionCommand::Shrink,
                     );
-                    cdmw_transaction = Some(format!("Shrink {domain:?} selection"));
+                    cdmw_transaction = Some(CdmwLocalEdit::Selection(format!(
+                        "Shrink {domain:?} selection"
+                    )));
                 }
                 UiAction::InvertSelection(domain) => {
                     self.selection_domain = domain;
@@ -4056,7 +4148,9 @@ impl LabApplication {
                         domain,
                         SelectionCommand::Invert,
                     );
-                    cdmw_transaction = Some(format!("Invert {domain:?} selection"));
+                    cdmw_transaction = Some(CdmwLocalEdit::Selection(format!(
+                        "Invert {domain:?} selection"
+                    )));
                 }
                 UiAction::ClearSelection => {
                     self.run_selection_command(
@@ -4064,7 +4158,7 @@ impl LabApplication {
                         self.selection_domain,
                         SelectionCommand::Clear,
                     );
-                    cdmw_transaction = Some("Clear selection".to_owned());
+                    cdmw_transaction = Some(CdmwLocalEdit::Selection("Clear selection".to_owned()));
                 }
                 UiAction::FrameAll => {
                     if let Some(mesh) = &self.mesh {
@@ -4242,7 +4336,8 @@ impl LabApplication {
                     })();
                     match result {
                         Ok(()) => {
-                            cdmw_transaction = Some("Axis move".to_owned());
+                            cdmw_transaction =
+                                Some(CdmwLocalEdit::Geometry("Axis move".to_owned()));
                             self.projection = None;
                         }
                         Err(error) => self.status = format!("Axis move failed: {error}"),
@@ -4281,7 +4376,8 @@ impl LabApplication {
                     })();
                     match result {
                         Ok(()) => {
-                            cdmw_transaction = Some("Axis rotate".to_owned());
+                            cdmw_transaction =
+                                Some(CdmwLocalEdit::Geometry("Axis rotate".to_owned()));
                             self.projection = None;
                         }
                         Err(error) => self.status = format!("Axis rotate failed: {error}"),
@@ -4315,7 +4411,8 @@ impl LabApplication {
                     })();
                     match result {
                         Ok(()) => {
-                            cdmw_transaction = Some("Axis scale".to_owned());
+                            cdmw_transaction =
+                                Some(CdmwLocalEdit::Geometry("Axis scale".to_owned()));
                             self.projection = None;
                         }
                         Err(error) => self.status = format!("Axis scale failed: {error}"),
@@ -4351,7 +4448,10 @@ impl LabApplication {
                             ..Selection::default()
                         };
                         match mesh.set_selection(selection) {
-                            Ok(()) => cdmw_transaction = Some("Select parts".to_owned()),
+                            Ok(()) => {
+                                cdmw_transaction =
+                                    Some(CdmwLocalEdit::Selection("Select parts".to_owned()))
+                            }
                             Err(error) => {
                                 self.status = format!("Part selection failed: {error}");
                             }
@@ -4366,7 +4466,7 @@ impl LabApplication {
         if self.cdmw_mode()
             && let Some(label) = cdmw_transaction
         {
-            self.submit_cdmw_transaction(&label);
+            self.submit_cdmw_local_edit(label);
         }
     }
 
@@ -5367,7 +5467,7 @@ impl LabApplication {
             self.status = match result {
                 Ok(true) => {
                     let label = format!("{} selection", self.selection_tool.label());
-                    cdmw_transaction = Some(label);
+                    cdmw_transaction = Some(CdmwLocalEdit::Selection(label));
                     format!(
                         "{} selection committed as one undo entry",
                         self.selection_tool.label()
@@ -5387,7 +5487,8 @@ impl LabApplication {
             );
             self.status = match result {
                 Ok(()) => {
-                    cdmw_transaction = Some(gesture.tool.label().to_owned());
+                    cdmw_transaction =
+                        Some(CdmwLocalEdit::Geometry(gesture.tool.label().to_owned()));
                     format!("{} committed as one undo entry", gesture.tool.label())
                 }
                 Err(error) => format!("Tool commit failed: {error}"),
@@ -5396,7 +5497,7 @@ impl LabApplication {
         if self.cdmw_mode()
             && let Some(label) = cdmw_transaction
         {
-            self.submit_cdmw_transaction(&label);
+            self.submit_cdmw_local_edit(label);
         }
     }
 

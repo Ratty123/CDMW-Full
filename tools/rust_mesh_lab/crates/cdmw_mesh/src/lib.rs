@@ -260,27 +260,85 @@ impl WorkingMesh {
         &mut self,
         positions: &HashMap<VertexHandle, [f32; 3]>,
     ) -> Result<(), MeshError> {
+        self.apply_positions_with_normals(positions, &HashMap::new())
+    }
+
+    fn apply_positions_with_normals(
+        &mut self,
+        positions: &HashMap<VertexHandle, [f32; 3]>,
+        authored_normals: &HashMap<VertexHandle, [f32; 3]>,
+    ) -> Result<(), MeshError> {
         if positions.is_empty() {
             return Err(MeshError::EmptyOperation);
         }
         if positions
             .values()
+            .chain(authored_normals.values())
             .flatten()
             .any(|component| !component.is_finite())
         {
             return Err(MeshError::Invariant("non-finite deformation".to_owned()));
         }
         let changed = positions.keys().copied().collect::<HashSet<_>>();
-        let normal_scope = self.normal_scope_for_position_changes(&changed)?;
+        let mut normal_scope = self.normal_scope_for_position_changes(&changed)?;
+        normal_scope.retain(|handle| !authored_normals.contains_key(handle));
         for (handle, position) in positions {
             self.vertices
                 .get_mut(*handle)
                 .ok_or(MeshError::StaleHandle)?
                 .position = *position;
         }
+        for (handle, normal) in authored_normals {
+            self.vertices
+                .get_mut(*handle)
+                .ok_or(MeshError::StaleHandle)?
+                .normal = *normal;
+        }
         self.geometry_revision = self.geometry_revision.saturating_add(1);
         self.recompute_normals_for(&normal_scope)?;
         self.validate()
+    }
+
+    fn apply_transformed_positions(
+        &mut self,
+        positions: &HashMap<VertexHandle, [f32; 3]>,
+        transform_normal: impl Fn([f32; 3]) -> [f32; 3],
+    ) -> Result<(), MeshError> {
+        // Only a partially transformed part is deformed. A complete part keeps
+        // its authored shading, including custom normals and disconnected seams.
+        let mut partial_parts = self
+            .faces
+            .values()
+            .filter(|face| {
+                face.vertices
+                    .iter()
+                    .any(|handle| !positions.contains_key(handle))
+            })
+            .map(|face| face.submesh)
+            .collect::<HashSet<_>>();
+        for (handle, vertex) in &self.vertices {
+            if !positions.contains_key(&handle)
+                && let Provenance::Source { submesh, .. } = vertex.provenance
+            {
+                partial_parts.insert(submesh);
+            }
+        }
+        let partial_vertices = self
+            .faces
+            .values()
+            .filter(|face| partial_parts.contains(&face.submesh))
+            .flat_map(|face| face.vertices)
+            .collect::<HashSet<_>>();
+        let mut normals = HashMap::new();
+        for handle in positions.keys() {
+            let vertex = self.vertices.get(*handle).ok_or(MeshError::StaleHandle)?;
+            let partial_source = matches!(vertex.provenance,
+                Provenance::Source { submesh, .. } if partial_parts.contains(&submesh));
+            if !partial_source && !partial_vertices.contains(handle) {
+                normals.insert(*handle, transform_normal(vertex.normal));
+            }
+        }
+        self.apply_positions_with_normals(positions, &normals)
     }
 
     fn append_submesh(&mut self, source: &Submesh, submesh: u32) -> Result<(), MeshError> {
@@ -383,7 +441,7 @@ impl WorkingMesh {
                 ))
             })
             .collect::<Result<HashMap<_, _>, MeshError>>()?;
-        self.apply_positions(&positions)
+        self.apply_transformed_positions(&positions, |normal| normal)
     }
 
     pub fn rotate_vertices(
@@ -409,7 +467,9 @@ impl WorkingMesh {
                 Ok((*handle, position.to_array()))
             })
             .collect::<Result<HashMap<_, _>, MeshError>>()?;
-        self.apply_positions(&positions)
+        self.apply_transformed_positions(&positions, |normal| {
+            (rotation * Vec3::from_array(normal)).to_array()
+        })
     }
 
     pub fn scale_vertices(
@@ -438,7 +498,15 @@ impl WorkingMesh {
                 Ok((*handle, position.to_array()))
             })
             .collect::<Result<HashMap<_, _>, MeshError>>()?;
-        self.apply_positions(&positions)
+        self.apply_transformed_positions(&positions, |normal| {
+            if scale == Vec3::ONE {
+                normal
+            } else {
+                (Vec3::from_array(normal) / scale)
+                    .try_normalize()
+                    .map_or(normal, |value| value.to_array())
+            }
+        })
     }
 
     pub fn delete_faces(&mut self, handles: &HashSet<FaceHandle>) -> Result<(), MeshError> {
@@ -1390,6 +1458,88 @@ fn estimate_mesh_bytes(mesh: &WorkingMesh) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn authored_triangle() -> WorkingMesh {
+        let mut mesh = triangle();
+        for vertex in mesh.vertices.values_mut() {
+            vertex.normal = [0.6, 0.0, 0.8];
+        }
+        mesh
+    }
+
+    #[test]
+    fn complete_part_translation_preserves_authored_normals() -> Result<(), MeshError> {
+        let mut mesh = authored_triangle();
+        let before = mesh.clone();
+        let handles = mesh.vertices.keys().collect();
+        mesh.translate_vertices(&handles, Vec3::X)?;
+        for (handle, vertex) in mesh.vertices() {
+            assert_eq!(vertex.normal, before.vertex(handle).unwrap().normal);
+            assert_eq!(
+                vertex.position[0],
+                before.vertex(handle).unwrap().position[0] + 1.0
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn complete_part_rotation_transforms_authored_normals() -> Result<(), MeshError> {
+        let mut mesh = authored_triangle();
+        let handles = mesh.vertices.keys().collect();
+        mesh.rotate_vertices(
+            &handles,
+            Vec3::ZERO,
+            Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+        )?;
+        for (_, vertex) in mesh.vertices() {
+            assert!((Vec3::from_array(vertex.normal) - Vec3::new(0.0, 0.6, 0.8)).length() < 1.0e-6);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn complete_part_nonuniform_scale_uses_inverse_transpose_normals() -> Result<(), MeshError> {
+        let mut mesh = authored_triangle();
+        let handles = mesh.vertices.keys().collect();
+        mesh.scale_vertices(&handles, Vec3::ZERO, Vec3::new(2.0, 1.0, 0.5))?;
+        for (_, vertex) in mesh.vertices() {
+            assert!(
+                (Vec3::from_array(vertex.normal) - Vec3::new(0.184_288_53, 0.0, 0.982_872_2))
+                    .length()
+                    < 1.0e-6
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn complete_and_partial_parts_use_their_respective_normal_rules() -> Result<(), MeshError> {
+        let mut mesh = triangle();
+        let faces = mesh.faces.keys().collect();
+        mesh.duplicate_faces_to_new_submesh(&faces)?;
+        for vertex in mesh.vertices.values_mut() {
+            vertex.normal = [0.6, 0.0, 0.8];
+        }
+        let complete = mesh
+            .element_handles_for_submeshes(&HashSet::from([0]))
+            .vertices;
+        let partial = mesh
+            .element_handles_for_submeshes(&HashSet::from([1]))
+            .vertices;
+        let mut selected = complete.clone();
+        selected.insert(*partial.iter().next().unwrap());
+        mesh.translate_vertices(&selected, Vec3::Z)?;
+        for handle in complete {
+            assert_eq!(mesh.vertex(handle).unwrap().normal, [0.6, 0.0, 0.8]);
+        }
+        assert!(
+            partial
+                .iter()
+                .any(|handle| mesh.vertex(*handle).unwrap().normal != [0.6, 0.0, 0.8])
+        );
+        Ok(())
+    }
 
     fn triangle() -> WorkingMesh {
         let mut mesh = WorkingMesh::empty();
