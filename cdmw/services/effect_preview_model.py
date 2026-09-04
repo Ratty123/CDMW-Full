@@ -534,9 +534,10 @@ def _emitter_preview(
         # An unlit mask is coverage for the base colour. Applying the emitter's
         # emissive colour here turned authored black smoke into white light.
         base = _read(emissive_sources, "_renderData", "_color", (1.0, 1.0, 1.0), _vec3)
-        modulation = _colors_over_life(color_curve, (), 0.0, (1.0, 1.0, 1.0))
-        color_over_life = tuple(tuple(c[i] * base[i] for i in range(3)) for c in modulation)
-        brightness = 1.0
+        # Curve 21 and its temperature ramp describe emissive output. Their
+        # often tiny RGB values must not extinguish the separate base colour.
+        color_over_life = tuple(base for _ in range(CURVE_SAMPLES))
+        brightness = float(_read(sources, "_renderData", "_brightness", 1.0, _brightness))
     opacity = max(0.0, min(1.0, float(_read(sources, "_renderData", "_opacity", 1.0, _number))))
     if blend == "alpha":
         alpha_over_life = tuple(a * opacity for a in alpha_over_life)
@@ -605,7 +606,7 @@ def _colors_over_life(color_curve: Sequence[Sequence[float]], ramp: Ramp, temper
     """The colour curve's RGB plus the temperature ramp read at the sample's temperature
     (the fourth channel over the curve's own hottest sample), times `_temperatureBrightness`;
     without a colour curve, the emitter's `_emissiveColor` throughout. Not scaled by the
-    emissive brightness: the viewer normalises the peak so a dim HDR fire still shows."""
+    emissive brightness: the renderer applies it once before tone mapping."""
 
     if not color_curve:
         return tuple((max(0.0, emissive[0]), max(0.0, emissive[1]), max(0.0, emissive[2])) for _ in range(CURVE_SAMPLES))

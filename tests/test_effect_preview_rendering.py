@@ -59,6 +59,22 @@ def test_base_textured_mesh_is_visible_with_zero_emissive_brightness():
     assert result.color_over_life[0] == pytest.approx((0.3, 0.5, 0.8))
 
 
+def test_dim_emissive_curve_does_not_extinguish_a_sparks_base_colour():
+    curve = ReflectNode("Curve", 0, values=[
+        ReflectValue("_splineID", "int", 0, struct.pack("<i", 21), 0),
+        ReflectValue("_componentCount", "int", 0, struct.pack("<i", 4), 0),
+        ReflectValue("_splineData", "float4", 3, struct.pack("<8e", *([0.001, 0.0001, 0.00001, 0.0] * 2)), 0),
+    ])
+    source = node("EmitterData", children=[
+        ("_effectMaterialData2", material("_textureBase", "effect/glow.dds")),
+        ("_renderData", node("EmitterRenderData", [("_color", (0.8, 0.2, 0.01)), ("_brightness", (2., 2., 2.))])),
+        ("_curveEntryDataList", (curve,)),
+    ])
+    result = preview(source)
+    assert result.color_over_life[0] == pytest.approx((0.8, 0.2, 0.01))
+    assert result.brightness == 2.0
+
+
 def test_explicit_empty_mesh_and_authored_velocity_override_the_base():
     base = node("EmitterData", [("_meshObjectFileName", "old.pam")], [
         ("_emitterDynamicData", node("EmitterDynamicData", [("_velocityMin", (1., 1., 1.)), ("_velocityMax", (2., 3., 4.))])),
