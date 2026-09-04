@@ -5596,12 +5596,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 335,
+          "line": 337,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 369,
+          "line": 371,
           "sink": "setText"
         },
         {
@@ -11146,7 +11146,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 490,
+          "line": 492,
           "sink": "addItem"
         }
       ]
@@ -16746,7 +16746,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 489,
+          "line": 491,
           "sink": "setAccessibleName"
         },
         {
@@ -18346,7 +18346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 760,
+          "line": 765,
           "sink": "setText"
         }
       ]
@@ -18356,12 +18356,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 434,
+          "line": 436,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 827,
+          "line": 832,
           "sink": "setText"
         }
       ]
@@ -20921,7 +20921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 768,
+          "line": 773,
           "sink": "setText"
         }
       ]
@@ -20931,7 +20931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 770,
+          "line": 775,
           "sink": "setText"
         }
       ]
@@ -24876,7 +24876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 492,
+          "line": 494,
           "sink": "addItem"
         }
       ]
@@ -28976,7 +28976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 318,
+          "line": 320,
           "sink": "QLabel"
         }
       ]
@@ -29031,7 +29031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 788,
+          "line": 793,
           "sink": "setText"
         }
       ]
@@ -30191,7 +30191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 425,
+          "line": 427,
           "sink": "setToolTip"
         }
       ]
@@ -41571,7 +41571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 779,
+          "line": 784,
           "sink": "setText"
         }
       ]
@@ -43826,7 +43826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 491,
+          "line": 493,
           "sink": "addItem"
         }
       ]
@@ -46421,7 +46421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 338,
+          "line": 340,
           "sink": "setText"
         }
       ]
@@ -57146,7 +57146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 412,
+          "line": 414,
           "sink": "QLabel"
         }
       ]
@@ -58631,7 +58631,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 749,
+          "line": 754,
           "sink": "setText"
         }
       ]
@@ -60206,7 +60206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 341,
+          "line": 343,
           "sink": "setText"
         }
       ]
@@ -66996,7 +66996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 576,
+          "line": 578,
           "sink": "warning"
         }
       ]
@@ -69091,7 +69091,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 830,
+          "line": 835,
           "sink": "setText"
         }
       ]
@@ -77271,7 +77271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 417,
+          "line": 419,
           "sink": "setText"
         }
       ]
@@ -80561,7 +80561,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8647,
+          "line": 8666,
           "sink": "RuntimeError"
         }
       ]
@@ -80856,7 +80856,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1865,
+          "line": 1866,
           "sink": "ValueError"
         }
       ]
@@ -80866,7 +80866,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1906,
+          "line": 1907,
           "sink": "ValueError"
         }
       ]
@@ -80886,7 +80886,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8152,
+          "line": 8171,
           "sink": "RuntimeError"
         }
       ]
@@ -80896,7 +80896,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8091,
+          "line": 8110,
           "sink": "RuntimeError"
         }
       ]
@@ -80906,7 +80906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8087,
+          "line": 8106,
           "sink": "RuntimeError"
         }
       ]
@@ -80916,7 +80916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8062,
+          "line": 8081,
           "sink": "RuntimeError"
         }
       ]
@@ -82261,12 +82261,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6466,
+          "line": 6467,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6564,
+          "line": 6565,
           "sink": "RuntimeError"
         }
       ]
@@ -84306,7 +84306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 326,
+          "line": 328,
           "sink": "setPlaceholderText"
         }
       ]
@@ -89566,7 +89566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 336,
+          "line": 338,
           "sink": "setToolTip"
         }
       ]
@@ -89576,7 +89576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 339,
+          "line": 341,
           "sink": "setToolTip"
         }
       ]
@@ -89616,7 +89616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 342,
+          "line": 344,
           "sink": "setToolTip"
         }
       ]
@@ -98576,7 +98576,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 493,
+          "line": 495,
           "sink": "setToolTip"
         },
         {
@@ -101956,7 +101956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 749,
+          "line": 754,
           "sink": "setText"
         }
       ]
@@ -105246,7 +105246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 446,
+          "line": 448,
           "sink": "QLabel"
         }
       ]
@@ -109197,41 +109197,66 @@
       ]
     },
     {
+      "key": "_emitterDynamicData",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 490,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 491,
+          "sink": "_read"
+        }
+      ]
+    },
+    {
       "key": "_renderData",
       "origins": [
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 431,
+          "line": 460,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 433,
+          "line": 462,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 434,
+          "line": 463,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 451,
+          "line": 480,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 454,
+          "line": 483,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 455,
+          "line": 484,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 457,
+          "line": 536,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 540,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 541,
           "sink": "_read"
         }
       ]
@@ -109241,52 +109266,62 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 429,
+          "line": 458,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 430,
+          "line": 459,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 437,
+          "line": 466,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 438,
+          "line": 467,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 440,
+          "line": 469,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 441,
+          "line": 470,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 443,
+          "line": 472,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 444,
+          "line": 473,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 447,
+          "line": 476,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 448,
+          "line": 477,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 583,
+          "sink": "_read"
+        },
+        {
+          "path": "cdmw/services/effect_preview_model.py",
+          "line": 584,
           "sink": "_read"
         }
       ]
@@ -109296,42 +109331,42 @@
       "origins": [
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 418,
+          "line": 447,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 419,
+          "line": 448,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 420,
+          "line": 449,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 423,
+          "line": 452,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 424,
+          "line": 453,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 426,
+          "line": 455,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 427,
+          "line": 456,
           "sink": "_read"
         },
         {
           "path": "cdmw/services/effect_preview_model.py",
-          "line": 428,
+          "line": 457,
           "sink": "_read"
         }
       ]
@@ -112621,7 +112656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7030,
+          "line": 7031,
           "sink": "open_edit_session"
         },
         {
@@ -113021,12 +113056,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3218,
+          "line": 3219,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3234,
+          "line": 3235,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -114326,7 +114361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3240,
+          "line": 3241,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -114676,7 +114711,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3232,
+          "line": 3233,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -114871,7 +114906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3930,
+          "line": 3931,
           "sink": "ValueError"
         }
       ]
@@ -115011,12 +115046,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3205,
+          "line": 3206,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3238,
+          "line": 3239,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -116301,12 +116336,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3216,
+          "line": 3217,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3244,
+          "line": 3245,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -116386,7 +116421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3571,
+          "line": 3572,
           "sink": "ValueError"
         }
       ]
@@ -116396,7 +116431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3560,
+          "line": 3561,
           "sink": "ValueError"
         }
       ]
@@ -116406,7 +116441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3543,
+          "line": 3544,
           "sink": "ValueError"
         }
       ]
@@ -116722,6 +116757,16 @@
       ]
     },
     {
+      "key": "mesh is not present in the archives",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_preview_geometry.py",
+          "line": 53,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "mesh must be ParsedMesh",
       "origins": [
         {
@@ -116871,7 +116916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3226,
+          "line": 3227,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -118041,12 +118086,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3203,
+          "line": 3204,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3222,
+          "line": 3223,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -118286,7 +118331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3228,
+          "line": 3229,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -118476,7 +118521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3236,
+          "line": 3237,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -118958,6 +119003,46 @@
           "path": "tools/placement_studio/window_constraints.py",
           "line": 380,
           "sink": "QTableWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "particle mesh exceeds the preview geometry budget",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_preview_geometry.py",
+          "line": 20,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "particle mesh has invalid coordinates",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_preview_geometry.py",
+          "line": 27,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "particle mesh has invalid triangle indices",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_preview_geometry.py",
+          "line": 32,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "particle mesh has no triangles",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_preview_geometry.py",
+          "line": 35,
+          "sink": "ValueError"
         }
       ]
     },
@@ -121116,7 +121201,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3224,
+          "line": 3225,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -122626,12 +122711,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3215,
+          "line": 3216,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3230,
+          "line": 3231,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -125261,7 +125346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 645,
+          "line": 650,
           "sink": "tr"
         }
       ]
@@ -125281,7 +125366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 576,
+          "line": 578,
           "sink": "warning"
         }
       ]
