@@ -266,6 +266,80 @@ def test_preview_package_carries_semantic_broadside_camera_and_fit_bounds(
     }
 
 
+@pytest.mark.parametrize("damage", ["delete", "changed", "escape", "missing_reference", "writable", "texture_reference"])
+def test_cached_preview_rejects_incomplete_or_changed_owned_resources(tmp_path: Path, damage: str) -> None:
+    package = build_rust_preview_package(_triangle(), output_package_dir=tmp_path / "package", include_material_resources=False)
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    resource = package.package_dir / manifest["document"]["path"]
+    if damage == "delete":
+        resource.unlink()
+    elif damage == "changed":
+        data = bytearray(resource.read_bytes())
+        data[-2] ^= 1
+        resource.write_bytes(data)
+    elif damage == "escape":
+        outside = tmp_path / "outside.json"
+        outside.write_bytes(resource.read_bytes())
+        manifest["document"]["path"] = "../outside.json"
+    elif damage == "missing_reference":
+        del manifest["channels"]["sha256"]
+    elif damage == "writable":
+        manifest["output_policy"]["archive_writes"] = True
+    else:
+        manifest["textures"] = [{"file": {}}]
+    package.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert validate_rust_preview_package(package.package_dir)
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_failed_preview_publication_removes_only_its_staging_directory(tmp_path: Path, monkeypatch, cancel: bool) -> None:
+    import cdmw.services.mesh_rust_preview_package as owner
+    from cdmw.domain.cancellation import RunCancelled
+
+    unrelated = tmp_path / "keep.txt"
+    unrelated.write_text("keep", encoding="utf-8")
+    destination = tmp_path / "package"
+
+    def fail_after_geometry(*args, **kwargs):
+        assert not destination.exists()
+        assert list(tmp_path.glob(".rust-preview-*/package/*.json"))
+        raise RunCancelled("cancelled") if cancel else ValueError("injected failure")
+
+    monkeypatch.setattr(owner, "_mesh_channel_payload", fail_after_geometry)
+    with pytest.raises(RunCancelled if cancel else ValueError):
+        build_rust_preview_package(_triangle(), output_package_dir=destination, include_material_resources=False)
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["keep.txt"]
+    assert unrelated.read_text(encoding="utf-8") == "keep"
+
+
+def test_preview_publication_preserves_an_existing_package(tmp_path: Path) -> None:
+    destination = tmp_path / "package"
+    destination.mkdir()
+    marker = destination / "resident.txt"
+    marker.write_text("resident", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        build_rust_preview_package(_triangle(), output_package_dir=destination, include_material_resources=False)
+    assert marker.read_text(encoding="utf-8") == "resident"
+
+
+def test_gizmo_preferences_reach_the_resident_preview_payload() -> None:
+    from cdmw.models import ModelPreviewRenderSettings
+    from cdmw.ui.preview.dotnet_host_render_tuning import render_tuning_payloads
+
+    settings = ModelPreviewRenderSettings()
+    settings.gizmo_size_scale = 2.0
+    settings.gizmo_handle_size_pixels = 16.0
+    settings.gizmo_label_size_pixels = 18.0
+    settings.gizmo_line_thickness_pixels = 3.0
+    settings.gizmo_x_axis_color = "#AABBCC"
+    settings.gizmo_label_color = "#DDEEFF"
+    quality, _ = render_tuning_payloads(settings, {})
+    for key in ("gizmo_size_scale", "gizmo_handle_size_pixels", "gizmo_label_size_pixels",
+                "gizmo_line_thickness_pixels", "gizmo_x_axis_color", "gizmo_y_axis_color",
+                "gizmo_z_axis_color", "gizmo_label_color", "gizmo_highlight_color"):
+        assert quality[key] == getattr(settings, key)
+
+
 def test_effect_sprite_resources_are_hash_deduplicated_and_path_bounded(
     tmp_path: Path,
 ) -> None:

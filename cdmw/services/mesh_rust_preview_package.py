@@ -24,6 +24,7 @@ from uuid import uuid4
 
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.services.mesh_rust_preview_files import atomic_preview_publication, validate_preview_files
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.static_mesh_scene_frame import (
@@ -883,6 +884,7 @@ def _texture_status(textures: Sequence[object], quality: str) -> dict[str, objec
     }
 
 
+@atomic_preview_publication
 def build_rust_preview_package_from_preview_core(
     preview_core_package_dir: Path | str,
     *,
@@ -1228,6 +1230,7 @@ def build_rust_preview_package_from_preview_core(
     )
 
 
+@atomic_preview_publication
 def build_rust_preview_package(
     mesh: ParsedMesh,
     *,
@@ -1469,11 +1472,13 @@ def build_rust_preview_package(
     )
 
 
-def rust_preview_package_from_path(path: Path | str) -> RustPreviewPackage:
+def _read_preview_manifest(path: Path | str) -> tuple[Path, dict]:
     package_dir = Path(path)
     if package_dir.is_file():
         package_dir = package_dir.parent
     manifest_path = package_dir / "manifest.json"
+    if manifest_path.stat().st_size > 16 * 1024 * 1024:
+        raise ValueError("Rust preview manifest exceeds its size limit")
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("Rust preview manifest is not an object")
@@ -1486,6 +1491,12 @@ def rust_preview_package_from_path(path: Path | str) -> RustPreviewPackage:
     for key, value in expected.items():
         if str(payload.get(key, "") or "") != value:
             raise ValueError(f"Rust preview manifest {key} does not match")
+    return package_dir, payload
+
+
+def rust_preview_package_from_path(path: Path | str) -> RustPreviewPackage:
+    package_dir, payload = _read_preview_manifest(path)
+    manifest_path = package_dir / "manifest.json"
     return RustPreviewPackage(
         package_dir=package_dir.resolve(),
         manifest_path=manifest_path.resolve(),
@@ -1498,8 +1509,9 @@ def rust_preview_package_from_path(path: Path | str) -> RustPreviewPackage:
 
 def validate_rust_preview_package(path: Path | str) -> tuple[str, ...]:
     try:
-        rust_preview_package_from_path(path)
-    except (OSError, UnicodeError, ValueError, TypeError) as exc:
+        package_dir, payload = _read_preview_manifest(path)
+        validate_preview_files(package_dir, payload)
+    except (OSError, UnicodeError, ValueError, TypeError, OverflowError, RecursionError) as exc:
         return (str(exc),)
     return ()
 

@@ -60,6 +60,20 @@ def _placement(translation=(0.0, 0.0, 0.0), rotation=(0.0, 0.0, 0.0), scale=(1.0
     }
 
 
+@pytest.mark.parametrize("tool,key,signal", [
+    ("move", "translation", "alignment_drag_finished"),
+    ("rotate", "rotation_degrees", "alignment_rotation_finished"),
+    ("scale", "scale", "alignment_scale_finished"),
+])
+def test_cancel_restores_the_baseline_and_ends_the_drag(tool, key, signal):
+    host = _Host()
+    _dispatch(host, phase="begin", tool=tool, placement={key: [2.0, 3.0, 4.0]})
+    _dispatch(host, phase="update", tool=tool, placement={key: [5.0, 6.0, 7.0]})
+    _dispatch(host, phase="cancel", tool=tool, placement={key: [2.0, 3.0, 4.0]})
+    assert getattr(host, signal).emissions == [(0.0, 0.0, 0.0)]
+    assert tool not in host._placement_drag_start
+
+
 def _dispatch(host: _Host, *, phase: str, tool: str = "move", placement=None) -> None:
     host._handle_protocol_event(
         {

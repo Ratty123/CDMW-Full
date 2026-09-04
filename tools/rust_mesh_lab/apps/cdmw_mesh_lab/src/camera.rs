@@ -96,6 +96,54 @@ impl OrbitCamera {
             * Mat4::look_at_rh(self.eye(), self.target, self.up())
     }
 
+    pub fn plane_drag_delta(
+        &self,
+        normal: Vec3,
+        pivot: Vec3,
+        start: Vec2,
+        end: Vec2,
+        rectangle: Rect,
+    ) -> Vec3 {
+        let intersect = |point| {
+            let (origin, direction, _) = self.screen_ray(point, rectangle)?;
+            let denominator = direction.dot(normal);
+            if denominator.abs() < 1.0e-5 {
+                return None;
+            }
+            let distance = (pivot - origin).dot(normal) / denominator;
+            let hit = origin + direction * distance;
+            (distance >= 0.0 && hit.is_finite()).then_some(hit)
+        };
+        intersect(start)
+            .zip(intersect(end))
+            .map(|(a, b)| b - a)
+            .unwrap_or(Vec3::ZERO)
+    }
+
+    /// Unproject the pointer through the actual near/far clip planes.
+    pub fn screen_ray(&self, point: Vec2, rectangle: Rect) -> Option<(Vec3, Vec3, f32)> {
+        if !point.is_finite() || rectangle.width() <= 0.0 || rectangle.height() <= 0.0 {
+            return None;
+        }
+        let x = (point.x - rectangle.left()) / rectangle.width() * 2.0 - 1.0;
+        let y = 1.0 - (point.y - rectangle.top()) / rectangle.height() * 2.0;
+        // Form the ray in the orthonormal camera basis. Inverting the combined
+        // perspective matrix loses precision at high far/near ratios.
+        let tangent = (FIELD_OF_VIEW_Y * 0.5).tan();
+        let aspect = (rectangle.width() / rectangle.height().max(1.0)).max(1.0e-4);
+        let direction =
+            (self.forward() + self.right() * x * tangent * aspect + self.up() * y * tangent)
+                .normalize();
+        let depth = direction.dot(self.forward());
+        let near = (self.distance * 0.001).max(MIN_DISTANCE);
+        let far = (self.distance + self.scene_radius * 8.0).max(near + 1.0);
+        let origin = self.eye() + direction * (near / depth);
+        if !origin.is_finite() || !direction.is_finite() || depth <= 0.0 {
+            return None;
+        }
+        Some((origin, direction, (far - near) / depth))
+    }
+
     #[must_use]
     pub fn project(&self, position: Vec3, rectangle: Rect) -> Option<ProjectedPoint> {
         if rectangle.width() <= 0.0 || rectangle.height() <= 0.0 || !position.is_finite() {
@@ -160,14 +208,6 @@ impl OrbitCamera {
         self.yaw = startup_view.yaw;
         self.pitch = startup_view.pitch;
         self.frame_bounds(minimum, maximum);
-    }
-
-    pub fn frame_positions_in_current_view(
-        &mut self,
-        positions: impl Iterator<Item = Vec3>,
-        rectangle: Rect,
-    ) {
-        self.frame_positions_in_viewport(positions, rectangle);
     }
 
     pub fn frame_selected(&mut self, mesh: &WorkingMesh) {
@@ -513,6 +553,29 @@ fn center_of_handles(mesh: &WorkingMesh, handles: &HashSet<VertexHandle>) -> Opt
 mod tests {
     use super::*;
     use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh};
+
+    #[test]
+    fn pointer_ray_and_oblique_planar_drag_track_the_screen() {
+        let mut camera = OrbitCamera::default();
+        camera.set_orbit_state_with_roll(0.6, -0.4, 0.3, None, None);
+        let viewport = rectangle(800., 600.);
+        let pivot = camera.target();
+        let start = camera.project(pivot, viewport).unwrap().screen;
+        let end = start + Vec2::new(21., -13.);
+        let (origin, direction, maximum) = camera.screen_ray(start, viewport).unwrap();
+        let distance = (pivot - origin).dot(direction);
+        assert!(distance >= 0. && distance <= maximum);
+        assert!(
+            (origin + direction * distance).abs_diff_eq(pivot, 1.0e-4),
+            "ray closest point {:?}; target {:?}",
+            origin + direction * distance,
+            pivot
+        );
+        let movement = camera.plane_drag_delta(Vec3::Z, pivot, start, end, viewport);
+        assert!(movement.z.abs() < 1.0e-5);
+        let projected = camera.project(pivot + movement, viewport).unwrap();
+        assert!(projected.screen.abs_diff_eq(end, 0.01));
+    }
 
     fn rectangle(width: f32, height: f32) -> Rect {
         Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height))

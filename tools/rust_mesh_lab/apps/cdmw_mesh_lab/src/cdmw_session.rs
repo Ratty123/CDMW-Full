@@ -403,15 +403,29 @@ pub struct LoadedCdmwSessionPackage {
 
 impl LoadedCdmwSessionPackage {
     pub fn load(manifest_path: &Path) -> Result<Self, SessionError> {
-        Self::load_for(manifest_path, PACKAGE_SCHEMA, PROTOCOL, EDIT_BACKEND)
+        Self::load_for(
+            manifest_path,
+            PACKAGE_SCHEMA,
+            PROTOCOL,
+            EDIT_BACKEND,
+            &|| false,
+        )
     }
 
     pub fn load_preview(manifest_path: &Path) -> Result<Self, SessionError> {
+        Self::load_preview_cancellable(manifest_path, &|| false)
+    }
+
+    pub fn load_preview_cancellable(
+        manifest_path: &Path,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Self, SessionError> {
         Self::load_for(
             manifest_path,
             PREVIEW_PACKAGE_SCHEMA,
             PREVIEW_PROTOCOL,
             PREVIEW_BACKEND,
+            cancelled,
         )
     }
 
@@ -420,6 +434,7 @@ impl LoadedCdmwSessionPackage {
         expected_schema: &str,
         expected_protocol: &str,
         expected_backend: &str,
+        cancelled: &dyn Fn() -> bool,
     ) -> Result<Self, SessionError> {
         let manifest_path = fs::canonicalize(manifest_path)?;
         if manifest_path.file_name().and_then(|name| name.to_str()) != Some("manifest.json") {
@@ -439,6 +454,7 @@ impl LoadedCdmwSessionPackage {
             expected_protocol,
             expected_backend,
         )?;
+        check_preview_cancelled(cancelled)?;
         let document_bytes = read_json_reference(&root, &manifest.document)?;
         // Channels are integrity-checked authoring provenance. The renderer
         // consumes geometry from document.json, so validate the JSON stream
@@ -456,18 +472,21 @@ impl LoadedCdmwSessionPackage {
         } else {
             serde_json::from_slice(&document_bytes)?
         };
+        check_preview_cancelled(cancelled)?;
         validate_document(&document)?;
         validate_material_presentations(&manifest, &document)?;
+        check_preview_cancelled(cancelled)?;
         let mut textures = read_texture_resources(&root, &manifest, &document)?;
         let effect_textures = read_effect_texture_resources(&root, &manifest)?;
         let material_composition_metrics =
             if let Some(graph) = manifest.preview_core_material_graph.as_ref() {
-                crate::preview_core_material::compose_preview_core_material_resources(
+                crate::preview_core_material::compose_preview_core_material_resources_cancellable(
                     graph,
                     &manifest.material_presentations,
                     &document,
                     &mut textures,
                     |reference| read_binary_reference(&root, reference),
+                    cancelled,
                 )?
             } else {
                 crate::preview_core_material::PreviewCoreMaterialCompositionMetrics::default()
@@ -992,6 +1011,16 @@ impl CdmwBridge {
             }
         })();
         result.unwrap_or_else(|error| HostEvent::Fatal(error.to_string()))
+    }
+}
+
+pub(crate) fn check_preview_cancelled(cancelled: &dyn Fn() -> bool) -> Result<(), SessionError> {
+    if cancelled() {
+        Err(SessionError::InvalidPayload(
+            "Preview load cancelled".into(),
+        ))
+    } else {
+        Ok(())
     }
 }
 

@@ -209,6 +209,7 @@ impl ImageCache {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn compose_preview_core_material_resources<F>(
     graph: &PreviewCoreMaterialGraph,
     presentations: &[SessionMaterialPresentation],
@@ -219,11 +220,36 @@ pub(crate) fn compose_preview_core_material_resources<F>(
 where
     F: FnMut(&FileReference) -> Result<Vec<u8>, SessionError>,
 {
+    compose_preview_core_material_resources_cancellable(
+        graph,
+        presentations,
+        document,
+        resources,
+        read_reference,
+        &|| false,
+    )
+}
+
+pub(crate) fn compose_preview_core_material_resources_cancellable<F>(
+    graph: &PreviewCoreMaterialGraph,
+    presentations: &[SessionMaterialPresentation],
+    document: &MeshDocument,
+    resources: &mut Vec<CdmwTextureResource>,
+    mut read_reference: F,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<PreviewCoreMaterialCompositionMetrics, SessionError>
+where
+    F: FnMut(&FileReference) -> Result<Vec<u8>, SessionError>,
+{
     if graph.quality != "full" {
         return Ok(PreviewCoreMaterialCompositionMetrics::default());
     }
-    let mut cache = ImageCache::preload(graph, read_reference)?;
+    let mut cache = ImageCache::preload(graph, |reference| {
+        crate::cdmw_session::check_preview_cancelled(cancelled)?;
+        read_reference(reference)
+    })?;
     for material in &graph.materials {
+        crate::cdmw_session::check_preview_cancelled(cancelled)?;
         cache.begin_material();
         if let Some(pixels) = compose_base_color(material, &mut cache)? {
             publish_composed_resource(

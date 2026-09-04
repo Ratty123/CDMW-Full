@@ -6,18 +6,18 @@ use crate::cdmw_session::{
     CdmwEffectTextureResource, CdmwTextureResource, LoadedCdmwSessionPackage, PREVIEW_BACKEND,
     PREVIEW_PROTOCOL, RENDERER, SessionMaterialPresentation,
 };
+use crate::preview_geometry::{PreviewGeometry, placed_scene};
+use crate::preview_loader::{LoadRequest, PreviewLoader};
 use anyhow::{Context, Result};
 use cdmw_formats::{MeshDocument, SourceRange, Submesh};
 use cdmw_mesh::{DrawSnapshot, Provenance, Selection, WorkingMesh};
 use cdmw_render_wgpu::{
-    EffectBillboardInstance, EffectBlendMode, EffectLineVertex, HeadlessMaterialCaptureCamera,
-    HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput, HeadlessMaterialFactors,
-    HeadlessMaterialTexture, LightingPreset, MaterialPreviewFactors, ViewMode, WindowRenderer,
-    run_headless_material_capture,
+    EffectBillboardInstance, EffectBlendMode, EffectLineVertex, LightingPreset,
+    MaterialPreviewFactors, ViewMode, WindowRenderer,
 };
 use crossbeam_channel::{Receiver, Sender, bounded};
 use egui::{Pos2, Rect, Vec2 as EguiVec2};
-use glam::{EulerRot, Mat3, Mat4, Quat, Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3};
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -25,15 +25,15 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::event_loop::ActiveEventLoop;
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
+use winit::keyboard::{Key, ModifiersState, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
 const CONTROL_QUEUE_BOUND: usize = 256;
 const OUTBOUND_QUEUE_BOUND: usize = 128;
-const PACKAGE_QUEUE_BOUND: usize = 4;
 const MAX_CONTROL_LINE_BYTES: usize = 256 * 1024;
 
 pub(crate) const CAPABILITIES: &[&str] = &[
@@ -137,15 +137,7 @@ pub(crate) fn control_contract() -> Value {
 enum Incoming {
     Message(Value),
     Error(String),
-}
-
-#[derive(Debug)]
-struct PackageResult {
-    request_id: u64,
-    generation: u64,
-    path: PathBuf,
-    reset_view: bool,
-    result: std::result::Result<LoadedCdmwSessionPackage, String>,
+    Closed,
 }
 
 #[derive(Debug)]
@@ -164,7 +156,7 @@ struct PreviewBridge {
 }
 
 impl PreviewBridge {
-    fn new(session_id: String, process_generation: u64) -> Self {
+    fn new(session_id: String, process_generation: u64, proxy: EventLoopProxy<()>) -> Self {
         let (incoming_tx, incoming) = bounded(CONTROL_QUEUE_BOUND);
         let (outbound, outbound_rx) = bounded(OUTBOUND_QUEUE_BOUND);
         thread::Builder::new()
@@ -189,11 +181,13 @@ impl PreviewBridge {
                                         "Rust Preview protocol queue is full".to_owned(),
                                     ));
                                 }
+                                let _ = proxy.send_event(());
                             }
                             Err(error) => {
                                 let _ = incoming_tx.try_send(Incoming::Error(format!(
                                     "Rust Preview received invalid JSON: {error}"
                                 )));
+                                let _ = proxy.send_event(());
                             }
                         },
                         Err(error) => {
@@ -204,6 +198,8 @@ impl PreviewBridge {
                         }
                     }
                 }
+                let _ = incoming_tx.send(Incoming::Closed);
+                let _ = proxy.send_event(());
             })
             .expect("Rust Preview input thread");
         thread::Builder::new()
@@ -346,6 +342,7 @@ pub struct PreviewApplication {
     package: LoadedCdmwSessionPackage,
     document: MeshDocument,
     mesh: WorkingMesh,
+    geometry: PreviewGeometry,
     snapshot: DrawSnapshot,
     snapshot_scene_roles: Option<Vec<u32>>,
     textures: Vec<CdmwTextureResource>,
@@ -359,6 +356,8 @@ pub struct PreviewApplication {
     exit_requested: bool,
     pointer: Option<Vec2>,
     orbiting: bool,
+    modifiers: ModifiersState,
+    left_camera_drag: bool,
     panning: bool,
     right_press: Option<Vec2>,
     hovered_part: Option<u32>,
@@ -368,21 +367,25 @@ pub struct PreviewApplication {
     pending_gizmo_update: Option<PendingGizmoUpdate>,
     scene_revision: u64,
     effect_clock: EffectClock,
-    package_tx: Sender<PackageResult>,
-    package_rx: Receiver<PackageResult>,
+    loader: PreviewLoader,
+    wake_proxy: EventLoopProxy<()>,
+    capture_in_flight: bool,
+    next_frame: Option<Instant>,
+    render_failures: u32,
     capture_tx: Sender<CaptureResult>,
     capture_rx: Receiver<CaptureResult>,
     newest_package_generation: u64,
 }
 
 impl PreviewApplication {
-    pub fn open(manifest_path: &Path, parent_hwnd: u64) -> Result<Self> {
+    pub fn open(manifest_path: &Path, parent_hwnd: u64, proxy: EventLoopProxy<()>) -> Result<Self> {
         let mut package = LoadedCdmwSessionPackage::load_preview(manifest_path)
             .context("failed to load the initial Rust Preview package")?;
         let document = package.document().clone();
         let mesh = WorkingMesh::from_document_lod(&document, package.source_lod_index())
             .context("Rust Preview document could not create its requested LOD")?;
         let snapshot = mesh.draw_snapshot();
+        let geometry = PreviewGeometry::from_mesh(&mesh);
         let textures = package.take_textures();
         let effect_textures = package.take_effect_textures();
         let presentations = package.take_material_presentations();
@@ -395,8 +398,9 @@ impl PreviewApplication {
         let bridge = PreviewBridge::new(
             package.manifest().session_id.clone(),
             package.manifest().process_generation,
+            proxy.clone(),
         );
-        let (package_tx, package_rx) = bounded(PACKAGE_QUEUE_BOUND);
+        let loader = PreviewLoader::new(proxy.clone())?;
         let (capture_tx, capture_rx) = bounded(2);
         let mut camera = OrbitCamera::default();
         camera.frame_integrated_startup(&mesh);
@@ -408,6 +412,7 @@ impl PreviewApplication {
             package,
             document,
             mesh,
+            geometry,
             snapshot,
             snapshot_scene_roles: None,
             textures,
@@ -424,6 +429,8 @@ impl PreviewApplication {
             exit_requested: false,
             pointer: None,
             orbiting: false,
+            modifiers: ModifiersState::empty(),
+            left_camera_drag: false,
             panning: false,
             right_press: None,
             hovered_part: None,
@@ -433,8 +440,11 @@ impl PreviewApplication {
             pending_gizmo_update: None,
             scene_revision: 1,
             effect_clock: EffectClock::new(),
-            package_tx,
-            package_rx,
+            loader,
+            capture_in_flight: false,
+            wake_proxy: proxy,
+            next_frame: None,
+            render_failures: 0,
             capture_tx,
             capture_rx,
             newest_package_generation: 0,
@@ -456,55 +466,34 @@ impl PreviewApplication {
         )
     }
 
-    fn apply_canonical_view(&mut self, emit: bool) {
-        let initial = self
-            .state
-            .scene
-            .get("framing")
-            .and_then(|value| value.get("initial_view"))
-            .cloned();
-        let rectangle = self.viewport_rect();
-        let used_semantic = initial.as_ref().is_some_and(|initial| {
-            let view = vec3_value(initial.get("view_direction"), Vec3::ZERO);
-            let up = vec3_value(initial.get("screen_up_direction"), Vec3::ZERO);
-            self.camera.set_semantic_view(view, up)
-        });
-        if used_semantic {
-            let bounds = initial
-                .as_ref()
-                .and_then(|value| value.get("fit_bounds"))
-                .and_then(Value::as_array);
-            if let Some(bounds) = bounds.filter(|bounds| bounds.len() == 2) {
-                let minimum = vec3_value(bounds.first(), Vec3::ZERO);
-                let maximum = vec3_value(bounds.get(1), Vec3::ZERO);
-                self.camera
-                    .frame_explicit_bounds_in_viewport(minimum, maximum, rectangle);
-            } else {
-                self.camera.frame_positions_in_current_view(
-                    self.snapshot
-                        .positions
-                        .iter()
-                        .copied()
-                        .map(Vec3::from_array),
-                    rectangle,
-                );
+    fn current_world_bounds(&self) -> Option<(Vec3, Vec3)> {
+        let visible = self.visible_submeshes();
+        let mut bounds: Option<(Vec3, Vec3)> = None;
+        for part in &self.geometry.parts {
+            if !visible.contains(&part.submesh) {
+                continue;
             }
-        } else {
-            self.camera.frame_integrated_positions(
-                self.snapshot
-                    .positions
-                    .iter()
-                    .copied()
-                    .map(Vec3::from_array),
-            );
-            self.camera.frame_positions_in_current_view(
-                self.snapshot
-                    .positions
-                    .iter()
-                    .copied()
-                    .map(Vec3::from_array),
-                rectangle,
-            );
+            let (low, high) = part.bounds(self.submesh_model_matrix(part.submesh));
+            if low.is_finite() && high.is_finite() {
+                bounds = Some(bounds.map_or((low, high), |(a, b)| (a.min(low), b.max(high))));
+            }
+        }
+        bounds
+    }
+
+    fn apply_canonical_view(&mut self, emit: bool) {
+        let initial = &self.state.scene["framing"]["initial_view"];
+        let semantic = self.camera.set_semantic_view(
+            vec3_value(initial.get("view_direction"), Vec3::ZERO),
+            vec3_value(initial.get("screen_up_direction"), Vec3::ZERO),
+        );
+        if let Some((low, high)) = self.current_world_bounds() {
+            if !semantic {
+                self.camera
+                    .frame_integrated_positions([low, high].into_iter());
+            }
+            self.camera
+                .frame_explicit_bounds_in_viewport(low, high, self.viewport_rect());
         }
         if emit {
             self.emit_view_state("fit");
@@ -515,49 +504,42 @@ impl PreviewApplication {
         let Some(renderer) = &mut self.renderer else {
             return Ok(());
         };
-        renderer.reset_texture();
-        renderer.reset_effect_textures();
-        let mut effect_texture_indices = HashMap::new();
-        for texture in &self.effect_textures {
-            let index = renderer
-                .add_effect_dds_texture(&texture.bytes)
-                .map_err(|error| error.to_string())?;
-            effect_texture_indices.insert(texture.archive_path.clone(), index);
-        }
-        for texture in &self.textures {
-            renderer
-                .add_dds_texture(
-                    &texture.bytes,
-                    texture.role,
-                    &texture.material_indices_by_lod,
-                )
-                .map_err(|error| error.to_string())?;
-        }
-        for presentation in &self.presentations {
-            let ownership =
-                presentation_ownership(presentation, self.package.document().lods.len());
-            renderer
-                .add_material_factors(cdmw_material_preview_factors(presentation), &ownership)
-                .map_err(|error| error.to_string())?;
-        }
-        renderer
-            .set_material_lod(self.package.source_lod_index())
+        let effect_texture_indices = renderer
+            .replace_preview_scene(|renderer| {
+                renderer.reset_texture();
+                renderer.reset_effect_textures();
+                let mut effect_texture_indices = HashMap::new();
+                for texture in &self.effect_textures {
+                    let index = renderer.add_effect_dds_texture(&texture.bytes)?;
+                    effect_texture_indices.insert(texture.archive_path.clone(), index);
+                }
+                for texture in &self.textures {
+                    renderer.add_dds_texture(
+                        &texture.bytes,
+                        texture.role,
+                        &texture.material_indices_by_lod,
+                    )?;
+                }
+                for presentation in &self.presentations {
+                    let ownership =
+                        presentation_ownership(presentation, self.package.document().lods.len());
+                    renderer.add_material_factors(
+                        cdmw_material_preview_factors(presentation),
+                        &ownership,
+                    )?;
+                }
+                renderer.set_material_lod(self.package.source_lod_index())?;
+                if let Some(roles) = self.snapshot_scene_roles.as_deref() {
+                    renderer.set_snapshot_with_scene_roles(&self.snapshot, roles)?;
+                    renderer
+                        .set_scene_transform(role_model_matrix(&self.state.scene, "editable"))?;
+                } else {
+                    renderer.set_snapshot(&self.snapshot)?;
+                    renderer.set_scene_transform(Mat4::IDENTITY)?;
+                }
+                Ok(effect_texture_indices)
+            })
             .map_err(|error| error.to_string())?;
-        if let Some(roles) = self.snapshot_scene_roles.as_deref() {
-            renderer
-                .set_snapshot_with_scene_roles(&self.snapshot, roles)
-                .map_err(|error| error.to_string())?;
-            renderer
-                .set_scene_transform(role_model_matrix(&self.state.scene, "editable"))
-                .map_err(|error| error.to_string())?;
-        } else {
-            renderer
-                .set_snapshot(&self.snapshot)
-                .map_err(|error| error.to_string())?;
-            renderer
-                .set_scene_transform(Mat4::IDENTITY)
-                .map_err(|error| error.to_string())?;
-        }
         self.effect_texture_indices = effect_texture_indices;
         Ok(())
     }
@@ -572,112 +554,110 @@ impl PreviewApplication {
         if generation < self.newest_package_generation {
             return;
         }
+        self.cancel_gesture();
         self.newest_package_generation = generation;
-        let sender = self.package_tx.clone();
-        thread::Builder::new()
-            .name(format!("cdmw-rust-preview-package-{generation}"))
-            .spawn(move || {
-                let manifest = if path.is_dir() {
-                    path.join("manifest.json")
-                } else {
-                    path.clone()
-                };
-                let result = LoadedCdmwSessionPackage::load_preview(&manifest)
-                    .map_err(|error| error.to_string());
-                let _ = sender.send(PackageResult {
-                    request_id,
-                    generation,
-                    path,
-                    reset_view,
-                    result,
-                });
-            })
-            .ok();
+        self.loader.request(LoadRequest {
+            request_id,
+            generation,
+            path,
+            reset_view,
+            revision: self.scene_revision.saturating_add(1),
+            presentation: crate::preview_geometry::snapshot_presentation(&self.state.presentation),
+        });
     }
 
     fn poll_package_loads(&mut self) -> bool {
         let mut changed = false;
-        while let Ok(result) = self.package_rx.try_recv() {
-            if result.generation != self.newest_package_generation {
+        while let Ok(result) = self.loader.results.try_recv() {
+            let request = result.request;
+            if request.generation != self.newest_package_generation {
                 continue;
             }
-            match result.result {
-                Ok(mut package) => {
-                    let loaded = WorkingMesh::from_document_lod(
-                        package.document(),
-                        package.source_lod_index(),
-                    );
-                    match loaded {
-                        Ok(mesh) => {
-                            self.document = package.document().clone();
-                            self.mesh = mesh;
-                            self.snapshot = self.mesh.draw_snapshot();
-                            self.textures = package.take_textures();
-                            self.effect_textures = package.take_effect_textures();
-                            self.presentations = package.take_material_presentations();
-                            self.state.scene = package
-                                .manifest()
-                                .state
-                                .get("preview_scene")
-                                .cloned()
-                                .unwrap_or(Value::Null);
-                            self.package = package;
-                            self.effect_clock.reset();
-                            self.scene_revision = self.scene_revision.saturating_add(1);
-                            self.refresh_visible_snapshot();
-                            if result.reset_view
-                                && let Some(presentation) = self.state.presentation.as_object_mut()
-                            {
-                                presentation.remove("camera");
-                            }
-                            let apply = self.configure_renderer();
-                            if let Err(error) = apply {
-                                self.bridge.send(json!({
-                                    "event": "package_load_failed",
-                                    "request_id": result.request_id,
-                                    "generation": result.generation,
-                                    "package_path": result.path,
-                                    "error": error,
-                                }));
-                            } else {
-                                // A resident geometry/material/effect refresh
-                                // must never replay a stale named-view command.
-                                self.apply_presentation(false);
-                                if result.reset_view {
-                                    self.apply_canonical_view(true);
-                                }
-                                self.bridge.send(json!({
-                                    "event": "package_load_applied",
-                                    "request_id": result.request_id,
-                                    "generation": result.generation,
-                                    "package_path": result.path,
-                                    "material_signature": self.package.manifest().source.get("sha256").cloned().unwrap_or(Value::Null),
-                                }));
-                                changed = true;
-                            }
-                        }
-                        Err(error) => self.bridge.send(json!({
-                            "event": "package_load_failed",
-                            "request_id": result.request_id,
-                            "generation": result.generation,
-                            "package_path": result.path,
-                            "error": error.to_string(),
-                        })),
-                    }
+            let applied = (|| -> Result<(), String> {
+                let mut loaded = result.result?;
+                self.cancel_gesture();
+                let old_document = std::mem::replace(&mut self.document, loaded.document);
+                let old_mesh = std::mem::replace(&mut self.mesh, loaded.mesh);
+                let old_geometry = std::mem::replace(&mut self.geometry, loaded.geometry);
+                let old_snapshot = std::mem::replace(&mut self.snapshot, loaded.snapshot);
+                let old_roles = std::mem::replace(&mut self.snapshot_scene_roles, loaded.roles);
+                let old_textures =
+                    std::mem::replace(&mut self.textures, loaded.package.take_textures());
+                let old_effects = std::mem::replace(
+                    &mut self.effect_textures,
+                    loaded.package.take_effect_textures(),
+                );
+                let old_presentations = std::mem::replace(
+                    &mut self.presentations,
+                    loaded.package.take_material_presentations(),
+                );
+                let old_scene = std::mem::replace(
+                    &mut self.state.scene,
+                    loaded
+                        .package
+                        .manifest()
+                        .state
+                        .get("preview_scene")
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                );
+                let old_package = std::mem::replace(&mut self.package, loaded.package);
+                let old_revision = self.scene_revision;
+                self.scene_revision = self.scene_revision.saturating_add(1);
+                // Prepare visible CPU data without touching the resident GPU scene.
+                let renderer = self.renderer.take();
+                if request.presentation
+                    != crate::preview_geometry::snapshot_presentation(&self.state.presentation)
+                {
+                    self.refresh_visible_snapshot();
                 }
-                Err(error) => self.bridge.send(json!({
-                    "event": "package_load_failed",
-                    "request_id": result.request_id,
-                    "generation": result.generation,
-                    "package_path": result.path,
-                    "error": error,
-                })),
+                self.renderer = renderer;
+                if let Err(error) = self.configure_renderer() {
+                    self.document = old_document;
+                    self.mesh = old_mesh;
+                    self.geometry = old_geometry;
+                    self.snapshot = old_snapshot;
+                    self.snapshot_scene_roles = old_roles;
+                    self.textures = old_textures;
+                    self.effect_textures = old_effects;
+                    self.presentations = old_presentations;
+                    self.state.scene = old_scene;
+                    self.package = old_package;
+                    self.scene_revision = old_revision;
+                    return Err(error);
+                }
+                self.effect_clock.reset();
+                self.state.material_parameters = Value::Null;
+                if request.reset_view
+                    && let Some(presentation) = self.state.presentation.as_object_mut()
+                {
+                    presentation.remove("camera");
+                }
+                self.apply_presentation(false);
+                if request.reset_view {
+                    self.apply_canonical_view(true);
+                }
+                Ok(())
+            })();
+            match applied {
+                Ok(()) => {
+                    self.bridge.send(
+                        json!({"event":"package_load_applied","request_id":request.request_id,
+                        "generation":request.generation,"package_path":request.path,
+                        "material_signature":self.package.manifest().source.get("sha256")}),
+                    );
+                    changed = true;
+                }
+                Err(error) => self.bridge.send(
+                    json!({"event":"package_load_failed","request_id":request.request_id,
+                    "generation":request.generation,"package_path":request.path,"error":error}),
+                ),
             }
         }
         changed
     }
 
-    fn start_capture(&self, value: &Value) {
+    fn start_capture(&mut self, value: &Value) {
         let request_id = value.get("request_id").and_then(Value::as_u64).unwrap_or(0);
         let Some(output_path) = value
             .get("output_path")
@@ -707,108 +687,100 @@ impl PreviewApplication {
             .clamp(64, 2_048);
         let yaw_degrees = value.get("yaw_degrees").and_then(Value::as_f64);
         let pitch_degrees = value.get("pitch_degrees").and_then(Value::as_f64);
-        let camera = match yaw_degrees.zip(pitch_degrees) {
-            Some((yaw_degrees, pitch_degrees))
-                if yaw_degrees.is_finite()
-                    && pitch_degrees.is_finite()
-                    && pitch_degrees.abs() <= 89.0 =>
-            {
-                Some(HeadlessMaterialCaptureCamera {
-                    yaw_degrees: yaw_degrees as f32,
-                    pitch_degrees: pitch_degrees as f32,
-                })
+        let result = (|| -> Result<_> {
+            if self.capture_in_flight {
+                anyhow::bail!("A preview capture is already in progress");
             }
-            None if yaw_degrees.is_none() && pitch_degrees.is_none() => None,
-            _ => {
-                self.bridge.send(json!({
-                    "event": "capture_result",
-                    "request_id": request_id,
-                    "status": "error",
-                    "message": "capture yaw and pitch must both be finite and pitch must be within -89..89 degrees",
-                }));
+            let saved_camera = self.camera.clone();
+            match yaw_degrees.zip(pitch_degrees) {
+                Some((yaw, pitch))
+                    if yaw.is_finite() && pitch.is_finite() && pitch.abs() <= 89.0 =>
+                {
+                    self.camera.set_orbit_state_with_roll(
+                        (yaw as f32).to_radians(),
+                        (pitch as f32).to_radians(),
+                        self.camera.roll(),
+                        None,
+                        None,
+                    );
+                }
+                None if yaw_degrees.is_none() && pitch_degrees.is_none() => {}
+                _ => anyhow::bail!(
+                    "capture yaw and pitch must both be finite and pitch must be within -89..89 degrees"
+                ),
+            }
+            let time = self.effect_time();
+            self.refresh_scene_overlays_for_capture(time, true);
+            let rectangle =
+                Rect::from_min_size(Pos2::ZERO, EguiVec2::new(width as f32, height as f32));
+            let matrix = self.camera.view_projection(rectangle);
+            let right = self.camera.right();
+            let up = self.camera.up();
+            let capture = self
+                .renderer
+                .as_mut()
+                .ok_or_else(|| anyhow::anyhow!("Preview renderer is unavailable"))
+                .and_then(|renderer| {
+                    let isolated = value
+                        .get("material_index")
+                        .and_then(Value::as_u64)
+                        .and_then(|v| u32::try_from(v).ok());
+                    renderer.set_view_mode(if isolated.is_some() {
+                        ViewMode::TexturedSolid
+                    } else {
+                        self.view_mode
+                    });
+                    renderer.set_camera_with_basis(matrix, right, up);
+                    renderer
+                        .capture_frame(width, height, isolated)
+                        .map_err(|e| anyhow::anyhow!(e.to_string()))
+                });
+            self.camera = saved_camera;
+            self.refresh_scene_overlays(time);
+            let matrix = self.camera.view_projection(self.viewport_rect());
+            if let Some(renderer) = &mut self.renderer {
+                renderer.set_view_mode(self.view_mode);
+                renderer.set_camera_with_basis(matrix, self.camera.right(), self.camera.up());
+            }
+            capture
+        })();
+        let capture = match result {
+            Ok(capture) => capture,
+            Err(error) => {
+                self.bridge.send(json!({"event":"capture_result","request_id":request_id,"status":"error","message":error.to_string()}));
                 return;
             }
         };
-        let isolated_material_index = value
-            .get("material_index")
-            .and_then(Value::as_u64)
-            .and_then(|value| u32::try_from(value).ok());
-        let snapshot = self.snapshot.clone();
-        let textures = self.textures.clone();
-        let presentations = self.presentations.clone();
-        let lod_index = self.package.source_lod_index();
-        let lod_count = self.package.document().lods.len();
         let sender = self.capture_tx.clone();
-        thread::Builder::new()
-            .name(format!("cdmw-rust-preview-capture-{request_id}"))
+        let proxy = self.wake_proxy.clone();
+        let worker = thread::Builder::new()
+            .name("cdmw-preview-capture".into())
             .spawn(move || {
                 let result = (|| -> Result<()> {
                     if let Some(parent) = output_path.parent() {
-                        std::fs::create_dir_all(parent).with_context(|| {
-                            format!("could not create capture directory {}", parent.display())
-                        })?;
+                        fs::create_dir_all(parent)?;
                     }
-                    let base_path = output_path.with_extension("base.bmp");
-                    let part_path = output_path.with_extension("parts.bmp");
-                    let texture_inputs = textures
-                        .iter()
-                        .map(|texture| HeadlessMaterialTexture {
-                            bytes: &texture.bytes,
-                            role: texture.role,
-                            material_indices_by_lod: &texture.material_indices_by_lod,
-                        })
-                        .collect::<Vec<_>>();
-                    let ownership = presentations
-                        .iter()
-                        .map(|presentation| presentation_ownership(presentation, lod_count))
-                        .collect::<Vec<_>>();
-                    let factor_inputs = presentations
-                        .iter()
-                        .zip(ownership.iter())
-                        .map(
-                            |(presentation, material_indices_by_lod)| HeadlessMaterialFactors {
-                                factors: cdmw_material_preview_factors(presentation),
-                                material_indices_by_lod,
-                            },
-                        )
-                        .collect::<Vec<_>>();
-                    pollster::block_on(run_headless_material_capture(
-                        &snapshot,
-                        &texture_inputs,
-                        &factor_inputs,
-                        HeadlessMaterialCaptureOptions {
-                            width,
-                            height,
-                            lod_index,
-                            camera,
-                            isolated_material_index,
-                        },
-                        HeadlessMaterialCaptureOutput {
-                            textured_bmp: &output_path,
-                            base_color_bmp: &base_path,
-                            part_id_bmp: &part_path,
-                            normal_map: None,
-                            material_response: None,
-                            layer_mask: None,
-                        },
-                    ))
-                    .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-                    let _ = std::fs::remove_file(base_path);
-                    let _ = std::fs::remove_file(part_path);
-                    Ok(())
+                    capture
+                        .write(&output_path)
+                        .map_err(|e| anyhow::anyhow!(e.to_string()))
                 })()
-                .map_err(|error| error.to_string());
+                .map_err(|e| e.to_string());
                 let _ = sender.send(CaptureResult {
                     request_id,
                     output_path,
                     result,
                 });
-            })
-            .ok();
+                let _ = proxy.send_event(());
+            });
+        match worker {
+            Ok(_)=>self.capture_in_flight=true,
+            Err(error)=>self.bridge.send(json!({"event":"capture_result","request_id":request_id,"status":"error","message":error.to_string()})),
+        }
     }
 
-    fn poll_captures(&self) {
+    fn poll_captures(&mut self) {
         while let Ok(result) = self.capture_rx.try_recv() {
+            self.capture_in_flight = false;
             match result.result {
                 Ok(()) => self.bridge.send(json!({
                     "event": "capture_result",
@@ -869,7 +841,21 @@ impl PreviewApplication {
             }
             "presentation_state_update" => {
                 let camera_changed = value.get("camera").is_some();
+                let geometry_changed = [
+                    "active_view",
+                    "comparison_mode",
+                    "visibility",
+                    "uv",
+                    "part_transforms",
+                    "side_by_side_split_ratio",
+                ]
+                .iter()
+                .any(|key| value.get(*key).is_some());
                 merge_value(&mut self.state.presentation, &value);
+                if geometry_changed {
+                    self.scene_revision = self.scene_revision.saturating_add(1);
+                    self.refresh_visible_snapshot();
+                }
                 self.apply_presentation(camera_changed);
                 self.ack_state(event, &value);
                 return true;
@@ -881,16 +867,46 @@ impl PreviewApplication {
                 return true;
             }
             "scene_state_update" => {
+                let old_reference = role_model_matrix(&self.state.scene, "reference");
+                let old_roles = (
+                    editable_indices(&self.state.scene),
+                    reference_indices(&self.state.scene),
+                );
+                let old_comparison = self.state.scene.get("comparison_mode").cloned();
+                let old_reference_draw = self.state.scene.get("reference_draw").cloned();
+                let old_identities = self.state.scene.get("part_identities").cloned();
                 merge_value(&mut self.state.scene, &value);
                 self.scene_revision = self.scene_revision.saturating_add(1);
+                if self.snapshot_scene_roles.is_some()
+                    && old_reference == role_model_matrix(&self.state.scene, "reference")
+                    && old_roles
+                        == (
+                            editable_indices(&self.state.scene),
+                            reference_indices(&self.state.scene),
+                        )
+                    && old_comparison == self.state.scene.get("comparison_mode").cloned()
+                    && old_reference_draw == self.state.scene.get("reference_draw").cloned()
+                    && old_identities == self.state.scene.get("part_identities").cloned()
+                {
+                    if let Some(renderer) = &mut self.renderer {
+                        let _ = renderer
+                            .set_scene_transform(role_model_matrix(&self.state.scene, "editable"));
+                    }
+                } else {
+                    self.refresh_visible_snapshot();
+                }
                 self.apply_presentation(false);
                 self.ack_state(event, &value);
                 return true;
             }
             "material_parameter_update" => {
-                self.state.material_parameters = value.clone();
-                self.apply_material_parameters();
-                self.ack_state(event, &value);
+                let old = std::mem::replace(&mut self.state.material_parameters, value.clone());
+                if let Err(error) = self.apply_material_parameters() {
+                    self.state.material_parameters = old;
+                    self.bridge.send(json!({"event":"material_parameter_update_ack","request_id":value.get("request_id"),"status":"rejected","error":error}));
+                } else {
+                    self.ack_state(event, &value);
+                }
                 return true;
             }
             "activate_request" => {
@@ -906,6 +922,7 @@ impl PreviewApplication {
                 }));
             }
             "deactivate_request" => {
+                self.cancel_gesture();
                 self.visible = false;
                 if let Some(window) = &self.window {
                     window.set_visible(false);
@@ -1003,6 +1020,7 @@ impl PreviewApplication {
         for incoming in self.bridge.poll() {
             match incoming {
                 Incoming::Message(value) => changed |= self.handle_message(value),
+                Incoming::Closed => self.exit_requested = true,
                 Incoming::Error(error) => {
                     self.bridge.send(json!({"event": "error", "error": error}))
                 }
@@ -1082,15 +1100,11 @@ impl PreviewApplication {
                 None,
                 None,
             );
-            if camera.get("fit_mode").and_then(Value::as_str) == Some("fit") {
-                self.camera.frame_positions_in_current_view(
-                    self.snapshot
-                        .positions
-                        .iter()
-                        .copied()
-                        .map(Vec3::from_array),
-                    self.viewport_rect(),
-                );
+            if camera.get("fit_mode").and_then(Value::as_str) == Some("fit")
+                && let Some((low, high)) = self.current_world_bounds()
+            {
+                self.camera
+                    .frame_explicit_bounds_in_viewport(low, high, self.viewport_rect());
             }
             self.camera.set_orbit_state_with_roll(
                 yaw_degrees.to_radians(),
@@ -1112,7 +1126,6 @@ impl PreviewApplication {
                 );
             }
         }
-        self.refresh_visible_snapshot();
         self.apply_overlays();
     }
 
@@ -1173,61 +1186,7 @@ impl PreviewApplication {
     }
 
     fn submesh_model_matrix(&self, source_submesh: u32) -> Mat4 {
-        let editable = editable_indices(&self.state.scene);
-        let reference = reference_indices(&self.state.scene);
-        let mut matrix = if reference.contains(&source_submesh) {
-            role_model_matrix(&self.state.scene, "reference")
-        } else if editable.contains(&source_submesh) {
-            role_model_matrix(&self.state.scene, "editable")
-        } else {
-            Mat4::IDENTITY
-        };
-        let source_part = self.source_part_index(source_submesh);
-        if let Some(part) = self
-            .state
-            .presentation
-            .get("part_transforms")
-            .and_then(Value::as_object)
-            .and_then(|items| items.get(source_part.to_string().as_str()))
-        {
-            matrix *= placement_matrix(part);
-        }
-        let comparison_mode = self
-            .state
-            .presentation
-            .get("comparison_mode")
-            .and_then(Value::as_str)
-            .or_else(|| {
-                self.state
-                    .scene
-                    .get("comparison_mode")
-                    .and_then(Value::as_str)
-            })
-            .unwrap_or("replacement_only");
-        if comparison_mode == "side_by_side" {
-            let extent = self
-                .state
-                .scene
-                .get("framing")
-                .and_then(|value| value.get("extent"))
-                .and_then(Value::as_f64)
-                .unwrap_or(1.0) as f32;
-            let split = self
-                .state
-                .presentation
-                .get("side_by_side_split_ratio")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.5)
-                .clamp(0.18, 0.82) as f32;
-            let side_offset = (extent.max(0.01) * 0.65).max(0.05);
-            let translation = if reference.contains(&source_submesh) {
-                Vec3::new(-side_offset * split.recip().min(4.0), 0.0, 0.0)
-            } else {
-                Vec3::new(side_offset * (1.0 - split).recip().min(4.0), 0.0, 0.0)
-            };
-            matrix = Mat4::from_translation(translation) * matrix;
-        }
-        matrix
+        self.scene_view().submesh_model_matrix(source_submesh)
     }
 
     fn push_submesh_edges(
@@ -1236,27 +1195,30 @@ impl PreviewApplication {
         wanted: &HashSet<u32>,
         colour: [f32; 4],
     ) {
-        const MAX_GUIDE_VERTICES: usize = 240_000;
-        for (_handle, face) in self.mesh.faces() {
-            if !wanted.contains(&face.submesh) || lines.len() >= MAX_GUIDE_VERTICES {
+        for part in &self.geometry.parts {
+            if !wanted.contains(&part.submesh) {
                 continue;
             }
-            let matrix = self.submesh_model_matrix(face.submesh);
-            let points = face.vertices.map(|handle| {
-                self.mesh
-                    .vertex(handle)
-                    .map(|vertex| matrix.transform_point3(Vec3::from_array(vertex.position)))
-            });
-            let [Some(a), Some(b), Some(c)] = points else {
-                continue;
-            };
-            push_effect_line(lines, a, b, colour);
-            push_effect_line(lines, b, c, colour);
-            push_effect_line(lines, c, a, colour);
+            let matrix = self.submesh_model_matrix(part.submesh);
+            for [a, b] in &part.edges {
+                if lines.len() >= 240_000 {
+                    return;
+                }
+                push_effect_line(
+                    lines,
+                    matrix.transform_point3(*a),
+                    matrix.transform_point3(*b),
+                    colour,
+                );
+            }
         }
     }
 
     fn refresh_scene_overlays(&mut self, time: f32) {
+        self.refresh_scene_overlays_for_capture(time, false);
+    }
+
+    fn refresh_scene_overlays_for_capture(&mut self, time: f32, capture: bool) {
         let editable_matrix = role_model_matrix(&self.state.scene, "editable");
         let skeleton_visible = self
             .state
@@ -1293,10 +1255,11 @@ impl PreviewApplication {
             .unwrap_or(&Value::Null);
         let quality = display.get("quality").unwrap_or(&Value::Null);
         let guide_colours = scene_guide_colours(quality);
-        if display
-            .get("grid_visible")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
+        if !capture
+            && display
+                .get("grid_visible")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
         {
             let grid = self.state.scene.get("grid").unwrap_or(&Value::Null);
             let origin = vec3_value(grid.get("origin"), Vec3::ZERO);
@@ -1397,13 +1360,9 @@ impl PreviewApplication {
                 .and_then(|value| value.get("visible"))
                 .and_then(Value::as_bool)
                 .unwrap_or(true);
-        if gizmo_visible {
+        if gizmo_visible && !capture {
             let pivot = vec3_value(self.state.scene.get("placement_pivot"), Vec3::ZERO);
-            let size_scale = quality
-                .get("gizmo_size_scale")
-                .and_then(Value::as_f64)
-                .unwrap_or(1.0)
-                .clamp(0.5, 3.0) as f32;
+
             let selected = self
                 .gizmo_drag
                 .as_ref()
@@ -1412,21 +1371,27 @@ impl PreviewApplication {
             push_transform_gizmo(
                 &mut emphasis_lines,
                 pivot,
-                self.gizmo_length() * size_scale,
+                self.gizmo_length(),
                 self.camera.right(),
                 self.camera.up(),
                 &self.gizmo_tool(),
                 selected,
                 guide_colours.gizmo,
                 guide_colours.highlight,
+                self.gizmo_dimensions(),
+                quality
+                    .get("gizmo_label_color")
+                    .and_then(Value::as_str)
+                    .and_then(parse_color),
             );
         }
 
         let navigator_center = self.navigator_center();
         let rectangle = self.viewport_rect();
-        if let Some(anchor) =
-            self.camera
-                .point_on_view_plane(navigator_center, self.camera.target(), rectangle)
+        if !capture
+            && let Some(anchor) =
+                self.camera
+                    .point_on_view_plane(navigator_center, self.camera.target(), rectangle)
         {
             let length = self.camera.world_units_per_pixel(rectangle) * 28.0 * self.ui_scale();
             push_camera_navigator(
@@ -1462,7 +1427,10 @@ impl PreviewApplication {
         {
             self.push_submesh_edges(
                 &mut guide_lines,
-                &reference_indices(&self.state.scene),
+                &reference_indices(&self.state.scene)
+                    .intersection(&self.visible_submeshes())
+                    .copied()
+                    .collect(),
                 guide_colours.reference,
             );
         }
@@ -1478,13 +1446,16 @@ impl PreviewApplication {
             .filter_map(|value| u32::try_from(value).ok())
             .collect::<HashSet<_>>();
         if !highlighted.is_empty() {
+            let visible = self.visible_submeshes();
             let scene_submeshes = self
-                .mesh
-                .faces()
-                .filter_map(|(_, face)| {
+                .geometry
+                .parts
+                .iter()
+                .filter_map(|part| {
                     highlighted
-                        .contains(&self.source_part_index(face.submesh))
-                        .then_some(face.submesh)
+                        .contains(&self.source_part_index(part.submesh))
+                        .then_some(part.submesh)
+                        .filter(|part| visible.contains(part))
                 })
                 .collect::<HashSet<_>>();
             self.push_submesh_edges(
@@ -1580,16 +1551,16 @@ impl PreviewApplication {
         }
     }
 
-    fn apply_material_parameters(&mut self) {
+    fn apply_material_parameters(&mut self) -> Result<(), String> {
         let Some(renderer) = &mut self.renderer else {
-            return;
+            return Err("Preview renderer is unavailable".into());
         };
-        renderer.reset_material_factors();
+        let mut authored = Vec::new();
+        let mut overrides = Vec::new();
         let lod_count = self.package.document().lods.len();
         for presentation in &self.presentations {
             let ownership = presentation_ownership(presentation, lod_count);
-            let _ = renderer
-                .add_material_factors(cdmw_material_preview_factors(presentation), &ownership);
+            authored.push((cdmw_material_preview_factors(presentation), ownership));
         }
         let groups = self
             .state
@@ -1622,14 +1593,22 @@ impl PreviewApplication {
                 emissive_intensity: optional_f32(group, "emissive_intensity"),
                 ..MaterialPreviewFactors::default()
             };
-            let _ = renderer.add_material_factors(factors, &ownership);
+            if factors != MaterialPreviewFactors::default() {
+                overrides.push((factors, ownership));
+            }
         }
-        let _ = renderer.set_material_lod(self.package.source_lod_index());
+        let lod = self.package.source_lod_index();
+        let factors = cdmw_render_wgpu::preview_material_factors(&authored, &overrides, lod)
+            .map_err(|e| e.to_string())?;
+        renderer
+            .replace_material_factors(&factors, lod)
+            .map_err(|e| e.to_string())
     }
 
     fn rebuild_working_mesh(&mut self) -> std::result::Result<(), String> {
         self.mesh = WorkingMesh::from_document_lod(&self.document, self.package.source_lod_index())
             .map_err(|error| error.to_string())?;
+        self.geometry = PreviewGeometry::from_mesh(&self.mesh);
         self.scene_revision = self.scene_revision.saturating_add(1);
         self.refresh_visible_snapshot();
         Ok(())
@@ -1895,88 +1874,23 @@ impl PreviewApplication {
         Ok(changed)
     }
 
+    fn scene_view(&self) -> crate::preview_geometry::SceneView<'_> {
+        crate::preview_geometry::SceneView {
+            scene: &self.state.scene,
+            presentation: &self.state.presentation,
+            geometry: &self.geometry,
+        }
+    }
+
     fn refresh_visible_snapshot(&mut self) {
-        let mut visible = scene_role_indices(&self.state.scene);
-        let scene_has_roles = !visible.is_empty();
-        let active = self
-            .state
-            .presentation
-            .get("active_view")
-            .and_then(Value::as_str)
-            .unwrap_or_else(|| {
-                match self
-                    .state
-                    .scene
-                    .get("comparison_mode")
-                    .and_then(Value::as_str)
-                {
-                    Some("original_only") => "reference",
-                    Some("overlay" | "side_by_side") => "comparison",
-                    _ => "editable",
-                }
-            });
-        if active == "editable" {
-            visible = editable_indices(&self.state.scene);
-        } else if active == "reference" {
-            visible = reference_indices(&self.state.scene);
-        }
-        if let Some(hidden) = self
-            .state
-            .presentation
-            .get("visibility")
-            .and_then(|value| value.get("hidden_submesh_indices"))
-            .and_then(Value::as_array)
-        {
-            let hidden = hidden
-                .iter()
-                .filter_map(Value::as_u64)
-                .filter_map(|value| u32::try_from(value).ok())
-                .collect::<HashSet<_>>();
-            visible.retain(|index| !hidden.contains(&self.source_part_index(*index)));
-        }
-        let comparison_mode = self
-            .state
-            .presentation
-            .get("comparison_mode")
-            .and_then(Value::as_str)
-            .or_else(|| {
-                self.state
-                    .scene
-                    .get("comparison_mode")
-                    .and_then(Value::as_str)
-            })
-            .unwrap_or("replacement_only");
-        if comparison_mode == "overlay"
-            && self
-                .state
-                .scene
-                .get("reference_draw")
-                .and_then(Value::as_str)
-                .unwrap_or("wire")
-                == "wire"
-        {
-            for index in reference_indices(&self.state.scene) {
-                visible.remove(&index);
-            }
-        }
-        self.snapshot = if visible.is_empty() && !scene_has_roles {
-            self.mesh.draw_snapshot()
-        } else {
-            self.mesh.draw_snapshot_for_submeshes(&visible)
-        };
-        if self
-            .state
-            .presentation
-            .get("uv")
-            .and_then(|value| value.get("flip_v"))
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
-        {
-            for uv in &mut self.snapshot.uvs {
-                uv[1] = 1.0 - uv[1];
-            }
-        }
-        self.snapshot_scene_roles = self.transform_snapshot(&visible, scene_has_roles);
+        (self.snapshot, self.snapshot_scene_roles) = crate::preview_geometry::prepare_snapshot(
+            &self.mesh,
+            &self.geometry,
+            &self.state.scene,
+            &self.state.presentation,
+            &self.package.manifest().interaction_profile,
+            self.scene_revision,
+        );
         if let Some(renderer) = &mut self.renderer {
             if let Some(roles) = self.snapshot_scene_roles.as_deref() {
                 let _ = renderer.set_snapshot_with_scene_roles(&self.snapshot, roles);
@@ -1987,74 +1901,6 @@ impl PreviewApplication {
                 let _ = renderer.set_scene_transform(Mat4::IDENTITY);
             }
         }
-    }
-
-    fn transform_snapshot(&mut self, visible: &HashSet<u32>, filtered: bool) -> Option<Vec<u32>> {
-        let editable = editable_indices(&self.state.scene);
-        let gpu_scene_transform = self.package.manifest().interaction_profile
-            == "static_replacement"
-            && !editable.is_empty()
-            && self
-                .state
-                .presentation
-                .get("part_transforms")
-                .and_then(Value::as_object)
-                .is_none_or(serde_json::Map::is_empty)
-            && self
-                .state
-                .presentation
-                .get("comparison_mode")
-                .and_then(Value::as_str)
-                .or_else(|| {
-                    self.state
-                        .scene
-                        .get("comparison_mode")
-                        .and_then(Value::as_str)
-                })
-                != Some("side_by_side");
-        let mut scene_roles =
-            gpu_scene_transform.then(|| Vec::with_capacity(self.snapshot.positions.len()));
-        let mut snapshot_index = 0usize;
-        for (_handle, vertex) in self.mesh.vertices() {
-            let source_submesh = match vertex.provenance {
-                Provenance::Source { submesh, .. } => submesh,
-                Provenance::Generated { .. } => 0,
-            };
-            if filtered && !visible.contains(&source_submesh) {
-                continue;
-            }
-            let editable_role = gpu_scene_transform && editable.contains(&source_submesh);
-            if let Some(roles) = &mut scene_roles {
-                roles.push(u32::from(editable_role));
-            }
-            if !editable_role {
-                let matrix = self.submesh_model_matrix(source_submesh);
-                if let Some(position) = self.snapshot.positions.get_mut(snapshot_index) {
-                    *position = matrix
-                        .transform_point3(Vec3::from_array(*position))
-                        .to_array();
-                }
-                if let Some(normal) = self.snapshot.normals.get_mut(snapshot_index) {
-                    let normal_matrix = Mat3::from_mat4(matrix).inverse().transpose();
-                    *normal = (normal_matrix * Vec3::from_array(*normal))
-                        .normalize_or(Vec3::Y)
-                        .to_array();
-                }
-            }
-            snapshot_index = snapshot_index.saturating_add(1);
-        }
-        if !gpu_scene_transform {
-            self.snapshot.draw_revision = self
-                .snapshot
-                .draw_revision
-                .wrapping_mul(1_099_511_628_211)
-                .wrapping_add(self.scene_revision);
-            self.snapshot.fingerprint = format!(
-                "{}:scene:{}",
-                self.snapshot.fingerprint, self.scene_revision
-            );
-        }
-        scene_roles
     }
 
     fn emit_view_state(&self, reason: &str) {
@@ -2093,110 +1939,22 @@ impl PreviewApplication {
     }
 
     fn visible_submeshes(&self) -> HashSet<u32> {
-        let mut visible = scene_role_indices(&self.state.scene);
-        let active = self
-            .state
-            .presentation
-            .get("active_view")
-            .and_then(Value::as_str)
-            .unwrap_or_else(|| {
-                match self
-                    .state
-                    .scene
-                    .get("comparison_mode")
-                    .and_then(Value::as_str)
-                {
-                    Some("original_only") => "reference",
-                    Some("overlay" | "side_by_side") => "comparison",
-                    _ => "editable",
-                }
-            });
-        if active == "editable" {
-            visible = editable_indices(&self.state.scene);
-        } else if active == "reference" {
-            visible = reference_indices(&self.state.scene);
-        }
-        if let Some(hidden) = self
-            .state
-            .presentation
-            .get("visibility")
-            .and_then(|value| value.get("hidden_submesh_indices"))
-            .and_then(Value::as_array)
-        {
-            let hidden = hidden
-                .iter()
-                .filter_map(Value::as_u64)
-                .filter_map(|value| u32::try_from(value).ok())
-                .collect::<HashSet<_>>();
-            visible.retain(|index| !hidden.contains(&self.source_part_index(*index)));
-        }
-        visible
+        self.scene_view().visible_submeshes()
     }
 
     fn pick_part(&self, point: Vec2) -> Option<u32> {
-        if !point.is_finite() {
-            return None;
-        }
-        let rectangle = self.viewport_rect();
-        let visible = self.visible_submeshes();
-        let mut best: Option<(f32, u32)> = None;
-        for (_handle, face) in self.mesh.faces() {
-            if !visible.is_empty() && !visible.contains(&face.submesh) {
-                continue;
-            }
-            let mut screen = [Vec2::ZERO; 3];
-            let mut depth = 0.0_f32;
-            let mut valid = true;
-            let matrix = self.submesh_model_matrix(face.submesh);
-            for (corner, handle) in face.vertices.iter().enumerate() {
-                let Some(vertex) = self.mesh.vertex(*handle) else {
-                    valid = false;
-                    break;
-                };
-                let Some(projected) = self.camera.project(
-                    matrix.transform_point3(Vec3::from_array(vertex.position)),
-                    rectangle,
-                ) else {
-                    valid = false;
-                    break;
-                };
-                if !projected.inside_view {
-                    valid = false;
-                    break;
-                }
-                screen[corner] = projected.screen;
-                depth += projected.depth;
-            }
-            if !valid || !point_in_triangle(point, screen[0], screen[1], screen[2]) {
-                continue;
-            }
-            depth /= 3.0;
-            if best.is_none_or(|(current, _)| depth < current) {
-                best = Some((depth, face.submesh));
-            }
-        }
-        best.map(|(_, submesh)| submesh)
+        let (origin, direction, maximum) = self.camera.screen_ray(point, self.viewport_rect())?;
+        self.geometry.pick(
+            origin,
+            direction,
+            maximum,
+            &self.visible_submeshes(),
+            |part| self.submesh_model_matrix(part),
+        )
     }
 
     fn source_part_index(&self, scene_submesh: u32) -> u32 {
-        self.state
-            .scene
-            .get("part_identities")
-            .and_then(Value::as_array)
-            .and_then(|identities| {
-                identities.iter().find_map(|identity| {
-                    (identity.get("scene_submesh_index").and_then(Value::as_u64)
-                        == Some(u64::from(scene_submesh)))
-                    .then(|| {
-                        identity
-                            .get("source_submesh_index")
-                            .and_then(Value::as_u64)
-                            .and_then(|value| u32::try_from(value).ok())
-                            .unwrap_or(scene_submesh)
-                    })
-                })
-            })
-            .unwrap_or(scene_submesh)
+        self.scene_view().source_part_index(scene_submesh)
     }
 
     fn emit_part_pick(&self, phase: &str, point: Vec2, part: Option<u32>) {
@@ -2250,7 +2008,23 @@ impl PreviewApplication {
     }
 
     fn gizmo_length(&self) -> f32 {
-        self.camera.world_units_per_pixel(self.viewport_rect()) * 88.0 * self.ui_scale()
+        let scale = self.state.presentation["display"]["quality"]["gizmo_size_scale"]
+            .as_f64()
+            .unwrap_or(1.0)
+            .clamp(0.5, 3.0) as f32;
+        self.camera.world_units_per_pixel(self.viewport_rect()) * 88.0 * self.ui_scale() * scale
+    }
+
+    fn gizmo_dimensions(&self) -> [f32; 3] {
+        let quality = &self.state.presentation["display"]["quality"];
+        let pixel = self.camera.world_units_per_pixel(self.viewport_rect())
+            * self.ui_scale()
+            * quality_number(quality, "gizmo_size_scale", 1.0, 0.5, 3.0);
+        [
+            quality_number(quality, "gizmo_line_thickness_pixels", 1.0, 0.5, 8.0) * pixel,
+            quality_number(quality, "gizmo_handle_size_pixels", 8.0, 3.0, 40.0) * pixel,
+            quality_number(quality, "gizmo_label_size_pixels", 12.0, 6.0, 48.0) * pixel * 0.5,
+        ]
     }
 
     fn gizmo_handle_at(&self, point: Vec2) -> Option<String> {
@@ -2261,8 +2035,9 @@ impl PreviewApplication {
         let pivot = vec3_value(self.state.scene.get("placement_pivot"), Vec3::ZERO);
         let pivot_screen = self.camera.project(pivot, rectangle)?.screen;
         let scale = self.ui_scale();
-        let threshold = 12.0 * scale;
-        if pivot_screen.distance(point) <= 11.0 * scale {
+        let handle = self.gizmo_dimensions()[1] / self.camera.world_units_per_pixel(rectangle);
+        let threshold = (handle + 4.0 * scale).max(12.0 * scale);
+        if pivot_screen.distance(point) <= handle + 3.0 * scale {
             return Some("center".to_owned());
         }
         let length = self.gizmo_length();
@@ -2403,14 +2178,77 @@ impl PreviewApplication {
         true
     }
 
+    fn cancel_gesture(&mut self) {
+        self.pending_gizmo_update = None;
+        if let Some(drag) = self.gizmo_drag.take() {
+            self.scene_revision = self.scene_revision.saturating_add(1);
+            self.state.scene["placement"] = drag.start_placement.clone();
+            self.state.scene["placement_pivot"] = json!(drag.start_pivot.to_array());
+            self.state.scene["roles"]["editable"]["model_matrix"] =
+                json!(drag.start_model_matrix.to_cols_array());
+            if self.snapshot_scene_roles.is_some() {
+                if let Some(renderer) = &mut self.renderer {
+                    let _ = renderer.set_scene_transform(drag.start_model_matrix);
+                }
+            } else {
+                self.refresh_visible_snapshot();
+            }
+            self.emit_gizmo("cancel", &drag.tool, &drag.handle, &drag.start_placement);
+        }
+        self.navigator_drag = None;
+        self.orbiting = false;
+        self.panning = false;
+        self.left_camera_drag = false;
+        self.right_press = None;
+        self.hovered_gizmo_handle = None;
+    }
+
+    fn camera_drag(&mut self, delta: Vec2) {
+        let quality = &self.state.presentation["display"]["quality"];
+        if self.orbiting {
+            let sensitivity = quality_number(quality, "orbit_sensitivity", 0.22, 0.001, 10.0)
+                .to_radians()
+                / 0.008;
+            let x = if quality["invert_orbit_x"].as_bool() == Some(true) {
+                -1.0
+            } else {
+                1.0
+            };
+            let y = if quality["invert_orbit_y"].as_bool() == Some(true) {
+                -1.0
+            } else {
+                1.0
+            };
+            self.camera.orbit(delta * Vec2::new(x, y) * sensitivity);
+        }
+        if self.panning {
+            let sensitivity = quality["pan_sensitivity"]
+                .as_f64()
+                .unwrap_or(0.60)
+                .clamp(0.001, 10.0) as f32
+                / 0.60;
+            let x = if quality["invert_pan_x"].as_bool() == Some(true) {
+                -1.0
+            } else {
+                1.0
+            };
+            let y = if quality["invert_pan_y"].as_bool() == Some(true) {
+                -1.0
+            } else {
+                1.0
+            };
+            self.camera
+                .pan(delta * Vec2::new(x, y) * sensitivity, self.viewport_rect());
+        }
+    }
+
     fn update_gizmo_drag(&mut self, point: Vec2, phase: &str) -> bool {
         let Some(drag) = self.gizmo_drag.clone() else {
             return false;
         };
         let delta = point - drag.start_pointer;
         let mut placement = drag.start_placement.clone();
-        let mut model_matrix = drag.start_model_matrix;
-        let mut pivot = drag.start_pivot;
+        let pivot = drag.start_pivot;
         match drag.tool.as_str() {
             "rotate" => {
                 let start = vec3_value(placement.get("rotation_degrees"), Vec3::ZERO);
@@ -2418,17 +2256,6 @@ impl PreviewApplication {
                 let axis = handle_axis(&drag.handle).unwrap_or(Vec3::Z);
                 let degrees = axis * amount;
                 placement["rotation_degrees"] = json!((start + degrees).to_array());
-                let radians = degrees * std::f32::consts::PI / 180.0;
-                let rotation = Mat4::from_quat(Quat::from_euler(
-                    EulerRot::XYZ,
-                    radians.x,
-                    radians.y,
-                    radians.z,
-                ));
-                model_matrix = Mat4::from_translation(pivot)
-                    * rotation
-                    * Mat4::from_translation(-pivot)
-                    * model_matrix;
             }
             "scale" => {
                 let start = vec3_value(
@@ -2445,10 +2272,6 @@ impl PreviewApplication {
                     _ => Vec3::splat(factor),
                 };
                 placement["scale"] = json!((start * scale_delta).to_array());
-                model_matrix = Mat4::from_translation(pivot)
-                    * Mat4::from_scale(scale_delta)
-                    * Mat4::from_translation(-pivot)
-                    * model_matrix;
             }
             _ => {
                 let start = vec3_value(placement.get("translation"), Vec3::ZERO);
@@ -2459,45 +2282,28 @@ impl PreviewApplication {
                         delta,
                         self.viewport_rect(),
                     ),
-                    "xy" => {
-                        self.camera
-                            .axis_drag_delta(Vec3::X, pivot, delta, self.viewport_rect())
-                            + self.camera.axis_drag_delta(
-                                Vec3::Y,
-                                pivot,
-                                delta,
-                                self.viewport_rect(),
-                            )
-                    }
-                    "xz" => {
-                        self.camera
-                            .axis_drag_delta(Vec3::X, pivot, delta, self.viewport_rect())
-                            + self.camera.axis_drag_delta(
-                                Vec3::Z,
-                                pivot,
-                                delta,
-                                self.viewport_rect(),
-                            )
-                    }
-                    "yz" => {
-                        self.camera
-                            .axis_drag_delta(Vec3::Y, pivot, delta, self.viewport_rect())
-                            + self.camera.axis_drag_delta(
-                                Vec3::Z,
-                                pivot,
-                                delta,
-                                self.viewport_rect(),
-                            )
+                    "xy" | "xz" | "yz" => {
+                        let normal = match drag.handle.as_str() {
+                            "xy" => Vec3::Z,
+                            "xz" => Vec3::Y,
+                            _ => Vec3::X,
+                        };
+                        self.camera.plane_drag_delta(
+                            normal,
+                            pivot,
+                            drag.start_pointer,
+                            point,
+                            self.viewport_rect(),
+                        )
                     }
                     _ => self
                         .camera
                         .screen_delta_to_world(delta, self.viewport_rect()),
                 };
                 placement["translation"] = json!((start + movement).to_array());
-                model_matrix = Mat4::from_translation(movement) * model_matrix;
-                pivot += movement;
             }
         }
+        let (model_matrix, pivot) = placed_scene(&self.state.scene, &placement);
         if let Some(scene) = self.state.scene.as_object_mut() {
             scene.insert("placement".to_owned(), placement.clone());
             scene.insert("placement_pivot".to_owned(), json!(pivot.to_array()));
@@ -2608,8 +2414,21 @@ impl ApplicationHandler for PreviewApplication {
             return;
         };
         match event {
+            WindowEvent::ModifiersChanged(modifiers) => self.modifiers = modifiers.state(),
             WindowEvent::CloseRequested => self.exit_requested = true,
+            WindowEvent::Focused(false) => {
+                self.cancel_gesture();
+                window.request_redraw();
+            }
+            WindowEvent::KeyboardInput { event, .. }
+                if event.state == ElementState::Pressed
+                    && event.logical_key == Key::Named(NamedKey::Escape) =>
+            {
+                self.cancel_gesture();
+                window.request_redraw();
+            }
             WindowEvent::Resized(size) => {
+                self.cancel_gesture();
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize(size);
                 }
@@ -2636,12 +2455,7 @@ impl ApplicationHandler for PreviewApplication {
                 }
                 if let Some(previous) = self.pointer {
                     let delta = current - previous;
-                    if self.orbiting {
-                        self.camera.orbit(delta);
-                    }
-                    if self.panning {
-                        self.camera.pan(delta, self.viewport_rect());
-                    }
+                    self.camera_drag(delta);
                     if self.orbiting || self.panning {
                         window.request_redraw();
                     }
@@ -2664,7 +2478,22 @@ impl ApplicationHandler for PreviewApplication {
             }
             WindowEvent::MouseInput { state, button, .. } => match (state, button) {
                 (ElementState::Pressed, MouseButton::Left) => {
-                    if let Some(point) = self.pointer
+                    let quality = &self.state.presentation["display"]["quality"];
+                    let pan = camera_modifier_matches(
+                        quality["camera_pan_modifier"].as_str().unwrap_or("shift"),
+                        self.modifiers,
+                    );
+                    let orbit = camera_modifier_matches(
+                        quality["camera_orbit_modifier"]
+                            .as_str()
+                            .unwrap_or("alt_or_ctrl"),
+                        self.modifiers,
+                    );
+                    if pan || orbit {
+                        self.panning = pan;
+                        self.orbiting = !pan && orbit;
+                        self.left_camera_drag = true;
+                    } else if let Some(point) = self.pointer
                         && self.navigator_hit(point)
                     {
                         self.navigator_drag = Some(NavigatorDrag {
@@ -2684,7 +2513,12 @@ impl ApplicationHandler for PreviewApplication {
                     }
                 }
                 (ElementState::Released, MouseButton::Left) => {
-                    if let Some(drag) = self.navigator_drag.take() {
+                    if self.left_camera_drag {
+                        self.left_camera_drag = false;
+                        self.panning = false;
+                        self.orbiting = false;
+                        self.emit_view_state("camera");
+                    } else if let Some(drag) = self.navigator_drag.take() {
                         if !drag.moved
                             && let Some(point) = self.pointer
                             && let Some(view) = self.navigator_view_at(point)
@@ -2703,11 +2537,17 @@ impl ApplicationHandler for PreviewApplication {
                     }
                 }
                 (ElementState::Pressed, MouseButton::Right) => {
-                    self.orbiting = true;
+                    let binding =
+                        self.state.presentation["display"]["quality"]["camera_right_drag"]
+                            .as_str()
+                            .unwrap_or("pan");
+                    self.orbiting = binding == "orbit";
+                    self.panning = binding == "pan";
                     self.right_press = self.pointer;
                 }
                 (ElementState::Released, MouseButton::Right) => {
                     self.orbiting = false;
+                    self.panning = false;
                     let context_click = self
                         .right_press
                         .zip(self.pointer)
@@ -2721,9 +2561,17 @@ impl ApplicationHandler for PreviewApplication {
                         self.emit_view_state("orbit");
                     }
                 }
-                (ElementState::Pressed, MouseButton::Middle) => self.panning = true,
+                (ElementState::Pressed, MouseButton::Middle) => {
+                    let binding =
+                        self.state.presentation["display"]["quality"]["camera_middle_drag"]
+                            .as_str()
+                            .unwrap_or("pan");
+                    self.orbiting = binding == "orbit";
+                    self.panning = binding == "pan";
+                }
                 (ElementState::Released, MouseButton::Middle) => {
                     self.panning = false;
+                    self.orbiting = false;
                     self.emit_view_state("pan");
                 }
                 _ => {}
@@ -2748,10 +2596,35 @@ impl ApplicationHandler for PreviewApplication {
                     renderer.set_view_mode(self.view_mode);
                     renderer.set_camera_with_basis(camera, self.camera.right(), self.camera.up());
                     renderer.set_mesh_viewport(None);
-                    let _ = renderer.render();
+                    match renderer.render() {
+                        Ok(()) => {
+                            self.render_failures = 0;
+                            self.next_frame = None;
+                        }
+                        Err(cdmw_render_wgpu::RenderError::SurfaceFrame(reason))
+                            if matches!(
+                                reason.as_str(),
+                                "timeout" | "outdated" | "lost" | "occluded"
+                            ) =>
+                        {
+                            self.render_failures = self.render_failures.saturating_add(1);
+                            if self.visible && self.render_failures <= 5 {
+                                self.next_frame = Some(Instant::now() + Duration::from_millis(50));
+                            } else if self.render_failures == 6 {
+                                self.next_frame = None;
+                                self.bridge.send(json!({"event":"error","error":format!("Preview surface failed: {reason}")}));
+                            }
+                        }
+                        Err(error) => {
+                            self.render_failures = 6;
+                            self.bridge
+                                .send(json!({"event":"error","error":error.to_string()}));
+                            self.next_frame = None;
+                        }
+                    }
                 }
-                if self.has_dynamic_effects() {
-                    window.request_redraw();
+                if self.render_failures == 0 && self.has_dynamic_effects() {
+                    self.next_frame = Some(Instant::now() + Duration::from_millis(16));
                 }
             }
             _ => {}
@@ -2767,9 +2640,46 @@ impl ApplicationHandler for PreviewApplication {
         if changed && let Some(window) = &self.window {
             window.request_redraw();
         }
+        if let Some(deadline) = self.next_frame
+            && Instant::now() >= deadline
+        {
+            self.next_frame = None;
+            if self.visible
+                && let Some(window) = &self.window
+            {
+                window.request_redraw();
+            }
+        }
+        event_loop.set_control_flow(
+            self.next_frame
+                .map_or(ControlFlow::Wait, ControlFlow::WaitUntil),
+        );
         if self.exit_requested {
+            // winit 0.30 on Windows prepares AboutToWait before entering its
+            // OS wait. Make this final wait nonblocking when closing hidden.
+            event_loop.set_control_flow(ControlFlow::Poll);
             event_loop.exit();
         }
+    }
+}
+
+fn quality_number(quality: &Value, key: &str, default: f32, min: f32, max: f32) -> f32 {
+    quality
+        .get(key)
+        .and_then(Value::as_f64)
+        .map(|v| v as f32)
+        .filter(|v| v.is_finite())
+        .unwrap_or(default)
+        .clamp(min, max)
+}
+
+fn camera_modifier_matches(binding: &str, modifiers: ModifiersState) -> bool {
+    match binding {
+        "shift" => modifiers.shift_key(),
+        "ctrl" => modifiers.control_key(),
+        "alt" => modifiers.alt_key(),
+        "alt_or_ctrl" => modifiers.alt_key() || modifiers.control_key(),
+        _ => false,
     }
 }
 
@@ -2823,7 +2733,7 @@ fn matrix_from_protocol(value: Option<&Value>) -> Mat4 {
     Mat4::from_cols_array(&matrix)
 }
 
-fn role_model_matrix(scene: &Value, role: &str) -> Mat4 {
+pub(crate) fn role_model_matrix(scene: &Value, role: &str) -> Mat4 {
     matrix_from_protocol(
         scene
             .get("roles")
@@ -3564,22 +3474,6 @@ fn effect_emitter_lines(
     lines
 }
 
-fn placement_matrix(value: &Value) -> Mat4 {
-    let translation = vec3_value(value.get("translation"), Vec3::ZERO);
-    let degrees = vec3_value(value.get("rotation_degrees"), Vec3::ZERO);
-    let rotation = Vec3::new(
-        degrees.x.to_radians(),
-        degrees.y.to_radians(),
-        degrees.z.to_radians(),
-    );
-    let scale = vec3_value(
-        value.get("scale").or_else(|| value.get("scale_xyz")),
-        Vec3::ONE,
-    );
-    let rotation = Quat::from_euler(EulerRot::XYZ, rotation.x, rotation.y, rotation.z);
-    Mat4::from_scale_rotation_translation(scale, rotation, translation)
-}
-
 fn json_index(value: &Value, key: &str) -> std::result::Result<usize, String> {
     value
         .get(key)
@@ -3794,13 +3688,13 @@ fn role_indices(scene: &Value, role: &str) -> HashSet<u32> {
         .collect()
 }
 
-fn editable_indices(scene: &Value) -> HashSet<u32> {
+pub(crate) fn editable_indices(scene: &Value) -> HashSet<u32> {
     role_indices(scene, "editable")
 }
-fn reference_indices(scene: &Value) -> HashSet<u32> {
+pub(crate) fn reference_indices(scene: &Value) -> HashSet<u32> {
     role_indices(scene, "reference")
 }
-fn scene_role_indices(scene: &Value) -> HashSet<u32> {
+pub(crate) fn scene_role_indices(scene: &Value) -> HashSet<u32> {
     let mut values = editable_indices(scene);
     values.extend(reference_indices(scene));
     values
@@ -4028,9 +3922,11 @@ fn push_transform_gizmo(
     selected: Option<&str>,
     colours: [[f32; 4]; 3],
     highlight: [f32; 4],
+    dimensions: [f32; 3],
+    label_colour: Option<[f32; 4]>,
 ) {
     let length = length.max(1.0e-4);
-    let width = length * 0.008;
+    let [width, handle, label_size] = dimensions;
     if tool == "rotate" {
         for (index, (axis, label)) in [(Vec3::X, "x"), (Vec3::Y, "y"), (Vec3::Z, "z")]
             .into_iter()
@@ -4060,7 +3956,7 @@ fn push_transform_gizmo(
             pivot,
             camera_right,
             camera_up,
-            length * 0.075,
+            handle,
             selected_colour(selected, "center", [0.82, 0.84, 0.90, 1.0], highlight),
         );
         return;
@@ -4078,7 +3974,7 @@ fn push_transform_gizmo(
         let tip = pivot + axis * length;
         push_outlined_line(lines, pivot, tip, camera_right, camera_up, width, colour);
         if tool == "scale" {
-            push_billboard_diamond(lines, tip, camera_right, camera_up, length * 0.085, colour);
+            push_billboard_diamond(lines, tip, camera_right, camera_up, handle, colour);
         } else {
             let perpendicular = if axis.dot(camera_right).abs() < 0.86 {
                 camera_right.normalize_or(Vec3::X)
@@ -4102,9 +3998,9 @@ fn push_transform_gizmo(
             tip + axis * length * 0.20,
             camera_right,
             camera_up,
-            length * 0.065,
+            label_size,
             glyph,
-            colour,
+            label_colour.unwrap_or(colour),
         );
     }
 
@@ -4141,7 +4037,7 @@ fn push_transform_gizmo(
         pivot,
         camera_right,
         camera_up,
-        length * 0.085,
+        handle,
         selected_colour(selected, "center", [0.88, 0.90, 0.96, 1.0], highlight),
     );
 }
@@ -4213,6 +4109,8 @@ fn push_gizmo_axes(
         None,
         colours,
         [1.0, 0.88, 0.37, 0.96],
+        [length * 0.008, length * 0.085, length * 0.065],
+        None,
     );
 }
 
@@ -4229,18 +4127,6 @@ fn grid_plane_axes(grid: &Value) -> (Vec3, Vec3) {
         "z" => (Vec3::X, Vec3::Y),
         _ => (Vec3::X, Vec3::Z),
     }
-}
-
-fn point_in_triangle(point: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
-    let edge = |first: Vec2, second: Vec2, sample: Vec2| {
-        (sample.x - second.x) * (first.y - second.y) - (first.x - second.x) * (sample.y - second.y)
-    };
-    let d1 = edge(point, a, b);
-    let d2 = edge(point, b, c);
-    let d3 = edge(point, c, a);
-    let negative = d1 < -1.0e-4 || d2 < -1.0e-4 || d3 < -1.0e-4;
-    let positive = d1 > 1.0e-4 || d2 > 1.0e-4 || d3 > 1.0e-4;
-    !(negative && positive)
 }
 
 #[cfg(test)]
@@ -4360,7 +4246,7 @@ mod tests {
             3,
             Mat4::from_scale_rotation_translation(
                 Vec3::splat(2.0),
-                Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+                glam::Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
                 Vec3::new(1.0, 2.0, 3.0),
             ),
             Vec3::X,

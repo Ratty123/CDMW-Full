@@ -14,6 +14,10 @@ mod headless_tests;
 mod headless_ui_tests;
 mod loader;
 mod preview_core_material;
+mod preview_geometry;
+#[cfg(all(test, target_os = "windows"))]
+mod preview_gpu_tests;
+mod preview_loader;
 mod viewport;
 
 use anyhow::{Context, Result, bail};
@@ -112,8 +116,12 @@ fn main() -> Result<()> {
             .embedded_parent_hwnd
             .context("--cdmw-preview-session requires --embedded-parent-hwnd <decimal>")?;
         let event_loop = EventLoop::new().context("failed to create the Windows event loop")?;
-        event_loop.set_control_flow(ControlFlow::Poll);
-        let mut application = cdmw_preview::PreviewApplication::open(&manifest_path, parent_hwnd)?;
+        event_loop.set_control_flow(ControlFlow::Wait);
+        let mut application = cdmw_preview::PreviewApplication::open(
+            &manifest_path,
+            parent_hwnd,
+            event_loop.create_proxy(),
+        )?;
         event_loop
             .run_app(&mut application)
             .context("Rust Archive Preview event loop failed")?;

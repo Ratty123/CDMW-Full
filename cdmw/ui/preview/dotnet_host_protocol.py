@@ -211,7 +211,11 @@ class DotNetPreviewHostProtocolMixin:
             start = starts[tool] = current
             self.alignment_drag_started.emit()
         delta = tuple(float(current[index]) - float(start[index]) for index in range(3))
-        if phase == "end":
+        if phase == "cancel":
+            # Finish with a zero delta so consumers restore their drag baseline.
+            starts.pop(tool, None)
+            finished.emit(0.0, 0.0, 0.0)
+        elif phase == "end":
             starts.pop(tool, None)
             finished.emit(*delta)
         else:

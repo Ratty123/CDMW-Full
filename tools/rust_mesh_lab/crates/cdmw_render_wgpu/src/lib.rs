@@ -1458,6 +1458,8 @@ pub struct MaterialPreviewFactors {
     pub skin_detail_opacity: Option<f32>,
 }
 
+pub type OwnedMaterialFactors = (MaterialPreviewFactors, Vec<Vec<u32>>);
+
 const INTEGRATED_DEPTH_ELONGATION_RATIO: f32 = 1.5;
 const INTEGRATED_BROADSIDE_PITCH: f32 = -35.0 * std::f32::consts::PI / 180.0;
 
@@ -2386,6 +2388,30 @@ fn view_direction_from_view_projection(view_projection: Mat4) -> Vec3 {
     (near - far).normalize_or(-Vec3::Z)
 }
 
+/// A submitted frame. GPU waiting and file encoding belong on a worker.
+pub struct PendingFrameCapture {
+    device: wgpu::Device,
+    readback: wgpu::Buffer,
+    width: u32,
+    height: u32,
+    format: wgpu::TextureFormat,
+}
+impl PendingFrameCapture {
+    pub fn write(self, path: &Path) -> Result<(), RenderError> {
+        let mut pixels =
+            read_headless_pixels(&self.device, &self.readback, self.width, self.height)?;
+        if matches!(
+            self.format,
+            wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb
+        ) {
+            for pixel in pixels.chunks_exact_mut(4) {
+                pixel.swap(0, 2);
+            }
+        }
+        write_bgra_image(path, self.width, self.height, &pixels)
+    }
+}
+
 pub struct WindowRenderer {
     _instance: wgpu::Instance,
     surface: wgpu::Surface<'static>,
@@ -2439,6 +2465,63 @@ pub struct WindowRenderer {
 }
 
 impl WindowRenderer {
+    /// Replace resources as one transaction. A failed upload must leave the
+    /// resident scene usable, including its bindings and live transform.
+    pub fn replace_preview_scene<T>(
+        &mut self,
+        apply: impl FnOnce(&mut Self) -> Result<T, RenderError>,
+    ) -> Result<T, RenderError> {
+        let mesh = self.mesh.take();
+        let textures = std::mem::take(&mut self.material_textures);
+        let factors = std::mem::take(&mut self.material_factors);
+        let bindings = std::mem::take(&mut self.active_material_bindings);
+        let effects = self.effect_textures.split_off(1);
+        let batches = std::mem::take(&mut self.effect_batches);
+        let camera = self.camera_uniform;
+        let stats = self.upload_stats;
+        let result = apply(self);
+        if result.is_err() {
+            self.mesh = mesh;
+            self.material_textures = textures;
+            self.material_factors = factors;
+            self.active_material_bindings = bindings;
+            self.effect_textures.truncate(1);
+            self.effect_textures.extend(effects);
+            self.effect_batches = batches;
+            self.camera_uniform = camera;
+            self.upload_stats = stats;
+            self.queue
+                .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&camera));
+        }
+        result
+    }
+
+    pub fn replace_material_factors(
+        &mut self,
+        factors: &[OwnedMaterialFactors],
+        lod: usize,
+    ) -> Result<(), RenderError> {
+        for (factor, owners) in factors {
+            validate_material_factor_ownership(*factor, owners)?;
+        }
+        resolve_material_factors(factors.iter().map(|(f, o)| (*f, o.as_slice())), lod)?;
+        let old = std::mem::replace(
+            &mut self.material_factors,
+            factors
+                .iter()
+                .map(|(f, o)| MaterialFactorOwnership {
+                    factors: *f,
+                    material_indices_by_lod: o.clone(),
+                })
+                .collect(),
+        );
+        if let Err(error) = self.set_material_lod(lod) {
+            self.material_factors = old;
+            return Err(error);
+        }
+        Ok(())
+    }
+
     pub async fn new(window: Arc<Window>) -> Result<Self, RenderError> {
         let mut instance_descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
         instance_descriptor.backends = wgpu::Backends::DX12;
@@ -3133,7 +3216,6 @@ impl WindowRenderer {
         ) {
             Ok(active) => active,
             Err(error) => {
-                self.active_material_bindings.clear();
                 return Err(error);
             }
         };
@@ -3145,7 +3227,6 @@ impl WindowRenderer {
         ) {
             Ok(factors) => factors,
             Err(error) => {
-                self.active_material_bindings.clear();
                 return Err(error);
             }
         };
@@ -3218,72 +3299,25 @@ impl WindowRenderer {
         self.render_frame(paint_jobs, Some((textures, pixels_per_point)))
     }
 
-    fn render_frame(
-        &mut self,
-        paint_jobs: &[egui::ClippedPrimitive],
-        egui_frame: Option<(&egui::TexturesDelta, f32)>,
-    ) -> Result<(), RenderError> {
-        let frame = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame) => frame,
-            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
-                self.surface.configure(&self.device, &self.config);
-                frame
-            }
-            wgpu::CurrentSurfaceTexture::Timeout => {
-                return Err(RenderError::SurfaceFrame("timeout".to_owned()));
-            }
-            wgpu::CurrentSurfaceTexture::Occluded => {
-                return Err(RenderError::SurfaceFrame("occluded".to_owned()));
-            }
-            wgpu::CurrentSurfaceTexture::Outdated => {
-                self.surface.configure(&self.device, &self.config);
-                return Err(RenderError::SurfaceFrame("outdated".to_owned()));
-            }
-            wgpu::CurrentSurfaceTexture::Lost => {
-                return Err(RenderError::SurfaceFrame("lost".to_owned()));
-            }
-            wgpu::CurrentSurfaceTexture::Validation => {
-                return Err(RenderError::SurfaceFrame("validation".to_owned()));
-            }
-        };
-        let view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("CDMW Rust Mesh Lab frame"),
-            });
-        let screen_descriptor =
-            egui_frame.map(|(_, pixels_per_point)| egui_wgpu::ScreenDescriptor {
-                size_in_pixels: [self.config.width, self.config.height],
-                pixels_per_point,
-            });
-        let mut command_buffers = Vec::new();
-        if let Some((textures, _)) = egui_frame {
-            for (id, deltas) in &textures.set {
-                for delta in deltas {
-                    self.egui_renderer
-                        .update_texture(&self.device, &self.queue, *id, delta);
-                }
-            }
-            if let Some(descriptor) = &screen_descriptor {
-                command_buffers = self.egui_renderer.update_buffers(
-                    &self.device,
-                    &self.queue,
-                    &mut encoder,
-                    paint_jobs,
-                    descriptor,
-                );
-            }
-        }
+    // Shared by the window and capture: identical mesh, transforms, materials,
+    // lighting, depth, MSAA and effects, with an explicit output target.
+    #[allow(clippy::too_many_arguments)]
+    fn record_scene(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        depth: &wgpu::TextureView,
+        multisample: Option<&MultisampleTarget>,
+        output_width: u32,
+        output_height: u32,
+        viewport: Option<[f32; 4]>,
+    ) {
         {
-            let (mesh_color_view, resolve_target, store) =
-                if let Some(target) = &self.multisample_target {
-                    (&target.view, Some(&view), wgpu::StoreOp::Discard)
-                } else {
-                    (&view, None, wgpu::StoreOp::Store)
-                };
+            let (mesh_color_view, resolve_target, store) = if let Some(target) = multisample {
+                (&target.view, Some(view), wgpu::StoreOp::Discard)
+            } else {
+                (view, None, wgpu::StoreOp::Store)
+            };
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("CDMW Rust Mesh Lab viewport"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -3296,7 +3330,7 @@ impl WindowRenderer {
                     depth_slice: None,
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_target.view,
+                    view: depth,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -3308,18 +3342,18 @@ impl WindowRenderer {
                 multiview_mask: None,
             });
             if let Some(mesh) = &self.mesh {
-                if let Some([x, y, width, height]) = self.mesh_viewport {
-                    let maximum_x = self.config.width.saturating_sub(1) as f32;
-                    let maximum_y = self.config.height.saturating_sub(1) as f32;
+                if let Some([x, y, width, height]) = viewport {
+                    let maximum_x = output_width.saturating_sub(1) as f32;
+                    let maximum_y = output_height.saturating_sub(1) as f32;
                     let x = x.clamp(0.0, maximum_x);
                     let y = y.clamp(0.0, maximum_y);
-                    let width = width.max(1.0).min(self.config.width as f32 - x);
-                    let height = height.max(1.0).min(self.config.height as f32 - y);
+                    let width = width.max(1.0).min(output_width as f32 - x);
+                    let height = height.max(1.0).min(output_height as f32 - y);
                     pass.set_viewport(x, y, width, height, 0.0, 1.0);
                     let scissor_x = x.floor() as u32;
                     let scissor_y = y.floor() as u32;
-                    let scissor_right = (x + width).ceil().min(self.config.width as f32) as u32;
-                    let scissor_bottom = (y + height).ceil().min(self.config.height as f32) as u32;
+                    let scissor_right = (x + width).ceil().min(output_width as f32) as u32;
+                    let scissor_bottom = (y + height).ceil().min(output_height as f32) as u32;
                     pass.set_scissor_rect(
                         scissor_x,
                         scissor_y,
@@ -3362,6 +3396,170 @@ impl WindowRenderer {
                 );
             }
         }
+    }
+
+    pub fn capture_frame(
+        &mut self,
+        width: u32,
+        height: u32,
+        material: Option<u32>,
+    ) -> Result<PendingFrameCapture, RenderError> {
+        if width == 0 || height == 0 || width > 2048 || height > 2048 {
+            return Err(RenderError::ResourceLimit);
+        }
+        let saved_ranges = if let Some(material) = material {
+            let mesh = self
+                .mesh
+                .as_mut()
+                .ok_or_else(|| RenderError::InvalidSnapshot("No resident mesh".into()))?;
+            let filtered: Vec<_> = mesh
+                .material_ranges
+                .iter()
+                .filter(|range| range.material == material)
+                .copied()
+                .collect();
+            if filtered.is_empty() {
+                return Err(RenderError::InvalidSnapshot(
+                    "Capture material owns no visible triangles".into(),
+                ));
+            }
+            Some(std::mem::replace(&mut mesh.material_ranges, filtered))
+        } else {
+            None
+        };
+        let color = create_headless_color_target(&self.device, self.config.format, width, height);
+        let view = color.create_view(&wgpu::TextureViewDescriptor::default());
+        let depth =
+            create_depth_target_with_sample_count(&self.device, width, height, self.sample_count);
+        let multisample = create_multisample_target(
+            &self.device,
+            self.config.format,
+            width,
+            height,
+            self.sample_count,
+        );
+        let bytes_per_row = padded_headless_bytes_per_row(width);
+        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("CDMW resident preview capture"),
+            size: u64::from(bytes_per_row) * u64::from(height),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        self.record_scene(
+            &mut encoder,
+            &view,
+            &depth.view,
+            multisample.as_ref(),
+            width,
+            height,
+            None,
+        );
+        if let Some(ranges) = saved_ranges {
+            self.mesh.as_mut().expect("resident mesh").material_ranges = ranges;
+        }
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &color,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit([encoder.finish()]);
+        Ok(PendingFrameCapture {
+            device: self.device.clone(),
+            readback,
+            width,
+            height,
+            format: self.config.format,
+        })
+    }
+
+    fn render_frame(
+        &mut self,
+        paint_jobs: &[egui::ClippedPrimitive],
+        egui_frame: Option<(&egui::TexturesDelta, f32)>,
+    ) -> Result<(), RenderError> {
+        let frame = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(frame) => frame,
+            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
+                self.surface.configure(&self.device, &self.config);
+                frame
+            }
+            wgpu::CurrentSurfaceTexture::Timeout => {
+                return Err(RenderError::SurfaceFrame("timeout".to_owned()));
+            }
+            wgpu::CurrentSurfaceTexture::Occluded => {
+                return Err(RenderError::SurfaceFrame("occluded".to_owned()));
+            }
+            wgpu::CurrentSurfaceTexture::Outdated => {
+                self.surface.configure(&self.device, &self.config);
+                return Err(RenderError::SurfaceFrame("outdated".to_owned()));
+            }
+            wgpu::CurrentSurfaceTexture::Lost => {
+                self.surface.configure(&self.device, &self.config);
+                return Err(RenderError::SurfaceFrame("lost".to_owned()));
+            }
+            wgpu::CurrentSurfaceTexture::Validation => {
+                return Err(RenderError::SurfaceFrame("validation".to_owned()));
+            }
+        };
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("CDMW Rust Mesh Lab frame"),
+            });
+        let screen_descriptor =
+            egui_frame.map(|(_, pixels_per_point)| egui_wgpu::ScreenDescriptor {
+                size_in_pixels: [self.config.width, self.config.height],
+                pixels_per_point,
+            });
+        let mut command_buffers = Vec::new();
+        if let Some((textures, _)) = egui_frame {
+            for (id, deltas) in &textures.set {
+                for delta in deltas {
+                    self.egui_renderer
+                        .update_texture(&self.device, &self.queue, *id, delta);
+                }
+            }
+            if let Some(descriptor) = &screen_descriptor {
+                command_buffers = self.egui_renderer.update_buffers(
+                    &self.device,
+                    &self.queue,
+                    &mut encoder,
+                    paint_jobs,
+                    descriptor,
+                );
+            }
+        }
+        self.record_scene(
+            &mut encoder,
+            &view,
+            &self.depth_target.view,
+            self.multisample_target.as_ref(),
+            self.config.width,
+            self.config.height,
+            self.mesh_viewport,
+        );
         if let Some(descriptor) = &screen_descriptor {
             let ui_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("CDMW Rust Mesh Lab egui"),
@@ -3449,6 +3647,7 @@ fn validate_material_factor_ownership(
         && factors.specular.is_none()
         && factors.height_scale.is_none()
         && factors.texture_tint.is_none()
+        && factors.base_tint_strength.is_none()
         && factors.alpha_cutoff.is_none()
         && factors.hair_anisotropy.is_none()
         && factors.layer_mask_channel.is_none()
@@ -6045,10 +6244,13 @@ fn read_headless_pixels(
             let _ = sender.send(result);
         });
     device
-        .poll(wgpu::PollType::wait_indefinitely())
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
         .map_err(|error| RenderError::Device(format!("headless readback wait failed: {error}")))?;
     receiver
-        .recv()
+        .recv_timeout(std::time::Duration::from_secs(1))
         .map_err(|error| {
             RenderError::Device(format!("headless readback callback failed: {error}"))
         })?
@@ -7123,6 +7325,83 @@ fn resolve_material_bindings<'a>(
         }
     }
     Ok(active)
+}
+
+/// Resolve authored layers first, then apply explicit user overrides per material.
+/// Conflicts within either input remain errors; an override replaces only its fields.
+pub fn preview_material_factors(
+    authored: &[OwnedMaterialFactors],
+    overrides: &[OwnedMaterialFactors],
+    lod: usize,
+) -> Result<Vec<OwnedMaterialFactors>, RenderError> {
+    for (factors, owners) in authored.iter().chain(overrides) {
+        validate_material_factor_ownership(*factors, owners)?;
+    }
+    let mut resolved =
+        resolve_material_factors(authored.iter().map(|(f, o)| (*f, o.as_slice())), lod)?;
+    let changes = resolve_material_factors(overrides.iter().map(|(f, o)| (*f, o.as_slice())), lod)?;
+    for (material, changes) in changes {
+        let target = resolved.entry(material).or_default();
+        if changes.emissive_color.is_some() {
+            target.emissive_color = changes.emissive_color;
+        }
+        if changes.emissive_intensity.is_some() {
+            target.emissive_intensity = changes.emissive_intensity;
+        }
+        if changes.roughness.is_some() {
+            target.roughness = changes.roughness;
+        }
+        if changes.metalness.is_some() {
+            target.metalness = changes.metalness;
+        }
+        if changes.specular.is_some() {
+            target.specular = changes.specular;
+        }
+        if changes.height_scale.is_some() {
+            target.height_scale = changes.height_scale;
+        }
+        if changes.texture_tint.is_some() {
+            target.texture_tint = changes.texture_tint;
+        }
+        if changes.base_tint_strength.is_some() {
+            target.base_tint_strength = changes.base_tint_strength;
+        }
+        if changes.alpha_cutoff.is_some() {
+            target.alpha_cutoff = changes.alpha_cutoff;
+        }
+        if changes.hair_anisotropy.is_some() {
+            target.hair_anisotropy = changes.hair_anisotropy;
+        }
+        if changes.layer_mask_channel.is_some() {
+            target.layer_mask_channel = changes.layer_mask_channel;
+        }
+        if changes.category_code.is_some() {
+            target.category_code = changes.category_code;
+        }
+        if changes.category_confidence.is_some() {
+            target.category_confidence = changes.category_confidence;
+        }
+        if changes.normal_y_inverted.is_some() {
+            target.normal_y_inverted = changes.normal_y_inverted;
+        }
+        if changes.texture_flip_vertical.is_some() {
+            target.texture_flip_vertical = changes.texture_flip_vertical;
+        }
+        if changes.skin_detail_scale.is_some() {
+            target.skin_detail_scale = changes.skin_detail_scale;
+        }
+        if changes.skin_detail_opacity.is_some() {
+            target.skin_detail_opacity = changes.skin_detail_opacity;
+        }
+    }
+    Ok(resolved
+        .into_iter()
+        .map(|(material, factors)| {
+            let mut owners = vec![Vec::new(); lod + 1];
+            owners[lod].push(material);
+            (factors, owners)
+        })
+        .collect())
 }
 
 fn resolve_material_factors<'a>(
@@ -9451,6 +9730,50 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn preview_overrides_replace_authored_fields_without_losing_other_fields() {
+        let authored = [(
+            MaterialPreviewFactors {
+                roughness: Some(0.2),
+                metalness: Some(0.8),
+                ..Default::default()
+            },
+            vec![vec![2, 3]],
+        )];
+        let overrides = [(
+            MaterialPreviewFactors {
+                roughness: Some(0.7),
+                ..Default::default()
+            },
+            vec![vec![2]],
+        )];
+        let merged = preview_material_factors(&authored, &overrides, 0).expect("valid override");
+        let resolved = resolve_material_factors(merged.iter().map(|(f, o)| (*f, o.as_slice())), 0)
+            .expect("one owner per material");
+        assert_eq!(resolved[&2].roughness, Some(0.7));
+        assert_eq!(resolved[&2].metalness, Some(0.8));
+        assert_eq!(resolved[&3].roughness, Some(0.2));
+        let invalid = [(
+            MaterialPreviewFactors {
+                roughness: Some(f32::NAN),
+                ..Default::default()
+            },
+            vec![vec![2]],
+        )];
+        assert!(preview_material_factors(&authored, &invalid, 0).is_err());
+        let conflicting = [
+            overrides[0].clone(),
+            (
+                MaterialPreviewFactors {
+                    roughness: Some(0.9),
+                    ..Default::default()
+                },
+                vec![vec![2]],
+            ),
+        ];
+        assert!(preview_material_factors(&authored, &conflicting, 0).is_err());
     }
 
     #[test]

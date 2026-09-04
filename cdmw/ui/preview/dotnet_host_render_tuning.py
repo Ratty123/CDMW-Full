@@ -66,6 +66,12 @@ def render_tuning_payloads(
             DEFAULT_RIGHT_DRAG,
         ),
     }
+    for key in ("gizmo_x_axis_color", "gizmo_y_axis_color", "gizmo_z_axis_color",
+                "gizmo_highlight_color", "gizmo_label_color"):
+        quality[key] = str(getattr(settings, key, "") or "")
+    for key, default in (("gizmo_size_scale", 1.0), ("gizmo_line_thickness_pixels", 1.0),
+                         ("gizmo_label_size_pixels", 12.0), ("gizmo_handle_size_pixels", 8.0)):
+        quality[key] = float(getattr(settings, key, default))
     cloth = dict(current_cloth)
     cloth.update(
         {

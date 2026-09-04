@@ -544,6 +544,7 @@ class NewItemPreviewControllerMixin:
                             metadata={"surface": "new_item_studio", "source_path": entry.path},
                             fast_package_ready=fast_package_ready,
                         )
+                        shutil.rmtree(native_package, ignore_errors=True)
                         return Path(package.package_dir)
                 except RunCancelled:
                     shutil.rmtree(native_package, ignore_errors=True)
