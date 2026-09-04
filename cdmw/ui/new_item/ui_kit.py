@@ -80,6 +80,9 @@ def step_style(palette) -> str:
     text = palette.color(QPalette.ColorRole.WindowText).name()
     muted = muted_color(palette)
     caution = palette.color(QPalette.ColorRole.Link).name()
+    hover = palette.color(QPalette.ColorRole.Highlight).lighter(112).name()
+    pressed = palette.color(QPalette.ColorRole.Highlight).darker(115).name()
+    disabled = palette.color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText).name()
     return (STEP_STYLE % {"muted": muted}) + f"""
         QWidget#new_item_steps, QStackedWidget {{ background: {background}; }}
         QGroupBox#new_item_step[guidedPage="true"] {{ border: none; margin-top: 0; padding: 0; }}
@@ -106,6 +109,32 @@ def step_style(palette) -> str:
         QGroupBox#new_item_step QLineEdit, QGroupBox#new_item_step QComboBox,
         QGroupBox#new_item_step QDoubleSpinBox, QGroupBox#new_item_step QPushButton {{ min-height: 30px; }}
         QLabel#new_item_step_counter {{ color: {muted}; }}
+        QGroupBox#new_item_step QGroupBox {{
+            background: {panel}; border: 1px solid {border}; border-radius: 6px;
+            margin-top: 18px; padding: 12px 8px 8px 8px;
+        }}
+        QGroupBox#new_item_step QGroupBox::title {{
+            subcontrol-origin: margin; subcontrol-position: top left;
+            padding: 0 4px; left: 10px; color: {text}; font-weight: 600;
+        }}
+        QGroupBox#new_item_step QGroupBox[titlelessSection="true"] {{
+            border: none; margin-top: 0; padding: 0;
+        }}
+        QGroupBox#new_item_step QSpinBox {{ min-height: 30px; }}
+        QPushButton[newItemPrimary="true"] {{
+            min-height: 32px; padding: 0 16px; border-radius: 5px;
+            color: {active_text}; background: {active}; border: 1px solid {active}; font-weight: 600;
+        }}
+        QPushButton[newItemPrimary="true"]:hover {{ background: {hover}; border-color: {hover}; }}
+        QPushButton[newItemPrimary="true"]:pressed {{ background: {pressed}; border-color: {pressed}; }}
+        QPushButton[newItemPrimary="true"]:focus {{ border: 2px solid {text}; }}
+        QPushButton[newItemPrimary="true"]:disabled {{ background: {panel}; color: {disabled}; border-color: {border}; }}
+        QToolButton[effectChip="true"]:hover {{ border-color: {active}; }}
+        QToolButton[effectChip="true"]:focus {{ border: 2px solid {active}; }}
+        QToolButton[effectChip="true"]:disabled {{ color: {disabled}; background: {panel}; }}
+        QWidget#effect_action_bar {{ background: {panel}; border-top: 1px solid {border}; }}
+        QLabel#effect_section_heading {{ color: {text}; font-weight: 600; padding-top: 8px; }}
+        QLabel#effect_library_count, QLabel#effect_staging_state {{ color: {muted}; }}
     """
 
 

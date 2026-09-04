@@ -157,6 +157,7 @@ class NewItemStudioTab(QWidget):
         self._progress.setRange(0, 0)
         self._progress.setVisible(False)
         self._read_button = QPushButton("Read the archives")
+        self._read_button.setProperty("newItemPrimary", True)
         self._read_button.clicked.connect(self.start_snapshot)
         self._bootstrap = QWidget()
         boot = QVBoxLayout(self._bootstrap)
@@ -445,6 +446,7 @@ class NewItemStudioTab(QWidget):
         self.back_button = QPushButton("Back")
         self.back_button.clicked.connect(lambda: self._step_by(-1))
         self.continue_button = QPushButton("Continue")
+        self.continue_button.setProperty("newItemPrimary", True)
         self.continue_button.clicked.connect(lambda: self._step_by(+1))
         self.next_button = self.continue_button  # compatibility alias
         footer.addWidget(self.back_button)

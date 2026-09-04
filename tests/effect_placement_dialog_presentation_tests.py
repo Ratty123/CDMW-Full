@@ -149,7 +149,7 @@ class _DialogPresentationMixin:
         self.app.processEvents()
         visible_scrolls = [scroll.objectName() for scroll in workspace.findChildren(QScrollArea) if scroll.isVisibleTo(workspace)]
         self.assertEqual(visible_scrolls, ["effect_inspector_scroll"])
-        inspector_scroll = workspace.preview_splitter.widget(1)
+        inspector_scroll = workspace.findChild(QScrollArea, "effect_inspector_scroll")
         self.assertEqual(inspector_scroll.horizontalScrollBar().maximum(), 0)
         self.assertIs(character_control.parentWidget(), workspace.inspector_widget)
         self.assertEqual(workspace.show_character.text(), "Character")
@@ -167,10 +167,8 @@ class _DialogPresentationMixin:
             "Character uses the existing show-character line despite odd-height control rounding",
         )
         inspector_width = inspector_scroll.viewport().width()
-        apply_bottom = workspace.apply_button.mapTo(
-            inspector_scroll.viewport(), workspace.apply_button.rect().bottomRight()
-        ).y()
-        self.assertLess(apply_bottom, inspector_scroll.viewport().height(), "Apply stays visible at the 900px-window body height")
+        apply_bottom = workspace.apply_button.mapTo(workspace, workspace.apply_button.rect().bottomRight()).y()
+        self.assertLess(apply_bottom, workspace.height(), "Apply stays pinned below the inspector scroll")
         for spin in (*workspace.offset_spins, *workspace.rotation_spins):
             right_edge = spin.mapTo(inspector_scroll.viewport(), spin.rect().bottomRight()).x()
             self.assertLess(right_edge, inspector_width, "every axis value remains visible at the inspector minimum")
@@ -224,6 +222,32 @@ class _DialogPresentationMixin:
         self.assertEqual(workspace.anchor_choice.itemText(trail), "Trail Socket")
         workspace.anchor_choice.setCurrentIndex(trail)
         self.assertEqual(tuple(round(value, 6) for value in workspace.offset), (0.1, 0.2, -0.9))
+
+    def test_guided_comparison_and_pinned_actions_at_short_height(self) -> None:
+        workspace = EffectPlacementWorkspace(
+            item_mesh=_blade(), box_min=(-1, -1, -1), box_max=(1, 1, 1),
+            host_factory=lambda parent: _Host(parent), compatibility_ui=False,
+        )
+        self.addCleanup(workspace.deleteLater)
+        self.addCleanup(workspace.request_shutdown)
+        workspace.resize(1000, 560)
+        workspace.show()
+        self.app.processEvents()
+        scroll = workspace.findChild(QScrollArea, "effect_inspector_scroll")
+        self.assertFalse(scroll.isAncestorOf(workspace.apply_button))
+        before = workspace.apply_button.mapTo(workspace, workspace.apply_button.rect().center())
+        scroll.verticalScrollBar().setValue(scroll.verticalScrollBar().maximum())
+        self.app.processEvents()
+        self.assertEqual(workspace.apply_button.mapTo(workspace, workspace.apply_button.rect().center()), before)
+        self.assertLess(before.y(), workspace.height())
+        self.assertTrue(workspace.show_particles.isVisibleTo(workspace))
+        original = (workspace.scale, workspace.offset, workspace.rotation)
+        workspace.show_particles.setChecked(False)
+        workspace.show_particles.setChecked(True)
+        self.assertEqual(workspace.host.particles[-2:], [False, True])
+        self.assertEqual((workspace.scale, workspace.offset, workspace.rotation), original)
+        workspace._set_viewport_controls_available(False)
+        self.assertFalse(workspace.show_particles.isEnabled())
 
     def test_an_exact_decoder_reason_disables_only_look_authoring(self) -> None:
         workspace = EffectPlacementWorkspace(

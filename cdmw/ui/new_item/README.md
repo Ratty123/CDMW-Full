@@ -85,7 +85,11 @@ errors add an explicit attention badge to the current or visited owning step, in
 price and stat-block issues on **Stats & Prices**. Per-step tooltips and accessibility
 text retain the calculated detail. Its footer keeps Back, `Step N of 7` and Continue
 stable. Output keeps Build plan and its review in the
-left column, with every write and install action in the right. Step 5 is a
+left column, with every write and install action in the right. Existing-overlay
+migration and removal are grouped under **Manage existing overlays**; opening that
+fold never performs an action. Shared section cards and accent primary buttons keep
+Continue, Build plan and Apply placement visually distinct, with palette-based
+hover, pressed, focus and disabled states. Step 5 is a
 non-scrolling full-height page with Perks and Effects tabs. The navigator is a
 compact 46 px row; the outer pages do not
 repeat numbered titles underneath it. Perks & Effects keeps gameplay perks separate
@@ -99,7 +103,13 @@ an all-target success, and never edits a shared borrowed prefab. The Effects tab
 and compact Type and approximate Size columns; the exact stem stays searchable and
 appears in selection details and tooltips instead of being repeated under every row. `No effect` is the
 single empty-state row, so blank
-compatibility and exact-stem labels do not repeat it. Selection, placement and look are staged; Apply publishes one draft
+compatibility and exact-stem labels do not repeat it. Search matches words in the
+readable name as well as the exact stem. Labelled All / Loops / One-shot filters,
+a result count and Reset filters make browsing explicit; the staged selection remains
+visible even when it falls outside the filters. The inspector groups Placement,
+Appearance and Preview, with Apply and Discard pinned below its scroll area.
+**Show effect** toggles only the particles for comparison with the item underneath;
+it never changes the draft, placement or camera. Selection, placement and look are staged; Apply publishes one draft
 change, while Continue stays disabled and direct navigation offers Apply, Discard or
 Stay. The reusable `EffectPlacementWorkspace` keeps one renderer resident, rebuilds
 effect/look packages without resetting the camera, and retains old package files until
@@ -118,7 +128,7 @@ The character reference defaults to the template's player rig. Effects and Model
 reuse Placement & Animations' bare-character choice: the playable rig's nude anatomy plus its
 separate face, never the generic distance proxy that previously made Damian look like another
 body and left Kliff on the bar mannequin. The Effects workspace's
-**Character** control shares the compact character-visibility row in **Placement & Look**,
+**Character** control shares the compact character-visibility row in **Preview**,
 so it does not reserve a separate band above the viewport. It can preview **Auto**, Kliff or
 Damian without changing the template, item output or equip compatibility. `EquipTypeInfo`,
 rather than the model folder's spelling, decides the frame. Hand-carried families reuse the selected

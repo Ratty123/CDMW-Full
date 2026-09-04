@@ -812,7 +812,11 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertEqual(len(held_calls), 1, "geometry and material stages share one assembled character")
         self.assertIsInstance(held_calls[0], threading.Event)
 
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
         imported = SimpleNamespace(
+            cache_identity=("synthetic-character-preview",),
+            bake=ModelPlacement(),
             bake_generation=2,
             mesh_generation=3,
             baked_scene_mesh=lambda: item,

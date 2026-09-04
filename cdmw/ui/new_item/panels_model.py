@@ -411,6 +411,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.fit_button.clicked.connect(self._fit_to_template)
         action_row.addWidget(self.fit_button)
         self.apply_button = QPushButton("Apply the placement")
+        self.apply_button.setProperty("newItemPrimary", True)
         self.apply_button.setToolTip(
             "Build the item's mesh from the model at this placement (the Builder's import over the template's mesh, a few seconds)."
         )

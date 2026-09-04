@@ -300,6 +300,10 @@ class _TabOutputMixin:
 
         # nothing has been installed the old way, so there is nothing to move
         with patch("cdmw.ui.new_item.tab.QMessageBox.information", return_value=None) as told:
+            self.assertFalse(tab.output_panel.overlay_tools.isVisibleTo(tab.output_panel))
+            tab.output_panel.overlay_tools_toggle.click()
+            self.assertTrue(tab.output_panel.overlay_tools.isVisibleTo(tab.output_panel))
+            self.assertFalse(told.called, "expanding maintenance controls performs no action")
             tab.output_panel.overlay_migration_button.click()
         self.assertTrue(told.called, "the step says there is nothing to move rather than writing")
 

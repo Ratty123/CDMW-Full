@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QSizePolicy,
     QSplitter,
     QTableView,
     QToolButton,
@@ -256,7 +257,9 @@ class EffectLibraryModel(QAbstractTableModel):
                 else Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
             )
         if role == int(Qt.ItemDataRole.SizeHintRole):
-            return QSize((24, 170, 64, 108)[index.column()], 24)
+            # Metadata columns use the delegate's font-aware width so translated
+            # types and dimensions do not clip inside a fixed pixel allocation.
+            return QSize((24, 170)[index.column()], 24) if index.column() < 2 else None
         if role == self.StemRole:
             return item.stem
         if role == self.LabelRole:
@@ -317,6 +320,9 @@ class GuidedEffectsWorkspace(QWidget):
         title = QLabel("Effect Library")
         title.setObjectName("effect_library_heading")
         library_layout.addWidget(title)
+        self.library_count = QLabel("")
+        self.library_count.setObjectName("effect_library_count")
+        library_layout.addWidget(self.library_count)
         self.search = QLineEdit()
         self.search.setObjectName("effect_search")
         self.search.setPlaceholderText("Search effects…")
@@ -324,17 +330,17 @@ class GuidedEffectsWorkspace(QWidget):
         self.search.textChanged.connect(self._refresh_library)
         search_row = QHBoxLayout()
         search_row.setSpacing(4)
-        search_row.addWidget(self.search, 1)
+        library_layout.addWidget(self.search)
         self.behavior_group = QButtonGroup(self)
         self.behavior_group.setExclusive(True)
         self.behavior_all = QToolButton()
         self.behavior_all.setText("All")
         self.behavior_all.setToolTip("Show loop and one-shot effects")
         self.loop_only = QToolButton()
-        self.loop_only.setText("↻")
+        self.loop_only.setText("Loops")
         self.loop_only.setToolTip("Show loops only")
         self.one_shot_only = QToolButton()
-        self.one_shot_only.setText("•")
+        self.one_shot_only.setText("One-shot")
         self.one_shot_only.setToolTip("Show one-shot effects only")
         for button in (self.behavior_all, self.loop_only, self.one_shot_only):
             button.setCheckable(True)
@@ -343,6 +349,7 @@ class GuidedEffectsWorkspace(QWidget):
             self.behavior_group.addButton(button)
             search_row.addWidget(button)
         self.behavior_all.setChecked(True)
+        search_row.addStretch(1)
         library_layout.addLayout(search_row)
         self.compatibility_label = QLabel("")
         self.compatibility_label.setObjectName("effect_compatibility")
@@ -404,9 +411,19 @@ class GuidedEffectsWorkspace(QWidget):
         horizontal_header.resizeSection(0, 24)
         self.library_view.selectionModel().currentChanged.connect(self._library_selection_changed)
         library_layout.addWidget(self.library_view, 1)
+        self.empty_results = QLabel("No matching effects. Change or reset the filters.")
+        self.empty_results.setWordWrap(True)
+        self.empty_results.setVisible(False)
+        library_layout.addWidget(self.empty_results)
+        self.reset_filters = QToolButton()
+        self.reset_filters.setText("Reset filters")
+        self.reset_filters.setAutoRaise(True)
+        self.reset_filters.clicked.connect(self._reset_filters)
+        library_layout.addWidget(self.reset_filters, 0, Qt.AlignmentFlag.AlignLeft)
         self.selection_detail = QLabel("")
         self.selection_detail.setObjectName("effect_selection_detail")
         self.selection_detail.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.selection_detail.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.selection_detail.setToolTip("Exact shipped effect stem")
         self.selection_detail.setVisible(False)
         library_layout.addWidget(self.selection_detail)
@@ -597,20 +614,29 @@ class GuidedEffectsWorkspace(QWidget):
 
     def _refresh_library(self, *_args) -> None:
         selected = self._staged.stem
-        stems = list(self._controller.effect_stems(self.search.text(), limit=None))
+        terms = self.search.text().casefold().split()
+        stems = list(self._controller.effect_stems("", limit=None))
         if selected and selected not in stems:
             stems.insert(0, selected)
         category = self._active_category()
         rows = []
+        matches = 0
         for stem in stems:
+            label = self._label_by_stem.get(stem) or effect_display_label(stem)
+            text_matches = all(term in f"{stem} {label}".casefold() for term in terms)
+            if not text_matches and stem != selected:
+                continue
             facts = self._controller.effect_facts(stem)
             row = EffectLibraryRow.from_stem(stem, facts)
-            row = replace(row, label=self._label_by_stem.get(stem, row.label))
-            if stem != selected and category != "All" and row.category != category:
-                continue
-            if stem != selected and self.loop_only.isChecked() and row.behavior != "Loop":
-                continue
-            if stem != selected and self.one_shot_only.isChecked() and row.behavior != "One-shot":
+            row = replace(row, label=label)
+            matched = (
+                text_matches
+                and (category == "All" or row.category == category)
+                and (not self.loop_only.isChecked() or row.behavior == "Loop")
+                and (not self.one_shot_only.isChecked() or row.behavior == "One-shot")
+            )
+            matches += int(matched)
+            if not matched and stem != selected:
                 continue
             rows.append(row)
         rows.sort(key=lambda item: item.stem.casefold())
@@ -621,6 +647,17 @@ class GuidedEffectsWorkspace(QWidget):
             self._refresh_selection_detail(selected)
         finally:
             self._syncing = False
+        self.library_count.setText(self.tr("{count} effects").format(count=matches))
+        self.empty_results.setVisible(matches == 0)
+        self.reset_filters.setVisible(bool(terms) or category != "All" or not self.behavior_all.isChecked())
+
+    def _reset_filters(self) -> None:
+        self.search.blockSignals(True)
+        self.search.clear()
+        self.search.blockSignals(False)
+        self.behavior_all.setChecked(True)
+        self.category_buttons["All"].setChecked(True)
+        self._refresh_library()
 
     def _select_stem(self, stem: str) -> None:
         index = self.library_model.index_for_stem(stem)
@@ -642,7 +679,7 @@ class GuidedEffectsWorkspace(QWidget):
     def _refresh_selection_detail(self, stem: str) -> None:
         exact = str(stem or "").strip()
         self.selection_detail.setText(exact)
-        self.selection_detail.setToolTip("Exact shipped effect stem" if exact else "")
+        self.selection_detail.setToolTip(exact)
         self.selection_detail.setVisible(bool(exact))
 
     def _sync_placement_from_state(self) -> None:
@@ -651,7 +688,6 @@ class GuidedEffectsWorkspace(QWidget):
             return
         facts = self._controller.effect_facts(self._staged.stem)
         decoder_reason = facts.walk_note if facts is not None and facts.walk_note else ""
-        look_normalized = False
         if decoder_reason and (
             self._staged.color is not None
             or any(
@@ -672,7 +708,6 @@ class GuidedEffectsWorkspace(QWidget):
                 rate=1.0,
                 lifetime=1.0,
             )
-            look_normalized = True
         placement._set_numbers(self._staged.offset, self._staged.scale, self._staged.rotation)
         placement.set_look(
             color=self._staged.color,
@@ -682,9 +717,7 @@ class GuidedEffectsWorkspace(QWidget):
             lifetime=self._staged.lifetime,
         )
         placement.set_decoder_reason(decoder_reason)
-        placement.apply_button.setEnabled(self.has_staged_changes() and bool(self._staged.stem or self._committed.stem))
-        if look_normalized:
-            self._publish_dirty()
+        self._publish_dirty()
 
     def _placement_transform_changed(self) -> None:
         if self._syncing or self.placement is None:
@@ -717,6 +750,8 @@ class GuidedEffectsWorkspace(QWidget):
         dirty = self.has_staged_changes()
         if self.placement is not None:
             self.placement.apply_button.setEnabled(dirty and bool(self._staged.stem or self._committed.stem))
+            self.placement.discard_button.setEnabled(dirty)
+            self.placement.staging_state.setText("Unapplied changes" if dirty else "No unapplied changes")
         self.staged_changed.emit(dirty)
 
     def _refresh_compatibility(self) -> None:
@@ -863,6 +898,7 @@ class GuidedEffectsWorkspace(QWidget):
             self.placement.transform_changed.connect(self._placement_transform_changed)
             self.placement.look_changed.connect(self._placement_look_changed)
             self.placement.apply_requested.connect(self.apply_staged)
+            self.placement.discard_button.clicked.connect(self.discard_staged)
             self.placeholder.setVisible(False)
             self.placement_layout.addWidget(self.placement, 1)
         else:

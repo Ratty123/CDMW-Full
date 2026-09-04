@@ -76,6 +76,32 @@ class UiKitTests(unittest.TestCase):
         self.assertTrue(toggle.body.isVisibleTo(toggle))
         self.assertEqual(toggle.body.text(), "the long story")
 
+    def test_primary_actions_have_distinct_pressed_and_disabled_feedback_in_both_themes(self) -> None:
+        from PySide6.QtWidgets import QPushButton, QWidget
+        from cdmw.ui.new_item.ui_kit import step_style
+        from cdmw.ui.themes import build_app_palette
+
+        for theme in ("graphite", "light"):
+            root = QWidget()
+            root.setPalette(build_app_palette(theme))
+            root.setStyleSheet(step_style(root.palette()))
+            button = QPushButton("Apply", root)
+            button.setProperty("newItemPrimary", True)
+            button.resize(180, 42)
+            root.resize(210, 64)
+            root.show()
+            self.app.processEvents()
+            normal = button.grab().toImage().pixelColor(8, 20)
+            button.setDown(True)
+            pressed = button.grab().toImage().pixelColor(8, 20)
+            button.setDown(False)
+            button.setEnabled(False)
+            disabled = button.grab().toImage().pixelColor(8, 20)
+            self.assertNotEqual(normal, pressed, theme)
+            self.assertNotEqual(normal, disabled, theme)
+            root.close()
+            root.deleteLater()
+
 
 if __name__ == "__main__":
     unittest.main()

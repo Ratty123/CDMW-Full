@@ -164,19 +164,26 @@ class EffectPlacementGuidedMixin:
             *self.view_buttons,
             self.frame_button,
             self.pause_button,
+            self.show_particles,
             self.show_reach,
             self.backdrop_choice,
             self.show_character,
         ):
             button.setEnabled(bool(available))
 
-    def _guided_inspector_panel(self, parent: QWidget) -> QScrollArea:
-        scroll = QScrollArea(parent)
+    def _guided_inspector_panel(self, parent: QWidget) -> QWidget:
+        panel = QWidget(parent)
+        panel.setMinimumWidth(340)
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(0, 0, 0, 0)
+        panel_layout.setSpacing(0)
+        scroll = QScrollArea(panel)
         scroll.setObjectName("effect_inspector_scroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setMinimumWidth(340)
+        panel_layout.addWidget(scroll, 1)
         inspector = QWidget()
         inspector.setObjectName("effect_inspector")
         layout = QVBoxLayout(inspector)
@@ -185,14 +192,39 @@ class EffectPlacementGuidedMixin:
         scroll.setWidget(inspector)
         self.inspector_widget = inspector
 
-        heading = QLabel("Placement & Look")
+        heading = QLabel("Placement")
         heading.setObjectName("effect_inspector_heading")
         layout.addWidget(heading)
         self._add_guided_transform_controls(layout)
-        self._add_guided_scene_controls(layout)
+        self._add_guided_section_heading(layout, self.tr("Appearance"))
         self._add_guided_look_controls(layout)
+        self._add_guided_section_heading(layout, self.tr("Preview"))
+        self._add_guided_scene_controls(layout)
         layout.addStretch(1)
-        return scroll
+        action_bar = QWidget(panel)
+        action_bar.setObjectName("effect_action_bar")
+        actions = QVBoxLayout(action_bar)
+        actions.setContentsMargins(12, 8, 12, 8)
+        self.staging_state = QLabel("No unapplied changes")
+        self.staging_state.setObjectName("effect_staging_state")
+        actions.addWidget(self.staging_state)
+        buttons = QHBoxLayout()
+        self.discard_button = QPushButton("Discard")
+        self.discard_button.setToolTip("Return to the effect and placement last applied to this item.")
+        self.discard_button.setEnabled(False)
+        buttons.addWidget(self.discard_button)
+        self.apply_button.setProperty("newItemPrimary", True)
+        self.apply_button.setMinimumHeight(36)
+        buttons.addWidget(self.apply_button, 1)
+        actions.addLayout(buttons)
+        panel_layout.addWidget(action_bar)
+        return panel
+
+    @staticmethod
+    def _add_guided_section_heading(layout: QVBoxLayout, title: str) -> None:
+        label = QLabel(title)
+        label.setObjectName("effect_section_heading")
+        layout.addWidget(label)
 
     def _add_guided_transform_controls(self, layout: QVBoxLayout) -> None:
         scale_row = QHBoxLayout()
@@ -214,10 +246,7 @@ class EffectPlacementGuidedMixin:
         self.anchor_choice.currentIndexChanged.connect(self._guided_anchor_changed)
         anchor_row.addWidget(self.anchor_choice, 1)
         layout.addLayout(anchor_row)
-        anchor_help = QLabel("Sets the effect's reference point.")
-        anchor_help.setObjectName("new_item_intro")
-        anchor_help.setWordWrap(True)
-        layout.addWidget(anchor_help)
+        self.anchor_choice.setToolTip("Sets the effect's reference point.")
 
     @staticmethod
     def _add_guided_axis_row(layout: QVBoxLayout, title: str, spins) -> None:
@@ -240,6 +269,8 @@ class EffectPlacementGuidedMixin:
         layout.addLayout(row)
 
     def _add_guided_scene_controls(self, layout: QVBoxLayout) -> None:
+        self.show_particles.setText("Show effect")
+        layout.addWidget(self.show_particles)
         self.show_reach.setText("Show bounds")
         layout.addWidget(self.show_reach)
         fit_row = QHBoxLayout()
@@ -301,8 +332,6 @@ class EffectPlacementGuidedMixin:
         self.guided_restore_button = QPushButton("Restore defaults")
         self.guided_restore_button.clicked.connect(self.restore_defaults)
         layout.addWidget(self.guided_restore_button)
-        self.apply_button.setMinimumHeight(40)
-        layout.addWidget(self.apply_button)
 
     def _add_guided_look_row(self, layout: QVBoxLayout, key: str, label: str) -> None:
         row = QHBoxLayout()
@@ -329,7 +358,6 @@ class EffectPlacementGuidedMixin:
     def _hide_compatibility_controls(self) -> None:
         for widget in (
             *getattr(self, "_compatibility_only_widgets", ()),
-            self.show_particles,
             self.invert_orbit_x_checkbox,
             self.invert_orbit_y_checkbox,
             self.size_label,

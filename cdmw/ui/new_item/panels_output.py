@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,7 +19,9 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from cdmw.services.new_item_planning import NewItemPlan
@@ -143,6 +145,7 @@ class OutputPanel(QGroupBox):
         build = QGroupBox("1. Build the plan")
         build_layout = QHBoxLayout(build)
         self.build_button = QPushButton("Build plan")
+        self.build_button.setProperty("newItemPrimary", True)
         self.build_button.setToolTip("Validate the draft, allocate its key and stem, and compose every table change and file. Nothing is written yet.")
         self.build_button.clicked.connect(self._build)
         build_layout.addWidget(self.build_button)
@@ -221,7 +224,18 @@ class OutputPanel(QGroupBox):
             "writes a directory of its own instead and leaves them alone; it is the faster and more easily undone of the "
             "two, and the newer."
         )
-        overlay_row = QHBoxLayout()
+        self.overlay_tools_toggle = QToolButton()
+        self.overlay_tools_toggle.setText("Manage existing overlays")
+        self.overlay_tools_toggle.setCheckable(True)
+        self.overlay_tools_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self.overlay_tools_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.overlay_tools_toggle.setAutoRaise(True)
+        write_layout.addWidget(self.overlay_tools_toggle, 0, Qt.AlignmentFlag.AlignLeft)
+        self.overlay_tools = QWidget()
+        self.overlay_tools.setVisible(False)
+        self.overlay_tools_toggle.toggled.connect(self._toggle_overlay_tools)
+        overlay_row = QVBoxLayout(self.overlay_tools)
+        overlay_row.setContentsMargins(0, 0, 0, 0)
         self.overlay_migration_button = QPushButton("Move installed items into the overlay...")
         self.overlay_migration_button.setToolTip(
             "For items already written into the shipped archives. Every archive entry that differs from the oldest "
@@ -237,13 +251,13 @@ class OutputPanel(QGroupBox):
         )
         self.overlay_removal_button.clicked.connect(self.overlay_removal_requested.emit)
         overlay_row.addWidget(self.overlay_removal_button)
-        overlay_row.addStretch(1)
-        write_layout.addLayout(overlay_row)
+        write_layout.addWidget(self.overlay_tools)
         self.checklist = DetailsToggle(
             "\n".join(f"- {line}" for line in CHECKLIST),
             title="After installing, check in game",
         )
         write_layout.addWidget(self.checklist)
+        write_layout.addStretch(1)
         content.addWidget(write, 0, 1, 2, 1)
         content.setColumnStretch(0, 1)
         content.setColumnStretch(1, 1)
@@ -277,6 +291,10 @@ class OutputPanel(QGroupBox):
         )
 
     # ------------------------------------------------------------------ actions
+
+    def _toggle_overlay_tools(self, expanded: bool) -> None:
+        self.overlay_tools.setVisible(expanded)
+        self.overlay_tools_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
 
     def _build(self) -> None:
         self.summary.setPlainText("Building the plan...")

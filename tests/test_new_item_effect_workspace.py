@@ -121,6 +121,8 @@ class _Placement(QWidget):
         self._renderer_failed = True
         self.status = QLabel("")
         self.apply_button = QPushButton("Apply placement")
+        self.discard_button = QPushButton("Discard")
+        self.staging_state = QLabel("")
         self.offset = tuple(kwargs.get("offset", (0.0, 0.0, 0.0)))
         self.rotation = tuple(kwargs.get("rotation", (0.0, 0.0, 0.0)))
         self.scale = float(kwargs.get("scale", 1.0))
@@ -526,6 +528,28 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.choose_effect("fx_frost_loop")
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_fire_ring_loop", "fx_frost_loop"], "the current selection stays visible")
+
+    def test_readable_search_reset_and_discard_preserve_the_committed_effect(self) -> None:
+        workspace, controller, _ = self._workspace()
+        workspace.choose_effect("fx_fire_hit")
+        workspace._rebuild_preview()
+        self.assertTrue(workspace.apply_staged())
+        workspace.choose_effect("fx_frost_loop")
+        workspace.search.setText("fire ring")
+        stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
+        self.assertEqual(stems, ["", "fx_fire_ring_loop", "fx_frost_loop"])
+        workspace.search.setText("no such effect")
+        self.assertTrue(workspace.empty_results.isVisibleTo(workspace))
+        self.assertEqual(workspace.staged_state.stem, "fx_frost_loop")
+        workspace.reset_filters.click()
+        self.assertEqual(workspace.search.text(), "")
+        self.assertFalse(workspace.empty_results.isVisibleTo(workspace))
+        self.assertEqual(workspace.library_model.rowCount(), 4)
+        workspace.placement.discard_button.click()
+        self.assertEqual(workspace.staged_state.stem, "fx_fire_hit")
+        self.assertFalse(workspace.has_staged_changes())
+        self.assertFalse(workspace.placement.discard_button.isEnabled())
+        self.assertEqual(controller.commit_count, 1)
 
     def test_category_chips_reflow_without_clipping_at_the_supported_narrow_width(self) -> None:
         workspace, _controller, _confirmations = self._workspace()
