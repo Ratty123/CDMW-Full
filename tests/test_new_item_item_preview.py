@@ -164,6 +164,38 @@ class ItemPreviewPackageTests(unittest.TestCase):
         self.assertEqual(result, root / "direct")
         self.assertEqual([call["material_quality"] for call in calls], ["direct"])
 
+    def test_comparison_reference_also_receives_its_full_material_tier(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item import item_preview
+
+        root = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_reference_full_"))
+        model = ParsedMesh(path="import.gltf", format="gltf", submeshes=[SubMesh(
+            name="model", vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)],
+        )])
+        reference = ParsedMesh(path="template.pac", format="pac", submeshes=[SubMesh(
+            name="template", vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)],
+        )])
+        reference.submeshes[0].preview_material_texture_inputs = (
+            SimpleNamespace(confidence="native"),
+        )
+        qualities, ready = [], []
+
+        def build(_mesh, **kwargs):
+            quality = kwargs["material_quality"]
+            qualities.append(quality)
+            self.assertIs(kwargs["reference_mesh"], reference)
+            return SimpleNamespace(package_dir=root / quality)
+
+        with patch("cdmw.services.mesh_rust_preview_package.build_rust_preview_package", build):
+            result = item_preview.build_item_preview_package(
+                item_preview.PlacementScene(template=reference, model=model),
+                token="comparison-materials", output_root=root,
+                stop_event=threading.Event(), fast_package_ready=ready.append,
+            )
+        self.assertEqual(qualities, ["direct", "full"])
+        self.assertEqual(len(ready), 1)
+        self.assertEqual(result, root / "full")
+
     def test_a_preview_model_goes_the_textured_route_and_a_mesh_the_bare_one(self) -> None:
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
         from cdmw.ui.new_item import item_preview

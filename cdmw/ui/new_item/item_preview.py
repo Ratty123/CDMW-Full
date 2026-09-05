@@ -458,9 +458,12 @@ def build_item_preview_package(
             )
         package = progressive_material_package(
             build_placement_quality,
-            # The template/character role is wire-only in this workspace, so
-            # only the imported editable model can require a material compiler.
-            needs_full_material_tier=rust_preview_mesh_needs_material_synthesis(model_mesh),
+            # Comparison views also display the textured reference, even though
+            # Overlay initially draws it as a wire guide.
+            needs_full_material_tier=any(
+                rust_preview_mesh_needs_material_synthesis(mesh)
+                for mesh in (model_mesh, reference_mesh) if mesh is not None
+            ),
         )
     elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
         from cdmw.services.mesh_rust_preview_cache import (

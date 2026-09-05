@@ -32,6 +32,34 @@ class PlacementScene:
     character: Any = None
 
 
+def compose_template_materials(template_build, make_scene, stop_event, token, preview_context):
+    """Copy native template materials into the scene before their staging tree closes."""
+
+    if preview_context.get("native_preview_core_cache_root") is None:
+        return make_scene(template_build(stop_event))
+
+    from cdmw.services.mesh_dotnet_reference_composite import decode_dotnet_native_preview_package
+    from cdmw.ui.new_item.item_preview import build_item_preview_package
+
+    def consume_native_package(package_path):
+        template = decode_dotnet_native_preview_package(package_path, cancelled=stop_event.is_set)
+        return build_item_preview_package(
+            make_scene(template),
+            token=token,
+            output_root=preview_context["output_root"],
+            stop_event=stop_event,
+            include_material_resources=True,
+            render_settings=preview_context.get("render_settings"),
+            cache_mode=preview_context.get("cache_mode", "off"),
+            fast_package_ready=preview_context.get("fast_package_ready"),
+        )
+
+    item = template_build(
+        stop_event, **preview_context, consume_native_package=consume_native_package,
+    )
+    return item if isinstance(item, Path) else make_scene(item)
+
+
 def flat_preview_normal_axis(bounds: Any) -> str:
     """Face the thinnest model axis so placement stays unchanged but reads flat."""
 

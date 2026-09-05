@@ -62,6 +62,10 @@ the native package reuses the shared DDS cache and bypasses New Item's former Py
 OBJ/material recompilation. Geometry reaches the resident viewport first, then textures
 replace it without restarting the host or resetting the camera. If Preview Core is
 unavailable, the established Python preview remains the compatibility fallback.
+Placement and character comparison scenes also consume that native template package.
+They copy its textures and material bindings into the complete scene before temporary
+native resources are removed, avoiding another full archive-index build during import.
+The full material tier includes the reference, which comparison views can display textured.
 Skeleton lookup filters out non-descriptor entries before normalizing archive paths,
 while preserving exact descriptor priority and sibling skeleton/morph matching. The
 template resolver follows every model dependency embedded in each part prefab and composes

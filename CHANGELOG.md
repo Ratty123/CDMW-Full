@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **New Item placement reuses Preview Core for template materials.** Imported and character comparison scenes no longer rebuild the full archive lookup maps to resolve the template again. Native textures remain owned until the complete scene has copied them, and textured comparison views receive the reference's full material tier.
+
 - **Model previews load textures from long Windows paths.** Native texture encoding, decoding, and report I/O now support deep model folders and hashed cache paths beyond `MAX_PATH`. Failed Model Library workers report their error and exit instead of opening a blocking exception dialog.
 
 - **Imported model previews preserve their authored colours and reflective detail.** External base-colour and emissive images no longer receive an extra gamma conversion when image metadata is absent; normal and surface maps retain their linear values. Imported glTF materials use neutral HDR reflections and GGX highlights without category-based colour adjustments. Cached previews are rebuilt so dark metal, gold details, and texture contrast recover their source values.

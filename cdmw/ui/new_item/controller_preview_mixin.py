@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import copy
 import threading
-from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -58,6 +57,7 @@ def _placement_progressive_source(
     geometry_build,
     placement,
     character_mesh,
+    token,
 ):
     from cdmw.ui.new_item.item_preview import PlacementScene
 
@@ -71,14 +71,20 @@ def _placement_progressive_source(
             character=character_mesh(stop_event),
         )
 
-    def build_material_scene(stop_event, **_preview_context):
-        return PlacementScene(
-            template=template_build(stop_event),
-            model=source.baked_preview_mesh(),
-            placement=placement,
-            model_bounds=source.baked_bounds(),
-            model_origin=source.baked_origin(),
-            character=character_mesh(stop_event),
+    def build_material_scene(stop_event, **preview_context):
+        from cdmw.ui.new_item.item_preview_materials import compose_template_materials
+
+        return compose_template_materials(
+            template_build,
+            lambda template: PlacementScene(
+                template=template,
+                model=source.baked_preview_mesh(),
+                placement=placement,
+                model_bounds=source.baked_bounds(),
+                model_origin=source.baked_origin(),
+                character=character_mesh(stop_event),
+            ),
+            stop_event, token, preview_context,
         )
 
     return _progressive_preview_source(
@@ -126,11 +132,17 @@ def _template_progressive_source(
             character=character_mesh(stop_event),
         )
 
-    def build_material_character_scene(stop_event, **_preview_context):
-        return PlacementScene(
-            template=None,
-            model=material_build(stop_event),
-            character=character_mesh(stop_event),
+    def build_material_character_scene(stop_event, **preview_context):
+        from cdmw.ui.new_item.item_preview_materials import compose_template_materials
+
+        return compose_template_materials(
+            material_build,
+            lambda template: PlacementScene(
+                template=None,
+                model=template,
+                character=character_mesh(stop_event),
+            ),
+            stop_event, ("template-character", template_key, token), preview_context,
         )
 
     return (
@@ -265,21 +277,19 @@ class NewItemPreviewControllerMixin:
             template_token, template_build = template
             _geometry_token, geometry_build = template_geometry
             placement = self.model_placement
+            token = (
+                "placement", source.cache_identity, source.bake, source.mesh_generation,
+                template_token, include_character,
+            )
             build = _placement_progressive_source(
                 source,
                 template_build,
                 geometry_build,
                 placement,
                 character_mesh,
+                token,
             )
-            return ((
-                "placement",
-                source.cache_identity,
-                source.bake,
-                source.mesh_generation,
-                template_token,
-                include_character,
-            ), build)
+            return token, build
         result = self.model_result
         model = getattr(result, "preview_model", None)
         if result is not None and model is not None and getattr(model, "meshes", None):
@@ -424,83 +434,24 @@ class NewItemPreviewControllerMixin:
             cache_mode="off",
             fast_package_ready=None,
             cache_only=False,
+            consume_native_package=None,
         ):
             if output_root is not None and native_preview_core_cache_root is not None:
-                import shutil
-                import time
+                from cdmw.ui.new_item.template_preview_cache import build_native_template_preview
 
-                from cdmw.models import clamp_model_preview_render_settings
-                from cdmw.services.mesh_rust_preview_cache import (
-                    build_or_lookup_rust_preview_package as build_or_lookup_dotnet_preview_package,
-                    lookup_rust_preview_package_from_preview_core_identity,
+                package = build_native_template_preview(
+                    entry, dependencies, prefab_entries, component_paths,
+                    template_key, snapshot, stop_event,
+                    output_root=output_root,
+                    native_preview_core_cache_root=native_preview_core_cache_root,
+                    render_settings=render_settings,
+                    cache_mode=cache_mode,
+                    fast_package_ready=fast_package_ready,
+                    cache_only=cache_only,
+                    consume_native_package=consume_native_package,
                 )
-                from cdmw.services.preview_rendering_service import (
-                    dotnet_preview_package_cache_budget,
-                    run_native_preview_core_preview_job,
-                )
-                from cdmw.workers.archive_preview_native import (
-                    native_preview_core_timeout_seconds,
-                )
-                from cdmw.ui.new_item.template_preview_cache import template_preview_cache_identity
-
-                preview_root = Path(output_root)
-                native_render_settings = replace(
-                    clamp_model_preview_render_settings(render_settings),
-                    use_textures_by_default=True,
-                )
-                archive_identity = template_preview_cache_identity(
-                    entry, dependencies, template_key, native_render_settings, stop_event,
-                )
-                cache_max_bytes, cache_target_bytes = dotnet_preview_package_cache_budget(cache_mode)
-                if cache_mode in {"balanced", "aggressive"} and cache_max_bytes > 0:
-                    cached_package = lookup_rust_preview_package_from_preview_core_identity(
-                        cache_root=preview_root, archive_identity=archive_identity,
-                        cancelled=stop_event.is_set,
-                    )
-                    if cached_package is not None:
-                        return Path(cached_package.package_dir)
-                if cache_only:
-                    return None
-                preview_root.mkdir(parents=True, exist_ok=True)
-                native_package = preview_root / f"package_{time.time_ns()}_native"
-                try:
-                    native_attempt = run_native_preview_core_preview_job(
-                        entry,
-                        cache_root=Path(native_preview_core_cache_root),
-                        render_settings=native_render_settings,
-                        dependency_entries=dependencies,
-                        dependency_entries_complete=False,
-                        enabled_prefab_component_paths=component_paths,
-                        model_property_indices=_template_model_property_indices(
-                            prefab_entries,
-                            stop_event,
-                            snapshot,
-                        ),
-                        package_root=Path(entry.pamt_path).parent.parent,
-                        output_root=native_package,
-                        timeout_seconds=native_preview_core_timeout_seconds(native_render_settings),
-                        stop_event=stop_event,
-                    )
-                    if native_attempt.succeeded:
-                        package = build_or_lookup_dotnet_preview_package(
-                            native_attempt.package_path,
-                            cache_root=preview_root,
-                            archive_identity=archive_identity,
-                            cache_mode=cache_mode,
-                            max_bytes=cache_max_bytes,
-                            target_bytes=cache_target_bytes,
-                            cancelled=stop_event.is_set,
-                            metadata={"surface": "new_item_studio", "source_path": entry.path},
-                            fast_package_ready=fast_package_ready,
-                        )
-                        shutil.rmtree(native_package, ignore_errors=True)
-                        return Path(package.package_dir)
-                except RunCancelled:
-                    shutil.rmtree(native_package, ignore_errors=True)
-                    raise
-                except Exception:  # noqa: BLE001 - the established Python preview remains the fallback
-                    pass
-                shutil.rmtree(native_package, ignore_errors=True)
+                if package is not None:
+                    return package
 
             if cache_only:
                 return None
@@ -768,17 +719,3 @@ class NewItemPreviewControllerMixin:
                 ),
             )
         )
-
-
-def _template_model_property_indices(
-    prefab_entries: Sequence[ArchiveEntry],
-    stop_event: object,
-    snapshot: NewItemSnapshot,
-) -> Dict[str, int]:
-    from cdmw.workers.archive_preview_native import native_preview_model_property_indices
-
-    return native_preview_model_property_indices(
-        prefab_entries,
-        stop_event,
-        read_entry_data=lambda candidate: snapshot.payload(candidate.path),
-    )
