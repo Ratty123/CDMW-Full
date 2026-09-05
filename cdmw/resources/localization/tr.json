@@ -5886,6 +5886,7 @@
     "Preview a read-only composite from app XML sections or prefab/socket model evidence.": "Uygulama XML bölümlerinden veya prefabrik/soket modeli kanıtlarından salt okunur bir kompozitin ön izlemesini yapın.",
     "Preview a template to see the exact texture and material-color impact before building.": "Oluşturmadan önce tam dokuyu ve malzeme-renk etkisini görmek için şablonu önizleyin.",
     "Preview changed; rebuilding current view.": "Önizleme değiştirildi; mevcut görünüm yeniden oluşturuluyor.",
+    "Preview cleanup must stay inside its output root.": "Önizleme temizliği, kendi çıktı kök diziniyle sınırlı kalmalıdır.",
     "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.": "Önizleme kontrolleri: modelin etrafındaki yörüngeleri sola sürükleyin; orta sürükleme, sağa sürükleme veya Shift+sol sürükleme tavaları; fare tekerleği yakınlaştırır; Fit görünüm çerçevesini sıfırlar. Bu kontroller yalnızca önizleme kamerasını/görünümünü hareket ettirir.",
     "Preview dependencies could not be resolved: {value_0}": "Önizleme bağımlılıkları çözülemedi: {value_0}",
     "Preview failed": "Önizleme başarısız oldu",

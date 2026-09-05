@@ -5886,6 +5886,7 @@
     "Preview a read-only composite from app XML sections or prefab/socket model evidence.": "Wyświetl podgląd kompozytu tylko do odczytu z sekcji aplikacji XML lub dowodów modelu prefabrykowanego/gniazdowego.",
     "Preview a template to see the exact texture and material-color impact before building.": "Przed rozpoczęciem budowy wyświetl podgląd szablonu, aby zobaczyć dokładny efekt tekstury i koloru materiału.",
     "Preview changed; rebuilding current view.": "Zmieniono podgląd; przebudowywanie bieżącego widoku.",
+    "Preview cleanup must stay inside its output root.": "Czyszczenie podglądu musi być ograniczone do jego głównego katalogu wyjściowego.",
     "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.": "Sterowanie podglądem: przeciąganie orbity wokół modelu lewym przyciskiem myszy; przeciąganie ze środkowym, prawym przyciskiem myszy lub Shift+przeciąganie w lewo; powiększenie kółkiem myszy; Dopasuj resetuje kadrowanie widoku. Te elementy sterujące przesuwają jedynie podgląd kamery/widoku.",
     "Preview dependencies could not be resolved: {value_0}": "Nie można rozwiązać zależności podglądu: {value_0}",
     "Preview failed": "Podgląd nie powiódł się",

@@ -5886,6 +5886,7 @@
     "Preview a read-only composite from app XML sections or prefab/socket model evidence.": "Zeigt eine schreibgeschützte Verbundvorschau aus App-XML-Abschnitten oder Prefab-/Socket-Modellnachweisen an.",
     "Preview a template to see the exact texture and material-color impact before building.": "Zeigt eine Vorlagenvorschau, um die genauen Auswirkungen auf Textur und Materialfarbe vor dem Erstellen zu sehen.",
     "Preview changed; rebuilding current view.": "Vorschau geändert; Aktuelle Ansicht wird neu erstellt.",
+    "Preview cleanup must stay inside its output root.": "Die Vorschaubereinigung muss innerhalb ihres Ausgabestammverzeichnisses bleiben.",
     "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.": "Vorschau-Steuerelemente: Ziehen Sie die linke Maustaste, um das Modell zu umkreisen. Schwenken mit der mittleren Maustaste, mit der rechten Maustaste oder Umschalt+Linksziehen; Mausrad zoomt; „Anpassen“ setzt den Ansichtsrahmen zurück. Diese Steuerelemente bewegen nur die Vorschaukamera/Ansicht.",
     "Preview dependencies could not be resolved: {value_0}": "Vorschauabhängigkeiten konnten nicht aufgelöst werden: {value_0}",
     "Preview failed": "Vorschau failed",

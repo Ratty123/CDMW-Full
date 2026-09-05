@@ -70107,6 +70107,16 @@
       ]
     },
     {
+      "key": "Preview cleanup must stay inside its output root.",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_cleanup_worker.py",
+          "line": 28,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.",
       "origins": [
         {

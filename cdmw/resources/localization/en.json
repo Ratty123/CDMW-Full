@@ -5886,6 +5886,7 @@
     "Preview a read-only composite from app XML sections or prefab/socket model evidence.": "Preview a read-only composite from app XML sections or prefab/socket model evidence.",
     "Preview a template to see the exact texture and material-color impact before building.": "Preview a template to see the exact texture and material-color impact before building.",
     "Preview changed; rebuilding current view.": "Preview changed; rebuilding current view.",
+    "Preview cleanup must stay inside its output root.": "Preview cleanup must stay inside its output root.",
     "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.": "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.",
     "Preview dependencies could not be resolved: {value_0}": "Preview dependencies could not be resolved: {value_0}",
     "Preview failed": "Preview failed",

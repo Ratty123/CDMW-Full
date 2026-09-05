@@ -5886,6 +5886,7 @@
     "Preview a read-only composite from app XML sections or prefab/socket model evidence.": "Предварительный просмотр композитного материала, доступного только для чтения, из разделов приложения XML или свидетельств модели сборного узла/сокета.",
     "Preview a template to see the exact texture and material-color impact before building.": "Перед созданием просмотрите шаблон, чтобы увидеть точную текстуру и влияние цвета материала.",
     "Preview changed; rebuilding current view.": "Предварительный просмотр изменен; восстановление текущего представления.",
+    "Preview cleanup must stay inside its output root.": "Очистка предпросмотра должна выполняться только внутри его корневого выходного каталога.",
     "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.": "Элементы управления предварительным просмотром: перетаскивание орбит вокруг модели влево; панорамирование с помощью среднего перетаскивания, перетаскивания правой кнопкой мыши или Shift+перетаскивания влево; масштабирование колесиком мыши; Подгонка сбрасывает рамки вида. Эти элементы управления перемещают только камеру/вид предварительного просмотра.",
     "Preview dependencies could not be resolved: {value_0}": "Не удалось разрешить зависимости предварительного просмотра: {value_0}",
     "Preview failed": "Предварительный просмотр не удался",

@@ -5886,6 +5886,7 @@
     "Preview a read-only composite from app XML sections or prefab/socket model evidence.": "从应用程序 XML 部分或预制件/插槽模型证据中预览只读复合材料。",
     "Preview a template to see the exact texture and material-color impact before building.": "在构建之前预览模板以查看确切的纹理和材质颜色影响。",
     "Preview changed; rebuilding current view.": "预览已更改；正在重建当前视图。",
+    "Preview cleanup must stay inside its output root.": "预览清理必须限制在其输出根目录内。",
     "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.": "预览控制：左键拖动模型周围的轨道；中键拖动、右键拖动或 Shift+左键拖动平移；鼠标滚轮缩放；适合重置视图框架。这些控件仅移动预览相机/视图。",
     "Preview dependencies could not be resolved: {value_0}": "无法解析预览依赖项：{value_0}",
     "Preview failed": "预览失败",

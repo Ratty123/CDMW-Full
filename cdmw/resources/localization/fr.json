@@ -5886,6 +5886,7 @@
     "Preview a read-only composite from app XML sections or prefab/socket model evidence.": "Prévisualisez un composite en lecture seule à partir des sections de l'application XML ou des preuves de modèles préfabriqués/socket.",
     "Preview a template to see the exact texture and material-color impact before building.": "Prévisualisez un modèle pour voir la texture exacte et l'impact de la couleur du matériau avant de le construire.",
     "Preview changed; rebuilding current view.": "Aperçu modifié ; reconstruction de la vue actuelle.",
+    "Preview cleanup must stay inside its output root.": "Le nettoyage de l’aperçu doit rester dans son dossier racine de sortie.",
     "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.": "Contrôles d'aperçu : faites glisser les orbites vers la gauche autour du modèle ; faites glisser le milieu, faites glisser vers la droite ou Maj+faites glisser vers la gauche ; zooms avec la molette de la souris ; Fit réinitialise le cadrage de la vue. Ces commandes déplacent uniquement la caméra/vue d’aperçu.",
     "Preview dependencies could not be resolved: {value_0}": "Les dépendances de l'aperçu n'ont pas pu être résolues : {value_0}",
     "Preview failed": "Échec de l'aperçu",

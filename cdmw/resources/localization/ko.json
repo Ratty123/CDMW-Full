@@ -5886,6 +5886,7 @@
     "Preview a read-only composite from app XML sections or prefab/socket model evidence.": "앱 XML 섹션 또는 조립식/소켓 모델 증거에서 읽기 전용 합성을 미리 봅니다.",
     "Preview a template to see the exact texture and material-color impact before building.": "제작하기 전에 템플릿을 미리 보고 정확한 질감과 재료 색상의 영향을 확인하세요.",
     "Preview changed; rebuilding current view.": "미리보기가 변경되었습니다. 현재 보기를 재구축 중입니다.",
+    "Preview cleanup must stay inside its output root.": "미리 보기 정리는 해당 출력 루트 안에서만 수행해야 합니다.",
     "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.": "미리보기 컨트롤: 모델 주위의 궤도를 왼쪽으로 드래그합니다. 가운데 끌기, 오른쪽 끌기 또는 Shift+왼쪽 끌기 팬; 마우스 휠 줌; 맞춤은 뷰 프레임을 재설정합니다. 이 컨트롤은 미리보기 카메라/뷰만 이동합니다.",
     "Preview dependencies could not be resolved: {value_0}": "미리보기 종속성을 해결할 수 없습니다: {value_0}",
     "Preview failed": "미리보기 실패",

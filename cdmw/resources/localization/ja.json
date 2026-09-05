@@ -5886,6 +5886,7 @@
     "Preview a read-only composite from app XML sections or prefab/socket model evidence.": "アプリの XML セクションまたはプレハブ/ソケット モデルの証拠から読み取り専用コンポジットをプレビューします。",
     "Preview a template to see the exact texture and material-color impact before building.": "テンプレートをプレビューして、構築する前に正確なテクスチャとマテリアルの色の影響を確認します。",
     "Preview changed; rebuilding current view.": "プレビューが変更されました。現在のビューを再構築しています。",
+    "Preview cleanup must stay inside its output root.": "プレビューのクリーンアップは、出力ルート内に限定する必要があります。",
     "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view.": "プレビュー コントロール: 左ドラッグしてモデルの周囲を周回します。中ドラッグ、右ドラッグ、または Shift+左ドラッグでパンします。マウスホイールのズーム。 Fit はビューのフレーミングをリセットします。これらのコントロールは、プレビュー カメラ/ビューを移動するだけです。",
     "Preview dependencies could not be resolved: {value_0}": "プレビューの依存関係を解決できませんでした: {value_0}",
     "Preview failed": "プレビューに失敗しました",
