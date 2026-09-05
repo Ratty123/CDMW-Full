@@ -91,6 +91,9 @@ class _Controller(QObject):
     def item_mesh_as_planned(self):
         return _mesh(), "template"
 
+    def item_effect_preview_source(self):
+        return lambda _stop: self.item_mesh_as_planned()
+
     def effect_box(self, _stem):
         return (-1.0, -1.0, -1.0), (1.0, 1.0, 1.0)
 
@@ -113,6 +116,7 @@ class _Placement(QWidget):
     transform_changed = Signal()
     look_changed = Signal()
     apply_requested = Signal()
+    item_mesh_ready = Signal(object, str)
 
     def __init__(self, parent=None, **kwargs) -> None:
         super().__init__(parent)
@@ -134,6 +138,27 @@ class _Placement(QWidget):
         self.decoder_reason = ""
         self.content_calls = []
         self.character_fit_control = kwargs.get("character_fit_control")
+        from PySide6.QtCore import QTimer
+
+        self.item_timer = QTimer(self)
+        self.item_timer.setSingleShot(True)
+        self.item_timer.timeout.connect(self._finish_content)
+        self._queue_content(kwargs, initial=True)
+
+    def _queue_content(self, kwargs, *, initial=False):
+        self._pending_content = (dict(kwargs), initial)
+        self.item_timer.start(0)
+
+    def _finish_content(self):
+        import threading
+
+        kwargs, initial = self._pending_content
+        builder = kwargs.get("item_mesh_builder")
+        mesh, label = builder(threading.Event()) if callable(builder) else (kwargs.get("item_mesh"), "")
+        kwargs["item_mesh"] = mesh
+        if not initial:
+            self.content_calls.append(kwargs)
+        self.item_mesh_ready.emit(mesh, label)
 
     def _set_numbers(self, offset, scale, rotation=None):
         self.offset = tuple(offset)
@@ -152,13 +177,13 @@ class _Placement(QWidget):
         self.decoder_reason = str(reason)
 
     def set_content(self, **kwargs):
-        self.content_calls.append(kwargs)
+        self._queue_content(kwargs)
 
     def iter_shutdown_workers(self):
         return ()
 
     def request_shutdown(self):
-        pass
+        self.item_timer.stop()
 
 
 class EffectWorkspaceTests(unittest.TestCase):
@@ -389,9 +414,25 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.selection_timer.stop()
         workspace._rebuild_preview()
 
+        self._settle(lambda: workspace.staged_state.offset == (0.01, 1.76, -0.05))
         self.assertEqual(workspace.staged_state.offset, (0.01, 1.76, -0.05))
         self.assertEqual(workspace.placement.offset, (0.01, 1.76, -0.05))
         self.assertTrue(workspace.has_staged_changes(), "the head-height default is saved on Apply")
+
+    def test_leaving_effects_during_item_preparation_does_not_stage_a_late_origin(self) -> None:
+        controller = _Controller()
+        helmet = _mesh()
+        helmet._cdmw_effect_item_origin = (0.01, 1.76, -0.05)
+        controller.item_mesh_as_planned = lambda: (helmet, "applied")
+        workspace, _controller, _confirmations = self._workspace(controller)
+        workspace.choose_effect("fx_fire_hit")
+        workspace.selection_timer.stop()
+        workspace._rebuild_preview()
+        workspace.hide()
+        self.app.processEvents()
+        self.assertEqual(workspace.staged_state.offset, (0.0, 0.0, 0.0))
+        workspace.show()
+        self._settle(lambda: workspace.staged_state.offset == (0.01, 1.76, -0.05))
 
     def test_show_retries_a_transient_selected_template_preview(self) -> None:
         controller = _Controller()
@@ -404,7 +445,7 @@ class EffectWorkspaceTests(unittest.TestCase):
 
         controller.item_mesh_as_planned = item_mesh_as_planned
         workspace, _controller, _confirmations = self._workspace(controller)
-        self._settle(lambda: workspace.placement is not None)
+        self._settle(lambda: calls >= 2)
         self.assertGreaterEqual(calls, 2)
         self.assertFalse(workspace.placeholder.isVisibleTo(workspace))
 
@@ -459,6 +500,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.selection_timer.stop()
         workspace._rebuild_preview()
 
+        self._settle(lambda: bool(workspace.placement.content_calls))
         selected = workspace.placement.content_calls[-1]
         selected["character_builder"]()
         self.assertEqual(requested, ["2_phw"])
@@ -468,6 +510,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.character_fit_choice.setCurrentIndex(workspace.character_fit_choice.findData(0))
         workspace.selection_timer.stop()
         workspace._rebuild_preview()
+        self._settle(lambda: len(workspace.placement.content_calls) == 2)
         workspace.placement.content_calls[-1]["character_builder"]()
         self.assertEqual(requested, ["2_phw", ""], "Auto keeps the template-owned callback")
 

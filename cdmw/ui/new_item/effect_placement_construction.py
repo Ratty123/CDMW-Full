@@ -78,7 +78,17 @@ class EffectPlacementConstructionMixin:
         context.addWidget(self.effect_name_label, 1)
         model_caption = QLabel("Model")
         self._compatibility_only_widgets.append(model_caption)
-        showing = QLabel("")
+        self.model_caption = model_caption
+        self.showing_label = QLabel("")
+        self._set_item_label(item_label)
+        context.addWidget(model_caption)
+        context.addWidget(self.showing_label)
+        layout.addLayout(context)
+
+    def _set_item_label(self, item_label: str) -> None:
+        showing = self.showing_label
+        showing.clear()
+        showing.setToolTip("")
         if item_label == "placed":
             showing.setText("Imported")
             showing.setToolTip("Showing your imported model, at the placement set on step 3.")
@@ -89,12 +99,8 @@ class EffectPlacementConstructionMixin:
             showing.setText("Template")
             showing.setToolTip("Showing the template's model; import one on step 3 to place the effect on your own.")
         has_model_context = bool(showing.text())
-        model_caption.setVisible(has_model_context)
+        self.model_caption.setVisible(has_model_context and self._compatibility_ui)
         showing.setVisible(has_model_context)
-        context.addWidget(model_caption)
-        context.addWidget(showing)
-        layout.addLayout(context)
-        self.showing_label = showing
 
     def _build_viewport(self, body: QHBoxLayout, host_factory) -> None:
         self.host = None

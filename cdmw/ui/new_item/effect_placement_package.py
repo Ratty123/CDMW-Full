@@ -34,7 +34,7 @@ class EffectPlacementPackageMixin:
     def set_content(
         self,
         *,
-        item_mesh: ParsedMesh,
+        item_mesh: Optional[ParsedMesh],
         box_min: Vec3,
         box_max: Vec3,
         effect_label: str,
@@ -42,10 +42,13 @@ class EffectPlacementPackageMixin:
         texture_reader: Optional[Callable[[str], Optional[bytes]]],
         character_builder: Optional[Callable[..., object]] = None,
         model_source_usage: Optional[Callable[[], object]] = None,
+        item_mesh_builder: Optional[Callable[..., object]] = None,
         reset_view: bool = False,
     ) -> None:
-        self._item_mesh = item_mesh
-        self._item_origin = placed_item_origin(item_mesh)
+        if item_mesh is not None:
+            self._item_mesh = item_mesh
+            self._item_origin = placed_item_origin(item_mesh)
+        self._item_mesh_builder = item_mesh_builder
         self._box = (tuple(float(v) for v in box_min), tuple(float(v) for v in box_max))
         self._box_size = tuple(high - low for low, high in zip(*self._box))
         low, high = self._item_bounds()
@@ -88,6 +91,7 @@ class EffectPlacementPackageMixin:
             self._texture_reader,
             self._character_builder,
             source_usage,
+            self._item_mesh_builder,
         )
         if self._thread is not None:
             self._release_request_model_source_usage(self._pending_package)
@@ -103,17 +107,22 @@ class EffectPlacementPackageMixin:
         if self._closed:
             self._release_request_model_source_usage(request)
             return
-        generation, reset_view, mesh, box, root, effect_preview, texture_reader, builder, source_usage = request
+        generation, reset_view, mesh, box, root, effect_preview, texture_reader, builder, source_usage, item_builder = request
         self._active_package_generation = int(generation)
         self._pending_package = None
         self._active_model_source_usage = source_usage
-        textured = mesh_names_textures(mesh)
 
         def task(_log, stop_event: threading.Event) -> tuple:
             # Resolve through the compatibility facade so existing factories and tests
             # that patch its long-standing symbol keep controlling package creation.
             from cdmw.ui.new_item import effect_placement_dialog as facade
 
+            resolved_mesh, item_label = item_builder(stop_event) if callable(item_builder) else (mesh, "")
+            if stop_event.is_set():
+                raise RunCancelled("Effect placement preview cancelled")
+            if resolved_mesh is None:
+                return generation, None, (), reset_view, None, None, ""
+            textured = mesh_names_textures(resolved_mesh)
             character, rotation, effect_sockets = None, None, ()
             resolved_effect_preview = effect_preview(stop_event.is_set) if callable(effect_preview) else effect_preview
             resolved_box = box
@@ -131,7 +140,7 @@ class EffectPlacementPackageMixin:
                     rotation = getattr(reference, "item_rotation", None)
                     effect_sockets = tuple(getattr(reference, "effect_sockets", ()) or ())
             preview = facade.build_effect_placement_package(
-                mesh,
+                resolved_mesh,
                 resolved_box[0],
                 resolved_box[1],
                 output_root=root,
@@ -142,7 +151,7 @@ class EffectPlacementPackageMixin:
                 effect_preview=resolved_effect_preview,
                 texture_reader=texture_reader,
             )
-            return generation, preview, effect_sockets, reset_view, resolved_effect_preview
+            return generation, preview, effect_sockets, reset_view, resolved_effect_preview, resolved_mesh, item_label
 
         worker = UtilityWorker(task, task_accepts_cancel=True)
         thread = QThread(self)
@@ -159,17 +168,32 @@ class EffectPlacementPackageMixin:
     def _package_ready(self, result: object) -> None:
         generation, sockets, reset_view = self._active_package_generation, (), True
         presented_preview = self._effect_preview
-        if isinstance(result, tuple) and len(result) == 5:
+        resolved_mesh, item_label = None, ""
+        if isinstance(result, tuple) and len(result) == 7:
+            generation, result, sockets, reset_view, presented_preview, resolved_mesh, item_label = result
+        elif isinstance(result, tuple) and len(result) == 5:
             generation, result, sockets, reset_view, presented_preview = result
         elif isinstance(result, tuple) and len(result) == 4:
             generation, result, sockets, reset_view = result
         elif isinstance(result, tuple) and len(result) == 2:
             result, sockets = result
+        if result is None and not self._closed and int(generation) == self._package_generation:
+            self.item_mesh_ready.emit(None, "")
+            return
         if not isinstance(result, EffectPlacementPreview):
             return
         if self._closed or int(generation) != self._package_generation or self.host is None:
             self._remove_owned_package(result)
             return
+        if resolved_mesh is not None:
+            self._item_mesh = resolved_mesh
+            self._item_origin = placed_item_origin(resolved_mesh)
+            if item_label:
+                self._set_item_label(str(item_label))
+            self.item_mesh_ready.emit(resolved_mesh, str(item_label))
+            if self._closed or int(generation) != self._package_generation:
+                self._remove_owned_package(result)
+                return
         self._effect_preview = presented_preview
         self._box = (tuple(float(value) for value in result.box_min), tuple(float(value) for value in result.box_max))
         self._box_size = tuple(high - low for low, high in zip(*self._box))

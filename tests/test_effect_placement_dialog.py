@@ -647,6 +647,84 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
             workspace.request_shutdown()
             self._settle(lambda: workspace._thread is None)
 
+    def test_item_preparation_yields_to_ui_and_cancels_before_packaging_a_superseded_mesh(self) -> None:
+        started, cancelled = threading.Event(), threading.Event()
+        prepared, published, decode_threads = [], [], []
+        latest = _blade()
+        latest.path = "latest.pac"
+
+        def slow_item(stop):
+            decode_threads.append(QThread.currentThread())
+            started.set()
+            while not stop.wait(0.005):
+                pass
+            cancelled.set()
+            return _blade(), "stale"
+
+        def package(mesh, low, high, *, output_root, **_kwargs):
+            prepared.append(mesh)
+            path = Path(output_root) / "package_latest"
+            path.mkdir(exist_ok=True)
+            return EffectPlacementPreview(
+                package_dir=path, box_submesh_index=0, item_submesh_count=1,
+                box_min=low, box_max=high,
+            )
+
+        with tempfile.TemporaryDirectory() as folder, patch(
+            "cdmw.ui.new_item.effect_placement_dialog.build_effect_placement_package", package
+        ):
+            workspace = EffectPlacementWorkspace(
+                item_mesh=None, item_mesh_builder=slow_item,
+                box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
+                output_root=Path(folder), host_factory=lambda parent: _Host(parent),
+            )
+            self.addCleanup(workspace.deleteLater)
+            workspace.item_mesh_ready.connect(lambda mesh, label: published.append((mesh, label, QThread.currentThread())))
+            workspace.show()
+            try:
+                self._settle(started.is_set, timeout_ms=2_000)
+                self.assertIsNot(decode_threads[0], self.app.thread())
+                heartbeat = []
+                QTimer.singleShot(0, lambda: heartbeat.append(True))
+                self._settle(lambda: bool(heartbeat), timeout_ms=500)
+                self.assertTrue(heartbeat)
+                self.assertEqual(prepared, [])
+                workspace.set_content(
+                    item_mesh=None, item_mesh_builder=lambda _stop: (latest, "placed"),
+                    box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
+                    effect_label="latest", effect_preview=None, texture_reader=None,
+                )
+                self._settle(lambda: bool(published), timeout_ms=2_000)
+                self.assertTrue(cancelled.is_set())
+                self.assertEqual(prepared, [latest], "cancelled item geometry must never reach package creation")
+                self.assertEqual(published, [(latest, "placed", self.app.thread())])
+                self.assertIs(workspace._item_mesh, latest)
+                self.assertEqual(workspace.showing_label.text(), "Imported")
+            finally:
+                workspace.request_shutdown()
+                self._settle(lambda: workspace._thread is None)
+
+    def test_item_ready_callback_can_close_without_loading_the_new_package(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            package = root / "package_ready"
+            package.mkdir()
+            workspace = EffectPlacementWorkspace(
+                item_mesh=None, box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
+                output_root=root, host_factory=lambda parent: _Host(parent),
+            )
+            self.addCleanup(workspace.deleteLater)
+            workspace._package_generation = 1
+            workspace.item_mesh_ready.connect(lambda _mesh, _label: workspace.request_shutdown())
+            preview = EffectPlacementPreview(
+                package_dir=package, box_submesh_index=0, item_submesh_count=1,
+                box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
+            )
+            workspace._package_ready((1, preview, (), True, None, _blade(), "placed"))
+            self.assertTrue(workspace._closed)
+            self.assertIsNone(workspace.host.loaded)
+            self.assertFalse(package.exists())
+
     def test_superseded_effect_package_releases_its_model_source_usage_after_teardown(self) -> None:
         acquired = False
         released = False

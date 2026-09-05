@@ -18,7 +18,6 @@ from cdmw.ui.new_item.blender_setting import blender_for_fbx
 from cdmw.ui.new_item.model_import import (
     ModelImportSource,
     ModelPlacement,
-    bake_mesh,
     build_placed_import,
     fbx_needing_blender,
     fbx_needs_blender_message,
@@ -30,7 +29,6 @@ from cdmw.ui.new_item.model_import import (
 )
 from cdmw.services.effect_catalogue import EffectCatalogue
 from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
-from cdmw.services.new_item_materials import glow_preview_mesh
 from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
 from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService
 from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
@@ -140,89 +138,25 @@ def _template_progressive_source(
 
 class NewItemPreviewControllerMixin:
     def item_mesh_as_planned(self):
-        """The mesh a visual effect will actually sit on, and a word for what it is:
-        the applied import, else the imported model at the placement set so far, else
-        the template's own. The effect dialog asks for this rather than
-        :meth:`item_mesh_for_preview`, whose imported model only appears once Apply
-        the placement has run, so an effect was judged against the template instead.
-        Returns `(mesh, kind)` where kind is "placed", "applied" or "template"; the mesh
-        is None when there is nothing to parse."""
+        """Compatibility accessor for the current planned item's preview mesh."""
 
-        wearable = self._template_is_wearable()
+        return self.item_effect_preview_source()(threading.Event())
 
-        def finish(mesh, kind: str, origin=None):
-            preview = glow_preview_mesh(mesh, glow_choice(self.draft))
-            if wearable:
-                point = None
-                try:
-                    values = tuple(float(value) for value in origin) if origin is not None else ()
-                except (TypeError, ValueError):
-                    values = ()
-                if len(values) == 3:
-                    point = values
-                elif (
-                    getattr(preview, "bbox_min", None) is not None
-                    and getattr(preview, "bbox_max", None) is not None
-                ):
-                    point = tuple(
-                        (float(preview.bbox_min[axis]) + float(preview.bbox_max[axis])) * 0.5
-                        for axis in range(3)
-                    )
-                if point is not None:
-                    # The prefab transform is expressed in the item's archive axes. Effects
-                    # uses this placed source origin as the neutral helmet/armour anchor.
-                    setattr(preview, "_cdmw_effect_item_origin", point)
-            return preview, kind
+    def item_effect_preview_source(self):
+        """Capture the selected item before its Effects worker starts decoding."""
 
-        source = self.model_import
-        if source is not None:
-            # the textured preview decode, not the bare scene mesh: a `.pac`'s geometry
-            # names no textures, and this is the same mesh the Model step draws. The
-            # rebuilt result deliberately borrows the template's material wrappers; it
-            # is output authority, but using it here replaces the import's PBR authority
-            # with a synthesized template surface after Apply.
-            mesh = None
-            source_origin = None
-            origin_reader = getattr(source, "baked_origin", None)
-            if callable(origin_reader):
-                try:
-                    values = tuple(float(value) for value in origin_reader())
-                except (TypeError, ValueError):
-                    values = ()
-                if len(values) == 3:
-                    source_origin = values
-            for candidate in (source.baked_preview_mesh, source.baked_scene_mesh):
-                try:
-                    baked = bake_mesh(
-                        candidate(),
-                        self.model_placement,
-                        origin=source_origin,
-                    )
-                except Exception:  # noqa: BLE001 - fall back to whatever else there is
-                    continue
-                if baked is not None:
-                    mesh = baked
-                    break
-            if mesh is not None:
-                placed_origin = (
-                    tuple(source_origin[axis] + self.model_placement.offset[axis] for axis in range(3))
-                    if source_origin is not None
-                    else None
-                )
-                return finish(
-                    mesh,
-                    "applied" if self.model_result is not None else "placed",
-                    placed_origin,
-                )
-        # A restored applied result may have no live import source. Its preview decode is
-        # still preferable to the bare `.pac` geometry that names no textures.
-        textured = self._textured_preview_mesh()
-        if textured is not None:
-            return finish(textured, "applied")
-        mesh = self.item_mesh_for_preview()
-        if mesh is None:
-            return None, ""
-        return finish(mesh, "applied" if self.model_result is not None else "template")
+        from cdmw.ui.new_item.effect_item_source import PlannedEffectItemSource
+
+        return PlannedEffectItemSource(
+            source=self.model_import,
+            placement=self.model_placement,
+            applied=self.model_result is not None,
+            preview_model=getattr(self.model_result, "preview_model", None),
+            rebuilt_data=bytes(getattr(self.model_result, "rebuilt_data", b"") or b""),
+            snapshot=self.snapshot,
+            template_key=self.draft.template_key,
+            glow=glow_choice(self.draft),
+        )
 
     def _textured_preview_mesh(self):
         """The applied import as a mesh that names its textures, or None.

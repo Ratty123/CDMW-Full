@@ -114,7 +114,11 @@ changes. A replaced snapshot or catalogue cancels the previous preparation;
 shutdown prevents late catalogue events from restarting it. The hidden legacy
 selector mirrors only the committed choice. Item preview preparation starts when
 Effects becomes visible, with one initial request, instead of decoding the item
-while another step is open. The inspector groups Placement,
+while another step is open. `effect_item_source.py` captures the selected import,
+placement, glow, snapshot and template key without decoding them. Item parsing and
+baking then run in the existing placement package worker alongside effect preparation;
+cancelled requests cannot publish their item mesh, and source leases last through
+worker teardown. The inspector groups Placement,
 Appearance and Preview, with Apply and Discard pinned below its scroll area.
 **Show effect** toggles only the particles for comparison with the item underneath;
 it never changes the draft, placement or camera. Selection, placement and look are staged; Apply publishes one draft

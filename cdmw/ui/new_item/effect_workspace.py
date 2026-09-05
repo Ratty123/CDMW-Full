@@ -875,16 +875,79 @@ class GuidedEffectsWorkspace(QWidget):
     def _rebuild_preview(self) -> None:
         if self._library_closed or not self.isVisible():
             return
-        mesh, item_label = self._controller.item_mesh_as_planned()
+        if self._controller.draft.template_key is None:
+            self.placeholder.setText("Choose a template to prepare the resident placement viewport.")
+            return
+        item_builder = self._controller.item_effect_preview_source()
+        stem = self._staged.stem
+        model_source = getattr(self._controller, "model_import", None)
+        model_source_usage = getattr(model_source, "acquire_usage", None)
+        box_min, box_max = self._controller.effect_box(stem)
+        preview_builder, texture_reader = self._controller.effect_preview_for_placement(stem, self._staged)
+        character_rig = self._selected_character_rig()
+        if character_rig:
+            character_builder = partial(
+                self._controller.character_holding_the_item,
+                rig_model=character_rig,
+            )
+        else:
+            character_builder = self._controller.character_holding_the_item
+        if self.placement is None:
+            kwargs = dict(
+                item_mesh=None,
+                item_mesh_builder=item_builder,
+                box_min=box_min,
+                box_max=box_max,
+                offset=self._staged.offset,
+                rotation=self._staged.rotation,
+                scale=self._staged.scale,
+                color=self._staged.color,
+                intensity=self._staged.intensity,
+                particle_size=self._staged.size,
+                spawn_rate=self._staged.rate,
+                lifetime=self._staged.lifetime,
+                effect_label=stem,
+                item_label="",
+                output_root=self._placement_root,
+                effect_preview=preview_builder,
+                texture_reader=texture_reader,
+                character_builder=character_builder,
+                character_fit_control=self.character_fit_row,
+                model_source_usage=model_source_usage if callable(model_source_usage) else None,
+            )
+            if self._host_factory is not None:
+                kwargs["host_factory"] = self._host_factory
+            self.placement = self._placement_factory(self.placement_holder, **kwargs)
+            self.placement.item_mesh_ready.connect(self._item_mesh_ready)
+            self.placement.transform_changed.connect(self._placement_transform_changed)
+            self.placement.look_changed.connect(self._placement_look_changed)
+            self.placement.apply_requested.connect(self.apply_staged)
+            self.placement.discard_button.clicked.connect(self.discard_staged)
+            self.placeholder.setVisible(False)
+            self.placement_layout.addWidget(self.placement, 1)
+        else:
+            self.placement.set_content(
+                item_mesh=None,
+                item_mesh_builder=item_builder,
+                box_min=box_min,
+                box_max=box_max,
+                effect_label=stem,
+                effect_preview=preview_builder,
+                texture_reader=texture_reader,
+                character_builder=character_builder,
+                model_source_usage=model_source_usage if callable(model_source_usage) else None,
+                reset_view=self._reset_view_next,
+            )
+        self._reset_view_next = False
+        self._sync_placement_from_state()
+
+    def _item_mesh_ready(self, mesh, _item_label):
+        if self._library_closed or not self.isVisible():
+            return
         if mesh is None:
-            if self._controller.draft.template_key is None:
-                self.placeholder.setText("Choose a template to prepare the resident placement viewport.")
-                self._preview_retry_remaining = 1
-            else:
-                self.placeholder.setText("Preparing the viewport...")
-                if self._preview_retry_remaining > 0 and self.isVisible():
-                    self._preview_retry_remaining -= 1
-                    self.selection_timer.start(300)
+            if self._preview_retry_remaining > 0 and self.isVisible():
+                self._preview_retry_remaining -= 1
+                self.selection_timer.start(300)
             return
         self._preview_retry_remaining = 1
         stem = self._staged.stem
@@ -907,62 +970,6 @@ class GuidedEffectsWorkspace(QWidget):
                 # the gizmo and the effect open on the helmet instead of at the feet.
                 self._staged = replace(self._staged, offset=item_origin)
                 self._publish_dirty()
-        model_source = getattr(self._controller, "model_import", None)
-        model_source_usage = getattr(model_source, "acquire_usage", None)
-        box_min, box_max = self._controller.effect_box(stem)
-        preview_builder, texture_reader = self._controller.effect_preview_for_placement(stem, self._staged)
-        character_rig = self._selected_character_rig()
-        if character_rig:
-            character_builder = partial(
-                self._controller.character_holding_the_item,
-                rig_model=character_rig,
-            )
-        else:
-            character_builder = self._controller.character_holding_the_item
-        if self.placement is None:
-            kwargs = dict(
-                item_mesh=mesh,
-                box_min=box_min,
-                box_max=box_max,
-                offset=self._staged.offset,
-                rotation=self._staged.rotation,
-                scale=self._staged.scale,
-                color=self._staged.color,
-                intensity=self._staged.intensity,
-                particle_size=self._staged.size,
-                spawn_rate=self._staged.rate,
-                lifetime=self._staged.lifetime,
-                effect_label=stem,
-                item_label=item_label,
-                output_root=self._placement_root,
-                effect_preview=preview_builder,
-                texture_reader=texture_reader,
-                character_builder=character_builder,
-                character_fit_control=self.character_fit_row,
-                model_source_usage=model_source_usage if callable(model_source_usage) else None,
-            )
-            if self._host_factory is not None:
-                kwargs["host_factory"] = self._host_factory
-            self.placement = self._placement_factory(self.placement_holder, **kwargs)
-            self.placement.transform_changed.connect(self._placement_transform_changed)
-            self.placement.look_changed.connect(self._placement_look_changed)
-            self.placement.apply_requested.connect(self.apply_staged)
-            self.placement.discard_button.clicked.connect(self.discard_staged)
-            self.placeholder.setVisible(False)
-            self.placement_layout.addWidget(self.placement, 1)
-        else:
-            self.placement.set_content(
-                item_mesh=mesh,
-                box_min=box_min,
-                box_max=box_max,
-                effect_label=stem,
-                effect_preview=preview_builder,
-                texture_reader=texture_reader,
-                character_builder=character_builder,
-                model_source_usage=model_source_usage if callable(model_source_usage) else None,
-                reset_view=self._reset_view_next,
-            )
-        self._reset_view_next = False
         self._sync_placement_from_state()
 
     def iter_shutdown_workers(self):

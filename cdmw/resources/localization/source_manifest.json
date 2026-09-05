@@ -1041,7 +1041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 568,
+          "line": 571,
           "sink": "setText"
         }
       ]
@@ -6361,7 +6361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 239,
+          "line": 242,
           "sink": "setToolTip"
         }
       ]
@@ -7291,7 +7291,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 711,
+          "line": 714,
           "sink": "setText"
         },
         {
@@ -18361,7 +18361,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 881,
+          "line": 879,
           "sink": "setText"
         }
       ]
@@ -29033,6 +29033,16 @@
           "path": "cdmw/ui/new_item/effect_workspace.py",
           "line": 838,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Effect placement preview cancelled",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_package.py",
+          "line": 122,
+          "sink": "RunCancelled"
         }
       ]
     },
@@ -40686,7 +40696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 97,
+          "line": 96,
           "sink": "RunCancelled"
         }
       ]
@@ -42843,6 +42853,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 356,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Item effect preview cancelled",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_item_source.py",
+          "line": 137,
+          "sink": "RunCancelled"
         }
       ]
     },
@@ -46016,7 +46036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 203,
+          "line": 225,
           "sink": "setText"
         },
         {
@@ -62101,12 +62121,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 602,
+          "line": 537,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 644,
+          "line": 579,
           "sink": "raise_if_cancelled"
         },
         {
@@ -65856,7 +65876,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 296,
+          "line": 299,
           "sink": "setText"
         },
         {
@@ -65886,7 +65906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 296,
+          "line": 299,
           "sink": "setText"
         }
       ]
@@ -66506,7 +66526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 701,
+          "line": 704,
           "sink": "setWindowTitle"
         }
       ]
@@ -69091,7 +69111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 156,
+          "line": 165,
           "sink": "setText"
         }
       ]
@@ -69103,11 +69123,6 @@
           "path": "cdmw/ui/new_item/effect_placement_construction.py",
           "line": 394,
           "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/new_item/effect_workspace.py",
-          "line": 884,
-          "sink": "setText"
         }
       ]
     },
@@ -71661,7 +71676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 496,
+          "line": 499,
           "sink": "setToolTip"
         }
       ]
@@ -72086,7 +72101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 568,
+          "line": 571,
           "sink": "setText"
         }
       ]
@@ -95981,7 +95996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 415,
+          "line": 350,
           "sink": "RunCancelled"
         }
       ]
@@ -98451,7 +98466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 571,
+          "line": 574,
           "sink": "setToolTip"
         }
       ]
@@ -98586,7 +98601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 515,
+          "line": 518,
           "sink": "setToolTip"
         },
         {
@@ -98871,7 +98886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 712,
+          "line": 647,
           "sink": "emit"
         }
       ]
@@ -99036,7 +99051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 246,
+          "line": 268,
           "sink": "setText"
         }
       ]
@@ -99306,7 +99321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 210,
+          "line": 232,
           "sink": "setText"
         }
       ]
@@ -99641,7 +99656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
-          "line": 662,
+          "line": 597,
           "sink": "emit"
         }
       ]
@@ -100516,7 +100531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 305,
+          "line": 327,
           "sink": "setText"
         }
       ]
@@ -101071,7 +101086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 492,
+          "line": 495,
           "sink": "addItem"
         }
       ]
@@ -103131,7 +103146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 98,
+          "line": 102,
           "sink": "setText"
         }
       ]
@@ -123856,7 +123871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 492,
+          "line": 495,
           "sink": "addItem"
         }
       ]
@@ -127791,7 +127806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 238,
+          "line": 241,
           "sink": "setText"
         }
       ]
@@ -128516,7 +128531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 305,
+          "line": 327,
           "sink": "setText"
         }
       ]
@@ -128601,7 +128616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 520,
+          "line": 523,
           "sink": "setText"
         }
       ]

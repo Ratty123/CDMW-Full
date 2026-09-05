@@ -97,13 +97,14 @@ class EffectPlacementWorkspace(
     apply_requested = Signal()
     transform_changed = Signal()
     look_changed = Signal()
+    item_mesh_ready = Signal(object, str)
     _standing_view_angles = STANDING_VIEW_ANGLES
 
     def __init__(
         self,
         parent: Optional[QWidget] = None,
         *,
-        item_mesh: ParsedMesh,
+        item_mesh: Optional[ParsedMesh],
         box_min: Vec3,
         box_max: Vec3,
         offset: Vec3 = (0.0, 0.0, 0.0),
@@ -120,6 +121,7 @@ class EffectPlacementWorkspace(
         character_builder: Optional[Callable[..., object]] = None,
         character_fit_control: Optional[QWidget] = None,
         model_source_usage: Optional[Callable[[], object]] = None,
+        item_mesh_builder: Optional[Callable[..., object]] = None,
         color: Optional[Vec3] = None,
         intensity: float = 1.0,
         particle_size: float = 1.0,
@@ -131,6 +133,7 @@ class EffectPlacementWorkspace(
     ) -> None:
         super().__init__(parent)
         self._item_mesh = item_mesh
+        self._item_mesh_builder = item_mesh_builder
         self._item_origin = placed_item_origin(item_mesh)
         self._box = (tuple(float(v) for v in box_min), tuple(float(v) for v in box_max))
         initial_offset = tuple(float(v) for v in offset)

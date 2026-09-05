@@ -77,6 +77,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Opening Effects keeps item preparation off the GUI thread.** Template parsing and imported-mesh placement use the existing cancellable preview worker, retain the captured item selection, and discard superseded geometry before package creation.
 - **Rust Preview display changes preserve the live camera.** Lighting, grid, and other presentation controls send only the changed fields, avoiding old camera commands and unnecessary geometry refreshes while preserving complete restart state.
 - **Perks & Effects opens without formatting the entire library on the UI thread at once.** Library preparation yields between short batches, filtering reuses prepared rows, and hidden Effects pages no longer decode item previews or queue duplicate initial loads.
 - **Stats and gameplay perks are clearly marked experimental.** Stats uses compact rows and separate enhancement and shop-price cards, with columns filling the available space.
