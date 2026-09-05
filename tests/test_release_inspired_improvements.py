@@ -3,6 +3,7 @@ from __future__ import annotations
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import json
 
@@ -22,6 +23,7 @@ from cdmw.core.structured_binary_editor import (
     rebuild_pabgh_table,
 )
 from cdmw.core.skeleton_resolver import build_skin_binding_map, resolve_skeleton_for_model
+from cdmw.core import skeleton_resolver
 from cdmw.core.archive_modding import MeshImportPreviewResult, MeshImportSupplementalFileSpec
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.mesh_parser import ParsedMesh
@@ -210,6 +212,36 @@ class ReleaseInspiredImprovementTests(unittest.TestCase):
         self.assertIs(selected, palette)
         self.assertEqual("palette", report.confidence)
         self.assertEqual("character/skeleton/rig_body.pab", report.selected_path)
+
+    def test_descriptor_search_normalizes_only_prefab_candidates_in_large_indexes(self) -> None:
+        family = "2_mon/cd_m0002_00_fourfeet/cd_m0002_00_buffalo/cd_m0002_00_buffalo"
+        model = _entry(f"character/model/{family}/cd_m0002_00_buffalo_00_0001.pac")
+        body = _entry(f"character/prefab/{family}/cd_m0002_00_buffalo_00_0001.prefabdata_xml")
+        head = _entry(f"character/prefab/{family}/cd_m0002_00_buffalo_head_0001.PREFABDATA.XML".replace("/", "\\"))
+        duplicate = _entry(body.path.upper())
+        unrelated_descriptor = _entry("character/prefab/another/another.prefabdata_xml")
+        unrelated = tuple(_entry(f"textures/unrelated_{index}.dds") for index in range(1024))
+        normalize = skeleton_resolver._normalize_virtual_path
+
+        def normalize_candidate(path):
+            self.assertNotIn("textures/unrelated_", path)
+            return normalize(path)
+
+        for indexed in (False, True):
+            with self.subTest(indexed=indexed), patch.object(
+                skeleton_resolver, "_normalize_virtual_path", side_effect=normalize_candidate
+            ):
+                candidates = skeleton_resolver._descriptor_candidates_for_model(
+                    model,
+                    archive_entries=(body, duplicate) if indexed else (*unrelated, body, head, duplicate),
+                    archive_entries_by_normalized_path={body.path: (body,)},
+                    archive_entries_by_basename={
+                        "alias-without-extension": (*unrelated, head, duplicate) if indexed else (head,),
+                        "another.prefabdata_xml": (unrelated_descriptor,),
+                        "empty": None,
+                    },
+                )
+                self.assertEqual((body, head), candidates)
 
     def test_skeleton_resolver_prefers_prefabdata_skeleton_and_reports_pabc_context(self) -> None:
         model = _entry("character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pac")

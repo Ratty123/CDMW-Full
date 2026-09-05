@@ -275,6 +275,32 @@ def test_package_synthesis_reattaches_shared_source_parameters_only_to_empty_inp
     assert shared_input.material_parameters == ()
 
 
+def test_empty_requested_synthesis_channels_keep_direct_maps_without_decoding(tmp_path, monkeypatch) -> None:
+    from unittest.mock import Mock
+
+    texture = _image(tmp_path / "normal.png", (128, 128, 255, 255))
+    source = _submesh()
+    source.preview_normal_texture_path = str(texture)
+    source.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="normal", parameter_name="_normalTexture", preview_texture_path=str(texture),
+        ),
+    )
+    decoder = Mock(side_effect=AssertionError("No output channels require no pixel decoding"))
+    monkeypatch.setattr(mesh_dotnet_material_package, "_decode_synthesis_input_previews", decoder)
+    package_dir = tmp_path / "package"
+    package_dir.mkdir()
+    manifest = mesh_dotnet_material_package.compile_mesh_dotnet_material_manifest(
+        ParsedMesh(path="mixed.pac", format="pac", submeshes=[source]),
+        sidecar_payload={}, package_dir=package_dir, material_signature="direct-map",
+        requested_synthesis_channels_by_submesh={0: frozenset()},
+    )
+    decoder.assert_not_called()
+    row = manifest["submeshes"][0]
+    assert row["material_synthesis"]["attempted"] is False
+    assert row["resolved_channels"]["normal"]
+
+
 def test_identical_submesh_material_inputs_are_synthesized_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

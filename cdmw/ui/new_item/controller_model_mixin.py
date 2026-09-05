@@ -285,12 +285,12 @@ class NewItemModelControllerMixin:
             return False
         entry = entries[0]
         placement = self.model_placement
-        context = self.import_dependency_context()
-        by_path = getattr(context, "entries_by_normalized_path", None)
-        by_basename = getattr(context, "entries_by_basename", None)
+        snapshot = self.snapshot
 
         def task(log, progress, stop_event):
             with source.usage():
+                raise_if_cancelled(stop_event)
+                by_path, by_basename = snapshot.archive_index_maps() if snapshot is not None else (None, None)
                 log(f"Building {entry.basename} from {source.label} at its placement...")
                 return build_placed_import(
                     entry,

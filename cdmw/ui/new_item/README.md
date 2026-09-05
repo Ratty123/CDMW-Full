@@ -58,7 +58,9 @@ geometry and Archive Browser's native schema-8 Preview Core package prepare in p
 the native package reuses the shared DDS cache and bypasses New Item's former Python
 OBJ/material recompilation. Geometry reaches the resident viewport first, then textures
 replace it without restarting the host or resetting the camera. If Preview Core is
-unavailable, the established Python preview remains the compatibility fallback. The
+unavailable, the established Python preview remains the compatibility fallback.
+Skeleton lookup filters out non-descriptor entries before normalizing archive paths,
+while preserving exact descriptor priority and sibling skeleton/morph matching. The
 template resolver follows every model dependency embedded in each part prefab and composes
 the complete set in both preview stages; its cache identity includes the selected template,
 all model components, and the prefab revisions. Right-clicking a template row can copy the
@@ -156,6 +158,13 @@ For an imported item, Effects always derives its placed preview from the live im
 source before and after **Apply placement**, so its PBR rows are the same authority that
 Model & Placement displays. The rebuilt PAC remains output authority but its borrowed template
 material wrappers never replace the import's source materials in the placement viewport.
+Material synthesis follows each input's imported or archive provenance after scene
+composition. Direct imported textures skip recomposition; archive-owned layers still
+compile even when the editable role comes from glTF, OBJ or DAE.
+Apply Placement captures the source snapshot and reads its existing archive indexes
+on the build worker; it does not rescan the template family in the click handler.
+Character lookup filters relevant PAC, PAB and XML paths before normalization and
+sorting, observes cancellation during the scan, and does not copy unused archive sizes.
 The current per-part Glow colour and strength are copied into those same rows when the
 Effects package is built, and returning to the step refreshes changes made in Model & Placement.
 The character reference defaults to the template's player rig. Effects and Model & Placement

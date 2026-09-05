@@ -222,7 +222,10 @@ def _body_mesh_paths(
 
     model = _normalize(rig_model).rsplit("/", 1)[-1] or _RIG_MODEL
     pieces = []
-    for path in sorted({_normalize(path) for path in paths if path}):
+    for path in sorted({
+        _normalize(path) for path in paths
+        if str(path or "").rstrip("/\\").lower().endswith(".pac")
+    }):
         if "_lod_" in path.rsplit("/", 1)[-1]:
             continue
         match = _NUDE.match(path)
@@ -271,7 +274,16 @@ def build_character_reference(
         return payload
 
     raise_if_cancelled(stop_event, "Operation cancelled.")
-    paths = [_normalize(path) for path in entry_paths]
+    paths = []
+    for index, path in enumerate(entry_paths):
+        if index % 1024 == 0:
+            raise_if_cancelled(stop_event, "Operation cancelled.")
+        # Only geometry, rigs, sockets and character descriptions can contribute.
+        # Keep archive textures and other unrelated files out of normalization
+        # and sorting, which otherwise monopolize the first preview preparation.
+        if str(path or "").rstrip("/\\").lower().endswith((".pac", ".pab", ".xml")):
+            paths.append(_normalize(path))
+    raise_if_cancelled(stop_event, "Operation cancelled.")
     model = _normalize(rig_model).rsplit("/", 1)[-1] or _RIG_MODEL
     rigs = sorted(
         path for path in paths
@@ -304,13 +316,12 @@ def build_character_reference(
         return None
 
     parts = {}
-    for path in sorted(paths):
-        if (
-            not is_descriptor_file(path)
-            or "/characterdescription/" not in path
-            or descriptor_model_of(path) != model
-        ):
-            continue
+    for path in sorted(
+        path for path in paths
+        if is_descriptor_file(path)
+        and "/characterdescription/" in path
+        and descriptor_model_of(path) == model
+    ):
         try:
             parts.update(DescriptorDocument.load(checked_read(path), path).part_map())
         except RunCancelled:
@@ -323,7 +334,7 @@ def build_character_reference(
     submeshes: List[SubMesh] = []
     sources: List[str] = []
     total = 0
-    for path in _body_mesh_paths(paths, dict(sizes or {}), rig_model=model):
+    for path in _body_mesh_paths(paths, {}, rig_model=model):
         try:
             parsed = parse_mesh(checked_read(path), path.rsplit("/", 1)[-1])
         except RunCancelled:
@@ -629,7 +640,6 @@ def character_reference_from_snapshot(
         reference = build_character_reference(
             snapshot.entries.keys(),
             snapshot.payload,
-            sizes={path: entry.orig_size for path, entry in snapshot.entries.items()},
             rig_model=selected_rig,
             stop_event=stop_event,
         )

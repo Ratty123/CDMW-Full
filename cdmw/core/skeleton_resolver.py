@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, replace
+from itertools import chain
 from pathlib import PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence, Tuple
 
@@ -482,20 +483,6 @@ def _with_sibling_skeleton_context(
     )
 
 
-def _iter_index_entries(index: Mapping[str, Sequence[ArchiveEntry]] | None) -> Tuple[ArchiveEntry, ...]:
-    if not index:
-        return ()
-    result: list[ArchiveEntry] = []
-    seen: set[str] = set()
-    for entries in index.values():
-        for entry in tuple(entries or ()):
-            normalized = _normalize_virtual_path(getattr(entry, "path", ""))
-            if normalized and normalized not in seen:
-                seen.add(normalized)
-                result.append(entry)
-    return tuple(result)
-
-
 def _descriptor_candidates_for_model(
     model_entry: ArchiveEntry,
     *,
@@ -528,13 +515,20 @@ def _descriptor_candidates_for_model(
         for entry in tuple((archive_entries_by_basename or {}).get(f"{stem}{suffix}".lower(), ()) or ()):
             add(entry)
 
-    for entry in tuple(archive_entries or ()) + _iter_index_entries(archive_entries_by_basename):
-        normalized = _normalize_virtual_path(getattr(entry, "path", ""))
-        if not normalized or "prefabdata" not in PurePosixPath(normalized).name:
-            continue
-        if tokens and not any(token in normalized for token in tokens):
-            continue
-        add(entry)
+    groups = chain((archive_entries,), (archive_entries_by_basename or {}).values())
+    for entries in groups:
+        for entry in entries or ():
+            raw_path = str(getattr(entry, "path", "") or "")
+            # Most archive entries cannot be descriptors. Avoid normalizing and
+            # copying the entire archive index before examining the few that can.
+            if "prefabdata" not in raw_path.lower():
+                continue
+            normalized = _normalize_virtual_path(raw_path)
+            if not normalized or "prefabdata" not in PurePosixPath(normalized).name:
+                continue
+            if tokens and not any(token in normalized for token in tokens):
+                continue
+            add(entry)
     return tuple(candidates.values())
 
 

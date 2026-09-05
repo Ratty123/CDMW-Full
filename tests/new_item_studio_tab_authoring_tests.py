@@ -152,6 +152,58 @@ class _TabAuthoringMixin:
         tab.close()
         tab.deleteLater()
 
+    def test_model_apply_reads_captured_archive_maps_on_its_worker(self) -> None:
+        import threading
+        from contextlib import nullcontext
+        from unittest.mock import Mock
+        from cdmw.domain.cancellation import RunCancelled
+        from cdmw.ui.new_item.controller import NewItemStudioController
+
+        main_thread = threading.get_ident()
+        readers, pending, results = [], [], []
+        by_path, by_basename = {}, {}
+
+        def archive_maps():
+            readers.append(threading.get_ident())
+            return by_path, by_basename
+
+        def defer(_lane, task, _done, _failed, **_kwargs):
+            pending.append(task)
+            return True
+
+        controller = SimpleNamespace(
+            model_import=SimpleNamespace(usage=nullcontext, label="Sword"),
+            template_entries=lambda: (SimpleNamespace(basename="sword.pac"),),
+            model_placement=object(), snapshot=SimpleNamespace(archive_index_maps=archive_maps),
+            _run=defer, import_dependency_context=Mock(side_effect=AssertionError("The unused family scan must not run")),
+        )
+        with patch("cdmw.ui.new_item.controller.build_placed_import", return_value="built") as build:
+            self.assertTrue(NewItemStudioController.start_model_apply(controller))
+            self.assertEqual([], readers)
+            controller.snapshot = SimpleNamespace(archive_index_maps=Mock(side_effect=AssertionError("Snapshot changed")))
+
+            def run():
+                try:
+                    results.append(pending[0](lambda _message: None, lambda *_args: None, threading.Event()))
+                except Exception as error:
+                    results.append(error)
+
+            worker = threading.Thread(target=run)
+            worker.start()
+            worker.join(3)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(["built"], results)
+            self.assertEqual(1, len(readers))
+            self.assertNotEqual(main_thread, readers[0])
+            self.assertIs(by_path, build.call_args.kwargs["entries_by_normalized_path"])
+            self.assertIs(by_basename, build.call_args.kwargs["entries_by_basename"])
+            cancelled = threading.Event()
+            cancelled.set()
+            with self.assertRaises(RunCancelled):
+                pending[0](lambda _message: None, lambda *_args: None, cancelled)
+            self.assertEqual(1, len(readers))
+            self.assertEqual(1, build.call_count)
+
     def test_one_copper_and_the_folded_advanced_controls(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)

@@ -4128,17 +4128,25 @@ def _atomic_copy_texture_payload(
             temporary.unlink()
 
 
+def _submesh_has_material_synthesis_inputs(submesh: object) -> bool:
+    # Scene importers already bind these images to renderer roles. Their input
+    # provenance survives composition with PAC references and placement helpers;
+    # the combined mesh's format describes only its first role.
+    for texture_input in tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ()):
+        confidence = str(getattr(texture_input, "confidence", "") or "").strip().casefold()
+        if (
+            confidence not in {"gltf", "obj_mtl", "dae", "filename", "scene"}
+            or getattr(texture_input, "owner_slot_index", -1) != -1
+            or getattr(texture_input, "binding_authority", "")
+            or getattr(texture_input, "sidecar_path", "")
+        ):
+            return True
+    return False
+
+
 def _mesh_has_material_synthesis_inputs(mesh: ParsedMesh) -> bool:
-    # External scene importers have already resolved their ordinary PBR images
-    # into renderer roles. Feeding those direct glTF/OBJ/DAE bindings through
-    # the PAC material compiler starts a native synthesis pass that cannot add
-    # any archive material information and used to dominate a small import's
-    # preview time. Converted FBX arrives as GLB/glTF here as well.
-    source_format = str(getattr(mesh, "format", "") or "").strip().casefold().lstrip(".")
-    if source_format in {"gltf", "glb", "obj", "dae", "collada"}:
-        return False
     return any(
-        tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ())
+        _submesh_has_material_synthesis_inputs(submesh)
         for level in _mesh_lods(mesh)
         for submesh in level
     )
@@ -4346,11 +4354,16 @@ def _mesh_synthesized_texture_overrides(
     overrides: dict[tuple[int, int, str], Path] = {}
     encoded_cache: dict[tuple[str, str], Path] = {}
     for lod_index, submeshes in enumerate(_mesh_lods(mesh)):
+        if not any(_submesh_has_material_synthesis_inputs(submesh) for submesh in submeshes):
+            continue
         synthesis_state.attempted = True
         _raise_if_texture_copy_cancelled(stop_event)
         package_dir = synthesis_root / f"lod-{lod_index:04d}"
         requested_channels_by_submesh: dict[int, frozenset[str]] = {}
-        for submesh_index in range(len(submeshes)):
+        for submesh_index, submesh in enumerate(submeshes):
+            if not _submesh_has_material_synthesis_inputs(submesh):
+                requested_channels_by_submesh[submesh_index] = frozenset()
+                continue
             requested_channels = set(_RUST_SYNTHESIS_OUTPUT_CHANNELS)
             if (lod_index, submesh_index, "base_color") in protected_keys:
                 requested_channels.discard("base")

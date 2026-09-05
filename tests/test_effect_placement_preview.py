@@ -9,6 +9,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services.effect_placement_preview import (
@@ -117,6 +118,72 @@ class AnchorAndScaleTests(unittest.TestCase):
 
 
 class PackageTests(unittest.TestCase):
+    def test_imported_item_keeps_direct_textures_when_combined_with_placement_helpers(self) -> None:
+        from cdmw.models import PreviewMaterialTextureInput
+        from cdmw.services import mesh_rust_authoring
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            texture = root / "imported.dds"
+            texture_bytes = b"DDS " + bytes(range(128))
+            texture.write_bytes(texture_bytes)
+            for source_format, confidence in (("gltf", "gltf"), ("obj", "obj_mtl"), ("dae", "dae"), ("obj", "scene")):
+                with self.subTest(source_format=source_format, confidence=confidence):
+                    item = _blade()
+                    item.format = source_format
+                    item.submeshes[0].preview_texture_dds_path = str(texture)
+                    item.submeshes[0].preview_material_texture_inputs = (
+                        PreviewMaterialTextureInput(
+                            slot_kind="base", parameter_name="_baseColorTexture",
+                            source_dds_path=str(texture), confidence=confidence,
+                        ),
+                    )
+                    with patch.object(mesh_rust_authoring, "compile_mesh_dotnet_material_manifest") as compiler:
+                        preview = build_effect_placement_package(
+                            item, (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5),
+                            output_root=root, include_item_textures=True,
+                        )
+                    self.assertEqual(0, compiler.call_count)
+                    manifest, _scene = _rust_package_state(preview)
+                    self.assertEqual(1, len(manifest["textures"]))
+                    resource = manifest["textures"][0]
+                    self.assertEqual("base_color", resource["role"])
+                    self.assertEqual(texture_bytes, (Path(preview.package_dir) / resource["file"]["path"]).read_bytes())
+                    self.assertEqual(1, len(item.submeshes[0].preview_material_texture_inputs))
+
+    def test_mixed_import_and_archive_materials_synthesize_only_archive_parts(self) -> None:
+        from cdmw.models import PreviewMaterialTextureInput
+        from cdmw.services import mesh_rust_authoring
+        from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+
+        def compile_materials(mesh, **kwargs):
+            return {"submeshes": [
+                {"material_synthesis": {"attempted": False, "succeeded": False}, "resolved_channels": {}}
+                for _submesh in mesh.submeshes
+            ]}
+
+        for confidence, owner in (("", -1), ("gltf", 7)):
+            with self.subTest(confidence=confidence, owner=owner), tempfile.TemporaryDirectory() as folder:
+                imported = _blade()
+                imported.format = "gltf"
+                imported.submeshes[0].preview_material_texture_inputs = (
+                    PreviewMaterialTextureInput(slot_kind="base", confidence="gltf"),
+                )
+                archive = _blade()
+                archive.submeshes[0].preview_material_texture_inputs = (
+                    PreviewMaterialTextureInput(slot_kind="base", confidence=confidence, owner_slot_index=owner),
+                )
+                with patch.object(
+                    mesh_rust_authoring, "compile_mesh_dotnet_material_manifest", side_effect=compile_materials,
+                ) as compiler:
+                    package = build_rust_preview_package(imported, reference_mesh=archive, output_root=Path(folder))
+                self.assertEqual(1, compiler.call_count)
+                self.assertEqual({0: frozenset()}, compiler.call_args.kwargs["requested_synthesis_channels_by_submesh"])
+                manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+                self.assertEqual(2, len(manifest["material_presentations"]))
+                self.assertEqual(1, len(imported.submeshes[0].preview_material_texture_inputs))
+                self.assertEqual(1, len(archive.submeshes[0].preview_material_texture_inputs))
+
     def test_the_item_material_package_carries_the_current_glow(self) -> None:
         from cdmw.domain.new_item.spec import GlowChoice
         from cdmw.services.new_item_materials import glow_preview_mesh

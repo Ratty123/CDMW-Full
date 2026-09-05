@@ -113,6 +113,36 @@ class BodyChoiceTests(unittest.TestCase):
         )
         self.assertEqual(chosen, [self.NUDE, self.FACE])
 
+    def test_body_selection_does_not_normalize_unrelated_archive_files(self) -> None:
+        from unittest.mock import patch
+        from cdmw.services import effect_character_reference as reference
+
+        normalize = reference._normalize
+
+        def normalized(path):
+            self.assertNotIn("unrelated_", path)
+            return normalize(path)
+
+        paths = [f"textures/unrelated_{index}.dds" for index in range(1024)]
+        paths.extend((self.FACE.upper().replace("/", "\\"), self.NUDE, self.NUDE))
+        with patch.object(reference, "_normalize", side_effect=normalized):
+            self.assertEqual([self.NUDE, self.FACE], _body_mesh_paths(paths, {}))
+
+    def test_character_path_scan_observes_cancellation_before_finishing_the_index(self) -> None:
+        stop = threading.Event()
+        consumed = []
+
+        def paths():
+            for index in range(2048):
+                consumed.append(index)
+                if index == 64:
+                    stop.set()
+                yield f"textures/unrelated_{index}.dds"
+
+        with self.assertRaises(RunCancelled):
+            build_character_reference(paths(), lambda _path: b"", stop_event=stop)
+        self.assertLess(len(consumed), 2048)
+
     def test_without_anatomy_no_body_at_all_rather_than_armour_or_lod(self) -> None:
         """A generic distance proxy is not Kliff, and armour pieces are not a body."""
 
@@ -585,6 +615,18 @@ class SnapshotSeamTests(unittest.TestCase):
         )
         self.assertIsNone(reference)
         self.assertIn("stand-in", said)
+
+    def test_character_lookup_does_not_copy_unused_archive_sizes(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from cdmw.services.effect_character_reference import character_reference_from_snapshot
+
+        snapshot = SimpleNamespace(entries={"mesh.pac": object()}, payload=lambda _path: b"")
+        expected = object()
+        with patch("cdmw.services.effect_character_reference.build_character_reference", return_value=expected):
+            reference, said = character_reference_from_snapshot(snapshot)
+        self.assertIs(expected, reference)
+        self.assertEqual("", said)
 
     def test_a_snapshot_that_will_not_read_is_reported_rather_than_raised(self) -> None:
         from cdmw.services.effect_character_reference import character_reference_from_snapshot
